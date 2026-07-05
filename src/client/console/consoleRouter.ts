@@ -42,7 +42,9 @@ export const consoleState = reactive({
    * explicitly; placement mode keeps its own automatic cell navigation.
    */
   inspecting: false,
-  /** P27: the focused global-parameter TRACK marker key (inspection only). */
+  /** P27b: SCALE INSPECTION MODE (R3) — the cursor cycles the track bonuses. */
+  scaleInspecting: false,
+  /** P27: the focused global-parameter TRACK marker key (scale inspection). */
   trackMarker: undefined as string | undefined,
   /** P27: the open quick selector (RT = categories / LT = basic actions). */
   quick: undefined as ConsoleQuickId | undefined,

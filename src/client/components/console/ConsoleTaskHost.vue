@@ -767,19 +767,19 @@ export default defineComponent({
       case 'amount':
         return [
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'inspect', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, defer,
         ];
       case 'distribute':
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'inspect', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, defer,
         ];
       case 'payment':
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'inspect', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, defer,
         ];
       case 'cardSelect':
         // P15 card grammar: A = select/deselect ONLY · X = fullscreen card
@@ -788,7 +788,7 @@ export default defineComponent({
           {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select / Deselect'},
           {control: 'secondary', label: 'Card'},
-          {control: 'inspect', label: this.confirmLabel, enabled: this.confirmReady},
+          {control: 'triggerR', label: this.confirmLabel, enabled: this.confirmReady},
           defer,
         ];
       default:
@@ -1051,7 +1051,7 @@ export default defineComponent({
       case 'bumperR':
         this.adjust(1);
         return;
-      case 'inspect':
+      case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
         // P13: in the CARD context Y is the confirm (X became fullscreen).
         if (this.activeTask.kind === 'cardSelect') {
           this.onConfirm();

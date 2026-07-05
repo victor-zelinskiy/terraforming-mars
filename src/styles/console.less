@@ -415,6 +415,13 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
+
+        /* P27b: nudge the planet a touch RIGHT (the left off-Mars colony
+           column stops kissing the resource rail on Steam Deck) and UP
+           (the strip under the status bar was dead air — console has no
+           desktop MA badges there; the fit engine also gained ~3% scale
+           via the tighter vertical pad in ConsoleBoardSection). */
+        > * { transform: translate(10px, -6px); }
     }
 }
 
@@ -1428,9 +1435,12 @@ html.con-profile-large .con-hydro {
    338 (same angles, same mirror symmetry — the markers reach ~r318) and
    lifts Dawn City 7° → 10°, clear of the 0°C / −4°C bonus zone. */
 html.console-mode {
-    .board-space-01 { margin: 165px 0 0 -28px; }  /* Ganymede 160° */
-    .board-space-02 { margin: 37px 0 0 55px; }    /* Phobos 134° */
-    .board-space-69 { margin: 96px 0 0 7px; }     /* Stanford 147° */
+    /* P27b: the LEFT flank sits at ~r322 (closer to the scales) so the
+       colony column clears the resource rail on Steam Deck; the right
+       flank keeps r338 (it borders the temperature bonus markers). */
+    .board-space-01 { margin: 170px 0 0 -14px; }  /* Ganymede 160° */
+    .board-space-02 { margin: 48px 0 0 66px; }    /* Phobos 134° */
+    .board-space-69 { margin: 104px 0 0 21px; }   /* Stanford 147° */
     .board-space-70 { margin: 37px 0 0 525px; }   /* Luna 46° */
     .board-space-73 { margin: 96px 0 0 574px; }   /* Maxwell 33° */
     .board-space-72 { margin: 165px 0 0 608px; }  /* Stratopolis 20° */
@@ -2925,6 +2935,28 @@ html.console-mode {
 }
 .con-home__ma-leaders-label { font-size: 13.5px; letter-spacing: 0.6px; text-transform: uppercase; }
 .con-home__ma-leaders-score { color: @con-text; font-weight: 700; }
+
+/* P27b: the curated special-cell LORE (inspection mode only). */
+.con-context__lore {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: rgba(20, 32, 46, 0.55);
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 22%);
+}
+.con-context__lore-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: fade(@con-amber, 90%);
+    margin-bottom: 5px;
+}
+.con-context__lore-text {
+    font-size: 15.5px;
+    line-height: 1.4;
+    color: @con-text-dim;
+}
 
 /* P27: TRACK mode rows (the focused scale bonus, ScaleTooltip parity). */
 .con-context__track-rows { margin-top: 10px; }

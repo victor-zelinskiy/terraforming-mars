@@ -579,7 +579,7 @@ export default defineComponent({
         if (onSummary) {
           const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
             {control: 'secondary', label: 'Card'},
-            {control: 'inspect', label: 'Begin the game', enabled: this.wizardReady},
+            {control: 'triggerR', label: 'Begin the game', enabled: this.wizardReady},
             {control: 'bumperL', label: 'Prev step'},
             {control: 'back', label: 'Minimize'},
           ];
@@ -593,7 +593,7 @@ export default defineComponent({
           {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select / Deselect'},
           {control: 'secondary', label: 'Card'},
-          {control: 'inspect', label: 'Continue', enabled: this.currentStepComplete},
+          {control: 'triggerR', label: 'Continue', enabled: this.currentStepComplete},
         ];
         if (this.railPos > 0) {
           hints.push({control: 'bumperL', label: 'Prev step'});
@@ -765,7 +765,7 @@ export default defineComponent({
         // P13 global rule: X reads the focused card fullscreen.
         this.zoomFocused();
         return;
-      case 'inspect':
+      case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
         // Y = continue / begin (the card-context confirm).
         this.onContinue();
         return;

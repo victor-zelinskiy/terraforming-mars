@@ -50,7 +50,8 @@
                            :actionsTotal="actionsTotalCount"
                            :milestoneSummary="homeMilestoneSummary"
                            :awardSummary="homeAwardSummary"
-                           :trackInfo="trackInfo" />
+                           :trackInfo="trackInfo"
+                           :lore="selectedCellLore" />
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
@@ -357,6 +358,8 @@ import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
 import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
+import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
+import {SpaceId} from '@/common/Types';
 
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import SelectSpace from '@/client/components/SelectSpace.vue';
@@ -689,10 +692,24 @@ export default defineComponent({
       if (this.placementActive) {
         return 'placement';
       }
+      if (this.consoleState.scaleInspecting && this.consoleState.trackMarker !== undefined) {
+        return 'track';
+      }
       if (this.consoleState.inspecting) {
-        return this.consoleState.trackMarker !== undefined ? 'track' : 'cell';
+        return 'cell';
       }
       return 'idle';
+    },
+    /** P27b: the curated LORE for the inspected special cell (Ganymede,
+     *  volcanoes, Noctis…) — shown in INSPECTION, deliberately not during
+     *  placement (it would crowd the task panel). */
+    selectedCellLore(): {title: string, description: string} | undefined {
+      const id = this.consoleState.boardSpaceId;
+      if (id === undefined) {
+        return undefined;
+      }
+      const info = getSpecialCellInfo(id as SpaceId, this.game.gameOptions.boardName);
+      return info !== undefined ? {title: info.title, description: info.description} : undefined;
     },
     /** The focused TRACK marker's explanation — the SAME already-translated
      *  rows the premium ScaleTooltip shows (one source, no drift). */
@@ -998,7 +1015,11 @@ export default defineComponent({
       case 'hand': return 'Hand';
       case 'colonies': return 'Trading';
       case 'hydro': return consoleHydroUi.confirmOpen ? 'Confirmation' : 'Mars Hydronetwork';
-      default: return this.consoleState.inspecting ? 'Board inspection' : 'Board';
+      default:
+        if (this.consoleState.scaleInspecting) {
+          return 'Scale inspection';
+        }
+        return this.consoleState.inspecting ? 'Board inspection' : 'Board';
       }
     },
     commands(): Array<ConsoleCommand> {
@@ -1118,7 +1139,7 @@ export default defineComponent({
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Card'},
-          {control: 'inspect', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
+          {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -1172,7 +1193,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Stages'},
           {control: 'bumperL', control2: 'bumperR', label: 'Bonus', enabled: consoleHydroUi.bonusChoice},
-          {control: 'inspect', label: 'Farthest available'},
+          {control: 'triggerR', label: 'Farthest available'},
           consoleHydroUi.mode === 'details' ?
             {control: 'confirm', label: 'Back to plan'} :
             {control: 'confirm', label: 'Reinforce', enabled: consoleHydroUi.primaryEnabled},
@@ -1180,7 +1201,16 @@ export default defineComponent({
           {control: 'back', label: 'To the board'},
         ];
       }
-      // P27: BOARD INSPECTION MODE — cells + track bonuses, B/L3 exit.
+      // P27b: SCALE INSPECTION MODE — the bonus ring, B/R3 exit.
+      if (this.consoleState.scaleInspecting) {
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'inspect', label: 'Information'},
+          {control: 'back', label: 'To the board'},
+          {control: 'stickR', label: 'Exit'},
+        ];
+      }
+      // P27: BOARD INSPECTION MODE — strict cell traversal, B/L3 exit.
       if (this.consoleState.inspecting) {
         return [
           {control: 'dpad', label: 'Navigate'},
@@ -1189,8 +1219,9 @@ export default defineComponent({
           {control: 'stickL', label: 'Exit'},
         ];
       }
-      // Board — the console home screen: the full stable command map
-      // (system-level actions live behind Menu, never on the bar itself).
+      // Board — the console home screen: the full stable command map.
+      // P27b: the Menu/System hint is dropped — the button is universal
+      // console knowledge, and R3 (scale inspection) needs its slot.
       return [
         {control: 'inspect', label: 'Information'},
         {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
@@ -1199,8 +1230,8 @@ export default defineComponent({
         {control: 'bumperL', label: 'Milestones', badge: this.milestonesClaimableCount, highlight: this.milestonesClaimableCount > 0},
         {control: 'bumperR', label: 'Awards', badge: this.awardsFundableCount, highlight: this.awardsFundableCount > 0},
         {control: 'stickL', label: 'Inspect board'},
+        {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
-        {control: 'menu', label: 'System'},
       ];
     },
     // ── P15: the fullscreen viewer's select context ─────────────────────
@@ -1262,9 +1293,10 @@ export default defineComponent({
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
       this.consoleState.freeRoam = false;
-      // P27: placement OWNS the board navigation — inspection mode yields
-      // (entering AND leaving placement both land on a clean board home).
+      // P27: placement OWNS the board navigation — the inspection modes
+      // yield (entering AND leaving placement land on a clean board home).
       this.consoleState.inspecting = false;
+      this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
     },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
@@ -1399,32 +1431,14 @@ export default defineComponent({
         this.handleInfoIntent(intent);
         return true;
       }
-      // P27: Y = INFORMATION MODE (moved from LT). Available from every
-      // console context that a decision surface does NOT own — those keep
-      // their own (hinted) Y verbs: task host MAX/confirm, start scene
-      // Continue, reveal Take-all, sale-mode Sell, hydro Farthest.
+      // P27b: Y = INFORMATION MODE — ALWAYS (every surface's former local
+      // Y verb moved to RT: task-host MAX/confirm, start-scene Continue,
+      // reveal Take-all, sale-mode Sell, hydro Farthest). The two small
+      // confirm dialogs keep the pad focused on the decision itself.
       if (intent.kind === 'press' && intent.button === 'inspect' &&
           this.consoleState.confirm === undefined && this.pendingCardAction === undefined) {
-        const surfaceOwned = this.consoleRevealMode !== undefined ||
-          (this.startTask !== undefined && !this.consoleState.task.deferred) ||
-          (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) ||
-          this.pendingPlayCard !== undefined ||
-          this.pendingTradeColony !== undefined;
-        if (!surfaceOwned) {
-          if (this.consoleState.sale.active && this.consoleState.section === 'hand' &&
-              this.consoleState.sheet === undefined && this.consoleState.quick === undefined) {
-            this.confirmSale();
-            return true;
-          }
-          if (this.consoleState.section === 'hydro' &&
-              this.consoleState.sheet === undefined && this.consoleState.quick === undefined) {
-            const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-            hydro?.handleIntent(intent);
-            return true;
-          }
-          this.toggleInfoMode();
-          return true;
-        }
+        this.toggleInfoMode();
+        return true;
       }
       // CTS T6: a reveal overlay owns input while visible (drawn cards
       // must be taken; the result / viewer close on any confirm).
@@ -1819,10 +1833,14 @@ export default defineComponent({
         // P27: RT = the action-category QUICK SELECTOR — from the board
         // home, P20: including an active placement (the player may INSPECT
         // cards/actions; a conflicting action is gated with an honest
-        // warning). Elsewhere RT keeps its local jump semantics (hand:
-        // next playable).
+        // warning). Elsewhere RT keeps its local semantics (P27b: sale-mode
+        // Sell — the verb that moved off Y; hand: next playable).
         if (onBoard) {
           this.openQuick('actions');
+          return true;
+        }
+        if (this.consoleState.sale.active && this.consoleState.section === 'hand') {
+          this.confirmSale();
           return true;
         }
         this.handleNextJump();
@@ -1846,9 +1864,13 @@ export default defineComponent({
       case 'stickR':
         // P20: R3 toggles INSPECT-ALL cells during placement (was the LT
         // hold) — persistent, announced, and reflected in every hint row.
+        // P27b: on the board home R3 = SCALE INSPECTION (the cursor walks
+        // the track bonuses in a circle).
         if (this.placementActive && this.consoleState.section === 'board') {
           this.consoleState.freeRoam = !this.consoleState.freeRoam;
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
+        } else if (onBoard) {
+          this.toggleScaleInspect();
         }
         return true;
       case 'confirm':
@@ -1869,13 +1891,19 @@ export default defineComponent({
     },
     handleSectionNav(dir: NavDirection): void {
       if (this.consoleState.section === 'board') {
+        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+        // P27b: SCALE INSPECTION — the cursor walks the bonus ring
+        // (left/up = counter-clockwise, right/down = clockwise, wraps).
+        if (this.consoleState.scaleInspecting && !this.placementActive) {
+          board?.stepTrackMarker(dir === 'right' || dir === 'down' ? 1 : -1);
+          return;
+        }
         // P27: the cells are NOT part of the normal command loop — the
         // board navigates only in INSPECTION mode or during a placement.
         if (!this.placementActive && !this.consoleState.inspecting) {
           this.showNotice('Press L3 to inspect the board');
           return;
         }
-        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         board?.move(dir);
         return;
       }
@@ -2004,7 +2032,11 @@ export default defineComponent({
         }
         return;
       }
-      // P27: inspection mode — B is one calm step back to the board home.
+      // P27: inspection modes — B is one calm step back to the board home.
+      if (this.consoleState.scaleInspecting) {
+        this.exitScaleInspect();
+        return;
+      }
       if (this.consoleState.inspecting) {
         this.exitInspection();
       }
@@ -2015,6 +2047,7 @@ export default defineComponent({
         this.exitInspection();
         return;
       }
+      this.exitScaleInspect(); // the two inspection modes are exclusive
       this.consoleState.inspecting = true;
       // Land on a predictable cell (the last inspected one, else re-seed).
       void this.$nextTick(() => {
@@ -2026,6 +2059,24 @@ export default defineComponent({
     },
     exitInspection(): void {
       this.consoleState.inspecting = false;
+      this.consoleState.trackMarker = undefined;
+    },
+    // ── P27b: SCALE INSPECTION MODE (R3) — the track-bonus ring ─────────
+    toggleScaleInspect(): void {
+      if (this.consoleState.scaleInspecting) {
+        this.exitScaleInspect();
+        return;
+      }
+      this.exitInspection();
+      const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+      if (board?.enterTrackInspect() === true) {
+        this.consoleState.scaleInspecting = true;
+      } else {
+        this.showNotice('Unavailable right now');
+      }
+    },
+    exitScaleInspect(): void {
+      this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
     },
     // ── quick selectors / sheets ─────────────────────────────────────────

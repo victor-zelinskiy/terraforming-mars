@@ -32,7 +32,7 @@
             <span>{{ $t(isSaleSelected(selected.name) ? 'Deselect' : 'Select') }}</span>
           </span>
           <span class="con-cards__verdict con-cards__verdict--go" :class="{'con-cards__verdict--off': saleSelected.length === 0}">
-            <GamepadGlyph control="inspect" />
+            <GamepadGlyph control="triggerR" />
             <span>{{ $t('Sell') }}: <b>{{ saleSelected.length }}</b> (+{{ saleSelected.length }} M€)</span>
           </span>
         </template>

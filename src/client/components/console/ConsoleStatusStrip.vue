@@ -1,5 +1,26 @@
 <template>
   <div class="con-status">
+    <!-- P27: player chips = IDENTITY + live TURN STATUS. P27b: they sit on
+         the LEFT (desktop parity — the player panels live on the left);
+         the global parameters moved to the right flank. The cards/actions
+         counters live in the right home panel; TR / M€ in the resource
+         panel + Information Mode — the top chips answer ONE question:
+         whose move is it and what is everyone doing. -->
+    <div class="con-status__players">
+      <span v-for="p in players"
+            :key="p.color"
+            class="con-status__player"
+            :class="chipClasses(p)">
+        <span :class="'con-status__dot player_bg_color_' + p.color"></span>
+        <span class="con-status__pname">{{ p.name }}</span>
+        <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
+          <span class="con-status__pstatus-glyph" aria-hidden="true">{{ statusGlyph(p) }}</span>
+          <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
+          <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
+        </span>
+      </span>
+    </div>
+
     <div class="con-status__params">
       <span class="con-status__param">
         <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
@@ -18,27 +39,8 @@
         <span class="con-status__value">{{ game.venusScaleLevel }}%</span>
       </span>
       <span class="con-status__gen">
-        <span class="con-status__gen-label">{{ $t('Generation') }}</span>
+        <span class="con-status__gen-label">{{ $t('GEN.') }}</span>
         <span class="con-status__value">{{ game.generation }}</span>
-      </span>
-    </div>
-
-    <!-- P27: player chips = IDENTITY + live TURN STATUS. The cards/actions
-         counters moved to the right home panel; TR / M€ live in the resource
-         panel + Information Mode — the top chips answer ONE question:
-         whose move is it and what is everyone doing. -->
-    <div class="con-status__players">
-      <span v-for="p in players"
-            :key="p.color"
-            class="con-status__player"
-            :class="chipClasses(p)">
-        <span :class="'con-status__dot player_bg_color_' + p.color"></span>
-        <span class="con-status__pname">{{ p.name }}</span>
-        <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
-          <span class="con-status__pstatus-glyph" aria-hidden="true">{{ statusGlyph(p) }}</span>
-          <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
-          <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
-        </span>
       </span>
     </div>
   </div>

@@ -269,7 +269,7 @@ export default defineComponent({
       return [
         {control: 'dpad', label: 'Navigate'},
         {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-        {control: 'inspect', label: 'MAX'},
+        {control: 'triggerR', label: 'MAX'},
         {control: 'confirm', label: 'Play now', enabled: this.paymentReady},
         {control: 'secondary', label: 'Card'},
         {control: 'back', label: 'Cancel'},
@@ -351,7 +351,7 @@ export default defineComponent({
       case 'bumperR':
         this.adjust(1);
         return;
-      case 'inspect': {
+      case 'triggerR': { // P27b: the local verb moved off Y (Y = Info Mode)
         const lane = this.payLanes[this.focusIdx];
         if (lane !== undefined) {
           this.payCounts = {...this.payCounts, [lane.unit]: laneCap(this.cost, lane)};

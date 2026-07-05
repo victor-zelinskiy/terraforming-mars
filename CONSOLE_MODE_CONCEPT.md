@@ -1930,3 +1930,28 @@ available card actions (moved from the top bar) + Milestones/Awards race
 left; `buildHomeMaSummary`). No blind command-bar duplication (LB/RB mini
 glyphs only). Gates: vue-tsc, eslint, make:css, make:json, 123 console
 specs (incl. 15 new consoleQuickModel) — green.
+
+### P27b — command-model follow-ups (feedback pass)
+
+(1) **Y = Info Mode ALWAYS** — every surface's former local Y verb moved to
+RT: task-host MAX/confirm, start-scene Continue/Begin, play-confirm MAX,
+reveal Take-all, sale-mode Sell, hydro Farthest-available (handlers + all
+hint rows). (2) **Strict inspection traversal** — `pickStrictGrid`
+(spatialNav.ts, pure + spec'd): left/right never leaves the ROW, up/down
+anchors to the COLUMN (`colAnchor`; the half-hex offset tie is structural —
+leftmost wins, the anchor pulls the run back); the fallback pick may only
+LEAP to off-grid colony cells, never drift to a diagonal neighbour.
+Track markers are OUT of the L3 candidate set — **R3 = SCALE INSPECTION**:
+`trackMarkers()` sorted by angle around the board centre, prev/next walks
+the ring cyclically («по кругу»), entry lands nearest 12 o'clock; the
+focused bonus fires its ScaleTooltip + the panel's track mode now also
+NAMES the owning scale (`trackInfo.accent`). The board-home bar gained
+`R3 Осмотр шкал` and dropped `Menu Система` (universal knowledge).
+(3) The right panel's idle «Ваш ход» kicker is gone (top chips own it).
+(4) Console-only layout: LEFT off-Mars colony flank pulled to ~r322,
+planet nudged `translate(10px, −6px)` + ~3% more scale (`STAGE_PAD_Y=5`).
+(5) Status strip: player chips LEFT (desktop parity), parameters RIGHT,
+generation reads «ПКЛ. N» (key `GEN.`). (6) Inspection cell mode shows the
+curated special-cell LORE (`getSpecialCellInfo` → the panel's amber lore
+block); placement stays lean. Gates: vue-tsc, build:client, 161 specs
+(console + gamepad, incl. 4 new pickStrictGrid) — green.

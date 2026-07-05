@@ -103,6 +103,92 @@ export function pickDirectional(
 }
 
 /**
+ * P27b: STRICT grid traversal for the console Board Inspection Mode.
+ *
+ * The generic pickDirectional scores hex diagonals as valid left/right
+ * targets, so a horizontal run drifted between rows. This picker enforces
+ * the inspection contract instead:
+ *  - left/right: stays STRICTLY in the current ROW (centers within half the
+ *    cell height), nearest in the direction;
+ *  - up/down: moves to the NEAREST row in that direction, then picks the
+ *    cell closest to the COLUMN ANCHOR X (the x remembered from the last
+ *    horizontal move / landing) — hex rows are offset by half a cell, so
+ *    anchoring is what keeps a vertical run in ONE visual column instead of
+ *    zig-zag drifting into a neighbour.
+ *
+ * Returns undefined when nothing qualifies (end of a row / column) — the
+ * caller may fall back to pickDirectional to reach off-grid cells.
+ */
+export function pickStrictGrid(
+  from: NavRect,
+  candidates: ReadonlyArray<NavRect>,
+  dir: NavDirection,
+  anchorX?: number,
+): number | undefined {
+  const fc = rectCenter(from);
+  const rowTol = from.height / 2;
+  let bestIdx: number | undefined;
+  let bestScore = Infinity;
+
+  if (dir === 'left' || dir === 'right') {
+    for (let i = 0; i < candidates.length; i++) {
+      const rect = candidates[i];
+      if (rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+      const cc = rectCenter(rect);
+      if (Math.abs(cc.y - fc.y) > rowTol) {
+        continue; // a different row — never a horizontal target
+      }
+      const primary = dir === 'right' ? cc.x - fc.x : fc.x - cc.x;
+      if (primary <= 1) {
+        continue;
+      }
+      if (primary < bestScore) {
+        bestScore = primary;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  // Vertical: find the nearest row band in the direction, then the cell
+  // closest to the column anchor within it.
+  let nearestRow = Infinity;
+  for (const rect of candidates) {
+    if (rect.width <= 0 || rect.height <= 0) {
+      continue;
+    }
+    const cy = rectCenter(rect).y;
+    const primary = dir === 'down' ? cy - fc.y : fc.y - cy;
+    if (primary > rowTol && primary < nearestRow) {
+      nearestRow = primary;
+    }
+  }
+  if (nearestRow === Infinity) {
+    return undefined;
+  }
+  const anchor = anchorX ?? fc.x;
+  for (let i = 0; i < candidates.length; i++) {
+    const rect = candidates[i];
+    if (rect.width <= 0 || rect.height <= 0) {
+      continue;
+    }
+    const cc = rectCenter(rect);
+    const primary = dir === 'down' ? cc.y - fc.y : fc.y - cc.y;
+    if (primary <= rowTol || primary > nearestRow + rowTol) {
+      continue; // not the adjacent row band
+    }
+    const off = Math.abs(cc.x - anchor);
+    if (off < bestScore) {
+      bestScore = off;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+/**
  * Nearest candidate to a POINT (focus recovery after the focused element
  * left the DOM: land on whatever now sits closest to where it was).
  */

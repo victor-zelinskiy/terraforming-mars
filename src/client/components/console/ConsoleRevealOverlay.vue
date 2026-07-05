@@ -269,7 +269,7 @@ export default defineComponent({
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Take card'},
           {control: 'secondary', label: 'Card'},
-          {control: 'inspect', label: 'Take all cards'},
+          {control: 'triggerR', label: 'Take all cards'},
         ];
       case 'result':
         return [
@@ -339,21 +339,21 @@ export default defineComponent({
         } else if (button === 'secondary') {
           // P13 global rule: X reads the focused card fullscreen.
           this.zoomFocused();
-        } else if (button === 'inspect' || button === 'back') {
+        } else if (button === 'triggerR' || button === 'back') {
           this.takeAll();
         }
         return;
       case 'result':
         if (button === 'secondary') {
           this.zoomRevealed();
-        } else if (button === 'confirm' || button === 'inspect' || button === 'back') {
+        } else if (button === 'confirm' || button === 'triggerR' || button === 'back') {
           this.$emit('dismiss-result');
         }
         return;
       default:
         if (button === 'secondary') {
           this.zoomViewerCard();
-        } else if (button === 'confirm' || button === 'inspect' || button === 'back') {
+        } else if (button === 'confirm' || button === 'triggerR' || button === 'back') {
           closeRevealViewer();
         }
         return;

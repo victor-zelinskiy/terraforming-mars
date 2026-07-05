@@ -130,5 +130,7 @@
     "Scale bonuses are granted when the parameter passes this step": "Бонус шкалы выдаётся, когда параметр проходит эту отметку",
     "Ready to use now": "Можно использовать сейчас",
     "Slots left": "Свободных слотов",
-    "No actions available": "Нет доступных действий"
+    "No actions available": "Нет доступных действий",
+    "GEN.": "ПКЛ.",
+    "Scale inspection": "Осмотр шкал"
 }

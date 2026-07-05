@@ -41,9 +41,9 @@
       <div v-if="!cancellable" class="con-context__mandatory-note">{{ $t('This action requires picking a cell. Cancelling is not available.') }}</div>
     </template>
 
-    <!-- ── TRACK MODE (P27): a focused global-parameter track bonus ── -->
+    <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
     <template v-else-if="mode === 'track'">
-      <div class="con-context__task-kicker">{{ $t('Track bonus') }}</div>
+      <div class="con-context__task-kicker">{{ $t('Track bonus') }}<template v-if="trackScaleLabel !== ''"> · {{ $t(trackScaleLabel) }}</template></div>
       <template v-if="trackInfo !== null">
         <div class="con-inspector__name">{{ trackInfo.kicker }}</div>
         <div class="con-context__track-rows">
@@ -68,15 +68,21 @@
         <span>{{ ownerName }}</span>
       </div>
       <div v-if="cellDescription !== ''" class="con-inspector__desc">{{ cellDescription }}</div>
+      <!-- P27b: the curated special-cell LORE (Ganymede, volcanoes…) —
+           inspection is the right home for it (placement stays lean). -->
+      <div v-if="lore !== undefined" class="con-context__lore">
+        <div v-if="loreTitle !== ''" class="con-context__lore-title">{{ $t(lore.title) }}</div>
+        <div class="con-context__lore-text">{{ $t(lore.description) }}</div>
+      </div>
       <div v-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
       </div>
       <div v-else-if="loading" class="con-inspector__loading">{{ $t('Loading') }}…</div>
     </template>
 
-    <!-- ── IDLE MODE (P27): the console home — the strategic summary ── -->
+    <!-- ── IDLE MODE (P27): the console home — the strategic summary.
+         P27b: no «Ваш ход» kicker — the top player chips own that read. ── -->
     <template v-else>
-      <div class="con-inspector__kicker">{{ myTurn ? $t('Your turn') : $t('Waiting for other players') }}</div>
 
       <!-- Cards: how many can be PLAYED now / total in hand. -->
       <section class="con-home__block" :class="{'con-home__block--hot': cardsPlayable > 0}">
@@ -222,6 +228,8 @@ export default defineComponent({
     inspectAll: {type: Boolean, default: false},
     // track mode (P27)
     trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
+    // cell mode (P27b): curated special-cell lore
+    lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
     // idle mode
     myTurn: {type: Boolean, default: false},
     cardsPlayable: {type: Number, default: 0},
@@ -250,6 +258,25 @@ export default defineComponent({
         return '';
       }
       return this.players.find((p) => p.color === color)?.name ?? '';
+    },
+    /** P27b: hide the lore title when the cell header already names it. */
+    loreTitle(): string {
+      const t = this.lore?.title ?? '';
+      if (t === '') {
+        return '';
+      }
+      const translated = translateText(t);
+      return translated === this.cellHeader || translated === this.tileLabel ? '' : t;
+    },
+    /** P27b: the owning SCALE of the focused track bonus («самой шкалы»). */
+    trackScaleLabel(): string {
+      switch (this.trackInfo?.accent) {
+      case 'temperature': return 'Temperature';
+      case 'oxygen': return 'Oxygen';
+      case 'venus': return 'Venus';
+      case 'oceans': return 'Oceans';
+      default: return '';
+      }
     },
   },
   methods: {

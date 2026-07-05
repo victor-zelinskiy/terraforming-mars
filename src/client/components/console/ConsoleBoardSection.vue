@@ -34,7 +34,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {SpaceId} from '@/common/Types';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
-import {NavRect, pickDirectional, pickNearest, rectCenter} from '@/client/gamepad/spatialNav';
+import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from '@/client/gamepad/spatialNav';
 import {hoverBoardCell} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
@@ -57,6 +57,10 @@ type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rec
 const BOARD_NATURAL_W = 670;
 const BOARD_NATURAL_H = 582;
 const STAGE_PAD = 16;
+/** P27b: the vertical pad is tighter — the strip above the planet was dead
+ *  air (console has no desktop MA badges there), so the board scales up a
+ *  notch and sits higher. */
+const STAGE_PAD_Y = 5;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 4;
 
@@ -66,7 +70,7 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},
-    /** P27: BOARD INSPECTION MODE — cells + track markers become navigable. */
+    /** P27: BOARD INSPECTION MODE (L3) — strict row/column cell traversal. */
     inspecting: {type: Boolean, default: false},
   },
   data() {
@@ -75,6 +79,9 @@ export default defineComponent({
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
+      /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
+       *  landings; keeps an up/down run in ONE visual hex column). */
+      colAnchor: undefined as number | undefined,
     };
   },
   computed: {
@@ -144,7 +151,7 @@ export default defineComponent({
       }
       const scale = Math.min(
         (r.width - STAGE_PAD * 2) / BOARD_NATURAL_W,
-        (r.height - STAGE_PAD * 2) / BOARD_NATURAL_H,
+        (r.height - STAGE_PAD_Y * 2) / BOARD_NATURAL_H,
       );
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
       document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
@@ -179,10 +186,9 @@ export default defineComponent({
       return root?.querySelector<HTMLElement>(`[data-arc-marker="${CSS.escape(key)}"]`) ?? undefined;
     },
     /**
-     * Collect navigable targets: legal-only cells during placement (unless
-     * free-roam); in INSPECTION mode the global-parameter TRACK markers
-     * (scale bonuses + planetary-event chips) join the set, so the player
-     * can read them without a mouse (P27 §5.3).
+     * Collect navigable CELLS: legal-only during placement (unless
+     * free-roam). Track markers are a SEPARATE surface (R3 scale
+     * inspection cycles them — see trackMarkers), never mixed in here.
      */
     candidates(): Array<BoardCandidate> {
       const root = this.$refs.root as HTMLElement | undefined;
@@ -198,15 +204,67 @@ export default defineComponent({
           out.push({kind: 'cell', id: el.getAttribute('data_space_id') ?? '', el, rect: {left: r.left, top: r.top, width: r.width, height: r.height}});
         }
       }
-      if (this.inspecting && !this.placementActive) {
-        for (const el of root.querySelectorAll<HTMLElement>('.arc-marker[data-arc-marker]')) {
-          const r = el.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0) {
-            out.push({kind: 'marker', id: el.getAttribute('data-arc-marker') ?? '', el, rect: {left: r.left, top: r.top, width: r.width, height: r.height}});
-          }
+      return out;
+    },
+    /**
+     * P27b: the R3 SCALE-INSPECTION ring — every track marker (scale
+     * bonuses + planetary-event chips) sorted by its angle around the
+     * board centre, so prev/next walks the circle predictably.
+     */
+    trackMarkers(): Array<{id: string, el: HTMLElement, angle: number}> {
+      const root = this.$refs.root as HTMLElement | undefined;
+      if (root === undefined) {
+        return [];
+      }
+      const stage = root.querySelector('.board-cont') ?? root;
+      const sr = stage.getBoundingClientRect();
+      const cx = sr.left + sr.width / 2;
+      const cy = sr.top + sr.height / 2;
+      const out: Array<{id: string, el: HTMLElement, angle: number}> = [];
+      for (const el of root.querySelectorAll<HTMLElement>('.arc-marker[data-arc-marker]')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          out.push({
+            id: el.getAttribute('data-arc-marker') ?? '',
+            el,
+            angle: Math.atan2(r.top + r.height / 2 - cy, r.left + r.width / 2 - cx),
+          });
         }
       }
+      out.sort((a, b) => a.angle - b.angle);
       return out;
+    },
+    /** Enter scale inspection: focus the marker nearest 12 o'clock. */
+    enterTrackInspect(): boolean {
+      const markers = this.trackMarkers();
+      if (markers.length === 0) {
+        return false;
+      }
+      const top = -Math.PI / 2;
+      let best = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < markers.length; i++) {
+        const d = Math.abs(Math.atan2(Math.sin(markers[i].angle - top), Math.cos(markers[i].angle - top)));
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      }
+      this.consoleState.trackMarker = markers[best].id;
+      return true;
+    },
+    /** Step the scale-inspection cursor around the ring (wraps — «по кругу»). */
+    stepTrackMarker(step: 1 | -1): void {
+      const markers = this.trackMarkers();
+      if (markers.length === 0) {
+        return;
+      }
+      const at = markers.findIndex((m) => m.id === this.consoleState.trackMarker);
+      if (at === -1) {
+        this.enterTrackInspect();
+        return;
+      }
+      this.consoleState.trackMarker = markers[(at + step + markers.length) % markers.length].id;
     },
     /** Seed the selection: available cell (or any cell) nearest the board center. */
     seed(preferAvailable: boolean): void {
@@ -223,56 +281,82 @@ export default defineComponent({
         cells;
       const usable = pool.length > 0 ? pool : cells;
       const idx = pickNearest(center, usable.map((c) => c.rect));
-      this.select(usable[idx ?? 0]);
+      this.landOn(usable[idx ?? 0]);
     },
     select(target: BoardCandidate | string): void {
-      if (typeof target === 'string') {
-        this.consoleState.trackMarker = undefined;
-        this.consoleState.boardSpaceId = target;
-        return;
-      }
-      if (target.kind === 'marker') {
-        this.consoleState.trackMarker = target.id;
-      } else {
-        this.consoleState.trackMarker = undefined;
-        this.consoleState.boardSpaceId = target.id;
-      }
+      const id = typeof target === 'string' ? target : target.id;
+      this.consoleState.trackMarker = undefined;
+      this.consoleState.boardSpaceId = id;
     },
-    /** True when this candidate IS the current focus (cell or marker). */
-    isCurrent(c: BoardCandidate): boolean {
-      if (this.consoleState.trackMarker !== undefined) {
-        return c.kind === 'marker' && c.id === this.consoleState.trackMarker;
-      }
-      return c.kind === 'cell' && c.id === this.selectedSpaceId;
-    },
-    /** Move the selection one target in `dir` (geometric — nearest centers). */
+    /**
+     * Move the cell selection one step in `dir`.
+     * INSPECTION mode (P27b) traverses the hex grid STRICTLY — left/right
+     * never leaves the row, up/down never drifts to a neighbouring column
+     * (the colAnchor); the generic directional pick stays for placement and
+     * as the fallback that reaches the off-grid (colony) cells.
+     */
     move(dir: NavDirection): void {
       const targets = this.candidates();
       if (targets.length === 0) {
         return;
       }
-      const current = targets.find((c) => this.isCurrent(c));
+      const current = targets.find((c) => c.id === this.selectedSpaceId);
       if (current === undefined) {
-        // Selection left the candidate set (e.g. constraint kicked in, a
-        // marker vanished) — glide to the nearest candidate instead of
-        // jumping to a corner.
-        const prevEl = this.consoleState.trackMarker !== undefined ?
-          this.markerEl(this.consoleState.trackMarker) :
-          this.cellEl(this.selectedSpaceId);
+        // Selection left the candidate set (e.g. constraint kicked in) —
+        // glide to the nearest candidate instead of jumping to a corner.
+        const prevEl = this.cellEl(this.selectedSpaceId);
         if (prevEl !== undefined) {
           const r = prevEl.getBoundingClientRect();
           const idx = pickNearest(rectCenter({left: r.left, top: r.top, width: r.width, height: r.height}), targets.map((c) => c.rect));
-          this.select(targets[idx ?? 0]);
+          this.landOn(targets[idx ?? 0]);
           return;
         }
         this.seed(this.placementActive);
         return;
       }
       const others = targets.filter((c) => c !== current);
-      const idx = pickDirectional(current.rect, others.map((c) => c.rect), dir);
-      if (idx !== undefined) {
-        this.select(others[idx]);
+      const rects = others.map((c) => c.rect);
+      const strictMode = this.inspecting && !this.placementActive;
+      if (strictMode) {
+        const anchor = this.colAnchor ?? rectCenter(current.rect).x;
+        const strict = pickStrictGrid(current.rect, rects, dir, anchor);
+        if (strict !== undefined) {
+          const target = others[strict];
+          if (dir === 'left' || dir === 'right') {
+            this.colAnchor = rectCenter(target.rect).x; // a horizontal move re-anchors
+          } else if (this.colAnchor === undefined) {
+            this.colAnchor = anchor; // a vertical run keeps its column
+          }
+          this.select(target);
+          return;
+        }
+        // End of the row/column — fall through ONLY to reach the OFF-GRID
+        // colony cells (guarded below), never a diagonal grid neighbour.
       }
+      const idx = pickDirectional(current.rect, rects, dir);
+      if (idx === undefined) {
+        return;
+      }
+      if (strictMode) {
+        // The strict contract: a fallback target must be a genuine LEAP
+        // (an off-grid colony cell), not the adjacent-row hex the generic
+        // picker would drift to at a row end.
+        const cc = rectCenter(current.rect);
+        const tc = rectCenter(others[idx].rect);
+        const horizontal = dir === 'left' || dir === 'right';
+        if (horizontal && Math.abs(tc.x - cc.x) < current.rect.width * 1.4) {
+          return;
+        }
+        if (!horizontal && Math.abs(tc.y - cc.y) < current.rect.height * 1.6) {
+          return;
+        }
+      }
+      this.landOn(others[idx]);
+    },
+    /** A non-strict landing (seed / glide / diagonal) re-anchors the column. */
+    landOn(target: BoardCandidate): void {
+      this.colAnchor = rectCenter(target.rect).x;
+      this.select(target);
     },
     /** RT: jump the selection to the NEXT legal cell (cyclic, DOM order). */
     nextAvailable(): boolean {

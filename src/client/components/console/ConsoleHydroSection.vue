@@ -766,7 +766,7 @@ export default defineComponent({
       case 'bumperR':
         this.cycleChoice(1);
         return;
-      case 'inspect': {
+      case 'triggerR': { // P27b: the local verb moved off Y (Y = Info Mode)
         // Y — jump to the FURTHEST legal+affordable stage.
         const max = this.preview?.maxLegalSteps ?? 0;
         if (max > 0) {
