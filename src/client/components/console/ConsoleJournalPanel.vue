@@ -90,8 +90,11 @@
              class="con-journal__inspect-icon"
              :class="inspectVisual.iconClass"
              aria-hidden="true"></div>
-        <div v-else class="con-journal__inspect-icon con-journal__inspect-icon--hydro" aria-hidden="true">
-          <BarButtonIcon name="hydronetwork" />
+        <div v-else
+             class="con-journal__inspect-icon con-journal__inspect-icon--glyph"
+             :class="'con-journal__inspect-icon--' + inspect.kind"
+             aria-hidden="true">
+          <BarButtonIcon :name="inspectGlyph" />
         </div>
         <div class="con-journal__inspect-body">
           <div v-if="inspectKicker !== ''" class="con-journal__inspect-kicker" v-i18n>{{ inspectKicker }}</div>
@@ -159,6 +162,9 @@ import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
+import {MilestoneName} from '@/common/ma/MilestoneName';
+import {AwardName} from '@/common/ma/AwardName';
+import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {GameEvent} from '@/common/events/GameEvent';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -191,8 +197,12 @@ type GroupRenderNode = {
 type MessageRenderNode = {kind: 'message'; message: LogMessage};
 type RenderNode = GroupRenderNode | MessageRenderNode;
 
-/** The console inspect card (X): a standard project/action or the Hydronetwork. */
-type JournalInspect = {kind: 'standard', name: CardName} | {kind: 'hydro'};
+/** The console inspect card (X): a standard project/action, the Hydronetwork, or a claimed milestone / funded award. */
+type JournalInspect =
+  | {kind: 'standard', name: CardName}
+  | {kind: 'hydro'}
+  | {kind: 'milestone', name: MilestoneName}
+  | {kind: 'award', name: AwardName};
 
 type DataModel = {
   source: JournalDataSource,
@@ -325,7 +335,7 @@ export default defineComponent({
     focusedTargets(): JournalInspectTargets {
       const node = this.focusedNode;
       if (node === undefined) {
-        return {cards: [], standard: [], hydro: false, spaces: []};
+        return {cards: [], standard: [], hydro: false, milestones: [], awards: [], spaces: []};
       }
       const messages = node.kind === 'group' ? [node.group.header, ...node.group.children] : [node.message];
       return journalInspectTargets(messages, this.classifyToken);
@@ -334,23 +344,51 @@ export default defineComponent({
     inspectVisual(): StandardProjectVisual | undefined {
       return this.inspect?.kind === 'standard' ? standardProjectVisual(this.inspect.name) : undefined;
     },
-    inspectKicker(): string {
-      if (this.inspect?.kind !== 'standard') {
-        return '';
+    /** The BarButtonIcon name for the non-standard (glyph) inspect kinds. */
+    inspectGlyph(): 'hydronetwork' | 'milestones' | 'awards' {
+      switch (this.inspect?.kind) {
+      case 'milestone': return 'milestones';
+      case 'award': return 'awards';
+      default: return 'hydronetwork';
       }
-      return getCard(this.inspect.name)?.type === CardType.STANDARD_ACTION ? 'Standard action' : 'Standard project';
+    },
+    inspectKicker(): string {
+      switch (this.inspect?.kind) {
+      case 'standard':
+        return getCard(this.inspect.name)?.type === CardType.STANDARD_ACTION ? 'Standard action' : 'Standard project';
+      case 'milestone': return 'Achievement';
+      case 'award': return 'Award';
+      default: return '';
+      }
     },
     inspectName(): string {
-      if (this.inspect?.kind === 'hydro') {
+      const i = this.inspect;
+      if (i === undefined) {
+        return '';
+      }
+      if (i.kind === 'hydro') {
         return HYDRO_PREVIEW.titleKey;
       }
-      return this.inspect !== undefined ? this.inspect.name.split(':')[0] : '';
+      return i.name.split(':')[0];
     },
     inspectDescription(): string {
-      if (this.inspect?.kind === 'hydro') {
+      const i = this.inspect;
+      if (i === undefined) {
+        return '';
+      }
+      if (i.kind === 'hydro') {
         return HYDRO_PREVIEW.descriptionKey;
       }
-      return this.inspectVisual?.description ?? '';
+      if (i.kind === 'standard') {
+        return this.inspectVisual?.description ?? '';
+      }
+      // Milestone / award: the same rule text the desktop hover popover shows
+      // (getMilestone/getAward can throw on an unknown name → degrade to empty).
+      try {
+        return i.kind === 'milestone' ? getMilestone(i.name).description : getAward(i.name).description;
+      } catch (e) {
+        return '';
+      }
     },
     /** The standard project's printed cost (М€) — 0/undefined hides the line. */
     inspectCost(): number | undefined {
@@ -620,6 +658,14 @@ export default defineComponent({
       }
       if (t.hydro) {
         this.inspect = {kind: 'hydro'};
+        return;
+      }
+      if (t.milestones.length > 0) {
+        this.inspect = {kind: 'milestone', name: t.milestones[0]};
+        return;
+      }
+      if (t.awards.length > 0) {
+        this.inspect = {kind: 'award', name: t.awards[0]};
         return;
       }
       if (t.spaces.length > 0) {

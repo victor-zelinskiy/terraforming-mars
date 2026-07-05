@@ -11,6 +11,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {MilestoneName} from '@/common/ma/MilestoneName';
+import {AwardName} from '@/common/ma/AwardName';
 import {JournalFilter} from '@/client/components/journal/journalFilter';
 
 /**
@@ -30,6 +32,10 @@ export type JournalInspectTargets = {
   standard: Array<CardName>;
   /** The entry references the Hydronetwork. */
   hydro: boolean;
+  /** Claimed milestones (compact premium preview — rule + icon). */
+  milestones: Array<MilestoneName>;
+  /** Funded awards (compact premium preview — rule + icon). */
+  awards: Array<AwardName>;
   /** Board cell references (SPACE tokens) — «Показать» highlights them. */
   spaces: Array<string>;
 };
@@ -44,8 +50,9 @@ export function journalInspectTargets(
   messages: ReadonlyArray<LogMessage>,
   classify: (name: CardName) => JournalInspectKind,
 ): JournalInspectTargets {
-  const out: JournalInspectTargets = {cards: [], standard: [], hydro: false, spaces: []};
+  const out: JournalInspectTargets = {cards: [], standard: [], hydro: false, milestones: [], awards: [], spaces: []};
   const seen = new Set<CardName>();
+  const seenMa = new Set<string>();
   const seenSpaces = new Set<string>();
   const push = (name: CardName) => {
     if (seen.has(name)) {
@@ -74,6 +81,16 @@ export function journalInspectTargets(
         for (const name of datum.value) {
           push(name);
         }
+      } else if (datum.type === LogMessageDataType.MILESTONE) {
+        if (!seenMa.has(datum.value)) {
+          seenMa.add(datum.value);
+          out.milestones.push(datum.value);
+        }
+      } else if (datum.type === LogMessageDataType.AWARD) {
+        if (!seenMa.has(datum.value)) {
+          seenMa.add(datum.value);
+          out.awards.push(datum.value);
+        }
       } else if (datum.type === LogMessageDataType.SPACE) {
         if (!seenSpaces.has(datum.value)) {
           seenSpaces.add(datum.value);
@@ -87,7 +104,8 @@ export function journalInspectTargets(
 
 /** True when «X = Осмотреть» has anything to open for these targets. */
 export function hasInspectTarget(t: JournalInspectTargets): boolean {
-  return t.cards.length > 0 || t.standard.length > 0 || t.hydro || t.spaces.length > 0;
+  return t.cards.length > 0 || t.standard.length > 0 || t.hydro ||
+    t.milestones.length > 0 || t.awards.length > 0 || t.spaces.length > 0;
 }
 
 /** LT/RT generation stepping — clamped to [1, current], never wraps. */

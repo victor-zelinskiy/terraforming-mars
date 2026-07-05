@@ -8,8 +8,15 @@
         :style="positionStyle"
         role="tooltip"
         aria-hidden="true">
-        <div class="journal-ma-preview__kicker" v-i18n>{{ kind === 'milestone' ? 'Achievement' : 'Award' }}</div>
-        <div class="journal-ma-preview__name" v-i18n>{{ name }}</div>
+        <div class="journal-ma-preview__head">
+          <span class="journal-ma-preview__icon" aria-hidden="true">
+            <BarButtonIcon :name="kind === 'milestone' ? 'milestones' : 'awards'" />
+          </span>
+          <div class="journal-ma-preview__headtext">
+            <div class="journal-ma-preview__kicker" v-i18n>{{ kind === 'milestone' ? 'Achievement' : 'Award' }}</div>
+            <div class="journal-ma-preview__name" v-i18n>{{ name }}</div>
+          </div>
+        </div>
         <div class="journal-ma-preview__desc" v-i18n>{{ description }}</div>
       </div>
     </Transition>
@@ -21,6 +28,7 @@ import {defineComponent, PropType} from 'vue';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 
 /**
  * Hover preview for a MILESTONE / AWARD token (journal feed / notifications) —
@@ -35,6 +43,7 @@ const VIEWPORT_MARGIN = 8;
 
 export default defineComponent({
   name: 'MaPreviewPopover',
+  components: {BarButtonIcon},
   props: {
     kind: {
       type: String as () => 'milestone' | 'award',

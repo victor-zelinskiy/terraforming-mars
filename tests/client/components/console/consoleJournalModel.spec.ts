@@ -34,6 +34,8 @@ describe('consoleJournalModel (P28)', () => {
   const cards = (value: Array<CardName>): LogMessageData => ({type: LogMessageDataType.CARDS, value} as unknown as LogMessageData);
   const player = (value: Color): LogMessageData => ({type: LogMessageDataType.PLAYER, value} as LogMessageData);
   const space = (value: string): LogMessageData => ({type: LogMessageDataType.SPACE, value} as unknown as LogMessageData);
+  const milestone = (value: string): LogMessageData => ({type: LogMessageDataType.MILESTONE, value} as unknown as LogMessageData);
+  const award = (value: string): LogMessageData => ({type: LogMessageDataType.AWARD, value} as unknown as LogMessageData);
 
   /** The manifest classifier stand-in for the inspect tests. */
   const classify = (name: CardName): JournalInspectKind => {
@@ -70,6 +72,19 @@ describe('consoleJournalModel (P28)', () => {
       expect(out.cards).to.deep.eq([CardName.PETS]);
       expect(out.standard).to.deep.eq([CardName.ASTEROID_STANDARD_PROJECT, CardName.CONVERT_PLANTS]);
       expect(out.hydro).to.eq(true);
+    });
+
+    it('collects MILESTONE and AWARD tokens (deduped) — a claim/fund entry is inspectable', () => {
+      const messages = [
+        msg([player('red'), milestone('Terraformer')]),
+        msg([player('blue'), award('Landlord')]),
+        msg([milestone('Terraformer')]), // duplicate collapses
+      ];
+      const out = journalInspectTargets(messages, classify);
+      expect(out.milestones).to.deep.eq(['Terraformer']);
+      expect(out.awards).to.deep.eq(['Landlord']);
+      expect(out.cards).to.deep.eq([]);
+      expect(hasInspectTarget(out)).to.eq(true);
     });
 
     it('collects SPACE tokens (deduped) — a map-only entry is inspectable', () => {

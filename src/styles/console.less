@@ -2288,24 +2288,24 @@ html.con-profile-handheld .con-macere {
      closed by the corner, and the freed right edge lets the fit
      engine scale the whole board up a touch. */
 html.console-mode {
-    /* LEFT flank — lifted along the scale; the Venus identity mark
-       (~board 95..128 top) sits CENTRED in the deliberate Phobos↔Stanford
-       gap (Phobos ends at 88, Stanford starts at 136), the column reads
-       as one clean diagonal (left 55 → 25 → 6), Ganymede stays inside. */
-    .board-space-02 { margin: 20px 0 0 55px; }    /* Phobos — above the Venus mark */
-    .board-space-69 { margin: 136px 0 0 25px; }   /* Stanford — below the Venus mark */
-    .board-space-01 { margin: 214px 0 0 6px; }    /* Ganymede — diagonal tail */
-    /* RIGHT flank — the arc raised (Luna 50° · Maxwell 39° · Stratopolis
-       28°, r310): Stratopolis ends at 204, clear of the ocean bonus chip
-       (~215+); Luna stops right of the Venus end-bonus cube (~left 482). */
+    /* LEFT flank — ONE even ladder anchored on Phobos (which sits well —
+       it no longer touches the scale identity mark). Stanford + Ganymede
+       are re-tied to it with a UNIFORM step (top +62 each; a gentle left
+       lean 55 → 38 → 24 that stays off the oxygen arc), so the three read
+       as one clean diagonal instead of a stray top cell + a low pair. */
+    .board-space-02 { margin: 20px 0 0 55px; }    /* Phobos — anchor (unchanged) */
+    .board-space-69 { margin: 82px 0 0 38px; }    /* Stanford — even step down */
+    .board-space-01 { margin: 144px 0 0 24px; }   /* Ganymede — even step down */
+    /* RIGHT flank — kept as-is (the arc reads well): Stratopolis ends
+       clear of the ocean chip, Luna right of the Venus end-bonus cube. */
     .board-space-70 { margin: 44px 0 0 489px; }   /* Luna 50° */
     .board-space-73 { margin: 86px 0 0 531px; }   /* Maxwell 39° */
     .board-space-72 { margin: 136px 0 0 564px; }  /* Stratopolis 28° */
-    /* Dawn City — the OUTER-RING keystone (θ44°, r386): sits diagonally
-       over Maxwell's shoulder, column-aligned with Stratopolis — the four
-       right zones read as ONE arrow-head composition, and the pulled-in
-       right edge gives the fit engine another touch of scale. */
-    .board-space-71 { margin: 13px 0 0 568px; }   /* Dawn City — keystone */
+    /* Dawn City — lowered from the far corner and COLUMN-ALIGNED with
+       Maxwell (same left 531): it caps the flank directly above Maxwell
+       (top 20, its base meeting Maxwell's top ~86), so the four zones
+       read as ONE tight arrow-head instead of a detached corner cell. */
+    .board-space-71 { margin: 20px 0 0 531px; }   /* Dawn City — above Maxwell */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */
@@ -4187,11 +4187,22 @@ html.console-mode {
        `40px auto`, …). Squaring them off stretches the sprite. */
     box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25), 0 4px 14px rgba(0, 0, 0, 0.45);
 
-    &--hydro {
+    /* Line-icon (BarButtonIcon) inspect kinds — Hydronetwork / milestone /
+       award. The colour flows to the SVG via currentColor. */
+    &--glyph {
         display: flex;
         align-items: center;
         justify-content: center;
         .bar-btn-icon { width: 40px; height: 40px; }
+    }
+    &--hydro { color: @con-hydro-mint; }
+    &--milestone {
+        color: @con-ma-gold;
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 40%), 0 4px 14px rgba(0, 0, 0, 0.45);
+    }
+    &--award {
+        color: @con-ma-medal;
+        box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 40%), 0 4px 14px rgba(0, 0, 0, 0.45);
     }
 }
 .con-journal__inspect-body {
