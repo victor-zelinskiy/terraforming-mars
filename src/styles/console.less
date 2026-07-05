@@ -60,6 +60,9 @@
         gap: 26px;
     }
     &__param {
+        /* relative: the AnimatedMetricValue delta-chip (absolute host)
+           anchors to the param cell, exactly like the desktop sidebar. */
+        position: relative;
         display: inline-flex;
         align-items: center;
         gap: 10px;
@@ -83,6 +86,7 @@
         letter-spacing: 0.6px;
     }
     &__gen {
+        position: relative; // delta-chip anchor
         display: inline-flex;
         align-items: baseline;
         gap: 10px;
@@ -209,6 +213,7 @@
         padding-bottom: 9px;
     }
     &__terra-pct {
+        position: relative; // delta-chip anchor
         font-size: 17px;
         font-weight: 700;
         letter-spacing: 0.8px;
@@ -277,9 +282,34 @@
     52% { filter: drop-shadow(0 0 7px fade(@con-amber, 55%)); }
     100% { filter: drop-shadow(0 0 0 rgba(242, 193, 78, 0)); }
 }
+
+/* Delta-chip feedback in the top HUD — the SAME number-transition the
+   desktop sidebar plays (the keyframes are global, defined in
+   right_sidebar.less), triggered by the AnimatedMetricValue host state.
+   Covers the three game-end parameters, Venus, the generation and the
+   total-progress percent. */
+.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
+.con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
+.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
+    animation: global-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
+.con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
+.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+    animation: global-num-transition-negative calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .con-status__terra--celebrating { animation: none; }
     .con-status__terra-fill { transition: none; }
+    .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
+    .con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
+    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
+    .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
+    .con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
+    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+        animation: none;
+    }
 }
 
 /* ── Turn / task banner ──────────────────────────────────────────── */
@@ -6386,10 +6416,10 @@ html.con-profile-handheld {
         &__terra-rail { height: 2px; }
         &__param--venus { padding-left: 12px; padding-bottom: 7px; }
         &__gen { padding-bottom: 7px; }
-        &__gen-label { display: none; } /* the number reads alone */
-        /* …except the FINAL GENERATION marker — that state must stay
-           readable even on the handheld profile (smaller, still gold). */
-        &__gen--final .con-status__gen-label { display: inline; font-size: 10px; letter-spacing: 1.1px; }
+        /* The «ПКЛ.» label stays VISIBLE on handheld (an earlier pass hid
+           it — a bare number read as ambiguous), just compact. The gold
+           «ФИНАЛЬНОЕ ПКЛ.» final marker rides the same element. */
+        &__gen-label { font-size: 11px; letter-spacing: 1.2px; }
         &__intel { gap: 12px; }
         &__intel-label { display: none; } /* icon + numbers suffice */
         &__intel-value { font-size: 16px; b { font-size: 18px; } }

@@ -36,16 +36,39 @@
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">{{ game.temperature }}°C</span>
+          <AnimatedMetricValue
+            :value="game.temperature"
+            metricKey="globals.temperature"
+            scopeKey="global"
+            :epoch="epoch"
+            variant="global-parameter" />
         </span>
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">{{ game.oxygenLevel }}%</span>
+          <AnimatedMetricValue
+            :value="game.oxygenLevel"
+            metricKey="globals.oxygen"
+            scopeKey="global"
+            :epoch="epoch"
+            variant="global-parameter" />
         </span>
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">{{ game.oceans }}/9</span>
+          <AnimatedMetricValue
+            :value="game.oceans"
+            metricKey="globals.oceans"
+            scopeKey="global"
+            :epoch="epoch"
+            variant="global-parameter" />
         </span>
-        <span class="con-status__terra-pct">{{ progress.percent }}%</span>
+        <span class="con-status__terra-pct">{{ progress.percent }}%<AnimatedMetricValue
+            :value="progress.percent"
+            metricKey="globals.terraforming-percent"
+            scopeKey="global"
+            :epoch="epoch"
+            variant="global-parameter" /></span>
         <span class="con-status__terra-rail" aria-hidden="true">
           <span class="con-status__terra-fill" :style="{width: progress.percent + '%'}"></span>
         </span>
@@ -53,10 +76,22 @@
       <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
         <span class="con-status__value">{{ game.venusScaleLevel }}%</span>
+        <AnimatedMetricValue
+          :value="game.venusScaleLevel"
+          metricKey="globals.venus"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
       </span>
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
         <span class="con-status__gen-label">{{ $t(finalGeneration ? 'FINAL GEN.' : 'GEN.') }}</span>
         <span class="con-status__value">{{ game.generation }}</span>
+        <AnimatedMetricValue
+          :value="game.generation"
+          metricKey="globals.generation"
+          scopeKey="global"
+          :epoch="epoch"
+          variant="global-parameter" />
       </span>
     </div>
   </div>
@@ -86,6 +121,7 @@ import {terraformingProgress, TerraformingProgress} from '@/client/components/ga
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
+import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -102,9 +138,10 @@ const GLYPHS: Record<StatusPresentation['category'], string> = {
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
+  components: {AnimatedMetricValue},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** playerView.runId — reserved for delta feedback ('' disables). */
+    /** playerView.runId — drives the delta-chip feedback ('' disables). */
     epoch: {type: String, default: ''},
   },
   data() {
