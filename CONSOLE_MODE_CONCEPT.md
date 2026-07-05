@@ -1883,3 +1883,50 @@ driven by the fallback engine (the console task system is the next big
 build); notifications/turn-handoff render desktop-styled; no per-section
 right-stick scrolling yet. Gates: 39 pure specs, ESLint, vue-tsc, make:css,
 make:json, build:client — green.
+
+### P27 — Main-board COMMAND MODEL rework (quick selectors / inspection / status chips)
+
+**Mapping (board home):** `Y` = Information Mode (moved FROM LT; inside Info
+Mode the actions detail is now LT, Y closes). `RT` = the ACTION-CATEGORY
+quick selector (`ConsoleQuickSelector.vue`, cross layout, DIRECT input — a
+d-pad direction activates its slot immediately, A = center): A Cards /
+↑ Card actions / → **Trading** (the renamed Colonies entry; the desktop
+bottom-bar button is renamed too) / ↓ Voting (reserved for Turmoil, honest
+disabled reason) / ← Hydronetwork. `LT` = the BASIC-ACTIONS quick selector:
+A Standard projects / ↑ Skip turn (End Turn) / ↓ Pass (ALWAYS confirmed,
+desktop warning parity) / ← Plant conversion / → Heat conversion. `L3` =
+BOARD INSPECTION MODE. LB/RB/View/Menu unchanged. The old action WHEEL is
+deleted (`ConsoleActionWheel.vue`); Effects lives in Info Mode (Y → RT).
+Entries + honest reasons are PURE (`consoleQuickModel.ts`, 15 specs).
+
+**Standard projects** render on a premium screen
+(`ConsoleStdProjectsScreen.vue`, `.con-stdp`, con-ma-style dashboard):
+every server project + PATENT SALE as a first-class basic action (Steam
+framing), costs, expected results, M€-deficit reasons, wallet
+before→after; the same screen serves the T3 mandatory prompt (B =
+Minimize). The old `basics` sheet is gone.
+
+**Board inspection (L3):** on the board home the cells are NOT part of the
+command loop (d-pad → an honest «Нажмите L3» notice); placement keeps its
+automatic navigation. In inspection the candidate set adds the
+global-parameter TRACK markers (`[data-arc-marker]` on ArcScaleMarkerChip;
+focusing one dispatches a synthetic mouseenter → the SAME premium
+ScaleTooltip + a `track` mode in the context panel reading
+`scaleTooltipState.content`). The selection spotlight paints ONLY while
+live (`.con-board--live`); inspection uses a distinct AMBER dashed hex
+(`.con-board--inspecting`) vs cyan placement-browse / mint legal / red
+illegal; markers get an amber scanner ring (`.con-marker-sel`).
+
+**Top HUD:** the Cards/Actions intel counters and the players' TR/M€ are
+GONE from the strip; chips = identity + live status (reuses
+`playerLabels.actionLabelForPlayer` + `playerStatusPresenter` + the real
+`actionsTakenThisRound` 1/2 counter; one-shot `con-turn-burst` when the
+turn passes to the viewer). The central «ВАШ ХОД» pill is REMOVED — the
+banner is reserved for mandatory/critical states.
+
+**Right panel (idle):** the strategic home summary — playable cards /
+available card actions (moved from the top bar) + Milestones/Awards race
+(claimed/funded-by chips, my threshold progress, live award leaders, slots
+left; `buildHomeMaSummary`). No blind command-bar duplication (LB/RB mini
+glyphs only). Gates: vue-tsc, eslint, make:css, make:json, 123 console
+specs (incl. 15 new consoleQuickModel) — green.
