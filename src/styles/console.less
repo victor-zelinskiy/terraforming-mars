@@ -1678,6 +1678,462 @@ html.con-profile-large .con-hydro {
     .con-hydro__reason { font-size: 18px; }
 }
 
+/* ── Milestones/Awards premium CONFIRM (ConsoleMaConfirm) ───────────────
+   The strategic sibling of the hydro confirm: the hero 512×512 icon on a
+   pedestal, the mechanic truth (milestone = 5 VP immediately vs award =
+   endgame race), the M€ before → after delta and the slot economics.
+   Nothing is submitted until this modal's own A. */
+@con-ma-gold: #ffd87a;
+@con-ma-medal: #d6a6e0;
+
+.con-maconfirm {
+    &__frame { width: min(960px, 94vw); }
+    &__frame--milestone {
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 45%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 44px fade(@con-ma-gold, 9%);
+        .con-task__kicker { color: fade(@con-ma-gold, 92%); }
+        .con-task__kicker-mark { color: @con-ma-gold; }
+    }
+    &__frame--award {
+        box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 42%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 44px fade(@con-ma-medal, 9%);
+        .con-task__kicker { color: fade(@con-ma-medal, 92%); }
+        .con-task__kicker-mark { color: @con-ma-medal; }
+    }
+    &__body { gap: 12px; }
+    &__main {
+        display: flex;
+        gap: 22px;
+        min-height: 0;
+    }
+    &__side {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        width: 212px;
+    }
+    /* The hero pedestal — same composition language as .con-ma__stage,
+       scaled up for the decision moment (contain: NEVER cropped). */
+    &__stage {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        border-radius: 16px;
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+        box-shadow:
+            inset 0 0 0 1px rgba(120, 150, 180, 0.22),
+            inset 0 -14px 26px rgba(0, 0, 0, 0.4);
+
+        &::after {
+            content: '';
+            position: absolute;
+            left: 18%;
+            right: 18%;
+            bottom: 8%;
+            height: 10%;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
+        }
+        .ma-hero { position: absolute; inset: 8%; z-index: 1; }
+    }
+    &__frame--milestone &__stage { background: radial-gradient(circle at 50% 58%, fade(@con-ma-gold, 10%), transparent 66%), rgba(9, 15, 24, 0.6); }
+    &__frame--award &__stage { background: radial-gradient(circle at 50% 58%, fade(@con-ma-medal, 10%), transparent 66%), rgba(9, 15, 24, 0.6); }
+    &__name {
+        font-size: 20px;
+        font-weight: 800;
+        text-align: center;
+        line-height: 1.25;
+    }
+    &__info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    &__desc { font-size: 17px; line-height: 1.42; }
+
+    /* Milestone: the progress readout + threshold meter. */
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 9px 13px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+    }
+    &__progress-value { font-size: 17px; b { font-size: 23px; } }
+    &__progress-req { color: @con-text-dim; font-size: 17px; }
+    &__meter {
+        flex: 1;
+        min-width: 90px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(120, 150, 180, 0.18);
+        overflow: hidden;
+        i {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint);
+            transition: width calc(300ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    &__progress-note { font-size: 14.5px; color: @con-text-dim; }
+    &__progress-note--ok { color: @con-mint; }
+
+    /* Milestone: the immediate-5-VP truth (the headline consequence). */
+    &__vp {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 13px;
+        border-radius: 10px;
+        background: fade(@con-ma-gold, 8%);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 45%);
+    }
+    &__vp-badge {
+        flex-shrink: 0;
+        padding: 5px 12px;
+        border-radius: 9px;
+        background: fade(@con-ma-gold, 16%);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 70%);
+        color: @con-ma-gold;
+        font-size: 21px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    &__vp-note { font-size: 15.5px; line-height: 1.35; }
+
+    /* Award: the endgame-scoring truth. */
+    &__endgame {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 13px;
+        border-radius: 10px;
+        background: fade(@con-ma-medal, 7%);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 40%);
+        font-size: 15.5px;
+        line-height: 1.4;
+        b { color: @con-text; }
+    }
+    &__endgame-mark { flex-shrink: 0; }
+
+    /* Award: the live race panel. */
+    &__race {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    &__racer {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 11px;
+        border-radius: 9px;
+        background: rgba(14, 22, 33, 0.5);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        font-size: 16px;
+
+        &--viewer {
+            background: fade(@con-cyan, 9%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
+            font-weight: 700;
+        }
+        &--leader .con-maconfirm__racer-score { color: @con-ma-gold; }
+    }
+    &__racer-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+    }
+    &__racer-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__racer-crown { color: @con-ma-gold; font-size: 13px; }
+    &__racer-score { font-size: 19px; font-weight: 800; }
+    &__race-tone {
+        align-self: flex-start;
+        margin-top: 2px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 13.5px;
+        font-weight: 700;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.28);
+        color: @con-text-dim;
+
+        &--lead, &--tie {
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 50%);
+            color: @con-mint;
+        }
+        &--behind {
+            background: fade(@con-amber, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+            color: #ffe3b0;
+        }
+    }
+
+    /* Economy: the M€ before → after (mirrors the hydro spend readout). */
+    &__spend {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        align-self: flex-start;
+        padding: 8px 13px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+        font-size: 17px;
+    }
+    &__spend-num { font-size: 21px; color: #ffd9a0; }
+    &__beforeafter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: 18px; }
+    }
+    &__free {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 13px;
+        border-radius: 10px;
+        background: fade(@con-mint, 8%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+        font-size: 15.5px;
+    }
+    &__free-chip {
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
+        color: @con-mint;
+        font-size: 13.5px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        white-space: nowrap;
+    }
+
+    /* Slot economics: taken X/3 · left after · who took the others. */
+    &__slots {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 8px 13px;
+        border-radius: 10px;
+        background: rgba(14, 22, 33, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+        font-size: 15px;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: 16px; }
+    }
+    &__slots-owner {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: @con-text;
+    }
+    &__foot-off { opacity: 0.45; filter: saturate(0.5); }
+}
+
+html.con-profile-handheld .con-maconfirm {
+    &__frame { width: min(780px, 96vw); }
+    &__side { width: 164px; }
+    &__stage { width: 156px; height: 156px; }
+    &__name { font-size: 17px; }
+    &__desc { font-size: 15px; }
+    &__vp-badge { font-size: 18px; }
+    &__vp-note { font-size: 14px; }
+    &__endgame { font-size: 14px; }
+    &__racer { font-size: 14.5px; padding: 5px 10px; }
+    &__racer-score { font-size: 17px; }
+    &__spend { font-size: 15px; }
+    &__spend-num { font-size: 18px; }
+    &__slots { font-size: 13.5px; }
+}
+
+/* ── Milestones/Awards CEREMONY (ConsoleMaCeremony) ─────────────────────
+   The cinematic post-confirm beat: a milestone claim is a CORONATION (the
+   player just EARNED 5 VP — gold, ring burst, the strongest moment); an
+   award funding is an official SEAL (calmer, medal-toned). Pointer-events
+   none — the game stays fully playable underneath; bounded lifetime through
+   motionMs; every animation is ONE-SHOT (never looping). */
+.con-macere {
+    position: fixed;
+    inset: 0;
+    z-index: 11720; /* above the MA screen (11500) / task-host (11480); under fallback (12000) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__veil {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, rgba(4, 8, 14, 0.62), rgba(4, 8, 14, 0.22) 58%, transparent 80%);
+    }
+    &__scene {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        animation: con-macere-rise calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__halo {
+        position: absolute;
+        top: 10px;
+        width: 340px;
+        height: 340px;
+        border-radius: 50%;
+        background: radial-gradient(circle, fade(@con-ma-gold, 26%), transparent 68%);
+        animation: con-macere-halo calc(1600ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &__stage {
+        position: relative;
+        width: 300px;
+        height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__ring {
+        position: absolute;
+        inset: 12%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px fade(@con-ma-gold, 55%), 0 0 34px fade(@con-ma-gold, 30%);
+        animation: con-macere-ring calc(1300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    .ma-hero {
+        position: absolute;
+        inset: 13%;
+        animation: con-macere-hero calc(720ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both;
+    }
+    &__kicker {
+        font-size: 19px;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: fade(@con-ma-gold, 92%);
+        text-shadow: 0 0 18px fade(@con-ma-gold, 45%);
+        animation: con-macere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(180ms * var(--motion-scale, 1)) both;
+    }
+    &__name {
+        font-size: 42px;
+        font-weight: 800;
+        line-height: 1.15;
+        text-align: center;
+        max-width: 70vw;
+        text-shadow: 0 4px 26px rgba(0, 0, 0, 0.8);
+        animation: con-macere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(280ms * var(--motion-scale, 1)) both;
+    }
+    &__vp {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 8px 22px;
+        border-radius: 12px;
+        background: fade(@con-ma-gold, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-gold, 70%), 0 0 30px fade(@con-ma-gold, 25%);
+        color: @con-ma-gold;
+        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+    }
+    &__vp-num { font-size: 38px; font-weight: 800; }
+    &__vp-unit { font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+    &__cost {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 7px 18px;
+        border-radius: 12px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-ma-medal, 55%);
+        font-size: 19px;
+        color: @con-text;
+        b { font-size: 23px; }
+        animation: con-macere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+    }
+
+    /* The award seal is medal-toned (the coronation gold stays milestone-only). */
+    &--award {
+        .con-macere__halo { background: radial-gradient(circle, fade(@con-ma-medal, 24%), transparent 68%); }
+        .con-macere__ring { box-shadow: 0 0 0 2px fade(@con-ma-medal, 55%), 0 0 34px fade(@con-ma-medal, 28%); }
+        .con-macere__kicker { color: fade(@con-ma-medal, 94%); text-shadow: 0 0 18px fade(@con-ma-medal, 45%); }
+    }
+}
+
+.con-macere-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease; }
+.con-macere-leave-active { transition: opacity calc(420ms * var(--motion-scale, 1)) ease; }
+.con-macere-enter-from,
+.con-macere-leave-to { opacity: 0; }
+
+@keyframes con-macere-rise {
+    from { transform: translateY(26px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes con-macere-halo {
+    0% { transform: scale(0.6); opacity: 0; }
+    35% { opacity: 1; }
+    100% { transform: scale(1.15); opacity: 0.55; }
+}
+@keyframes con-macere-ring {
+    0% { transform: scale(0.55); opacity: 0; }
+    45% { opacity: 1; }
+    100% { transform: scale(1); opacity: 0.85; }
+}
+@keyframes con-macere-hero {
+    from { transform: translateY(22px) scale(0.82); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes con-macere-line {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes con-macere-pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-macere__scene,
+    .con-macere__halo,
+    .con-macere__ring,
+    .con-macere .ma-hero,
+    .con-macere__kicker,
+    .con-macere__name,
+    .con-macere__vp,
+    .con-macere__cost { animation: none; }
+    .con-macere-enter-active,
+    .con-macere-leave-active { transition: opacity 120ms ease; }
+}
+
+html.con-profile-handheld .con-macere {
+    &__stage { width: 220px; height: 220px; }
+    &__halo { width: 250px; height: 250px; }
+    &__name { font-size: 32px; }
+    &__kicker { font-size: 16px; letter-spacing: 4.5px; }
+    &__vp-num { font-size: 30px; }
+}
+
 /* ── P20/P29c: off-Mars special zones, console-compacted ───────────
    P29c-final: ONE exact arc formula for both flanks —
        top(θ)  = 281 − r·sin(θ)

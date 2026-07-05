@@ -321,6 +321,23 @@
     </MandatoryInputModal>
 
     <!--
+      Client-side confirmation for claiming a milestone / funding an award.
+      The overlay buttons OPEN this instead of submitting — the modal shows
+      the mechanic truth (5 VP now vs endgame race), the M€ delta, the live
+      race and the slot economics; nothing is POSTed until its Confirm.
+      Cancel returns to the still-open overlay with no server round-trip.
+    -->
+    <MandatoryInputModal v-if="pendingMaConfirm !== undefined && maConfirmView !== undefined"
+                         :title="$t(pendingMaConfirm.kind === 'milestone' ? 'Claim the milestone' : 'Fund the award')"
+                         :minimizable="false">
+      <MaConfirmContent
+        :view="maConfirmView"
+        :blockReason="maConfirmBlockReason"
+        @confirm="submitMaConfirm"
+        @cancel="pendingMaConfirm = undefined" />
+    </MandatoryInputModal>
+
+    <!--
       Premium journal side-panel. Replaces the legacy `bar-overlay--log`
       that hosted the old `LogPanel`. NOT a board-covering overlay: it's
       a glass/HUD panel pinned to the right gutter that slides the board
@@ -819,7 +836,12 @@ import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
 import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {AwardName} from '@/common/ma/AwardName';
-import {MAX_MILESTONES, MAX_AWARDS} from '@/common/constants';
+import {MAX_MILESTONES, MAX_AWARDS, MILESTONE_COST, AWARD_COSTS} from '@/common/constants';
+import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
+import MaConfirmContent from '@/client/components/overview/MaConfirmContent.vue';
+import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
+import {armMaCeremony} from '@/client/components/ma/maCeremonyState';
+import {MaKind} from '@/client/components/ma/maArt';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {PlayerInputModel, OrOptionsModel, AndOptionsModel, SelectOptionModel, DisabledOptionModel, SelectPaymentModel, SelectColonyModel, SelectProjectCardToPlayModel, SelectSpaceModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -944,6 +966,11 @@ type PlayerHomeModel = ToggleableState & {
   // The outer modal a "repeat an action" handoff came from (ProjectInspection /
   // Viron) — saved so cancelling the repeated action's confirm restores it.
   repeatOuter: RepeatOuter | undefined;
+  // The in-flight milestone-claim / award-funding confirmation. Claiming /
+  // funding is a strategic commitment (5 VP now / an endgame race bet), so
+  // the overlay buttons OPEN this premium confirm instead of submitting —
+  // nothing is POSTed until the modal's own Confirm.
+  pendingMaConfirm: {kind: MaKind, name: string} | undefined;
   // True while the Pass confirmation modal is open. The pass action is
   // irreversible (no more turns this generation), so we gate it through
   // a client-side confirmation modal before POSTing to the server.
@@ -1034,6 +1061,7 @@ export default defineComponent({
       pendingPlayCard: undefined,
       pendingCardAction: undefined,
       repeatOuter: undefined,
+      pendingMaConfirm: undefined,
       passConfirmOpen: false,
       convertHeatConfirmOpen: false,
       coloniesOverlayOpen: false,
@@ -1762,6 +1790,63 @@ export default defineComponent({
     fundedAwardsCount(): number {
       return this.fundedAwardSlots.filter((s) => s !== undefined).length;
     },
+    // The premium claim/fund confirmation view — REBUILT from the live
+    // playerView on every commit, so a slot raced away while the modal is
+    // open honestly re-renders as blocked (never a dead submit).
+    maConfirmView(): MaConfirmView | undefined {
+      const p = this.pendingMaConfirm;
+      if (p === undefined) {
+        return undefined;
+      }
+      const models = p.kind === 'milestone' ? this.game.milestones : this.game.awards;
+      const source = models.find((m) => m.name === p.name);
+      if (source === undefined) {
+        return undefined;
+      }
+      const describe = (name: string): string => {
+        try {
+          return p.kind === 'milestone' ?
+            getMilestone(name as MilestoneName).description :
+            getAward(name as AwardName).description;
+        } catch (err) {
+          return '';
+        }
+      };
+      const free = p.kind === 'award' && this.freeFundingActive;
+      const nextAwardCost = AWARD_COSTS[Math.min(this.fundedAwardsCount, AWARD_COSTS.length - 1)];
+      return buildMaConfirm(p.kind, source, models, {
+        myColor: this.thisPlayer.color,
+        myMegacredits: this.thisPlayer.megacredits,
+        cost: p.kind === 'milestone' ? MILESTONE_COST : nextAwardCost,
+        free,
+        maxSlots: p.kind === 'milestone' ? MAX_MILESTONES : MAX_AWARDS,
+        playerName: (c) => this.playerView.players.find((pl) => pl.color === c)?.name ?? c,
+        describe,
+      });
+    },
+    // '' = confirmable right now; else the CONCRETE blocker shown in the
+    // modal (mirrors the overlay buttons' blocker vocabulary).
+    maConfirmBlockReason(): string {
+      const p = this.pendingMaConfirm;
+      if (p === undefined) {
+        return '';
+      }
+      const availableNow: ReadonlySet<string> = p.kind === 'milestone' ? this.claimableMilestones : this.fundableAwards;
+      if (availableNow.has(p.name)) {
+        return '';
+      }
+      const v = this.maConfirmView;
+      if (v?.takenByOther !== undefined) {
+        return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
+      }
+      if (this.playerView.waitingFor === undefined) {
+        return 'Not your turn to take any actions';
+      }
+      if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
+        return 'Not enough M€';
+      }
+      return 'Finish your current action first';
+    },
     // Server-authoritative availability flags. The server already runs the
     // canonical `canAct()` check (the same one that controls whether the
     // legacy radio-button option goes into the menu), so the client just
@@ -2295,6 +2380,7 @@ export default defineComponent({
     ColonyTradePaymentModal,
     BarButtonIcon,
     AnimatedMetricValue,
+    MaConfirmContent,
   },
   methods: {
     isPlayerActing(playerView: PlayerViewModel) : boolean {
@@ -2324,6 +2410,7 @@ export default defineComponent({
       this.pendingPlayCard = undefined;
       this.pendingCardAction = undefined;
       this.repeatOuter = undefined;
+      this.pendingMaConfirm = undefined;
       this.passConfirmOpen = false;
       this.convertHeatConfirmOpen = false;
       this.coloniesOverlayOpen = false;
@@ -2487,6 +2574,12 @@ export default defineComponent({
       // dialog element, so exempt it explicitly. (CardZoomModal also stops
       // the backdrop click at source; this is belt-and-braces.)
       if (target.closest('.card-zoom-dialog')) {
+        return;
+      }
+      // A click INSIDE a mandatory-input modal (e.g. the milestone/award
+      // confirm's Cancel, hosted over the still-open overlay) is never an
+      // "outside" click — the overlay underneath must survive it.
+      if (target.closest('.mandatory-input-modal')) {
         return;
       }
       if (target.closest('.top-bar-dropdown') ||
@@ -3356,34 +3449,55 @@ export default defineComponent({
       }
       return false;
     },
-    // Submit a milestone claim through the same channel the radio + submit
-    // form uses (WaitingFor.onsave → POST /api/player-input). Bypasses the
-    // wf-action radio UI but the server can't tell the difference.
+    // Claiming a milestone is a strategic, irreversible commitment (5 VP
+    // immediately + one of the 3 limited slots), so the overlay button no
+    // longer submits — it OPENS the premium confirmation. The actual submit
+    // (byte-identical nested OR response) happens in submitMaConfirm().
     claimMilestone(name: MilestoneName): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
-      const found = this.findMilestoneOptionPath(this.playerView.waitingFor);
-      if (!found) {
-        return;
-      }
-      if (this.submitInnerActionResponse(found, name)) {
-        this.activeOverlay = null;
-      }
+      this.pendingMaConfirm = {kind: 'milestone', name};
     },
     fundAward(name: AwardName): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
-      const found = this.findAwardOptionPath(this.playerView.waitingFor);
+      this.pendingMaConfirm = {kind: 'award', name};
+    },
+    // The MA confirm's Confirm — re-resolves the LIVE option path (the
+    // prompt may have moved while the modal was open; the server validates
+    // again anyway) and submits through the same channel the radio + submit
+    // form uses (WaitingFor.onsave → POST /api/player-input). The ceremony
+    // is armed as a CANDIDATE — it fires only when the fresh playerView
+    // proves the claim/fund resolved in the viewer's colour.
+    submitMaConfirm(): void {
+      const pending = this.pendingMaConfirm;
+      const view = this.maConfirmView;
+      this.pendingMaConfirm = undefined;
+      if (pending === undefined || this.startGameFlowActionLocked) {
+        return;
+      }
+      const found = pending.kind === 'milestone' ?
+        this.findMilestoneOptionPath(this.playerView.waitingFor) :
+        this.findAwardOptionPath(this.playerView.waitingFor);
       if (!found) {
         return;
       }
-      if (this.submitInnerActionResponse(found, name)) {
+      if (this.submitInnerActionResponse(found, pending.name)) {
         this.activeOverlay = null;
-        // Free-sponsorship flow: exit the mode on submit so no pill flashes
-        // while the server resolves the prompt (no-op for the paid flow).
-        exitAwardFunding();
+        armMaCeremony({
+          kind: pending.kind,
+          name: pending.name,
+          color: this.thisPlayer.color,
+          cost: view?.cost ?? 0,
+          free: view?.free ?? false,
+        });
+        if (pending.kind === 'award') {
+          // Free-sponsorship flow: exit the mode on submit so no pill flashes
+          // while the server resolves the prompt (no-op for the paid flow).
+          exitAwardFunding();
+        }
       }
     },
     // Submits a top-level SelectOption picked from the action menu via its

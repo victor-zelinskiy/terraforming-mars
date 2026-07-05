@@ -27,6 +27,11 @@
          in the top-HUD rail + generation marker). -->
     <ConsoleTerraformingBanner />
 
+    <!-- Milestone coronation / award seal — the cinematic post-confirm beat
+         (pointer-events: none, bounded lifetime; fired only when the fresh
+         playerView proves the viewer's OWN claim/fund resolved). -->
+    <ConsoleMaCeremony />
+
     <!-- P29: --journal keeps the context panel's LAYOUT slot (the board
          never reflows) but hides its paint — the journal REPLACES it, the
          panel can't bleed through the journal surface. -->
@@ -115,6 +120,19 @@
                                  :players="playerView.players"
                                  @confirm="onColonyTradePaymentSelected($event)"
                                  @cancel="pendingTradeColony = undefined" />
+    </transition>
+
+    <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
+         on an available dashboard item opens this; nothing is submitted
+         until the modal's own A — accidental claim/fund is impossible). -->
+    <transition name="con-layer">
+      <ConsoleMaConfirm v-if="maConfirmView !== undefined"
+                        ref="maConfirm"
+                        :view="maConfirmView"
+                        :available="maConfirmAvailable"
+                        :blockReason="maConfirmBlockReason"
+                        @confirm="submitMaConfirm"
+                        @cancel="pendingMaConfirm = undefined" />
     </transition>
 
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
@@ -391,7 +409,12 @@ import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraf
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
+import ConsoleMaConfirm from '@/client/components/console/ConsoleMaConfirm.vue';
+import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
 import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, consoleMaPressNotice, stepGrid} from '@/client/components/console/consoleMaModel';
+import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
+import {armMaCeremony} from '@/client/components/ma/maCeremonyState';
+import {MaKind} from '@/client/components/ma/maArt';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, QUICK_SLOT_GLYPH, StdProjectItem} from '@/client/console/consoleQuickModel';
@@ -484,6 +507,8 @@ export default defineComponent({
     ConsoleCommandBar,
     ConsoleSheet,
     ConsoleMaScreen,
+    ConsoleMaConfirm,
+    ConsoleMaCeremony,
     ConsoleQuickSelector,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
@@ -529,6 +554,8 @@ export default defineComponent({
       dismissedRevealKey: '',
       /** T7: the card-action confirm (preview-backed; nothing submitted yet). */
       pendingCardAction: undefined as {cardName: CardName, preview: ActionPreview | undefined, loading: boolean} | undefined,
+      /** Milestones/Awards premium confirm (nothing submitted until its A). */
+      pendingMaConfirm: undefined as {kind: MaKind, name: string} | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
@@ -1010,6 +1037,66 @@ export default defineComponent({
       const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
       return [8, 14, 20][funded] ?? 20;
     },
+    /** The premium MA confirm view — REBUILT from the live playerView on
+     *  every commit, so a slot raced away while the modal is open honestly
+     *  re-renders as blocked (never a dead submit). */
+    maConfirmView(): MaConfirmView | undefined {
+      const p = this.pendingMaConfirm;
+      if (p === undefined) {
+        return undefined;
+      }
+      const models = p.kind === 'milestone' ? this.game.milestones : this.game.awards;
+      const source = models.find((m) => m.name === p.name);
+      if (source === undefined) {
+        return undefined;
+      }
+      const describe = (name: string): string => {
+        try {
+          return p.kind === 'milestone' ?
+            getMilestone(name as MilestoneName).description :
+            getAward(name as AwardName).description;
+        } catch (err) {
+          return '';
+        }
+      };
+      return buildMaConfirm(p.kind, source, models, {
+        myColor: this.thisPlayer.color,
+        myMegacredits: this.thisPlayer.megacredits,
+        cost: p.kind === 'milestone' ? 8 : this.awardCostValue,
+        free: false, // Vitor's free sponsorship rides the fallback surface in console mode
+        maxSlots: 3,
+        playerName: (c) => this.playerView.players.find((pl) => pl.color === c)?.name ?? c,
+        describe,
+      });
+    },
+    /** LIVE availability for the open MA confirm (waitingFor = the truth). */
+    maConfirmAvailable(): boolean {
+      const p = this.pendingMaConfirm;
+      if (p === undefined) {
+        return false;
+      }
+      const found = p.kind === 'milestone' ?
+        findMilestoneOptionPath(this.playerView.waitingFor) :
+        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
+      return this.claimableTitles(found?.options).has(p.name);
+    },
+    /** The CONCRETE blocker when the open MA confirm went stale. */
+    maConfirmBlockReason(): string {
+      if (this.maConfirmAvailable) {
+        return '';
+      }
+      const v = this.maConfirmView;
+      if (v?.takenByOther !== undefined) {
+        return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
+      }
+      if (!this.myTurn) {
+        return 'Not your turn to take any actions';
+      }
+      if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
+        return 'Not enough M€';
+      }
+      return 'Finish your current action first';
+    },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
       case 'cardActions':
@@ -1056,6 +1143,9 @@ export default defineComponent({
       }
       if (this.pendingTradeColony !== undefined) {
         return 'Trade';
+      }
+      if (this.pendingMaConfirm !== undefined) {
+        return 'Confirmation';
       }
       if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
         return 'Confirmation';
@@ -1133,6 +1223,12 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Trade'},
+          {control: 'back', label: 'Cancel'},
+        ];
+      }
+      if (this.pendingMaConfirm !== undefined) {
+        return [
+          {control: 'confirm', label: this.pendingMaConfirm.kind === 'milestone' ? 'Claim' : 'Fund', enabled: this.maConfirmAvailable},
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -1596,6 +1692,18 @@ export default defineComponent({
         const confirm = this.$refs.tradeConfirm as InstanceType<typeof ConsoleColonyTradeConfirm> | undefined;
         confirm?.handleIntent(intent);
         return true;
+      }
+      // The premium Milestones/Awards confirm owns input while open (A =
+      // confirm, B = cancel — no background command leakage). A vanished
+      // model (game switched in-session) drops the pending confirm cleanly.
+      if (this.pendingMaConfirm !== undefined) {
+        if (this.maConfirmView === undefined) {
+          this.pendingMaConfirm = undefined;
+        } else {
+          const confirm = this.$refs.maConfirm as InstanceType<typeof ConsoleMaConfirm> | undefined;
+          confirm?.handleIntent(intent);
+          return true;
+        }
       }
       // T7: the card-action preview confirm (A/X = execute, B = back to the sheet).
       if (this.pendingCardAction !== undefined) {
@@ -2246,9 +2354,10 @@ export default defineComponent({
         this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
       });
     },
-    /** P26: A on the premium MA screen — claim/fund the focused item.
-     *  A non-available press answers with the CONCRETE reason (owner /
-     *  turn / money / slots / threshold), never a mute no-op. */
+    /** P26: A on the premium MA screen — a non-available press answers with
+     *  the CONCRETE reason (owner / turn / money / slots / threshold), never
+     *  a mute no-op. An AVAILABLE press opens the premium CONFIRMATION —
+     *  claiming/funding is a strategic commitment, never a bare A. */
     activateMaItem(item: ConsoleMaItem | undefined): void {
       if (item === undefined || this.maScreenKind === undefined) {
         return;
@@ -2261,10 +2370,36 @@ export default defineComponent({
         this.showNotice(consoleMaPressNotice(item));
         return;
       }
-      const found = this.maScreenKind === 'milestones' ?
+      this.pendingMaConfirm = {kind: item.kind, name: item.name};
+    },
+    /** The MA confirm's A — re-resolves the LIVE option path (the prompt may
+     *  have moved while the modal was open) and submits the byte-identical
+     *  nested OR response; the ceremony is armed as a CANDIDATE and fires
+     *  only when the fresh view proves the claim/fund resolved. */
+    submitMaConfirm(): void {
+      const pending = this.pendingMaConfirm;
+      const view = this.maConfirmView;
+      this.pendingMaConfirm = undefined;
+      if (pending === undefined) {
+        return;
+      }
+      const found = pending.kind === 'milestone' ?
         findMilestoneOptionPath(this.playerView.waitingFor) :
         findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
-      this.submitInnerOption(found, item.key);
+      if (found === undefined) {
+        this.showNotice('Unavailable right now');
+        return;
+      }
+      const sent = this.submitInnerOption(found, pending.name);
+      if (sent) {
+        armMaCeremony({
+          kind: pending.kind,
+          name: pending.name,
+          color: this.thisPlayer.color,
+          cost: view?.cost ?? 0,
+          free: view?.free ?? false,
+        });
+      }
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
       if (row === undefined || row.kind === 'header') {
@@ -2466,18 +2601,19 @@ export default defineComponent({
       }
       this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: cardName, payment}));
     },
-    submitInnerOption(found: {options: ReadonlyArray<unknown>, path: ReadonlyArray<number>} | undefined, targetTitle: string): void {
+    submitInnerOption(found: {options: ReadonlyArray<unknown>, path: ReadonlyArray<number>} | undefined, targetTitle: string): boolean {
       if (found === undefined) {
-        return;
+        return false;
       }
       const options = found.options as ReadonlyArray<{type: string, title: string | Message}>;
       const innerIdx = options.findIndex((o) => o.type === 'option' && inputTitleText(o.title) === targetTitle);
       if (innerIdx === -1) {
         this.showNotice('Unavailable right now');
-        return;
+        return false;
       }
       closeConsoleLayers();
       this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
+      return true;
     },
     // ── colonies trade (mirrors the desktop contract byte-for-byte) ─────
     tryOpenColonyTrade(): void {

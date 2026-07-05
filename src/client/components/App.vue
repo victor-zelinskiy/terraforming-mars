@@ -136,6 +136,14 @@
         v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :player-view="playerView" />
       <!--
+        Milestone/award post-confirm ceremony (desktop presentation). App-level
+        so the playerkey remount can't tear it down mid-beat; self-gates via
+        maCeremonyState (fires only when the fresh view proves the viewer's own
+        claim/fund resolved). Console mode has its own cinematic in ConsoleShell.
+      -->
+      <MaCeremonyOverlay
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled" />
+      <!--
         End-of-generation Energy → Heat conversion transition. App-level (like
         DraftFlowOverlay) so the `:key="playerkey"` remount can't tear down the
         arrow / paired chips mid-animation. Self-gates via
@@ -329,6 +337,7 @@ import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlo
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import GameExitButton from '@/client/components/GameExitButton.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
+import MaCeremonyOverlay from '@/client/components/ma/MaCeremonyOverlay.vue';
 import EnergyConversionOverlay from '@/client/components/feedback/EnergyConversionOverlay.vue';
 import HazardCleanupOverlay from '@/client/components/feedback/HazardCleanupOverlay.vue';
 import {
@@ -498,6 +507,7 @@ export default defineComponent({
     DraftFlowOverlay,
     StartGameFlowOverlay,
     RevealResultOverlay,
+    MaCeremonyOverlay,
     EnergyConversionOverlay,
     HazardCleanupOverlay,
     RematchLayer,

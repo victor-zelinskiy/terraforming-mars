@@ -1,0 +1,619 @@
+/*
+ * Milestones / Awards premium CONFIRMATION + CEREMONY (desktop) + the
+ * shared hero-art primitive.
+ *
+ * - `.ma-hero` — the ONE shared art element (MaHeroArt.vue): built for the
+ *   transparent 512×512 premium icon format, `object-fit: contain` (NEVER
+ *   cropped; legacy 140×83 assets letterbox gracefully), with a calm
+ *   trophy/medal emblem fallback when the asset is missing. Hosts (desktop
+ *   confirm/ceremony, console confirm/ceremony) compose their own pedestal
+ *   stage around it and size it via positioning.
+ *
+ * - `.ma-confirm` — the desktop confirm content (MaConfirmContent.vue),
+ *   hosted in MandatoryInputModal; shares the pass-confirm visual
+ *   vocabulary (dark glass root + angular Cancel/Confirm pair) with a
+ *   milestone-gold / award-medal identity.
+ *
+ * - `.ma-cere` — the desktop post-confirm ceremony (MaCeremonyOverlay.vue):
+ *   a centred one-shot beat, pointer-events none, bounded lifetime.
+ */
+
+@ma-gold: #ffd87a;
+@ma-medal: #d6a6e0;
+@ma-mint: #58d6a6;
+@ma-amber: #f2c14e;
+@ma-text: #e8f1fb;
+@ma-text-dim: rgba(196, 216, 236, 0.72);
+
+/* ── The shared hero-art primitive ────────────────────────────────────── */
+.ma-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* the 512×512 transparent asset is NEVER cropped */
+        filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.55)) saturate(1.08);
+        user-select: none;
+    }
+    &__glyph {
+        font-size: 56px;
+        line-height: 1;
+        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6));
+    }
+}
+
+/* ── Desktop confirm content ──────────────────────────────────────────── */
+.ma-confirm {
+    position: relative;
+    color: @ma-text;
+    font-family: Prototype, Ubuntu, sans-serif;
+    min-width: 440px;
+    max-width: 560px;
+    padding: 22px 26px 24px;
+    border: 1px solid #2c4a6a;
+    border-radius: 4px;
+    background:
+        linear-gradient(180deg,
+            rgba(20, 30, 45, 0.94) 0%,
+            rgba(12, 20, 32, 0.94) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(106, 176, 230, 0.08),
+        0 6px 18px rgba(0, 0, 0, 0.45);
+
+    &--milestone { border-color: rgba(255, 216, 122, 0.4); }
+    &--award { border-color: rgba(214, 166, 224, 0.38); }
+}
+
+.ma-confirm__title {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    color: @ma-gold;
+
+    .ma-confirm--award & { color: @ma-medal; }
+}
+
+.ma-confirm__main {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 14px;
+}
+
+.ma-confirm__side {
+    flex-shrink: 0;
+    width: 148px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+/* The hero pedestal (same composition language as the console stage). */
+.ma-confirm__stage {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 50% 58%, rgba(255, 216, 122, 0.1), transparent 66%),
+        rgba(9, 15, 24, 0.6);
+    box-shadow:
+        inset 0 0 0 1px rgba(120, 150, 180, 0.22),
+        inset 0 -10px 20px rgba(0, 0, 0, 0.4);
+
+    &::after {
+        content: '';
+        position: absolute;
+        left: 18%;
+        right: 18%;
+        bottom: 8%;
+        height: 10%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
+    }
+    .ma-hero { position: absolute; inset: 8%; z-index: 1; }
+
+    .ma-confirm--award & {
+        background:
+            radial-gradient(circle at 50% 58%, rgba(214, 166, 224, 0.1), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+    }
+}
+
+.ma-confirm__name {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-align: center;
+    line-height: 1.25;
+}
+
+.ma-confirm__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.ma-confirm__desc {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #d8e3ef;
+}
+
+/* Milestone: progress + threshold meter. */
+.ma-confirm__progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 11px;
+    border-radius: 8px;
+    background: rgba(14, 22, 33, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22);
+}
+.ma-confirm__progress-label {
+    font-size: 10.5px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: @ma-text-dim;
+}
+.ma-confirm__progress-value {
+    font-size: 13px;
+    b { font-size: 17px; }
+}
+.ma-confirm__progress-req { color: @ma-text-dim; }
+.ma-confirm__meter {
+    flex: 1;
+    min-width: 70px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(120, 150, 180, 0.18);
+    overflow: hidden;
+
+    i {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(88, 214, 166, 0.7), @ma-mint);
+        transition: width calc(300ms * var(--motion-scale, 1)) ease;
+    }
+}
+
+/* Milestone: the immediate-5-VP truth. */
+.ma-confirm__vp {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: rgba(255, 216, 122, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 216, 122, 0.42);
+}
+.ma-confirm__vp-badge {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 7px;
+    background: rgba(255, 216, 122, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255, 216, 122, 0.7);
+    color: @ma-gold;
+    font-size: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.ma-confirm__vp-note {
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: #e6d9b8;
+}
+
+/* Award: the endgame-scoring truth. */
+.ma-confirm__endgame {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: rgba(214, 166, 224, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(214, 166, 224, 0.38);
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: #e3d5e8;
+
+    b { color: @ma-text; font-size: 12px; }
+}
+
+/* Award: the live race panel. */
+.ma-confirm__race {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.ma-confirm__race-head {
+    font-size: 10.5px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: @ma-text-dim;
+    margin-bottom: 1px;
+}
+.ma-confirm__racer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 9px;
+    border-radius: 7px;
+    background: rgba(14, 22, 33, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+    font-size: 12px;
+
+    &--viewer {
+        background: rgba(106, 176, 230, 0.09);
+        box-shadow: inset 0 0 0 1px rgba(106, 176, 230, 0.5);
+        font-weight: 700;
+    }
+    &--leader .ma-confirm__racer-score { color: @ma-gold; }
+}
+.ma-confirm__racer-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+.ma-confirm__racer-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ma-confirm__racer-crown { color: @ma-gold; font-size: 10px; }
+.ma-confirm__racer-score {
+    font-size: 14px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.ma-confirm__race-tone {
+    align-self: flex-start;
+    margin-top: 1px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    background: rgba(14, 22, 33, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.28);
+    color: @ma-text-dim;
+
+    &--lead,
+    &--tie {
+        background: rgba(88, 214, 166, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(88, 214, 166, 0.5);
+        color: @ma-mint;
+    }
+    &--behind {
+        background: rgba(242, 193, 78, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(242, 193, 78, 0.45);
+        color: #ffe3b0;
+    }
+}
+
+/* Economy + slots strip. */
+.ma-confirm__strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 8px 11px;
+    border-radius: 8px;
+    background: rgba(14, 22, 33, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+}
+.ma-confirm__spend {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+
+    .resource_icon { width: 22px; height: 22px; background-size: contain; }
+}
+.ma-confirm__spend-num {
+    font-size: 15px;
+    color: #ffd9a0;
+    font-variant-numeric: tabular-nums;
+}
+.ma-confirm__beforeafter {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: @ma-text-dim;
+    font-variant-numeric: tabular-nums;
+
+    b { color: @ma-text; font-size: 13.5px; }
+}
+.ma-confirm__free-chip {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(88, 214, 166, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(88, 214, 166, 0.6);
+    color: @ma-mint;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+.ma-confirm__slots {
+    font-size: 11.5px;
+    color: @ma-text-dim;
+
+    b { color: @ma-text; font-size: 12.5px; }
+}
+
+/* Honest stale state: the world moved while the modal was open. */
+.ma-confirm__blocked {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 12px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(224, 86, 77, 0.45);
+    background: linear-gradient(180deg, rgba(66, 22, 20, 0.55), rgba(44, 16, 14, 0.55));
+    color: #ffb9b2;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Cancel / Confirm — the pass-confirm angular pair, MA-toned Confirm. */
+.ma-confirm__actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+.ma-confirm__confirm-wrap {
+    display: inline-flex;
+    .premium-tooltip(240px);
+}
+.ma-confirm__cancel-btn,
+.ma-confirm__confirm-btn {
+    position: relative;
+    padding: 10px 22px;
+    border: none;
+    color: @ma-text;
+    cursor: pointer;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1;
+    clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+    isolation: isolate;
+    transition: filter 150ms ease, transform 150ms ease;
+    min-width: 130px;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 1.5px;
+        clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+        background: linear-gradient(180deg,
+            rgba(14, 26, 42, 0.95) 0%,
+            rgba(6, 14, 22, 0.95) 100%);
+        z-index: -1;
+    }
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(140, 190, 235, 0.45));
+        transform: translateY(-1px);
+    }
+    &:active:not(:disabled) {
+        transform: translateY(0);
+        filter: brightness(0.92);
+    }
+}
+.ma-confirm__cancel-btn {
+    background: linear-gradient(180deg,
+        rgba(120, 140, 160, 0.55) 0%,
+        rgba(50, 70, 90, 0.28) 50%,
+        rgba(100, 120, 140, 0.45) 100%);
+}
+.ma-confirm__confirm-btn {
+    background: linear-gradient(180deg,
+        rgba(255, 216, 122, 0.85) 0%,
+        rgba(150, 110, 45, 0.32) 50%,
+        rgba(240, 195, 105, 0.65) 100%);
+
+    &:hover:not(:disabled) {
+        filter: brightness(1.18) drop-shadow(0 0 8px rgba(255, 216, 122, 0.55));
+    }
+    /* Opaque disabled (project rule: never see-through over the board). */
+    &:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.7) brightness(0.6);
+        color: rgba(232, 241, 251, 0.55);
+    }
+
+    .ma-confirm--award & {
+        background: linear-gradient(180deg,
+            rgba(214, 166, 224, 0.85) 0%,
+            rgba(110, 70, 125, 0.32) 50%,
+            rgba(200, 150, 215, 0.65) 100%);
+
+        &:hover:not(:disabled) {
+            filter: brightness(1.18) drop-shadow(0 0 8px rgba(214, 166, 224, 0.55));
+        }
+    }
+}
+.ma-confirm__btn-label {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Desktop post-confirm ceremony ────────────────────────────────────── */
+.ma-cere {
+    position: fixed;
+    inset: 0;
+    z-index: 12620; /* above modals (12000) / draw-reveal (12600); under notifications (12650) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: @ma-text;
+
+    &__card {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 20px 30px 20px 20px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 216, 122, 0.5);
+        background:
+            radial-gradient(circle at 18% 50%, rgba(255, 216, 122, 0.08), transparent 60%),
+            linear-gradient(180deg, rgba(20, 30, 45, 0.96) 0%, rgba(12, 20, 32, 0.96) 100%);
+        box-shadow:
+            0 18px 60px rgba(0, 0, 0, 0.6),
+            0 0 44px rgba(255, 216, 122, 0.16);
+        animation:
+            ma-cere-rise calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+            ma-cere-glow calc(1300ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &__stage {
+        position: relative;
+        width: 128px;
+        height: 128px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__ring {
+        position: absolute;
+        inset: 6%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px rgba(255, 216, 122, 0.5), 0 0 26px rgba(255, 216, 122, 0.3);
+        animation: ma-cere-ring calc(1100ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    &__hero {
+        position: absolute;
+        inset: 9%;
+        animation: ma-cere-hero calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both;
+    }
+    &__text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    &__kicker {
+        font-size: 12px;
+        letter-spacing: 3.5px;
+        text-transform: uppercase;
+        color: rgba(255, 216, 122, 0.92);
+        text-shadow: 0 0 14px rgba(255, 216, 122, 0.4);
+    }
+    &__name {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.15;
+        max-width: 380px;
+        text-shadow: 0 3px 18px rgba(0, 0, 0, 0.8);
+    }
+    &__vp {
+        margin-top: 3px;
+        padding: 5px 14px;
+        border-radius: 9px;
+        background: rgba(255, 216, 122, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(255, 216, 122, 0.7), 0 0 22px rgba(255, 216, 122, 0.22);
+        color: @ma-gold;
+        font-size: 19px;
+        font-weight: 800;
+        animation: ma-cere-pop calc(500ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(340ms * var(--motion-scale, 1)) both;
+    }
+    &__cost {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 3px;
+        padding: 4px 12px;
+        border-radius: 9px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(214, 166, 224, 0.55);
+        font-size: 13px;
+        animation: ma-cere-pop calc(500ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(340ms * var(--motion-scale, 1)) both;
+
+        b { font-size: 15px; }
+        .resource_icon { width: 20px; height: 20px; background-size: contain; }
+    }
+
+    /* Award: the medal-toned seal (the coronation gold stays milestone-only). */
+    &--award {
+        .ma-cere__card {
+            border-color: rgba(214, 166, 224, 0.5);
+            background:
+                radial-gradient(circle at 18% 50%, rgba(214, 166, 224, 0.08), transparent 60%),
+                linear-gradient(180deg, rgba(20, 30, 45, 0.96) 0%, rgba(12, 20, 32, 0.96) 100%);
+            box-shadow:
+                0 18px 60px rgba(0, 0, 0, 0.6),
+                0 0 44px rgba(214, 166, 224, 0.15);
+            animation:
+                ma-cere-rise calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both,
+                ma-cere-glow-medal calc(1300ms * var(--motion-scale, 1)) ease-out both;
+        }
+        .ma-cere__ring { box-shadow: 0 0 0 2px rgba(214, 166, 224, 0.5), 0 0 26px rgba(214, 166, 224, 0.28); }
+        .ma-cere__kicker { color: rgba(214, 166, 224, 0.94); text-shadow: 0 0 14px rgba(214, 166, 224, 0.4); }
+    }
+}
+
+.ma-cere-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
+.ma-cere-leave-active { transition: opacity calc(380ms * var(--motion-scale, 1)) ease; }
+.ma-cere-enter-from,
+.ma-cere-leave-to { opacity: 0; }
+
+@keyframes ma-cere-rise {
+    from { transform: translateY(18px) scale(0.94); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes ma-cere-glow {
+    0% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 64px 4px rgba(255, 216, 122, 0.4); }
+    100% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 44px rgba(255, 216, 122, 0.16); }
+}
+@keyframes ma-cere-glow-medal {
+    0% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 64px 4px rgba(214, 166, 224, 0.38); }
+    100% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6), 0 0 44px rgba(214, 166, 224, 0.15); }
+}
+@keyframes ma-cere-ring {
+    0% { transform: scale(0.55); opacity: 0; }
+    45% { opacity: 1; }
+    100% { transform: scale(1); opacity: 0.85; }
+}
+@keyframes ma-cere-hero {
+    from { transform: translateY(14px) scale(0.84); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes ma-cere-pop {
+    from { transform: scale(0.72); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ma-cere__card,
+    .ma-cere__ring,
+    .ma-cere__hero,
+    .ma-cere__vp,
+    .ma-cere__cost { animation: none; }
+    .ma-cere-enter-active,
+    .ma-cere-leave-active { transition: opacity 120ms ease; }
+}

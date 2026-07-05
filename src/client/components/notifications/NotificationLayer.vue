@@ -68,6 +68,8 @@ import {
   resetTerraformingCelebration,
   terraformingCelebrationState,
 } from '@/client/components/gameProgress/terraformingCelebration';
+import {observeMaCeremony, resetMaCeremony, wasRecentlyCelebrated} from '@/client/components/ma/maCeremonyState';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
@@ -211,6 +213,10 @@ export default defineComponent({
       this.handleScaleBonusClaims(now);
       // 2c) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
       this.handleTerraformingComplete(now);
+      // 2d) Milestone/award post-confirm ceremony — fires ONLY when the fresh
+      // view proves the viewer's OWN armed claim/fund resolved (both shells
+      // watch the shared nonce; a lost race / rejection drops the arm).
+      observeMaCeremony(this.playerView, now);
       // 3) Root-event feed (async). A1: gate the network fetch on a
       // (gameAge, undoCount) change — the streams can't have grown otherwise, so
       // a re-commit at the same version is a no-op fetch. The 2.2s poller
@@ -284,6 +290,7 @@ export default defineComponent({
       if (notificationState.lastGeneration !== undefined && gen < notificationState.lastGeneration) {
         resetNotifications();
         resetTerraformingCelebration(); // same boundary — a different game opened in-session
+        resetMaCeremony();
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
@@ -385,10 +392,27 @@ export default defineComponent({
       // suppressed while the journal is open. But a HOSTILE loss the viewer
       // suffered is critical — surface it regardless, like a turn card.
       if (!this.journalOpen) {
-        pushMany(coalesceBurst(models));
+        // The viewer's OWN milestone/award prestige card is redundant right
+        // after the local ceremony played (the ceremony IS that announcement
+        // for the actor); other players' cards are untouched.
+        pushMany(coalesceBurst(models.filter((m) => !this.isOwnCelebratedMa(m, now))));
         pushMany(reveal.models);
       }
       pushMany(neg.models);
+    },
+
+    /** True for the viewer's own milestone/award card whose local ceremony
+     *  just played — suppressed to avoid the double announcement. */
+    isOwnCelebratedMa(m: NotificationModel, now: number): boolean {
+      if (m.variant !== 'milestone' && m.variant !== 'award') {
+        return false;
+      }
+      if (m.actor !== this.viewerColor) {
+        return false;
+      }
+      const token = m.header?.data?.find(
+        (d) => d.type === LogMessageDataType.MILESTONE || d.type === LogMessageDataType.AWARD);
+      return token !== undefined && wasRecentlyCelebrated(token.value, now);
     },
 
     refreshVisibleImpacts(events: ReadonlyArray<GameEvent>): void {
