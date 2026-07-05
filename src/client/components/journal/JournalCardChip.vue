@@ -28,16 +28,20 @@
   </span>
 
   <!-- Hover preview: full card for project cards, compact effect card for
-       standard projects. Mutually exclusive by card type. The Delta Project is a
-       global subsystem ("Гидросеть") — it has NO user-facing card, so suppress
-       both previews + fullscreen entirely. -->
+       standard projects, the compact HYDRO card for the Delta Project
+       (P29 — it has NO user-facing card, so fullscreen stays suppressed
+       but the hover now explains what the Hydronetwork is). -->
   <CardPreviewPopover
     v-if="!isStandardProject && !isHydronetwork"
     :name="name"
     :visible="previewVisible"
     :anchor="anchor" />
+  <HydronetPreviewPopover
+    v-else-if="isHydronetwork"
+    :visible="previewVisible"
+    :anchor="anchor" />
   <StandardProjectPreviewPopover
-    v-else-if="!isHydronetwork"
+    v-else
     :name="name"
     :visible="previewVisible"
     :anchor="anchor" />
@@ -60,6 +64,7 @@ import {LogMessageDataAttrs} from '@/common/logs/LogMessageData';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
+import HydronetPreviewPopover from '@/client/components/journal/HydronetPreviewPopover.vue';
 import StandardProjectPreviewPopover from '@/client/components/journal/StandardProjectPreviewPopover.vue';
 
 /**
@@ -107,7 +112,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'JournalCardChip',
-  components: {CardZoomModal, CardPreviewPopover, StandardProjectPreviewPopover},
+  components: {CardZoomModal, CardPreviewPopover, HydronetPreviewPopover, StandardProjectPreviewPopover},
   props: {
     name: {
       type: String as () => CardName,
@@ -178,10 +183,6 @@ export default defineComponent({
   },
   methods: {
     onEnter(): void {
-      // The Гидросеть chip has no card preview.
-      if (this.isHydronetwork) {
-        return;
-      }
       // Ignore the phantom mouseenter the browser fires while fullscreen
       // is open / just closed (see blockHover). Real hovers are unaffected.
       if (this.blockHover) {

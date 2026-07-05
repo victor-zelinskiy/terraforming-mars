@@ -656,12 +656,11 @@
         justify-content: center;
         overflow: hidden;
 
-        /* P27b: nudge the planet a touch RIGHT (the left off-Mars colony
-           column stops kissing the resource rail on Steam Deck) and UP
-           (the strip under the status bar was dead air — console has no
-           desktop MA badges there; the fit engine also gained ~3% scale
-           via the tighter vertical pad in ConsoleBoardSection). */
-        > * { transform: translate(6px, -4px); }
+        /* P29: the fit engine SELF-CENTRES the board — it measures the real
+           content bbox and folds the true-centre offset into these vars
+           (ConsoleBoardSection.calibrate). The fallback keeps the P27b
+           hand-tuned nudge for the first frame only. */
+        > * { transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)); }
     }
 }
 
@@ -3134,6 +3133,14 @@ html.console-mode {
     color: @con-mint;
     font-size: 14px;
     font-weight: 700;
+
+    /* P29: the QUIET availability chip (awards — "can sponsor" is an
+       economy fact, not an alert; steel-cyan, no mint urgency). */
+    &--quiet {
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+        color: fade(@con-cyan, 90%);
+    }
 }
 /* One-line state under the hero numbers (dot + verdict, no repeats). */
 .con-home__state {
@@ -3301,15 +3308,29 @@ html.console-mode {
     display: flex;
     flex-direction: column;
     border-radius: 12px;
-    background: rgba(9, 16, 25, 0.95);
+    /* P29: near-opaque — the surface REPLACES the right panel; nothing may
+       bleed through it (the panel underneath is also visibility-hidden). */
+    background: linear-gradient(180deg, rgba(11, 19, 29, 0.99), rgba(8, 14, 22, 0.99));
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 32%), -20px 0 48px rgba(0, 0, 0, 0.5);
     font-family: @con-font;
     overflow: hidden;
+    /* P29: the map-highlight PEEK (L3 «Показать») fades the whole surface
+       so the pulsing cell reads through; input stays with the journal. */
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+
+    &--peek {
+        opacity: 0.1;
+    }
 
     /* TV-size the reused desktop journal rows (info parity, console scale). */
     .journal-text, .journal-em { font-size: 15px; }
     .journal-player { font-size: 14px; }
     .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 14px; }
+}
+/* P29: the journal REPLACES the right panel — the context panel keeps its
+   LAYOUT slot (the board must not reflow) but is fully hidden under it. */
+.con-main--journal > .con-context {
+    visibility: hidden;
 }
 .con-journal__header {
     flex-shrink: 0;
@@ -3346,11 +3367,14 @@ html.console-mode {
     color: @con-text-dim;
     .gp-glyph { min-width: 24px; height: 24px; font-size: 12px; }
 }
+/* P29: ONE stable nowrap row — mode switch left, generation right; the
+   content can never wrap or push these controls around. */
 .con-journal__controls {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 10px;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 10px;
     margin-top: 10px;
 
     .gp-glyph { min-width: 26px; height: 20px; font-size: 10.5px; flex-shrink: 0; }
@@ -3397,42 +3421,48 @@ html.console-mode {
     text-transform: uppercase;
     color: @con-text-dim;
     white-space: nowrap;
-    b { color: @con-text; font-size: 17px; letter-spacing: 0; }
+    /* Fixed number slot — 1→2 digit generations never shift the row. */
+    b { color: @con-text; font-size: 17px; letter-spacing: 0; display: inline-block; min-width: 22px; text-align: center; }
 }
-.con-journal__live {
+/* P29: «В ЭФИРЕ» compacted to a pulsing dot in a FIXED slot — the row
+   geometry is identical whether the view is live or historical. */
+.con-journal__live-slot {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    background: fade(@con-mint, 14%);
-    box-shadow: inset 0 0 0 1px fade(@con-mint, 55%);
-    color: @con-mint;
-    font-size: 11px;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
+    justify-content: center;
+    width: 12px;
+    flex-shrink: 0;
 }
 .con-journal__live-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: @con-mint;
-    box-shadow: 0 0 7px @con-mint;
+    box-shadow: 0 0 8px @con-mint;
     animation: con-journal-live 1.8s ease-in-out infinite;
+
+    &--off {
+        visibility: hidden;
+    }
 }
 @keyframes con-journal-live {
     50% { opacity: 0.35; }
 }
-/* Filter chip — Y opens the console popover; tinted while narrowed. */
+/* Filter chip — top-right beside the title (P29); Y opens the popover.
+   Reserved width: «ТОЛЬКО СОПЕРНИКИ» fits, and a shorter value never
+   re-flows the title row (label ellipsis is the extreme-name fallback). */
 .con-journal__filter {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    padding: 3px 8px;
+    padding: 3px 9px;
     border-radius: 8px;
+    min-width: 208px;
+    flex-shrink: 0;
     background: rgba(10, 18, 28, 0.7);
     box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
-    .con-status__dot { width: 12px; height: 12px; }
+    .con-status__dot { width: 12px; height: 12px; flex-shrink: 0; }
+    .gp-glyph { min-width: 26px; height: 20px; font-size: 10.5px; flex-shrink: 0; }
 
     &--active {
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
@@ -3440,11 +3470,12 @@ html.console-mode {
     }
 }
 .con-journal__filter-label {
+    flex: 1;
+    min-width: 0;
     font-size: 12.5px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
     color: @con-text-dim;
-    max-width: 130px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3494,6 +3525,94 @@ html.console-mode {
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 0 14px fade(@con-cyan, 14%);
     }
 }
+/* ── P29: the INSPECT card (X — standard project / action / hydro).
+   A compact premium preview centred in the panel; reuses the shared
+   std-icon pictograms (size set here — the classes only carry the art). */
+.con-journal__inspect {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5, 9, 15, 0.55);
+}
+.con-journal__inspect-card {
+    position: relative;
+    width: min(380px, 92%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 20px 14px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(16, 26, 39, 0.98), rgba(10, 17, 26, 0.98));
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 18px 50px rgba(0, 0, 0, 0.6);
+    text-align: center;
+    animation: con-rise calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-journal__inspect-icon {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background-color: rgba(10, 18, 28, 0.8);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 44px 44px;
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.25), 0 4px 14px rgba(0, 0, 0, 0.45);
+
+    &--hydro {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        .bar-btn-icon { width: 40px; height: 40px; }
+    }
+}
+.con-journal__inspect-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+.con-journal__inspect-kicker {
+    font-size: 11.5px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 85%);
+}
+.con-journal__inspect-name {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: @con-text;
+}
+.con-journal__inspect-desc {
+    font-size: 15px;
+    line-height: 1.4;
+    color: @con-text-dim;
+}
+.con-journal__inspect-cost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 14px;
+    color: @con-text-dim;
+    b { color: @con-text; font-size: 17px; }
+    .resource_icon { width: 18px; height: 18px; }
+}
+.con-journal__inspect-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 4px;
+    font-size: 13.5px;
+    color: @con-text-dim;
+    .gp-glyph { min-width: 22px; height: 22px; font-size: 11px; }
+}
+
 /* The console filter popover (Y) — anchored inside the panel. */
 .con-journal__filterpop {
     position: absolute;
@@ -7136,9 +7255,9 @@ html.con-profile-handheld {
     .con-journal__closehint { font-size: 12.5px; }
     .con-journal__controls { gap: 6px 8px; margin-top: 8px; .gp-glyph { min-width: 22px; height: 17px; font-size: 9.5px; } }
     .con-journal__mode-seg { font-size: 11px; padding: 2px 7px; }
-    .con-journal__gen-label { font-size: 11px; b { font-size: 14.5px; } }
-    .con-journal__live { font-size: 9.5px; padding: 1px 6px; }
-    .con-journal__filter-label { font-size: 11px; max-width: 104px; }
+    .con-journal__gen-label { font-size: 11px; b { font-size: 14.5px; min-width: 19px; } }
+    .con-journal__filter { min-width: 176px; }
+    .con-journal__filter-label { font-size: 11px; }
     .con-journal__scroll { padding: 8px 10px 12px; }
     .con-journal__filterpop { top: 76px; }
     .con-journal__filterpop-row { font-size: 13.5px; padding: 6px 9px; }

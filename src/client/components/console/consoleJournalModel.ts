@@ -14,22 +14,56 @@ import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {JournalFilter} from '@/client/components/journal/journalFilter';
 
 /**
- * The unique ZOOMABLE cards referenced by one journal entry (its header +
- * children messages), in first-appearance order. `isZoomable` is the
- * injected manifest predicate (project cards only — standard projects and
- * the Hydronetwork system card never open fullscreen, mirroring
- * JournalCardChip's own rules).
+ * P29 — the INSPECT classification of one card token: a fullscreen-able
+ * project card, a standard project / standard action (premium compact
+ * preview), the Hydronetwork system card (premium hydro preview), or
+ * nothing inspectable. Injected by the panel from the client manifest so
+ * this module stays pure.
  */
-export function journalEntryCards(
+export type JournalInspectKind = 'card' | 'standardProject' | 'hydro' | 'none';
+
+/** Everything one journal entry can offer to «X = Осмотреть» / «Показать». */
+export type JournalInspectTargets = {
+  /** Fullscreen-able project cards, first-appearance order, deduped. */
+  cards: Array<CardName>;
+  /** Standard projects + standard actions (compact premium preview). */
+  standard: Array<CardName>;
+  /** The entry references the Hydronetwork. */
+  hydro: boolean;
+  /** Board cell references (SPACE tokens) — «Показать» highlights them. */
+  spaces: Array<string>;
+};
+
+/**
+ * Collect the inspectable targets of one journal entry (its header +
+ * children messages): CARD / CARDS tokens classified via the injected
+ * predicate, SPACE tokens as map-highlight targets. Order = first
+ * appearance; duplicates collapse.
+ */
+export function journalInspectTargets(
   messages: ReadonlyArray<LogMessage>,
-  isZoomable: (name: CardName) => boolean,
-): Array<CardName> {
-  const out: Array<CardName> = [];
+  classify: (name: CardName) => JournalInspectKind,
+): JournalInspectTargets {
+  const out: JournalInspectTargets = {cards: [], standard: [], hydro: false, spaces: []};
   const seen = new Set<CardName>();
+  const seenSpaces = new Set<string>();
   const push = (name: CardName) => {
-    if (!seen.has(name) && isZoomable(name)) {
-      seen.add(name);
-      out.push(name);
+    if (seen.has(name)) {
+      return;
+    }
+    seen.add(name);
+    switch (classify(name)) {
+    case 'card':
+      out.cards.push(name);
+      break;
+    case 'standardProject':
+      out.standard.push(name);
+      break;
+    case 'hydro':
+      out.hydro = true;
+      break;
+    default:
+      break;
     }
   };
   for (const m of messages) {
@@ -40,10 +74,20 @@ export function journalEntryCards(
         for (const name of datum.value) {
           push(name);
         }
+      } else if (datum.type === LogMessageDataType.SPACE) {
+        if (!seenSpaces.has(datum.value)) {
+          seenSpaces.add(datum.value);
+          out.spaces.push(datum.value);
+        }
       }
     }
   }
   return out;
+}
+
+/** True when «X = Осмотреть» has anything to open for these targets. */
+export function hasInspectTarget(t: JournalInspectTargets): boolean {
+  return t.cards.length > 0 || t.standard.length > 0 || t.hydro || t.spaces.length > 0;
 }
 
 /** LT/RT generation stepping — clamped to [1, current], never wraps. */

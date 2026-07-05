@@ -158,17 +158,20 @@
         </div>
       </section>
 
-      <!-- Awards: who funded what + the live race leaders. -->
-      <section class="con-home__block con-home__block--ma" :class="{'con-home__block--hot': awardSummary.actionable > 0}">
+      <!-- Awards: who funded what + the live race leaders. P29: funding
+           availability is an ECONOMY action, not a met condition — no hot
+           block / no mint row rails (that language is milestone-only);
+           a quiet count chip communicates "can sponsor" instead. -->
+      <section class="con-home__block con-home__block--ma">
         <header class="con-home__head">
           <BarButtonIcon name="awards" />
           <span class="con-home__title">{{ $t('Awards') }}</span>
-          <span v-if="awardSummary.actionable > 0" class="con-home__badge">{{ awardSummary.actionable }}</span>
+          <span v-if="awardSummary.actionable > 0" class="con-home__badge con-home__badge--quiet">{{ awardSummary.actionable }}</span>
           <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
         </header>
         <div v-for="row in awardSummary.rows" :key="row.name"
              class="con-home__ma"
-             :class="{'con-home__ma--taken': row.takenBy !== undefined, 'con-home__ma--now': row.availableNow}">
+             :class="{'con-home__ma--taken': row.takenBy !== undefined}">
           <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
           <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
             <span class="con-home__ma-check" aria-hidden="true">✓</span>

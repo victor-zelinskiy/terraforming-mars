@@ -27,7 +27,10 @@
          in the top-HUD rail + generation marker). -->
     <ConsoleTerraformingBanner />
 
-    <div class="con-main">
+    <!-- P29: --journal keeps the context panel's LAYOUT slot (the board
+         never reflows) but hides its paint — the journal REPLACES it, the
+         panel can't bleed through the journal surface. -->
+    <div class="con-main" :class="{'con-main--journal': journalPanelVisible}">
       <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
@@ -1142,6 +1145,9 @@ export default defineComponent({
       if (this.journalPanelVisible) {
         // The journal's whole grammar, honest to the panel's live mirrors
         // (consoleJournalUi — the panel syncs, the bar never guesses).
+        if (consoleJournalUi.inspectOpen) {
+          return [{control: 'back', label: 'Close'}];
+        }
         if (consoleJournalUi.filterOpen) {
           return [
             {control: 'dpad', label: 'Navigate'},
@@ -1152,11 +1158,18 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Entries'},
           {control: 'confirm', label: consoleJournalUi.focusExpanded ? 'Collapse' : 'Details', enabled: consoleJournalUi.focusIsGroup},
-          {control: 'secondary', label: 'Card', enabled: consoleJournalUi.focusHasCard},
+          // P29: X = «Осмотреть» — cards, standard projects/actions, hydro,
+          // map-only entries (never the too-narrow «Карта»).
+          {control: 'secondary', label: 'Inspect', enabled: consoleJournalUi.focusInspectable},
+        ];
+        if (consoleJournalUi.focusHasSpace) {
+          cmds.push({control: 'stickL', label: 'Show on map'});
+        }
+        cmds.push(
           {control: 'bumperL', control2: 'bumperR', label: 'Mode'},
           {control: 'triggerL', control2: 'triggerR', label: 'Generation',
             enabled: consoleJournalUi.canPrevGen || consoleJournalUi.canNextGen},
-        ];
+        );
         if (consoleJournalUi.filterAvailable) {
           cmds.push({control: 'inspect', label: 'Filter'});
         }
@@ -1526,12 +1539,14 @@ export default defineComponent({
       }
       // The console-native journal owns the pad while open (board home
       // only; a mandatory surface closes it via the journalHardBlocked
-      // watcher). View/B close; B inside the filter popover only closes
-      // the popover; everything else is the panel's own grammar
-      // (A / X / LB·RB / LT·RT / Y / d-pad — see ConsoleJournalPanel).
+      // watcher). View/B close; B inside the filter popover / inspect
+      // card / map-peek is a LOCAL back (closes that layer, never the
+      // journal); everything else is the panel's own grammar
+      // (A / X / L3 / LB·RB / LT·RT / Y / d-pad — see ConsoleJournalPanel).
       if (this.journalPanelVisible) {
+        const journalLocalBack = consoleJournalUi.filterOpen || consoleJournalUi.inspectOpen || consoleJournalUi.peekActive;
         if (intent.kind === 'press' &&
-            (intent.button === 'view' || (intent.button === 'back' && !consoleJournalUi.filterOpen))) {
+            (intent.button === 'view' || (intent.button === 'back' && !journalLocalBack))) {
           this.closeJournal();
           return true;
         }

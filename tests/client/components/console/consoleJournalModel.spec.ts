@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {
   consoleFilterOptions,
-  journalEntryCards,
+  hasInspectTarget,
+  JournalInspectKind,
+  journalInspectTargets,
   journalNodeMode,
   stepJournalGeneration,
 } from '@/client/components/console/consoleJournalModel';
@@ -31,25 +33,59 @@ describe('consoleJournalModel (P28)', () => {
   const card = (value: CardName): LogMessageData => ({type: LogMessageDataType.CARD, value} as LogMessageData);
   const cards = (value: Array<CardName>): LogMessageData => ({type: LogMessageDataType.CARDS, value} as unknown as LogMessageData);
   const player = (value: Color): LogMessageData => ({type: LogMessageDataType.PLAYER, value} as LogMessageData);
+  const space = (value: string): LogMessageData => ({type: LogMessageDataType.SPACE, value} as unknown as LogMessageData);
 
-  describe('journalEntryCards (X = fullscreen)', () => {
+  /** The manifest classifier stand-in for the inspect tests. */
+  const classify = (name: CardName): JournalInspectKind => {
+    if (name === CardName.DELTA_PROJECT) {
+      return 'hydro';
+    }
+    if (name === CardName.ASTEROID_STANDARD_PROJECT || name === CardName.CONVERT_PLANTS) {
+      return 'standardProject';
+    }
+    return 'card';
+  };
+
+  describe('journalInspectTargets (X = Осмотреть / L3 = Показать)', () => {
     it('collects CARD and CARDS tokens across the entry, deduped, in order', () => {
       const messages = [
         msg([player('red'), card(CardName.BIRDS)]),
         msg([cards([CardName.ANTS, CardName.BIRDS, CardName.DECOMPOSERS])]),
       ];
-      const out = journalEntryCards(messages, () => true);
-      expect(out).to.deep.eq([CardName.BIRDS, CardName.ANTS, CardName.DECOMPOSERS]);
+      const out = journalInspectTargets(messages, classify);
+      expect(out.cards).to.deep.eq([CardName.BIRDS, CardName.ANTS, CardName.DECOMPOSERS]);
+      expect(out.standard).to.deep.eq([]);
+      expect(out.hydro).to.eq(false);
+      expect(hasInspectTarget(out)).to.eq(true);
     });
 
-    it('drops non-zoomable names (standard projects / system cards)', () => {
-      const messages = [msg([card(CardName.ASTEROID_STANDARD_PROJECT), card(CardName.PETS)])];
-      const out = journalEntryCards(messages, (name) => name === CardName.PETS);
-      expect(out).to.deep.eq([CardName.PETS]);
+    it('classifies standard projects/actions and the Hydronetwork separately', () => {
+      const messages = [msg([
+        card(CardName.ASTEROID_STANDARD_PROJECT),
+        card(CardName.CONVERT_PLANTS),
+        card(CardName.DELTA_PROJECT),
+        card(CardName.PETS),
+      ])];
+      const out = journalInspectTargets(messages, classify);
+      expect(out.cards).to.deep.eq([CardName.PETS]);
+      expect(out.standard).to.deep.eq([CardName.ASTEROID_STANDARD_PROJECT, CardName.CONVERT_PLANTS]);
+      expect(out.hydro).to.eq(true);
     });
 
-    it('returns empty for an entry without card tokens (X disabled)', () => {
-      expect(journalEntryCards([msg([player('red')])], () => true)).to.deep.eq([]);
+    it('collects SPACE tokens (deduped) — a map-only entry is inspectable', () => {
+      const messages = [
+        msg([player('red'), space('34')]),
+        msg([space('34'), space('07')]),
+      ];
+      const out = journalInspectTargets(messages, classify);
+      expect(out.spaces).to.deep.eq(['34', '07']);
+      expect(out.cards).to.deep.eq([]);
+      expect(hasInspectTarget(out)).to.eq(true);
+    });
+
+    it('returns nothing inspectable for a plain entry (X disabled)', () => {
+      const out = journalInspectTargets([msg([player('red')])], classify);
+      expect(hasInspectTarget(out)).to.eq(false);
     });
   });
 

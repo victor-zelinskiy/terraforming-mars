@@ -41,7 +41,11 @@
                  class="con-ma__card"
                  :class="{
                    'con-ma__card--focused': i === index,
-                   'con-ma__card--go': it.available,
+                   // P29: the strong actionable lift is a MILESTONE semantic
+                   // (a hard condition was met). A fundable award is a normal
+                   // economy action — the CTA + wallet carry it, the row
+                   // stays calm (never reads like a claimable milestone).
+                   'con-ma__card--go': it.available && it.kind === 'milestone',
                    'con-ma__card--taken': it.takenBy !== undefined,
                  }"
                  :ref="i === index ? 'focusedCard' : undefined">
@@ -241,7 +245,9 @@ export default defineComponent({
       if (it.takenBy !== undefined) {
         return 'con-ma__rail--owner player_bg_color_' + it.takenBy.color;
       }
-      return it.available ? 'con-ma__rail--go' : '';
+      // P29: the mint "act now" rail is milestone-only (see the card class) —
+      // a fundable award keeps a calm row, its CTA carries the availability.
+      return it.available && it.kind === 'milestone' ? 'con-ma__rail--go' : '';
     },
     metricClass(it: ConsoleMaItem): string {
       if (it.kind === 'award') {

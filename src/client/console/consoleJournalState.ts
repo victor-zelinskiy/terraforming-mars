@@ -14,12 +14,18 @@ import {reactive} from 'vue';
 export const consoleJournalUi = reactive({
   /** The console-native filter popover (Y) is open. */
   filterOpen: false,
+  /** P29: the inspect card (X — std project / action / hydro) is open. */
+  inspectOpen: false,
+  /** P29: the map-highlight PEEK (L3 «Показать») is fading the surface. */
+  peekActive: false,
   /** Mirror: the focused entry is a GROUP (A = expand/collapse is live). */
   focusIsGroup: false,
   /** Mirror: the focused entry is currently expanded (A = collapse). */
   focusExpanded: false,
-  /** Mirror: the focused entry references ≥1 zoomable card (X is live). */
-  focusHasCard: false,
+  /** Mirror: X = «Осмотреть» has a target (card / std / hydro / cell). */
+  focusInspectable: false,
+  /** Mirror: the focused entry references a board cell (L3 «Показать»). */
+  focusHasSpace: false,
   /** Mirror: an older generation exists (LT steps back). */
   canPrevGen: false,
   /** Mirror: a newer generation exists (RT steps forward). */
@@ -30,9 +36,12 @@ export const consoleJournalUi = reactive({
 
 export function resetConsoleJournalUi(): void {
   consoleJournalUi.filterOpen = false;
+  consoleJournalUi.inspectOpen = false;
+  consoleJournalUi.peekActive = false;
   consoleJournalUi.focusIsGroup = false;
   consoleJournalUi.focusExpanded = false;
-  consoleJournalUi.focusHasCard = false;
+  consoleJournalUi.focusInspectable = false;
+  consoleJournalUi.focusHasSpace = false;
   consoleJournalUi.canPrevGen = false;
   consoleJournalUi.canNextGen = false;
   consoleJournalUi.filterAvailable = false;

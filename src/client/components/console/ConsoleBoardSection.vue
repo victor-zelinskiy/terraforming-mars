@@ -55,21 +55,35 @@ type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rec
  * board top+bottom, the feedback-iteration bug #1).
  */
 /**
- * The CONSOLE-measured footprint. The desktop constants (670×582,
- * useBoardAutoScale.ts) reserve room for chrome the console board doesn't
- * carry (P27c feedback: visible dead margins on every side at the Deck) —
- * the console arc is also COMPACTED (off-Mars flanks at r338/r322), so the
- * true content box is smaller and the board can scale up to fill it.
+ * The CONSOLE footprint — a STARTING approximation only (P29). The P27c
+ * hand-measured constants kept drifting from the real content box (arcs /
+ * off-Mars flanks / ocean scale recompose per expansion set), leaving dead
+ * margins around the planet on the Deck. The fit engine now SELF-CALIBRATES:
+ * after each fit it measures the union bbox of the actual stage content,
+ * derives the effective natural size (union / applied scale) AND the true
+ * visual centre, then re-fits + re-centres via CSS vars. The constants
+ * below only seed the first frame.
  */
 const BOARD_NATURAL_W = 644;
 const BOARD_NATURAL_H = 556;
-const STAGE_PAD = 10;
+const STAGE_PAD = 8;
 /** P27b: the vertical pad is tighter — the strip above the planet was dead
  *  air (console has no desktop MA badges there), so the board scales up a
  *  notch and sits higher. */
 const STAGE_PAD_Y = 4;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 4;
+/** Sanity clamps for the MEASURED natural box — a mid-transition / stray
+ *  overlay measurement can never explode or collapse the board. */
+const NATURAL_W_MIN = 560;
+const NATURAL_W_MAX = 800;
+const NATURAL_H_MIN = 460;
+const NATURAL_H_MAX = 660;
+/** Re-fit only on a meaningful drift (px of natural size / px of offset). */
+const CALIBRATE_SIZE_EPS = 3;
+const CALIBRATE_OFFSET_EPS = 2;
+/** Bounded convergence per fit cycle (measure → refit → measure → done). */
+const CALIBRATE_MAX_PASSES = 2;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
@@ -86,6 +100,13 @@ export default defineComponent({
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
+      /** P29: the self-calibrated natural content box (seeded by constants). */
+      naturalW: BOARD_NATURAL_W,
+      naturalH: BOARD_NATURAL_H,
+      /** The scale the last fit actually applied (measure divides by it). */
+      appliedScale: 1,
+      calibrateRaf: 0,
+      calibratePasses: 0,
       /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
        *  landings; keeps an up/down run in ONE visual hex column). */
       colAnchor: undefined as number | undefined,
@@ -157,11 +178,15 @@ export default defineComponent({
         return; // hidden (hand section) / not laid out yet — keep the last scale
       }
       const scale = Math.min(
-        (r.width - STAGE_PAD * 2) / BOARD_NATURAL_W,
-        (r.height - STAGE_PAD_Y * 2) / BOARD_NATURAL_H,
+        (r.width - STAGE_PAD * 2) / this.naturalW,
+        (r.height - STAGE_PAD_Y * 2) / this.naturalH,
       );
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+      this.appliedScale = clamped;
       document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
+      // P29: refine against the REAL rendered content (next frame — the new
+      // scale must paint first so the union bbox reflects it).
+      this.scheduleCalibrate();
     },
     scheduleFit(): void {
       if (this.fitRaf !== 0) {
@@ -169,8 +194,100 @@ export default defineComponent({
       }
       this.fitRaf = window.requestAnimationFrame(() => {
         this.fitRaf = 0;
+        // A fresh fit cycle (mount / stage resize) restarts the bounded
+        // calibration convergence.
+        this.calibratePasses = 0;
         this.fitBoard();
       });
+    },
+    scheduleCalibrate(): void {
+      if (this.calibrateRaf !== 0 || this.calibratePasses >= CALIBRATE_MAX_PASSES) {
+        return;
+      }
+      this.calibrateRaf = window.requestAnimationFrame(() => {
+        this.calibrateRaf = 0;
+        this.calibrate();
+      });
+    },
+    /**
+     * P29 — SELF-CALIBRATION: measure the union bbox of everything the
+     * stage actually renders (planet, hex grid, arc scales, off-Mars
+     * flanks, ocean scale — whatever the expansion set composed), derive
+     * the EFFECTIVE natural box (union / applied scale) and the true
+     * visual centre, then re-fit / re-centre. Kills the dead margins the
+     * hand-tuned constants left AND keeps the board centred without
+     * per-layout nudge constants. Bounded to CALIBRATE_MAX_PASSES per fit
+     * cycle; the clamps make a stray mid-transition measurement harmless.
+     */
+    calibrate(): void {
+      const stage = this.$refs.stage as HTMLElement | undefined;
+      if (stage === undefined) {
+        return;
+      }
+      const sr = stage.getBoundingClientRect();
+      if (sr.width < 40 || sr.height < 40) {
+        return;
+      }
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+      for (const el of stage.querySelectorAll<HTMLElement>('*')) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) {
+          continue; // hidden / collapsed
+        }
+        // Skip full-stage wrapper boxes (they'd make the union == stage) and
+        // floating popovers that are not board content.
+        if (r.width >= sr.width - 2 && r.height >= sr.height - 2) {
+          continue;
+        }
+        if (el.closest('.scale-tooltip, .board-cell-popover') !== null) {
+          continue;
+        }
+        left = Math.min(left, r.left);
+        top = Math.min(top, r.top);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
+      }
+      if (!Number.isFinite(left) || right - left < 100 || bottom - top < 100) {
+        return; // nothing meaningful rendered yet
+      }
+      const scale = this.appliedScale;
+      const natW = Math.min(NATURAL_W_MAX, Math.max(NATURAL_W_MIN, (right - left) / scale));
+      const natH = Math.min(NATURAL_H_MAX, Math.max(NATURAL_H_MIN, (bottom - top) / scale));
+      // True-centre offset (screen px): where the content centre sits vs the
+      // stage centre — folded into the child translate CSS vars.
+      const dx = (sr.left + sr.width / 2) - (left + right) / 2;
+      const dy = (sr.top + sr.height / 2) - (top + bottom) / 2;
+      const sizeDrift = Math.abs(natW - this.naturalW) > CALIBRATE_SIZE_EPS ||
+        Math.abs(natH - this.naturalH) > CALIBRATE_SIZE_EPS;
+      const offsetDrift = Math.abs(dx) > CALIBRATE_OFFSET_EPS || Math.abs(dy) > CALIBRATE_OFFSET_EPS;
+      if (!sizeDrift && !offsetDrift) {
+        return; // converged
+      }
+      this.calibratePasses++;
+      if (offsetDrift) {
+        const child = stage.firstElementChild as HTMLElement | null;
+        if (child !== null) {
+          // The CSS fallback translate is (6px, −4px) — start the fold from
+          // it so the FIRST pass lands exactly (dx measured the current
+          // translate's result).
+          const rawX = child.style.getPropertyValue('--con-board-dx');
+          const rawY = child.style.getPropertyValue('--con-board-dy');
+          const prevX = rawX !== '' ? parseFloat(rawX) : 6;
+          const prevY = rawY !== '' ? parseFloat(rawY) : -4;
+          child.style.setProperty('--con-board-dx', `${(prevX + dx).toFixed(1)}px`);
+          child.style.setProperty('--con-board-dy', `${(prevY + dy).toFixed(1)}px`);
+        }
+      }
+      if (sizeDrift) {
+        this.naturalW = natW;
+        this.naturalH = natH;
+        this.fitBoard(); // re-fit at the honest natural box (schedules the next pass)
+      } else {
+        this.scheduleCalibrate(); // verify the offset settled
+      }
     },
     cellEl(spaceId: string | undefined): HTMLElement | undefined {
       if (spaceId === undefined) {
@@ -415,6 +532,9 @@ export default defineComponent({
     this.stageObserver?.disconnect();
     if (this.fitRaf !== 0) {
       window.cancelAnimationFrame(this.fitRaf);
+    }
+    if (this.calibrateRaf !== 0) {
+      window.cancelAnimationFrame(this.calibrateRaf);
     }
     document.documentElement.style.removeProperty('--board-scale');
   },
