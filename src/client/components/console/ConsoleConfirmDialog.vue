@@ -10,17 +10,20 @@
       <div class="con-quit__body">{{ $t(body) }}</div>
       <div class="con-quit__actions">
         <!-- Cancel FIRST in DOM: the pad focus lands here — an accidental
-             double-press can never confirm the quit. -->
+             double-press can never confirm the quit. The focus ring is the
+             sole "this is selected" signal; no inline A-glyph (the legend row
+             below owns the button mapping, so the button reads as a plain
+             label, not a confusing "A Отмена"). -->
         <button type="button" class="con-quit__btn" @click="$emit('cancel')">
-          <GamepadGlyph v-if="padVisible" control="confirm" class="con-quit__btn-glyph" />
           <span>{{ $t(cancelLabel) }}</span>
         </button>
         <button type="button" class="con-quit__btn con-quit__btn--danger" @click="$emit('confirm')">
           <span>{{ $t(confirmLabel) }}</span>
         </button>
       </div>
-      <div class="con-quit__hint" aria-hidden="true">
-        <span v-if="padVisible" class="con-quit__hint-item"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
+      <div v-if="padVisible" class="con-quit__hint" aria-hidden="true">
+        <span class="con-quit__hint-item"><GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span></span>
+        <span class="con-quit__hint-item"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
       </div>
     </div>
   </dialog>

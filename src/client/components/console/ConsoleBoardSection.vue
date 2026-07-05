@@ -106,39 +106,12 @@ const CALIBRATE_OFFSET_EPS = 2;
 const CALIBRATE_MAX_PASSES = 2;
 
 /**
- * P29c — the LIVE tuning knob: `?boardScale=1.15` (persisted as
- * `tm_board_scale`; `?boardScale=1` / `auto` clears) multiplies the fitted
- * scale so the board size can be dialled IN THE RUNNING GAME on the Deck —
- * once the right value is found it becomes the profile default. Clamped:
- * an extreme value can only crop the arc edges, never break the layout.
+ * P29c — the tuned console board scale: the fitted scale is multiplied by
+ * this factor. ×1.05 was dialled in LIVE on the Steam Deck (via the
+ * temporary LB/RB tuner, now removed) — the arcs sit snug to the side
+ * panels with the off-Mars cells re-laid to match (console.less P29c).
  */
-const BOOST_MIN = 0.85;
-const BOOST_MAX = 1.5;
-
-function readScaleBoost(): number {
-  try {
-    const q = new URLSearchParams(window.location.search).get('boardScale');
-    if (q !== null) {
-      if (q === '' || q === 'auto' || q === '1') {
-        window.localStorage?.removeItem('tm_board_scale');
-        return 1;
-      }
-      const v = parseFloat(q);
-      if (Number.isFinite(v)) {
-        const clamped = Math.min(BOOST_MAX, Math.max(BOOST_MIN, v));
-        window.localStorage?.setItem('tm_board_scale', String(clamped));
-        return clamped;
-      }
-    }
-    const stored = parseFloat(window.localStorage?.getItem('tm_board_scale') ?? '');
-    if (Number.isFinite(stored)) {
-      return Math.min(BOOST_MAX, Math.max(BOOST_MIN, stored));
-    }
-  } catch (err) {
-    // storage unavailable — the default is fine
-  }
-  return 1;
-}
+const SCALE_BOOST = 1.05;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
@@ -160,8 +133,6 @@ export default defineComponent({
       naturalH: BOARD_NATURAL_H,
       /** The scale the last fit actually applied (measure divides by it). */
       appliedScale: 1,
-      /** P29c: the live `?boardScale=` tuning multiplier (persisted). */
-      scaleBoost: readScaleBoost(),
       calibrateRaf: 0,
       calibratePasses: 0,
       /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
@@ -237,16 +208,10 @@ export default defineComponent({
       const scale = Math.min(
         (r.width - STAGE_PAD * 2) / this.naturalW,
         (r.height - STAGE_PAD_Y * 2) / this.naturalH,
-      ) * this.scaleBoost;
+      ) * SCALE_BOOST;
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.appliedScale = clamped;
       document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
-      console.info('[con-board-fit]', {
-        stage: `${Math.round(r.width)}×${Math.round(r.height)}`,
-        natural: `${Math.round(this.naturalW)}×${Math.round(this.naturalH)}`,
-        boost: this.scaleBoost,
-        scale: clamped.toFixed(3),
-      });
       // P29: refine against the REAL rendered content (next frame — the new
       // scale must paint first so the union bbox reflects it).
       this.scheduleCalibrate();
@@ -291,54 +256,23 @@ export default defineComponent({
       if (sr.width < 40 || sr.height < 40) {
         return;
       }
-      const describe = (el: Element): string => {
-        const cls = (el.getAttribute('class') ?? el.tagName).toString().slice(0, 56);
-        const id = el.getAttribute('data_space_id') ?? el.getAttribute('data-arc-marker') ?? '';
-        return id !== '' ? `${cls} [${id}]` : cls;
-      };
       let left = Infinity;
       let top = Infinity;
       let right = -Infinity;
       let bottom = -Infinity;
-      let leftEl = '';
-      let topEl = '';
-      let rightEl = '';
-      let bottomEl = '';
       for (const el of stage.querySelectorAll<HTMLElement>(CONTENT_SELECTOR)) {
         const r = el.getBoundingClientRect();
         if (r.width <= 0 || r.height <= 0) {
           continue; // hidden / collapsed
         }
-        if (r.left < left) {
-          left = r.left;
-          leftEl = describe(el);
-        }
-        if (r.top < top) {
-          top = r.top;
-          topEl = describe(el);
-        }
-        if (r.right > right) {
-          right = r.right;
-          rightEl = describe(el);
-        }
-        if (r.bottom > bottom) {
-          bottom = r.bottom;
-          bottomEl = describe(el);
-        }
+        left = Math.min(left, r.left);
+        top = Math.min(top, r.top);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
       }
       if (!Number.isFinite(left) || right - left < 100 || bottom - top < 100) {
         return; // nothing meaningful rendered yet
       }
-      // The union telemetry: WHO defines each edge — the tool for hunting
-      // any element that silently inflates the natural box.
-      console.info('[con-board-union]', {
-        union: `${Math.round(right - left)}×${Math.round(bottom - top)}`,
-        rawNatural: `${Math.round((right - left) / this.appliedScale)}×${Math.round((bottom - top) / this.appliedScale)}`,
-        left: leftEl,
-        right: rightEl,
-        top: topEl,
-        bottom: bottomEl,
-      });
       const scale = this.appliedScale;
       const natW = Math.min(NATURAL_W_MAX, Math.max(NATURAL_W_MIN, (right - left) / scale));
       const natH = Math.min(NATURAL_H_MAX, Math.max(NATURAL_H_MIN, (bottom - top) / scale));
@@ -567,22 +501,6 @@ export default defineComponent({
       this.colAnchor = rectCenter(target.rect).x;
       this.select(target);
     },
-    /**
-     * P29c DEV (temporary): live boost tuning from the shell's LB/RB —
-     * step, clamp, persist (same `tm_board_scale` the URL knob writes),
-     * re-fit + re-calibrate. Removed once the ideal value is locked in.
-     */
-    adjustScaleBoost(delta: number): number {
-      this.scaleBoost = Math.min(BOOST_MAX, Math.max(BOOST_MIN, Math.round((this.scaleBoost + delta) * 100) / 100));
-      try {
-        window.localStorage?.setItem('tm_board_scale', String(this.scaleBoost));
-      } catch (err) {
-        // storage unavailable — the session value still applies
-      }
-      this.calibratePasses = 0;
-      this.fitBoard();
-      return this.scaleBoost;
-    },
     /** RT: jump the selection to the NEXT legal cell (cyclic, DOM order). */
     nextAvailable(): boolean {
       const root = this.$refs.root as HTMLElement | undefined;
@@ -616,6 +534,13 @@ export default defineComponent({
     },
   },
   mounted() {
+    // P29c: the temporary LB/RB tuner persisted its value here — the tuned
+    // ×1.05 is the compiled default now, drop the stale key.
+    try {
+      window.localStorage?.removeItem('tm_board_scale');
+    } catch (err) {
+      // storage unavailable — nothing to clean
+    }
     if (this.selectedSpaceId === undefined) {
       this.seed(this.placementActive);
     } else {

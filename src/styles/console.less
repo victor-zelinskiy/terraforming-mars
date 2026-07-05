@@ -1678,23 +1678,26 @@ html.con-profile-large .con-hydro {
     .con-hydro__reason { font-size: 18px; }
 }
 
-/* ── P20: off-Mars special zones, console-compacted ────────────────
+/* ── P20/P29c: off-Mars special zones, console-compacted ───────────
    The desktop arc (radius 358, board_items_positions.less) leaves the
    right-flank cities close to the temperature-scale bonus markers at the
-   console board scale. Console pulls the WHOLE 7-cell arc in to radius
-   338 (same angles, same mirror symmetry — the markers reach ~r318) and
-   lifts Dawn City 7° → 10°, clear of the 0°C / −4°C bonus zone. */
+   console board scale. Console pulls the whole 7-cell arc in (same
+   mirror symmetry) — P29c re-tuned for the ×1.05 default board scale:
+   - Dawn City drops BELOW the Ares bonus zone (was overlapping the ⚠
+     chip) and pulls toward the scale (was bleeding into the right bar);
+   - Stratopolis lifts clear of the ocean bonus chip;
+   - Ganymede pulls IN off the board's left edge (was bleeding into the
+     left rail) and rises for breathing room to the scale;
+   - Phobos steps down-left off the Venus scale identity mark;
+   - Stanford / Maxwell follow so both flanks read as even ladders. */
 html.console-mode {
-    /* P27b: the LEFT flank sits at ~r322 (closer to the scales) so the
-       colony column clears the resource rail on Steam Deck; the right
-       flank keeps r338 (it borders the temperature bonus markers). */
-    .board-space-01 { margin: 170px 0 0 -14px; }  /* Ganymede 160° */
-    .board-space-02 { margin: 48px 0 0 66px; }    /* Phobos 134° */
-    .board-space-69 { margin: 104px 0 0 21px; }   /* Stanford 147° */
-    .board-space-70 { margin: 37px 0 0 525px; }   /* Luna 46° */
-    .board-space-73 { margin: 96px 0 0 574px; }   /* Maxwell 33° */
-    .board-space-72 { margin: 165px 0 0 608px; }  /* Stratopolis 20° */
-    .board-space-71 { margin: 222px 0 0 623px; }  /* Dawn City 10° */
+    .board-space-01 { margin: 150px 0 0 6px; }    /* Ganymede — in + up */
+    .board-space-02 { margin: 58px 0 0 54px; }    /* Phobos — off the Venus mark */
+    .board-space-69 { margin: 96px 0 0 26px; }    /* Stanford — ladder step */
+    .board-space-70 { margin: 37px 0 0 525px; }   /* Luna (unchanged) */
+    .board-space-73 { margin: 88px 0 0 572px; }   /* Maxwell — ladder step */
+    .board-space-72 { margin: 138px 0 0 600px; }  /* Stratopolis — above the ocean chip */
+    .board-space-71 { margin: 288px 0 0 596px; }  /* Dawn City — below the Ares zone, in from the bar */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */
@@ -6716,6 +6719,14 @@ dialog.con-quit {
         background: rgba(4, 8, 14, 0.72);
         backdrop-filter: blur(3px);
     }
+}
+/* The dialog is a native <dialog> in the TOP LAYER, so its card entrance
+   transform (`con-rise` translateY) escapes the menu's own `overflow:hidden`
+   and bubbles to <html>, flashing a legacy root scrollbar for the ~200ms
+   animation. `[open]` is set synchronously by showModal() (before first paint),
+   so clipping the root here kills the flash without any layout shift. */
+html:has(dialog.con-quit[open]) {
+    overflow: hidden;
 }
 .con-quit__card {
     min-width: 460px;
