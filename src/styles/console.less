@@ -6720,14 +6720,10 @@ dialog.con-quit {
         backdrop-filter: blur(3px);
     }
 }
-/* The dialog is a native <dialog> in the TOP LAYER, so its card entrance
-   transform (`con-rise` translateY) escapes the menu's own `overflow:hidden`
-   and bubbles to <html>, flashing a legacy root scrollbar for the ~200ms
-   animation. `[open]` is set synchronously by showModal() (before first paint),
-   so clipping the root here kills the flash without any layout shift. */
-html:has(dialog.con-quit[open]) {
-    overflow: hidden;
-}
+/* NOTE: the scrollbar-flash on open is prevented in JS (ConsoleConfirmDialog
+   locks document/body overflow before showModal), not here — the <dialog>
+   lives in the top layer, so a CSS clip on the page root can't reliably contain
+   its animated card across every viewport-scroller configuration. */
 .con-quit__card {
     min-width: 460px;
     padding: 26px 30px 18px;
@@ -6780,20 +6776,44 @@ html:has(dialog.con-quit[open]) {
         }
     }
 }
-.con-quit__hint {
+/* Gamepad / console-native: the A/B legend replaces the on-screen buttons.
+   The confirm item is a focusable button (A = click → confirm); the cancel
+   item is a passive hint (B is driven by the dialog-close scope). */
+.con-quit__pad {
     display: flex;
     justify-content: center;
-    gap: 18px;
-    margin-top: 14px;
-    padding-top: 10px;
-    border-top: 1px solid fade(@con-cyan, 16%);
+    align-items: center;
+    gap: 30px;
+    margin-top: 4px;
 }
-.con-quit__hint-item {
+.con-quit__pad-item {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: @con-text;
+    font-family: @con-font;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+.con-quit__pad-item--confirm {
+    cursor: pointer;
+    color: #ffc9c4;
+    transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+    &:hover,
+    &.gp-focus {
+        box-shadow: inset 0 0 0 1px fade(@con-red, 85%), 0 0 20px fade(@con-red, 22%);
+        transform: translateY(-2px);
+    }
+}
+.con-quit__pad-item--cancel {
     color: @con-text-dim;
-    font-size: 15px;
+    cursor: default;
 }
 
 /* ── P10: premium pad-focus states on the pre-game shell ──────────────
