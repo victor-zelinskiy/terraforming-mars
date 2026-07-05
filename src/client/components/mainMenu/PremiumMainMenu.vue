@@ -7,7 +7,6 @@
     <div class="pmm__glow" aria-hidden="true"></div>
     <div class="pmm__vignette" aria-hidden="true"></div>
     <div class="pmm__grain" aria-hidden="true"></div>
-    <div class="pmm__hud" aria-hidden="true"></div>
 
     <div class="pmm__content">
       <header class="pmm__title-block">

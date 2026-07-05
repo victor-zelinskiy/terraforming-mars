@@ -354,18 +354,17 @@ export default defineComponent({
       }
       this.calibratePasses++;
       if (offsetDrift) {
-        const child = stage.firstElementChild as HTMLElement | null;
-        if (child !== null) {
-          // The CSS fallback translate is (6px, −4px) — start the fold from
-          // it so the FIRST pass lands exactly (dx measured the current
-          // translate's result).
-          const rawX = child.style.getPropertyValue('--con-board-dx');
-          const rawY = child.style.getPropertyValue('--con-board-dy');
-          const prevX = rawX !== '' ? parseFloat(rawX) : 6;
-          const prevY = rawY !== '' ? parseFloat(rawY) : -4;
-          child.style.setProperty('--con-board-dx', `${(prevX + dx).toFixed(1)}px`);
-          child.style.setProperty('--con-board-dy', `${(prevY + dy).toFixed(1)}px`);
-        }
+        // Written on the STAGE so the vars INHERIT to every board child —
+        // GameBoardView is multi-root, so `firstElementChild` is its anchor
+        // <a>, not the board (custom props don't reach siblings).
+        // The CSS fallback translate is (6px, −4px) — start the fold from it
+        // so the FIRST pass lands exactly (dx measured the current result).
+        const rawX = stage.style.getPropertyValue('--con-board-dx');
+        const rawY = stage.style.getPropertyValue('--con-board-dy');
+        const prevX = rawX !== '' ? parseFloat(rawX) : 6;
+        const prevY = rawY !== '' ? parseFloat(rawY) : -4;
+        stage.style.setProperty('--con-board-dx', `${(prevX + dx).toFixed(1)}px`);
+        stage.style.setProperty('--con-board-dy', `${(prevY + dy).toFixed(1)}px`);
       }
       if (sizeDrift) {
         this.naturalW = natW;

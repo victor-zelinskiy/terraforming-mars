@@ -659,9 +659,19 @@
 
         /* P29: the fit engine SELF-CENTRES the board — it measures the real
            content bbox and folds the true-centre offset into these vars
-           (ConsoleBoardSection.calibrate). The fallback keeps the P27b
-           hand-tuned nudge for the first frame only. */
+           (ConsoleBoardSection.calibrate; written on the STAGE, inherited).
+           The fallback keeps the P27b hand-tuned nudge for the first frame. */
         > * { transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)); }
+        /* ⚠ P29c ROOT-CAUSE FIX: GameBoardView is MULTI-ROOT, so .board-cont
+           is a DIRECT stage child — the generic translate above (same
+           specificity as board.less's `.board-cont`, but LATER in the
+           cascade) was REPLACING `transform: scale(var(--board-scale))`,
+           hard-freezing the console planet at scale(1) since P27b.
+           `transform` never composes across rules — the board child must
+           carry BOTH functions in ONE declaration. */
+        > .board-cont {
+            transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)) scale(var(--board-scale, 1));
+        }
     }
 }
 

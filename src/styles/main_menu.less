@@ -89,25 +89,6 @@
     mix-blend-mode: overlay;
 }
 
-// Faint HUD frame: four cyan L-brackets at the viewport corners.
-.pmm__hud {
-    position: absolute;
-    inset: clamp(14px, 2vw, 26px);
-    pointer-events: none;
-    opacity: 0.5;
-    &::before,
-    &::after {
-        content: '';
-        position: absolute;
-        width: clamp(26px, 3vw, 44px);
-        height: clamp(26px, 3vw, 44px);
-        border-color: rgba(127, 200, 240, 0.4);
-        filter: drop-shadow(0 0 5px rgba(127, 200, 240, 0.3));
-    }
-    &::before { top: 0; left: 0; border-top: 1.5px solid; border-left: 1.5px solid; }
-    &::after { bottom: 0; right: 0; border-bottom: 1.5px solid; border-right: 1.5px solid; }
-}
-
 // ─── Content column ─────────────────────────────────────────────────────────
 .pmm__content {
     position: relative;
@@ -474,6 +455,13 @@
     justify-content: center;
 }
 .pmm-footer__version {
+    // Pinned to the bottom-right viewport corner so the bottom-centre gamepad
+    // hint bar (`.gp-hintbar`) can never cover it. Out of the footer flow.
+    position: fixed;
+    right: clamp(14px, 2vw, 28px);
+    bottom: clamp(12px, 1.6vh, 20px);
+    z-index: 2;
+    pointer-events: none;
     display: inline-flex;
     align-items: baseline;
     gap: 6px;
@@ -484,6 +472,10 @@
     color: rgba(159, 178, 198, 0.58);
 }
 .pmm-footer__version-value { color: rgba(159, 178, 198, 0.85); }
+
+// Console-native mode owns the whole screen (its own control legend) — the
+// version badge is superfluous clutter there, so hide it entirely.
+html.console-mode .pmm-footer__version { display: none; }
 
 // Steam Deck installer-stale warning — an unobtrusive amber chip beside the version.
 .pmm-footer__installer-warn {

@@ -33,10 +33,6 @@
     <div class="game-atmosphere__halo"></div>
     <div class="game-atmosphere__hud"></div>
     <div class="game-atmosphere__vignette"></div>
-    <div class="game-atmosphere__corner game-atmosphere__corner--tl"></div>
-    <div class="game-atmosphere__corner game-atmosphere__corner--tr"></div>
-    <div class="game-atmosphere__corner game-atmosphere__corner--bl"></div>
-    <div class="game-atmosphere__corner game-atmosphere__corner--br"></div>
   </div>
 </template>
 
