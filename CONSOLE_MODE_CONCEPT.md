@@ -1955,3 +1955,21 @@ generation reads «ПКЛ. N» (key `GEN.`). (6) Inspection cell mode shows the
 curated special-cell LORE (`getSpecialCellInfo` → the panel's amber lore
 block); placement stays lean. Gates: vue-tsc, build:client, 161 specs
 (console + gamepad, incl. 4 new pickStrictGrid) — green.
+
+### P27c — Deck polish pass
+
+(1) **Board fill** — console-measured footprint replaces the desktop
+constants (`BOARD_NATURAL 670×582 → 644×556`, `STAGE_PAD 16→10`,
+`STAGE_PAD_Y 5→4`; the arc is compacted to r338/r322 so the true content
+box is smaller); the planet nudge relaxed to `translate(6px, −4px)`.
+(2) **Scale hover parity in R3** — the panel's track mode now mirrors the
+owning SCALE's own hover-overview under the bonus (`.con-context__scale`:
+scale name + current value + description — the exact
+`ArcScale.overviewContent` shape, rebuilt from `ARC_SCALE_THEMES` + the
+game model in `ConsoleShell.trackScaleOverview`); the redundant kicker
+suffix is gone. (3) **Home-panel packing** — the first block hugs the top
+(`:first-child { margin-top: 0 }`, no kickers in the info form), and the
+handheld profile compacts the whole `.con-home__*` family + the new
+`__pstatus` chips so cards/actions/milestones/awards INCLUDING the
+«Свободных слотов» line fit the Deck height without scroll. Gates:
+vue-tsc, build:client, 161 specs — green.

@@ -43,7 +43,7 @@
 
     <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
     <template v-else-if="mode === 'track'">
-      <div class="con-context__task-kicker">{{ $t('Track bonus') }}<template v-if="trackScaleLabel !== ''"> · {{ $t(trackScaleLabel) }}</template></div>
+      <div class="con-context__task-kicker">{{ $t('Track bonus') }}</div>
       <template v-if="trackInfo !== null">
         <div class="con-inspector__name">{{ trackInfo.kicker }}</div>
         <div class="con-context__track-rows">
@@ -56,6 +56,17 @@
         </div>
       </template>
       <div v-else class="con-inspector__loading">{{ $t('Loading') }}…</div>
+      <!-- P27c: the owning SCALE's own hover-overview (name + current
+           value + description) — the mouse would show it on the band. -->
+      <div v-if="trackScale !== null" class="con-context__scale">
+        <div class="con-context__scale-title">{{ $t(trackScale.titleKey) }}</div>
+        <div class="con-context__track-row con-context__track-row--value">
+          <span>{{ $t(trackScale.nounKey) }}: {{ trackScale.valueText }}</span>
+        </div>
+        <div class="con-context__track-row con-context__track-row--desc">
+          <span>{{ $t(trackScale.descriptionKey) }}</span>
+        </div>
+      </div>
       <div class="con-context__note">{{ $t('Scale bonuses are granted when the parameter passes this step') }}</div>
     </template>
 
@@ -228,6 +239,8 @@ export default defineComponent({
     inspectAll: {type: Boolean, default: false},
     // track mode (P27)
     trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
+    /** P27c: the owning scale's overview (name / current value / description). */
+    trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
     // cell mode (P27b): curated special-cell lore
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
     // idle mode
@@ -267,16 +280,6 @@ export default defineComponent({
       }
       const translated = translateText(t);
       return translated === this.cellHeader || translated === this.tileLabel ? '' : t;
-    },
-    /** P27b: the owning SCALE of the focused track bonus («самой шкалы»). */
-    trackScaleLabel(): string {
-      switch (this.trackInfo?.accent) {
-      case 'temperature': return 'Temperature';
-      case 'oxygen': return 'Oxygen';
-      case 'venus': return 'Venus';
-      case 'oceans': return 'Oceans';
-      default: return '';
-      }
     },
   },
   methods: {

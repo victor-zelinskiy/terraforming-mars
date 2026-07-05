@@ -54,13 +54,20 @@ type BoardCandidate = {kind: 'cell' | 'marker', id: string, el: HTMLElement, rec
  * panel / sidebar / bars — none of which exist here; using it clipped the
  * board top+bottom, the feedback-iteration bug #1).
  */
-const BOARD_NATURAL_W = 670;
-const BOARD_NATURAL_H = 582;
-const STAGE_PAD = 16;
+/**
+ * The CONSOLE-measured footprint. The desktop constants (670×582,
+ * useBoardAutoScale.ts) reserve room for chrome the console board doesn't
+ * carry (P27c feedback: visible dead margins on every side at the Deck) —
+ * the console arc is also COMPACTED (off-Mars flanks at r338/r322), so the
+ * true content box is smaller and the board can scale up to fill it.
+ */
+const BOARD_NATURAL_W = 644;
+const BOARD_NATURAL_H = 556;
+const STAGE_PAD = 10;
 /** P27b: the vertical pad is tighter — the strip above the planet was dead
  *  air (console has no desktop MA badges there), so the board scales up a
  *  notch and sits higher. */
-const STAGE_PAD_Y = 5;
+const STAGE_PAD_Y = 4;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 4;
 

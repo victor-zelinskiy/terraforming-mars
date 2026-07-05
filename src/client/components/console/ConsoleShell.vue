@@ -56,6 +56,7 @@
                            :milestoneSummary="homeMilestoneSummary"
                            :awardSummary="homeAwardSummary"
                            :trackInfo="trackInfo"
+                           :trackScale="trackScaleOverview"
                            :lore="selectedCellLore" />
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           :entries="handEntries"
@@ -381,6 +382,7 @@ import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProj
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, QUICK_SLOT_GLYPH, StdProjectItem} from '@/client/console/consoleQuickModel';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
+import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -722,6 +724,29 @@ export default defineComponent({
      *  rows the premium ScaleTooltip shows (one source, no drift). */
     trackInfo(): ScaleTooltipContent | null {
       return this.consoleState.trackMarker !== undefined ? scaleTooltipState.content : null;
+    },
+    /** P27c: the owning SCALE's own hover-overview (name + current value +
+     *  description — mirrors ArcScale.overviewContent), shown in the panel
+     *  UNDER the focused bonus so the scale hover is never lost on pad. */
+    trackScaleOverview(): {titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null {
+      if (this.consoleState.trackMarker === undefined) {
+        return null;
+      }
+      const accent = scaleTooltipState.content?.accent;
+      if (accent === undefined) {
+        return null;
+      }
+      const theme = ARC_SCALE_THEMES[accent];
+      const value = accent === 'temperature' ? this.game.temperature :
+        accent === 'oxygen' ? this.game.oxygenLevel :
+          accent === 'venus' ? this.game.venusScaleLevel :
+            this.game.oceans;
+      return {
+        titleKey: theme.title,
+        nounKey: theme.noun,
+        valueText: accent === 'oceans' ? `${value}/9` : `${value}${theme.unit}`,
+        descriptionKey: theme.description,
+      };
     },
     /** P27: the right home panel's strategic Milestones/Awards summaries. */
     homeMilestoneSummary(): HomeMaSummary {
