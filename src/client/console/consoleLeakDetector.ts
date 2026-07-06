@@ -34,6 +34,7 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   '.colonies-overlay',
   '.initial-draft-pills', // the initial-draft pipeline's own chrome
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
+  '.con-govsupport', // the dedicated Government Support (WGT) briefing panel
   '.con-banner--deferred', // a DEFERRED task's amber chip IS the surface (B returns)
 ];
 

@@ -129,6 +129,10 @@ export type ConsoleHandEntry = {
 
 /** Rows kept mounted above/below the viewport so a fast page never blanks. */
 const OVERSCAN = 2;
+/** Top/bottom content inset (px): a card's cost badge + focus glow poke ABOVE
+ *  the card box, so the scroll content starts this far below the clip edge
+ *  (and rows keep this margin from the viewport top when scrolled to). */
+const EDGE_INSET = 20;
 /** Right-stick free-scroll px per intent frame (rows are tall). */
 const STICK_SCROLL_STEP = 44;
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
@@ -181,11 +185,12 @@ export default defineComponent({
       return !this.saleActive && this.selected !== undefined && !this.selectedPlayable && this.reasons.length === 0;
     },
     plan(): HandGridPlan {
-      return planHandGrid({
-        availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
-        availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
-        count: this.entries.length,
-      });
+      // Reserve EDGE_INSET on every side so cards' badges + focus glow have
+      // room and never clip against the shelf edge (the fit/scroll decision
+      // and the centred content width both fall inside that inset box).
+      const w = (this.box.w > 0 ? this.box.w : FALLBACK_W) - EDGE_INSET * 2;
+      const h = (this.box.h > 0 ? this.box.h : FALLBACK_H) - EDGE_INSET * 2;
+      return planHandGrid({availW: w, availH: h, count: this.entries.length});
     },
     /** Row indices to render (all when it fits; windowed when it scrolls). The
      *  window is derived even before the first measure (from the fallback box),
@@ -199,8 +204,9 @@ export default defineComponent({
         return this.range(0, p.rows - 1);
       }
       const availH = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const first = Math.max(0, Math.floor(this.scrollTopPx / p.rowStride) - OVERSCAN);
-      const last = Math.min(p.rows - 1, Math.ceil((this.scrollTopPx + availH) / p.rowStride) + OVERSCAN);
+      const contentY = this.scrollTopPx - EDGE_INSET;
+      const first = Math.max(0, Math.floor(contentY / p.rowStride) - OVERSCAN);
+      const last = Math.min(p.rows - 1, Math.ceil((contentY + availH) / p.rowStride) + OVERSCAN);
       return this.range(first, last);
     },
     rootStyle(): Record<string, string> {
@@ -214,18 +220,18 @@ export default defineComponent({
     },
     topSpacerPx(): number {
       const rows = this.renderRows;
-      return rows.length === 0 ? 0 : rows[0] * this.plan.rowStride;
+      return rows.length === 0 ? 0 : EDGE_INSET + rows[0] * this.plan.rowStride;
     },
     bottomSpacerPx(): number {
       const rows = this.renderRows;
       if (rows.length === 0) {
         return 0;
       }
-      return (this.plan.rows - 1 - rows[rows.length - 1]) * this.plan.rowStride;
+      return (this.plan.rows - 1 - rows[rows.length - 1]) * this.plan.rowStride + EDGE_INSET;
     },
     thumbStyle(): Record<string, string> {
       const p = this.plan;
-      const content = p.contentH + p.gapY;
+      const content = p.rows * p.rowStride + EDGE_INSET * 2;
       const visible = this.box.h > 0 ? this.box.h : FALLBACK_H;
       const hPct = clampNum(8, 100, (visible / Math.max(1, content)) * 100);
       const topPct = (100 - hPct) * this.scrollFrac;
@@ -319,7 +325,7 @@ export default defineComponent({
       const p = this.plan;
       const st = grid.scrollTop;
       // Row-gated: only re-render the window when the first visible row changes.
-      const firstRow = p.rowStride > 0 ? Math.floor(st / p.rowStride) : 0;
+      const firstRow = p.rowStride > 0 ? Math.floor((st - EDGE_INSET) / p.rowStride) : 0;
       if (firstRow !== this.lastFirstRow) {
         this.lastFirstRow = firstRow;
         this.scrollTopPx = st;
@@ -335,8 +341,8 @@ export default defineComponent({
       if (!p.scrolls || p.cols <= 0 || this.box.h <= 0) {
         return;
       }
-      const firstFull = Math.ceil(st / p.rowStride);
-      const lastFull = Math.floor((st + this.box.h) / p.rowStride) - 1;
+      const firstFull = Math.ceil((st - EDGE_INSET) / p.rowStride);
+      const lastFull = Math.floor((st - EDGE_INSET + this.box.h) / p.rowStride) - 1;
       if (lastFull < firstFull) {
         return;
       }
@@ -363,15 +369,16 @@ export default defineComponent({
         return;
       }
       const row = Math.floor(this.index / p.cols);
-      const top = row * p.rowStride;
+      const top = EDGE_INSET + row * p.rowStride;
       const bottom = top + p.slotH;
       const viewTop = grid.scrollTop;
       const viewBottom = viewTop + grid.clientHeight;
       let next = viewTop;
-      if (top < viewTop) {
-        next = top;
-      } else if (bottom > viewBottom) {
-        next = bottom - grid.clientHeight;
+      // Leave an EDGE_INSET buffer so the card's top badge / glow clear the edge.
+      if (top - EDGE_INSET < viewTop) {
+        next = top - EDGE_INSET;
+      } else if (bottom + EDGE_INSET > viewBottom) {
+        next = bottom + EDGE_INSET - grid.clientHeight;
       }
       const maxScroll = Math.max(0, grid.scrollHeight - grid.clientHeight);
       next = clampNum(0, maxScroll, next);
