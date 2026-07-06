@@ -28,9 +28,12 @@
                 <span class="con-task__buysum-total">{{ $t('Purchase') }}: −{{ buyTotal }}<i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
                 <span v-if="picks.length > 0" class="con-task__buysum-detail">{{ picks.length }} × {{ buyCostPerCard }} {{ $t('per card') }}</span>
               </span>
-              <!-- Wallet: you-have + after-purchase (only when affordable). -->
+              <!-- Wallet: you-have + after-purchase (only when affordable).
+                   The coin sits in an inline-flex item so it is vertically
+                   CENTRED on the number (a bare inline <i> floated on the text
+                   baseline — the "crooked coin"). -->
               <span class="con-task__buywallet">
-                <span>{{ $t('You have') }}: <b>{{ megacreditsOnHand }}</b><i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
+                <span class="con-task__buywallet-item">{{ $t('You have') }}: <b>{{ megacreditsOnHand }}</b><i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
                 <span v-if="picks.length > 0 && cardBuyAffordable" class="con-task__buywallet-after">{{ $t('After purchase') }}: <b>{{ megacreditsAfterPurchase }}</b></span>
               </span>
             </template>
@@ -325,7 +328,7 @@
  * targets with reasons and prompt warnings all carry over from the desktop
  * premium inputs. Submission payloads are byte-identical (taskResponses).
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -458,6 +461,11 @@ export default defineComponent({
       /** Blocks a duplicate submit between the emit and the next server response
        *  (e.g. rapid A presses in the pick phase) — cleared on every response. */
       submitting: false,
+      /** Single-row card fit (sets --con-cards-zoom so the row always fits →
+       *  never scrolls on focus). Observers run it on resize; NEVER per focus. */
+      stripFitObserver: undefined as ResizeObserver | undefined,
+      fitScheduled: false,
+      fitRetries: 0,
     };
   },
   computed: {
@@ -931,6 +939,8 @@ export default defineComponent({
       immediate: true,
       handler() {
         this.resetState();
+        // Re-fit the single-row card strip for the new prompt (after render).
+        void this.$nextTick(() => this.fitCardStrip());
       },
     },
     /** A genuinely NEW server prompt discards an open nested step. */
@@ -942,6 +952,26 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    /** Card count or grid↔row transition changes the fit (never per focus). */
+    focusCount() {
+      void this.$nextTick(() => this.fitCardStrip());
+    },
+    gridMode() {
+      void this.$nextTick(() => this.fitCardStrip());
+    },
+  },
+  mounted() {
+    void this.$nextTick(() => this.fitCardStrip());
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.scheduleFit());
+      ro.observe(this.$el as HTMLElement);
+      this.stripFitObserver = markRaw(ro);
+    }
+    window.addEventListener('resize', this.scheduleFit);
+  },
+  beforeUnmount() {
+    this.stripFitObserver?.disconnect();
+    window.removeEventListener('resize', this.scheduleFit);
   },
   methods: {
     resetState(): void {
@@ -1092,14 +1122,75 @@ export default defineComponent({
       const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
       const cardEl = Array.isArray(slot) ? slot[0] : slot;
       if (cardEl !== undefined && cardEl !== null) {
-        // 'nearest' (NOT 'center'): only scroll when the focused card is
-        // off-view. Re-centering on every focus change scrolled the whole
-        // strip, visibly shifting the OTHER cards (premium-UI jitter).
-        cardEl.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'});
+        // The single ROW is fit-to-width (fitCardStrip) so it NEVER scrolls —
+        // scrolling it on focus shifted the other cards AND churned the whole
+        // strip every d-pad move (Steam Deck perf hit). Only GRID mode scrolls,
+        // and only VERTICALLY to the focused row.
+        if (this.gridMode) {
+          cardEl.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        }
         return;
       }
       const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    },
+    /** rAF-coalesced fit for resize bursts (never fires per focus move). */
+    scheduleFit(): void {
+      if (this.fitScheduled) {
+        return;
+      }
+      this.fitScheduled = true;
+      requestAnimationFrame(() => {
+        this.fitScheduled = false;
+        this.fitCardStrip();
+      });
+    },
+    /**
+     * Size the SINGLE-ROW card strip so N cards ALWAYS fit its width — the
+     * strip then never overflows, so it never scrolls on focus and neighbours
+     * never shift. Sets `--con-cards-zoom` (a layout `zoom` on each slot); the
+     * focused card's `transform: scale` rides ON TOP (visual, no reflow). Runs
+     * on mount / prompt / count / resize — NEVER per focus, so the per-d-pad
+     * cost is zero (Steam Deck). Grid mode keeps its own wrapping zoom.
+     */
+    fitCardStrip(): void {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined) {
+        return;
+      }
+      if (this.activeTask.kind !== 'cardSelect' || this.gridMode) {
+        strip.style.removeProperty('--con-cards-zoom'); // grid/other own their zoom
+        return;
+      }
+      const n = strip.children.length;
+      if (n === 0) {
+        strip.style.removeProperty('--con-cards-zoom');
+        return;
+      }
+      // Measure one slot at natural scale, then compute the zoom that fits N.
+      // offsetWidth (NOT getBoundingClientRect) ignores the focused card's
+      // transform: scale, so the measure isn't inflated by the 1.08 lift.
+      strip.style.setProperty('--con-cards-zoom', '1');
+      const slotW = (strip.children[0] as HTMLElement).offsetWidth;
+      if (slotW <= 0) {
+        // Not laid out yet (JSDOM / mid-reload) — retry a bounded number of frames.
+        if (this.fitRetries < 20) {
+          this.fitRetries++;
+          requestAnimationFrame(() => this.fitCardStrip());
+        }
+        return;
+      }
+      this.fitRetries = 0;
+      const cs = window.getComputedStyle(strip);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const availW = strip.clientWidth - padX;
+      // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
+      // zoom against the width left after the gaps. 0.96 leaves headroom for
+      // the focused card's scale(1.08) — the row fits WITH the lift, so it
+      // never tips into overflow/scroll.
+      const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * gap) / (n * slotW)));
+      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
     },
     // ── card browser helpers (T2) ────────────────────────────────────
     isPicked(name: CardName): boolean {
