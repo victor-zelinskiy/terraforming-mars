@@ -16,7 +16,7 @@
              class="con-hand__filter"
              :class="{'con-hand__filter--active': opt.value === activeTag, 'con-hand__filter--empty': opt.count === 0 && opt.value !== activeTag}">
           <span v-if="opt.value === 'all'" class="con-hand__filter-label" v-i18n>All</span>
-          <span v-else class="con-hand__filter-icon card-tag" :class="'tag-' + opt.value" aria-hidden="true"></span>
+          <span v-else class="con-hand__filter-icon" :class="'tag-' + opt.value" aria-hidden="true"></span>
           <span class="con-hand__filter-count">{{ opt.count }}</span>
         </div>
       </div>
