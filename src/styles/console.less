@@ -3178,6 +3178,10 @@ html.console-mode {
         &--short {
             box-shadow: inset 0 0 0 1.5px fade(@con-amber, 60%);
         }
+        /* Free sponsorship (Vitor) — a calm mint rim, never a price. */
+        &--free {
+            box-shadow: inset 0 0 0 1.5px fade(#7ef0b6, 48%);
+        }
     }
     &__wallet-label {
         font-size: 11.5px;
@@ -3218,6 +3222,19 @@ html.console-mode {
         font-size: 14px;
         font-weight: 700;
         color: @con-amber;
+    }
+    /* The free-sponsorship badge — replaces the price capsule (Vitor). */
+    &__wallet-free {
+        padding: 3px 13px;
+        border-radius: 999px;
+        background: fade(#7ef0b6, 13%);
+        box-shadow: inset 0 0 0 1.5px fade(#7ef0b6, 62%);
+        color: #d7ffe9;
+        font-size: 12.5px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        white-space: nowrap;
     }
     &__complete {
         padding: 4px 16px;
@@ -8388,6 +8405,7 @@ html.con-profile-handheld {
         &__wallet-price { font-size: 13px; }
         &__wallet-after { font-size: 13px; b { font-size: 15.5px; } }
         &__wallet-shortfall { font-size: 12px; }
+        &__wallet-free { font-size: 10.5px; padding: 2px 10px; }
         &__complete { font-size: 12px; padding: 3px 12px; }
         &__grid { gap: 10px; }
         &__card { gap: 14px; padding: 9px 12px 9px 16px; border-radius: 11px; }

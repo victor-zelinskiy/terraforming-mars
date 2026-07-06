@@ -26,7 +26,11 @@ export type ConsoleTask =
   | {kind: 'actionMenu'}
   /** Board placement — natively handled by the console placement mode. */
   | {kind: 'space'}
-  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'awardFunding' | 'confirm'}
+  | {kind: 'choice', flavor: 'generic' | 'contextual' | 'wgt' | 'confirm'}
+  /** FREE award funding (Vitor's start action) — served by the premium
+   *  awards MA screen in free-sponsorship mode, NOT the generic task host
+   *  (the desktop routes it to AwardsOverlay for the same reason). */
+  | {kind: 'awardFunding'}
   | {kind: 'player'}
   | {kind: 'amount', flavor: 'generic' | 'delta'}
   | {kind: 'resource'}
@@ -58,7 +62,7 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
   'cardSelect', 'payment', 'draftWait',
-  'projectCard', 'colony',
+  'projectCard', 'colony', 'awardFunding',
   'initialDraft', 'startSequence',
 ]);
 
@@ -68,10 +72,12 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
 /**
  * Kinds served by SHELL SECTIONS (not the task host): the play-from-hand /
  * standard-project prompts ride the hand carousel & the standard-projects
- * sheet; a colony pick rides the colonies rail in pick mode. The shell
- * auto-opens the surface; navigating away DEFERS the task (amber chip).
+ * sheet; a colony pick rides the colonies rail in pick mode; FREE award
+ * funding (Vitor) rides the premium awards MA screen in free-sponsorship
+ * mode. The shell auto-opens the surface; navigating away DEFERS the task
+ * (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'colony']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'colony', 'awardFunding']);
 
 /**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`
@@ -135,7 +141,7 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
       return {kind: 'actionMenu'};
     }
     if (wf.awardFundingPrompt?.free === true) {
-      return {kind: 'choice', flavor: 'awardFunding'};
+      return {kind: 'awardFunding'};
     }
     if (title === WGT_TITLE) {
       return {kind: 'choice', flavor: 'wgt'};

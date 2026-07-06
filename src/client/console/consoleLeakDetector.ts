@@ -45,6 +45,8 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
 const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   projectCard: ['.con-hand', '.con-sheet'],
   colony: ['.con-colonies'],
+  // FREE award funding (Vitor) is served by the premium awards MA screen.
+  awardFunding: ['.con-ma'],
   // T5: the full-screen start scene serves both opening kinds.
   initialDraft: ['.con-start'],
   startSequence: ['.con-start'],

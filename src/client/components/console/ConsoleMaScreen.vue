@@ -19,10 +19,11 @@
           <!-- The WALLET: the overlay covers the resource panel, so the
                viewer's M€ live HERE — together with the (category-wide)
                price as a premium before → after preview. -->
-          <div class="con-ma__wallet" :class="{'con-ma__wallet--short': walletShort > 0}">
+          <div class="con-ma__wallet" :class="{'con-ma__wallet--short': !free && walletShort > 0, 'con-ma__wallet--free': free}">
             <span class="con-ma__wallet-label">{{ $t('You have') }}</span>
             <span class="con-ma__wallet-now"><b>{{ myMegacredits }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
-            <template v-if="nextCost !== undefined">
+            <span v-if="free" class="con-ma__wallet-free">{{ $t('Free sponsorship') }}</span>
+            <template v-else-if="nextCost !== undefined">
               <span class="con-ma__wallet-price">−{{ nextCost }}</span>
               <span v-if="walletShort === 0" class="con-ma__wallet-after">→ <b>{{ walletAfter }}</b></span>
               <span v-else class="con-ma__wallet-shortfall">{{ shortfallText }}</span>
@@ -163,6 +164,9 @@ export default defineComponent({
     myMegacredits: {type: Number, required: true},
     /** MAX claimable/fundable slots (3). */
     maxSlots: {type: Number, default: 3},
+    /** FREE-sponsorship mode (Vitor's start action funds an award for free):
+     *  the wallet reads «Бесплатное спонсирование» instead of a −0 price. */
+    free: {type: Boolean, default: false},
   },
   computed: {
     title(): string {

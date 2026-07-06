@@ -358,23 +358,13 @@ import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
-import {getAward} from '@/client/MilestoneAwardManifest';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
-import {AwardName} from '@/common/ma/AwardName';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
     return '';
   }
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
-}
-
-/** The UNTRANSLATED text (manifest lookups key off the English name). */
-function rawTextOf(v: string | Message | undefined): string {
-  if (v === undefined) {
-    return '';
-  }
-  return typeof v === 'string' ? v : v.message;
 }
 
 type ChoiceEntry = {
@@ -554,16 +544,7 @@ export default defineComponent({
               meta?.resource !== undefined ? `${meta.resource.current} → ${meta.resource.resulting}` : '';
         const tradeoff = textOf(meta?.tradeoff);
         const title = textOf(option.title);
-        // Free award funding (T4): dock each award's RULE next to its name —
-        // the desktop AwardsOverlay shows it, so the console must too (CTS-3.8).
-        let description = textOf(meta?.description);
-        if (description === '' && this.activeTask.kind === 'choice' && this.activeTask.flavor === 'awardFunding') {
-          try {
-            description = translateText(getAward(rawTextOf(option.title) as AwardName).description);
-          } catch (err) {
-            description = '';
-          }
-        }
+        const description = textOf(meta?.description);
         return {
           index,
           title,

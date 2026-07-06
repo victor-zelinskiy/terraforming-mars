@@ -179,7 +179,7 @@
                               :index="consoleState.sheetIndex"
                               :myMegacredits="thisPlayer.megacredits"
                               :backLabel="stdBackLabel" />
-    <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" />
+    <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
     <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
@@ -1087,13 +1087,20 @@ export default defineComponent({
         availableNow: this.claimableTitles(found?.options),
         describe,
         maxSlots: 3,
-        nextCost: kind === 'milestones' ? 8 : this.awardCostValue,
+        // Free sponsorship (Vitor) costs 0 — the wallet then reads «Бесплатно».
+        nextCost: kind === 'milestones' ? 8 : (this.awardFundingActive ? 0 : this.awardCostValue),
       });
     },
     /** The NEXT award funding price as a number (8/14/20). */
     awardCostValue(): number {
       const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
       return [8, 14, 20][funded] ?? 20;
+    },
+    /** The FREE award-funding prompt (Vitor's start action) is the pending
+     *  shell task — the premium awards MA screen hosts it (desktop parity:
+     *  the AwardsOverlay's free-sponsorship mode), never the generic list. */
+    awardFundingActive(): boolean {
+      return this.shellTask?.kind === 'awardFunding';
     },
     /** The premium MA confirm view — REBUILT from the live playerView on
      *  every commit, so a slot raced away while the modal is open honestly
@@ -1117,11 +1124,12 @@ export default defineComponent({
           return '';
         }
       };
+      const free = p.kind === 'award' && this.awardFundingActive;
       return buildMaConfirm(p.kind, source, models, {
         myColor: this.thisPlayer.color,
         myMegacredits: this.thisPlayer.megacredits,
-        cost: p.kind === 'milestone' ? 8 : this.awardCostValue,
-        free: false, // Vitor's free sponsorship rides the fallback surface in console mode
+        cost: p.kind === 'milestone' ? 8 : (free ? 0 : this.awardCostValue),
+        free, // Vitor's free sponsorship — the premium confirm shows the free chip.
         maxSlots: 3,
         playerName: (c) => this.playerView.players.find((pl) => pl.color === c)?.name ?? c,
         describe,
@@ -1375,7 +1383,7 @@ export default defineComponent({
           {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund', enabled: focusedMa?.available === true},
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
             label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
-          {control: 'back', label: 'Close'},
+          {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
         ];
       }
       if (this.consoleState.sheet !== undefined) {
@@ -2085,6 +2093,10 @@ export default defineComponent({
             }
             break;
           case 'back':
+            // A pending free-award-funding task DEFERS to the amber chip
+            // (mandatory → inspect the board, then return); a no-op when the
+            // player is merely viewing the M/A dashboard.
+            this.deferShellTask();
             this.consoleState.sheet = undefined;
             this.consoleState.section = 'board';
             break;
@@ -2432,11 +2444,15 @@ export default defineComponent({
       this.consoleState.sheet = undefined;
     },
     openSheet(sheet: ConsoleSheetId): void {
-      // Opening anything that is NOT the task's own surface defers the task.
-      const isTaskSurface = sheet === 'standardProjects' &&
-        this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject';
+      // Opening anything that is NOT the task's own surface defers the task;
+      // opening the task's OWN surface un-defers it (back on the surface).
+      const isTaskSurface = (sheet === 'standardProjects' &&
+        this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||
+        (sheet === 'awards' && this.shellTask?.kind === 'awardFunding');
       if (!isTaskSurface) {
         this.deferShellTask();
+      } else {
+        this.consoleState.task.deferred = false;
       }
       this.consoleState.quick = undefined;
       this.consoleState.sheet = sheet;
@@ -2839,6 +2855,13 @@ export default defineComponent({
     /** Open (or re-open after un-defer) the section that serves the task. */
     openShellTaskSurface(task: ConsoleTask): void {
       closeConsoleLayers();
+      if (task.kind === 'awardFunding') {
+        // FREE award funding rides the premium awards MA screen (its own
+        // v-if renders it); openSheet treats it as the task surface.
+        this.consoleState.section = 'board';
+        this.openSheet('awards');
+        return;
+      }
       if (task.kind === 'colony') {
         this.consoleState.section = 'colonies';
         // Land on the first PICKABLE tile so A is meaningful immediately.

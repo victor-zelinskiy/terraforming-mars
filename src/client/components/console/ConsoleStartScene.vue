@@ -708,8 +708,10 @@ export default defineComponent({
     },
     /** P13/P15: X fullscreen for the focused card (wizard AND ceremony).
      *  Wizard steps pass the SELECT context (A toggles the pick without
-     *  leaving the viewer); the ceremony and the summary browse READ-ONLY
-     *  (their A is a game action / a submit — never safe from fullscreen). */
+     *  leaving the viewer); the SUMMARY browses read-only; the CEREMONY passes
+     *  the ACTION context so a playable prelude / drew-N candidate is played
+     *  straight from fullscreen (desktop StartGameFlow parity). The corp effect
+     *  stays read-only (its label is undefined) — matching desktop. */
     zoomFocused(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep !== undefined && this.stepEntries.length > 0) {
@@ -730,13 +732,19 @@ export default defineComponent({
       if (item === undefined || items.length === 0) {
         return;
       }
+      const action = {
+        labelFor: (name: CardName) => this.ceremonyZoomLabel(name),
+        reasonsFor: () => [],
+        execute: (name: CardName) => this.actByName(name),
+      };
       if (item.kind === 'candidate') {
-        openConsoleCardZoom(this.candidateCards, this.candidateCards.findIndex((c) => c.name === item.name));
+        openConsoleCardZoom(this.candidateCards, this.candidateCards.findIndex((c) => c.name === item.name), undefined, action);
         return;
       }
-      // Corps / preludes: browse the whole actionable set by name.
+      // Corps / preludes: browse the whole actionable set by name; A plays a
+      // prelude (corp rows stay read-only via the undefined label).
       const cards = items.map((f) => ({name: f.name}) as CardModel);
-      openConsoleCardZoom(cards, this.focusIdx);
+      openConsoleCardZoom(cards, this.focusIdx, undefined, action);
     },
     /** Grid row jump - measured from the DOM, robust to flex-wrap. */
     moveFocusRow(step: 1 | -1): void {
@@ -964,15 +972,26 @@ export default defineComponent({
         this.state.stepIdx = this.railPos - 1;
       }
     },
-    /** Ceremony A/X: play a prelude / apply the corp effect / pick a candidate. */
+    /** Ceremony A: play a prelude / apply the corp effect / pick a candidate. */
     actOnFocused(): void {
       const item = this.focusedItem;
+      if (item !== undefined) {
+        this.actByName(item.name);
+      }
+    },
+    /** The ceremony action for a card BY NAME — shared by the inline strip AND
+     *  the fullscreen viewer's A (play-from-fullscreen parity with the desktop
+     *  StartGameFlow). Safe from fullscreen: the viewer closes BEFORE this runs
+     *  (ConsoleZoomAction.execute), so a corp sub-action / prelude effect opens
+     *  on a clean surface. */
+    actByName(name: CardName): void {
+      const item = this.focusables.find((f) => f.name === name);
       if (item === undefined || item.disabled) {
         return;
       }
       if (item.kind === 'corp') {
         const prompt = startFlowCorpPrompt(this.playerView);
-        const index = corpActionOptionIndexFor(prompt, item.name);
+        const index = corpActionOptionIndexFor(prompt, name);
         if (prompt !== undefined && index !== -1) {
           this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
         }
@@ -982,9 +1001,21 @@ export default defineComponent({
       // candidates vanish from the view — this is the only capture window).
       const draw = startFlowPreludeDrawPrompt(this.playerView);
       if (item.kind === 'candidate' && draw !== undefined) {
-        recordDrawChoice(this.playerView.id, this.candidateCards.map((c) => c.name), item.name);
+        recordDrawChoice(this.playerView.id, this.candidateCards.map((c) => c.name), name);
       }
-      this.$emit('submit', cardsResponse([item.name]));
+      this.$emit('submit', cardsResponse([name]));
+    },
+    /** The fullscreen A-verb for a ceremony card, or undefined → read-only.
+     *  Preludes / drew-N candidates are PLAYABLE from fullscreen (desktop
+     *  parity — «Разыграть»); a corporation's first action is NOT (matching
+     *  the desktop, where the corp effect is applied from its column, not the
+     *  card viewer). */
+    ceremonyZoomLabel(name: CardName): string | undefined {
+      const item = this.focusables.find((f) => f.name === name);
+      if (item === undefined || item.disabled || item.kind === 'corp') {
+        return undefined;
+      }
+      return this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now';
     },
   },
 });

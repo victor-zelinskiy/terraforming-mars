@@ -44,7 +44,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, expect: Parti
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
   {row: '18 colony build/select', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, expect: {kind: 'colony'}},
-  {row: '20 free award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, expect: {kind: 'choice', flavor: 'awardFunding'}},
+  {row: '20 free award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, expect: {kind: 'awardFunding'}},
   {row: '21 initial draft', wf: {type: 'initialCards', title: 'Select initial cards'}, expect: {kind: 'initialDraft'}},
   {row: '22 start: corp initial action', wf: {type: 'or', title: 'Take first action of X corporation', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, expect: {kind: 'startSequence', prompt: 'corporationInitialAction'}},
   {row: '22b start: prelude selection', wf: {type: 'card', title: 'Select prelude card to play', cards: [], startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'}}, expect: {kind: 'startSequence', prompt: 'preludeSelection'}},
@@ -142,13 +142,15 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     // T3/T4: projectCard + colony are SHELL-SECTION tasks, NOT host tasks.
     expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: []}))).to.eq(undefined);
     expect(taskServedByHost(view({type: 'colony', title: 'c', coloniesModel: []}))).to.eq(undefined);
+    // FREE award funding is served by the premium awards MA screen, NOT the host.
+    expect(taskServedByHost(view({type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}))).to.eq(undefined);
   });
 
   it('SHELL_SECTION_KINDS are native (served by sections, not the host)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'colony').to.eq(true);
+      expect(kind === 'projectCard' || kind === 'colony' || kind === 'awardFunding').to.eq(true);
     }
   });
 
