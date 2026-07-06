@@ -165,6 +165,12 @@
                         @cancel="pendingMaConfirm = undefined" />
     </transition>
 
+    <!-- Milestones/Awards — the X → «Осмотреть» full-text READER (the premium
+         reader for the long descriptions the dashboard cards must clamp). -->
+    <transition name="con-layer">
+      <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" />
+    </transition>
+
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
          (RT = action categories, LT = basic actions). -->
     <ConsoleQuickSelector v-if="consoleState.quick !== undefined"
@@ -456,6 +462,7 @@ import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/Con
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import ConsoleMaConfirm from '@/client/components/console/ConsoleMaConfirm.vue';
+import ConsoleMaInspect from '@/client/components/console/ConsoleMaInspect.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
 import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, consoleMaPressNotice, stepGrid} from '@/client/components/console/consoleMaModel';
 import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
@@ -555,6 +562,7 @@ export default defineComponent({
     ConsoleSheet,
     ConsoleMaScreen,
     ConsoleMaConfirm,
+    ConsoleMaInspect,
     ConsoleMaCeremony,
     ConsoleQuickSelector,
     ConsoleStdProjectsScreen,
@@ -604,6 +612,9 @@ export default defineComponent({
       pendingCardAction: undefined as {cardName: CardName, preview: ActionPreview | undefined, loading: boolean} | undefined,
       /** Milestones/Awards premium confirm (nothing submitted until its A). */
       pendingMaConfirm: undefined as {kind: MaKind, name: string} | undefined,
+      // X → «Осмотреть»: the NAME of the milestone/award shown in the premium
+      // full-text reader (the live item is recomputed from maScreenItems).
+      maInspect: undefined as string | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
@@ -1102,6 +1113,13 @@ export default defineComponent({
     awardFundingActive(): boolean {
       return this.shellTask?.kind === 'awardFunding';
     },
+    /** The LIVE item shown in the X → «Осмотреть» reader (recomputed from the
+     *  dashboard, so its standings/availability stay fresh); undefined = the
+     *  reader is closed or its item left the list. */
+    maInspectItem(): ConsoleMaItem | undefined {
+      return this.maInspect === undefined ? undefined :
+        this.maScreenItems.find((it) => it.name === this.maInspect);
+    },
     /** The premium MA confirm view — REBUILT from the live playerView on
      *  every commit, so a slot raced away while the modal is open honestly
      *  re-renders as blocked (never a dead submit). */
@@ -1213,6 +1231,9 @@ export default defineComponent({
       if (this.pendingTradeColony !== undefined) {
         return 'Trade';
       }
+      if (this.maInspectItem !== undefined) {
+        return this.maInspectItem.name.replace(/[0-9]+$/, '');
+      }
       if (this.pendingMaConfirm !== undefined) {
         return 'Confirmation';
       }
@@ -1305,6 +1326,14 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
+      if (this.maInspectItem !== undefined) {
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.maInspectItem.available) {
+          cmds.push({control: 'confirm', label: this.maInspectItem.kind === 'milestone' ? 'Claim' : 'Fund'});
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
+      }
       if (this.pendingMaConfirm !== undefined) {
         return [
           {control: 'confirm', label: this.pendingMaConfirm.kind === 'milestone' ? 'Claim' : 'Fund', enabled: this.maConfirmAvailable},
@@ -1381,6 +1410,7 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund', enabled: focusedMa?.available === true},
+          {control: 'secondary', label: 'Inspect'},
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
             label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
@@ -1717,6 +1747,20 @@ export default defineComponent({
         // and never show scrollbar chrome). Fallback-owned surfaces keep
         // the DOM engine's own right-stick scroll (they return earlier).
         this.scrollActiveConsole(intent.dy);
+        return true;
+      }
+      // The premium MA reader (X → «Осмотреть») owns the pad while open: it
+      // sits above the dashboard, so no background command leaks. A sponsors /
+      // claims when the item is available (hands off to the confirm), B or X
+      // close back to the dashboard; the right stick scrolls the long text.
+      if (this.maInspectItem !== undefined) {
+        if (intent.kind === 'press') {
+          if (intent.button === 'back' || intent.button === 'secondary') {
+            this.closeMaInspect();
+          } else if (intent.button === 'confirm') {
+            this.confirmMaInspect();
+          }
+        }
         return true;
       }
       // Information Mode owns everything while open (read-only).
@@ -2082,6 +2126,10 @@ export default defineComponent({
           case 'confirm':
             this.activateMaItem(this.maScreenItems[this.consoleState.sheetIndex]);
             break;
+          case 'secondary':
+            // X → «Осмотреть»: open the full-text reader for the focused item.
+            this.openMaInspect(this.maScreenItems[this.consoleState.sheetIndex]);
+            break;
           case 'bumperL':
             if (this.maScreenKind !== 'milestones') {
               this.openSheet('milestones');
@@ -2444,6 +2492,8 @@ export default defineComponent({
       this.consoleState.sheet = undefined;
     },
     openSheet(sheet: ConsoleSheetId): void {
+      // A sheet switch / (re)open closes a stale full-text reader.
+      this.maInspect = undefined;
       // Opening anything that is NOT the task's own surface defers the task;
       // opening the task's OWN surface un-defers it (back on the surface).
       const isTaskSurface = (sheet === 'standardProjects' &&
@@ -2486,6 +2536,27 @@ export default defineComponent({
         return;
       }
       this.pendingMaConfirm = {kind: item.kind, name: item.name};
+    },
+    /** X → «Осмотреть»: open the premium full-text reader for a dashboard
+     *  item (works for taken / blocked items too — it is read-only). */
+    openMaInspect(item: ConsoleMaItem | undefined): void {
+      if (item === undefined) {
+        return;
+      }
+      this.maInspect = item.name;
+    },
+    /** B / X in the reader → back to the dashboard (nothing submitted). */
+    closeMaInspect(): void {
+      this.maInspect = undefined;
+    },
+    /** A in the reader → sponsor / claim when available: close the reader and
+     *  hand off to the existing premium confirm (never submits directly). */
+    confirmMaInspect(): void {
+      const item = this.maInspectItem;
+      this.maInspect = undefined;
+      if (item !== undefined && item.available) {
+        this.activateMaItem(item);
+      }
     },
     /** The MA confirm's A — re-resolves the LIVE option path (the prompt may
      *  have moved while the modal was open) and submits the byte-identical

@@ -2087,6 +2087,227 @@ html.con-profile-handheld .con-maconfirm {
     &__slots { font-size: 13.5px; }
 }
 
+/* ── Milestones/Awards READER (ConsoleMaInspect) ───────────────────────
+   X → «Осмотреть»: the full-text reader for ONE milestone/award. The
+   dashboard cards clamp their rule to fit the no-scroll grid; this premium
+   surface shows the WHOLE description on a hero art stage. Read-only (A
+   sponsors/claims when available → the confirm; B/X close). */
+.con-mainspect {
+    position: fixed;
+    inset: 0;
+    z-index: 11515; /* above the MA screen (11500); under ceremony (11720) / fallback (12000) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 38%, rgba(8, 13, 20, 0.72), rgba(4, 7, 12, 0.9));
+        backdrop-filter: blur(3px);
+    }
+    &__card {
+        position: relative;
+        width: min(880px, 92vw);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        padding: 26px 32px 20px;
+        border-radius: 20px;
+        background: linear-gradient(165deg, rgba(19, 28, 41, 0.96), rgba(11, 17, 26, 0.96));
+        box-shadow:
+            inset 0 0 0 1px fade(@con-ma-gold, 30%),
+            0 30px 90px rgba(0, 0, 0, 0.7),
+            0 0 50px fade(@con-ma-gold, 8%);
+
+        &--award {
+            box-shadow:
+                inset 0 0 0 1px fade(@con-ma-medal, 30%),
+                0 30px 90px rgba(0, 0, 0, 0.7),
+                0 0 50px fade(@con-ma-medal, 8%);
+        }
+    }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: fade(@con-ma-gold, 92%);
+    }
+    &__card--award &__kicker { color: fade(@con-ma-medal, 92%); }
+    &__kicker-mark { font-size: 14px; color: @con-ma-gold; }
+    &__card--award &__kicker-mark { color: @con-ma-medal; }
+
+    /* Hero: the 512×512 icon + name + the live status line. */
+    &__hero {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    &__stage {
+        position: relative;
+        width: 168px;
+        height: 168px;
+        flex-shrink: 0;
+        border-radius: 18px;
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-ma-gold, 12%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.22), inset 0 -14px 26px rgba(0, 0, 0, 0.42);
+    }
+    &__card--award &__stage {
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-ma-medal, 12%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+    }
+    &__art { position: absolute; inset: 8%; }
+    &__head {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    &__name {
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        line-height: 1.08;
+    }
+    &__status {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 15px;
+        font-weight: 700;
+
+        &--owner { color: @con-text; }
+        &--ready { color: @con-mint; }
+        &--blocked { color: @con-text-dim; }
+    }
+    &__dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+    }
+    /* The whole rule text — NEVER clamped; scrolls only for the wordiest. */
+    &__desc {
+        font-size: 18px;
+        line-height: 1.5;
+        color: #d6e2ef;
+        overflow-y: auto;
+        padding-right: 6px;
+    }
+    /* Standings (compact — the reader is about the rule text). */
+    &__stats {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    &__you {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 8px 18px;
+        border-radius: 12px;
+        background: rgba(9, 15, 23, 0.7);
+        box-shadow: inset 0 0 0 1.5px rgba(150, 175, 205, 0.3);
+
+        &--ready { box-shadow: inset 0 0 0 1.5px fade(@con-mint, 80%), 0 0 14px fade(@con-mint, 16%); }
+        &--lead { box-shadow: inset 0 0 0 1.5px fade(@con-amber, 80%), 0 0 14px fade(@con-amber, 18%); }
+    }
+    &__you-label {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__you-value b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    &__you-req { font-size: 16px; color: @con-text-dim; }
+    &__you-sub {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__meter {
+        position: relative;
+        display: block;
+        width: 120px;
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint); }
+    }
+    &__rivals {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    &__rivals-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__rival {
+        min-width: 26px;
+        height: 26px;
+        padding: 0 7px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 800;
+        color: #fff;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+
+        &--leader { box-shadow: inset 0 0 0 1.5px fade(@con-amber, 90%); }
+        &--ready { box-shadow: inset 0 0 0 1.5px fade(@con-mint, 90%); }
+    }
+    &__foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 20px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: @con-text-dim;
+
+        &--go { color: @con-mint; }
+    }
+}
+html.con-profile-handheld .con-mainspect {
+    padding: 26px;
+
+    &__card { gap: 14px; padding: 20px 22px 16px; border-radius: 16px; }
+    &__hero { gap: 18px; }
+    &__stage { width: 128px; height: 128px; border-radius: 14px; }
+    &__name { font-size: 23px; letter-spacing: 1.2px; }
+    &__status { font-size: 13px; }
+    &__desc { font-size: 15px; line-height: 1.45; }
+    &__you { padding: 6px 14px; }
+    &__you-value b { font-size: 22px; }
+    &__meter { width: 100px; }
+    &__foot-item { font-size: 12.5px; }
+}
+
 /* ── Milestones/Awards CEREMONY (ConsoleMaCeremony) ─────────────────────
    The cinematic post-confirm beat: a milestone claim is a CORONATION (the
    player just EARNED 5 VP — gold, ring burst, the strongest moment); an
@@ -3266,8 +3487,8 @@ html.console-mode {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
-        gap: 20px;
-        padding: 12px 18px 12px 22px;
+        gap: 15px;
+        padding: 11px 16px 11px 18px;
         border-radius: 14px;
         overflow: hidden;
         background: linear-gradient(165deg, rgba(21, 31, 45, 0.78), rgba(13, 20, 30, 0.78));
@@ -3325,8 +3546,8 @@ html.console-mode {
     &__stage {
         position: relative;
         align-self: center;
-        width: 148px;
-        height: 148px;
+        width: 126px;
+        height: 126px;
         max-height: 100%;
         flex-shrink: 0;
         border-radius: 14px;
@@ -3365,22 +3586,25 @@ html.console-mode {
         align-self: center;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
     }
     &__name {
-        font-size: 22px;
+        font-size: 21px;
         font-weight: 800;
-        letter-spacing: 1.4px;
+        letter-spacing: 1.2px;
         text-transform: uppercase;
-        line-height: 1.12;
+        line-height: 1.1;
         text-shadow: 0 0 18px fade(@con-cyan, 14%);
     }
+    /* The rule text: a wider body column + a tighter 4-line clamp fits the
+       long descriptions on the card; the X → «Осмотреть» reader is the
+       guaranteed full-text fallback for the very longest ones. */
     &__desc {
-        font-size: 15.5px;
-        line-height: 1.45;
+        font-size: 14px;
+        line-height: 1.34;
         color: @con-text-dim;
         display: -webkit-box;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 4;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
@@ -3413,7 +3637,7 @@ html.console-mode {
         flex-direction: column;
         align-items: flex-end;
         gap: 10px;
-        min-width: 212px;
+        min-width: 190px;
         flex-shrink: 0;
     }
     &__metric {
@@ -3421,8 +3645,8 @@ html.console-mode {
         flex-direction: column;
         align-items: flex-end;
         gap: 3px;
-        min-width: 150px;
-        padding: 8px 16px 10px;
+        min-width: 134px;
+        padding: 8px 15px 10px;
         border-radius: 12px;
         background: rgba(9, 15, 23, 0.75);
         box-shadow: inset 0 0 0 1.5px rgba(150, 175, 205, 0.32);
@@ -8408,16 +8632,16 @@ html.con-profile-handheld {
         &__wallet-free { font-size: 10.5px; padding: 2px 10px; }
         &__complete { font-size: 12px; padding: 3px 12px; }
         &__grid { gap: 10px; }
-        &__card { gap: 14px; padding: 9px 12px 9px 16px; border-radius: 11px; }
+        &__card { gap: 12px; padding: 9px 11px 9px 14px; border-radius: 11px; }
         &__rail { width: 4px; }
-        &__stage { width: 106px; height: 106px; border-radius: 11px; }
-        &__name { font-size: 17px; letter-spacing: 1.1px; }
-        &__desc { font-size: 13px; -webkit-line-clamp: 2; }
+        &__stage { width: 94px; height: 94px; border-radius: 11px; }
+        &__name { font-size: 16.5px; letter-spacing: 1px; }
+        &__desc { font-size: 12.5px; line-height: 1.3; -webkit-line-clamp: 3; }
         &__owner { font-size: 13px; gap: 7px; }
         &__owner-dot { width: 11px; height: 11px; }
         &__owner-verb { font-size: 11px; }
-        &__status { min-width: 172px; gap: 7px; }
-        &__metric { min-width: 122px; padding: 6px 12px 8px; }
+        &__status { min-width: 156px; gap: 7px; }
+        &__metric { min-width: 114px; padding: 6px 11px 8px; }
         &__metric-label { font-size: 10px; }
         &__metric-value { font-size: 23px; }
         &__metric-req { font-size: 14px; }
