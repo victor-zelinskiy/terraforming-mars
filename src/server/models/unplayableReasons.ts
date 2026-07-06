@@ -8,6 +8,7 @@ import {ProductionRequirement} from '../cards/requirements/ProductionRequirement
 import {RequirementType} from '../../common/cards/RequirementType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {Counter} from '../behavior/Counter';
+import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {Turmoil} from '../turmoil/Turmoil';
 
@@ -182,6 +183,27 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
   if (b.colonies?.buildColony !== undefined) {
     if (player.colonies.getPlayableColonies(b.colonies.buildColony.allowDuplicates).length === 0) {
       out.push({type: 'target', message: 'No colony available to build on'});
+    }
+  }
+
+  // A card that MUST add a card-resource to some card on play (mustHaveCard) is
+  // unplayable when no owned card can hold it (CEO's Favorite Project with no
+  // resource-holding card in play). Mirror the SAME check `Executor.canExecute`
+  // runs so the reason is the real one ("No card to add the resource to") rather
+  // than the generic fallback — the play-side analog of the action reason.
+  if (b.addResourcesToAnyCard !== undefined && !Array.isArray(b.addResourcesToAnyCard)) {
+    const arctac = b.addResourcesToAnyCard;
+    if (arctac.mustHaveCard === true) {
+      const ctx = new Counter(player, card);
+      const action = new AddResourcesToCard(player, arctac.type, {
+        count: ctx.count(arctac.count),
+        restrictedTag: arctac.tag,
+        min: arctac.min,
+        robotCards: arctac.robotCards !== undefined,
+      });
+      if (action.getCards().length === 0) {
+        out.push({type: 'target', message: 'No card to add the resource to'});
+      }
     }
   }
 

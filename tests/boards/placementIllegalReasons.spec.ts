@@ -1,9 +1,11 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {addCity} from '../TestingUtils';
+import {AresHazards} from '../../src/server/ares/AresHazards';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {SpaceType} from '../../src/common/boards/SpaceType';
+import {TileType} from '../../src/common/TileType';
 
 describe('placement illegal reasons', () => {
   it('attaches the M€ deficit to an unaffordable placement bonus, but not to rule-based reasons', () => {
@@ -57,5 +59,57 @@ describe('placement illegal reasons', () => {
       .find((s) => s.tile === undefined && s.spaceType === SpaceType.LAND);
     const entry = illegal.find((e) => e.spaceId === adjacentLand!.id);
     expect(entry?.reason).to.eq('adjacent-to-city');
+  });
+
+  // Regression: an UNPROTECTED Ares hazard is coverable (you build over it,
+  // paying the removal cost), so it must NEVER read as "occupied". The real
+  // reason it's off-limits for a greenery is the adjacency rule.
+  it('an unprotected Ares hazard reports the REAL greenery reason, not a false "occupied"', () => {
+    const [game, player] = testGame(2, {aresExtension: true});
+    const land = game.board.getAvailableSpacesOnLand(player);
+    const hazardSpace = land[0];
+    AresHazards.putHazardAt(game, hazardSpace, TileType.EROSION_MILD);
+    player.megaCredits = 20; // enough to clear the mild hazard (8 M€)
+
+    // Own a real tile that is NOT adjacent to the hazard, so greenery must be
+    // placed next to it — and the hazard cell is not adjacent.
+    const ownedSpace = land.find((s) =>
+      s.id !== hazardSpace.id &&
+      game.board.getAdjacentSpaces(hazardSpace).every((adj) => adj.id !== s.id));
+    if (ownedSpace === undefined) {
+      expect.fail('expected a land space not adjacent to the hazard');
+    }
+    ownedSpace.tile = {tileType: TileType.GREENERY};
+    ownedSpace.player = player;
+
+    const reason = game.board.illegalReasonFor(player, 'greenery', hazardSpace);
+    expect(reason, 'a coverable hazard is NOT "occupied"').to.not.eq('occupied');
+    expect(reason).to.eq('not-adjacent-to-yours');
+
+    // End-to-end via computeIllegalReasons (the path the SelectSpace model and
+    // the board-info panel both use) reports the same honest reason.
+    const legal = game.board.getAvailableSpacesForGreenery(player);
+    expect(legal.some((s) => s.id === hazardSpace.id), 'hazard cell is not a legal greenery target').is.false;
+    const entry = game.board.computeIllegalReasons(player, 'greenery', legal)
+      .find((e) => e.spaceId === hazardSpace.id);
+    expect(entry?.reason).to.eq('not-adjacent-to-yours');
+  });
+
+  it('a PROTECTED Ares hazard still reports protected-hazard', () => {
+    const [game, player] = testGame(2, {aresExtension: true});
+    const hazardSpace = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, hazardSpace, TileType.EROSION_MILD);
+    hazardSpace.tile!.protectedHazard = true;
+
+    expect(game.board.illegalReasonFor(player, 'greenery', hazardSpace)).to.eq('protected-hazard');
+  });
+
+  it('a coverable hazard that the player cannot afford to clear reports cannot-afford (not occupied)', () => {
+    const [game, player] = testGame(2, {aresExtension: true});
+    const hazardSpace = game.board.getAvailableSpacesOnLand(player)[0];
+    AresHazards.putHazardAt(game, hazardSpace, TileType.EROSION_MILD);
+    player.megaCredits = 0; // cannot pay the 8 M€ hazard-removal cost
+
+    expect(game.board.illegalReasonFor(player, 'greenery', hazardSpace)).to.eq('cannot-afford');
   });
 });

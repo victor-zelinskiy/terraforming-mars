@@ -1,71 +1,123 @@
 <template>
   <!--
-    CONSOLE MA INSPECT — the console-native READER for a single milestone /
-    award (X → «Осмотреть» on the premium M/A dashboard). The dashboard cards
-    clamp their rule text to fit the no-scroll grid; THIS full-screen premium
-    surface shows the WHOLE description (never truncated) on a hero art stage,
-    so even the wordiest awards can be read in full. Read-only: A sponsors /
-    claims when the item is available right now (hands off to the existing
-    confirm), B closes back to the dashboard. Nothing is submitted here.
+    CONSOLE MA INSPECT — the console-native fullscreen READER (X → «Осмотреть»).
+    NOT a bigger card: it shows the STRATEGIC picture the mechanic poses, and
+    only that (consoleMaInspectModel):
+      • AWARD          → the endgame scoring RACE: every player ranked
+                          leader→last with a bar + an engine-faithful VP
+                          projection (1st = 5, 2nd = 2 in 3+ player games).
+      • MILESTONE, open → the CLAIM race: players ranked by progress toward the
+                          threshold, "ready" flagged (only ONE ever scores it,
+                          so no per-player VP — that would be a lie).
+      • MILESTONE, taken → owned: just the owner + the locked +5 VP (a ranking is
+                          meaningless once the race is over).
+    Read-only: A sponsors/claims when available (→ the confirm), B/X close.
   -->
-  <div class="con-mainspect" role="dialog" :aria-label="$t(displayName)">
+  <div class="con-mainspect" role="dialog" :aria-label="$t(view.displayName)">
     <div class="con-mainspect__backdrop" aria-hidden="true"></div>
-    <div class="con-mainspect__card" :class="'con-mainspect__card--' + item.kind">
-      <div class="con-mainspect__kicker">
-        <span class="con-mainspect__kicker-mark" aria-hidden="true">{{ item.kind === 'milestone' ? '✦' : '❖' }}</span>
-        <span>{{ $t(item.kind === 'milestone' ? 'Achievement' : 'Award') }}</span>
+    <div class="con-mainspect__card" :class="'con-mainspect__card--' + view.kind">
+      <!-- Top bar: category identity + the taken / funded status. -->
+      <div class="con-mainspect__topbar">
+        <div class="con-mainspect__kicker">
+          <span class="con-mainspect__kicker-mark" aria-hidden="true">{{ view.kind === 'milestone' ? '✦' : '❖' }}</span>
+          <span>{{ $t(view.kind === 'milestone' ? 'Achievement' : 'Award') }}</span>
+        </div>
+        <div class="con-mainspect__statuschip" :class="statusChipClass">
+          <span v-if="statusOwner !== undefined" class="con-mainspect__statuschip-dot" :class="'player_bg_color_' + statusOwner.color" aria-hidden="true"></span>
+          <span>{{ $t(statusChipKey) }}</span>
+        </div>
       </div>
 
-      <!-- Hero: the 512×512 premium icon + name + the live status line. -->
+      <!-- Hero: the 512×512 premium icon + name + the viewer's headline. -->
       <div class="con-mainspect__hero">
         <div class="con-mainspect__stage" aria-hidden="true">
-          <MaHeroArt :name="item.name" :kind="item.kind" class="con-mainspect__art" />
+          <MaHeroArt :name="view.name" :kind="view.kind" class="con-mainspect__art" />
         </div>
         <div class="con-mainspect__head">
-          <div class="con-mainspect__name" v-i18n>{{ displayName }}</div>
-          <div v-if="item.takenBy !== undefined" class="con-mainspect__status con-mainspect__status--owner">
-            <span class="con-mainspect__dot" :class="'player_bg_color_' + item.takenBy.color" aria-hidden="true"></span>
-            <span>{{ $t(item.kind === 'milestone' ? 'claimed by' : 'funded by') }} {{ item.takenBy.name }}</span>
+          <div class="con-mainspect__name" v-i18n>{{ view.displayName }}</div>
+          <div class="con-mainspect__headline" :class="'con-mainspect__headline--' + headlineTone">{{ headlineText }}</div>
+        </div>
+      </div>
+
+      <!-- The whole rule — NEVER clamped (the reason the reader exists). -->
+      <div class="con-mainspect__desc con-info__scroll" v-i18n>{{ view.description }}</div>
+
+      <!-- ═══ AWARD: the endgame scoring leaderboard ═══ -->
+      <div v-if="view.mode === 'award-standings'" class="con-mainspect__panel">
+        <div class="con-mainspect__panel-head">
+          <span class="con-mainspect__panel-title">{{ $t('Standings') }}</span>
+          <div class="con-mainspect__legend">
+            <span class="con-mainspect__vpchip con-mainspect__vpchip--first">{{ $t('First place') }} · +{{ view.vpFirst }} {{ $t('VP') }}</span>
+            <span v-if="view.vpSecond > 0" class="con-mainspect__vpchip con-mainspect__vpchip--second">{{ $t('Second place') }} · +{{ view.vpSecond }} {{ $t('VP') }}</span>
           </div>
-          <div v-else-if="item.available" class="con-mainspect__status con-mainspect__status--ready">
-            <span aria-hidden="true">✦</span>
-            <span>{{ $t(item.kind === 'milestone' ? 'Threshold reached — claim now' : 'Ready to fund now') }}</span>
+        </div>
+        <div class="con-mainspect__rows">
+          <div v-for="r in view.rows" :key="r.color"
+               class="con-mainspect__row"
+               :class="{'con-mainspect__row--viewer': r.viewer, 'con-mainspect__row--leader': r.isLeader}">
+            <span class="con-mainspect__rank"
+                  :class="{'con-mainspect__rank--gold': r.rank === 1 && r.score > 0, 'con-mainspect__rank--silver': r.rank === 2 && r.score > 0 && view.vpSecond > 0}">{{ r.rank }}</span>
+            <span class="con-mainspect__row-dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
+            <span class="con-mainspect__row-name">{{ r.viewer ? $t('You') : r.name }}</span>
+            <span class="con-mainspect__bar" :class="{'con-mainspect__bar--leader': r.isLeader}">
+              <i class="con-mainspect__bar-fill" :class="'player_bg_color_' + r.color" :style="{width: r.barPct + '%'}"></i>
+            </span>
+            <span class="con-mainspect__row-score">{{ r.score }}</span>
+            <span class="con-mainspect__row-vp" :class="{'con-mainspect__row-vp--muted': r.projectedVp === undefined}">
+              <template v-if="r.projectedVp !== undefined">+{{ r.projectedVp }}</template>
+              <template v-else>—</template>
+            </span>
           </div>
-          <div v-else-if="item.blocker !== ''" class="con-mainspect__status con-mainspect__status--blocked">
-            <span>{{ $t(item.blocker) }}</span>
+        </div>
+        <div v-if="!view.taken" class="con-mainspect__note">{{ $t('Projection if funded — points are scored at game end.') }}</div>
+      </div>
+
+      <!-- ═══ MILESTONE, unclaimed: the race to claim ═══ -->
+      <div v-else-if="view.mode === 'milestone-race'" class="con-mainspect__panel">
+        <div class="con-mainspect__panel-head">
+          <span class="con-mainspect__panel-title">{{ $t('Race to claim') }}</span>
+          <div class="con-mainspect__legend">
+            <span class="con-mainspect__vpchip con-mainspect__vpchip--first">{{ $t('Threshold') }} · {{ view.threshold }}</span>
+            <span class="con-mainspect__vpchip con-mainspect__vpchip--claim">+5 {{ $t('VP') }} · {{ $t('First to claim wins') }}</span>
+          </div>
+        </div>
+        <div class="con-mainspect__rows">
+          <div v-for="r in view.rows" :key="r.color"
+               class="con-mainspect__row"
+               :class="{'con-mainspect__row--viewer': r.viewer, 'con-mainspect__row--ready': r.canClaim}">
+            <span class="con-mainspect__rank">{{ r.rank }}</span>
+            <span class="con-mainspect__row-dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
+            <span class="con-mainspect__row-name">{{ r.viewer ? $t('You') : r.name }}</span>
+            <span class="con-mainspect__bar" :class="{'con-mainspect__bar--ready': r.canClaim}">
+              <i class="con-mainspect__bar-fill" :class="r.canClaim ? 'con-mainspect__bar-fill--ready' : ('player_bg_color_' + r.color)" :style="{width: r.barPct + '%'}"></i>
+            </span>
+            <span class="con-mainspect__row-score">{{ r.score }}<span class="con-mainspect__row-req">/{{ view.threshold }}</span></span>
+            <span class="con-mainspect__row-vp" :class="r.canClaim ? 'con-mainspect__row-vp--ready' : 'con-mainspect__row-vp--muted'">
+              <template v-if="r.canClaim">{{ $t('Ready') }}</template>
+              <template v-else>—</template>
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- The whole rule text — NEVER clamped (the reason this surface exists). -->
-      <div class="con-mainspect__desc con-info__scroll" v-i18n>{{ item.description }}</div>
-
-      <!-- The live standings: the viewer's score (+ threshold/meter for a
-           milestone) and the rivals — the same data the card carries. -->
-      <div class="con-mainspect__stats">
-        <div class="con-mainspect__you" :class="metricClass">
-          <span class="con-mainspect__you-label">{{ $t('You') }}</span>
-          <span class="con-mainspect__you-value">
-            <template v-if="item.scores.length === 0">—</template>
-            <template v-else><b>{{ item.myScore }}</b><span v-if="item.threshold !== undefined" class="con-mainspect__you-req">/{{ item.threshold }}</span></template>
-          </span>
-          <span v-if="item.kind === 'award' && item.scores.length > 0" class="con-mainspect__you-sub">
-            <template v-if="item.myLead">{{ $t('You lead') }}</template>
-            <template v-else>{{ $t('Leader') }}: {{ item.leaderScore }}</template>
-          </span>
-          <span v-if="item.threshold !== undefined && item.scores.length > 0" class="con-mainspect__meter" aria-hidden="true"><i :style="{width: meterWidth}"></i></span>
+      <!-- ═══ MILESTONE, claimed: owned — the race is over ═══ -->
+      <div v-else class="con-mainspect__claimed">
+        <div class="con-mainspect__claimed-owner">
+          <span class="con-mainspect__claimed-dot" :class="view.owner !== undefined ? 'player_bg_color_' + view.owner.color : ''" aria-hidden="true"></span>
+          <div class="con-mainspect__claimed-text">
+            <span class="con-mainspect__claimed-label">{{ $t('claimed by') }}</span>
+            <span class="con-mainspect__claimed-name">{{ view.owner ? view.owner.name : '' }}</span>
+          </div>
         </div>
-        <div v-if="rivals.length > 0" class="con-mainspect__rivals">
-          <span class="con-mainspect__rivals-label">{{ $t('Rivals') }}</span>
-          <span v-for="s in rivals" :key="s.color"
-                class="con-mainspect__rival"
-                :class="rivalClasses(s)">{{ s.score }}</span>
+        <div class="con-mainspect__claimed-badges">
+          <span class="con-mainspect__claimed-vp">+5 {{ $t('VP') }}</span>
+          <span class="con-mainspect__claimed-lock">{{ $t('Closed') }}</span>
         </div>
       </div>
 
       <footer class="con-mainspect__foot" aria-hidden="true">
         <span v-if="item.available" class="con-mainspect__foot-item con-mainspect__foot-item--go">
-          <GamepadGlyph control="confirm" /><span>{{ $t(item.kind === 'milestone' ? 'Claim' : 'Fund') }}</span>
+          <GamepadGlyph control="confirm" /><span>{{ $t(view.kind === 'milestone' ? 'Claim' : 'Fund') }}</span>
         </span>
         <span class="con-mainspect__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
       </footer>
@@ -78,48 +130,57 @@ import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import {$t} from '@/client/directives/i18n';
-import {ConsoleMaItem, ConsoleMaScore} from '@/client/components/console/consoleMaModel';
+import {Color} from '@/common/Color';
+import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
+import {buildMaInspect, MaInspectView, MaInspectPlayer} from '@/client/components/console/consoleMaInspectModel';
 
 export default defineComponent({
   name: 'ConsoleMaInspect',
   components: {GamepadGlyph, MaHeroArt},
   props: {
     item: {type: Object as PropType<ConsoleMaItem>, required: true},
+    players: {type: Array as PropType<ReadonlyArray<MaInspectPlayer>>, required: true},
   },
   computed: {
-    /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
-    displayName(): string {
-      return this.item.name.replace(/[0-9]+$/, '');
+    view(): MaInspectView {
+      return buildMaInspect(this.item, this.players);
     },
-    rivals(): ReadonlyArray<ConsoleMaScore> {
-      return [...this.item.scores].filter((s) => s.color !== this.item.myColor).sort((a, b) => b.score - a.score);
+    headlineTone(): string {
+      return this.view.summary.tone;
     },
-    metricClass(): string {
-      if (this.item.kind === 'award') {
-        return this.item.myLead ? 'con-mainspect__you--lead' : '';
+    headlineText(): string {
+      const s = this.view.summary;
+      switch (s.tone) {
+      case 'lead': return $t('You lead');
+      case 'tie-lead': return $t('Tied for the lead');
+      case 'behind': return `${$t('To the leader')}: +${s.gap}`;
+      case 'no-race': return $t('No one has scored in this race yet');
+      case 'can-claim': return $t('Threshold reached — claim now');
+      case 'progress': return `${$t('To the threshold')}: +${s.gap}`;
+      case 'claimed-you': return $t('You claimed it');
+      case 'claimed-other': return `${$t('claimed by')} ${s.name}`;
+      default: return '';
       }
-      return this.item.myReady && this.item.scores.length > 0 ? 'con-mainspect__you--ready' : '';
     },
-    meterWidth(): string {
-      const t = this.item.threshold ?? 0;
-      if (t <= 0) {
-        return '0%';
+    /** The owner shown beside the status chip (funder / claimer). */
+    statusOwner(): {color: Color, name: string} | undefined {
+      return this.view.mode === 'milestone-race' ? undefined : this.view.owner;
+    },
+    statusChipKey(): string {
+      switch (this.view.mode) {
+      case 'award-standings': return this.view.taken ? 'Funded' : 'Not yet funded';
+      case 'milestone-race': return 'Unclaimed';
+      default: return 'Closed';
       }
-      return `${Math.min(100, Math.round((this.item.myScore / t) * 100))}%`;
+    },
+    statusChipClass(): string {
+      switch (this.view.mode) {
+      case 'award-standings': return this.view.taken ? 'con-mainspect__statuschip--live' : 'con-mainspect__statuschip--open';
+      case 'milestone-race': return 'con-mainspect__statuschip--open';
+      default: return 'con-mainspect__statuschip--closed';
+      }
     },
   },
-  methods: {
-    $t,
-    rivalClasses(s: ConsoleMaScore): Array<string> {
-      const classes = ['player_bg_color_' + s.color];
-      if (this.item.kind === 'award' && s.score === this.item.leaderScore && s.score > 0) {
-        classes.push('con-mainspect__rival--leader');
-      }
-      if (this.item.kind === 'milestone' && s.claimable === true) {
-        classes.push('con-mainspect__rival--ready');
-      }
-      return classes;
-    },
-  },
+  methods: {$t},
 });
 </script>

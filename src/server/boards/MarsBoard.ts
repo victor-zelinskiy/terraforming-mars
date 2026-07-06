@@ -447,12 +447,24 @@ export class MarsBoard extends Board {
       }
       return 'unavailable';
     }
-    // Already-placed tiles (special-case Ares protected hazards first).
+    // Already-placed tiles. A REAL tile (non-hazard) always blocks placement →
+    // 'occupied'. An Ares hazard is the exception: a PROTECTED hazard blocks
+    // ('protected-hazard'), but an UNPROTECTED hazard does NOT — a new tile can be
+    // placed over it (paying the removal cost), exactly as `Board.hasRealTile` /
+    // `getAvailableSpacesOnLand`'s `playableSpace` treat it. So an unprotected
+    // hazard must fall THROUGH to the REAL reason it's not a legal target
+    // (adjacency / affordability / terrain), NEVER short-circuit to 'occupied' —
+    // otherwise a coverable hazard reads as "already has a tile", a lie (the whole
+    // point of a hazard is that you CAN build on it to clear it). Keep this in
+    // sync with `Board.getAvailableSpacesOnLand`.
     if (space.tile !== undefined) {
-      if (AresHandler.hasHazardTile(space) && space.tile.protectedHazard === true) {
+      if (Board.hasRealTile(space)) {
+        return 'occupied';
+      }
+      if (space.tile.protectedHazard === true) {
         return 'protected-hazard';
       }
-      return 'occupied';
+      // Unprotected hazard: coverable → fall through to the real reason.
     }
     if (space.id === player.game.nomadSpace) {
       return 'nomad-occupies';

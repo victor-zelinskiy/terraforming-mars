@@ -92,6 +92,9 @@
         <span v-if="softBlocked" class="con-hand__reason con-hand__reason--bar con-hand__reason--turn">{{ $t(softReason) }}</span>
         <span v-else v-for="(r, i) in reasons.slice(0, 2)" :key="i" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ reasonLine(r) }}</span>
       </template>
+      <!-- Filtered count lives HERE (compact, right-aligned) — never in the
+           header, so the header height can't jump when the filter changes. -->
+      <span v-if="filteredCountText !== ''" class="con-hand__shown">{{ filteredCountText }}</span>
     </div>
   </div>
 </template>
@@ -205,13 +208,21 @@ export default defineComponent({
     playableCount(): number {
       return this.entries.reduce((n, e) => n + (e.playable ? 1 : 0), 0);
     },
-    /** "Показано 5 из 25" when filtered; the plain total only when there are no
-     *  filter chips to carry it (else the "All" chip already shows it). */
+    /** The header shows the plain total ONLY when there are no filter chips to
+     *  carry it (the "All" chip shows it otherwise). It NEVER shows "Показано X
+     *  из Y" — that would widen the header on a filter toggle and wrap the chips
+     *  to a second row (the header must stay a stable height); that count lives
+     *  compactly in the bottom info bar instead (`filteredCountText`). */
     countText(): string {
-      if (this.activeTag !== 'all') {
-        return translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]);
-      }
       return this.showFilters ? '' : String(this.totalCount);
+    },
+    /** "Показано 8 из 33" — shown ONLY when a tag filter is active (never in
+     *  sale mode, where the whole hand is shown), in the bottom info bar (never
+     *  the header, so the header height can't jump). */
+    filteredCountText(): string {
+      return !this.saleActive && this.activeTag !== 'all' ?
+        translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]) :
+        '';
     },
     emptyMessage(): string {
       return this.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');

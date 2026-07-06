@@ -113,9 +113,11 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     leakDetectorState.stranded = undefined;
     return;
   }
-  // The Government Support scale-focus hold intentionally shows NO surface
-  // for a beat (the board scale animates) — never a stranded prompt.
-  if (govScaleFocusState.holding) {
+  // The Government Support scale-focus choreography intentionally shows NO
+  // surface for a beat — the panel closes (`closing`, WGT prompt still live)
+  // then the board scale animates while the next modal is held (`holding`).
+  // Never a stranded prompt during either.
+  if (govScaleFocusState.holding || govScaleFocusState.closing) {
     leakDetectorState.stranded = undefined;
     return;
   }

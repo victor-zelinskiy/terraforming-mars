@@ -33,7 +33,12 @@ export class EcologyExperts extends PreludeCard {
     return 0;
   }
 
-  public override canPlay(player: IPlayer) {
+  // bespokeCanPlay (NOT a full canPlay override) so the base still ANDs the
+  // requirement + `canExecute(behavior)` checks — that keeps the unplayable-reason
+  // mirror (`unplayableReasons`) honest. The behavior here is only `production:
+  // {plants: 1}` (always executable), so this is behavior-identical to the old
+  // full override while conforming to the reason-consistency invariant.
+  public override bespokeCanPlay(player: IPlayer) {
     // NOTE: If the player has production-based benefits from this prelude (like )
     player.temporaryGlobalParameterRequirementBonus += 50;
     player.production.plants++;

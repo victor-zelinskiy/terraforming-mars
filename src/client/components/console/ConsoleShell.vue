@@ -172,7 +172,7 @@
     <!-- Milestones/Awards — the X → «Осмотреть» full-text READER (the premium
          reader for the long descriptions the dashboard cards must clamp). -->
     <transition name="con-layer">
-      <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" />
+      <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" :players="playerView.players" />
     </transition>
 
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
@@ -276,12 +276,13 @@
          premium 2×2 briefing panel (replaces the generic host for this ONE
          choice). Same submit / space-pick / defer contract as the host. -->
     <transition name="con-layer">
-      <ConsoleGovernmentSupport v-if="govSupportActive && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleGovernmentSupport v-if="govSupportActive && !govScaleFocusState.closing && !consoleState.task.deferred && taskSpacePending === undefined"
                                 ref="govSupport"
                                 :playerView="playerView"
                                 @submit="onTaskSubmit"
                                 @defer="onTaskDefer"
-                                @space-pick="onTaskSpacePick" />
+                                @space-pick="onTaskSpacePick"
+                                @gov-confirm="onGovSupportLeafConfirm" />
     </transition>
 
     <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
@@ -387,7 +388,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding"></waiting-for>
+                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -512,7 +513,7 @@ import {revealViewerState} from '@/client/components/notifications/revealViewerS
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
-import {govScaleFocusState, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
+import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -1276,7 +1277,7 @@ export default defineComponent({
     commandContext(): string {
       // Scale-focus hold: the modal is briefly gone while the board scale
       // animates — read as the board, not the (hidden) upcoming modal.
-      if (this.govScaleFocusState.holding) {
+      if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return 'Board';
       }
       if (this.consoleState.fallbackActive) {
@@ -1349,7 +1350,7 @@ export default defineComponent({
     },
     commands(): Array<ConsoleCommand> {
       // Scale-focus hold: an inert transition beat — no command hints.
-      if (this.govScaleFocusState.holding) {
+      if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
       }
       if (this.consoleState.fallbackActive) {
@@ -1829,7 +1830,7 @@ export default defineComponent({
       // Government Support scale-focus hold: a brief, inert transition beat
       // while the board scale animates — swallow input so nothing fires under
       // the (about-to-open) next modal.
-      if (this.govScaleFocusState.holding) {
+      if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return true;
       }
       // P15: OUR fullscreen card viewer owns the pad completely while open
@@ -3030,6 +3031,19 @@ export default defineComponent({
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       this.submit(response);
+    },
+    /**
+     * Government Support scale param (temp/oxygen/venus): CLOSE the panel
+     * first, THEN submit — so the board scale glide + accent (see the
+     * commit in the playerView watcher) play on a clean board, and the next
+     * modal is held until that beat finishes. Snap to the board so the scale
+     * is what shows while the panel dismisses.
+     */
+    onGovSupportLeafConfirm(payload: {response: unknown, param: string}): void {
+      this.consoleState.section = 'board';
+      closeConsoleLayers();
+      this.consoleState.task.deferred = false;
+      beginGovScaleClose(payload.param, () => this.submit(payload.response));
     },
     /** B in the host: defer a SERVER task; CANCEL a client payment. */
     onTaskDefer(): void {

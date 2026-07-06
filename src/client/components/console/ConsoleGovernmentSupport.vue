@@ -106,7 +106,7 @@ import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/game
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {buildGovSupportCards, firstAvailableIndex, GovCard, GovParam} from '@/client/console/consoleGovernmentSupport';
-import {armGovScaleFocus, SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
+import {SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
 
 /** Two columns → up/down step by a row, left/right by one card. */
 const COLS = 2;
@@ -132,7 +132,7 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
-  emits: ['submit', 'defer', 'space-pick'],
+  emits: ['submit', 'defer', 'space-pick', 'gov-confirm'],
   data() {
     return {
       focusIdx: 0,
@@ -258,13 +258,16 @@ export default defineComponent({
         return; // guard rapid A presses — no double submit
       }
       this.submitting = true;
-      // Arm the scale-focus gate: after the server commit the shell holds the
-      // next modal briefly so the board scale glide (one focused place) is
-      // seen before the draft modal covers it.
+      const response = orOptionResponse(card.optionIndex);
+      // Scale params (temp/oxygen/venus): hand the shell the CHOREOGRAPHED
+      // path — close this modal FIRST, then submit, so the board scale glide
+      // + accent play on a clean board before the next modal opens. Other
+      // leaf options (Moon rates) submit immediately (no arc scale to accent).
       if (SCALE_FOCUS_PARAMS.has(card.param)) {
-        armGovScaleFocus(card.param);
+        this.$emit('gov-confirm', {response, param: card.param});
+      } else {
+        this.$emit('submit', response);
       }
-      this.$emit('submit', orOptionResponse(card.optionIndex));
     },
   },
 });
