@@ -12,19 +12,31 @@
             <span>{{ $t(kickerText) }}</span>
           </div>
           <div class="con-task__title">{{ titleText }}</div>
+          <!-- Phase note (draft: what happens to the cards you don't keep). -->
+          <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
-          <!-- Card browser: the live pick counter (+ buy economics). -->
-          <div v-if="activeTask.kind === 'cardSelect'" class="con-task__pickline">
-            <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
+          <!-- Card browser: the live pick counter (multi only) + BUY economics.
+               The buy price is per-card RESEARCH cost (base 3 M€), never the
+               card's printed cost — see buyCostPerCard. -->
+          <div v-if="activeTask.kind === 'cardSelect' && (!singlePick || isBuyMode)" class="con-task__pickline">
+            <span v-if="!singlePick" class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
               {{ $t('Selected') }}: <b>{{ picks.length }}</b><template v-if="cardMax > 0"> / {{ cardMax }}</template>
             </span>
-            <!-- P15: the purchase math reads as words, never a bare string. -->
-            <span v-if="isBuyMode" class="con-task__pickbuy" :class="{'con-task__pickbuy--over': !cardBuyAffordable}">
-              {{ $t('Purchase') }}: {{ picks.length }} × {{ buyCostPerCard }} = −{{ buyTotal }}
-              <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
-              <span class="con-task__pickbuy-left">({{ $t('You have') }}: {{ megacreditsOnHand }})</span>
-            </span>
+            <template v-if="isBuyMode">
+              <!-- Main total + muted "N × unit" breakdown — honest, printed-cost-free. -->
+              <span class="con-task__buysum" :class="{'con-task__buysum--over': !cardBuyAffordable}">
+                <span class="con-task__buysum-total">{{ $t('Purchase') }}: −{{ buyTotal }}<i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
+                <span v-if="picks.length > 0" class="con-task__buysum-detail">{{ picks.length }} × {{ buyCostPerCard }} {{ $t('per card') }}</span>
+              </span>
+              <!-- Wallet: you-have + after-purchase (only when affordable). -->
+              <span class="con-task__buywallet">
+                <span>{{ $t('You have') }}: <b>{{ megacreditsOnHand }}</b><i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
+                <span v-if="picks.length > 0 && cardBuyAffordable" class="con-task__buywallet-after">{{ $t('After purchase') }}: <b>{{ megacreditsAfterPurchase }}</b></span>
+              </span>
+            </template>
           </div>
+          <!-- Insufficient-funds banner (buy phase) — RT is also disabled. -->
+          <div v-if="isBuyMode && picks.length > 0 && !cardBuyAffordable" class="con-task__buywarn">⚠ {{ buyShortfallText }}</div>
           <!-- Payment: the cost chip + live coverage readout. -->
           <div v-if="activeTask.kind === 'payment'" class="con-task__pickline">
             <span class="con-task__paycost">
@@ -184,14 +196,18 @@
                     <span v-if="entry.disabled" class="con-cards__reason">{{ entry.reason !== '' ? entry.reason : $t('Unavailable right now') }}</span>
                   </div>
                 </div>
-                <!-- The focused card's verdict line — compact context, never
-                     a duplicate card (X = the universal fullscreen read).
-                     P15 grammar: A ONLY selects/deselects; Y confirms. -->
+                <!-- The focused card's verdict line — compact context, never a
+                     duplicate card (X = the universal fullscreen INSPECT read).
+                     PICK phase: A = select (one press commits, no deselect).
+                     BUY / multi: A = select/deselect, RT = commit the set. -->
                 <div v-if="focusedCardEntry !== undefined" class="con-cards__verdictbar">
                   <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
                   <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
                     <span aria-hidden="true">✕</span>
                     <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
+                  </span>
+                  <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
                   </span>
                   <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
@@ -203,10 +219,10 @@
                     <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
                   </span>
                   <span class="con-cards__verdict con-cards__verdict--zoom">
-                    <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+                    <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
                   </span>
-                  <span v-if="confirmReady" class="con-cards__verdict con-cards__verdict--go">
-                    <GamepadGlyph control="triggerR" /><span>{{ $t(confirmLabel) }}</span>
+                  <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
+                    <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
                   </span>
                 </div>
               </div>
@@ -430,6 +446,9 @@ export default defineComponent({
       payCounts: {} as Partial<Record<SpendableResource, number>>,
       /** T9: the OPEN nested option (one-level wizard) — B returns to the list. */
       nested: undefined as {index: number, input: PlayerInputModel} | undefined,
+      /** Blocks a duplicate submit between the emit and the next server response
+       *  (e.g. rapid A presses in the pick phase) — cleared on every response. */
+      submitting: false,
     };
   },
   computed: {
@@ -457,6 +476,17 @@ export default defineComponent({
       return this.nested !== undefined ? `${this.baseKey}|n${this.nested.index}` : this.baseKey;
     },
     titleText(): string {
+      // Phase-aware card-browser titles — the server title there is generic
+      // ("Select up to N cards to buy" / "Select a card to keep and pass…").
+      // Other kinds AND every nested step keep the descriptive server title.
+      if (this.nested === undefined && this.activeTask.kind === 'cardSelect') {
+        if (this.isBuyMode) {
+          return translateText('Select cards to purchase');
+        }
+        if (this.isDraftPick) {
+          return translateText('Choose 1 card to draft');
+        }
+      }
       return textOf(this.wf?.title);
     },
     kickerText(): string {
@@ -701,9 +731,24 @@ export default defineComponent({
     isBuyMode(): boolean {
       return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'buy';
     },
-    /** Desktop contract: the per-card research cost rides cards[0].calculatedCost. */
+    /** The between-generation DRAFT pick (keep one card, pass the rest on). */
+    isDraftPick(): boolean {
+      return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'draft';
+    },
+    /**
+     * The per-card RESEARCH/buy cost — `player.cardCost` (base 3 M€, raised by
+     * Polyphemos to 5 / dropped by Terralabs Research to 1), which is EXACTLY
+     * what the server charges after we submit the card list (ChooseCards →
+     * `cost = selected.length * player.cardCost`). Mirrors the desktop
+     * CardSelectionContent.costPerCard — UI and the actual charge cannot diverge.
+     *
+     * NEVER `cards[0].calculatedCost`: that is the card's PLAY cost (printed
+     * cost minus play discounts), baked into every `played:false` CardModel for
+     * information only. Using it BUY-priced a card at its printed cost (the
+     * "2 × 17 = −34" bug).
+     */
     buyCostPerCard(): number {
-      return this.cardModel?.cards[0]?.calculatedCost ?? 0;
+      return this.playerView.thisPlayer.cardCost;
     },
     buyTotal(): number {
       return this.picks.length * this.buyCostPerCard;
@@ -711,8 +756,29 @@ export default defineComponent({
     megacreditsOnHand(): number {
       return megacreditsAvailable(this.playerView.thisPlayer);
     },
+    /** M€ left after the current buy selection (buy-phase readout). */
+    megacreditsAfterPurchase(): number {
+      return this.megacreditsOnHand - this.buyTotal;
+    },
     cardBuyAffordable(): boolean {
       return !this.isBuyMode || this.buyTotal <= this.megacreditsOnHand;
+    },
+    /** The honest insufficient-funds banner text (buy phase). */
+    buyShortfallText(): string {
+      return translateText('Not enough M€: need ${0}, have ${1}')
+        .replace('${0}', String(this.buyTotal))
+        .replace('${1}', String(this.megacreditsOnHand));
+    },
+    /** RT/commit label for the MULTI (buy / multi-target) commit. */
+    cardConfirmLabel(): string {
+      if (this.isBuyMode) {
+        return this.picks.length === 0 ? 'Skip' : 'Buy';
+      }
+      return this.confirmLabel;
+    },
+    /** A one-line explanation under the title (draft: what happens to the cards). */
+    phaseSubtext(): string {
+      return this.isDraftPick ? translateText('The card is kept for you, the rest are passed on.') : '';
     },
     cardPicksValid(): boolean {
       return this.picks.length >= this.cardMin && this.picks.length <= this.cardMax && this.cardBuyAffordable;
@@ -781,16 +847,24 @@ export default defineComponent({
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
           {control: 'triggerR', label: 'MAX'}, confirm, defer,
         ];
-      case 'cardSelect':
-        // P15 card grammar: A = select/deselect ONLY · X = fullscreen card
-        // · Y = the ONE confirm (never a hidden A-confirm).
+      case 'cardSelect': {
+        // X ALWAYS opens the fullscreen INSPECT viewer (never labelled "Card").
+        const nav: {control: GlyphControl, label: string} = {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'};
+        const inspect: {control: GlyphControl, label: string} = {control: 'secondary', label: 'Inspect'};
+        if (this.singlePick) {
+          // PICK phase (draft / single target): A commits the focused card in
+          // one press — no toggle-then-confirm, no re-pick, no RT.
+          return [nav, {control: 'confirm', label: 'Select'}, inspect, defer];
+        }
+        // BUY / multi phase: A toggles the pick, RT commits the whole set.
         return [
-          {control: this.gridMode ? 'dpad' : 'dpadH', label: 'Navigate'},
+          nav,
           {control: 'confirm', label: 'Select / Deselect'},
-          {control: 'secondary', label: 'Card'},
-          {control: 'triggerR', label: this.confirmLabel, enabled: this.confirmReady},
+          inspect,
+          {control: 'triggerR', label: this.cardConfirmLabel, enabled: this.confirmReady},
           defer,
         ];
+      }
       default:
         return [
           {control: 'dpad', label: 'Navigate'},
@@ -822,6 +896,11 @@ export default defineComponent({
     baseKey() {
       this.nested = undefined;
     },
+    /** Every server response (root identity always changes) re-arms submission —
+     *  robust against a same-key prompt re-send that the taskKey watcher misses. */
+    playerView() {
+      this.submitting = false;
+    },
   },
   methods: {
     resetState(): void {
@@ -829,6 +908,7 @@ export default defineComponent({
       this.armed = false;
       this.units = {};
       this.picks = [];
+      this.submitting = false;
       // Payment opens on the SAME optimal default mix the desktop form uses.
       this.payCounts = this.activeTask.kind === 'payment' ?
         initialCounts(this.paymentCost, this.payLanes, this.megacreditsOnHand) : {};
@@ -855,7 +935,23 @@ export default defineComponent({
       if (this.cardEntries.length === 0) {
         return;
       }
-      openConsoleCardZoom(this.cardEntries.map((e) => e.card), this.focusIdx, {
+      const cards = this.cardEntries.map((e) => e.card);
+      if (this.singlePick) {
+        // PICK phase: A in the viewer COMMITS the card (the ACTION bridge —
+        // executes AFTER the viewer closes, never a toggle) — parity with the
+        // strip's single-press select, and with the desktop fullscreen "Select".
+        openConsoleCardZoom(cards, this.focusIdx, undefined, {
+          labelFor: (name) => (this.cardEntries.find((e) => e.card.name === name)?.disabled ? undefined : 'Select'),
+          reasonsFor: (name) => {
+            const e = this.cardEntries.find((entry) => entry.card.name === name);
+            return e !== undefined && e.disabled && e.reason !== '' ? [e.reason] : [];
+          },
+          execute: (name) => this.commitSingleCard(name),
+        });
+        return;
+      }
+      // BUY / multi: A toggles the pick and the viewer STAYS open to browse.
+      openConsoleCardZoom(cards, this.focusIdx, {
         isSelected: (name) => this.isPicked(name),
         toggle: (name) => this.toggleCardPickByName(name),
       });
@@ -987,6 +1083,22 @@ export default defineComponent({
       }
       this.picks.push(name);
     },
+    /** PICK phase (single card): select the focused card AND submit at once —
+     *  no lingering "selected" state, no re-pick (desktop single-select parity). */
+    commitFocusedCard(): void {
+      const entry = this.focusedCardEntry;
+      if (entry !== undefined && !entry.disabled) {
+        this.commitSingleCard(entry.card.name);
+      }
+    },
+    commitSingleCard(name: CardName): void {
+      const entry = this.cardEntries.find((e) => e.card.name === name);
+      if (entry === undefined || entry.disabled) {
+        return;
+      }
+      this.picks = [name];
+      this.onConfirm();
+    },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;
     },
@@ -1052,9 +1164,12 @@ export default defineComponent({
         this.adjust(1);
         return;
       case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
-        // P13: in the CARD context Y is the confirm (X became fullscreen).
+        // CARD context: RT is the MULTI (buy / multi-target) commit. The PICK
+        // phase has no separate confirm — A already commits — so RT is inert.
         if (this.activeTask.kind === 'cardSelect') {
-          this.onConfirm();
+          if (!this.singlePick) {
+            this.onConfirm();
+          }
           return;
         }
         this.maxOut();
@@ -1090,7 +1205,11 @@ export default defineComponent({
         return;
       }
       if (this.activeTask.kind === 'cardSelect') {
-        this.togglePick(); // A = toggle; X (or A-on-picked in single mode) commits
+        if (this.singlePick) {
+          this.commitFocusedCard(); // PICK phase: A selects + submits at once
+        } else {
+          this.togglePick(); // BUY / multi: A toggles; RT commits
+        }
         return;
       }
       if (this.wf?.type === 'option') {
@@ -1182,6 +1301,10 @@ export default defineComponent({
      * passes through unchanged.
      */
     submitResponse(response: unknown): void {
+      if (this.submitting) {
+        return; // guard rapid double-presses — no duplicate action (req §8)
+      }
+      this.submitting = true;
       if (this.nested !== undefined) {
         this.$emit('submit', orWrappedResponse(this.nested.index, response));
         return;

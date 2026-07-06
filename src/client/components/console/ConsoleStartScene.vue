@@ -106,7 +106,7 @@
                 <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
               </span>
               <span class="con-cards__verdict con-cards__verdict--zoom">
-                <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+                <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
               </span>
               <span v-if="currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
                 <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
@@ -578,7 +578,7 @@ export default defineComponent({
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
           const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
-            {control: 'secondary', label: 'Card'},
+            {control: 'secondary', label: 'Inspect'},
             {control: 'triggerR', label: 'Begin the game', enabled: this.wizardReady},
             {control: 'bumperL', label: 'Prev step'},
             {control: 'back', label: 'Minimize'},
@@ -592,7 +592,7 @@ export default defineComponent({
         const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
           {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select / Deselect'},
-          {control: 'secondary', label: 'Card'},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Continue', enabled: this.currentStepComplete},
         ];
         if (this.railPos > 0) {
@@ -604,7 +604,7 @@ export default defineComponent({
       return [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Select', enabled: this.focusables.length > 0},
-        {control: 'secondary', label: 'Card', enabled: this.focusables.length > 0},
+        {control: 'secondary', label: 'Inspect', enabled: this.focusables.length > 0},
         {control: 'back', label: 'Minimize'},
       ];
     },
