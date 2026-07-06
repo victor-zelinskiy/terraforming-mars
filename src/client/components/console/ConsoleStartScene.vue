@@ -304,7 +304,7 @@
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -365,6 +365,11 @@ export default defineComponent({
       focusIdx: 0,
       /** Zero-projects submit armed (second X confirms — the skip warning). */
       armedSkip: false,
+      /** Single-row wizard-card fit (sets --con-cards-zoom so the row always
+       *  fits → never scrolls on focus). Observers run it on resize; never per focus. */
+      stripFitObserver: undefined as ResizeObserver | undefined,
+      fitScheduled: false,
+      fitRetries: 0,
     };
   },
   computed: {
@@ -622,13 +627,33 @@ export default defineComponent({
     frameKey() {
       this.focusIdx = 0;
       this.armedSkip = false;
-      void this.$nextTick(() => this.scrollFocusedIntoView());
+      void this.$nextTick(() => {
+        this.scrollFocusedIntoView();
+        this.fitCardStrip();
+      });
+    },
+    /** Grid↔row transition re-fits the single row (never per focus). */
+    wizardGrid() {
+      void this.$nextTick(() => this.fitCardStrip());
     },
     focusables(now: Array<Focusable>) {
       if (this.focusIdx >= now.length) {
         this.focusIdx = Math.max(0, now.length - 1);
       }
     },
+  },
+  mounted() {
+    void this.$nextTick(() => this.fitCardStrip());
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.scheduleFit());
+      ro.observe(this.$el as HTMLElement);
+      this.stripFitObserver = markRaw(ro);
+    }
+    window.addEventListener('resize', this.scheduleFit);
+  },
+  beforeUnmount() {
+    this.stripFitObserver?.disconnect();
+    window.removeEventListener('resize', this.scheduleFit);
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -749,15 +774,71 @@ export default defineComponent({
       const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       if (el !== undefined && el !== null) {
-        // 'nearest' (NOT 'center'): re-centering scrolled the strip and shifted
-        // the other cards on every focus move (premium-UI jitter). Only reveal
-        // a genuinely off-view card.
-        el.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'});
+        // The single ROW is fit-to-width (fitCardStrip) + the candidate rows
+        // sit at a tuned fit zoom → never scroll a row on focus (that shifted
+        // neighbours + churned the whole strip every d-pad move = Steam Deck
+        // perf). Only the wizard GRID scrolls, and only VERTICALLY to the row.
+        if (this.mode === 'wizard' && this.wizardGrid) {
+          el.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        }
         return;
       }
       const body = this.$refs.body as HTMLElement | undefined;
       const focused = body?.querySelector('.con-start__corp--focused, .con-start__prelude--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    },
+    /** rAF-coalesced fit for resize bursts (never fires per focus move). */
+    scheduleFit(): void {
+      if (this.fitScheduled) {
+        return;
+      }
+      this.fitScheduled = true;
+      requestAnimationFrame(() => {
+        this.fitScheduled = false;
+        this.fitCardStrip();
+      });
+    },
+    /**
+     * Size the SINGLE-ROW wizard card strip so N cards ALWAYS fit its width —
+     * it then never overflows, never scrolls on focus, and there is no per-focus
+     * smooth-scroll churn (Steam Deck). Mirrors ConsoleTaskHost.fitCardStrip:
+     * sets `--con-cards-zoom` (a layout `zoom` on each non-grid slot); the focus
+     * `transform: scale` rides on top (visual, no reflow). Runs on mount / step /
+     * grid / resize — NEVER per focus. Grid mode keeps its wrapping zoom; the
+     * ceremony candidate strip (no ref) keeps its tuned `__cands` zoom.
+     */
+    fitCardStrip(): void {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined) {
+        return;
+      }
+      if (this.mode !== 'wizard' || this.wizardGrid) {
+        strip.style.removeProperty('--con-cards-zoom');
+        return;
+      }
+      const n = strip.children.length;
+      if (n === 0) {
+        strip.style.removeProperty('--con-cards-zoom');
+        return;
+      }
+      strip.style.setProperty('--con-cards-zoom', '1');
+      // offsetWidth ignores the focused card's transform: scale.
+      const slotW = (strip.children[0] as HTMLElement).offsetWidth;
+      if (slotW <= 0) {
+        if (this.fitRetries < 20) {
+          this.fitRetries++;
+          requestAnimationFrame(() => this.fitCardStrip());
+        }
+        return;
+      }
+      this.fitRetries = 0;
+      const cs = window.getComputedStyle(strip);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const availW = strip.clientWidth - padX;
+      // `zoom` scales the slots but not the flex gap; 0.96 leaves scale(1.08) headroom.
+      const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * gap) / (n * slotW)));
+      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
     },
     onPress(button: SemanticButton): void {
       switch (button) {
