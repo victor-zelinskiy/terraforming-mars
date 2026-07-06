@@ -434,10 +434,14 @@ export default defineComponent({
     },
     /**
      * Move the cell selection one step in `dir`.
-     * INSPECTION mode (P27b) traverses the hex grid STRICTLY — left/right
-     * never leaves the row, up/down never drifts to a neighbouring column
-     * (the colAnchor); the generic directional pick stays for placement and
-     * as the fallback that reaches the off-grid (colony) cells.
+     * INSPECTION mode AND tile PLACEMENT both traverse the hex grid STRICTLY
+     * (P27b) — left/right never leaves the row, up/down never drifts to a
+     * neighbouring column (the colAnchor). During placement the strict
+     * traversal runs over the CONSTRAINED available-cell set, so pressing
+     * right pages the next legal cell in the SAME row instead of the wide-cone
+     * directional pick's diagonal neighbour. The generic directional pick is
+     * only the fallback that reaches the off-grid (colony) cells at a
+     * row/column end.
      */
     move(dir: NavDirection): void {
       const targets = this.candidates();
@@ -460,7 +464,12 @@ export default defineComponent({
       }
       const others = targets.filter((c) => c !== current);
       const rects = others.map((c) => c.rect);
-      const strictMode = this.inspecting && !this.placementActive;
+      // Strict hex traversal now covers PLACEMENT too (was inspection-only):
+      // left/right stay in the row, up/down keep the column anchor. The
+      // off-grid leap fallback below can still break the row/column at an
+      // end, but the guard blocks any adjacent diagonal drift — the exact
+      // behaviour placement was missing.
+      const strictMode = this.inspecting || this.placementActive;
       if (strictMode) {
         const anchor = this.colAnchor ?? rectCenter(current.rect).x;
         const strict = pickStrictGrid(current.rect, rects, dir, anchor);
