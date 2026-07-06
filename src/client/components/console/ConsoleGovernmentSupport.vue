@@ -37,20 +37,15 @@
             </span>
           </div>
           <div class="con-govsupport__card-name">{{ textOf(card.title) }}</div>
-          <!-- The heart of the panel: the current → resulting change, large. -->
+          <!-- The heart of the panel: the current → resulting change, large.
+               The animated scale VISUAL lives on the board scale after
+               confirm (one focused place) — not duplicated here. -->
           <div v-if="card.currentText !== ''" class="con-govsupport__preview">
             <span class="con-govsupport__pv-cur">{{ card.currentText }}</span>
             <template v-if="card.hasPreview">
               <span class="con-govsupport__pv-arrow" aria-hidden="true">→</span>
               <span class="con-govsupport__pv-next">{{ card.nextText }}</span>
             </template>
-          </div>
-          <!-- A compact segmented track: filled = now, brighter = the gain. -->
-          <div v-if="card.fraction >= 0" class="con-govsupport__scale" aria-hidden="true">
-            <span class="con-govsupport__scale-fill" :style="{width: pct(card.fraction)}"></span>
-            <span v-if="card.available && card.nextFraction > card.fraction"
-                  class="con-govsupport__scale-gain"
-                  :style="{left: pct(card.fraction), width: pct(card.nextFraction - card.fraction)}"></span>
           </div>
           <div class="con-govsupport__card-type">
             <template v-if="!card.available">
@@ -111,6 +106,7 @@ import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/game
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {buildGovSupportCards, firstAvailableIndex, GovCard, GovParam} from '@/client/console/consoleGovernmentSupport';
+import {armGovScaleFocus, SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
 
 /** Two columns → up/down step by a row, left/right by one card. */
 const COLS = 2;
@@ -204,9 +200,6 @@ export default defineComponent({
     },
   },
   methods: {
-    pct(fraction: number): string {
-      return `${Math.max(0, Math.min(1, fraction)) * 100}%`;
-    },
     textOf(v: string | Message | undefined): string {
       return textOf(v);
     },
@@ -265,6 +258,12 @@ export default defineComponent({
         return; // guard rapid A presses — no double submit
       }
       this.submitting = true;
+      // Arm the scale-focus gate: after the server commit the shell holds the
+      // next modal briefly so the board scale glide (one focused place) is
+      // seen before the draft modal covers it.
+      if (SCALE_FOCUS_PARAMS.has(card.param)) {
+        armGovScaleFocus(card.param);
+      }
       this.$emit('submit', orOptionResponse(card.optionIndex));
     },
   },

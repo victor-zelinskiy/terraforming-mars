@@ -17,6 +17,7 @@
 
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {HandTagFilter} from '@/client/components/console/consoleHandFilter';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
 export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
@@ -28,8 +29,10 @@ export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand']
 
 export const consoleState = reactive({
   section: 'board' as ConsoleSection,
-  /** Hand carousel position (per-section memory). */
+  /** Hand grid selection position (per-section memory). */
   handIndex: 0,
+  /** Hand tag filter (LT/RT cycle, R3 reset). `'all'` = no narrowing. */
+  handTagFilter: 'all' as HandTagFilter,
   /** Board selection (space id — stable across re-renders). */
   boardSpaceId: undefined as string | undefined,
   /** Colonies screen selection. */

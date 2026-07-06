@@ -114,7 +114,9 @@
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected"
-                          :softReason="handSoftReason" />
+                          :softReason="handSoftReason"
+                          :tagFilters="handTagFilterOptions"
+                          :activeTag="consoleState.handTagFilter" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
@@ -259,7 +261,7 @@
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
     <transition name="con-layer">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -286,7 +288,7 @@
          start-sequence ceremony) — the console-native replacement for
          both desktop start surfaces. B defers to the amber chip. -->
     <transition name="con-layer">
-      <ConsoleStartScene v-if="startTask !== undefined && !consoleState.task.deferred"
+      <ConsoleStartScene v-if="startTask !== undefined && !govScaleFocusState.holding && !consoleState.task.deferred"
                          ref="startScene"
                          :playerView="playerView"
                          :task="startTask"
@@ -385,7 +387,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive"></waiting-for>
+                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -491,6 +493,7 @@ import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -509,6 +512,7 @@ import {revealViewerState} from '@/client/components/notifications/revealViewerS
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {govScaleFocusState, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -613,6 +617,7 @@ export default defineComponent({
       consoleCardZoom,
       infoModeState,
       leakDetectorState,
+      govScaleFocusState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
@@ -906,7 +911,9 @@ export default defineComponent({
       return boardInfoState.loading && boardInfoState.spaceId === this.consoleState.boardSpaceId;
     },
     // ── hand ────────────────────────────────────────────────────────────
-    handEntries(): Array<ConsoleHandEntry> {
+    // The WHOLE hand (playable-first), before the tag filter. Drives the
+    // filter panel's option counts + the "All" total.
+    handEntriesAll(): Array<ConsoleHandEntry> {
       const playable = new Set((this.playAction?.input.cards ?? [])
         .filter((c) => c.isDisabled !== true)
         .map((c) => c.name));
@@ -925,6 +932,19 @@ export default defineComponent({
         ...entries.filter((e) => e.playable),
         ...entries.filter((e) => !e.playable),
       ];
+    },
+    // The VISIBLE hand — narrowed by the active tag filter (sale mode always
+    // shows the whole hand). This is what the grid renders + what handIndex
+    // indexes into, so play / inspect / command-bar all read the filtered set.
+    handEntries(): ReadonlyArray<ConsoleHandEntry> {
+      if (this.consoleState.sale.active) {
+        return this.handEntriesAll;
+      }
+      return filterHandByTag(this.handEntriesAll, this.consoleState.handTagFilter);
+    },
+    // The tag-filter options for the panel (All + tags present in the hand).
+    handTagFilterOptions(): Array<ConsoleTagFilterOption> {
+      return buildConsoleTagFilters(this.handEntriesAll.map((e) => e.card), this.consoleState.handTagFilter);
     },
     /** The turn/phase reason (i18n key) shown for a hand card that is rules-OK
      *  but not playable in this window — the honest alternative to a bare block
@@ -1245,6 +1265,11 @@ export default defineComponent({
     },
     // ── the command bar (the truth of the current context) ─────────────
     commandContext(): string {
+      // Scale-focus hold: the modal is briefly gone while the board scale
+      // animates — read as the board, not the (hidden) upcoming modal.
+      if (this.govScaleFocusState.holding) {
+        return 'Board';
+      }
       if (this.consoleState.fallbackActive) {
         // Lifecycle-aware naming: the wrapped premium flows read as PART of
         // the console experience, not a generic "waiting" veil.
@@ -1314,6 +1339,10 @@ export default defineComponent({
       }
     },
     commands(): Array<ConsoleCommand> {
+      // Scale-focus hold: an inert transition beat — no command hints.
+      if (this.govScaleFocusState.holding) {
+        return [];
+      }
       if (this.consoleState.fallbackActive) {
         return [
           {control: 'dpad', label: 'Navigate'},
@@ -1497,7 +1526,7 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         const n = this.consoleState.sale.selected.length;
         return [
-          {control: 'dpadH', label: 'Navigate'},
+          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
@@ -1506,14 +1535,21 @@ export default defineComponent({
       }
       if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
-        return [
+        const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Inspect'},
-          {control: 'triggerR', label: 'Next playable'},
-          {control: 'inspect', label: 'Information'},
-          {control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'},
         ];
+        // The tag filter owns LT/RT (+ R3 reset) — shown only when there's a
+        // real tag to filter by (more options than just "All"). This is the
+        // ONE place these controls are advertised (no inline duplication).
+        if (this.handTagFilterOptions.length > 1) {
+          cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Tag filter'});
+          cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
+        }
+        cmds.push({control: 'inspect', label: 'Information'});
+        cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
+        return cmds;
       }
       if (this.consoleState.section === 'colonies') {
         // T4 pick mode: A = the server verb; B = cancel (marker) / minimize.
@@ -1682,6 +1718,14 @@ export default defineComponent({
     playerView: {
       immediate: true,
       handler() {
+        // Government Support scale-focus gate: if the last action was a WGT
+        // parameter raise, HOLD the next modal for a beat so the board scale
+        // glide (+ top-HUD delta chip) is seen in one focused place. Snap to
+        // the board so that feedback is actually visible during the hold.
+        if (commitGovScaleFocus()) {
+          this.consoleState.section = 'board';
+          closeConsoleLayers();
+        }
         configureBoardInfo({
           participantId: this.playerView.id,
           color: this.thisPlayer.color,
@@ -1772,6 +1816,12 @@ export default defineComponent({
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
+      // Government Support scale-focus hold: a brief, inert transition beat
+      // while the board scale animates — swallow input so nothing fires under
+      // the (about-to-open) next modal.
+      if (this.govScaleFocusState.holding) {
+        return true;
+      }
       // P15: OUR fullscreen card viewer owns the pad completely while open
       // (it is a native <dialog>, so this must run BEFORE the resolveScope
       // fallback branch — the generic dialog scope would otherwise trap the
@@ -2273,26 +2323,30 @@ export default defineComponent({
         this.toggleJournal();
         return true;
       case 'triggerR':
-        // P27: RT = the action-category QUICK SELECTOR — from the board
-        // home, P20: including an active placement (the player may INSPECT
-        // cards/actions; a conflicting action is gated with an honest
-        // warning). Elsewhere RT keeps its local semantics (P27b: sale-mode
-        // Sell — the verb that moved off Y; hand: next playable).
+        // P27: RT = the action-category QUICK SELECTOR from the board home
+        // (P20: including during placement — inspection is always allowed). In
+        // the hand: sale mode CONFIRMS the sale; otherwise RT cycles the tag
+        // filter to the NEXT tag (the old "next playable" was retired — the
+        // grid + tag filter make a linear jump redundant).
         if (onBoard) {
           this.openQuick('actions');
           return true;
         }
-        if (this.consoleState.sale.active && this.consoleState.section === 'hand') {
-          this.confirmSale();
-          return true;
+        if (this.consoleState.section === 'hand') {
+          if (this.consoleState.sale.active) {
+            this.confirmSale();
+          } else {
+            this.cycleHandFilter(1);
+          }
         }
-        this.handleNextJump();
         return true;
       case 'triggerL':
-        // P27: LT = the basic-actions QUICK SELECTOR (board home only —
-        // std projects / patent sale / conversions / skip / pass).
+        // P27: LT = the basic-actions QUICK SELECTOR (board home only). In the
+        // hand (non-sale) LT cycles the tag filter to the PREVIOUS tag.
         if (onBoard) {
           this.openQuick('basics');
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+          this.cycleHandFilter(-1);
         }
         return true;
       case 'stickL':
@@ -2308,12 +2362,15 @@ export default defineComponent({
         // P20: R3 toggles INSPECT-ALL cells during placement (was the LT
         // hold) — persistent, announced, and reflected in every hint row.
         // P27b: on the board home R3 = SCALE INSPECTION (the cursor walks
-        // the track bonuses in a circle).
+        // the track bonuses in a circle). In the hand (non-sale) R3 RESETS the
+        // tag filter to "All" (the right-stick AXIS still scrolls the grid).
         if (this.placementActive && this.consoleState.section === 'board') {
           this.consoleState.freeRoam = !this.consoleState.freeRoam;
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
         } else if (onBoard) {
           this.toggleScaleInspect();
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+          this.resetHandFilter();
         }
         return true;
       case 'confirm':
@@ -2363,16 +2420,11 @@ export default defineComponent({
       const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
       hand?.move(dir);
     },
-    /** L3: next available cell (placement) / RT: next playable card (hand). */
+    /** L3 during placement: focus the next available cell on the board. */
     handleNextJump(): void {
       if (this.consoleState.section === 'board' && this.placementActive) {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         board?.nextAvailable();
-        return;
-      }
-      if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
-        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        hand?.nextPlayable();
       }
     },
     handleSectionConfirm(): void {
@@ -3241,6 +3293,29 @@ export default defineComponent({
       }
       return translateTextWithParams('Cannot play: ${0}', [unplayableReasonLine(first)]);
     },
+    /** LT/RT: cycle the hand tag filter; R3: reset it to "All". Both preserve
+     *  the selected card when it survives the new filter, else focus the first
+     *  card of the filtered set (never a lost / dangling selection). */
+    cycleHandFilter(dir: 1 | -1): void {
+      const selectedName = this.handEntries[this.consoleState.handIndex]?.card.name;
+      this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
+      this.refocusAfterFilter(selectedName);
+    },
+    resetHandFilter(): void {
+      if (this.consoleState.handTagFilter === 'all') {
+        return;
+      }
+      const selectedName = this.handEntries[this.consoleState.handIndex]?.card.name;
+      this.consoleState.handTagFilter = 'all';
+      this.refocusAfterFilter(selectedName);
+    },
+    refocusAfterFilter(selectedName: CardName | undefined): void {
+      const list = this.handEntries; // recomputed for the new filter
+      const at = selectedName !== undefined ? list.findIndex((e) => e.card.name === selectedName) : -1;
+      this.consoleState.handIndex = at >= 0 ? at : 0;
+      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      void this.$nextTick(() => hand?.ensureSelectedVisible());
+    },
     /** P15: the sale pick flip, shared by the section's A and the viewer. */
     toggleSalePick(name: string): void {
       const at = this.consoleState.sale.selected.indexOf(name);
@@ -3287,6 +3362,7 @@ export default defineComponent({
     }
     this.consoleState.shellMounted = false;
     stopConsoleLeakDetector();
+    resetGovScaleFocus();
     window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
   },

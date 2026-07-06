@@ -345,7 +345,8 @@ export type HandTagChip = {
 
 // Tags worth offering as filters — printed gameplay tags. WILD / CLONE are
 // dropped (not meaningful hand filters); EVENT is never in printed tags.
-const FILTERABLE_TAGS: ReadonlyArray<Tag> = [
+// Exported so the console-native hand filter reuses the SAME canonical order.
+export const FILTERABLE_TAGS: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
   Tag.VENUS, Tag.PLANT, Tag.MICROBE, Tag.ANIMAL, Tag.CITY, Tag.MOON, Tag.MARS,
 ];

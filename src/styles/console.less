@@ -2834,31 +2834,110 @@ html.console-mode {
         &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
     }
 
-    /* ── footer hints + counter ────────────────────────────────────────── */
-    &__strip-hints {
+    /* ── HEADER: title + live counts + tag-filter chips ────────────────── */
+    &__header {
+        flex-shrink: 0;
         display: flex;
         align-items: center;
-        gap: 26px;
-        padding: 2px 8px 0;
-        color: @con-text-dim;
-        font-size: 18px;
-        flex-shrink: 0;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 0 4px;
     }
-    &__strip-hint {
+    &__head-left {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 16px;
+        min-width: 0;
+    }
+    &__title {
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__count {
+        font-size: 16px;
+        letter-spacing: 0.4px;
+        color: @con-text-dim;
+    }
+    &__playable {
+        font-size: 15px;
+        color: @con-mint;
+        b { font-weight: 700; }
+    }
+
+    /* Tag-filter chips — compact sci-fi capsules. The ACTIVE chip is the
+       always-visible source of truth; inactive chips are calm. LT/RT cycles,
+       R3 resets (advertised in the footer, NEVER here). */
+    &__filters {
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
-    &__rowind {
+    &__filter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.5);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 185, 0.16);
         color: @con-text-dim;
-        font-size: 17px;
-        letter-spacing: 0.6px;
+        transition:
+            background calc(140ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(140ms * var(--motion-scale, 1)) ease,
+            color calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--active {
+            background: fade(@con-cyan, 16%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 78%), 0 0 14px fade(@con-cyan, 22%);
+            color: @con-text;
+        }
+        &--empty { opacity: 0.4; }
     }
-    &__counter {
-        margin-left: auto;
-        font-size: 19px;
-        letter-spacing: 1px;
-        color: @con-text;
+    &__filter-icon.card-tag {
+        width: 24px;
+        height: 24px;
+        margin: 0;
+        flex-shrink: 0;
+    }
+    &__filter-label {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+    }
+    &__filter-count {
+        font-size: 15px;
+        font-weight: 700;
+        min-width: 12px;
+        text-align: center;
+    }
+
+    /* ── empty state (filter matched nothing / hand empty) — centred in the
+       glass shelf so it never reads as a broken empty grid. ──────────────── */
+    &__empty {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        color: @con-text-dim;
+        pointer-events: none;
+    }
+    &__empty-glyph {
+        font-size: 44px;
+        opacity: 0.45;
+    }
+    &__empty-text {
+        font-size: 22px;
+        letter-spacing: 0.6px;
     }
 }
 
@@ -6225,11 +6304,15 @@ html.console-mode {
     align-items: center;
     justify-content: center;
 
+    /* PERF (Steam Deck): NO backdrop-filter blur — a full-screen live blur
+       over the board is the single most expensive effect on this hardware
+       (worse when the board itself is complex). A solid dim + a cheap static
+       vignette gives the same "modal in front" read with zero GPU blur. */
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.72);
-        backdrop-filter: blur(3px);
+        background:
+            radial-gradient(120% 90% at 50% 42%, rgba(6, 12, 20, 0.6) 0%, rgba(3, 6, 11, 0.9) 100%);
     }
 
     &__panel {
@@ -6241,9 +6324,10 @@ html.console-mode {
         padding: 26px 30px 18px;
         border-radius: 16px;
         background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 44px fade(@con-cyan, 9%);
+        /* One rim + one modest drop shadow (no large-radius accent glow) —
+           static, cheap; the entrance is the cheap con-layer opacity fade. */
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 18px 52px rgba(0, 0, 0, 0.6);
         color: @con-text;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
         /* The 2×2 always fits; the scrollbar is a safety net only for the
            rare many-option case (Moon adds extra tiles) — never for the 4. */
         overflow-y: auto;
@@ -6317,6 +6401,10 @@ html.console-mode {
         &--wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } /* keep 2-col even with Moon extras */
     }
 
+    /* PERF: NO transition / transform / continuous effects. Focus is a
+       DISCRETE state (per d-pad press), rendered as a static accent ring +
+       one modest glow — snappy on Steam Deck, no per-move repaint churn.
+       The `::before` accent wash is a static gradient (the tile identity). */
     &__card {
         --gov-accent: @con-cyan;
         position: relative;
@@ -6328,9 +6416,6 @@ html.console-mode {
         border-radius: 14px;
         background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
-        transition: transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-                    box-shadow calc(150ms * var(--motion-scale, 1)) ease;
-        /* A faint accent wash along the top edge — the tile's identity. */
         &::before {
             content: '';
             position: absolute;
@@ -6342,9 +6427,7 @@ html.console-mode {
         }
 
         &--focused {
-            transform: translateY(-3px);
-            box-shadow: inset 0 0 0 2px var(--gov-accent), 0 14px 34px rgba(0, 0, 0, 0.5),
-                        0 0 26px ~"color-mix(in srgb, var(--gov-accent) 40%, transparent)";
+            box-shadow: inset 0 0 0 2px var(--gov-accent), 0 0 20px ~"color-mix(in srgb, var(--gov-accent) 32%, transparent)";
         }
         &--focused::before { opacity: 1; }
 
@@ -6353,8 +6436,7 @@ html.console-mode {
             filter: saturate(0.5);
         }
         &--disabled&--focused {
-            transform: none;
-            box-shadow: inset 0 0 0 2px rgba(150, 175, 205, 0.55), 0 0 18px rgba(120, 150, 180, 0.2);
+            box-shadow: inset 0 0 0 2px rgba(150, 175, 205, 0.55);
         }
     }
     &__card-top {
@@ -6362,7 +6444,8 @@ html.console-mode {
         align-items: flex-start;
         justify-content: space-between;
     }
-    /* wgt-icon--* only carry a background-image — give the box a size. */
+    /* wgt-icon--* only carry a background-image — give the box a size.
+       PERF: no filter: drop-shadow (icons read fine on the dark card). */
     &__card-icon {
         display: inline-block;
         width: 46px;
@@ -6371,7 +6454,6 @@ html.console-mode {
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain !important;
-        filter: drop-shadow(0 2px 8px ~"color-mix(in srgb, var(--gov-accent) 65%, transparent)");
     }
     &__card-a {
         display: inline-flex;
@@ -6403,32 +6485,9 @@ html.console-mode {
         font-size: 30px;
         font-weight: 800;
         color: var(--gov-accent);
-        text-shadow: 0 0 14px ~"color-mix(in srgb, var(--gov-accent) 40%, transparent)";
-    }
-    /* Compact segmented scale: filled = now, bright = the gain. */
-    &__scale {
-        position: relative;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(6, 12, 20, 0.7);
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
-        overflow: hidden;
-    }
-    &__scale-fill {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        border-radius: 999px;
-        background: ~"color-mix(in srgb, var(--gov-accent) 55%, transparent)";
-    }
-    &__scale-gain {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        border-radius: 999px;
-        background: var(--gov-accent);
-        box-shadow: 0 0 10px ~"color-mix(in srgb, var(--gov-accent) 60%, transparent)";
+        /* A small static text glow — the scale VISUAL for the increase lives
+           on the board scale after confirm, not duplicated here. */
+        text-shadow: 0 0 8px ~"color-mix(in srgb, var(--gov-accent) 32%, transparent)";
     }
     &__card-type {
         font-size: 15px;
@@ -6475,12 +6534,10 @@ html.console-mode {
         &--off { opacity: 0.42; }
     }
 }
-
-@media (prefers-reduced-motion: reduce) {
-    .con-govsupport__panel { animation: none; }
-    .con-govsupport__card { transition: none; }
-    .con-govsupport__card--focused { transform: none; }
-}
+/* NOTE: no @media (prefers-reduced-motion) block — the panel has no
+   animations/transitions of its own (entrance = the cheap con-layer opacity
+   fade; focus is a static ring). The board scale after confirm honours
+   reduced motion in its own component + the scale-focus hold collapses. */
 
 /* ── Shared card inspector + filmstrip (T2 browser · T5 start scene) ──
    Standalone family so BOTH the task host and the start scene render
@@ -8873,7 +8930,13 @@ html.con-profile-handheld {
         &__shelf { padding: 10px 12px; border-radius: 12px; }
         &__reason { font-size: 13px; padding: 6px 11px; }
         &__chip { font-size: 13px; }
-        &__strip-hint, &__counter, &__rowind { font-size: 13px; }
+        &__title { font-size: 16px; letter-spacing: 0.8px; }
+        &__count, &__playable { font-size: 13px; }
+        &__filter { padding: 3px 8px; gap: 5px; }
+        &__filter-icon.card-tag { width: 20px; height: 20px; }
+        &__filter-label, &__filter-count { font-size: 12px; }
+        &__empty-glyph { font-size: 34px; }
+        &__empty-text { font-size: 17px; }
     }
 
     /* ── 8/12 · the shared card browser (task host + start scene) ── */

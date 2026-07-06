@@ -24,6 +24,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS} from '@/client/console/consoleTaskRouter';
 import {inputTitleText} from '@/client/console/turnIntents';
 import {translateText} from '@/client/directives/i18n';
+import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -109,6 +110,12 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // 1. Stranded prompt.
   const wf = view?.waitingFor;
   if (view === undefined || wf === undefined) {
+    leakDetectorState.stranded = undefined;
+    return;
+  }
+  // The Government Support scale-focus hold intentionally shows NO surface
+  // for a beat (the board scale animates) — never a stranded prompt.
+  if (govScaleFocusState.holding) {
     leakDetectorState.stranded = undefined;
     return;
   }
