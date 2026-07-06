@@ -6748,22 +6748,41 @@ dialog.con-zoom {
     .card-zoom-nav-slot { display: none; }
     .card-zoom-actions__btn--secondary { display: none; }
 
-    /* STABLE card position regardless of the footer content. The container is
-       content-sized and CENTRED by the dialog, so when the footer grows (the
-       "НЕЛЬЗЯ РАЗЫГРАТЬ" reason chips appear) the whole column gets taller and
-       re-centres — visibly shifting the CARD up. Fixing the footer height
-       decouples it: the column height no longer depends on the reasons, so the
-       card never jumps between cards / playable states. The reason chips + the
-       command bar sit inside this fixed zone (centred); a rare tall reason list
-       overflows the zone VISUALLY but STILL cannot move the card. 104px = the
-       fit engine's actions reservation, so the container never exceeds 100vh. */
+    /* ROCK-SOLID card position — the card centres in a FIXED band, decoupled
+       from BOTH the footer content (reason chips) AND the per-card size, so
+       browsing LB/RB never shifts it.
+
+       The mechanism: the base container is CONTENT-sized and the dialog centres
+       it, so any change to the footer height (reasons appear) OR the card size
+       re-centres the whole column and moves the card. The fix makes the
+       container FULL-HEIGHT and pins the counter (top) + footer (bottom) to
+       fixed heights; the card row (`flex: 1`) then fills the constant band
+       between them, and the card centres inside it — a position that no longer
+       depends on the footer or the card. */
+    .card-zoom-container {
+        width: 100vw;
+        height: 100vh;
+    }
+    .card-zoom-topbar {
+        flex-shrink: 0;
+    }
+    /* The card row fills the fixed band even for a SINGLE-card viewer (the base
+       `flex: 1` only applies in nav mode); controls are hidden here, so centre
+       the card horizontally too. */
+    .card-zoom-midrow {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        justify-content: center;
+    }
+    /* Fixed footer height (reasons overflow it VISUALLY but cannot grow the
+       column). 104px = the fit engine's actions reservation, so the fixed band
+       still leaves the card clear of the footer. */
     .card-zoom-actions {
         height: 104px;
         min-height: 0;
         flex-shrink: 0;
     }
-    /* Tighter vertical padding so the compact reason row + command bar fit the
-       fixed zone without overflow (keeps the desktop side-by-side layout). */
     .card-zoom-actions__panel {
         padding: 10px 28px;
     }
