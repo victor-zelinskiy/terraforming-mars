@@ -146,5 +146,16 @@
     "No actions available": "Нет доступных действий",
     "GEN.": "ПКЛ.",
     "FINAL GEN.": "ФИНАЛЬНОЕ ПКЛ.",
-    "Scale inspection": "Осмотр шкал"
+    "Scale inspection": "Осмотр шкал",
+    "Government Support": "Правительственная поддержка",
+    "A planetary initiative will raise one global parameter.": "Планетарная инициатива повысит один глобальный параметр.",
+    "Government action: TR and track bonuses are not awarded to players.": "Действие правительства: РТ и бонусы шкалы не начисляются игрокам.",
+    "Tile placement required": "Потребуется выбрать клетку",
+    "Apply": "Применить",
+    "Select ocean space": "Выбрать клетку",
+    "Maximum reached": "Достигнут максимум",
+    "The world government raises the planet temperature.": "Правительство повышает температуру планеты.",
+    "The world government raises the atmospheric oxygen.": "Правительство повышает уровень кислорода.",
+    "The world government raises the Venus scale.": "Правительство повышает шкалу Венеры.",
+    "Choose an available ocean space on the board.": "Выберите доступную клетку океана на карте."
 }

@@ -257,7 +257,7 @@
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
     <transition name="con-layer">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !consoleState.task.deferred && taskSpacePending === undefined"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -266,6 +266,18 @@
                        @submit="onTaskSubmit"
                        @defer="onTaskDefer"
                        @space-pick="onTaskSpacePick" />
+    </transition>
+
+    <!-- Government Support (World Government Terraforming) — the dedicated
+         premium 2×2 briefing panel (replaces the generic host for this ONE
+         choice). Same submit / space-pick / defer contract as the host. -->
+    <transition name="con-layer">
+      <ConsoleGovernmentSupport v-if="govSupportActive && !consoleState.task.deferred && taskSpacePending === undefined"
+                                ref="govSupport"
+                                :playerView="playerView"
+                                @submit="onTaskSubmit"
+                                @defer="onTaskDefer"
+                                @space-pick="onTaskSpacePick" />
     </transition>
 
     <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
@@ -481,6 +493,7 @@ import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/con
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
@@ -574,6 +587,7 @@ export default defineComponent({
     ConsoleInfoMode,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
+    ConsoleGovernmentSupport,
     ConsoleStartScene,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
@@ -667,6 +681,16 @@ export default defineComponent({
         return CLIENT_PAYMENT_TASK;
       }
       return this.activeConsoleTask;
+    },
+    /**
+     * World Government Terraforming ("Government Support") — the ONE choice
+     * prompt that gets the dedicated premium 2×2 briefing panel instead of
+     * the generic ConsoleTaskHost list. Never during a client payment.
+     */
+    govSupportActive(): boolean {
+      const task = this.hostTask;
+      return this.pendingClientPayment === undefined &&
+        task?.kind === 'choice' && task.flavor === 'wgt';
     },
     /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
     shellTask(): ConsoleTask | undefined {
@@ -1222,6 +1246,9 @@ export default defineComponent({
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
         return 'Start of the game';
       }
+      if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        return 'Government Support';
+      }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Awaiting decision';
       }
@@ -1299,6 +1326,14 @@ export default defineComponent({
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Continue'},
           {control: 'back', label: 'Back'},
+        ];
+      }
+      if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        // The panel footer carries the context-aware contract; the bar mirrors it.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Apply'},
+          {control: 'back', label: 'Minimize'},
         ];
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
@@ -1823,6 +1858,13 @@ export default defineComponent({
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
+        return true;
+      }
+      // Government Support (WGT) — the dedicated briefing panel owns input
+      // while it serves (before the generic host branch below).
+      if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        const panel = this.$refs.govSupport as InstanceType<typeof ConsoleGovernmentSupport> | undefined;
+        panel?.handleIntent(intent);
         return true;
       }
       // CTS T1–T3: the task host owns input while it serves (B inside the
