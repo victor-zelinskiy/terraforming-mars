@@ -37,6 +37,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, expect: Parti
   {row: '6c productionToLose', wf: {type: 'productionToLose', title: 'Lose production'}, expect: {kind: 'distribute', mode: 'production'}},
   {row: '7 payment', wf: {type: 'payment', title: 'Pay'}, expect: {kind: 'payment'}},
   {row: '10 draft pick', wf: {type: 'card', title: 'Select a card to keep', buttonLabel: 'Keep', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'draft'}},
+  {row: '10b draft re-pick (optional → waiting, never re-pick UI)', wf: {type: 'card', title: 'You can change your selection…', optional: true, buttonLabel: 'Select', cards: [{name: 'Birds'}]}, expect: {kind: 'draftWait'}},
   {row: '11 research buy', wf: {type: 'card', title: 'Select cards to buy or none to skip', buttonLabel: 'Buy', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'buy'}},
   {row: '12 hand select (discard)', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds', 'Zeppelins'], expect: {kind: 'cardSelect', mode: 'select'}},
   {row: '13 nested target pick', wf: {type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, expect: {kind: 'cardSelect', mode: 'target'}},
@@ -135,6 +136,9 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     // T2: every card-select mode is host-served (the card browser).
     expect(taskServedByHost(view({type: 'card', title: 'keep', buttonLabel: 'Keep', cards: []}))?.kind).to.eq('cardSelect');
     expect(taskServedByHost(view({type: 'card', title: 'Select cards to buy', buttonLabel: 'Buy', cards: []}))?.kind).to.eq('cardSelect');
+    // The OPTIONAL draft re-pick is NOT host-served — the shell shows a waiting
+    // banner instead of the card browser (no re-pick UI, desktop parity).
+    expect(taskServedByHost(view({type: 'card', title: 'change your selection', optional: true, cards: []}))).to.eq(undefined);
     // T3/T4: projectCard + colony are SHELL-SECTION tasks, NOT host tasks.
     expect(taskServedByHost(view({type: 'projectCard', title: 'p', cards: []}))).to.eq(undefined);
     expect(taskServedByHost(view({type: 'colony', title: 'c', coloniesModel: []}))).to.eq(undefined);

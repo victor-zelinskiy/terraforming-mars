@@ -32,6 +32,10 @@ export type ConsoleTask =
   | {kind: 'resource'}
   | {kind: 'distribute', mode: 'resources' | 'production'}
   | {kind: 'payment'}
+  /** OPTIONAL draft re-pick (server lets you change until all pick) — the fork
+   *  does NOT surface re-pick; the shell shows a calm "waiting for others" state
+   *  (mirrors the desktop DraftFlowOverlay suppression). */
+  | {kind: 'draftWait'}
   | {kind: 'cardSelect', mode: CardSelectMode}
   | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject'}
   | {kind: 'colony'}
@@ -53,7 +57,7 @@ export type TaskKind = ConsoleTask['kind'];
 export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
-  'cardSelect', 'payment',
+  'cardSelect', 'payment', 'draftWait',
   'projectCard', 'colony',
   'initialDraft', 'startSequence',
 ]);
@@ -166,6 +170,13 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   }
 
   case 'card': {
+    // OPTIONAL draft re-pick (the ONLY place the server sets `optional`,
+    // Draft.ts): the fork deliberately does NOT offer re-picking — surface a
+    // calm "waiting for the other players" state instead (desktop parity —
+    // DraftFlowOverlay.cardInput suppresses the grid on `optional === true`).
+    if (wf.optional === true) {
+      return {kind: 'draftWait'};
+    }
     const title = inputTitleText(wf.title) ?? '';
     const buttonLabel = wf.buttonLabel ?? '';
     if (isHandSubset(view, wf.cards)) {

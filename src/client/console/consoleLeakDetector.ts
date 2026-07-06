@@ -48,6 +48,8 @@ const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // T5: the full-screen start scene serves both opening kinds.
   initialDraft: ['.con-start'],
   startSequence: ['.con-start'],
+  // Optional draft re-pick → the calm "waiting for others" banner.
+  draftWait: ['.con-draftwait'],
 };
 
 /** Desktop-era surfaces tracked while the CTS rollout retires them. */

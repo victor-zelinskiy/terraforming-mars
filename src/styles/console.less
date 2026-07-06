@@ -360,6 +360,55 @@
     50% { opacity: 0.35; }
 }
 
+/* ── Draft re-pick suppression: the calm "waiting for others" banner ───
+   The fork does NOT surface the server's optional re-pick; this two-line
+   glass panel (top-centre, below the status strip) tells the player their
+   pick is locked while the rest of the table chooses. pointer-events: none
+   so the board stays fully inspectable underneath. */
+.con-draftwait {
+    position: absolute;
+    top: calc(1.2vh + 58px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 62;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 26px;
+    border-radius: 12px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 30px fade(@con-cyan, 8%);
+    font-family: @con-font;
+    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+
+    &__pulse {
+        flex-shrink: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: @con-cyan;
+        box-shadow: 0 0 12px fade(@con-cyan, 85%);
+        animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    &__title {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__sub {
+        font-size: 16px;
+        color: @con-text-dim;
+    }
+}
+
 /* ── Terraforming complete — console cinematic event banner ───────── */
 /* Centred just BELOW the regular turn/task banner band so a live
    placement / awaiting-decision pill is never covered. pointer-events:

@@ -22,6 +22,19 @@
       <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
     </div>
 
+    <!-- OPTIONAL draft re-pick: the fork does NOT surface re-picking (desktop
+         parity). A calm, non-blocking waiting banner tells the player their
+         pick is locked while the other players choose; the board stays fully
+         inspectable underneath (pointer-events: none). WaitingFor's headless
+         poll transitions to the next round automatically. -->
+    <div v-if="draftWaitActive" class="con-draftwait" role="status">
+      <span class="con-draftwait__pulse" aria-hidden="true"></span>
+      <span class="con-draftwait__text">
+        <span class="con-draftwait__title">{{ $t('Waiting for draft cards') }}</span>
+        <span class="con-draftwait__sub">{{ $t('Your pick is locked — waiting for the other players.') }}</span>
+      </span>
+    </div>
+
     <!-- Terraforming complete — the one-shot console-native cinematic event
          (pointer-events: none, bounded lifetime; the persistent state lives
          in the top-HUD rail + generation marker). -->
@@ -319,7 +332,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined"></waiting-for>
+                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -618,6 +631,11 @@ export default defineComponent({
     startTask(): ConsoleTask | undefined {
       const task = taskFor(this.playerView);
       return task !== undefined && SCENE_KINDS.has(task.kind) ? task : undefined;
+    },
+    /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
+     *  players" banner instead of offering to change the pick (desktop parity). */
+    draftWaitActive(): boolean {
+      return taskFor(this.playerView)?.kind === 'draftWait';
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
@@ -1128,6 +1146,9 @@ export default defineComponent({
         case 'colonies': return 'Trading';
         default: return 'Awaiting decision';
         }
+      }
+      if (this.draftWaitActive) {
+        return 'Waiting for draft cards';
       }
       if (this.consoleRevealMode !== undefined) {
         return 'Cards';

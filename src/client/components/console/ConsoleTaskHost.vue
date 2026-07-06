@@ -325,6 +325,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel, OrOptionsModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
+import {Phase} from '@/common/Phase';
 import {Color} from '@/common/Color';
 import {Units} from '@/common/Units';
 import {Message} from '@/common/logs/Message';
@@ -483,7 +484,9 @@ export default defineComponent({
         if (this.isBuyMode) {
           return translateText('Select cards to purchase');
         }
-        if (this.isDraftPick) {
+        // Only the single-keep draft gets the "1 card" title; a multi-keep
+        // draft keeps the (translated) server title ("Select two cards to keep…").
+        if (this.isDraftPick && this.singlePick) {
           return translateText('Choose 1 card to draft');
         }
       }
@@ -731,9 +734,17 @@ export default defineComponent({
     isBuyMode(): boolean {
       return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'buy';
     },
-    /** The between-generation DRAFT pick (keep one card, pass the rest on). */
+    /**
+     * The between-generation DRAFT pick (keep a card, pass the rest on). The
+     * REAL Draft.ts prompt uses buttonLabel 'Select' (→ router `mode: 'target'`),
+     * so the reliable signal is the PHASE (mirrors the desktop
+     * CardSelectionContent.isDraftPhase). The dead `mode: 'draft'` branch stays
+     * for any future 'Keep'-labelled prompt.
+     */
     isDraftPick(): boolean {
-      return this.activeTask.kind === 'cardSelect' && this.activeTask.mode === 'draft';
+      const phase = this.playerView.game.phase;
+      return this.activeTask.kind === 'cardSelect' &&
+        (this.activeTask.mode === 'draft' || phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING);
     },
     /**
      * The per-card RESEARCH/buy cost — `player.cardCost` (base 3 M€, raised by
@@ -776,9 +787,11 @@ export default defineComponent({
       }
       return this.confirmLabel;
     },
-    /** A one-line explanation under the title (draft: what happens to the cards). */
+    /** A one-line explanation under the title (single-keep draft: what happens
+     *  to the cards you don't keep). */
     phaseSubtext(): string {
-      return this.isDraftPick ? translateText('The card is kept for you, the rest are passed on.') : '';
+      return this.isDraftPick && this.singlePick ?
+        translateText('The card is kept for you, the rest are passed on.') : '';
     },
     cardPicksValid(): boolean {
       return this.picks.length >= this.cardMin && this.picks.length <= this.cardMax && this.cardBuyAffordable;
