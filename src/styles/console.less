@@ -6198,6 +6198,26 @@ dialog.con-zoom {
     .card-zoom-nav-slot { display: none; }
     .card-zoom-actions__btn--secondary { display: none; }
 }
+
+/* Perf (Steam Deck) — kill STACKED full-screen blur while the fullscreen card
+   viewer is open. The viewer's own `::backdrop` already lays a full-screen
+   dim + blur over the WHOLE screen, so a draft scene's own full-screen
+   `backdrop-filter` UNDERNEATH is fully occluded: two stacked full-screen
+   blurs for zero visible gain (only the top one is ever seen, and the lower
+   one forces the compositor to blur an already-blurred layer). Stacked
+   backdrop-filter is the single most GPU-expensive thing on a weak console GPU
+   — this is exactly why LB/RB browsing lagged in the DRAFT scenes but not over
+   the plain board (which has no scene blur under the viewer). Dropping the
+   occluded lower blur brings the draft fullscreen down to ONE blur, matching
+   the smooth over-the-board case. Mirrors the #player-home cull in
+   mandatory_input_modal.less. */
+body:has(dialog.card-zoom-dialog[open]) {
+    .con-task-host__backdrop,
+    .con-start__bg {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
 .con-zoom__bar {
     display: flex;
     align-items: center;
