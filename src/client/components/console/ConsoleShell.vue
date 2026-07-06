@@ -946,6 +946,15 @@ export default defineComponent({
     handTagFilterOptions(): Array<ConsoleTagFilterOption> {
       return buildConsoleTagFilters(this.handEntriesAll.map((e) => e.card), this.consoleState.handTagFilter);
     },
+    // In sale mode every NON-hosted hand card is sellable (SRR-hosted cards
+    // can't be sold) — the target set for L3 select-all / unselect-all.
+    saleSellableNames(): ReadonlyArray<string> {
+      return this.handEntries.filter((e) => !e.robot).map((e) => e.card.name);
+    },
+    saleAllSelected(): boolean {
+      const names = this.saleSellableNames;
+      return names.length > 0 && names.every((n) => this.consoleState.sale.selected.includes(n));
+    },
     /** The turn/phase reason (i18n key) shown for a hand card that is rules-OK
      *  but not playable in this window — the honest alternative to a bare block
      *  when the server has no rules-reason (opponent's turn / mid-placement). */
@@ -1528,6 +1537,7 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
+          {control: 'stickL', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
           {control: 'back', label: 'Cancel'},
@@ -2351,11 +2361,14 @@ export default defineComponent({
         return true;
       case 'stickL':
         // P20: L3 = next AVAILABLE placement target during placement;
-        // P27: on the board home L3 toggles BOARD INSPECTION MODE.
+        // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
+        // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
         if (this.placementActive && this.consoleState.section === 'board') {
           this.handleNextJump();
         } else if (onBoard) {
           this.toggleInspection();
+        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
+          this.toggleSelectAllSale();
         }
         return true;
       case 'stickR':
@@ -3324,6 +3337,15 @@ export default defineComponent({
       } else {
         this.consoleState.sale.selected.splice(at, 1);
       }
+    },
+    /** L3 in the sell-patents multi-select: select ALL sellable cards, or clear
+     *  the selection if they're already all picked. */
+    toggleSelectAllSale(): void {
+      const names = this.saleSellableNames;
+      if (names.length === 0) {
+        return;
+      }
+      this.consoleState.sale.selected = this.saleAllSelected ? [] : [...names];
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {

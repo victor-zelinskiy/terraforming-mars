@@ -25,6 +25,16 @@
 @con-text-dim: rgba(196, 216, 236, 0.72);
 @con-font: Prototype, Ubuntu, sans-serif;
 
+/* PERF (Steam Deck): premium full-screen DIM without backdrop-filter blur.
+   A live full-screen blur — worse when several stack over the board, only the
+   top of which is ever visible — is the single most GPU-expensive effect on
+   this hardware. A centred radial vignette reads as "focus on the panel" (the
+   same intent as a frosted scrim) at a flat, cheap paint cost. THE backdrop
+   for every console overlay; never reintroduce backdrop-filter here. */
+.con-backdrop-dim() {
+    background: radial-gradient(125% 95% at 50% 42%, rgba(6, 12, 20, 0.74) 0%, rgba(3, 6, 11, 0.93) 100%);
+}
+
 /* ── Root frame (overscan-safe) ──────────────────────────────────── */
 .con-root {
     position: fixed;
@@ -2104,8 +2114,7 @@ html.con-profile-handheld .con-maconfirm {
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 50% 38%, rgba(8, 13, 20, 0.72), rgba(4, 7, 12, 0.9));
-        backdrop-filter: blur(3px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
@@ -5209,8 +5218,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.82);
-        backdrop-filter: blur(4px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__frame {
         position: relative;
@@ -5740,8 +5748,7 @@ html.console-mode {
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.72);
-        backdrop-filter: blur(3px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
 }
 
@@ -6304,15 +6311,10 @@ html.console-mode {
     align-items: center;
     justify-content: center;
 
-    /* PERF (Steam Deck): NO backdrop-filter blur — a full-screen live blur
-       over the board is the single most expensive effect on this hardware
-       (worse when the board itself is complex). A solid dim + a cheap static
-       vignette gives the same "modal in front" read with zero GPU blur. */
     &__backdrop {
         position: absolute;
         inset: 0;
-        background:
-            radial-gradient(120% 90% at 50% 42%, rgba(6, 12, 20, 0.6) 0%, rgba(3, 6, 11, 0.9) 100%);
+        .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
     }
 
     &__panel {
@@ -6846,78 +6848,33 @@ dialog.con-zoom {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Perf (Steam Deck) — NEVER stack full-screen backdrop-filter blurs.
+   Perf (Steam Deck) — console backdrops use a FLAT DIM, never blur.
 
-   Console mode has a ladder of full-screen dim+blur backdrops (scenes,
-   overlays, menus). Only the TOPMOST open one is ever visible; any blur
-   BELOW it is fully occluded — yet the compositor still pays for it, AND
-   the top blur must re-blur the already-blurred layer beneath. Stacked
-   backdrop-filter is the single most GPU-expensive thing on a weak console
-   GPU and the direct cause of the open-a-menu / open-fullscreen freezes
-   (e.g. the System menu over an active draft/info blur, a fullscreen card
-   over a draft scene).
+   A live full-screen backdrop-filter blur (and especially STACKED blurs — a
+   ladder of scene/overlay/menu backdrops, only the top of which is ever
+   visible, yet each re-blurs the layer beneath) is the single most
+   GPU-expensive effect on this GPU and was the direct cause of the
+   open-a-menu / open-fullscreen freezes. Every console backdrop now paints
+   the shared `.con-backdrop-dim()` vignette instead — flat, cheap, with
+   nothing to occlusion-cull (opaque paints are free and the browser drops
+   hidden ones). The former blur-destacking ladder is therefore GONE.
 
-   So: for each blur layer, drop ITS blur whenever ANY layer ABOVE it is
-   open — detected structurally via the higher layer's own backdrop element,
-   which is v-if-mounted only while that overlay is open. Removing an
-   occluded lower blur is visually free: the top layer's own dim+blur already
-   covers it (and re-blurs whatever shows through), so the result is
-   pixel-identical while the GPU does ONE blur instead of N. Mirrors the
-   #player-home cull in mandatory_input_modal.less.
-
-   Stacking ladder (high → low) — KEEP IN SYNC with the z-index on each
-   overlay's root rule:
-     top-layer native : dialog.card-zoom-dialog[open], dialog.con-quit[open]
-     12760            : .con-sysmenu__backdrop     (System menu)
-     11900            : .con-stranded__backdrop    (Stranded guard)
-     11560            : .con-info__backdrop         (Info Mode)
-     11520            : .con-reveal__backdrop       (Drawn-cards / reveal)
-     11515            : .con-mainspect__backdrop    (Milestone/Award inspect)
-     11480            : .con-task-host__backdrop / .con-start__bg (scenes)
+   The SHARED fullscreen card viewer + its chrome (preferences.less) keep
+   their frost on DESKTOP but drop it in CONSOLE mode via the console-scoped
+   overrides below (in console they render over the board — same Deck cost).
    ═══════════════════════════════════════════════════════════════════ */
-.con-blur-off() {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-/* Lowest scenes — task host (+ every T1–T3 prompt it hosts) and the
-   initial-draft scene: occluded by ANY higher overlay or a top-layer dialog. */
-body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
-         .con-reveal__backdrop, .con-mainspect__backdrop,
-         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-task-host__backdrop,
-    .con-start__bg { .con-blur-off(); }
-}
-
-/* Milestone/Award inspector (11515). */
-body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
-         .con-reveal__backdrop,
-         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-mainspect__backdrop { .con-blur-off(); }
-}
-
-/* Drawn-cards / deck-check reveal (11520). */
-body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
-         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-reveal__backdrop { .con-blur-off(); }
-}
-
-/* Info Mode (11560). */
-body:has(.con-sysmenu__backdrop, .con-stranded__backdrop,
-         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-info__backdrop { .con-blur-off(); }
-}
-
-/* Stranded guard (11900). */
-body:has(.con-sysmenu__backdrop,
-         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-stranded__backdrop { .con-blur-off(); }
-}
-
-/* System menu (12760) — occluded only by a top-layer dialog: the quit
-   confirm it itself opens, or a fullscreen card opened above it. */
-body:has(dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
-    .con-sysmenu__backdrop { .con-blur-off(); }
+html.console-mode {
+    .card-zoom-dialog::backdrop {
+        .con-backdrop-dim();
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+    /* Small viewer chrome — no blur over the (now opaque) dim. */
+    .card-zoom-counter,
+    .card-zoom-actions__panel {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
 }
 .con-zoom__bar {
     display: flex;
@@ -7053,11 +7010,12 @@ body:has(dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
     &__bg {
         position: absolute;
         inset: 0;
+        /* Themed dim (cyan top / warm bottom) — NO blur (Steam Deck); the
+           0.92 base carries the occlusion the frost used to. */
         background:
             radial-gradient(ellipse at 50% -10%, fade(@con-cyan, 9%), transparent 55%),
             radial-gradient(ellipse at 50% 115%, rgba(160, 80, 40, 0.10), transparent 60%),
-            rgba(4, 8, 14, 0.90);
-        backdrop-filter: blur(4px);
+            rgba(4, 8, 14, 0.92);
 
         /* A faint iso-tech grid (the start-game-flow visual signature). */
         &::after {
@@ -7504,8 +7462,7 @@ body:has(dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.78);
-        backdrop-filter: blur(4px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
@@ -8172,8 +8129,7 @@ html.console-mode .notifications-layer {
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.7);
-        backdrop-filter: blur(3px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
@@ -8248,8 +8204,7 @@ html.console-mode .notifications-layer {
     &__backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(4, 8, 14, 0.78);
-        backdrop-filter: blur(3px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
@@ -8397,9 +8352,10 @@ html.console-mode .notifications-layer {
         min-width: 420px;
         padding: 38px 54px;
         border-radius: 16px;
-        background: rgba(8, 14, 22, 0.66);
+        /* PERF (Steam Deck): NO backdrop-filter — the boot curtain behind is
+           already opaque, so a deeper solid glass reads identically. */
+        background: rgba(8, 14, 22, 0.92);
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 30px 90px rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(6px);
     }
     &__scanner {
         width: 120px;
@@ -8526,8 +8482,7 @@ dialog.con-quit {
     overflow: visible;
 
     &::backdrop {
-        background: rgba(4, 8, 14, 0.72);
-        backdrop-filter: blur(3px);
+        .con-backdrop-dim(); // no blur (Steam Deck)
     }
 }
 .con-quit__card {

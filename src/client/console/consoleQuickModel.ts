@@ -182,12 +182,13 @@ export type StdProjectScreenContext = {
 };
 
 /**
- * The premium screen's rows: every server std project + PATENT SALE as a
- * first-class basic action (Steam-version parity). A disabled row names a
- * CONCRETE reason — the M€ deficit when that is the blocker.
+ * The premium screen's rows: PATENT SALE first (the canonical standard-projects
+ * order — the free "sell cards" action heads the list), then every server std
+ * project. A disabled row names a CONCRETE reason — the M€ deficit when that is
+ * the blocker.
  */
 export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdProjectItem> {
-  const rows: Array<StdProjectItem> = ctx.cards.map((c) => {
+  const projectRows: Array<StdProjectItem> = ctx.cards.map((c) => {
     const visual = standardProjectVisual(c.name);
     const cost = c.calculatedCost ?? 0;
     const available = c.isDisabled !== true;
@@ -215,10 +216,11 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
       reasonParams,
     };
   });
-  // Patent sale — part of the basic-actions family (like the Steam version).
+  // Patent sale leads the list (part of the basic-actions family, like the
+  // Steam version — the free "sell patents" action always comes first).
   const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
   const sellAvailable = ctx.sellAvailable && ctx.cardsInHand > 0;
-  rows.push({
+  const sellRow: StdProjectItem = {
     key: 'sell-patents',
     cardName: CardName.SELL_PATENTS_STANDARD_PROJECT,
     title: 'Patent sale',
@@ -228,8 +230,8 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     available: sellAvailable,
     reason: sellAvailable ? '' :
       (!ctx.sellAvailable ? NOT_YOUR_TURN : 'No cards in hand'),
-  });
-  return rows;
+  };
+  return [sellRow, ...projectRows];
 }
 
 // ─── The right home panel — strategic Milestones/Awards summary ────────────

@@ -112,7 +112,7 @@ describe('consoleQuickModel (P27)', () => {
   });
 
   describe('Standard-Projects screen rows', () => {
-    it('lists the server cards + Patent sale as a first-class entry', () => {
+    it('leads with Patent sale, then the server cards (canonical order)', () => {
       const items = buildStdProjectItems({
         cards: [
           {name: CardName.POWER_PLANT_STANDARD_PROJECT, calculatedCost: 11},
@@ -124,11 +124,11 @@ describe('consoleQuickModel (P27)', () => {
         cardsInHand: 4,
       });
       expect(items.map((i) => i.key)).to.deep.eq([
+        'sell-patents',
         CardName.POWER_PLANT_STANDARD_PROJECT,
         CardName.ASTEROID_STANDARD_PROJECT,
-        'sell-patents',
       ]);
-      const sell = items[2];
+      const sell = items[0];
       expect(sell.available).to.eq(true);
       expect(sell.gain).to.eq('+1');
       expect(sell.title).to.eq('Patent sale');
@@ -142,8 +142,9 @@ describe('consoleQuickModel (P27)', () => {
         sellAvailable: false,
         cardsInHand: 0,
       });
-      expect(items[0].reason).to.eq('Need ${0} more M€');
-      expect(items[0].reasonParams).to.deep.eq(['2']);
+      // items[0] is Patent sale now; the server project is items[1].
+      expect(items[1].reason).to.eq('Need ${0} more M€');
+      expect(items[1].reasonParams).to.deep.eq(['2']);
     });
 
     it('patent sale is blocked honestly (turn vs empty hand)', () => {
