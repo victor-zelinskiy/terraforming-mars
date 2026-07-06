@@ -98,13 +98,21 @@
           The actions panel below therefore never jumps as cards swap.
         -->
         <div class="card-zoom-stage">
-          <transition :name="transitionName"
-                      @enter="onCardEnter"
-                      @after-enter="onCardAfterEnter">
-            <CardZoomCard :key="activeCard.name"
-                          :card="activeCard"
-                          :selected="selected" />
-          </transition>
+          <!--
+            perf (Steam Deck / console LB-RB browsing): the card is a
+            PERSISTENT instance. Navigating re-points `:card` — a cheap Vue
+            patch of the existing component tree — instead of REMOUNTING the
+            whole card (title + cost + tags + the full renderData tree of
+            symbols / tiles / production boxes, ~dozens of component instances)
+            on every step. The directional slide is a compositor-only Web
+            Animations transform on this same element (see `runSlide`), so there
+            is never a second card tree in flight and the `zoom` fit no longer
+            competes with a mount for the frame. This mirrors exactly why the
+            hand carousel is smooth: mount once, move — never remount per step.
+          -->
+          <CardZoomCard ref="stageCard"
+                        :card="activeCard"
+                        :selected="selected" />
         </div>
 
         <div v-if="navEnabled"
@@ -175,9 +183,20 @@ type Refs = {
 type SlideDir = '' | 'next' | 'prev' | 'consume';
 
 // Keep in sync with the slide transition duration in preferences.less. Used
-// only as a fallback to release the rapid-press guard if a transition hook
-// never fires (e.g. reduced-motion, element reuse).
+// both as the slide duration and as a fallback to release the rapid-press
+// guard if the animation's finish callback never fires (e.g. no WAAPI).
 const ANIM_MS = 240;
+
+/*
+ * perf: a card's NATURAL (zoom = 1) size is deterministic per card name, so it
+ * is cached module-wide and survives reopen. A cached card fits with a pure
+ * calc + one style write — NO `zoom` reset and NO forced synchronous reflow on
+ * the LB/RB navigation frame (the reflow was the second half of the console
+ * fullscreen jank, after the per-step remount). A card is measured at most once
+ * ever; every later visit — including the very common browse-back-and-forth —
+ * is free.
+ */
+const naturalCardSizeCache = new Map<string, {width: number, height: number}>();
 
 export default defineComponent({
   name: 'CardZoomModal',
@@ -267,18 +286,6 @@ export default defineComponent({
     canNext(): boolean {
       return this.navEnabled && this.currentIndex < this.navList.length - 1;
     },
-    transitionName(): string {
-      // No-op name (no matching CSS) so the single-card / initial-mount path
-      // never picks up stray default transition classes.
-      if (this.slideDir === '') {
-        return 'card-zoom-none';
-      }
-      // Reduced-motion: collapse every direction to a quick fade (no slide).
-      if (prefersReducedMotion()) {
-        return 'card-zoom-rm';
-      }
-      return 'card-zoom-' + this.slideDir;
-    },
     preloadCards(): ReadonlyArray<CardModel> {
       const out: Array<CardModel> = [];
       for (const name of this.preloadNames) {
@@ -323,8 +330,10 @@ export default defineComponent({
       if (nextName !== undefined && nextName !== prevName) {
         this.slideDir = 'consume';
         this.$emit('navigate', this.activeCard, this.currentIndex);
-        this.$nextTick(() => this.fitCardToViewport());
-        this.refreshPreload();
+        this.$nextTick(() => {
+          this.fitCardToViewport();
+          this.runSlide('consume');
+        });
       }
     },
   },
@@ -336,8 +345,9 @@ export default defineComponent({
       // mounts 2 extra full card trees in the SAME frame as the dialog,
       // tripling the open cost. Start empty; warm them once the dialog has
       // painted, in idle time (well before the player can press an arrow).
-      // The slide itself never depends on preload — the target card mounts
-      // fresh via the keyed transition either way. (perf B13)
+      // The slide never depends on preload — the persistent stage card is just
+      // re-pointed on navigation; preload only warms the neighbours' art +
+      // primes the natural-size fit cache. (perf B13)
       this.preloadNames = [];
       showModal(this.typedRefs.dialog);
       // Sync the parent to the card we actually opened on (the start index may
@@ -407,17 +417,24 @@ export default defineComponent({
       this.$emit('update:index', target);
     },
     /*
-     * Commit a new index + slide direction. Sets slideDir BEFORE currentIndex
-     * so the keyed-card transition in the same render flush picks the right
-     * direction. Emits `navigate(card, index)` so the parent re-points its
-     * zoom variable → the action slot + selected halo follow the visible card.
+     * Commit a new index + slide direction. The persistent stage card is
+     * re-pointed (patched, not remounted) to `navList[target]`; `dir` only
+     * chooses the compositor slide direction in `runSlide`. Emits
+     * `navigate(card, index)` so the parent re-points its zoom variable → the
+     * action slot + selected halo follow the visible card.
      */
     applyIndex(target: number, dir: SlideDir) {
       this.slideDir = dir;
       this.currentIndex = target;
       this.startAnimGuard();
       this.$emit('navigate', this.activeCard, target);
-      this.$nextTick(() => this.fitCardToViewport());
+      // One flush: the persistent card is patched to the new model, then fit
+      // (cached → no reflow) and slid — all before the browser paints, so there
+      // is no intermediate frame at the old zoom / old card.
+      this.$nextTick(() => {
+        this.fitCardToViewport();
+        this.runSlide(dir);
+      });
     },
     startAnimGuard() {
       this.animating = true;
@@ -434,17 +451,47 @@ export default defineComponent({
         this.animTimer = undefined;
       }
     },
-    onCardEnter(el: Element) {
-      // Fit the INCOMING card before its enter frame paints so it never pops
-      // from the default zoom to the fitted one mid-slide.
-      this.fitCardToViewport(el as HTMLElement);
-    },
-    onCardAfterEnter() {
-      // Slide settled — release the guard early (don't wait for the fallback
-      // timer) and warm the next neighbours while idle.
+    releaseAnimGuard() {
       this.animating = false;
       this.clearAnimTimer();
-      this.refreshPreload();
+    },
+    /*
+     * The directional slide of the PERSISTENT card, driven by the Web
+     * Animations API — a compositor-only transform + opacity tween on the ONE
+     * card element. It never forces layout and never needs a second (leaving)
+     * card tree, which is what the old mount/unmount `<transition>` cost per
+     * step. No-op (and immediate guard release) where `.animate` is missing
+     * (JSDOM under test), so behaviour is unchanged there.
+     */
+    runSlide(dir: SlideDir) {
+      const host = (this.$refs.stageCard as {$el?: HTMLElement} | undefined)?.$el;
+      if (host === undefined || host === null || typeof host.animate !== 'function') {
+        this.releaseAnimGuard();
+        this.refreshPreload();
+        return;
+      }
+      const reduced = prefersReducedMotion();
+      let from: Record<string, string>;
+      if (reduced || dir === '') {
+        from = {opacity: '0'};
+      } else if (dir === 'consume') {
+        // A card left the set (drawn-cards take): the next one settles in with
+        // a gentle scale-up rather than a lateral slide.
+        from = {opacity: '0', transform: 'scale(0.92)'};
+      } else {
+        const dx = dir === 'next' ? '38px' : '-38px';
+        from = {opacity: '0', transform: `translateX(${dx}) scale(0.96)`};
+      }
+      const to = {opacity: '1', transform: 'translateX(0) scale(1)'};
+      const anim = host.animate([from, to], {
+        duration: reduced ? 120 : ANIM_MS,
+        easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+      });
+      anim.onfinish = () => {
+        this.releaseAnimGuard();
+        // Warm the next neighbours' art + prime the fit cache while idle.
+        this.refreshPreload();
+      };
     },
     refreshPreload() {
       if (!this.navEnabled) {
@@ -461,6 +508,37 @@ export default defineComponent({
         names.push(after.name);
       }
       this.preloadNames = names;
+      // Idle: the preload clones render at natural (zoom:1) scale off-screen, so
+      // reading their box primes the fit cache for the neighbours. The next
+      // navigation step onto a neighbour is then a cache hit → zero forced
+      // reflow on the input frame (matters when browsing FORWARD through a fresh
+      // list, where every card is a first visit).
+      this.$nextTick(() => this.primeFitCacheFromPreload());
+    },
+    /*
+     * Prime the natural-size cache from the off-screen preload clones (see the
+     * `.card-zoom-preload` CSS — position:fixed off-screen, children at zoom:1,
+     * so their offset box IS the natural size). Runs on idle only.
+     */
+    primeFitCacheFromPreload() {
+      const dialog = this.typedRefs.dialog;
+      if (dialog === undefined || !dialog.open) {
+        return;
+      }
+      const rendered = this.preloadCards; // same order as the DOM clones
+      const els = dialog.querySelectorAll('.card-zoom-preload .card-zoom-card .card-container.filterDiv');
+      els.forEach((node, i) => {
+        const model = rendered[i];
+        if (model === undefined || naturalCardSizeCache.has(model.name)) {
+          return;
+        }
+        const el = node as HTMLElement;
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+        if (w > 0 && h > 0) {
+          naturalCardSizeCache.set(model.name, {width: w, height: h});
+        }
+      });
     },
     onKeydown(e: KeyboardEvent) {
       if (!this.navEnabled) {
@@ -513,38 +591,44 @@ export default defineComponent({
         return;
       }
 
-      // Step 1+2: reset to zoom 1 and force reflow for natural size.
-      const previousZoom = cardEl.style.zoom;
-      cardEl.style.zoom = '1';
-      // Reading offsetHeight forces a synchronous layout pass.
-      void cardEl.offsetHeight;
-
-      const naturalWidth = cardEl.offsetWidth;
-      const naturalHeight = cardEl.offsetHeight;
-      if (naturalWidth === 0 || naturalHeight === 0) {
-        // Card not rendered yet (e.g., display:none mid-transition).
-        cardEl.style.zoom = previousZoom;
-        return;
+      // The natural (zoom = 1) size is deterministic per card, so measure it AT
+      // MOST ONCE and cache it module-wide. On a cache HIT (every revisit, and —
+      // once the neighbours are warmed — the very next step) the fit is a pure
+      // calc plus a single style write: no `zoom` reset, no forced reflow. Only
+      // a card never seen before pays the one-time measurement.
+      const name = this.activeCard.name;
+      let natural = naturalCardSizeCache.get(name);
+      if (natural === undefined) {
+        const previousZoom = cardEl.style.zoom;
+        cardEl.style.zoom = '1';
+        // Reading offsetHeight forces the one synchronous layout pass needed to
+        // learn this card's natural size.
+        void cardEl.offsetHeight;
+        const w = cardEl.offsetWidth;
+        const h = cardEl.offsetHeight;
+        if (w === 0 || h === 0) {
+          // Card not laid out yet (e.g. display:none mid-swap) — restore and
+          // let a later fit (nextTick / resize) measure it.
+          cardEl.style.zoom = previousZoom;
+          return;
+        }
+        natural = {width: w, height: h};
+        naturalCardSizeCache.set(name, natural);
       }
 
-      // Step 4: available space. Numbers mirror .card-zoom-container's
-      // padding (24+24=48) + gap (20) + actions-panel reservation (96) plus a
-      // small safety buffer (8). In nav mode reserve MORE so the card lands in
-      // a clean centre band: the top counter zone is its OWN in-flow row
-      // (~44px + a 20px gap) so the card never grows up under it, and each side
-      // gutter (~120px) is wide enough that the navigation controls sit fully
-      // OUTSIDE the card, not on it — even on narrow viewports.
+      // Available space. Numbers mirror .card-zoom-container's padding
+      // (24+24=48) + gap (20) + actions-panel reservation (96) plus a small
+      // safety buffer (8). In nav mode reserve MORE so the card lands in a clean
+      // centre band: the top counter zone is its OWN in-flow row (~44px + a 20px
+      // gap) so the card never grows up under it, and each side gutter (~120px)
+      // is wide enough that the navigation controls sit fully OUTSIDE the card.
       const chromeVertical = 48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0);
       const chromeHorizontal = 32 + 8 + (this.navEnabled ? 200 : 0);
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 
-      // Step 5: per-axis fit zoom.
-      const zoomByHeight = availHeight / naturalHeight;
-      const zoomByWidth = availWidth / naturalWidth;
-      const fitZoom = Math.min(zoomByHeight, zoomByWidth);
-
-      // Step 6: clamp to readable / aesthetic range.
+      // Per-axis fit zoom, clamped to the readable / aesthetic range.
+      const fitZoom = Math.min(availHeight / natural.height, availWidth / natural.width);
       const MIN_ZOOM = 1.0;
       const MAX_ZOOM = 2.8;
       const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));

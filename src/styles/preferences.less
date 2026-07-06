@@ -859,108 +859,16 @@
     zoom: 1;
 }
 
-/* ── Slide / consume / reduced-motion transitions ─────────────────── */
-.card-zoom-next-enter-active,
-.card-zoom-next-leave-active,
-.card-zoom-prev-enter-active,
-.card-zoom-prev-leave-active {
-    transition:
-        transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1),
-        opacity 200ms ease;
-    will-change: transform, opacity;
-}
-
-/* Pin the leaving card so the incoming one overlaps it (carousel feel)
-   instead of being pushed aside. `inset:0; margin:auto` re-centres the
-   fixed-size (zoomed) card within the relative stage; transform is then
-   free for the directional slide. */
-.card-zoom-next-leave-active,
-.card-zoom-prev-leave-active,
-.card-zoom-consume-leave-active,
-.card-zoom-rm-leave-active {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: max-content;
-    height: max-content;
-}
-
-.card-zoom-next-enter-from {
-    transform: translateX(38px) scale(0.96);
-    opacity: 0;
-}
-
-.card-zoom-next-leave-to {
-    transform: translateX(-38px) scale(0.96);
-    opacity: 0;
-}
-
-.card-zoom-prev-enter-from {
-    transform: translateX(-38px) scale(0.96);
-    opacity: 0;
-}
-
-.card-zoom-prev-leave-to {
-    transform: translateX(38px) scale(0.96);
-    opacity: 0;
-}
-
-/* "Consume" — a card leaves the set (drawn-cards take): it floats up +
-   scales out while the next one settles in. */
-.card-zoom-consume-enter-active {
-    transition:
-        transform 230ms cubic-bezier(0.22, 0.61, 0.36, 1),
-        opacity 200ms ease;
-}
-
-.card-zoom-consume-leave-active {
-    transition:
-        transform 230ms ease,
-        opacity 180ms ease;
-}
-
-.card-zoom-consume-enter-from {
-    transform: scale(0.92);
-    opacity: 0;
-}
-
-.card-zoom-consume-leave-to {
-    transform: scale(1.06) translateY(-10px);
-    opacity: 0;
-}
-
-/* Reduced-motion: quick cross-fade, no movement. */
-.card-zoom-rm-enter-active,
-.card-zoom-rm-leave-active {
-    transition: opacity 120ms ease;
-}
-
-.card-zoom-rm-enter-from,
-.card-zoom-rm-leave-to {
-    opacity: 0;
-}
+/*
+ * The card slide is now a compositor-only Web-Animations transform applied to
+ * the ONE persistent stage card in CardZoomModal.runSlide (transform + opacity
+ * keyframes, `prefers-reduced-motion` handled in JS). The old Vue
+ * `<transition>` mount/unmount slide classes (.card-zoom-next/prev/consume/rm-*)
+ * were removed with the per-step card remount — no CSS transition classes are
+ * needed here anymore.
+ */
 
 @media (prefers-reduced-motion: reduce) {
-    /* Backstop in case JS still selects a directional name. */
-    .card-zoom-next-enter-active,
-    .card-zoom-next-leave-active,
-    .card-zoom-prev-enter-active,
-    .card-zoom-prev-leave-active,
-    .card-zoom-consume-enter-active,
-    .card-zoom-consume-leave-active {
-        transition: opacity 120ms ease;
-    }
-
-    .card-zoom-next-enter-from,
-    .card-zoom-next-leave-to,
-    .card-zoom-prev-enter-from,
-    .card-zoom-prev-leave-to,
-    .card-zoom-consume-enter-from,
-    .card-zoom-consume-leave-to {
-        transform: none;
-        opacity: 0;
-    }
-
     .card-zoom-nav,
     .card-zoom-nav__plate,
     .card-zoom-nav__chevron {
