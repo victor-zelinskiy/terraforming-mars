@@ -1267,9 +1267,12 @@ export default defineComponent({
             enabled: consoleJournalUi.canPrevGen || consoleJournalUi.canNextGen},
         );
         if (consoleJournalUi.filterAvailable) {
-          cmds.push({control: 'inspect', label: 'Filter'});
+          cmds.push({control: 'stickR', label: 'Filter'});
         }
-        cmds.push({control: 'back', label: 'Close'});
+        cmds.push(
+          {control: 'inspect', label: 'Information'},
+          {control: 'back', label: 'Close'},
+        );
         return cmds;
       }
       if (this.consoleState.quick !== undefined) {
@@ -1644,6 +1647,15 @@ export default defineComponent({
         if (intent.kind === 'press' &&
             (intent.button === 'view' || (intent.button === 'back' && !journalLocalBack))) {
           this.closeJournal();
+          return true;
+        }
+        // P27b consistency: Y = Information Mode on EVERY surface. The
+        // journal's own player-filter moved to R3 (stickR) — so Y here opens
+        // Info Mode like everywhere else. Suppressed while a local journal
+        // layer (filter popover / inspect card / map peek) owns the pad, so Y
+        // there still resolves that layer through the panel's own grammar.
+        if (intent.kind === 'press' && intent.button === 'inspect' && !journalLocalBack) {
+          this.toggleInfoMode();
           return true;
         }
         const panel = this.$refs.journalPanel as InstanceType<typeof ConsoleJournalPanel> | undefined;

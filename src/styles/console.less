@@ -4179,7 +4179,7 @@ html.console-mode {
     gap: 7px;
     padding: 3px 9px;
     border-radius: 8px;
-    min-width: 208px;
+    min-width: 248px;
     flex-shrink: 0;
     background: rgba(10, 18, 28, 0.7);
     box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
@@ -4190,6 +4190,15 @@ html.console-mode {
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
         .con-journal__filter-label { color: @con-cyan; }
     }
+}
+/* «ФИЛЬТР» caption — names the R3 control so the chip is self-explanatory. */
+.con-journal__filter-caption {
+    flex-shrink: 0;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 78%);
+    white-space: nowrap;
 }
 .con-journal__filter-label {
     flex: 1;

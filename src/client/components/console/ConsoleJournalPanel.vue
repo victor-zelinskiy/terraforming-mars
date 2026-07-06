@@ -9,9 +9,12 @@
       <div class="con-journal__titlebar">
         <span class="con-journal__glyph" aria-hidden="true"></span>
         <h2 class="con-journal__title" v-i18n>Journal</h2>
-        <!-- Player filter chip — Y opens the console popover. -->
+        <!-- Player filter chip — R3 (right stick) opens the console popover.
+             The glyph + explicit «ФИЛЬТР» caption make the control legible
+             (Y is reserved for Information Mode everywhere). -->
         <div v-if="filterAvailable" class="con-journal__filter" :class="{'con-journal__filter--active': filter.kind !== 'all'}">
-          <GamepadGlyph control="inspect" />
+          <GamepadGlyph control="stickR" />
+          <span class="con-journal__filter-caption" v-i18n>Filter</span>
           <span v-if="filterColor !== undefined" class="con-status__dot" :class="'player_bg_color_' + filterColor"></span>
           <span class="con-journal__filter-label">{{ filterLabel }}</span>
         </div>
@@ -117,7 +120,7 @@
       </div>
     </div>
 
-    <!-- ── Console filter popover (Y) ─────────────────────────────── -->
+    <!-- ── Console filter popover (R3) ────────────────────────────── -->
     <div v-if="filterOpen" class="con-journal__filterpop" role="listbox" :aria-label="$t('Filter journal by player')">
       <div class="con-journal__filterpop-title" v-i18n>Filter</div>
       <div v-for="(opt, i) in filterOptions"
@@ -154,8 +157,8 @@
  *   X                  — fullscreen the focused entry's card(s)
  *   LB / RB            — Detailed / Summary
  *   LT / RT            — previous / next generation (Live re-engages)
- *   Y                  — the player-filter popover
- *   right stick        — free scroll (the shell's global console scroll)
+ *   R3 (stick press)   — the player-filter popover (Y stays Info Mode)
+ *   right stick (move) — free scroll (the shell's global console scroll)
  *   B / View           — close (handled by the shell before delegation)
  *
  * One brain, two shells: the data feed is the SHARED journalDataSource
@@ -555,7 +558,8 @@ export default defineComponent({
       case 'stickL':
         this.showFocusedOnMap();
         break;
-      case 'inspect':
+      case 'stickR':
+        // R3 opens the player filter (Y is reserved for Info Mode).
         if (this.filterAvailable) {
           this.openFilter();
         } else {
@@ -604,7 +608,8 @@ export default defineComponent({
         break;
       }
       case 'back':
-      case 'inspect':
+      case 'stickR':
+        // R3 toggles the popover closed (mirrors the open control).
         this.filterOpen = false;
         break;
       default:

@@ -17,7 +17,7 @@ import type {Color} from '@/common/Color';
 /**
  * P28: the console-native journal view-model — card extraction from a
  * focused entry (X = fullscreen), generation stepping (LT/RT), the console
- * filter option list (the Y popover) and the per-entry detail override
+ * filter option list (the R3 popover) and the per-entry detail override
  * (A = expand/collapse vs the global mode). All pure — no DOM, no manifest
  * (the zoomability predicate is injected).
  */

@@ -138,7 +138,7 @@
                 <div class="con-task__stepper-keys" aria-hidden="true">
                   <span class="con-task__key"><GamepadGlyph control="bumperL" /><span>−1</span></span>
                   <span class="con-task__key"><GamepadGlyph control="bumperR" /><span>+1</span></span>
-                  <span class="con-task__key"><GamepadGlyph control="inspect" /><span>{{ $t('MAX') }}</span></span>
+                  <span class="con-task__key"><GamepadGlyph control="triggerR" /><span>{{ $t('MAX') }}</span></span>
                 </div>
               </div>
             </template>
@@ -206,7 +206,7 @@
                     <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
                   </span>
                   <span v-if="confirmReady" class="con-cards__verdict con-cards__verdict--go">
-                    <GamepadGlyph control="inspect" /><span>{{ $t(confirmLabel) }}</span>
+                    <GamepadGlyph control="triggerR" /><span>{{ $t(confirmLabel) }}</span>
                   </span>
                 </div>
               </div>

@@ -109,7 +109,7 @@
                 <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
               </span>
               <span v-if="currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
-                <GamepadGlyph control="inspect" /><span>{{ $t('Continue') }}</span>
+                <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
               </span>
             </div>
           </div>
@@ -173,7 +173,7 @@
               ⚠ {{ $t('You are not buying any project cards') }} — {{ $t('Press again to confirm') }}
             </div>
             <div class="con-start__beginline" :class="{'con-start__beginline--off': !wizardReady}">
-              <GamepadGlyph control="inspect" /><span>{{ $t('Begin the game') }}</span>
+              <GamepadGlyph control="triggerR" /><span>{{ $t('Begin the game') }}</span>
             </div>
           </aside>
         </div>
