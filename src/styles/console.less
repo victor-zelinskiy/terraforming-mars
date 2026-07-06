@@ -373,15 +373,21 @@
     z-index: 62;
     pointer-events: none;
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 12px 26px;
+    gap: 12px;
+    padding: 14px 26px 16px;
     border-radius: 12px;
     background: @con-glass;
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 30px fade(@con-cyan, 8%);
     font-family: @con-font;
     animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
+    &__main {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+    }
     &__pulse {
         flex-shrink: 0;
         width: 12px;
@@ -405,6 +411,61 @@
     }
     &__sub {
         font-size: 16px;
+        color: @con-text-dim;
+    }
+
+    /* ── DRAFTED CARDS stack (desktop pile → console glass) ─────────── */
+    &__pile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid fade(@con-cyan, 20%);
+    }
+    &__pile-head {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    &__pile-label {
+        font-size: 14px;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__pile-count {
+        min-width: 24px;
+        padding: 1px 9px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
+        color: @con-text;
+        font-size: 15px;
+        font-weight: 800;
+        text-align: center;
+    }
+    /* Overlapping fan — reads as a neat stack, compact in height; X opens the
+       full read-only browser to inspect each card. */
+    &__pile-stack {
+        display: flex;
+        align-items: flex-start;
+        padding-left: 22px; /* offset for the negative-margin overlap */
+    }
+    &__pile-slot {
+        margin-left: -22px;
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+        transition: transform calc(160ms * var(--motion-scale, 1)) ease;
+
+        &:first-child { margin-left: 0; }
+        > .card-container { margin: 0; zoom: 0.32; }
+    }
+    &__pile-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
         color: @con-text-dim;
     }
 }
@@ -5797,6 +5858,45 @@ html.console-mode {
     &__subtext {
         margin-top: 6px;
         font-size: 17px;
+        color: @con-text-dim;
+    }
+
+    /* Drafted-cards COMPACT chip (draft only; the wide modal hides the corners,
+       so the stack lives on the draftWait banner). RT opens the viewer. */
+    &__drafted {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        padding: 4px 14px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+    }
+    &__drafted-label {
+        font-size: 15px;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__drafted-count {
+        min-width: 24px;
+        padding: 1px 9px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 16%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+        color: @con-text;
+        font-size: 16px;
+        font-weight: 800;
+        text-align: center;
+    }
+    &__drafted-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding-left: 10px;
+        border-left: 1px solid fade(@con-cyan, 22%);
+        font-size: 15px;
         color: @con-text-dim;
     }
 

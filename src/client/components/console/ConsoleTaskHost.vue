@@ -37,6 +37,14 @@
           </div>
           <!-- Insufficient-funds banner (buy phase) — RT is also disabled. -->
           <div v-if="isBuyMode && picks.length > 0 && !cardBuyAffordable" class="con-task__buywarn">⚠ {{ buyShortfallText }}</div>
+          <!-- Drafted-cards zone (draft only): COMPACT count here (the wide
+               modal covers the corners); RT opens the read-only viewer. The
+               desktop-style stack is drawn on the calm draftWait banner. -->
+          <div v-if="isDraftPick && draftedCards.length > 0" class="con-task__drafted">
+            <span class="con-task__drafted-label">{{ $t('DRAFTED CARDS') }}</span>
+            <span class="con-task__drafted-count">{{ draftedCards.length }}</span>
+            <span v-if="canInspectDrafted" class="con-task__drafted-hint"><GamepadGlyph control="triggerR" /><span>{{ $t('Inspect') }}</span></span>
+          </div>
           <!-- Payment: the cost chip + live coverage readout. -->
           <div v-if="activeTask.kind === 'payment'" class="con-task__pickline">
             <span class="con-task__paycost">
@@ -746,6 +754,18 @@ export default defineComponent({
       return this.activeTask.kind === 'cardSelect' &&
         (this.activeTask.mode === 'draft' || phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING);
     },
+    /** Cards the viewer has already drafted this round (server-managed;
+     *  cleared at endRound). Shown COMPACTLY here — the wide host modal covers
+     *  the screen corners, so a full pile would collide; the calm draftWait
+     *  banner draws the desktop-style stack once the modal is gone. */
+    draftedCards(): ReadonlyArray<CardModel> {
+      return this.playerView.draftedCards ?? [];
+    },
+    /** RT opens the read-only drafted-cards viewer — ONLY in the single-keep
+     *  draft, where RT is otherwise free (a multi-keep RT commits the set). */
+    canInspectDrafted(): boolean {
+      return this.isDraftPick && this.singlePick && this.draftedCards.length > 0;
+    },
     /**
      * The per-card RESEARCH/buy cost — `player.cardCost` (base 3 M€, raised by
      * Polyphemos to 5 / dropped by Terralabs Research to 1), which is EXACTLY
@@ -866,8 +886,16 @@ export default defineComponent({
         const inspect: {control: GlyphControl, label: string} = {control: 'secondary', label: 'Inspect'};
         if (this.singlePick) {
           // PICK phase (draft / single target): A commits the focused card in
-          // one press — no toggle-then-confirm, no re-pick, no RT.
-          return [nav, {control: 'confirm', label: 'Select'}, inspect, defer];
+          // one press — no toggle-then-confirm, no re-pick. RT (otherwise free)
+          // opens the drafted-cards viewer in a single-keep draft.
+          const pickHints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
+            nav, {control: 'confirm', label: 'Select'}, inspect,
+          ];
+          if (this.canInspectDrafted) {
+            pickHints.push({control: 'triggerR', label: 'Drafted'});
+          }
+          pickHints.push(defer);
+          return pickHints;
         }
         // BUY / multi phase: A toggles the pick, RT commits the whole set.
         return [
@@ -968,6 +996,13 @@ export default defineComponent({
         isSelected: (name) => this.isPicked(name),
         toggle: (name) => this.toggleCardPickByName(name),
       });
+    },
+    /** Read-only browse of the already-drafted cards (LB/RB page, B closes) —
+     *  no select/action bridge, so it can never re-submit a drafted card. */
+    openDraftedViewer(): void {
+      if (this.draftedCards.length > 0) {
+        openConsoleCardZoom([...this.draftedCards], 0);
+      }
     },
     /**
      * Row jump in GRID mode — measured from the real DOM (offsetTop groups),
@@ -1177,10 +1212,13 @@ export default defineComponent({
         this.adjust(1);
         return;
       case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
-        // CARD context: RT is the MULTI (buy / multi-target) commit. The PICK
-        // phase has no separate confirm — A already commits — so RT is inert.
+        // CARD context: RT is the MULTI (buy / multi-target) commit. In the
+        // single-keep DRAFT (where RT would otherwise be inert) RT opens the
+        // read-only drafted-cards viewer instead.
         if (this.activeTask.kind === 'cardSelect') {
-          if (!this.singlePick) {
+          if (this.canInspectDrafted) {
+            this.openDraftedViewer();
+          } else if (!this.singlePick) {
             this.onConfirm();
           }
           return;

@@ -28,11 +28,28 @@
          inspectable underneath (pointer-events: none). WaitingFor's headless
          poll transitions to the next round automatically. -->
     <div v-if="draftWaitActive" class="con-draftwait" role="status">
-      <span class="con-draftwait__pulse" aria-hidden="true"></span>
-      <span class="con-draftwait__text">
-        <span class="con-draftwait__title">{{ $t('Waiting for draft cards') }}</span>
-        <span class="con-draftwait__sub">{{ $t('Your pick is locked — waiting for the other players.') }}</span>
-      </span>
+      <div class="con-draftwait__main">
+        <span class="con-draftwait__pulse" aria-hidden="true"></span>
+        <span class="con-draftwait__text">
+          <span class="con-draftwait__title">{{ $t('Waiting for draft cards') }}</span>
+          <span class="con-draftwait__sub">{{ $t('Your pick is locked — waiting for the other players.') }}</span>
+        </span>
+      </div>
+      <!-- The desktop-style DRAFTED CARDS stack, adapted to the console glass
+           language. X opens the read-only fullscreen browser (LB/RB paging). -->
+      <div v-if="draftedCards.length > 0" class="con-draftwait__pile">
+        <div class="con-draftwait__pile-head">
+          <span class="con-draftwait__pile-label">{{ $t('DRAFTED CARDS') }}</span>
+          <span class="con-draftwait__pile-count">{{ draftedCards.length }}</span>
+        </div>
+        <div class="con-draftwait__pile-stack">
+          <div v-for="(card, idx) in draftedCards" :key="card.name + '-' + idx"
+               class="con-draftwait__pile-slot" :style="{zIndex: idx + 1}">
+            <Card :card="card" lightweight />
+          </div>
+        </div>
+        <div class="con-draftwait__pile-hint"><GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span></div>
+      </div>
     </div>
 
     <!-- Terraforming complete — the one-shot console-native cinematic event
@@ -446,6 +463,7 @@ import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/conso
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import Card from '@/client/components/card/Card.vue';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -537,6 +555,7 @@ export default defineComponent({
     ConsolePlayCardConfirm,
     ConsoleColonyTradeConfirm,
     CardZoomModal,
+    Card,
     ActionEffectChip,
     ConsoleHydroSection,
     ConsoleJournalPanel,
@@ -636,6 +655,11 @@ export default defineComponent({
      *  players" banner instead of offering to change the pick (desktop parity). */
     draftWaitActive(): boolean {
       return taskFor(this.playerView)?.kind === 'draftWait';
+    },
+    /** Cards already drafted this round (server-managed; cleared at endRound) —
+     *  drawn as the desktop-style stack beside the draftWait banner. */
+    draftedCards(): ReadonlyArray<CardModel> {
+      return this.playerView.draftedCards ?? [];
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
@@ -1205,6 +1229,15 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
+      if (this.draftWaitActive) {
+        // Nothing to decide — the board stays inspectable while others pick.
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.draftedCards.length > 0) {
+          cmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        cmds.push({control: 'inspect', label: 'Information'});
+        return cmds;
+      }
       if (this.consoleRevealMode !== undefined) {
         // The overlay footer carries the detailed contract; the bar mirrors it.
         return [
@@ -1690,6 +1723,13 @@ export default defineComponent({
       if (intent.kind === 'press' && intent.button === 'inspect' &&
           this.consoleState.confirm === undefined && this.pendingCardAction === undefined) {
         this.toggleInfoMode();
+        return true;
+      }
+      // Draft re-pick WAITING: the pad is otherwise idle (the board stays
+      // inspectable, Info Mode is handled above). X opens the read-only
+      // drafted-cards viewer; every other button falls through to the board.
+      if (this.draftWaitActive && intent.kind === 'press' && intent.button === 'secondary' && this.draftedCards.length > 0) {
+        openConsoleCardZoom([...this.draftedCards], 0);
         return true;
       }
       // CTS T6: a reveal overlay owns input while visible (drawn cards
