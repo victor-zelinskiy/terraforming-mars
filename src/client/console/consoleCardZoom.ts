@@ -49,6 +49,38 @@ export type ConsoleZoomAction = {
   execute: (name: CardName) => void,
 };
 
+/**
+ * A card-RECEIVE bridge (the «Получены карты» reveal). The opener lets A take
+ * the card at the viewer's CURRENT index and RT take everything, WITHOUT
+ * leaving the viewer for a non-final take. Taking mutates the SHARED
+ * drawnCardsState; the opener keeps `consoleCardZoom.cards` synced to the live
+ * untaken list, so the CardZoomModal's «consume» swap advances to the next
+ * card, and closes the viewer + releases the batch when the last card is taken.
+ * The take LOGIC is the opener's — the viewer only routes the button.
+ */
+export type ConsoleZoomReceive = {
+  /** The A-verb (i18n key), e.g. «Take card». */
+  takeLabel: string,
+  /** Take the card currently at fullscreen `index` in the viewer's list. */
+  takeAt: (index: number) => void,
+  /** The RT-verb (i18n key) — omit to hide the take-all affordance. */
+  takeAllLabel?: string,
+  /** Take every remaining card (closes the viewer). Omit → no take-all. */
+  takeAll?: () => void,
+};
+
+/** Optional extras attached at open time (receive bridge + a caption). */
+export type ConsoleZoomExtra = {
+  /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
+  receive?: ConsoleZoomReceive,
+  /**
+   * A caption shown in the viewer bar (i18n key), e.g. «Источник добора карт»
+   * when the viewer is inspecting the SOURCE of a draw rather than a card
+   * being decided. Marks a read-only context: A never acts on it.
+   */
+  contextLabel?: string,
+};
+
 export const consoleCardZoom = reactive({
   card: undefined as CardModel | undefined,
   /** The visible list, in on-screen order — enables ←/→ browsing. */
@@ -58,10 +90,14 @@ export const consoleCardZoom = reactive({
   select: undefined as ConsoleZoomSelect | undefined,
   /** Present ⇔ A may fire the context action (play-from-hand parity). */
   action: undefined as ConsoleZoomAction | undefined,
+  /** Present ⇔ A takes / RT takes all (the drawn-cards reveal flow). */
+  receive: undefined as ConsoleZoomReceive | undefined,
+  /** A read-only caption (i18n key) — e.g. the «Источник добора карт» viewer. */
+  contextLabel: undefined as string | undefined,
 });
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
-export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction): void {
+export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction, extra?: ConsoleZoomExtra): void {
   if (cards.length === 0) {
     return;
   }
@@ -71,6 +107,8 @@ export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: numb
   consoleCardZoom.card = cards[at];
   consoleCardZoom.select = select;
   consoleCardZoom.action = action;
+  consoleCardZoom.receive = extra?.receive;
+  consoleCardZoom.contextLabel = extra?.contextLabel;
 }
 
 /** The viewer navigated — keep the module mirror in sync. */
@@ -85,4 +123,6 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.index = 0;
   consoleCardZoom.select = undefined;
   consoleCardZoom.action = undefined;
+  consoleCardZoom.receive = undefined;
+  consoleCardZoom.contextLabel = undefined;
 }

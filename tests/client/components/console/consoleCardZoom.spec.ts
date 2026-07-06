@@ -62,6 +62,40 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.select).to.eq(undefined);
   });
 
+  it('the RECEIVE bridge (drawn-cards reveal) rides along and clears on close', () => {
+    const taken: Array<number> = [];
+    let tookAll = false;
+    openConsoleCardZoom([card(CardName.ANTS), card(CardName.BIRDS)], 0, undefined, undefined, {
+      receive: {
+        takeLabel: 'Take card',
+        takeAt: (idx) => taken.push(idx),
+        takeAllLabel: 'Take all cards',
+        takeAll: () => {
+          tookAll = true;
+        },
+      },
+    });
+    const receive = consoleCardZoom.receive;
+    expect(receive).to.not.eq(undefined);
+    expect(receive?.takeLabel).to.eq('Take card');
+    receive?.takeAt(1);
+    expect(taken).to.deep.eq([1]);
+    receive?.takeAll?.();
+    expect(tookAll).to.eq(true);
+    closeConsoleCardZoom();
+    expect(consoleCardZoom.receive).to.eq(undefined);
+  });
+
+  it('the read-only SOURCE viewer carries a contextLabel and clears on close', () => {
+    openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
+      contextLabel: 'Source of drawn cards',
+    });
+    expect(consoleCardZoom.contextLabel).to.eq('Source of drawn cards');
+    expect(consoleCardZoom.receive).to.eq(undefined); // a source is read-only
+    closeConsoleCardZoom();
+    expect(consoleCardZoom.contextLabel).to.eq(undefined);
+  });
+
   it('P17: the ACTION context (play-from-hand parity) rides along and clears on close', () => {
     const played: Array<CardName> = [];
     openConsoleCardZoom([card(CardName.ANTS), card(CardName.BIRDS)], 0, undefined, {

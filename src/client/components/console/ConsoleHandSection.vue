@@ -50,7 +50,7 @@
           </span>
         </template>
         <span class="con-cards__verdict con-cards__verdict--zoom">
-          <GamepadGlyph control="secondary" /><span>{{ $t('Card') }}</span>
+          <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
         </span>
       </div>
 

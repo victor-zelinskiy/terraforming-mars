@@ -271,7 +271,7 @@ export default defineComponent({
         {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
         {control: 'triggerR', label: 'MAX'},
         {control: 'confirm', label: 'Play now', enabled: this.paymentReady},
-        {control: 'secondary', label: 'Card'},
+        {control: 'secondary', label: 'Inspect'},
         {control: 'back', label: 'Cancel'},
       ];
     },

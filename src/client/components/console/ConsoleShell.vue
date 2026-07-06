@@ -309,6 +309,12 @@
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <template #actions>
+        <!-- A read-only SOURCE viewer (opened via L3 from the reveal) names
+             itself, so the card never reads as an ordinary picked card. -->
+        <div v-if="consoleCardZoom.contextLabel !== undefined" class="con-zoom__context">
+          <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
+          <span>{{ $t(consoleCardZoom.contextLabel) }}</span>
+        </div>
         <!-- P17: an UNPLAYABLE card is never mute — the same structured
              server reasons the hand verdict shows (desktop parity). -->
         <div v-if="zoomReasons.length > 0" class="con-zoom__reasons">
@@ -317,7 +323,13 @@
         </div>
         <div class="con-zoom__bar">
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
-          <button v-if="zoomSelectable" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
+          <!-- The RECEIVE bridge (drawn-cards reveal) — A takes the on-screen
+               card without leaving the viewer; RT takes them all. -->
+          <button v-if="zoomReceiveLabel !== undefined" class="con-zoom__btn con-zoom__btn--play" @click="zoomTakeReceived">
+            <GamepadGlyph control="confirm" />
+            <span>{{ $t(zoomReceiveLabel) }}</span>
+          </button>
+          <button v-else-if="zoomSelectable" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
             <span>{{ $t(zoomSelected ? zoomDeselectLabel : zoomSelectLabel) }}</span>
           </button>
@@ -327,6 +339,10 @@
             <GamepadGlyph control="confirm" />
             <span>{{ $t(zoomActionLabel) }}</span>
           </button>
+          <span v-if="zoomTakeAllLabel !== undefined" class="con-zoom__cmd">
+            <GamepadGlyph control="triggerR" />
+            <span>{{ $t(zoomTakeAllLabel) }}</span>
+          </span>
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
             <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
             <span>{{ $t('Browse') }}</span>
@@ -1243,6 +1259,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: this.consoleRevealMode === 'drawn' ? 'Take card' : 'OK'},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'back', label: this.consoleRevealMode === 'drawn' ? 'Take all cards' : 'Close'},
         ];
       }
@@ -1389,7 +1406,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
-          {control: 'secondary', label: 'Card'},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
           {control: 'back', label: 'Cancel'},
         ];
@@ -1399,7 +1416,7 @@ export default defineComponent({
         return [
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
-          {control: 'secondary', label: 'Card'},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Next playable'},
           {control: 'inspect', label: 'Information'},
           {control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'},
@@ -1506,6 +1523,15 @@ export default defineComponent({
         return undefined;
       }
       return z.action.labelFor(z.card.name);
+    },
+    /** The RECEIVE bridge A-verb (drawn-cards reveal), or undefined. */
+    zoomReceiveLabel(): string | undefined {
+      return this.consoleCardZoom.receive?.takeLabel;
+    },
+    /** The RECEIVE bridge RT-verb (take all), shown only when it exists. */
+    zoomTakeAllLabel(): string | undefined {
+      const r = this.consoleCardZoom.receive;
+      return r?.takeAll !== undefined ? r.takeAllLabel : undefined;
     },
     /** P17: «why not» lines when the current card is NOT actionable. */
     zoomReasons(): ReadonlyArray<string> {
@@ -2926,14 +2952,25 @@ export default defineComponent({
         zoom?.next();
         return true;
       case 'confirm':
-        // A = toggle the pick (selection contexts) OR fire the context
-        // ACTION (play-from-hand parity, P17) — read-only contexts no-op.
-        if (this.consoleCardZoom.select !== undefined) {
+        // A = take the on-screen card (RECEIVE bridge) OR toggle the pick
+        // (selection contexts) OR fire the context ACTION (play-from-hand
+        // parity, P17) — read-only contexts (source viewer) no-op.
+        if (this.consoleCardZoom.receive !== undefined) {
+          this.zoomTakeReceived();
+        } else if (this.consoleCardZoom.select !== undefined) {
           this.zoomToggleSelect();
         } else {
           this.zoomExecuteAction();
         }
         return true;
+      case 'triggerR': {
+        // RT = take all (RECEIVE bridge only); otherwise the viewer owns it.
+        const r = this.consoleCardZoom.receive;
+        if (r?.takeAll !== undefined) {
+          r.takeAll();
+        }
+        return true;
+      }
       case 'secondary': // X closes too — the same key that opened it
       case 'back':
         this.closeZoomViewer();
@@ -2946,6 +2983,14 @@ export default defineComponent({
       const z = this.consoleCardZoom;
       if (z.select !== undefined && z.card !== undefined) {
         z.select.toggle(z.card.name);
+      }
+    },
+    /** The RECEIVE bridge A-verb — take the card at the viewer's index. The
+     *  opener (reveal overlay) owns the take + list-sync + close-on-last. */
+    zoomTakeReceived(): void {
+      const r = this.consoleCardZoom.receive;
+      if (r !== undefined) {
+        r.takeAt(this.consoleCardZoom.index);
       }
     },
     /** P17: the viewer's A hands the card to the context action (e.g. the

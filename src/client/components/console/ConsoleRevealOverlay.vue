@@ -10,34 +10,50 @@
             <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(kickerText) }}</span>
           </div>
-          <div class="con-reveal__title">{{ titleText }}</div>
-          <div v-if="mode === 'viewer' && viewerReveal !== undefined" class="con-reveal__meta">
-            <span v-if="viewerActor !== undefined" class="con-task__opt-player">
-              <span :class="'con-status__dot player_bg_color_' + viewerActor.color"></span>
-              <span>{{ viewerActor.name }}</span>
-            </span>
-            <span class="con-reveal__chip">{{ viewerReveal.cards.length }} {{ $t('cards') }}</span>
-            <span class="con-reveal__chip">{{ $t(viewerOriginLabel) }}</span>
-            <span class="con-reveal__chip">{{ $t(viewerResultLabel) }}</span>
+          <div class="con-reveal__headrow">
+            <div class="con-reveal__headmain">
+              <div class="con-reveal__title">{{ titleText }}</div>
+              <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
+                {{ $t('Cards were added from a draw source. Pick a card to inspect or take the available ones.') }}
+              </div>
+            </div>
+            <!-- Compact premium count chip (NEVER a full-width strip). -->
+            <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__count">
+              <span class="con-reveal__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+              <span class="con-reveal__count-label">{{ $t('Received') }}</span>
+              <b class="con-reveal__count-num">{{ drawnEvent.cards.length }}</b>
+            </div>
+            <div v-else-if="mode === 'viewer' && viewerReveal !== undefined" class="con-reveal__meta">
+              <span v-if="viewerActor !== undefined" class="con-task__opt-player">
+                <span :class="'con-status__dot player_bg_color_' + viewerActor.color"></span>
+                <span>{{ viewerActor.name }}</span>
+              </span>
+              <span class="con-reveal__chip">{{ viewerReveal.cards.length }} {{ $t('cards') }}</span>
+              <span class="con-reveal__chip">{{ $t(viewerOriginLabel) }}</span>
+              <span class="con-reveal__chip">{{ $t(viewerResultLabel) }}</span>
+            </div>
           </div>
         </header>
 
         <!-- ── DRAWN: take the received cards ──────────────────────── -->
-        <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-info__scroll">
-          <!-- INFO PARITY: the SOURCE renders as the REAL premium element. -->
-          <div v-if="drawnSource !== undefined" class="con-reveal__source">
+        <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
+          <!-- INFO PARITY: the SOURCE renders as the REAL premium element,
+               inspectable on L3 when it is a card. -->
+          <aside v-if="drawnSource !== undefined" class="con-reveal__source">
             <div class="con-start__section-title">{{ $t('Source') }}</div>
             <Card v-if="drawnSource.type === 'card'" :card="{name: drawnSource.cardName}" :key="drawnSource.cardName" lightweight />
             <div v-else-if="drawnSource.type === 'colony' && drawnSourceColony !== undefined" class="con-reveal__source-colony">
               <ColonyTile :colony="drawnSourceColony" mode="view" :selectable="false" />
             </div>
             <div v-else-if="drawnSource.type === 'tile'" class="con-reveal__source-text">{{ $t('Tile bonus') }}</div>
-          </div>
-          <div class="con-reveal__main">
-            <div class="con-start__count con-start__count--ready">
-              {{ $t('Received') }}: <b>{{ drawnEvent.cards.length }}</b>
+            <div v-if="drawnSourceInspectable" class="con-reveal__source-hint">
+              <GamepadGlyph control="stickL" /><span>{{ $t('Source') }}</span>
             </div>
-            <div class="con-cards__strip">
+          </aside>
+          <div class="con-reveal__main">
+            <div class="con-cards__strip con-reveal__strip"
+                 :class="{'con-cards__strip--has-focus': drawnUntaken.length > 1}"
+                 :style="stripZoomStyle">
               <div v-for="(entry, i) in drawnUntaken" :key="entry.card.name + '#' + entry.index"
                    class="con-cards__slot con-start__deal"
                    :style="dealDelay(i)"
@@ -48,6 +64,13 @@
                   <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                 </div>
               </div>
+            </div>
+            <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
+              <span class="con-reveal__pager-b">[</span>
+              <span class="con-reveal__pager-i">{{ focusIdx + 1 }}</span>
+              <span class="con-reveal__pager-s">/</span>
+              <span class="con-reveal__pager-n">{{ drawnUntaken.length }}</span>
+              <span class="con-reveal__pager-b">]</span>
             </div>
           </div>
         </div>
@@ -143,7 +166,7 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
@@ -198,6 +221,34 @@ export default defineComponent({
         }
       });
       return out;
+    },
+    /** A card source opens fullscreen on L3 (colony/tile/other are not). */
+    drawnSourceInspectable(): boolean {
+      return this.drawnSource?.type === 'card';
+    },
+    /**
+     * Count-driven card scale so 1–4 cards stay roomy with a generous safe gap
+     * (no overlap); larger batches compact and scroll as a focus carousel. The
+     * strip's `.con-cards__slot` reads `--con-cards-zoom` (set on the strip).
+     */
+    stripZoom(): number {
+      const n = this.drawnUntaken.length;
+      if (n <= 2) {
+        return 0.94;
+      }
+      if (n <= 3) {
+        return 0.82;
+      }
+      if (n <= 4) {
+        return 0.72;
+      }
+      if (n <= 6) {
+        return 0.6;
+      }
+      return 0.52;
+    },
+    stripZoomStyle(): Record<string, string> {
+      return {'--con-cards-zoom': String(this.stripZoom)};
     },
     // ── result ───────────────────────────────────────────────────────
     lastReveal(): RevealResultModel | undefined {
@@ -264,22 +315,32 @@ export default defineComponent({
     },
     footHints(): Array<{control: GlyphControl, label: string}> {
       switch (this.mode) {
-      case 'drawn':
-        return [
-          {control: 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: 'Take card'},
-          {control: 'secondary', label: 'Card'},
-          {control: 'triggerR', label: 'Take all cards'},
-        ];
+      case 'drawn': {
+        const many = this.drawnUntaken.length > 1;
+        const hints: Array<{control: GlyphControl, label: string}> = [];
+        if (many) {
+          hints.push({control: 'dpadH', label: 'Navigate'});
+        }
+        hints.push({control: 'confirm', label: 'Take card'});
+        hints.push({control: 'secondary', label: 'Inspect'});
+        if (many) {
+          hints.push({control: 'triggerR', label: 'Take all cards'});
+        }
+        if (this.drawnSourceInspectable) {
+          hints.push({control: 'stickL', label: 'Source'});
+        }
+        hints.push({control: 'back', label: 'Close'});
+        return hints;
+      }
       case 'result':
         return [
           {control: 'confirm', label: 'OK'},
-          {control: 'secondary', label: 'Card'},
+          {control: 'secondary', label: 'Inspect'},
         ];
       default:
         return [
           {control: 'dpadH', label: 'Navigate'},
-          {control: 'secondary', label: 'Card'},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'back', label: 'Close'},
         ];
       }
@@ -339,6 +400,9 @@ export default defineComponent({
         } else if (button === 'secondary') {
           // P13 global rule: X reads the focused card fullscreen.
           this.zoomFocused();
+        } else if (button === 'stickL') {
+          // L3 inspects the DRAW SOURCE (a card) fullscreen.
+          this.zoomSource();
         } else if (button === 'triggerR' || button === 'back') {
           this.takeAll();
         }
@@ -359,12 +423,32 @@ export default defineComponent({
         return;
       }
     },
-    /** P13: X fullscreen for the focused / revealed / shown card. */
+    /** P13: X fullscreen for the focused card — with the RECEIVE bridge so A
+     *  takes the card / RT takes all WITHOUT leaving the viewer (until the
+     *  last card, which closes it). The take logic is SHARED with the modal. */
     zoomFocused(): void {
       const list = this.drawnUntaken.map((e) => e.card);
-      if (list.length > 0) {
-        openConsoleCardZoom(list, this.focusIdx);
+      if (list.length === 0) {
+        return;
       }
+      openConsoleCardZoom(list, this.focusIdx, undefined, undefined, {
+        receive: {
+          takeLabel: 'Take card',
+          takeAt: (idx) => this.takeFromZoom(idx),
+          takeAllLabel: list.length > 1 ? 'Take all cards' : undefined,
+          takeAll: list.length > 1 ? () => this.takeAllFromZoom() : undefined,
+        },
+      });
+    },
+    /** L3: inspect the DRAW SOURCE card fullscreen, captioned as the source. */
+    zoomSource(): void {
+      const s = this.drawnSource;
+      if (s === undefined || s.type !== 'card') {
+        return;
+      }
+      openConsoleCardZoom([{name: s.cardName} as CardModel], 0, undefined, undefined, {
+        contextLabel: 'Source of drawn cards',
+      });
     },
     zoomRevealed(): void {
       if (this.lastReveal !== undefined) {
@@ -390,13 +474,46 @@ export default defineComponent({
       }
       markCardTaken(e.id, entry.index);
     },
-    /** X / B: take everything (the reveal's only exit — desktop parity). */
+    /** RT / B: take everything (the reveal's accept-and-close exit). */
     takeAll(): void {
       const e = this.drawnEvent;
       if (e === undefined) {
         return;
       }
       closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+    },
+    /** A inside the fullscreen viewer — take the card at the viewer's index.
+     *  The last card closes the viewer + releases the batch; otherwise the
+     *  live untaken list is pushed to the viewer so its «consume» swap
+     *  advances to the next card. `takeFocused`'s twin (same shared logic). */
+    takeFromZoom(idx: number): void {
+      const e = this.drawnEvent;
+      const entry = this.drawnUntaken[idx];
+      if (e === undefined || entry === undefined) {
+        return;
+      }
+      if (this.drawnUntaken.length <= 1) {
+        closeConsoleCardZoom();
+        closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
+        return;
+      }
+      markCardTaken(e.id, entry.index);
+      const remaining = this.drawnUntaken.map((x) => x.card);
+      consoleCardZoom.cards = remaining;
+      if (remaining.length === 1) {
+        // The viewer leaves nav mode (its `cards` prop → undefined, so the
+        // modal's list watcher no-ops); drive the single card directly so the
+        // `:card` binding shows the SURVIVOR, not the just-taken card.
+        consoleCardZoom.card = remaining[0];
+        consoleCardZoom.index = 0;
+      }
+      // remaining.length > 1: the modal's `cards` watcher clamps + «consume»-
+      // swaps + re-emits navigate, which re-syncs card/index — nothing to do.
+    },
+    /** RT inside the fullscreen viewer — close it, then take all. */
+    takeAllFromZoom(): void {
+      closeConsoleCardZoom();
+      this.takeAll();
     },
   },
 });
