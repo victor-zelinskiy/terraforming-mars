@@ -32,7 +32,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {unplayableReasonText, unplayableReasonNow} from '@/client/components/handCards/unplayableReasonFormat';
 
 /**
  * Premium, fully custom popover listing WHY a hand card can't be played
@@ -62,11 +62,10 @@ export default defineComponent({
   },
   methods: {
     text(r: UnplayableReason): string {
-      return translateTextWithParams(r.message, [...(r.params ?? [])]);
+      return unplayableReasonText(r);
     },
     now(r: UnplayableReason): string {
-      const unit = r.message.includes('%') ? '%' : (r.message.includes('°C') ? '°C' : '');
-      return translateTextWithParams('Now: ${0}', [`${r.current}${unit}`]);
+      return unplayableReasonNow(r);
     },
   },
 });

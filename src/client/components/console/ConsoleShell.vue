@@ -109,10 +109,12 @@
                              @notice="showNotice($event)" />
       </transition>
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
+                          ref="handSection"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
-                          :saleSelected="consoleState.sale.selected" />
+                          :saleSelected="consoleState.sale.selected"
+                          :softReason="handSoftReason" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
@@ -488,6 +490,7 @@ import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
+import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -922,6 +925,23 @@ export default defineComponent({
         ...entries.filter((e) => e.playable),
         ...entries.filter((e) => !e.playable),
       ];
+    },
+    /** The turn/phase reason (i18n key) shown for a hand card that is rules-OK
+     *  but not playable in this window — the honest alternative to a bare block
+     *  when the server has no rules-reason (opponent's turn / mid-placement). */
+    handSoftReason(): string {
+      return this.placementActive ? 'Finish your current action first' : 'Not your turn to take any actions';
+    },
+    /** True when the hand grid is the surface the right stick should scroll —
+     *  in the hand section with nothing layered on top (a play-confirm / task /
+     *  reveal / fullscreen zoom would otherwise get scrolled through blindly). */
+    handScrollActive(): boolean {
+      return this.consoleState.section === 'hand' &&
+        this.pendingPlayCard === undefined &&
+        this.hostTask === undefined &&
+        this.shellTask === undefined &&
+        this.startTask === undefined &&
+        this.consoleRevealMode === undefined;
     },
     // ── banner ──────────────────────────────────────────────────────────
     // P27: MANDATORY / critical states ONLY. The plain "your turn" reads
@@ -1487,7 +1507,7 @@ export default defineComponent({
       if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
         return [
-          {control: 'dpadH', label: 'Navigate'},
+          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Next playable'},
@@ -2338,10 +2358,10 @@ export default defineComponent({
         }
         return;
       }
-      // Hand carousel: left/right steps.
-      if (dir === 'left' || dir === 'right') {
-        this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, dir === 'right' ? 1 : -1, this.handEntries.length);
-      }
+      // Hand grid: delegate to the section — it owns the plan (cols), the
+      // column-preserving up/down stepping, and keep-selected-visible.
+      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      hand?.move(dir);
     },
     /** L3: next available cell (placement) / RT: next playable card (hand). */
     handleNextJump(): void {
@@ -2351,14 +2371,8 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
-        const n = this.handEntries.length;
-        for (let step = 1; step <= n; step++) {
-          const i = (this.consoleState.handIndex + step) % n;
-          if (this.handEntries[i]?.playable) {
-            this.consoleState.handIndex = i;
-            return;
-          }
-        }
+        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        hand?.nextPlayable();
       }
     },
     handleSectionConfirm(): void {
@@ -2404,7 +2418,8 @@ export default defineComponent({
         return;
       }
       if (!entry.playable) {
-        this.showNotice('Unplayable now');
+        // The fork's rule: NEVER a bare "Нельзя разыграть" — always the reason.
+        this.showNotice(this.handBlockedNotice(entry));
         return;
       }
       // P20: inspection is free; STARTING a play mid-placement is not.
@@ -3152,6 +3167,14 @@ export default defineComponent({
       if (Math.abs(dy) < 0.05) {
         return;
       }
+      // The hand SMART GRID owns its own vertical scroll (+ keep-selected-visible
+      // reconcile) — but only when it is the active surface (no play-confirm /
+      // task / reveal / zoom on top, which would otherwise scroll it blindly).
+      if (this.handScrollActive) {
+        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        hand?.stickScroll(dy);
+        return;
+      }
       const candidates: Array<HTMLElement> = [];
       if (journalState.open) {
         const feed = document.querySelector<HTMLElement>('.con-journal__scroll');
@@ -3197,14 +3220,26 @@ export default defineComponent({
       });
     },
     /** Translated «why not» lines for a hand card (mirrors the hand
-     *  section's verdict bar — same server-structured reasons). */
+     *  section's info panel — same server-structured reasons, same shared
+     *  formatter so the unit-suffixed "Сейчас: …" reads identically). */
     handUnplayableReasons(name: CardName): ReadonlyArray<string> {
       const entry = this.handEntries.find((e) => e.card.name === name);
       const reasons = entry?.card.unplayableReasons ?? [];
-      return reasons.slice(0, 3).map((r) => {
-        const text = translateTextWithParams(r.message, (r.params ?? []).map(String));
-        return r.current !== undefined ? `${text} · ${translateText('Now')}: ${r.current}` : text;
-      });
+      return reasons.slice(0, 3).map((r) => unplayableReasonLine(r));
+    },
+    /** "Нельзя разыграть: <первая причина>" — the global fix so pressing A on
+     *  an unplayable card never shows a bare block (the fork's always-explain
+     *  rule). Pre-translated (showNotice's $t is a no-op on unknown strings),
+     *  with an honest generic fallback when no structured reason surfaced. */
+    handBlockedNotice(entry: ConsoleHandEntry): string {
+      const first = (entry.card.unplayableReasons ?? [])[0];
+      // No server RULES reason → the card is fine, it's just not the player's
+      // window (opponent's turn / mid-placement) — name that honestly rather
+      // than a misleading "conditions not met".
+      if (first === undefined) {
+        return translateText(this.handSoftReason);
+      }
+      return translateTextWithParams('Cannot play: ${0}', [unplayableReasonLine(first)]);
     },
     /** P15: the sale pick flip, shared by the section's A and the viewer. */
     toggleSalePick(name: string): void {

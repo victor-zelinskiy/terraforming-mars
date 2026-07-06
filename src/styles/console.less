@@ -2631,168 +2631,132 @@ html.console-mode {
 .con-hand {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 
-    &__inspector {
+    /* ── the premium hand SHELF: a glass sci-fi surface holding the grid ── */
+    &__shelf {
+        position: relative;
         flex: 1;
         min-height: 0;
-        width: auto;
-        max-width: none;
         display: flex;
-        align-items: flex-start;
-        gap: 28px;
+        align-items: stretch;
+        gap: 10px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(18, 28, 40, 0.6), rgba(10, 16, 24, 0.72));
+        box-shadow:
+            inset 0 0 0 1px rgba(120, 155, 190, 0.16),
+            inset 0 22px 46px -30px rgba(120, 180, 240, 0.26),
+            0 18px 44px -26px rgba(0, 0, 0, 0.7);
+        overflow: hidden;
     }
-    &__bigcard {
-        zoom: 1.32;
-        flex-shrink: 0;
-        /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
-        > .card-container { margin: 0; }
+    /* A faint control-panel grid for depth — one paint, no per-card cost. */
+    &__shelf::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            repeating-linear-gradient(90deg, transparent 0 62px, rgba(130, 170, 210, 0.045) 62px 63px),
+            repeating-linear-gradient(0deg, transparent 0 62px, rgba(130, 170, 210, 0.035) 62px 63px);
+        opacity: 0.5;
+        pointer-events: none;
     }
-    &__verdict {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-size: 24px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
 
-        &--ok {
-            background: fade(@con-mint, 12%);
-            box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
-            color: @con-mint;
-        }
-        &--blocked {
-            background: fade(@con-red, 10%);
-            box-shadow: inset 0 0 0 1px fade(@con-red, 50%);
-            color: @con-red;
-        }
-    }
-    &__verdict-mark {
-        font-size: 22px;
-    }
-    &__reasons {
-        list-style: none;
-        margin: 16px 0 0;
-        padding: 0;
+    /* ── the scrolling grid viewport (windowed by the section) ─────────── */
+    &__grid {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: 8px;
-    }
-    &__reason {
-        padding: 8px 14px;
-        border-radius: 8px;
-        background: rgba(16, 26, 38, 0.7);
-        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.2);
-        border-left: 3px solid fade(@con-cyan, 55%);
-        font-size: 20px;
-        line-height: 1.4;
-
-        &--megacredits { border-left-color: @con-amber; }
-        &--placement,
-        &--target { border-left-color: #e08a4d; }
-        &--turn,
-        &--phase,
-        &--rule,
-        &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
-    }
-    &__reason-now {
-        color: @con-text-dim;
-    }
-
-    &__strip-wrap {
-        flex-shrink: 0;
-    }
-    &__strip {
-        display: flex;
-        align-items: flex-end;
-        gap: 14px;
-        /* P17 clip-safe: headroom covers the selected lift + scale. */
-        padding: 26px 12px 12px;
-        overflow-x: auto;
+        align-items: center;      /* centre the content pad horizontally */
+        overflow-y: auto;
+        overflow-x: clip;         /* kill any sub-pixel horizontal scrollbar */
         scrollbar-width: none;
         &::-webkit-scrollbar { display: none; }
+
+        &--centered { justify-content: center; }  /* few cards → centred cluster */
+        &--scroll { justify-content: flex-start; } /* many cards → top-aligned scroll */
     }
+    &__pad {
+        margin: 0 auto;
+        max-width: 100%;
+    }
+    &__spacer { flex-shrink: 0; }
+    &__row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        /* height + column-gap are set inline from the plan (rowStride / gapX). */
+    }
+
+    /* ── one card slot ─────────────────────────────────────────────────── */
     &__slot {
         position: relative;
         flex-shrink: 0;
-        zoom: 0.8; /* P13: the carousel IS the hero (no inspector) */
-        transition: transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1), filter calc(170ms * var(--motion-scale, 1)) ease;
-        > .card-container { margin: 0; }
+        zoom: var(--con-hand-zoom, 0.66);
+        transition:
+            transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            filter calc(150ms * var(--motion-scale, 1)) ease;
+        /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
+        > .card-container { margin: 0; border-radius: 8px; }
 
+        /* PLAYABLE: a clean mint hairline so it reads as actionable. */
+        &--playable > .card-container {
+            box-shadow: 0 0 0 1px fade(@con-mint, 26%);
+        }
+        /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card. */
         &--unplayable > .card-container {
-            filter: grayscale(0.55) brightness(0.72);
+            filter: grayscale(0.42) brightness(0.78);
         }
+        /* SELECTED: the focus pop — a cheap ring + glow + slight scale (the
+           transform composes on top of the slot `zoom`), state-coloured. */
         &--selected {
-            /* P17: softer emphasis - stays inside the strip headroom. */
-            transform: translateY(-10px) scale(1.06);
-            z-index: 2;
+            transform: scale(1.035);
+            z-index: 3;
         }
-        /* P18: FOCUS on an unplayable card improves readability but never
-           restores the fully-active look. */
+        &--selected > .card-container {
+            box-shadow: 0 0 0 3px fade(@con-cyan, 80%), 0 0 18px fade(@con-cyan, 34%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
+        }
+        &--selected&--playable > .card-container {
+            box-shadow: 0 0 0 3px fade(@con-mint, 84%), 0 0 20px fade(@con-mint, 40%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
+        }
         &--selected&--unplayable > .card-container {
-            filter: grayscale(0.3) brightness(0.88);
+            filter: grayscale(0.16) brightness(0.94);
+            box-shadow: 0 0 0 3px fade(@con-red, 72%), 0 0 18px fade(@con-red, 30%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
         }
-        /* The state band scales back up against the 0.8 slot zoom. */
+        /* SALE mode: picked cards get the amber sale frame + state band. */
+        &--sale-picked > .card-container {
+            filter: none;
+            box-shadow: 0 0 0 3px fade(@con-amber, 82%), 0 0 20px fade(@con-amber, 36%);
+        }
         .con-cards__pickband { zoom: 1.15; }
     }
-    /* The inline Ⓐ chip on the SELECTED playable card — the explicit
-       button-to-element mapping at the point of attention. */
-    &__slot-a {
+    /* Compact blocker chip on an unavailable card (short reason — the full
+       requirement lives in the info panel below). */
+    &__chip {
         position: absolute;
         left: 50%;
-        bottom: -12px;
+        bottom: 8px;
         transform: translateX(-50%);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 5px 14px;
+        max-width: 92%;
+        padding: 3px 11px;
         border-radius: 999px;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
-        color: @con-mint;
-        font-size: 17px;
+        background: rgba(8, 13, 20, 0.86);
+        box-shadow: inset 0 0 0 1px fade(@con-red, 48%);
+        color: #ffc9c4;
+        font-size: 15px;
         font-weight: 700;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
+        letter-spacing: 0.3px;
         white-space: nowrap;
-        zoom: 1.6; /* counter the slot zoom so the chip stays TV-readable */
-    }
-    /* Sale mode: picked cards get the amber sale frame + state band. */
-    &__slot--sale-picked {
-        filter: none;
-        box-shadow: 0 0 0 3px fade(@con-amber, 80%), 0 0 22px fade(@con-amber, 35%);
-        border-radius: 10px;
-    }
-    &__slot-a--sale {
-        box-shadow: inset 0 0 0 1px fade(@con-amber, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
-        color: @con-amber;
-    }
-    &__verdict--sale {
-        background: fade(@con-amber, 12%);
-        box-shadow: inset 0 0 0 1px fade(@con-amber, 60%);
-        color: @con-amber;
-    }
-    &__sale-summary {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 12px;
-        padding: 8px 16px;
-        border-radius: 8px;
-        background: rgba(16, 26, 38, 0.7);
-        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.25);
-        font-size: 21px;
-        color: @con-text-dim;
-
-        &--ready {
-            box-shadow: inset 0 0 0 1px fade(@con-amber, 60%), 0 0 14px fade(@con-amber, 15%);
-            color: @con-text;
-            b { color: @con-amber; }
-        }
+        overflow: hidden;
+        text-overflow: ellipsis;
+        zoom: 1.5; /* counter the slot zoom so the chip stays TV-readable */
+        pointer-events: none;
     }
     &__robot {
         position: absolute;
@@ -2807,23 +2771,94 @@ html.console-mode {
         letter-spacing: 0.6px;
         zoom: 1.5;
     }
+
+    /* ── thin premium scrollbar / progress (only when the grid scrolls) ── */
+    &__scrollbar {
+        position: relative;
+        flex-shrink: 0;
+        align-self: stretch;
+        width: 6px;
+        border-radius: 999px;
+        background: rgba(120, 150, 185, 0.12);
+    }
+    &__scrollthumb {
+        position: absolute;
+        left: 0;
+        right: 0;
+        min-height: 26px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, fade(@con-cyan, 85%), fade(@con-cyan, 52%));
+        box-shadow: 0 0 10px fade(@con-cyan, 34%);
+        transition: top calc(90ms * var(--motion-scale, 1)) linear, height calc(90ms * var(--motion-scale, 1)) linear;
+    }
+
+    /* ── selected-card INFO PANEL (the verdict bar, premium state framing) ─ */
+    &__verdictbar {
+        border-left: 3px solid transparent;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, border-color calc(160ms * var(--motion-scale, 1)) ease;
+
+        &--ok {
+            border-left-color: fade(@con-mint, 72%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 20%), inset 3px 0 16px -9px fade(@con-mint, 65%);
+        }
+        &--blocked {
+            border-left-color: fade(@con-red, 64%);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 22%), inset 3px 0 16px -9px fade(@con-red, 55%);
+        }
+        &--sale {
+            border-left-color: fade(@con-amber, 72%);
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 22%);
+        }
+    }
+    &__reason {
+        padding: 8px 14px;
+        border-radius: 8px;
+        background: rgba(16, 26, 38, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.2);
+        border-left: 3px solid fade(@con-cyan, 55%);
+        font-size: 20px;
+        line-height: 1.4;
+
+        &--megacredits { border-left-color: @con-amber; }
+        &--globalParameter,
+        &--tr,
+        &--tag,
+        &--count,
+        &--production { border-left-color: fade(@con-cyan, 72%); }
+        &--placement,
+        &--target { border-left-color: #e08a4d; }
+        &--party { border-left-color: #b58be0; }
+        &--turn,
+        &--phase,
+        &--rule,
+        &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
+    }
+
+    /* ── footer hints + counter ────────────────────────────────────────── */
     &__strip-hints {
         display: flex;
         align-items: center;
         gap: 26px;
-        padding: 4px 14px 0;
+        padding: 2px 8px 0;
         color: @con-text-dim;
         font-size: 18px;
+        flex-shrink: 0;
     }
     &__strip-hint {
         display: inline-flex;
         align-items: center;
         gap: 8px;
     }
+    &__rowind {
+        color: @con-text-dim;
+        font-size: 17px;
+        letter-spacing: 0.6px;
+    }
     &__counter {
         margin-left: auto;
         font-size: 19px;
         letter-spacing: 1px;
+        color: @con-text;
     }
 }
 
@@ -8657,7 +8692,9 @@ html.console-mode {
     .con-ma__meter i {
         transition: none;
     }
-    .con-hand__slot {
+    .con-hand__slot,
+    .con-hand__scrollthumb,
+    .con-hand__verdictbar {
         transition: none;
     }
 }
@@ -8810,10 +8847,14 @@ html.con-profile-handheld {
     }
 
     /* ── 8 · hand section ────────────────────────────────────────── */
+    /* The grid planner owns the card zoom now (it sizes to the measured box),
+       so the handheld profile only tunes chrome density — NOT the slot zoom. */
     .con-hand {
-        &__slot { zoom: 0.62; }
-        &__reason--bar { font-size: 12px; }
-        &__strip-hint, &__counter { font-size: 13px; }
+        gap: 10px;
+        &__shelf { padding: 10px 12px; border-radius: 12px; }
+        &__reason { font-size: 13px; padding: 6px 11px; }
+        &__chip { font-size: 13px; }
+        &__strip-hint, &__counter, &__rowind { font-size: 13px; }
     }
 
     /* ── 8/12 · the shared card browser (task host + start scene) ── */
