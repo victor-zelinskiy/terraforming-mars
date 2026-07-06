@@ -122,11 +122,12 @@
           <span class="con-ma__hint" :class="{'con-ma__hint--off': !confirmEnabled}">
             <GamepadGlyph control="confirm" /><span>{{ $t(kind === 'milestones' ? 'Claim' : 'Fund') }}</span>
           </span>
+          <span class="con-ma__hint"><GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span></span>
           <span class="con-ma__hint">
             <GamepadGlyph :control="kind === 'milestones' ? 'bumperR' : 'bumperL'" />
             <span>{{ $t(kind === 'milestones' ? 'Awards' : 'Milestones') }}</span>
           </span>
-          <span class="con-ma__hint"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
+          <span class="con-ma__hint"><GamepadGlyph control="back" /><span>{{ $t(free ? 'Minimize' : 'Close') }}</span></span>
         </div>
       </div>
     </div>

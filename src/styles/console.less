@@ -6440,24 +6440,79 @@ dialog.con-zoom {
     .card-zoom-actions__btn--secondary { display: none; }
 }
 
-/* Perf (Steam Deck) — kill STACKED full-screen blur while the fullscreen card
-   viewer is open. The viewer's own `::backdrop` already lays a full-screen
-   dim + blur over the WHOLE screen, so a draft scene's own full-screen
-   `backdrop-filter` UNDERNEATH is fully occluded: two stacked full-screen
-   blurs for zero visible gain (only the top one is ever seen, and the lower
-   one forces the compositor to blur an already-blurred layer). Stacked
-   backdrop-filter is the single most GPU-expensive thing on a weak console GPU
-   — this is exactly why LB/RB browsing lagged in the DRAFT scenes but not over
-   the plain board (which has no scene blur under the viewer). Dropping the
-   occluded lower blur brings the draft fullscreen down to ONE blur, matching
-   the smooth over-the-board case. Mirrors the #player-home cull in
-   mandatory_input_modal.less. */
-body:has(dialog.card-zoom-dialog[open]) {
+/* ═══════════════════════════════════════════════════════════════════
+   Perf (Steam Deck) — NEVER stack full-screen backdrop-filter blurs.
+
+   Console mode has a ladder of full-screen dim+blur backdrops (scenes,
+   overlays, menus). Only the TOPMOST open one is ever visible; any blur
+   BELOW it is fully occluded — yet the compositor still pays for it, AND
+   the top blur must re-blur the already-blurred layer beneath. Stacked
+   backdrop-filter is the single most GPU-expensive thing on a weak console
+   GPU and the direct cause of the open-a-menu / open-fullscreen freezes
+   (e.g. the System menu over an active draft/info blur, a fullscreen card
+   over a draft scene).
+
+   So: for each blur layer, drop ITS blur whenever ANY layer ABOVE it is
+   open — detected structurally via the higher layer's own backdrop element,
+   which is v-if-mounted only while that overlay is open. Removing an
+   occluded lower blur is visually free: the top layer's own dim+blur already
+   covers it (and re-blurs whatever shows through), so the result is
+   pixel-identical while the GPU does ONE blur instead of N. Mirrors the
+   #player-home cull in mandatory_input_modal.less.
+
+   Stacking ladder (high → low) — KEEP IN SYNC with the z-index on each
+   overlay's root rule:
+     top-layer native : dialog.card-zoom-dialog[open], dialog.con-quit[open]
+     12760            : .con-sysmenu__backdrop     (System menu)
+     11900            : .con-stranded__backdrop    (Stranded guard)
+     11560            : .con-info__backdrop         (Info Mode)
+     11520            : .con-reveal__backdrop       (Drawn-cards / reveal)
+     11515            : .con-mainspect__backdrop    (Milestone/Award inspect)
+     11480            : .con-task-host__backdrop / .con-start__bg (scenes)
+   ═══════════════════════════════════════════════════════════════════ */
+.con-blur-off() {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* Lowest scenes — task host (+ every T1–T3 prompt it hosts) and the
+   initial-draft scene: occluded by ANY higher overlay or a top-layer dialog. */
+body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
+         .con-reveal__backdrop, .con-mainspect__backdrop,
+         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
     .con-task-host__backdrop,
-    .con-start__bg {
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-    }
+    .con-start__bg { .con-blur-off(); }
+}
+
+/* Milestone/Award inspector (11515). */
+body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
+         .con-reveal__backdrop,
+         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
+    .con-mainspect__backdrop { .con-blur-off(); }
+}
+
+/* Drawn-cards / deck-check reveal (11520). */
+body:has(.con-sysmenu__backdrop, .con-stranded__backdrop, .con-info__backdrop,
+         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
+    .con-reveal__backdrop { .con-blur-off(); }
+}
+
+/* Info Mode (11560). */
+body:has(.con-sysmenu__backdrop, .con-stranded__backdrop,
+         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
+    .con-info__backdrop { .con-blur-off(); }
+}
+
+/* Stranded guard (11900). */
+body:has(.con-sysmenu__backdrop,
+         dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
+    .con-stranded__backdrop { .con-blur-off(); }
+}
+
+/* System menu (12760) — occluded only by a top-layer dialog: the quit
+   confirm it itself opens, or a fullscreen card opened above it. */
+body:has(dialog.card-zoom-dialog[open], dialog.con-quit[open]) {
+    .con-sysmenu__backdrop { .con-blur-off(); }
 }
 .con-zoom__bar {
     display: flex;
