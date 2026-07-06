@@ -353,7 +353,13 @@ export default defineComponent({
         result += '<div class="card-icon card-tag-' + secondaryTag + '"></div>';
       }
       if (this.item.isPlate || this.item.text !== undefined) {
+        if (this.item.inParens) {
+          result += '(';
+        }
         result += this.item.text || 'n/a';
+        if (this.item.inParens) {
+          result += ')';
+        }
       }
       if (this.item.type === CardRenderItemType.MULTIPLIER_WHITE) {
         result = 'X';

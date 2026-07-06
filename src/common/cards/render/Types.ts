@@ -106,6 +106,8 @@ export interface ICardRenderItem extends CardComponent {
   isUppercase?: true;
   /** for bold text */
   isBold?: true;
+  /** surround the text in parentheses */
+  inParens?: true;
   /** used to mark plate a.k.a. text with golden background */
   isPlate?: boolean;
   /** Size of the item. Very much depends on the CSS rendered for this item. */
