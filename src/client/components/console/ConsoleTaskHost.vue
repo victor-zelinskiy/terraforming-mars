@@ -1092,7 +1092,10 @@ export default defineComponent({
       const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
       const cardEl = Array.isArray(slot) ? slot[0] : slot;
       if (cardEl !== undefined && cardEl !== null) {
-        cardEl.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+        // 'nearest' (NOT 'center'): only scroll when the focused card is
+        // off-view. Re-centering on every focus change scrolled the whole
+        // strip, visibly shifting the OTHER cards (premium-UI jitter).
+        cardEl.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'});
         return;
       }
       const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused');

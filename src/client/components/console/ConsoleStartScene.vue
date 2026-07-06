@@ -749,7 +749,10 @@ export default defineComponent({
       const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       if (el !== undefined && el !== null) {
-        el.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+        // 'nearest' (NOT 'center'): re-centering scrolled the strip and shifted
+        // the other cards on every focus move (premium-UI jitter). Only reveal
+        // a genuinely off-view card.
+        el.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'});
         return;
       }
       const body = this.$refs.body as HTMLElement | undefined;

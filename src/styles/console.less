@@ -5819,8 +5819,9 @@ html.console-mode {
     }
     &__buysum-mc {
         display: inline-block;
-        width: 20px;
-        height: 20px;
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain !important;
@@ -5970,16 +5971,18 @@ html.console-mode {
         display: flex;
         align-items: flex-start;
         justify-content: safe center; /* few cards read as a centred set */
-        gap: 18px;
+        /* Tighter gap + side padding so a small draft/buy row (4-6 cards) FITS
+           without horizontal overflow — combined with inline:'nearest' scroll,
+           the row never scrolls on focus, so neighbours never shift. */
+        gap: 14px;
         overflow-x: auto;
         /* CLIP-SAFE (P13): the paddings CONTAIN the negative-offset badges
            (cost/tick at -10px) and the focused lift/scale - nothing is
-           ever cropped by the scroll container again. */
-        /* P17 clip-safe maths: top headroom = scale overhead (~19px on a
-           natural card at 1.08) + lift (6) + the pick band overhang (12,
-           scaled) — 40px covers every slot size with margin. */
-        padding: 40px 24px 28px;
-        scroll-padding: 0 24px;
+           ever cropped by the scroll container again. Top headroom 40px =
+           scale overhead (~19px @1.08) + lift (6) + pick-band overhang (12);
+           side 16px covers the focused card's ~10px horizontal scale. */
+        padding: 40px 16px 28px;
+        scroll-padding: 0 16px;
         .con-scrollbars();
 
         /* GRID mode (>6 candidates): wrap into comparison rows - no
