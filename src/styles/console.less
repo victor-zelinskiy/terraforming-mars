@@ -2224,9 +2224,9 @@ html.con-profile-handheld .con-maconfirm {
         letter-spacing: 0.4px;
         color: @con-text;
 
-        &--lead, &--tie-lead, &--can-claim, &--claimed-you { color: @con-mint; }
+        &--lead, &--tie-lead, &--can-claim, &--claimed-you, &--condition-met { color: @con-mint; }
         &--behind, &--progress { color: #ffe0ad; }
-        &--no-race { color: @con-text-dim; }
+        &--no-race, &--condition-unmet { color: @con-text-dim; }
     }
     /* The whole rule text — NEVER clamped; scrolls only for the wordiest. */
     &__desc {
@@ -2373,6 +2373,28 @@ html.con-profile-handheld .con-maconfirm {
         font-size: 12.5px;
         font-style: italic;
         color: @con-text-dim;
+    }
+
+    /* Condition milestone (no numeric threshold): a met / not-met list, not a
+       progress bar — there is no target to fill toward. */
+    &__row--condition { grid-template-columns: 28px 14px minmax(0, 1fr) auto; }
+    &__cond-mark {
+        font-size: 17px;
+        font-weight: 800;
+        text-align: center;
+        color: fade(@con-text-dim, 70%);
+
+        &--met { color: @con-mint; }
+    }
+    &__cond-status {
+        text-align: right;
+        font-size: 12.5px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+
+        &--met { color: @con-mint; }
+        &--unmet { color: fade(@con-text-dim, 70%); }
     }
 
     /* ── claimed milestone: owned — no race, just the owner + lock ── */
@@ -8934,6 +8956,271 @@ html.console-mode {
     .con-hand__verdictbar {
         transition: none;
     }
+}
+
+/* ── Blue-card ACTION CENTER (ConsoleCardActions.vue) — the console-native
+   rewrite of the desktop ДЕЙСТВИЯ overlay: a master-detail command center for
+   activatable blue-card / corporation actions. Same z-band as the task host it
+   sits beside. ONE bottom footer is the ONLY command surface — never a hint on
+   a tile / card / header / the confirm body (the "one bottom bar" rule). ── */
+.con-cardactions {
+    position: fixed;
+    inset: 0;
+    z-index: 11480;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 1.6vh 1.8vw 1vh;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
+    }
+
+    /* The action-center frame — the glass panel filling the freed TV space. */
+    &__frame {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 20px 26px 16px;
+        border-radius: 16px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 42%), 0 18px 52px rgba(0, 0, 0, 0.6);
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        &--behind { opacity: 0.32; } /* dimmed behind the confirm sub-overlay */
+    }
+
+    /* ── Header ── */
+    &__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    &__kicker {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-size: 15px; letter-spacing: 2.2px; text-transform: uppercase; color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__title {
+        margin-top: 4px;
+        font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; line-height: 1.05;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    &__head-stats { display: flex; align-items: center; gap: 14px; }
+    &__stat {
+        display: inline-flex; align-items: baseline; gap: 6px;
+        padding: 6px 14px; border-radius: 999px;
+        background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 26%);
+        b { font-size: 24px; font-weight: 800; color: @con-text; }
+        i { font-size: 13px; font-style: normal; letter-spacing: 0.6px; text-transform: uppercase; color: @con-text-dim; }
+        &--go { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 1px fade(@con-mint, 40%); b { color: @con-mint; } }
+        &--zero { background: rgba(120, 140, 160, 0.1); box-shadow: inset 0 0 0 1px rgba(160, 180, 200, 0.24); b { color: @con-text-dim; } }
+    }
+    &__player {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 14px 6px 10px; border-radius: 999px;
+        background: rgba(12, 20, 30, 0.7); box-shadow: inset 0 0 0 1px rgba(140, 170, 200, 0.28);
+        font-size: 17px; font-weight: 700;
+    }
+    &__player-dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+
+    /* ── Filters ── */
+    &__filters { display: flex; flex-wrap: wrap; gap: 10px 26px; }
+    &__filter { display: inline-flex; align-items: center; gap: 8px; }
+    &__filter-label { font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: @con-text-dim; margin-right: 2px; }
+    &__chip {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 5px 13px; border-radius: 999px;
+        background: rgba(16, 26, 38, 0.7); box-shadow: inset 0 0 0 1px rgba(130, 160, 190, 0.2);
+        font-size: 16px; color: @con-text-dim;
+        b { font-size: 15px; font-weight: 800; color: @con-text; }
+        &--active { background: fade(@con-cyan, 16%); box-shadow: inset 0 0 0 1.5px @con-cyan; color: @con-text; b { color: @con-cyan; } }
+        &--empty { opacity: 0.4; }
+    }
+
+    /* ── Body: master list + inspector ── */
+    &__body { flex: 1; min-height: 0; display: flex; gap: 18px; }
+    &__list {
+        flex: 1.35; min-width: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 14px; padding-right: 8px;
+        .con-scrollbars();
+    }
+
+    &__group {
+        border-radius: 14px; padding: 12px 16px 14px;
+        background: linear-gradient(160deg, rgba(20, 30, 44, 0.55) 0%, rgba(11, 18, 28, 0.6) 100%);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--available { box-shadow: inset 0 0 0 1px fade(@con-mint, 30%); }
+        &--rules { box-shadow: inset 0 0 0 1px fade(@con-red, 26%); }
+        &--activated { box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%); opacity: 0.9; }
+    }
+    &__group-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    &__group-name { font-size: 21px; font-weight: 700; letter-spacing: 0.3px; flex: 1; min-width: 0; }
+    &__group-res {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px; border-radius: 999px; background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 1px rgba(140, 170, 200, 0.24);
+        b { font-size: 18px; font-weight: 800; }
+    }
+    &__res-icon { display: inline-block; width: 22px; height: 22px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__group-status {
+        font-size: 13px; letter-spacing: 1px; text-transform: uppercase; padding: 3px 10px; border-radius: 6px;
+        &--available { color: @con-mint; background: fade(@con-mint, 12%); }
+        &--rules { color: #ffb0a6; background: fade(@con-red, 12%); }
+        &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
+        &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
+    }
+
+    &__variants { display: flex; flex-direction: column; gap: 8px; }
+    &__or {
+        align-self: center;
+        font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: fade(@con-cyan, 70%);
+        padding: 1px 12px; border-radius: 999px; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 24%);
+    }
+    &__tile {
+        position: relative; display: flex; flex-direction: column; gap: 6px;
+        padding: 12px 14px; border-radius: 11px;
+        background: rgba(14, 22, 34, 0.6); box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--focused { box-shadow: inset 0 0 0 2px @con-cyan, 0 0 18px fade(@con-cyan, 30%); background: rgba(20, 34, 50, 0.7); }
+        &--rules, &--soft { opacity: 0.62; filter: saturate(0.6); }
+        &--activated { opacity: 0.55; filter: saturate(0.5); }
+        &--focused&--rules, &--focused&--soft, &--focused&--activated { opacity: 1; filter: none; box-shadow: inset 0 0 0 2px rgba(150, 175, 205, 0.6); }
+        &--shake { animation: con-cardact-shake calc(320ms * var(--motion-scale, 1)) ease; }
+    }
+    &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; &--lg { gap: 12px; } }
+    &__arrow { font-size: 22px; font-weight: 800; color: fade(@con-cyan, 90%); }
+    &__graphic { margin: 0 !important; zoom: 1.15; .card-description { display: none; } }
+    &__graphic-text { font-size: 17px; color: @con-text; }
+    &__tile-reason { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: #ffb0a6; }
+
+    /* ── The inspector (the ONE detail surface) ── */
+    &__detail {
+        flex: 1; min-width: 0; max-width: 44%; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 10px;
+        padding: 14px 16px; border-radius: 14px;
+        background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%);
+        .con-scrollbars();
+    }
+    &__detail-kicker { font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: fade(@con-cyan, 85%); }
+    &__detail-name { font-size: 26px; font-weight: 800; line-height: 1.1; }
+    &__detail-variant { font-size: 15px; color: @con-text-dim; }
+    &__verdict {
+        display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 10px;
+        &--available { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 1px fade(@con-mint, 40%); }
+        &--rules { background: fade(@con-red, 12%); box-shadow: inset 0 0 0 1px fade(@con-red, 45%); }
+        &--soft { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 1px fade(@con-amber, 38%); }
+        &--activated { background: fade(@con-cyan, 10%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 34%); }
+    }
+    &__verdict-mark { flex-shrink: 0; font-size: 20px; font-weight: 800; line-height: 1.2; }
+    &__verdict--available &__verdict-mark { color: @con-mint; }
+    &__verdict--rules &__verdict-mark { color: #ff8478; }
+    &__verdict--soft &__verdict-mark { color: @con-amber; }
+    &__verdict--activated &__verdict-mark { color: fade(@con-cyan, 92%); }
+    &__verdict-head { font-size: 18px; font-weight: 700; }
+    &__verdict-reason { margin-top: 3px; font-size: 16px; color: #ffd0c8; line-height: 1.3; }
+    &__verdict--soft &__verdict-reason { color: #ffe6b0; }
+
+    &__detail-graphic { margin: 0 !important; zoom: 1.25; align-self: flex-start; .card-description { display: none; } }
+    &__detail-block { display: flex; flex-direction: column; gap: 6px; }
+    &__detail-label { font-size: 13px; letter-spacing: 1.2px; text-transform: uppercase; color: @con-text-dim; }
+    &__detail-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    &__detail-res { display: inline-flex; align-items: center; gap: 8px; b { font-size: 22px; font-weight: 800; } }
+    &__detail-next {
+        display: flex; align-items: center; gap: 8px; font-size: 16px; color: fade(@con-cyan, 92%);
+        padding: 8px 12px; border-radius: 8px; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 26%);
+    }
+    &__detail-usage { margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(120, 150, 180, 0.18); }
+    &__usage-line {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px;
+        b { font-size: 18px; font-weight: 800; color: @con-text; }
+    }
+    &__usage-label { display: inline-flex; align-items: center; gap: 7px; color: @con-text-dim; }
+    &__usage-icon { display: inline-block; width: 20px; height: 20px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__usage-gen { font-size: 14px; color: @con-text-dim; }
+    &__usage-note { font-size: 15px; color: @con-text-dim; line-height: 1.35; }
+
+    /* ── Empty state ── */
+    &__empty { margin: auto; text-align: center; max-width: 460px; padding: 30px; }
+    &__empty-mark { font-size: 46px; color: fade(@con-cyan, 55%); }
+    &__empty-title { margin-top: 12px; font-size: 24px; font-weight: 800; }
+    &__empty-body { margin-top: 8px; font-size: 17px; color: @con-text-dim; line-height: 1.4; }
+
+    /* ── Confirmation sub-overlay (nothing submits until its A) ── */
+    &__confirm { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; }
+    &__confirm-backdrop { position: absolute; inset: 0; background: rgba(4, 8, 14, 0.55); }
+    &__confirm-card {
+        position: relative; width: min(720px, 84vw); max-height: 80vh; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 12px;
+        padding: 24px 28px; border-radius: 16px; background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 44%), 0 22px 60px rgba(0, 0, 0, 0.66);
+        .con-scrollbars();
+    }
+    &__confirm-name { font-size: 28px; font-weight: 800; line-height: 1.1; }
+    &__confirm-block { display: flex; flex-direction: column; gap: 7px; }
+    &__confirm-generic { font-size: 18px; color: @con-text-dim; }
+    &__confirm-warn {
+        display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 16px;
+        background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 1px fade(@con-amber, 40%); color: #ffe6b0;
+    }
+    &__confirm-next {
+        display: flex; align-items: center; gap: 8px; font-size: 16px; color: fade(@con-cyan, 92%);
+        padding: 8px 12px; border-radius: 8px; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 26%);
+    }
+
+    /* ── The ONE bottom command bar ── */
+    &__foot {
+        position: relative; z-index: 3; flex-shrink: 0;
+        display: flex; align-items: center; gap: 22px; padding: 10px 20px; border-radius: 10px;
+        background: @con-glass; box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 -6px 24px rgba(0, 0, 0, 0.35);
+    }
+    &__foot-item {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 18px; color: @con-text-dim;
+        &--off { opacity: 0.42; }
+    }
+
+    /* TV enlargement of the shared effect chips — the nesting adds the
+       `.con-cardactions` ancestor, so (0,3,0) reliably beats the scoped 13px. */
+    &__formula .action-effect-chip,
+    &__detail-chips .action-effect-chip { font-size: 17px; padding: 6px 13px 6px 8px; }
+    &__formula--lg .action-effect-chip { font-size: 19px; }
+    &__formula .action-effect-chip__icon,
+    &__detail-chips .action-effect-chip__icon { width: 26px; height: 26px; }
+}
+
+@keyframes con-cardact-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    80% { transform: translateX(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-cardactions__tile--shake { animation: none; }
+    .con-cardactions__frame { transition: none; }
+}
+
+/* Handheld (Steam Deck) — tighter chrome + smaller type. */
+html.con-profile-handheld .con-cardactions {
+    padding: 0.6vh 0.7vw;
+    .con-cardactions__frame { padding: 12px 16px 10px; gap: 10px; }
+    .con-cardactions__title { font-size: 22px; }
+    .con-cardactions__detail-name { font-size: 20px; }
+    .con-cardactions__group-name { font-size: 17px; }
+    .con-cardactions__stat b { font-size: 18px; }
+    .con-cardactions__foot { padding: 6px 14px; }
+    .con-cardactions__foot-item { font-size: 14px; }
+    .con-cardactions__confirm-card { padding: 16px 18px; }
+    .con-cardactions__confirm-name { font-size: 21px; }
+}
+
+/* Large / 4K — a gentle readability boost only. */
+html.con-profile-large .con-cardactions {
+    .con-cardactions__title { font-size: 36px; }
+    .con-cardactions__detail-name { font-size: 30px; }
+    .con-cardactions__group-name { font-size: 24px; }
+    .con-cardactions__foot-item { font-size: 21px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

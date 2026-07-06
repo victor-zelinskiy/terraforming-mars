@@ -100,6 +100,29 @@
         </div>
       </div>
 
+      <!-- ═══ MILESTONE, condition (2-of-each / ≤2 cards / pay-extra):
+           a met / not-met list — NO threshold bar (there is no target). ═══ -->
+      <div v-else-if="view.mode === 'milestone-condition'" class="con-mainspect__panel">
+        <div class="con-mainspect__panel-head">
+          <span class="con-mainspect__panel-title">{{ $t('Race to claim') }}</span>
+          <div class="con-mainspect__legend">
+            <span class="con-mainspect__vpchip con-mainspect__vpchip--claim">+5 {{ $t('VP') }} · {{ $t('First to claim wins') }}</span>
+          </div>
+        </div>
+        <div class="con-mainspect__rows">
+          <div v-for="r in view.rows" :key="r.color"
+               class="con-mainspect__row con-mainspect__row--condition"
+               :class="{'con-mainspect__row--viewer': r.viewer, 'con-mainspect__row--ready': r.canClaim}">
+            <span class="con-mainspect__cond-mark" :class="{'con-mainspect__cond-mark--met': r.canClaim}" aria-hidden="true">{{ r.canClaim ? '✓' : '○' }}</span>
+            <span class="con-mainspect__row-dot" :class="'player_bg_color_' + r.color" aria-hidden="true"></span>
+            <span class="con-mainspect__row-name">{{ r.viewer ? $t('You') : r.name }}</span>
+            <span class="con-mainspect__cond-status" :class="r.canClaim ? 'con-mainspect__cond-status--met' : 'con-mainspect__cond-status--unmet'">
+              {{ $t(r.canClaim ? 'Ready' : 'Not met') }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- ═══ MILESTONE, claimed: owned — the race is over ═══ -->
       <div v-else class="con-mainspect__claimed">
         <div class="con-mainspect__claimed-owner">
@@ -157,6 +180,8 @@ export default defineComponent({
       case 'no-race': return $t('No one has scored in this race yet');
       case 'can-claim': return $t('Threshold reached — claim now');
       case 'progress': return `${$t('To the threshold')}: +${s.gap}`;
+      case 'condition-met': return $t('Requirement met — claim now');
+      case 'condition-unmet': return $t('Requirement not met yet');
       case 'claimed-you': return $t('You claimed it');
       case 'claimed-other': return `${$t('claimed by')} ${s.name}`;
       default: return '';

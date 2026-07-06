@@ -125,6 +125,42 @@ describe('consoleMaInspectModel', () => {
     });
   });
 
+  describe('milestone condition (no numeric threshold — Merchant / Minimalist / Briber)', () => {
+    it('renders a met / not-met list (no fake threshold), met players first', () => {
+      const v = buildMaInspect(
+        item({kind: 'milestone', threshold: undefined, myColor: B,
+          scores: [{color: R, score: 0, claimable: false}, {color: B, score: 1, claimable: true}]}),
+        players(R, B));
+      expect(v.mode).to.eq('milestone-condition');
+      expect(v.threshold).to.eq(undefined);
+      expect(v.rows).to.have.length(2);
+      // The met player sorts to the top; canClaim is per-player.
+      expect(v.rows[0].color).to.eq(B);
+      expect(v.rows[0].canClaim).to.eq(true);
+      expect(v.rows[1].canClaim).to.eq(false);
+      // The viewer (BLUE) meets it.
+      expect(v.summary).to.deep.eq({tone: 'condition-met'});
+    });
+
+    it('condition-unmet when the viewer does not meet it', () => {
+      const v = buildMaInspect(
+        item({kind: 'milestone', threshold: undefined, myColor: R,
+          scores: [{color: R, score: 0, claimable: false}, {color: B, score: 1, claimable: true}]}),
+        players(R, B));
+      expect(v.summary).to.deep.eq({tone: 'condition-unmet'});
+    });
+
+    it('ignores the raw score for ordering (Minimalist: a HIGH count is NOT met)', () => {
+      const v = buildMaInspect(
+        item({kind: 'milestone', threshold: undefined, myColor: R,
+          scores: [{color: R, score: 5, claimable: false}, {color: B, score: 1, claimable: true}]}),
+        players(R, B));
+      expect(v.mode).to.eq('milestone-condition');
+      // BLUE meets it (1 ≤ 2) and outranks RED (5 cards) despite the lower score.
+      expect(v.rows.map((r) => r.color)).to.deep.eq([B, R]);
+    });
+  });
+
   describe('milestone claimed (owned)', () => {
     it('no standings, owner surfaced, claimed-other tone for a rival owner', () => {
       const v = buildMaInspect(

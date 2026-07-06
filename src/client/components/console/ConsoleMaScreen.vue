@@ -77,6 +77,9 @@
               <span class="con-ma__metric-label">{{ $t('You') }}</span>
               <span class="con-ma__metric-value">
                 <template v-if="it.scores.length === 0">—</template>
+                <!-- Condition milestone (no numeric threshold — Merchant / Minimalist /
+                     Briber): the raw score is not progress, so show met / not-met. -->
+                <template v-else-if="it.kind === 'milestone' && it.threshold === undefined"><b>{{ it.myReady ? '✓' : '—' }}</b></template>
                 <template v-else><b>{{ it.myScore }}</b><span v-if="it.threshold !== undefined" class="con-ma__metric-req">/{{ it.threshold }}</span></template>
               </span>
               <span v-if="it.kind === 'award' && it.scores.length > 0" class="con-ma__metric-sub" :class="{'con-ma__metric-sub--lead': it.myLead}">

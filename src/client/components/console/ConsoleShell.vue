@@ -190,6 +190,14 @@
                               :myMegacredits="thisPlayer.megacredits"
                               :backLabel="stdBackLabel" />
     <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
+    <!-- The console-native BLUE-CARD ACTION CENTER (master-detail + confirm) —
+         replaces the old bottom-sheet list + bare confirm for card actions. -->
+    <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
+                        ref="cardActions"
+                        :playerView="playerView"
+                        @submit="onCardActionsSubmit"
+                        @submit-batch="onCardActionsSubmitBatch"
+                        @close="onCardActionsClose" />
     <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
 
     <!-- Console confirm panel (pass / risky conversions). -->
@@ -206,43 +214,6 @@
             <span>{{ w }}</span>
           </div>
         </div>
-        <div class="con-confirm__actions">
-          <span class="con-confirm__action con-confirm__action--yes"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
-          <span class="con-confirm__action"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- T7: the card-action CONFIRM (desktop parity: an action is NEVER
-         executed on a bare click — the player first sees what it does).
-         Effects come from the same /api/action-preview the desktop modal
-         uses; follow-up choices arrive as native tasks after confirm. -->
-    <div v-if="pendingCardAction !== undefined" class="con-confirm con-actconfirm" role="dialog">
-      <div class="con-confirm__backdrop" aria-hidden="true"></div>
-      <div class="con-confirm__card con-actconfirm__card">
-        <div class="con-task__kicker">
-          <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Confirmation') }}</span>
-        </div>
-        <div class="con-confirm__title">{{ $t(pendingCardAction.cardName) }}</div>
-        <div v-if="pendingCardAction.loading" class="con-actconfirm__loading">{{ $t('Loading') }}…</div>
-        <template v-else-if="cardActionBranches.length > 0">
-          <div v-for="(branch, i) in cardActionBranches" :key="i"
-               class="con-actconfirm__branch"
-               :class="{'con-actconfirm__branch--off': !branch.available}">
-            <div v-if="cardActionBranches.length > 1" class="con-actconfirm__branch-title">{{ branchTitleText(branch) }}</div>
-            <div class="con-actconfirm__effects">
-              <ActionEffectChip v-for="(eff, k) in branch.effects" :key="k" :effect="eff" />
-            </div>
-            <div v-if="!branch.available && branch.unavailableReason !== undefined" class="con-actconfirm__reason">
-              ✕ {{ branchReasonText(branch) }}
-            </div>
-          </div>
-          <div v-if="cardActionBranches.length > 1" class="con-actconfirm__note">
-            {{ $t('The choice of option follows after confirmation') }}
-          </div>
-        </template>
-        <div v-else class="con-confirm__body">{{ $t('Confirm to perform this action.') }}</div>
         <div class="con-confirm__actions">
           <span class="con-confirm__action con-confirm__action--yes"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
           <span class="con-confirm__action"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
@@ -457,10 +428,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
-import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
-import {paths} from '@/common/app/paths';
-import {apiUrl} from '@/client/utils/runtimeConfig';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
+import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -537,7 +506,6 @@ import {
   findHydroActionPath,
   findMilestoneOptionPath,
   findPassPath,
-  findPerformActionCard,
   findPlayProjectCardAction,
   findSellPatentsAction,
   findStandardProjectsAction,
@@ -602,7 +570,7 @@ export default defineComponent({
     ConsoleColonyTradeConfirm,
     CardZoomModal,
     Card,
-    ActionEffectChip,
+    ConsoleCardActions,
     ConsoleHydroSection,
     ConsoleJournalPanel,
     GamepadGlyph,
@@ -631,8 +599,8 @@ export default defineComponent({
       lastTaskKey: '',
       /** The reveal-result the player already acknowledged (until the server clears). */
       dismissedRevealKey: '',
-      /** T7: the card-action confirm (preview-backed; nothing submitted yet). */
-      pendingCardAction: undefined as {cardName: CardName, preview: ActionPreview | undefined, loading: boolean} | undefined,
+      /** The console-native card-action center's UI state (filter + confirm-open). */
+      consoleCardActionsUi,
       /** Milestones/Awards premium confirm (nothing submitted until its A). */
       pendingMaConfirm: undefined as {kind: MaKind, name: string} | undefined,
       // X → «Осмотреть»: the NAME of the milestone/award shown in the premium
@@ -1026,10 +994,6 @@ export default defineComponent({
       }
       return warnings;
     },
-    /** The pending card action's preview branches (empty while loading/failed). */
-    cardActionBranches(): ReadonlyArray<ActionPreviewBranch> {
-      return this.pendingCardAction?.preview?.branches ?? [];
-    },
     // ── colonies / hydro ───────────────────────────────────────────────
     tradeColonyContext() {
       return findTradeColonyContext(this.playerView.waitingFor);
@@ -1257,8 +1221,6 @@ export default defineComponent({
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
-      case 'cardActions':
-        return this.cardActionsRows();
       case 'hydroPick':
         // P24: hydro stage 7/9 card pick — name + the card's own rule text
         // (manifest description) + the live resource count where relevant.
@@ -1319,7 +1281,7 @@ export default defineComponent({
       if (this.pendingMaConfirm !== undefined) {
         return 'Confirmation';
       }
-      if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
+      if (this.consoleState.confirm !== undefined) {
         return 'Confirmation';
       }
       if (this.journalPanelVisible) {
@@ -1434,7 +1396,7 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
-      if (this.pendingCardAction !== undefined || this.consoleState.confirm !== undefined) {
+      if (this.consoleState.confirm !== undefined) {
         return [
           {control: 'confirm', label: 'Confirm'},
           {control: 'back', label: 'Cancel'},
@@ -1775,10 +1737,17 @@ export default defineComponent({
           this.taskSpacePending = undefined;
           // A client payment built for a prompt that moved on is stale.
           this.pendingClientPayment = undefined;
-          // A card-action confirm built against the old prompt is stale too.
-          this.pendingCardAction = undefined;
           // Same for the native play confirm (its playAction path moved on).
           this.pendingPlayCard = undefined;
+          // The card-action center is a VOLUNTARY surface — if the top prompt
+          // moved off the action menu (a sub-prompt / another player's turn),
+          // close it so its dedicated surface can't overlap another one. It
+          // survives a 'first action' → 'next action' menu change (still the
+          // action menu — same task kind).
+          if (this.consoleState.sheet === 'cardActions' && taskFor(this.playerView)?.kind !== 'actionMenu') {
+            this.consoleState.sheet = undefined;
+            this.consoleState.sheetIndex = 0;
+          }
           // A shell-section task (T3/T4) auto-opens its serving surface.
           const shellTask = this.shellTask;
           if (shellTask !== undefined) {
@@ -1801,29 +1770,6 @@ export default defineComponent({
         }
       }
       return set;
-    },
-    // ── sheet row builders ───────────────────────────────────────────────
-    /** RT → «Действия карт»: every action source; available NOW per the server. */
-    cardActionsRows(): Array<ConsoleSheetRow> {
-      const perform = findPerformActionCard(this.playerView.waitingFor);
-      const availableNames = new Set((perform?.model.cards ?? []).map((c) => c.name));
-      const sources = this.thisPlayer.tableau.filter((c) => availableNames.has(c.name) ||
-        (c.actionReasons !== undefined && c.actionReasons.length > 0) || this.hasActionSource(c.name));
-      return sources.map((c) => {
-        const available = availableNames.has(c.name);
-        const reason = c.actionReasons?.[0];
-        return {
-          key: c.name,
-          title: c.name,
-          sub: undefined,
-          available,
-          reason: available ? '' :
-            (reason !== undefined ? translateTextWithParams(reason.message, (reason.params ?? []).map(String)) : 'Unavailable right now'),
-        };
-      });
-    },
-    hasActionSource(name: CardName): boolean {
-      return playerActionSourceCount([{name} as CardModel]) > 0;
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
@@ -1862,6 +1808,10 @@ export default defineComponent({
         // (the fallback for rare overflow — console layouts fit by design
         // and never show scrollbar chrome). Fallback-owned surfaces keep
         // the DOM engine's own right-stick scroll (they return earlier).
+        if (this.consoleState.sheet === 'cardActions') {
+          (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
+          return true;
+        }
         this.scrollActiveConsole(intent.dy);
         return true;
       }
@@ -1915,7 +1865,7 @@ export default defineComponent({
       // reveal Take-all, sale-mode Sell, hydro Farthest). The two small
       // confirm dialogs keep the pad focused on the decision itself.
       if (intent.kind === 'press' && intent.button === 'inspect' &&
-          this.consoleState.confirm === undefined && this.pendingCardAction === undefined) {
+          this.consoleState.confirm === undefined && !this.consoleCardActionsUi.confirmOpen) {
         this.toggleInfoMode();
         return true;
       }
@@ -1979,15 +1929,6 @@ export default defineComponent({
           return true;
         }
       }
-      // T7: the card-action preview confirm (A/X = execute, B = back to the sheet).
-      if (this.pendingCardAction !== undefined) {
-        if (intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'secondary')) {
-          this.confirmCardAction();
-        } else if (intent.kind === 'press' && intent.button === 'back') {
-          this.pendingCardAction = undefined;
-        }
-        return true;
-      }
       if (this.consoleState.confirm !== undefined) {
         if (intent.kind === 'press' && intent.button === 'confirm') {
           this.acceptConfirm();
@@ -1998,6 +1939,12 @@ export default defineComponent({
       }
       if (this.consoleState.quick !== undefined) {
         this.handleQuickIntent(intent);
+        return true;
+      }
+      // The console-native card-action center owns the pad while it serves.
+      if (this.consoleState.sheet === 'cardActions') {
+        const panel = this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined;
+        panel?.handleIntent(intent);
         return true;
       }
       if (this.consoleState.sheet !== undefined) {
@@ -2724,11 +2671,6 @@ export default defineComponent({
         return;
       }
       switch (this.consoleState.sheet) {
-      case 'cardActions':
-        // T7: NEVER execute on a bare click — the preview-backed confirm
-        // shows the costs/gains first (desktop confirm-first parity).
-        this.openCardActionConfirm(row.key as CardName);
-        break;
       case 'hydroPick':
         // A pure PLAN write (never a submit) — the hydro confirm reads it.
         hydroNetworkState.selectedCard = row.key as CardName;
@@ -2772,53 +2714,19 @@ export default defineComponent({
         this.useStandardProject(item.cardName);
       }
     },
-    // ── T7: the card-action preview confirm ──────────────────────────────
-    openCardActionConfirm(cardName: CardName): void {
-      this.pendingCardAction = {cardName, preview: undefined, loading: true};
-      const url = apiUrl(paths.API_ACTION_PREVIEW) +
-        '?id=' + encodeURIComponent(this.playerView.id) +
-        '&card=' + encodeURIComponent(cardName);
-      fetch(url)
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((p) => {
-          if (this.pendingCardAction?.cardName === cardName) {
-            this.pendingCardAction = {cardName, preview: p as ActionPreview | undefined, loading: false};
-          }
-        })
-        .catch(() => {
-          // Best-effort: the confirm still shows (generic body), never blocks.
-          if (this.pendingCardAction?.cardName === cardName) {
-            this.pendingCardAction = {cardName, preview: undefined, loading: false};
-          }
-        });
-    },
-    confirmCardAction(): void {
-      const pending = this.pendingCardAction;
-      if (pending === undefined || pending.loading) {
-        return;
-      }
-      const perform = findPerformActionCard(this.playerView.waitingFor);
-      this.pendingCardAction = undefined;
-      if (perform === undefined) {
-        this.showNotice('Not your turn to take any actions');
-        return;
-      }
+    // ── the console-native card-action center (ConsoleCardActions.vue) ────
+    // It owns the whole flow (list · inspector · confirm) and builds the
+    // byte-identical activation payload itself; the shell only POSTs + closes.
+    onCardActionsSubmit(response: unknown): void {
       closeConsoleLayers();
-      this.submit(wrapPath(perform.path, {type: 'card' as const, cards: [pending.cardName]}));
+      this.submit(response);
     },
-    branchTitleText(branch: ActionPreviewBranch): string {
-      const t = branch.title;
-      return typeof t === 'string' ? translateText(t) : translateMessage(t);
+    onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
+      closeConsoleLayers();
+      this.submitBatch(responses);
     },
-    branchReasonText(branch: ActionPreviewBranch): string {
-      const reason = branch.unavailableReason;
-      if (reason === undefined) {
-        return '';
-      }
-      if (typeof reason === 'string') {
-        return translateTextWithParams(reason, (branch.unavailableReasonParams ?? []).map(String));
-      }
-      return translateMessage(reason);
+    onCardActionsClose(): void {
+      closeConsoleLayers();
     },
     acceptConfirm(): void {
       const kind = this.consoleState.confirm;

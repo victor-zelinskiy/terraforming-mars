@@ -27,7 +27,7 @@ import {Color} from '@/common/Color';
 import {maDisplayName} from '@/client/components/ma/maArt';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
 
-export type MaInspectMode = 'award-standings' | 'milestone-race' | 'milestone-claimed';
+export type MaInspectMode = 'award-standings' | 'milestone-race' | 'milestone-condition' | 'milestone-claimed';
 
 export type MaInspectPlayer = {color: Color, name: string};
 
@@ -55,6 +55,8 @@ export type MaInspectSummary =
   | {tone: 'no-race'}
   | {tone: 'can-claim'}
   | {tone: 'progress', gap: number}
+  | {tone: 'condition-met'}
+  | {tone: 'condition-unmet'}
   | {tone: 'claimed-you'}
   | {tone: 'claimed-other', name: string, color: Color};
 
@@ -125,18 +127,29 @@ export function buildMaInspect(
   const kind = item.kind;
   const taken = item.takenBy !== undefined;
   const threshold = item.threshold;
+  // A milestone with NO numeric threshold (Merchant "2 of each resource",
+  // Briber, Minimalist "no more than 2 cards") is a CONDITION milestone — its
+  // score is not a linear progress toward a target, so a progress bar / "+N to
+  // threshold" would lie. It renders as a met / not-met list instead.
   const mode: MaInspectMode = kind === 'award' ? 'award-standings' :
-    (taken ? 'milestone-claimed' : 'milestone-race');
+    taken ? 'milestone-claimed' :
+      threshold === undefined ? 'milestone-condition' : 'milestone-race';
 
   const scoreOf = (color: Color) => item.scores.find((s) => s.color === color);
 
   // Rows are built from the AUTHORITATIVE player list (so a player with no
-  // score still appears in the race), sorted leader→last, viewer breaking ties.
+  // score still appears in the race). Standings/progress sort by score; a
+  // condition list sorts the players who already MEET it to the top.
   const base = players.map((p) => {
     const s = scoreOf(p.color);
     return {color: p.color, name: p.name, score: s?.score ?? 0, claimable: s?.claimable === true, viewer: p.color === item.myColor};
   });
-  const sorted = [...base].sort((a, b) => (b.score - a.score) || (a.viewer ? -1 : b.viewer ? 1 : 0));
+  const sorted = [...base].sort((a, b) => {
+    if (mode === 'milestone-condition') {
+      return (Number(b.claimable) - Number(a.claimable)) || (a.viewer ? -1 : b.viewer ? 1 : 0);
+    }
+    return (b.score - a.score) || (a.viewer ? -1 : b.viewer ? 1 : 0);
+  });
   const topScore = sorted.length > 0 ? sorted[0].score : 0;
   const leaderCount = sorted.filter((r) => r.score === topScore && topScore > 0).length;
   const maxBar = Math.max(1, kind === 'milestone' && threshold !== undefined ? threshold : topScore);
@@ -187,6 +200,9 @@ function buildSummary(
       return {tone: 'claimed-you'};
     }
     return {tone: 'claimed-other', name: item.takenBy?.name ?? '', color: item.takenBy?.color ?? item.myColor};
+  }
+  if (mode === 'milestone-condition') {
+    return viewer?.canClaim === true ? {tone: 'condition-met'} : {tone: 'condition-unmet'};
   }
   if (mode === 'milestone-race') {
     if (viewer?.canClaim === true) {
