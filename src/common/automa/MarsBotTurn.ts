@@ -60,6 +60,37 @@ export type MarsBotImpact = {
   changes: ReadonlyArray<MarsBotImpactChange>;
 };
 
+/**
+ * What a direct attack actually achieved:
+ *  - 'hit' — resources left the target's stock (before/after are the proof);
+ *  - 'nothing-to-lose' — the target simply had nothing of the kind;
+ *  - 'protected' — an effect (Protected Habitats) blocked the removal;
+ *  - 'target-chooses' — the loss resolves via the TARGET's own follow-up pick
+ *    (Invasive Species' highest-scoring cube), so no amount is known yet.
+ */
+export type MarsBotAttackOutcome = 'hit' | 'nothing-to-lose' | 'protected' | 'target-chooses';
+
+/**
+ * A direct attack on one participant, recorded AT THE ATTACK SITE — the
+ * resolver knows the intent, so the theater names WHO was hit and what came
+ * of it even when NOTHING was actually lost (no plants to take / plants
+ * protected), which the end-of-turn snapshot diff cannot see (a no-op leaves
+ * no diff). `resource` is a standard resource, or 'cube' — the composite
+ * "highest-scoring animal/microbe resource cube" demand of Invasive Species.
+ */
+export type MarsBotAttack = {
+  target: Color;
+  resource: Resource | 'cube';
+  /** The printed demand ("loses up to N"). */
+  demanded: number;
+  /** What actually left the target's stock right now (0 when blocked / deferred). */
+  removed: number;
+  /** Stock before/after — omitted when the loss resolves later ('target-chooses'). */
+  before?: number;
+  after?: number;
+  outcome: MarsBotAttackOutcome;
+};
+
 export type MarsBotTurnStep =
   /** Empty action deck — MarsBot passes for the round. */
   | {kind: 'pass', message?: LogMessage}
@@ -75,6 +106,11 @@ export type MarsBotTurnStep =
   | {kind: 'advance', trackIndex: number, from: number, to: number, action?: TrackAction}
   /** A Failed Action: the cause + the M€ gained (5, or 3 on Easy). */
   | {kind: 'failed', reason: FailedActionReason, mc: number, message?: LogMessage}
+  /**
+   * A direct attack on a participant — always recorded, even for a zero
+   * outcome, so the theater never leaves "did I lose anything?" unanswered.
+   */
+  | {kind: 'attack', attack: MarsBotAttack, message?: LogMessage}
   /** Any other public log line emitted during the turn, in order. */
   | {kind: 'log', message: LogMessage}
   /**

@@ -14,6 +14,11 @@ const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName
 // ModalInputHost <-> ModernOptionPicker type cycle the same way
 // `player-input-factory` does for OrOptions. See WaitingFor modal routing.
 const ModalInputHost = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/modalInputs/ModalInputHost.vue'));
+// Registered globally so ColonyTradePaymentModal can host the card-target
+// picker WITHOUT a static import — Card.vue's import chain breaks the
+// mochapack client-test bundle (the known baseline class), and the picker
+// only renders when a trade actually has card-target steps.
+const ActionTargetCard = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
 
 declare global {
   interface Window {
@@ -53,6 +58,7 @@ async function bootstrap() {
 
   app.component('player-input-factory', PlayerInputFactory);
   app.component('modal-input-host', ModalInputHost);
+  app.component('action-target-card', ActionTargetCard);
 
   app.directive('trim-whitespace', {
     mounted: trimEmptyTextNodes,

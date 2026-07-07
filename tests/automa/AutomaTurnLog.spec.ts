@@ -6,6 +6,8 @@ import type {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
 import {AutomaState} from '../../src/server/automa/AutomaState';
 import {IGame} from '../../src/server/IGame';
 import {Server} from '../../src/server/models/ServerModel';
+import {Birds} from '../../src/server/cards/base/Birds';
+import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from './AutomaTestGame';
 
@@ -75,7 +77,7 @@ describe('AutomaTurnLog — the typed turn script', () => {
     }
   });
 
-  it('an attack records the VICTIM\'s before → after impact (who + how much)', () => {
+  it('an attack records WHO was hit + before → after AT THE ATTACK MOMENT, once', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;
     startActionPhase(game, human);
@@ -84,13 +86,73 @@ describe('AutomaTurnLog — the typed turn script', () => {
     humanEndsTurn(game, human);
 
     const steps = automa.lastTurn!.steps;
-    const impacts = steps.filter((s): s is Extract<MarsBotTurnStep, {kind: 'impact'}> => s.kind === 'impact');
-    const victim = impacts.find((s) => !s.impact.targetIsBot);
-    expect(victim, 'the victim impact must be recorded').is.not.undefined;
-    expect(victim!.impact.target).eq(human.color);
-    expect(victim!.impact.changes).deep.eq([{resource: 'plants', scope: 'stock', before: 5, after: 0}]);
-    // Impact steps close the script — after every narrated log line.
-    expect(steps[steps.length - 1].kind).eq('impact');
+    const attacks = steps.filter((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attacks, 'the attack step must be recorded').lengthOf(1);
+    expect(attacks[0].attack).deep.eq({
+      target: human.color, resource: 'plants', demanded: 5, removed: 5,
+      before: 5, after: 0, outcome: 'hit',
+    });
+    // The deduct's own log line rides the step — never narrated twice.
+    expect(attacks[0].message).is.not.undefined;
+    // The results section must NOT repeat the exact same loss as a second row.
+    const victimImpacts = steps
+      .filter((s): s is Extract<MarsBotTurnStep, {kind: 'impact'}> => s.kind === 'impact')
+      .filter((s) => !s.impact.targetIsBot);
+    expect(victimImpacts, 'the attack already narrated this loss').lengthOf(0);
+  });
+
+  it('a zero-outcome attack is STILL recorded — the target + "nothing to lose"', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    human.plants = 0; // The start-of-game case: an attack with nothing to take.
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+    humanEndsTurn(game, human);
+
+    const steps = automa.lastTurn!.steps;
+    const attack = steps.find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attack, 'a no-op attack must not vanish from the script').is.not.undefined;
+    expect(attack!.attack).deep.eq({
+      target: human.color, resource: 'plants', demanded: 5, removed: 0,
+      before: 0, after: 0, outcome: 'nothing-to-lose',
+    });
+  });
+
+  it('a protected target reads as PROTECTED, not as silence', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    human.plants = 7;
+    human.playedCards.push(new ProtectedHabitats());
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+    humanEndsTurn(game, human);
+
+    const attack = automa.lastTurn!.steps
+      .find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attack).is.not.undefined;
+    expect(attack!.attack).deep.eq({
+      target: human.color, resource: 'plants', demanded: 5, removed: 0,
+      before: 7, after: 7, outcome: 'protected',
+    });
+    expect(attack!.message?.message).to.include('plants are protected');
+  });
+
+  it('a deferred cube attack announces the target with "target-chooses"', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    const birds = new Birds();
+    birds.resourceCount = 2;
+    human.playedCards.push(birds);
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B02_INVASIVE_SPECIES}];
+    humanEndsTurn(game, human);
+
+    const attack = automa.lastTurn!.steps
+      .find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attack).is.not.undefined;
+    expect(attack!.attack).deep.eq({
+      target: human.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
+    });
   });
 
   it('an empty action deck records a pass turn', () => {

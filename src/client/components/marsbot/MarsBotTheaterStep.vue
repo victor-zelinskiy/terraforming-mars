@@ -56,6 +56,30 @@
     </span>
   </div>
 
+  <!-- A direct attack: WHO is hit + what actually came of it (before → after,
+       or the honest zero outcome). Recorded for EVERY attack, so "did I lose
+       anything?" is never left unanswered — even at 0 plants. -->
+  <div v-else-if="step.kind === 'attack'" class="mb-step__row mb-step__row--attack">
+    <span class="mb-atk__label" v-i18n>Target</span>
+    <span class="mb-imp__who">
+      <span class="mb-imp__dot" :class="'player_bg_color_' + step.attack.target" aria-hidden="true"></span>
+      <span class="mb-imp__name">{{ targetName(step.attack.target) }}</span>
+    </span>
+    <span class="mb-imp__chips">
+      <span class="mb-imp__chip" :class="attackTone(step.attack)">
+        <span class="mb-imp__icon-frame" :class="{'mb-atk__icon-frame--pair': step.attack.resource === 'cube'}">
+          <i v-for="icon in attackIcons(step.attack)" :key="icon" class="mb-imp__icon" :class="icon" aria-hidden="true"></i>
+        </span>
+        <span v-if="step.attack.before !== undefined && step.attack.after !== undefined" class="mb-imp__values">
+          <span class="mb-imp__before">{{ step.attack.before }}</span>
+          <span class="mb-imp__arrow" aria-hidden="true">→</span>
+          <span class="mb-imp__after">{{ step.attack.after }}</span>
+        </span>
+        <span v-if="attackNote(step.attack) !== ''" class="mb-atk__note" v-i18n>{{ attackNote(step.attack) }}</span>
+      </span>
+    </span>
+  </div>
+
   <!-- Any other public log line of the turn (tiles, TR, milestones, triggers) -->
   <div v-else-if="step.kind === 'log'" class="mb-step__row">
     <span class="mb-step__tokens">
@@ -107,7 +131,7 @@ import {Log} from '@/common/logs/Log';
 import {Color} from '@/common/Color';
 import {TrackAction} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
-import {MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
+import {MarsBotAttack, MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {participantDisplayName} from './marsBotDisplay';
@@ -146,6 +170,25 @@ export default defineComponent({
     },
     impactIconClass(change: MarsBotImpactChange): string {
       return iconClassFor(change.resource === 'tr' ? 'tr' : change.resource);
+    },
+    attackIcons(attack: MarsBotAttack): Array<string> {
+      // 'cube' is the composite "highest-scoring animal/microbe" demand —
+      // both icons name the pair, no invented single glyph.
+      if (attack.resource === 'cube') {
+        return ['card-resource card-resource-animal', 'card-resource card-resource-microbe'];
+      }
+      return [iconClassFor(attack.resource)];
+    },
+    attackTone(attack: MarsBotAttack): string {
+      return attack.outcome === 'hit' ? 'mb-imp__chip--loss' : 'mb-imp__chip--calm';
+    },
+    attackNote(attack: MarsBotAttack): string {
+      switch (attack.outcome) {
+      case 'hit': return '';
+      case 'nothing-to-lose': return 'Nothing to lose';
+      case 'protected': return 'Resources are protected';
+      case 'target-chooses': return 'Chooses what to lose';
+      }
     },
     changeTone(change: MarsBotImpactChange): string {
       if (change.after < change.before) {

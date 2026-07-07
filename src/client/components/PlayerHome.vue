@@ -719,6 +719,8 @@
                                :disabledOptions="pendingTradeColony.disabledPayments"
                                :players="playerView.players"
                                :tradeOffset="playerView.thisPlayer.colonyTradeOffset"
+                               :preview="pendingTradeColony.preview"
+                               :viewerColor="playerView.thisPlayer.color"
                                @select="onColonyTradePaymentSelected($event)"
                                @cancel="onColonyTradePaymentCancel" />
     </MandatoryInputModal>
@@ -776,7 +778,7 @@ import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverl
 import MarsBotBoardOverlay from '@/client/components/marsbot/MarsBotBoardOverlay.vue';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {BonusCardContext} from '@/common/automa/BonusCardData';
+import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
@@ -844,6 +846,9 @@ import PassConfirmContent from '@/client/components/overview/PassConfirmContent.
 import ConvertHeatConfirmContent from '@/client/components/overview/ConvertHeatConfirmContent.vue';
 import ColoniesOverlay from '@/client/components/colonies/ColoniesOverlay.vue';
 import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
+import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
+import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -967,6 +972,10 @@ type PendingTradeColony = {
   tradeActionPath: ReadonlyArray<number>;
   paymentOptions: ReadonlyArray<SelectOptionModel>;
   disabledPayments: ReadonlyArray<DisabledOptionModel>;
+  // The shared server trade preview (track advance / card-target picks / the
+  // M€ payment prompt) — loaded in the background when the modal opens; the
+  // modal degrades gracefully while undefined.
+  preview?: ColonyTradePreviewModel;
 };
 
 type PlayerHomeModel = ToggleableState & {
@@ -1624,10 +1633,10 @@ export default defineComponent({
     marsBotColor(): Color {
       return this.playerView.players.find((p) => p.isMarsBot === true)?.color ?? this.thisPlayer.color;
     },
-    // The expansion context — resolves the bot's bonus-card faces for THIS game.
-    botCardContext(): BonusCardContext {
+    // The expansion context — resolves the bot's bonus-card faces + guide sections for THIS game.
+    botCardContext(): MarsBotGuideContext {
       const expansions = this.game.gameOptions.expansions;
-      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true};
     },
     playedCardsTitleClass(): string {
       return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;
@@ -4199,16 +4208,24 @@ export default defineComponent({
         if (!ctx) {
           return;
         }
-        // ALWAYS open the premium confirmation/payment modal — never trade
-        // instantly, even with a single pay path. The player must explicitly
-        // confirm (and see the cost + their resources) before the server
-        // action fires. Predictable > "sometimes asks, sometimes doesn't".
-        this.pendingTradeColony = {
+        const pending: PendingTradeColony = {
           colonyName,
           tradeActionPath: ctx.path,
           paymentOptions: ctx.paymentOptions,
           disabledPayments: ctx.disabledPayments,
         };
+        this.pendingTradeColony = pending;
+        // The shared server preview (pre-select targets / track choice) loads
+        // in the background; the modal shows manifest data meanwhile.
+        // ALWAYS open the premium confirmation modal — never trade instantly,
+        // even with a single pay path. The player must explicitly confirm
+        // (and see the cost + their resources + the pre-selected targets)
+        // before the server action fires.
+        void fetchColonyTradePreview(this.playerView.id, colonyName).then((preview) => {
+          if (this.pendingTradeColony === pending && preview !== undefined && preview.colonyName === colonyName) {
+            this.pendingTradeColony = {...pending, preview};
+          }
+        });
       }
     },
     // Build flow — top-level SelectColony submission. The path returned
@@ -4232,32 +4249,24 @@ export default defineComponent({
       // server's waitingFor flips to whatever comes next.
       this.coloniesOverlayManualOpen = false;
     },
-    onColonyTradePaymentSelected(paymentIdx: number): void {
+    onColonyTradePaymentSelected(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
       if (this.pendingTradeColony === undefined) {
         return;
       }
-      this.submitTradeColony(this.pendingTradeColony.colonyName, paymentIdx);
+      this.submitTradeColony(this.pendingTradeColony.colonyName, payload);
     },
     onColonyTradePaymentCancel(): void {
       this.pendingTradeColony = undefined;
     },
-    // Trade flow submission — assembles the nested AndOptions response
-    // exactly as the legacy radio UI would and POSTs it. Shape:
-    //
-    //   wrap(tradePath, {
-    //     type: 'and',
-    //     responses: [
-    //       {type: 'or', index: paymentIdx, response: {type: 'option'}},
-    //       {type: 'colony', colonyName},
-    //     ],
-    //   })
-    //
-    // where wrap() applies one OR layer per index in tradePath, innermost
-    // first (matching every other findXPath → submit pattern in this file).
-    submitTradeColony(colonyName: ColonyName, paymentIdx: number): void {
+    // Trade flow submission — the trade AndOptions response (wrapped in one OR
+    // layer per index in tradePath, exactly as the legacy radio UI would) PLUS
+    // every pre-collected follow-up answer (track choice / card targets), as
+    // ONE PlayerInputBatch. Byte-identical to answering the live prompts one
+    // at a time; a diverged later step gracefully arrives as a live prompt.
+    submitTradeColony(colonyName: ColonyName, payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
       if (this.startGameFlowActionLocked) {
         return;
       }
@@ -4265,19 +4274,15 @@ export default defineComponent({
       if (!ctx) {
         return;
       }
-      const andResponse = {
-        type: 'and' as const,
-        responses: [
-          {type: 'or' as const, index: paymentIdx, response: {type: 'option' as const}},
-          {type: 'colony' as const, colonyName},
-        ],
-      };
-      let response: unknown = andResponse;
-      for (let i = ctx.path.length - 1; i >= 0; i--) {
-        response = {type: 'or' as const, index: ctx.path[i], response};
-      }
-      const wfRef = this.$refs.waitingFor as {onsave?: (out: unknown) => void} | undefined;
-      wfRef?.onsave?.(response);
+      const batch = buildTradeBatch({
+        tradePath: ctx.path,
+        paymentIndex: payload.paymentIndex,
+        colonyName,
+        steps: payload.steps,
+        captures: payload.captures,
+      });
+      const wfRef = this.$refs.waitingFor as {onsaveBatch?: (out: ReadonlyArray<unknown>) => void} | undefined;
+      wfRef?.onsaveBatch?.(batch);
       this.pendingTradeColony = undefined;
       this.coloniesOverlayOpen = false;
       this.coloniesOverlayManualOpen = false;

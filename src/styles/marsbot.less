@@ -574,6 +574,30 @@
     box-shadow: inset 0 0 0 1px fade(@mb-accent, 45%);
     .mb-imp__after { color: #9df0d2; text-shadow: 0 0 8px fade(@mb-accent, 30%); }
 }
+/* A zero-outcome attack chip: calm, explicitly NOT a loss. */
+.mb-imp__chip--calm {
+    box-shadow: inset 0 0 0 1px rgba(140, 160, 155, 0.35);
+    .mb-imp__after { color: @mb-text-dim; }
+}
+
+/* Attack row: the explicit "who is hit" callout + the honest outcome. */
+.mb-step__row--attack { align-items: center; gap: 10px; }
+.mb-atk__label {
+    flex: 0 0 auto;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
+    color: #ff9d8a;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(235, 110, 90, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(235, 110, 90, 0.4);
+}
+.mb-atk__note {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 10.5px; letter-spacing: 0.9px; text-transform: uppercase;
+    color: @mb-text-dim;
+}
+.mb-atk__icon-frame--pair { width: auto; gap: 1px; padding: 0 2px; }
 
 /* The finished checkmark line (replaces the transient thinking intro). */
 .mb-step__row--done {
@@ -591,9 +615,14 @@
     box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%);
 }
 
+/* Runs on the CHILD card/band of a parent that does the translateX(-50%)
+   centering. The keyframes must NOT carry their own translateX — an animated
+   transform REPLACES the element's base transform, so a translateX(-50%)
+   here shifted the card half its width LEFT for the whole entrance and it
+   "jumped" to centre when the animation ended (the bottom-left flash). */
 @keyframes mb-theater-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 @keyframes mb-thinking-pulse {
     0%, 100% { box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%); }
@@ -669,12 +698,37 @@
     .mb-imp__icon-frame { width: 24px; height: 22px; }
     .mb-imp__icon { transform: scale(1); }
     .mb-imp__dot { width: 12px; height: 12px; }
+    .mb-atk__label { font-size: 12px; padding: 4px 10px; }
+    .mb-atk__note { font-size: 12.5px; }
+    .mb-atk__icon-frame--pair { width: auto; }
 }
 .con-bot-theater__step--live { box-shadow: inset 0 0 0 1px fade(@mb-accent, 60%), 0 0 18px fade(@mb-accent, 14%); }
+/* The on-band control hint (echoes the command bar): dim "A Skip" while the
+   replay runs, bright "B Close" once it lingers — the dismiss affordance is
+   readable ON the band itself. */
+.con-bot-theater__foot {
+    display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+    padding: 9px 18px 11px;
+    border-top: 1px solid fade(@mb-accent, 18%);
+}
+.con-bot-theater__foot-note {
+    flex: 1 1 auto;
+    font-size: 12.5px; letter-spacing: 1px; text-transform: uppercase;
+    color: @mb-text-dim;
+}
+.con-bot-theater__hint {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: @mb-text-dim;
+}
+.con-bot-theater__hint--close { color: @mb-text; }
 
+/* Same rule as mb-theater-in: the parent .con-bot-theater centres the band —
+   no translateX in the child's entrance keyframes. */
 @keyframes mb-band-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(14px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

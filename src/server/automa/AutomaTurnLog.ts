@@ -99,7 +99,7 @@ export class AutomaTurnLog {
     const fresh = AutomaTurnLog.takeFreshLogs(game);
     if (opts?.consumeLog === true && fresh.length > 0) {
       const own = fresh.pop();
-      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass')) {
+      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'attack')) {
         step.message = own;
       }
     }
@@ -118,6 +118,17 @@ export class AutomaTurnLog {
     for (const message of AutomaTurnLog.takeFreshLogs(game)) {
       recording.steps.push({kind: 'log', message});
     }
+    // A change an explicit attack step already narrated (same target, same
+    // resource, the EXACT same before → after) would read as a SECOND loss if
+    // the results section repeated it — drop only that exact duplicate. A
+    // non-matching overlap (another effect also touched the resource this
+    // turn) keeps the honest whole-turn net.
+    const attacks = recording.steps
+      .filter((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    const coveredByAttack = (target: Color, change: MarsBotImpactChange): boolean =>
+      change.scope === 'stock' && attacks.some((s) =>
+        s.attack.target === target && s.attack.resource === change.resource &&
+        s.attack.before === change.before && s.attack.after === change.after);
     // The "turn results" section: one impact step per participant the turn
     // actually touched — the bot's own gains first, then its targets.
     const impacts = recording.snapshots
@@ -126,7 +137,7 @@ export class AutomaTurnLog {
         return player === undefined ? undefined : {
           target: snapshot.color,
           targetIsBot: snapshot.isBot,
-          changes: diffOf(snapshot, player),
+          changes: diffOf(snapshot, player).filter((c) => !coveredByAttack(snapshot.color, c)),
         };
       })
       .filter((impact): impact is NonNullable<typeof impact> => impact !== undefined && impact.changes.length > 0)

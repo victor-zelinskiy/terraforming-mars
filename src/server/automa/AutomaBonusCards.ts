@@ -19,6 +19,7 @@ import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
+import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
@@ -147,17 +148,29 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
 /**
  * B01 Meteor Shower: the human must remove 5 plants (or as many as possible).
  * Removed ≥3, or an effect (Protected Habitats) blocked the removal → destroy.
+ * The attack step is recorded for EVERY outcome — the theater must name the
+ * target and answer "did I actually lose anything?" even when the answer is
+ * "no" (nothing to take / protected), which the snapshot diff can't see.
  */
 function meteorShower(game: IGame): BonusCardOutcome {
   const human = humanOf(game);
   if (human.plantsAreProtected()) {
     game.log('${0} plants are protected — Meteor Shower is destroyed', (b) => b.player(human));
+    AutomaTurnLog.note(game, {kind: 'attack', attack: {
+      target: human.color, resource: Resource.PLANTS, demanded: 5, removed: 0,
+      before: human.plants, after: human.plants, outcome: 'protected',
+    }}, {consumeLog: true});
     return 'destroy';
   }
-  const removed = Math.min(5, human.plants);
+  const before = human.plants;
+  const removed = Math.min(5, before);
   if (removed > 0) {
     human.stock.deduct(Resource.PLANTS, removed, {log: true});
   }
+  AutomaTurnLog.note(game, {kind: 'attack', attack: {
+    target: human.color, resource: Resource.PLANTS, demanded: 5, removed,
+    before, after: before - removed, outcome: removed > 0 ? 'hit' : 'nothing-to-lose',
+  }}, {consumeLog: removed > 0}); // The deduct's own log line rides the step — never narrated twice.
   return removed >= 3 ? 'destroy' : 'discard';
 }
 
@@ -186,6 +199,11 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     (card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
     card.resourceCount > 0);
   if (holders.length > 0) {
+    // The attack is announced NOW (target + demand); the actual cube leaves
+    // via the target's own follow-up pick, after this turn commits.
+    AutomaTurnLog.note(game, {kind: 'attack', attack: {
+      target: human.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
+    }});
     const maxRate = Math.max(...holders.map(cubeVpRate));
     const targets = holders.filter((card) => cubeVpRate(card) === maxRate);
     // The pick is shown even for a single candidate (the fork's no-auto-select
@@ -197,6 +215,12 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
         human.removeResourceFrom(card, 1, {log: true});
         return undefined;
       })));
+  } else {
+    // No animal/microbe cube anywhere — say so; silence reads as a bug.
+    AutomaTurnLog.note(game, {kind: 'attack', attack: {
+      target: human.color, resource: 'cube', demanded: 1, removed: 0,
+      before: 0, after: 0, outcome: 'nothing-to-lose',
+    }});
   }
   return 'discard';
 }

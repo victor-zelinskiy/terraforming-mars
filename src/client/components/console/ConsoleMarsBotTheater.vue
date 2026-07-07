@@ -32,6 +32,15 @@
           </div>
         </div>
       </div>
+      <!-- The control hint lives ON the band too (the command bar echoes it):
+           the player must see how to dismiss without hunting the screen edge. -->
+      <footer class="con-bot-theater__foot">
+        <span v-if="state.lingering" class="con-bot-theater__foot-note" v-i18n>The board is updated — close when you are done reading</span>
+        <span class="con-bot-theater__hint" :class="{'con-bot-theater__hint--close': state.lingering}">
+          <GamepadGlyph :control="state.lingering ? 'back' : 'confirm'" />
+          <span v-i18n>{{ state.lingering ? 'Close' : 'Skip' }}</span>
+        </span>
+      </footer>
     </div>
   </div>
   </Teleport>
@@ -41,8 +50,10 @@
 /**
  * Console-native MarsBot turn theater — a TV-readable narration band above
  * the command bar, replaying the SAME `marsBotTheaterState` as the desktop
- * overlay (which is suppressed in console mode). Skip = A, hinted ONLY in the
- * bottom command bar (ConsoleShell claims the intent while this is active).
+ * overlay (which is suppressed in console mode). Input routing stays in
+ * ConsoleShell (A skips, B closes the lingering band); the band's own footer
+ * ECHOES the live hint so the player never has to hunt the command bar to
+ * learn how to dismiss it.
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -50,10 +61,11 @@ import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterSta
 import {TheaterStep} from '@/client/components/marsbot/marsBotTheaterModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import MarsBotTheaterStep from '@/client/components/marsbot/MarsBotTheaterStep.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotTheater',
-  components: {MarsBotTheaterStep},
+  components: {MarsBotTheaterStep, GamepadGlyph},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },

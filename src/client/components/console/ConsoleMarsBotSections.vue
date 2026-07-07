@@ -131,10 +131,9 @@
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {trackTag} from '@/client/components/marsbot/marsBotView';
-import {GuideSection, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
+import {GuideSection, MarsBotGuideContext, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -148,8 +147,8 @@ export default defineComponent({
     mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botPlayed' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},
     automa: {type: Object as PropType<MarsBotModel>, required: true},
-    /** The expansion context — resolves bonus-card faces for THIS game. */
-    ctx: {type: Object as PropType<BonusCardContext>, required: true},
+    /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
+    ctx: {type: Object as PropType<MarsBotGuideContext>, required: true},
   },
   computed: {
     storageEntries(): Array<{colony: string, count: number}> {

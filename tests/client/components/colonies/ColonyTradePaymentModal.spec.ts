@@ -4,10 +4,14 @@ import {globalConfig} from '../getLocalVue';
 import ColonyTradePaymentModal from '@/client/components/colonies/ColonyTradePaymentModal.vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 
-function factory(props: Record<string, unknown>, onSelect = (_idx: number) => {}, onCancel = () => {}) {
+type SelectPayload = {paymentIndex: number, steps: ReadonlyArray<unknown>, captures: Record<number, unknown>};
+
+function factory(props: Record<string, unknown>, onSelect = (_payload: SelectPayload) => {}, onCancel = () => {}) {
   return mount(ColonyTradePaymentModal, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {BenefitGlyph: true}},
+    // action-target-card is a GLOBAL async component (main.ts) — stubbed here
+    // exactly like the other main.ts-registered hosts in component specs.
+    global: {...globalConfig.global, stubs: {'BenefitGlyph': true, 'action-target-card': true}},
     props: {
       colony: undefined,
       colonyName: ColonyName.IO,
@@ -32,9 +36,9 @@ describe('ColonyTradePaymentModal — premium trade payment', () => {
   };
 
   it('select → confirm; nothing commits before confirm', async () => {
-    let selected: number | undefined;
-    const w = factory({options: [affordable]}, (idx) => {
-      selected = idx;
+    let selected: SelectPayload | undefined;
+    const w = factory({options: [affordable]}, (payload) => {
+      selected = payload;
     });
     // Confirm starts disabled (no selection yet).
     const confirm = w.find('[data-test="colony-trade-pay-confirm"]');
@@ -43,9 +47,10 @@ describe('ColonyTradePaymentModal — premium trade payment', () => {
     await w.find('[data-test="colony-trade-pay-opt-0"]').trigger('click');
     expect(selected).to.eq(undefined);
     expect((confirm.element as HTMLButtonElement).disabled).to.eq(false);
-    // Confirm → emits the selected index.
+    // Confirm → emits the chosen payment path (+ the pre-collected steps).
     await confirm.trigger('click');
-    expect(selected).to.eq(0);
+    expect(selected?.paymentIndex).to.eq(0);
+    expect(selected?.steps).to.deep.eq([]);
   });
 
   it('renders unaffordable payment paths as disabled cards with a reason', () => {

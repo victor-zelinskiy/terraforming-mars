@@ -271,8 +271,8 @@ import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
-import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
+import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import TagCount from '@/client/components/TagCount.vue';
@@ -328,10 +328,10 @@ export default defineComponent({
       const automa = this.botAutoma;
       return automa !== undefined ? DIFFICULTY_LABEL[automa.difficulty] : '';
     },
-    /** The expansion context — resolves bonus-card faces for THIS game. */
-    botCardContext(): BonusCardContext {
+    /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
+    botCardContext(): MarsBotGuideContext {
       const expansions = this.playerView.game.gameOptions.expansions;
-      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true};
     },
     isBotDetail(): boolean {
       const d = this.infoModeState.detail;

@@ -5822,78 +5822,112 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     min-width: 0;
     display: flex;
     gap: 18px;
+    /* The count-aware tile width (the layout classes below re-tune it). */
+    --con-coltile-w: 372px;
 
-    &__rail {
+    &__main {
         flex: 1;
         min-width: 0;
         display: flex;
+        flex-direction: column;
+    }
+    &__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 18px 0;
+    }
+    &__head-title {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    &__kicker {
+        font-family: @con-font;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 2.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__mode-chip {
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+        color: @con-cyan;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+    }
+    /* The viewer's free trade fleets — the one glanceable "can I trade at all". */
+    &__fleets {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 16px;
+        border-radius: 10px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
+
+        &--none {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 50%);
+            .con-colonies__fleets-count { color: @con-amber; }
+        }
+    }
+    &__fleets-ship {
+        transform: scale(1.15);
+        transform-origin: center;
+    }
+    &__fleets-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__fleets-count {
+        font-size: 21px;
+        font-weight: 800;
+        color: @con-mint;
+    }
+
+    &__grid {
+        flex: 1;
+        min-height: 0;
+        display: flex;
         flex-wrap: wrap;
-        align-content: flex-start;
-        gap: 22px;
-        padding: 14px;
+        align-content: center;
+        justify-content: center;
+        gap: 26px 26px;
+        padding: 16px 18px 22px;
         overflow-y: auto;
         .con-scrollbars();
     }
-    &__slot {
-        position: relative;
-        zoom: 1.12;
-        border-radius: 12px;
-        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+    &__slot { position: relative; }
 
-        /* The tile's own mouse-mode select button is redundant here. */
-        .colony-tile__select-btn { display: none; }
+    /* Count-aware premium layouts: 1–4 = one centred row of LARGE tiles,
+       5 = a deliberate 3+2, 6 = 3×2. The width cap is what folds the wrap
+       into the intended rows — no per-tile math. */
+    &--solo { --con-coltile-w: 460px; }
+    &--few { --con-coltile-w: 396px; }
+    &--five .con-colonies__grid,
+    &--six .con-colonies__grid {
+        max-width: calc(3 * var(--con-coltile-w) + 2 * 26px + 2 * 18px);
+        margin: 0 auto;
+    }
+    /* The rare add-a-tile CATALOG (>6 candidates): compact tiles, top-anchored
+       — visibly a list/catalog mode, not the in-game premium board. */
+    &--catalog {
+        --con-coltile-w: 296px;
+        .con-colonies__grid {
+            align-content: flex-start;
+            gap: 18px;
+        }
+    }
 
-        &--selected {
-            box-shadow: 0 0 0 3px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 30%);
-            transform: translateY(-4px);
-        }
-        &--inactive {
-            filter: saturate(0.55) brightness(0.8);
-        }
-        /* T4 pick mode: an unpickable colony stays VISIBLE with its reason. */
-        &--pick-disabled {
-            opacity: 0.6;
-            filter: grayscale(0.45) brightness(0.85);
-        }
-    }
-    &__slot-reason {
-        position: absolute;
-        left: 50%;
-        bottom: -14px;
-        transform: translateX(-50%);
-        padding: 4px 12px;
-        border-radius: 999px;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-red, 55%), 0 4px 14px rgba(0, 0, 0, 0.5);
-        color: #ffc9c4;
-        font-size: 14px;
-        font-weight: 700;
-        white-space: nowrap;
-        max-width: 240px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        z-index: 3;
-    }
-    &__slot-a {
-        position: absolute;
-        left: 50%;
-        bottom: -14px;
-        transform: translateX(-50%);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 5px 14px;
-        border-radius: 999px;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 65%), 0 4px 14px rgba(0, 0, 0, 0.5);
-        color: @con-mint;
-        font-size: 15px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        text-transform: uppercase;
-        white-space: nowrap;
-        z-index: 3;
-    }
     &__detail {
         display: flex;
         flex-direction: column;
@@ -5904,6 +5938,784 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: 6px;
         .con-status__dot { width: 16px; height: 16px; }
+    }
+
+    /* "Trade now yields" — the detail panel's headline answer. */
+    &__now {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: fade(@con-mint, 7%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 30%);
+    }
+    &__now-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        flex: 1;
+    }
+    &__now-value {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        zoom: 1.25;
+    }
+    &__now-num {
+        font-size: 19px;
+        font-weight: 800;
+        color: @con-mint;
+    }
+    &__now-offset {
+        font-size: 12px;
+        color: @con-cyan;
+        white-space: nowrap;
+    }
+
+    &__owner-line { gap: 10px; }
+    &__owner-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__owner-bonus {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: @con-text-dim;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    /* Payment paths at a glance (chips; details live in the composer). */
+    &__pay {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    &__pay-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__pay-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 35%);
+        font-size: 15px;
+        font-weight: 700;
+
+        &--off {
+            opacity: 0.45;
+            filter: grayscale(0.5);
+            box-shadow: inset 0 0 0 1px fade(@con-red, 35%);
+        }
+    }
+    &__pay-icon {
+        width: 22px;
+        height: 22px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+}
+
+/* ── The premium console colony TILE ─────────────────────────────── */
+.con-coltile {
+    position: relative;
+    width: var(--con-coltile-w, 372px);
+    padding: 14px 16px 12px;
+    border-radius: 14px;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%), 0 10px 30px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    font-family: @con-font;
+    color: @con-text;
+    transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+    &--focused {
+        box-shadow: inset 0 0 0 2px fade(@con-cyan, 90%), 0 0 26px fade(@con-cyan, 28%), 0 14px 34px rgba(0, 0, 0, 0.55);
+        transform: translateY(-4px);
+    }
+    &--inactive { filter: saturate(0.55) brightness(0.78); }
+    &--blocked:not(&--focused) { filter: saturate(0.75) brightness(0.9); }
+
+    /* Planet art — the manifest `.<Name>-background` supplies the image +
+       its planet-glow inset; we re-frame it as a corner medallion. */
+    &__planet {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        background-size: cover;
+        background-position: center;
+        opacity: 0.92;
+        pointer-events: none;
+    }
+
+    &__head {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 52px;
+        padding-right: 100px; /* clear the planet medallion */
+    }
+    &__name {
+        font-size: 21px;
+        font-weight: 800;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+    /* The parked trade fleet — coloured ship + owner, ON the tile. */
+    &__fleet {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 3px 10px 3px 6px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.45);
+        box-shadow: inset 0 0 0 1px fade(@con-text, 25%);
+        white-space: nowrap;
+        max-width: 100%;
+    }
+    &__fleet-ship { transform: scale(0.95); }
+    &__fleet-name {
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 110px;
+    }
+
+    &__build {
+        position: relative;
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    &__build-slot {
+        position: relative;
+        width: 46px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: inset 0 0 0 1px fade(@con-text, 18%);
+
+        &--occupied { box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%); }
+    }
+    &__cube {
+        position: absolute;
+        right: -5px;
+        top: -5px;
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.65), 0 2px 5px rgba(0, 0, 0, 0.5);
+    }
+
+    /* The 7-cell track strip + position readout. */
+    &__track {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 12px;
+    }
+    &__track-cell {
+        flex: 1;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+        &--passed { background: fade(@con-cyan, 25%); }
+        &--marker {
+            background: @con-cyan;
+            box-shadow: 0 0 10px fade(@con-cyan, 60%);
+        }
+        &--effective {
+            background: fade(@con-mint, 55%);
+            box-shadow: 0 0 8px fade(@con-mint, 45%);
+        }
+    }
+    &__track-pos {
+        font-size: 13px;
+        font-weight: 700;
+        color: @con-text-dim;
+        margin-left: 4px;
+        letter-spacing: 0.5px;
+    }
+
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 10px;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 30px;
+    }
+    &__row-label {
+        flex: 1;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__row-value {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        zoom: 1.15;
+    }
+    &__row-num {
+        font-size: 17px;
+        font-weight: 800;
+        color: @con-mint;
+    }
+    &__row-offset {
+        font-size: 12px;
+        font-weight: 700;
+        color: @con-cyan;
+    }
+
+    /* Honest availability status (information — never a button hint). */
+    &__status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px solid rgba(255, 255, 255, 0.09);
+        font-size: 13.5px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        min-height: 30px;
+
+        &--ok { color: @con-mint; }
+        &--blocked { color: #ffc9c4; }
+        &--inactive { color: @con-text-dim; }
+    }
+    &__status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: @con-mint;
+        box-shadow: 0 0 8px fade(@con-mint, 70%);
+    }
+    &__status-mark { font-size: 14px; }
+    &__status-idle { color: transparent; }
+}
+
+/* ── X = «Осмотреть»: the full colony dossier ─────────────────────── */
+.con-colinspect {
+    z-index: 11500;
+
+    &__frame {
+        width: min(1120px, 94vw);
+    }
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 12px;
+    }
+    &__planet {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        background-size: cover;
+        background-position: center;
+        flex: 0 0 auto;
+    }
+    &__head-text { flex: 1; min-width: 0; }
+    &__desc {
+        margin-top: 4px;
+        font-size: 15px;
+        color: @con-text-dim;
+    }
+    &__state {
+        padding: 4px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+
+        &--on {
+            color: @con-mint;
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 50%);
+        }
+        &--off {
+            color: @con-text-dim;
+            box-shadow: inset 0 0 0 1px fade(@con-text, 25%);
+        }
+    }
+
+    &__main {
+        display: grid;
+        grid-template-columns: minmax(300px, 5fr) minmax(0, 7fr);
+        gap: 22px;
+        overflow-y: auto;
+        min-height: 0;
+        padding-bottom: 6px;
+        .con-scrollbars();
+    }
+    &__section-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-cyan;
+        margin-bottom: 8px;
+    }
+
+    &__track-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 5px 12px;
+        border-radius: 8px;
+        min-height: 38px;
+
+        &--marker {
+            background: fade(@con-cyan, 10%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%);
+        }
+        &--effective {
+            background: fade(@con-mint, 8%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+        }
+    }
+    &__track-num {
+        width: 26px;
+        font-size: 16px;
+        font-weight: 800;
+        color: @con-text-dim;
+    }
+    &__track-reward {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        zoom: 1.1;
+        flex: 1;
+    }
+    &__track-qty {
+        font-size: 16px;
+        font-weight: 800;
+        color: @con-mint;
+    }
+    &__track-tag {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-cyan;
+
+        &--eff { color: @con-mint; }
+    }
+    &__note {
+        margin-top: 8px;
+        font-size: 13px;
+        color: @con-cyan;
+
+        &--muted { color: @con-text-dim; }
+    }
+
+    &__info {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-width: 0;
+    }
+    &__block {
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    &__benefit {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    &__benefit-glyph {
+        display: inline-flex;
+        zoom: 1.3;
+        flex: 0 0 auto;
+    }
+    &__benefit-desc {
+        font-size: 14.5px;
+        color: @con-text;
+    }
+    &__slots {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    &__slot {
+        position: relative;
+        width: 30px;
+        height: 26px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: inset 0 0 0 1px fade(@con-text, 18%);
+
+        &--taken { box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%); }
+        .con-coltile__cube { right: 6px; top: 4px; position: absolute; }
+    }
+    &__slots-label {
+        margin-left: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__owner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 14.5px;
+    }
+    &__owner-mult {
+        color: @con-text-dim;
+        font-weight: 700;
+    }
+    &__fleet-line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-size: 14.5px;
+    }
+    &__verdict {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 700;
+
+        &--ok { color: @con-mint; }
+        &--no { color: #ffc9c4; }
+    }
+    &__pay { margin-top: 10px; }
+
+    &__target {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    &__target-role {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        min-width: 120px;
+    }
+    &__target-icon {
+        width: 20px;
+        height: 20px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__target-card {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
+        font-size: 13.5px;
+
+        b { color: @con-mint; }
+    }
+    &__target-auto {
+        font-size: 13px;
+        color: @con-text-dim;
+    }
+    &__lost {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 13.5px;
+        color: @con-amber;
+
+        span[aria-hidden] { font-weight: 800; }
+    }
+}
+
+/* ── The colony-trade COMPOSER (pre-select confirm) ───────────────── */
+.con-trade {
+    &__frame { width: min(940px, 92vw); }
+
+    &__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+    }
+    &__planet {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background-size: cover;
+        background-position: center;
+        flex: 0 0 auto;
+    }
+
+    /* Итог торговли — the live outcome band. */
+    &__hero {
+        display: flex;
+        align-items: stretch;
+        gap: 16px;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 25%);
+    }
+    &__hero-side { min-width: 0; }
+    &__hero-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: 6px;
+    }
+    &__hero-arrow {
+        align-self: center;
+        font-size: 24px;
+        color: @con-cyan;
+    }
+    &__hero-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    &__chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 11px;
+        border-radius: 9px;
+        background: rgba(0, 0, 0, 0.35);
+        font-size: 15px;
+
+        b { font-size: 17px; font-weight: 800; }
+        em {
+            font-style: normal;
+            font-size: 12.5px;
+            color: @con-text-dim;
+            white-space: nowrap;
+        }
+
+        &--cost {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 45%);
+            b { color: @con-amber; }
+        }
+        &--gain {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+            b { color: @con-mint; }
+        }
+        &--prod { background: rgba(139, 69, 19, 0.28); }
+    }
+    &__chip-icon {
+        width: 24px;
+        height: 24px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__chip-badge {
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: fade(@con-cyan, 18%);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+
+        &--tr { background: fade(@con-mint, 18%); }
+    }
+    &__chip-label { font-size: 13.5px; }
+    &__chip-note {
+        font-style: normal;
+        font-size: 12px;
+        color: @con-text-dim;
+    }
+
+    &__main { min-height: 0; }
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    &__sub-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: @con-cyan;
+        margin-bottom: 10px;
+    }
+
+    /* Review rows (the decisions). */
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease;
+
+        &--focused {
+            background: fade(@con-cyan, 9%);
+            box-shadow: inset 0 0 0 2px fade(@con-cyan, 75%);
+        }
+        &--missing {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 55%);
+
+            &.con-trade__row--focused { box-shadow: inset 0 0 0 2px fade(@con-amber, 80%); }
+        }
+    }
+    &__row-label {
+        flex: 0 0 220px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__row-value {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15.5px;
+        font-weight: 600;
+
+        em {
+            font-style: normal;
+            font-size: 13px;
+            color: @con-mint;
+            white-space: nowrap;
+        }
+    }
+    &__row-icon {
+        width: 22px;
+        height: 22px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex: 0 0 auto;
+    }
+    &__row-empty { color: @con-amber; }
+
+    /* Sub-list chosen mark (payment path / track / target). */
+    &__option--chosen {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 55%);
+    }
+    &__opt-check {
+        margin-left: auto;
+        color: @con-mint;
+        font-weight: 800;
+    }
+    &__track-reward {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        zoom: 1.05;
+    }
+    &__track-qty {
+        font-size: 15px;
+        font-weight: 800;
+        color: @con-mint;
+    }
+
+    /* Display-only notices (auto target / lost resource / after-confirm). */
+    &__notice {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 14px;
+        border-radius: 9px;
+        font-size: 13.5px;
+
+        &--info {
+            color: @con-text-dim;
+            background: rgba(255, 255, 255, 0.03);
+
+            span[aria-hidden] { color: @con-cyan; }
+        }
+        &--warn {
+            color: @con-amber;
+            background: fade(@con-amber, 7%);
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 35%);
+
+            span[aria-hidden] { font-weight: 800; }
+        }
+    }
+    &__notice-icon {
+        width: 18px;
+        height: 18px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    &__bonus {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 4px;
+        padding: 8px 14px;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 13.5px;
+    }
+    &__bonus-label { color: @con-text-dim; }
+    &__bonus-glyph {
+        display: inline-flex;
+        zoom: 1.05;
     }
 }
 
@@ -9822,12 +10634,20 @@ html.con-profile-handheld {
         &__hint { font-size: 13.5px; gap: 6px; }
     }
 
-    /* ── 16 · colonies rail ──────────────────────────────────────── */
+    /* ── 16 · colonies tile grid (compact profile) ───────────────── */
     .con-colonies {
-        &__rail { gap: 14px; padding: 10px; }
-        &__slot { zoom: 0.9; }
-        &__slot-a { font-size: 12px; padding: 4px 10px; bottom: -11px; }
-        &__slot-reason { font-size: 12px; bottom: -11px; }
+        --con-coltile-w: 320px;
+
+        &--solo { --con-coltile-w: 400px; }
+        &--few { --con-coltile-w: 340px; }
+        &--catalog { --con-coltile-w: 262px; }
+        &__grid { gap: 18px; padding: 12px; }
+        &__fleets-count { font-size: 18px; }
+    }
+    .con-coltile {
+        &__name { font-size: 18px; }
+        &__planet { width: 76px; height: 76px; }
+        &__head { padding-right: 84px; min-height: 44px; }
     }
 
     /* ── 20 · journal + notifications geometry ───────────────────── */

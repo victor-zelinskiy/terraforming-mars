@@ -1,9 +1,12 @@
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
+import {Resource} from '@/common/Resource';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {
+  ATTACK_MS,
   MAX_TURN_MS,
   MIN_STEP_MS,
   REDUCED_STEP_MS,
@@ -76,6 +79,23 @@ describe('marsBotTheaterModel', () => {
       expect(advance.trackTag).eq(Tag.SCIENCE);
       expect(advance.from).eq(2);
       expect(advance.to).eq(3);
+    }
+  });
+
+  it('maps an attack step with its own (longer) beat and the full payload', () => {
+    const turn = turnOf([
+      {kind: 'attack', attack: {
+        target: 'blue' as Color, resource: Resource.PLANTS, demanded: 5, removed: 0,
+        before: 0, after: 0, outcome: 'nothing-to-lose',
+      }},
+    ]);
+    const steps = buildTheaterSteps(turn, view(turn), false);
+    expect(steps.map((s) => s.kind)).deep.eq(['thinking', 'attack']);
+    const attack = steps[1];
+    if (attack.kind === 'attack') {
+      expect(attack.durationMs).eq(ATTACK_MS);
+      expect(attack.attack.target).eq('blue');
+      expect(attack.attack.outcome).eq('nothing-to-lose');
     }
   });
 

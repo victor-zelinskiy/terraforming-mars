@@ -313,6 +313,12 @@ export class TradeWithMegacredits implements IColonyTrader {
     }
   }
 
+  /** The effective M€ trade fee (discounts applied) — read by the trade
+   *  preview (`colonyTradePreview.ts`) so the cost math never forks. */
+  public get cost(): number {
+    return this.tradeCost;
+  }
+
   public canUse() {
     return this.player.canAfford(this.tradeCost);
   }

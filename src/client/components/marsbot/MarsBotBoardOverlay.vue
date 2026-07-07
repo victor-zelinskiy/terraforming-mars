@@ -114,10 +114,9 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from './marsBotView';
-import {GuideSection, marsBotGuide} from './marsBotGuide';
+import {GuideSection, MarsBotGuideContext, marsBotGuide} from './marsBotGuide';
 import MarsBotTracks from './MarsBotTracks.vue';
 import BonusCardFace from './BonusCardFace.vue';
 import Card from '@/client/components/card/Card.vue';
@@ -128,8 +127,8 @@ export default defineComponent({
   props: {
     automa: {type: Object as PropType<MarsBotModel>, required: true},
     botColor: {type: String as PropType<Color>, required: true},
-    /** The expansion context — resolves the bonus-card faces for THIS game. */
-    ctx: {type: Object as PropType<BonusCardContext>, required: true},
+    /** The expansion context — resolves the bonus-card faces + guide sections for THIS game. */
+    ctx: {type: Object as PropType<MarsBotGuideContext>, required: true},
   },
   emits: ['close'],
   computed: {

@@ -12,6 +12,7 @@ export const paths = {
   API_GAME_ENDGAME_FACTS: 'api/game/endgame-facts',
   API_GAME_DELTA_PREVIEW: 'api/game/delta-preview',
   API_GAME_BOARD_CELL_PREVIEW: 'api/game/board-cell-preview',
+  API_GAME_COLONY_TRADE_PREVIEW: 'api/game/colony-trade-preview',
   API_GAME_REMATCH: 'api/game/rematch',
   API_GAMES: 'api/games',
   // Premium main-menu join flow: list a player's unfinished games by name, and

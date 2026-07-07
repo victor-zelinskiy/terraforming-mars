@@ -127,7 +127,14 @@
                               :index="consoleState.colonyIndex"
                               :tradeable="tradeableColonyNames"
                               :tradeBlockReason="colonyTradeBlockReason"
-                              :pick="colonyPick" />
+                              :pick="colonyPick"
+                              :players="playerView.players"
+                              :viewerColor="thisPlayer.color"
+                              :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
+                              :fleetSize="thisPlayer.fleetSize"
+                              :freeFleets="colonyFreeFleets"
+                              :paymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
+                              :disabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []" />
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
            hydroNetworkState + buildHydroModel; the shell keeps the pick
@@ -147,8 +154,9 @@
          console (fallback surfaces still render above at z12000+). -->
     <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
 
-    <!-- Colony trade — the console-native confirm (CTS T8: the desktop
-         modal re-host is retired; same and-response submit path). -->
+    <!-- Colony trade — the console-native pre-select COMPOSER (payment path +
+         M€ mix + track choice + card targets + the live «Итог торговли»);
+         confirms as ONE PlayerInputBatch (colonyTradePlan.buildTradeBatch). -->
     <transition name="con-layer">
       <ConsoleColonyTradeConfirm v-if="pendingTradeColony !== undefined"
                                  ref="tradeConfirm"
@@ -157,8 +165,26 @@
                                  :options="pendingTradeColony.paymentOptions"
                                  :disabledOptions="pendingTradeColony.disabledPayments"
                                  :players="playerView.players"
-                                 @confirm="onColonyTradePaymentSelected($event)"
+                                 :preview="pendingTradeColony.preview"
+                                 :thisPlayer="thisPlayer"
+                                 :viewerColor="thisPlayer.color"
+                                 @confirm="onColonyTradeComposerConfirm($event)"
                                  @cancel="pendingTradeColony = undefined" />
+    </transition>
+
+    <!-- Colony inspect (X = «Осмотреть») — the read-only full dossier for ANY
+         colony; ←/→ page through the colonies while open. -->
+    <transition name="con-layer">
+      <ConsoleColonyInspect v-if="colonyInspectModel !== undefined"
+                            :colony="colonyInspectModel"
+                            :players="playerView.players"
+                            :viewerColor="thisPlayer.color"
+                            :playerId="playerView.id"
+                            :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
+                            :tradeable="tradeableColonyNames.includes(colonyInspectModel.name)"
+                            :blockReason="colonyTradeBlockReason"
+                            :paymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
+                            :disabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []" />
     </transition>
 
     <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
@@ -481,6 +507,11 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
+import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
+import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
+import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
+import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/Card.vue';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
@@ -576,6 +607,7 @@ export default defineComponent({
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
     ConsoleColonyTradeConfirm,
+    ConsoleColonyInspect,
     CardZoomModal,
     Card,
     ConsoleCardActions,
@@ -600,7 +632,9 @@ export default defineComponent({
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
       hydroPickCards: [] as Array<{name: CardName, current?: number}>,
-      pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments']} | undefined,
+      pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments'], preview?: ColonyTradePreviewModel} | undefined,
+      /** X = «Осмотреть» — the read-only colony dossier overlay. */
+      colonyInspectOpen: false,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
       /** A task's nested space-type option being picked on the board. */
       taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
@@ -1020,6 +1054,17 @@ export default defineComponent({
       }
       return 'Unavailable right now';
     },
+    /** Free trade fleets (fleetSize − fleets already out) — the header indicator. */
+    colonyFreeFleets(): number {
+      return freeTradeFleets(this.thisPlayer);
+    },
+    /** The colony the X = «Осмотреть» overlay shows (←/→ page while open). */
+    colonyInspectModel(): ColonyModel | undefined {
+      if (!this.colonyInspectOpen || this.consoleState.section !== 'colonies') {
+        return undefined;
+      }
+      return this.coloniesForRail[this.consoleState.colonyIndex];
+    },
     pendingTradeColonyModel(): ColonyModel | undefined {
       const pending = this.pendingTradeColony;
       if (pending === undefined) {
@@ -1287,6 +1332,9 @@ export default defineComponent({
       if (this.pendingTradeColony !== undefined) {
         return 'Trade';
       }
+      if (this.colonyInspectOpen) {
+        return 'Colony';
+      }
       if (this.maInspectItem !== undefined) {
         return this.maInspectItem.name.replace(/[0-9]+$/, '');
       }
@@ -1396,11 +1444,34 @@ export default defineComponent({
         ];
       }
       if (this.pendingTradeColony !== undefined) {
+        // The composer mirrors its live state (consoleColoniesUi) — the bar
+        // is the ONLY hint surface (no inline duplicates).
+        if (consoleColoniesUi.composerSub === 'lanes') {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'triggerR', label: 'Max'},
+            {control: 'confirm', label: 'Done'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        if (consoleColoniesUi.composerSub === 'list') {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'confirm', label: 'Select'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'secondary', label: 'Trade'},
+          {control: 'confirm', label: 'Edit', enabled: consoleColoniesUi.composerEditable},
+          {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
           {control: 'back', label: 'Cancel'},
+        ];
+      }
+      if (this.colonyInspectOpen) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'back', label: 'Close'},
         ];
       }
       if (this.maInspectItem !== undefined) {
@@ -1552,8 +1623,9 @@ export default defineComponent({
           const selected = this.coloniesForRail[this.consoleState.colonyIndex];
           const pickable = selected !== undefined && pick.selectable.includes(selected.name);
           return [
-            {control: 'dpadH', label: 'Navigate'},
+            {control: 'dpad', label: 'Navigate'},
             {control: 'confirm', label: pick.buttonLabel, enabled: pickable},
+            {control: 'secondary', label: 'Inspect'},
             {control: 'inspect', label: 'Information'},
             {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
           ];
@@ -1561,8 +1633,9 @@ export default defineComponent({
         const selected = this.game.colonies[this.consoleState.colonyIndex];
         const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
         return [
-          {control: 'dpadH', label: 'Navigate'},
+          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Trade', enabled: tradeable},
+          {control: 'secondary', label: 'Inspect'},
           {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
         ];
@@ -1683,6 +1756,14 @@ export default defineComponent({
     journalHardBlocked(now: boolean) {
       if (now && journalState.open) {
         journalState.open = false;
+      }
+    },
+    // Leaving the colonies section closes the X-inspect dossier (and clears
+    // the composer's command-bar mirror so stale hints can't linger).
+    'consoleState.section'(section: string) {
+      if (section !== 'colonies' && this.colonyInspectOpen) {
+        this.colonyInspectOpen = false;
+        resetConsoleColoniesUi();
       }
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
@@ -1949,10 +2030,15 @@ export default defineComponent({
         confirm?.handleIntent(intent);
         return true;
       }
-      // T8: the native colony-trade confirm owns input while open.
+      // T8: the native colony-trade composer owns input while open.
       if (this.pendingTradeColony !== undefined) {
         const confirm = this.$refs.tradeConfirm as InstanceType<typeof ConsoleColonyTradeConfirm> | undefined;
         confirm?.handleIntent(intent);
+        return true;
+      }
+      // X = «Осмотреть»: the colony dossier owns the pad while open.
+      if (this.colonyInspectOpen) {
+        this.handleColonyInspectIntent(intent);
         return true;
       }
       // The premium Milestones/Awards confirm owns input while open (A =
@@ -2398,9 +2484,12 @@ export default defineComponent({
         this.handleSectionConfirm();
         return true;
       case 'secondary':
-        // P13 global rule: X reads the focused card fullscreen.
+        // P13 global rule: X reads the focused object fullscreen — in the
+        // colonies section X = «Осмотреть» (the full colony dossier).
         if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
+        } else if (this.consoleState.section === 'colonies') {
+          this.toggleColonyInspect();
         }
         return true;
       case 'back':
@@ -2429,11 +2518,10 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.section === 'colonies') {
-        if (dir === 'left' || dir === 'up') {
-          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, -1, this.coloniesForRail.length);
-        } else {
-          this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 1, this.coloniesForRail.length);
-        }
+        // 2D stepping over the premium tile grid (layout-aware columns).
+        const count = this.coloniesForRail.length;
+        const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
+        this.consoleState.colonyIndex = colonyNavStep(dir, this.consoleState.colonyIndex, count, cols);
         return;
       }
       // Hand grid: delegate to the section — it owns the plan (cols), the
@@ -2888,6 +2976,38 @@ export default defineComponent({
       return true;
     },
     // ── colonies trade (mirrors the desktop contract byte-for-byte) ─────
+    /** X = «Осмотреть» — toggle the read-only colony dossier. */
+    toggleColonyInspect(): void {
+      if (this.colonyInspectOpen) {
+        this.colonyInspectOpen = false;
+        consoleColoniesUi.inspectOpen = false;
+        return;
+      }
+      if (this.coloniesForRail.length === 0) {
+        return;
+      }
+      this.colonyInspectOpen = true;
+      consoleColoniesUi.inspectOpen = true;
+    },
+    /** The inspect overlay owns the pad: ←/→ page colonies, ↑/↓ scroll, B/X close. */
+    handleColonyInspectIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        if (intent.dir === 'left' || intent.dir === 'right') {
+          this.consoleState.colonyIndex = stepIndex(
+            this.consoleState.colonyIndex, intent.dir === 'right' ? 1 : -1, this.coloniesForRail.length);
+          return;
+        }
+        const scroller = document.querySelector<HTMLElement>('.con-colinspect .con-colinspect__main');
+        scroller?.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      if (intent.button === 'back' || intent.button === 'secondary') {
+        this.toggleColonyInspect();
+      }
+    },
     tryOpenColonyTrade(): void {
       const ctx = this.tradeColonyContext;
       const selected = this.game.colonies[this.consoleState.colonyIndex];
@@ -2898,30 +3018,42 @@ export default defineComponent({
         this.showNotice(this.colonyTradeBlockReason);
         return;
       }
-      // ALWAYS confirm through the premium payment modal — never instant.
-      this.pendingTradeColony = {
+      // ALWAYS confirm through the premium trade composer — never instant.
+      const pending = {
         colonyName: selected.name,
         paymentOptions: ctx.paymentOptions,
         disabledPayments: ctx.disabledPayments,
       };
+      this.pendingTradeColony = pending;
+      // The shared server preview (track advance / card targets / M€ prompt)
+      // loads in the background; the composer degrades gracefully meanwhile.
+      void fetchColonyTradePreview(this.playerView.id, selected.name).then((preview) => {
+        if (this.pendingTradeColony === pending && preview !== undefined && preview.colonyName === pending.colonyName) {
+          this.pendingTradeColony = {...pending, preview};
+        }
+      });
     },
-    onColonyTradePaymentSelected(paymentIdx: number): void {
+    /**
+     * The composer's ONE confirm: the trade and-response + every pre-collected
+     * follow-up (M€ payment mix / track choice / card targets) as a single
+     * PlayerInputBatch — byte-identical to answering the live prompts one at a
+     * time (a diverged later step gracefully arrives as a live prompt).
+     */
+    onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
       const pending = this.pendingTradeColony;
       const ctx = this.tradeColonyContext;
       this.pendingTradeColony = undefined;
       if (pending === undefined || ctx === undefined) {
         return;
       }
-      // Shape (desktop-identical): wrap(tradePath, {type:'and', responses:
-      // [{type:'or', index: paymentIdx, response:{type:'option'}}, {type:'colony', colonyName}]}).
-      const andResponse = {
-        type: 'and' as const,
-        responses: [
-          {type: 'or' as const, index: paymentIdx, response: {type: 'option' as const}},
-          {type: 'colony' as const, colonyName: pending.colonyName},
-        ],
-      };
-      this.submit(wrapPath(ctx.path, andResponse));
+      const batch = buildTradeBatch({
+        tradePath: ctx.path,
+        paymentIndex: payload.paymentIndex,
+        colonyName: pending.colonyName,
+        steps: payload.steps,
+        captures: payload.captures,
+      });
+      this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
     submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName}): void {

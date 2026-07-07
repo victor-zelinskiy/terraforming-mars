@@ -23,7 +23,14 @@ export type GuideSection = {
   body: ReadonlyArray<string>;
 };
 
-export function marsBotGuide(difficulty: DifficultyLevel, ctx: BonusCardContext): ReadonlyArray<GuideSection> {
+/**
+ * The guide's game context: the bonus-card option subset plus the modules that
+ * only change the TEACHING text (the Hydronetwork section), which
+ * `BonusCardContext` deliberately does not carry.
+ */
+export type MarsBotGuideContext = BonusCardContext & {deltaProject: boolean};
+
+export function marsBotGuide(difficulty: DifficultyLevel, ctx: MarsBotGuideContext): ReadonlyArray<GuideSection> {
   const sections: Array<GuideSection> = [];
 
   sections.push({
@@ -86,6 +93,21 @@ export function marsBotGuide(difficulty: DifficultyLevel, ctx: BonusCardContext)
       body: [
         'Resources MarsBot would gain are stored per colony area instead. Every 5 resources in one area are exchanged for a step on the matching tag\'s tracker.',
         'Stealing or removing MarsBot\'s resources takes them from these areas (its M€ supply covers the rest).',
+      ],
+    });
+  }
+
+  if (ctx.deltaProject) {
+    sections.push({
+      id: 'hydronetwork',
+      glyph: '≈',
+      title: 'Hydronetwork',
+      body: [
+        // The Solo Delta Project reference card, as implemented in
+        // AutomaDeltaProject.ts — keep in sync when the rules there change.
+        'Once per generation, at the start of its first turn, MarsBot advances up to 4 rows on the Hydronetwork, consuming one Power increment of its Energy tracker per row.',
+        'A row opens only once the matching tag\'s tracker has progressed, and consumed Power never returns — reducing MarsBot\'s energy production also drains its Hydronetwork budget.',
+        'MarsBot takes NO row rewards. It only races for the exclusive 2 VP and 5 VP finish slots at the end of the track.',
       ],
     });
   }
