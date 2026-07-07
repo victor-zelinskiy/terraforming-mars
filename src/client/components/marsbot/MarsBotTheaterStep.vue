@@ -110,6 +110,7 @@ import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {participantDisplayName} from './marsBotDisplay';
 import {trackActionLabel} from './marsBotView';
 import {TheaterStep} from './marsBotTheaterModel';
 import BonusCardFace from './BonusCardFace.vue';
@@ -140,7 +141,8 @@ export default defineComponent({
       return translateTextWithParams(label.message, label.params);
     },
     targetName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+      const player = this.players.find((p) => p.color === color);
+      return player !== undefined ? participantDisplayName(player) : color;
     },
     impactIconClass(change: MarsBotImpactChange): string {
       return iconClassFor(change.resource === 'tr' ? 'tr' : change.resource);

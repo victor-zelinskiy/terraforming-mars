@@ -18,7 +18,7 @@
     </div>
     <div class="left-panel-card-row left-panel-card-row--top">
       <div :class="cubeClass"></div>
-      <div class="left-panel-card-name" :class="playerNameShadowClass">{{ player.name }}</div>
+      <div class="left-panel-card-name" :class="playerNameShadowClass">{{ displayName }}</div>
     </div>
     <!--
       Turn-order бэйдж сидит в собственной строке под cube/name —
@@ -199,6 +199,7 @@ import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {turnHandoffState} from '@/client/components/overview/turnHandoffState';
 
 // Vanilla TM gives each player exactly 2 actions per turn. The server side
@@ -283,6 +284,11 @@ export default defineComponent({
     PrivateScoreMask,
   },
   computed: {
+    // The visible participant label: humans keep their name, the Automa seat
+    // localizes («ИИ» in the Russian UI) through the shared resolver.
+    displayName(): string {
+      return participantDisplayName(this.player);
+    },
     // Local "private score": mask THIS player's VP only when it's the viewer's
     // own card (never an opponent's; the VP overlay stays unmasked).
     privateMask(): boolean {

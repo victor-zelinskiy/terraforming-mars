@@ -258,6 +258,7 @@ import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import EffectPreviewPopover from '@/client/components/notifications/EffectPreviewPopover.vue';
 import {openEffectDetail} from '@/client/components/notifications/effectDetailState';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
 
@@ -333,7 +334,8 @@ export default defineComponent({
       if (a === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === a)?.name ?? a;
+      const player = this.players.find((p) => p.color === a);
+      return player !== undefined ? participantDisplayName(player) : a;
     },
     scopeLabel(): string {
       return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
@@ -377,7 +379,8 @@ export default defineComponent({
       if (a === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === a)?.name ?? a;
+      const player = this.players.find((p) => p.color === a);
+      return player !== undefined ? participantDisplayName(player) : a;
     },
     railColorClass(): string {
       // Ordinary "what an opponent did" events tint the rail in the actor's

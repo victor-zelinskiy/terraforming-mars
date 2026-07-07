@@ -139,7 +139,7 @@
           <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
             <span class="con-home__ma-check" aria-hidden="true">✓</span>
             <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
-            <span class="con-home__ma-owner-name">{{ row.takenBy.name }}</span>
+            <span class="con-home__ma-owner-name">{{ ownerDisplayName(row.takenBy) }}</span>
           </span>
           <template v-else-if="row.my !== undefined">
             <span v-if="row.my.threshold !== undefined" class="con-home__ma-bar" aria-hidden="true">
@@ -253,6 +253,7 @@ import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardCellInfo} from '@/common/boards/BoardInformationFacts';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
@@ -332,7 +333,8 @@ export default defineComponent({
       if (color === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === color)?.name ?? '';
+      const player = this.players.find((p) => p.color === color);
+      return player !== undefined ? participantDisplayName(player) : '';
     },
     /** P27b: hide the lore title when the cell header already names it. */
     loreTitle(): string {
@@ -345,6 +347,11 @@ export default defineComponent({
     },
   },
   methods: {
+    /** MA owner chip — the Automa seat localizes through the resolver. */
+    ownerDisplayName(takenBy: {color: Color, name: string}): string {
+      const player = this.players.find((p) => p.color === takenBy.color);
+      return player !== undefined ? participantDisplayName(player) : takenBy.name;
+    },
     /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
     shortName(name: string): string {
       return name.replace(/[0-9]+$/, '');

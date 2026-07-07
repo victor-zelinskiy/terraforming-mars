@@ -32,7 +32,7 @@
         <span class="vp-board__player"
               :class="'player_translucent_bg_color_' + displayedPlayer.color">
           <span class="vp-board__player-dot" :class="'player_bg_color_' + displayedPlayer.color" aria-hidden="true"></span>
-          {{ displayedPlayer.name }}
+          {{ displayedPlayerName }}
         </span>
       </div>
       <div class="vp-board__tools">
@@ -262,6 +262,7 @@ import {buildVictoryPointsModel, VictoryPointsModel, VPScale, VPSegment} from '@
 import {DELTA_STAGE_NAMES} from '@/common/delta/deltaStages';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import HiddenVictoryPointsLock from '@/client/components/overview/HiddenVictoryPointsLock.vue';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
 
 type TooltipContent = {name: string; description: string};
@@ -310,6 +311,9 @@ export default defineComponent({
     };
   },
   computed: {
+    displayedPlayerName(): string {
+      return participantDisplayName(this.displayedPlayer);
+    },
     breakdown(): VictoryPointsBreakdown {
       return this.displayedPlayer.victoryPointsBreakdown;
     },

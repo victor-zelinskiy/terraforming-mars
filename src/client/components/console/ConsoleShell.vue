@@ -450,6 +450,7 @@ import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.v
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
 import ConsoleMarsBotTheater from '@/client/components/console/ConsoleMarsBotTheater.vue';
 import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -1195,7 +1196,10 @@ export default defineComponent({
         cost: p.kind === 'milestone' ? 8 : (free ? 0 : this.awardCostValue),
         free, // Vitor's free sponsorship — the premium confirm shows the free chip.
         maxSlots: 3,
-        playerName: (c) => this.playerView.players.find((pl) => pl.color === c)?.name ?? c,
+        playerName: (c) => {
+          const pl = this.playerView.players.find((candidate) => candidate.color === c);
+          return pl !== undefined ? participantDisplayName(pl) : c;
+        },
         describe,
       });
     },

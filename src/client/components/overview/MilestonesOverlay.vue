@@ -48,7 +48,7 @@
           <div v-if="m.playerName" class="milestone-row-claimedby">
             <span v-i18n>claimed by</span>
             <player-cube :color="m.color" :size="14"></player-cube>
-            <span>{{ m.playerName }}</span>
+            <span>{{ claimantName(m) }}</span>
           </div>
         </div>
 
@@ -96,6 +96,7 @@ import {MilestoneName} from '@/common/ma/MilestoneName';
 import {MILESTONE_COST, MAX_MILESTONES} from '@/common/constants';
 import {getMilestone} from '@/client/MilestoneAwardManifest';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
@@ -298,7 +299,18 @@ export default defineComponent({
       this.$emit('claim', m.name);
     },
     playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+      const player = this.players.find((p) => p.color === color);
+      return player !== undefined ? participantDisplayName(player) : color;
+    },
+    /** The claimant label — the Automa seat localizes through the resolver. */
+    claimantName(m: ClaimedMilestoneModel): string {
+      if (m.color !== undefined) {
+        const player = this.players.find((p) => p.color === m.color);
+        if (player !== undefined) {
+          return participantDisplayName(player);
+        }
+      }
+      return m.playerName ?? '';
     },
     onRowEnter(e: MouseEvent, m: ClaimedMilestoneModel): void {
       const row = e.currentTarget as HTMLElement;

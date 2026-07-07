@@ -75,6 +75,7 @@ import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import JournalColonyChip from '@/client/components/journal/JournalColonyChip.vue';
 import JournalMaChip from '@/client/components/journal/JournalMaChip.vue';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
 
@@ -134,7 +135,10 @@ export default defineComponent({
   },
   methods: {
     playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+      // The Automa seat renders through the localized display name («ИИ» in
+      // the Russian UI) — the canonical server name never shows raw.
+      const player = this.players.find((p) => p.color === color);
+      return player !== undefined ? participantDisplayName(player) : color;
     },
     onSpaceClick(spaceId: SpaceId): void {
       highlightBoardSpace(spaceId);

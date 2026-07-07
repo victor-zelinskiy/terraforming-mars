@@ -8,7 +8,7 @@
         <div class="con-info__who">
           <GamepadGlyph control="bumperL" class="con-info__bumper" />
           <span :class="'con-status__dot player_bg_color_' + viewed.color"></span>
-          <span class="con-info__name">{{ viewed.name }}</span>
+          <span class="con-info__name">{{ viewedDisplayName }}</span>
           <span v-if="isSelf" class="con-info__chip con-info__chip--you">{{ $t('You') }}</span>
           <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
           <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
@@ -273,6 +273,7 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
@@ -316,6 +317,9 @@ export default defineComponent({
     /** The viewed participant is the MarsBot seat → bot-specific sections. */
     viewedIsBot(): boolean {
       return this.viewed.isMarsBot === true;
+    },
+    viewedDisplayName(): string {
+      return participantDisplayName(this.viewed);
     },
     botAutoma(): MarsBotModel | undefined {
       return this.playerView.game.automa;

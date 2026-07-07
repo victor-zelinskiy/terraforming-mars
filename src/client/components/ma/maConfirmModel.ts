@@ -144,7 +144,9 @@ export function buildMaConfirm(
     openAfter: Math.max(0, opts.maxSlots - takenCount - (taken ? 0 : 1)),
     takenBy: all.filter(isTaken).map((m) => ({
       maName: maDisplayName(m.name),
-      name: m.playerName ?? '',
+      // Resolve through the caller's lookup (localizes the Automa seat) —
+      // the model's raw playerName is the canonical server name.
+      name: m.color !== undefined ? opts.playerName(m.color) : (m.playerName ?? ''),
       // isTaken guarantees playerName; color rides along (fallback = viewer-safe neutral).
       color: m.color ?? opts.myColor,
     })),
@@ -152,6 +154,6 @@ export function buildMaConfirm(
     leaderScore,
     raceTone,
     takenByOther: taken && source.color !== undefined ?
-      {name: source.playerName ?? '', color: source.color} : undefined,
+      {name: opts.playerName(source.color), color: source.color} : undefined,
   };
 }

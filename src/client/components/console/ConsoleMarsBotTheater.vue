@@ -11,7 +11,7 @@
         </span>
         <span class="con-bot-theater__name">
           <span :class="'con-status__dot player_bg_color_' + state.botColor" aria-hidden="true"></span>
-          {{ state.botName }}
+          {{ botDisplayName }}
         </span>
         <span class="con-bot-theater__sub" v-i18n>{{ headerSub }}</span>
         <span class="con-bot-theater__progress">{{ progressText }}</span>
@@ -48,6 +48,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
 import {TheaterStep} from '@/client/components/marsbot/marsBotTheaterModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import MarsBotTheaterStep from '@/client/components/marsbot/MarsBotTheaterStep.vue';
 
 export default defineComponent({
@@ -89,6 +90,9 @@ export default defineComponent({
         return 'turn complete';
       }
       return this.onThinking ? 'is thinking' : 'is taking its turn';
+    },
+    botDisplayName(): string {
+      return participantDisplayName({name: this.state.botName, isMarsBot: true});
     },
     progressText(): string {
       // The thinking beat is presentation, not a game step — exclude it.

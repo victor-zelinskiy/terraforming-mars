@@ -25,7 +25,7 @@
     "Bonus placements on the board are shuffled for extra variety.": "Бонусы на поле перемешиваются для большего разнообразия.",
     "Starting TR bonus": "Стартовый бонус TR",
     "Give each player an extra starting Terraform Rating (a per-player handicap).": "Даёт каждому игроку дополнительный стартовый Рейтинг Терраформирования (индивидуальную фору).",
-    "Reveal every player's and MarsBot's victory points during the game, instead of hiding them until the final scoring.": "Показывает победные очки всех игроков (и MarsBot) во время партии, а не скрывает их до финального подсчёта.",
+    "Reveal every player's and MarsBot's victory points during the game, instead of hiding them until the final scoring.": "Показывает победные очки всех игроков (и ИИ) во время партии, а не скрывает их до финального подсчёта.",
     "Alternative Venus board": "Альтернативный планшет Венеры",
     "Use the alternative Venus board layout.": "Использовать альтернативную раскладку планшета Венеры.",
     "Base only": "Только база",

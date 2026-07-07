@@ -39,6 +39,7 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {buildEndgameModel, EndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {decomposePlayerCardVp, type CardDecl} from '@/client/components/endgame/cardScoreContribution';
 import type {StrategyInput, ResourceTotals} from '@/client/components/endgame/strategyArchetypes';
@@ -93,7 +94,9 @@ export default defineComponent({
         .filter((p) => p.victoryPointsBreakdown !== undefined)
         .map((p) => ({
           color: p.color,
-          name: p.name,
+          // The Automa seat localizes («ИИ») — the whole endgame stack
+          // (hero, reveal lanes, narrative) inherits the display name here.
+          name: participantDisplayName(p),
           corporations: this.corporationsOf(p),
           megacredits: p.megacredits,
           breakdown: p.victoryPointsBreakdown,

@@ -42,7 +42,7 @@
          misleading zeros. Its participant panel (economy, decks, compact
          tracks, «MarsBot board» entry) takes the whole cluster instead. -->
     <div v-if="displayedIsMarsBot && botAutoma !== undefined" class="left-panel-section left-panel-section--marsbot">
-      <div class="left-panel-section__label">MarsBot</div>
+      <div class="left-panel-section__label">{{ $t('MarsBot') }}</div>
       <MarsBotPanel
         :player="displayedPlayer"
         :automa="botAutoma"

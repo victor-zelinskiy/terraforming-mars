@@ -88,6 +88,7 @@ import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputMode
 import {Message} from '@/common/logs/Message';
 import {Color} from '@/common/Color';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 
@@ -148,11 +149,14 @@ export default defineComponent({
       for (const c of this.colony?.colonies ?? []) {
         counts.set(c, (counts.get(c) ?? 0) + 1);
       }
-      return [...counts.entries()].map(([color, count]) => ({
-        color,
-        name: this.players.find((p) => p.color === color)?.name ?? color,
-        count,
-      }));
+      return [...counts.entries()].map(([color, count]) => {
+        const player = this.players.find((p) => p.color === color);
+        return {
+          color,
+          name: player !== undefined ? participantDisplayName(player) : color,
+          count,
+        };
+      });
     },
   },
   methods: {

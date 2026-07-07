@@ -12,7 +12,7 @@
             class="con-status__player"
             :class="chipClasses(p)">
         <span :class="'con-status__dot player_bg_color_' + p.color"></span>
-        <span class="con-status__pname">{{ p.name }}</span>
+        <span class="con-status__pname">{{ displayName(p) }}</span>
         <span class="con-status__pstatus" :class="'con-status__pstatus--' + presentation(p).category">
           <span class="con-status__pstatus-glyph" aria-hidden="true">{{ statusGlyph(p) }}</span>
           <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
@@ -116,6 +116,7 @@ import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
@@ -219,6 +220,9 @@ export default defineComponent({
     }
   },
   methods: {
+    displayName(p: PublicPlayerModel): string {
+      return participantDisplayName(p);
+    },
     presentation(p: PublicPlayerModel): StatusPresentation {
       return presentPlayerStatus(actionLabelForPlayer(this.playerView, p));
     },

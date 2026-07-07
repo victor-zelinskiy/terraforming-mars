@@ -775,6 +775,7 @@ import StandardProjectsOverlay from '@/client/components/overview/StandardProjec
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import MarsBotBoardOverlay from '@/client/components/marsbot/MarsBotBoardOverlay.vue';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
@@ -1857,7 +1858,10 @@ export default defineComponent({
         cost: p.kind === 'milestone' ? MILESTONE_COST : nextAwardCost,
         free,
         maxSlots: p.kind === 'milestone' ? MAX_MILESTONES : MAX_AWARDS,
-        playerName: (c) => this.playerView.players.find((pl) => pl.color === c)?.name ?? c,
+        playerName: (c) => {
+          const pl = this.playerView.players.find((candidate) => candidate.color === c);
+          return pl !== undefined ? participantDisplayName(pl) : c;
+        },
         describe,
       });
     },

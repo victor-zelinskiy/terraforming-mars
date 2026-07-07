@@ -4,7 +4,7 @@
       <span class="marsbot-slot__avatar" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7.5" width="14" height="10" rx="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5 V4.4 M12 4.4 L14 3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9.2" cy="12" r="1.5" fill="currentColor"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor"/><path d="M9 15.4 H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </span>
-      <span class="marsbot-slot__name">MarsBot</span>
+      <span class="marsbot-slot__name">{{ $t('MarsBot') }}</span>
       <span class="marsbot-slot__chip" v-i18n>Automa opponent</span>
     </div>
 

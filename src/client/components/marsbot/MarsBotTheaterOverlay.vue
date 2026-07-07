@@ -11,7 +11,7 @@
         </span>
         <span class="mb-theater__title">
           <span :class="'con-status__dot player_bg_color_' + state.botColor" aria-hidden="true"></span>
-          {{ state.botName }}
+          {{ botDisplayName }}
           <span class="mb-theater__title-sub" v-i18n>{{ headerSub }}</span>
         </span>
         <button v-if="state.lingering" type="button" class="mb-theater__skip mb-theater__skip--close" @click="dismiss"><span v-i18n>Close</span></button>
@@ -57,6 +57,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from './marsBotTheaterState';
 import {TheaterStep} from './marsBotTheaterModel';
+import {participantDisplayName} from './marsBotDisplay';
 import MarsBotTheaterStep from './MarsBotTheaterStep.vue';
 
 export default defineComponent({
@@ -110,6 +111,9 @@ export default defineComponent({
         return 'turn complete';
       }
       return this.onThinking ? 'is thinking' : 'is taking its turn';
+    },
+    botDisplayName(): string {
+      return participantDisplayName({name: this.state.botName, isMarsBot: true});
     },
   },
   methods: {
