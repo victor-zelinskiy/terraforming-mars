@@ -39,6 +39,7 @@ const RULE_GLYPH: Record<string, string> = {
   shuffle: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 7 H8 L16 17 H20 M16 14 L20 17 L16 20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   tr: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 9 H15 M12 9 V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   venus: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M12 14 V21 M9 18 H15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  vp: '<svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12 C5 7 8.5 5 12 5 C15.5 5 19 7 21.5 12 C19 17 15.5 19 12 19 C8.5 19 5 17 2.5 12 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>',
 };
 
 export default defineComponent({

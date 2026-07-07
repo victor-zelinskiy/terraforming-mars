@@ -13,7 +13,7 @@ import {PREMIUM_EXPANSIONS} from './createGameMeta';
  *   - real player slots (names + colours + per-player TR Boost when enabled)
  *   - in-scope expansions
  *   - the map
- *   - the rule toggles (draft / random M&A / random tiles / alt-Venus)
+ *   - the rule toggles (draft / random M&A / random tiles / real-time VP / alt-Venus)
  *
  * Player NAMES are sent verbatim (never a default colour name) — they are the
  * temporary identity key other players match on in the "join" flow.
@@ -55,7 +55,7 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     undoOption: d.undoOption,
     showTimers: d.showTimers,
     fastModeOption: d.fastModeOption,
-    showOtherPlayersVP: d.showOtherPlayersVP,
+    showOtherPlayersVP: state.rules.showOtherPlayersVP,
     testMode: d.testMode,
     aresExtremeVariant: d.aresExtremeVariant,
     politicalAgendasExtension: d.politicalAgendasExtension,

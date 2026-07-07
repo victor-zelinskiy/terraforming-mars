@@ -35,6 +35,8 @@ export type PremiumRules = {
   randomBoardTiles: boolean;
   alternativeVenusBoard: boolean;
   trBoostEnabled: boolean;
+  /** Show every player's (and MarsBot's) VP in real time instead of hiding it until the end. */
+  showOtherPlayersVP: boolean;
 };
 
 export type PremiumCreateGameState = {
@@ -96,6 +98,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
       randomBoardTiles: d.shuffleMapOption,
       alternativeVenusBoard: d.altVenusBoard,
       trBoostEnabled: false,
+      showOtherPlayersVP: d.showOtherPlayersVP,
     },
   };
 }

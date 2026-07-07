@@ -25,6 +25,7 @@ function baseState(): PremiumCreateGameState {
       randomBoardTiles: true,
       alternativeVenusBoard: true,
       trBoostEnabled: false,
+      showOtherPlayersVP: false,
     },
   };
 }
@@ -86,6 +87,15 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
     expect(payload.draftVariant).eq(false);
     expect(payload.randomMA).eq(RandomMAOptionType.NONE);
     expect(payload.shuffleMapOption).eq(false);
+  });
+
+  it('maps the show-real-time-VP toggle', () => {
+    const off = buildCreateGamePayloadFromPremiumState(baseState());
+    expect(off.showOtherPlayersVP).eq(false);
+
+    const on = baseState();
+    on.rules.showOtherPlayersVP = true;
+    expect(buildCreateGamePayloadFromPremiumState(on).showOtherPlayersVP).eq(true);
   });
 
   it('keeps alt-Venus board off when Venus is disabled even if the rule is on', () => {

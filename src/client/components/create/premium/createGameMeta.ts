@@ -107,13 +107,14 @@ export type PremiumRuleId =
   | 'randomMilestonesAwards'
   | 'randomBoardTiles'
   | 'trBoostEnabled'
+  | 'showOtherPlayersVP'
   | 'alternativeVenusBoard';
 
 export type PremiumRuleMeta = {
   id: PremiumRuleId;
   labelKey: string;
   descKey: string;
-  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus';
+  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus' | 'vp';
   /** When set, the toggle only shows while the given expansion is enabled. */
   requiresExpansion?: Expansion;
 };
@@ -123,5 +124,6 @@ export const PREMIUM_RULES: ReadonlyArray<PremiumRuleMeta> = [
   {id: 'randomMilestonesAwards', labelKey: 'Random milestones and awards', descKey: 'Milestones and awards are chosen at random instead of the board defaults.', icon: 'dice'},
   {id: 'randomBoardTiles', labelKey: 'Random tile placement', descKey: 'Bonus placements on the board are shuffled for extra variety.', icon: 'shuffle'},
   {id: 'trBoostEnabled', labelKey: 'Starting TR bonus', descKey: 'Give each player an extra starting Terraform Rating (a per-player handicap).', icon: 'tr'},
+  {id: 'showOtherPlayersVP', labelKey: 'Show real-time VP', descKey: 'Reveal every player\'s and MarsBot\'s victory points during the game, instead of hiding them until the final scoring.', icon: 'vp'},
   {id: 'alternativeVenusBoard', labelKey: 'Alternative Venus board', descKey: 'Use the alternative Venus board layout.', icon: 'venus', requiresExpansion: 'venus'},
 ];
