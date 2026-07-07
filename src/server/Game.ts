@@ -324,6 +324,16 @@ export class Game implements IGame, Logger {
     // first-player rotation, game end without a Venus requirement, no neutral
     // solo tiles) then applies for free.
     if (gameOptions.automa !== undefined) {
+      // The start-of-game DRAFT variants DEGENERATE with a single human: there
+      // is nobody to pass cards to, and MarsBot never joins the human's
+      // starting picks (the official Automa setup deals the standard 2 corps /
+      // 4 preludes / 10 project cards; the bot gets its prelude compensation
+      // as extra action-deck cards instead). Normalize them off rather than
+      // rejecting — the human's setup is identical either way, and the fork's
+      // default create template ships with the prelude draft enabled.
+      gameOptions.initialDraftVariant = false;
+      gameOptions.preludeDraftVariant = false;
+      gameOptions.ceosDraftVariant = false;
       AutomaSetup.validateOptions(gameOptions);
       if (players.length === 1 && !players[0].isMarsBot) {
         players = [...players, AutomaSetup.createBotPlayer(id, players.map((p) => p.color))];

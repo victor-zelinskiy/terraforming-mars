@@ -313,11 +313,6 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     starwars: on('starwars'),
     underworld: on('underworld'),
     deltaProject: on('deltaProject'),
-    // The premium form doesn't expose these variants; the MarsBot payload
-    // sends them off (see buildCreateGamePayloadFromPremiumState).
-    initialDraftVariant: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
     randomMA: config.rules.randomMilestonesAwards,
     soloTR: false,
     twoCorpsVariant: false,

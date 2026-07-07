@@ -66,9 +66,12 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     removeNegativeGlobalEventsOption: d.removeNegativeGlobalEventsOption,
     modularMA: d.modularMA,
     draftVariant: state.rules.draftVariant,
-    initialDraft: d.initialDraft,
-    preludeDraftVariant: d.preludeDraftVariant ?? false,
-    ceosDraftVariant: d.ceosDraftVariant ?? false,
+    // MarsBot: the start-of-game draft variants degenerate with one human
+    // (the server normalizes them off too) — never send the form defaults
+    // (the fork's template ships with the prelude draft ON).
+    initialDraft: marsBot ? false : d.initialDraft,
+    preludeDraftVariant: marsBot ? false : (d.preludeDraftVariant ?? false),
+    ceosDraftVariant: marsBot ? false : (d.ceosDraftVariant ?? false),
     startingCorporations: d.startingCorporations,
     // "Случайные места для тайлов" maps to the board-shuffle option.
     shuffleMapOption: state.rules.randomBoardTiles,

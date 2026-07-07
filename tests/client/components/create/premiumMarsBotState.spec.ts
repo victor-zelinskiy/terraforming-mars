@@ -89,6 +89,14 @@ describe('premium create — MarsBot mode', () => {
     expect(payload.players[0].first).is.true;
     expect(payload.solarPhaseOption).is.false;
     expect(payload.board).eq(BoardName.THARSIS);
+    // The start-of-game draft variants degenerate with one human — never sent
+    // (the fork's default template ships the prelude draft ON, which used to
+    // 500 the automa create until the server normalization landed).
+    expect(payload.initialDraft).is.false;
+    expect(payload.preludeDraftVariant).is.false;
+    expect(payload.ceosDraftVariant).is.false;
+    // The between-generations draft IS supported and follows the rule toggle.
+    expect(payload.draftVariant).eq(createGameState.config.rules.draftVariant);
   });
 
   it('a multiplayer payload never carries automa', () => {

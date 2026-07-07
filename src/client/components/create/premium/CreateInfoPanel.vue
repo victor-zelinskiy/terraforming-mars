@@ -59,7 +59,9 @@ export default defineComponent({
       case 'rule': return 'Rule';
       case 'players': return 'Players';
       case 'mode': return 'Game mode';
-      case 'bot': return 'MarsBot';
+      // The kicker sits under v-i18n — use the translatable ROLE, never the
+      // proper name (the i18n tool rejects a key that equals its own text).
+      case 'bot': return 'Automa opponent';
       default: return 'Briefing';
       }
     },

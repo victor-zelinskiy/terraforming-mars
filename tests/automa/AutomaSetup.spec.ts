@@ -54,6 +54,35 @@ describe('AutomaSetup', () => {
     expect(game.board.spaces.every((space) => space.tile === undefined)).is.true;
   });
 
+  it('the start-of-game draft variants NORMALIZE off — never an error (the fork template ships prelude draft ON)', () => {
+    // With one human there is nobody to pass to and MarsBot never joins the
+    // starting picks, so the variants degenerate into the standard setup:
+    // 2 corporations + 4 preludes + 10 project cards, pay 3 M€ per card.
+    const [game, human, bot] = testAutomaGame({
+      preludeExtension: true,
+      initialDraftVariant: true,
+      preludeDraftVariant: true,
+      ceosDraftVariant: true,
+      keepInitialCardSelection: true,
+    });
+    expect(game.gameOptions.initialDraftVariant).is.false;
+    expect(game.gameOptions.preludeDraftVariant).is.false;
+    expect(game.gameOptions.ceosDraftVariant).is.false;
+    expect(game.phase).is.not.eq('initial_drafting');
+    // The human's standard deal, untouched.
+    expect(human.dealtCorporationCards).has.length(2);
+    expect(human.dealtPreludeCards).has.length(4);
+    expect(human.dealtProjectCards).has.length(10);
+    expect(human.getWaitingFor()).is.not.undefined;
+    // MarsBot never takes prelude cards — its compensation is 3 extra project
+    // cards in the action deck (3 + 3 with Prelude, + the top bonus card).
+    expect(bot.dealtPreludeCards).is.empty;
+    expect(bot.dealtCorporationCards).is.empty;
+    const automa = automaOf(game);
+    expect(automa.actionDeck.filter((c) => c.kind === 'project')).has.length(6);
+    expect(automa.actionDeck.filter((c) => c.kind === 'bonus')).has.length(1);
+  });
+
   it('base bonus deck is B01–B08; one card of it starts inside the action deck', () => {
     const [game] = testAutomaGame();
     const automa = automaOf(game);
@@ -159,7 +188,6 @@ describe('AutomaSetup', () => {
       ['Star Wars', {starWarsExpansion: true}],
       ['Underworld', {underworldExpansion: true}],
       ['Delta Project', {deltaProjectExpansion: true}],
-      ['initial draft', {initialDraftVariant: true}],
       ['random MA', {randomMA: RandomMAOptionType.LIMITED}],
       ['solo TR', {soloTR: true}],
       ['two corps', {twoCorpsVariant: true}],

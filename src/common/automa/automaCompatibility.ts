@@ -26,9 +26,6 @@ export type AutomaConflictKey =
   | 'expansion:starwars'
   | 'expansion:underworld'
   | 'expansion:deltaProject'
-  | 'variant:initialDraft'
-  | 'variant:preludeDraft'
-  | 'variant:ceoDraft'
   | 'rule:randomMilestonesAwards'
   | 'variant:soloTR'
   | 'variant:twoCorps'
@@ -62,9 +59,6 @@ export type AutomaCompatibilityInput = {
   starwars: boolean;
   underworld: boolean;
   deltaProject: boolean;
-  initialDraftVariant: boolean;
-  preludeDraftVariant: boolean;
-  ceosDraftVariant: boolean;
   /** True when random milestones/awards are enabled at all (any mode). */
   randomMA: boolean;
   soloTR: boolean;
@@ -106,9 +100,11 @@ const RULES: ReadonlyArray<Rule> = [
   {key: 'expansion:underworld', test: (o) => o.underworld, reason: () => 'Underworld'},
   {key: 'expansion:deltaProject', test: (o) => o.deltaProject, reason: () => 'the Delta Project'},
   // Variants the official Automa setup does not describe.
-  {key: 'variant:initialDraft', test: (o) => o.initialDraftVariant, reason: () => 'the initial draft (the official Automa setup deals 10 cards)'},
-  {key: 'variant:preludeDraft', test: (o) => o.preludeDraftVariant, reason: () => 'the prelude draft'},
-  {key: 'variant:ceoDraft', test: (o) => o.ceosDraftVariant, reason: () => 'the CEO draft'},
+  // NOTE: the start-of-game DRAFT variants (initial / prelude / CEO) are NOT
+  // conflicts — with a single human there is nobody to pass to and MarsBot
+  // never joins the human's starting picks, so they DEGENERATE into the
+  // standard setup. `Game.newInstance` normalizes them off for automa games
+  // instead of rejecting (the resulting setup is identical either way).
   {key: 'rule:randomMilestonesAwards', test: (o) => o.randomMA, reason: () => 'random milestones and awards'},
   {key: 'variant:soloTR', test: (o) => o.soloTR, reason: () => 'the 63 TR solo variant (the win condition is beating MarsBot)'},
   {key: 'variant:twoCorps', test: (o) => o.twoCorpsVariant, reason: () => 'the two-corporations variant'},
