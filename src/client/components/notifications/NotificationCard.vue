@@ -218,6 +218,13 @@
               @click.stop="$emit('cancel', notification)">
         <span v-i18n>{{ notification.cancelCta.labelKey }}</span>
       </button>
+      <!-- Calm ghost secondary (e.g. «В журнал» on the AI-turn card). -->
+      <button v-if="notification.secondaryCta !== undefined"
+              type="button"
+              class="notification-card__cta notification-card__cta--ghost"
+              @click.stop="$emit('cta-secondary', notification)">
+        <span v-i18n>{{ notification.secondaryCta.labelKey }}</span>
+      </button>
       <button v-if="notification.cta !== undefined"
               type="button"
               class="notification-card__cta"
@@ -291,7 +298,7 @@ const ACTIVITY_MOVE_THRESHOLD = 6;
 // Variants that read as "what an opponent just did" — their rail is tinted in
 // the actor's player colour. Prestige / system variants keep their own accent.
 const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
-  'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event',
+  'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event', 'bot-turn',
 ]);
 
 export default defineComponent({
@@ -311,7 +318,7 @@ export default defineComponent({
       default: undefined,
     },
   },
-  emits: ['dismiss', 'toggle', 'cta', 'cancel'],
+  emits: ['dismiss', 'toggle', 'cta', 'cta-secondary', 'cancel'],
   data() {
     return {
       // Set once the player is active (only meaningful for the your-turn card).
@@ -420,6 +427,7 @@ export default defineComponent({
       case 'action-required': return '!';
       case 'your-turn': return '▸';
       case 'warning': return '⚠';
+      case 'bot-turn': return '⌬';
       case 'generation': return '◆';
       case 'pass': return '⏻';
       case 'standard-project': return '⬡';

@@ -124,5 +124,12 @@ export type MarsBotTurn = {
   /** Monotonic per-game turn number — the client's replay/dedup key. */
   id: number;
   generation: number;
+  /**
+   * The journal group id of this turn (the whole turn resolves inside ONE
+   * `events.beginAction` scope, category 'automa-turn') — the shared key that
+   * links the compact turn notification, the theater replay and the journal
+   * entry to the SAME script. Absent on turns recorded before this field.
+   */
+  correlationId?: number;
   steps: ReadonlyArray<MarsBotTurnStep>;
 };

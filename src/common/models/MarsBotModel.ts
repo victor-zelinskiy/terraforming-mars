@@ -35,6 +35,13 @@ export type MarsBotModel = {
   revealedCard?: {kind: 'project', name: CardName} | {kind: 'bonus', id: BonusCardId};
   /** The typed script of the last resolved bot turn — the turn-theater feed. */
   lastTurn?: MarsBotTurn;
+  /**
+   * The recent resolved turn scripts (oldest → newest, bounded tail). Two
+   * jobs: consecutive bot turns inside one human input all reach the client
+   * (not just the last), and recent turns stay replayable from the journal
+   * («Осмотреть ход») after a reload.
+   */
+  turnHistory?: ReadonlyArray<MarsBotTurn>;
   floaters: number;
   /** Colonies shipping-board storage areas (present only with Colonies). */
   shippingStorage?: Partial<Record<ColonyName, number>>;

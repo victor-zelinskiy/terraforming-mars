@@ -251,6 +251,9 @@ export class Server {
     })];
   }
 
+  /** How many recent turn scripts ride the model (the client archives them). */
+  private static readonly MODEL_TURN_HISTORY = 8;
+
   /**
    * The public MarsBot state: tracks with regression markers, deck COUNTS
    * (contents/order stay hidden — face-down decks), the open discards, the
@@ -283,6 +286,10 @@ export class Server {
     }
     if (automa.lastTurn !== undefined) {
       model.lastTurn = automa.lastTurn;
+    }
+    if (automa.turnHistory.length > 0) {
+      // A bounded tail keeps the payload small; the client archives what it sees.
+      model.turnHistory = automa.turnHistory.slice(-Server.MODEL_TURN_HISTORY);
     }
     if (game.gameOptions.coloniesExtension) {
       model.shippingStorage = {...automa.shippingStorage};

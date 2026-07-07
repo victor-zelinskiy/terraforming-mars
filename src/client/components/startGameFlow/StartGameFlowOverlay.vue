@@ -380,6 +380,7 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {
@@ -431,6 +432,8 @@ type DataModel = {
   zoomCard: CardModel | undefined;
   viewportWidth: number;
   viewportHeight: number;
+  /** Release fn of the held 'mandatory-choice' presentation lease. */
+  releaseLease: (() => void) | undefined;
 };
 
 export default defineComponent({
@@ -456,6 +459,7 @@ export default defineComponent({
       zoomCard: undefined,
       viewportWidth: typeof window === 'undefined' ? 1280 : window.innerWidth,
       viewportHeight: typeof window === 'undefined' ? 860 : window.innerHeight,
+      releaseLease: undefined,
     };
   },
   watch: {
@@ -483,6 +487,20 @@ export default defineComponent({
         if (sig !== this.lastStepSignature) {
           this.lastStepSignature = sig;
           this.userMinimized = false;
+        }
+      },
+    },
+    // PRESENTATION FLOW occupancy: while the full start-flow window covers the
+    // screen it holds a 'mandatory-choice' lease so transient notifications
+    // queue instead of floating over it (collapsed pill releases it).
+    showFull: {
+      immediate: true,
+      handler(visible: boolean): void {
+        if (visible && this.releaseLease === undefined) {
+          this.releaseLease = acquireForegroundLease('mandatory-choice');
+        } else if (!visible && this.releaseLease !== undefined) {
+          this.releaseLease();
+          this.releaseLease = undefined;
         }
       },
     },
@@ -711,6 +729,8 @@ export default defineComponent({
   },
   beforeUnmount(): void {
     window.removeEventListener('resize', this.onResize);
+    this.releaseLease?.();
+    this.releaseLease = undefined;
   },
   methods: {
     onResize(): void {

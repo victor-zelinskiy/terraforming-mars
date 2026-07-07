@@ -83,6 +83,7 @@ export type NotificationKind =
  * variant `milestone`; a colony trade is kind `normal` + variant `colony`).
  */
 export type NotificationVariant =
+  | 'bot-turn' // MarsBot finished a turn — compact card, expandable into the turn theater
   | 'play-card' // a project card was played
   | 'blue-action' // an activatable card / corp / CEO action was used
   | 'passive-effect' // a passive effect fired as its own root event
@@ -124,6 +125,7 @@ export type NotificationCtaAction =
   | 'focus-actions' // draw attention to the action area (your turn)
   | 'go-to-action' // best-effort: surface the pending mandatory prompt
   | 'view-reveal' // open the read-only viewer of the revealed/shown cards
+  | 'expand-theater' // expand the compact AI-turn card into the full turn theater
   | 'cancel' // cancel the pending, not-yet-committed action (cancellable placement)
   | 'dismiss';
 
@@ -195,10 +197,25 @@ export type NotificationModel = {
   ttl: number;
   persistent: boolean;
   cta?: NotificationCta;
+  /** A calm secondary action rendered as a ghost button (e.g. «В журнал» on the
+   *  AI-turn card, whose primary CTA is «Осмотреть»). */
+  secondaryCta?: NotificationCta;
   /** SECONDARY cta — a calm "Cancel" affordance shown when the pending action is
    *  cancellable before commit (a cancellable placement / colony build). Distinct
    *  from `cta` (the primary "go to action") so the player has a clear path back. */
   cancelCta?: NotificationCta;
+
+  // ── Presentation-flow semantics ───────────────────────────────────────────
+  /** While this card is VISIBLE, mandatory surfaces (draft modal / mandatory
+   *  input modal / console task host) hold off mounting — bounded by the ttl,
+   *  so the game can never stall behind it. Set on the compact AI-turn card. */
+  holdsFlow?: boolean;
+  /** 'theater' presentation mode: the moment this card is delivered it expands
+   *  into the full turn theater instead of showing the compact card. */
+  autoExpand?: boolean;
+  /** The archived MarsBot turn this card presents (expand-theater key). */
+  botTurnKey?: string;
+
   /** Epoch ms the model was minted (client clock). */
   createdAt: number;
 };
@@ -221,8 +238,14 @@ export const NOTIFICATION_TTL: Readonly<Record<NotificationKind, number>> = {
   'normal': 6_800,
 };
 
-/** How many transient (normal/important/warning) cards are visible at once. */
-export const MAX_VISIBLE_TRANSIENT = 3;
+/**
+ * How many transient (normal/important/warning) cards are visible at once.
+ * ONE — the presentation-flow rework serializes the feed: a notification that
+ * arrives while another is showing waits in the FIFO queue (the pending
+ * indicator shows the backlog), so the player reads one calm card at a time
+ * instead of a stacked burst.
+ */
+export const MAX_VISIBLE_TRANSIENT = 1;
 
 /**
  * When a single diff yields MORE than this many fresh normal events (an

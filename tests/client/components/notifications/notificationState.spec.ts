@@ -9,9 +9,17 @@ import {
   toggleExpanded,
   clearTransient,
   resetNotifications,
+  holdVisibleTransient,
+  acknowledgeFlowHoldingCards,
+  drainQueueToJournal,
+  pendingSummary,
 } from '@/client/components/notifications/notificationState';
+import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
+import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
+import {marsBotTheaterState, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
-function model(id: string, kind: NotificationKind = 'normal'): NotificationModel {
+function model(id: string, kind: NotificationKind = 'normal', extra: Partial<NotificationModel> = {}): NotificationModel {
   return {
     id,
     kind,
@@ -24,45 +32,61 @@ function model(id: string, kind: NotificationKind = 'normal'): NotificationModel
     ttl: kind === 'your-turn' || kind === 'action-required' ? 0 : 8000,
     persistent: kind === 'your-turn' || kind === 'action-required',
     createdAt: 1,
+    ...extra,
   };
 }
 
 describe('notificationState (lifecycle)', () => {
   beforeEach(() => {
     resetNotifications();
+    // Presentation flow: no blocking foreground — delivery is open.
+    resetPresentationLeases();
+    resetMarsBotTheater();
+    dismissReveal();
+    drawnCardsState.events = [];
     notificationState.seeded = true;
   });
 
-  describe('transient queue', () => {
-    it('shows up to the cap and queues the overflow', () => {
+  describe('transient queue (serial FIFO — the presentation-flow rework)', () => {
+    it('shows ONE card at a time and queues the rest', () => {
       pushMany([model('a'), model('b'), model('c'), model('d')]);
-      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a', 'b', 'c']);
-      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['d']);
-      expect(MAX_VISIBLE_TRANSIENT).to.eq(3);
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b', 'c', 'd']);
+      expect(MAX_VISIBLE_TRANSIENT).to.eq(1);
     });
 
-    it('promotes from the queue when a visible card is dismissed', () => {
-      pushMany([model('a'), model('b'), model('c'), model('d')]);
+    it('promotes from the queue FIFO when the visible card is dismissed', () => {
+      pushMany([model('a'), model('b'), model('c')]);
+      dismiss('a');
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
       dismiss('b');
-      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a', 'c', 'd']);
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['c']);
       expect(notificationState.queue).to.have.length(0);
     });
 
     it('de-dupes by id across visible + queue', () => {
-      pushMany([model('a'), model('b'), model('c'), model('d')]);
-      pushTransient(model('d')); // already queued
+      pushMany([model('a'), model('b')]);
+      pushTransient(model('b')); // already queued
       pushTransient(model('a')); // already visible
+      expect(notificationState.transient).to.have.length(1);
       expect(notificationState.queue).to.have.length(1);
     });
 
-    it('a higher-priority (negative) card EVICTS a normal one into the queue when full', () => {
-      pushMany([model('a'), model('b'), model('c')]); // 3 normal, full
-      pushTransient(model('hit', 'negative')); // higher priority
-      expect(notificationState.transient.some((n) => n.id === 'hit')).to.eq(true);
-      expect(notificationState.transient).to.have.length(3);
-      // one normal got bumped to the FRONT of the queue
-      expect(notificationState.queue).to.have.length(1);
-      expect(['a', 'b', 'c']).to.include(notificationState.queue[0].id);
+    it('a higher-priority (negative) card EVICTS the visible normal one into the queue front', () => {
+      pushMany([model('a'), model('b')]); // a visible, b queued
+      pushTransient(model('hit', 'negative'));
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['hit']);
+      // The evicted card waits at the FRONT (it re-presents first).
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a', 'b']);
+    });
+
+    it('within the queue, promotion is priority-first, FIFO within a priority', () => {
+      pushMany([model('a'), model('b'), model('loss', 'negative'), model('c')]);
+      dismiss('a');
+      // The hostile loss jumps the ordinary queue.
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['loss']);
+      dismiss('loss');
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
     });
 
     it('respects the showNormal setting', () => {
@@ -70,6 +94,73 @@ describe('notificationState (lifecycle)', () => {
       pushTransient(model('a'));
       expect(notificationState.transient).to.have.length(0);
       notificationState.settings.showNormal = true;
+    });
+  });
+
+  describe('presentation-flow delivery gate', () => {
+    it('a blocking foreground (result modal) sends fresh cards to the queue — never on top', () => {
+      revealResultState.active = true;
+      pushTransient(model('a'));
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a']);
+    });
+
+    it('a mandatory-choice lease queues delivery; dismiss cannot promote while blocked', () => {
+      const release = acquireForegroundLease('mandatory-choice');
+      pushTransient(model('a'));
+      pushTransient(model('b'));
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue).to.have.length(2);
+      release();
+    });
+
+    it('the open theater blocks delivery too (no toasts over the narration)', () => {
+      marsBotTheaterState.active = true;
+      pushTransient(model('a'));
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue).to.have.length(1);
+      marsBotTheaterState.active = false;
+    });
+
+    it('holdVisibleTransient re-queues the visible card at the FRONT (a blocker opened)', () => {
+      pushMany([model('a'), model('b')]);
+      holdVisibleTransient();
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a', 'b']);
+    });
+  });
+
+  describe('flow-holding cards + the pending summary', () => {
+    it('acknowledgeFlowHoldingCards dismisses only the visible holding card', () => {
+      pushTransient(model('bot', 'important', {holdsFlow: true, variant: 'bot-turn'}));
+      pushTransient(model('b'));
+      acknowledgeFlowHoldingCards();
+      // The holding card is gone; the queued ordinary card promotes.
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
+    });
+
+    it('pendingSummary reports the backlog + critical content', () => {
+      expect(pendingSummary()).to.deep.eq({count: 0, critical: false});
+      pushMany([model('a'), model('b'), model('c')]);
+      expect(pendingSummary()).to.deep.eq({count: 2, critical: false});
+      // A blocked flow-holding AI-turn card waits in the queue → critical.
+      const release = acquireForegroundLease('mandatory-choice');
+      pushTransient(model('bot', 'important', {holdsFlow: true}));
+      expect(pendingSummary().count).to.eq(3);
+      expect(pendingSummary().critical).to.eq(true);
+      release();
+    });
+
+    it('drainQueueToJournal drops ordinary cards, KEEPS hostile + flow-holding ones', () => {
+      revealResultState.active = true; // everything queues
+      pushMany([
+        model('a'), model('gen', 'important'),
+        model('loss', 'negative'),
+        model('bot', 'important', {holdsFlow: true}),
+      ]);
+      drainQueueToJournal();
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['loss', 'bot']);
+      dismissReveal();
     });
   });
 

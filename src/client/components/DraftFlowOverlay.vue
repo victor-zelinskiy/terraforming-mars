@@ -61,6 +61,7 @@ import {
   shouldPreserveCardPickModal,
 } from '@/client/components/draftWaitState';
 import {handCardSelectionPrompt} from '@/client/components/handCards/handSelectState';
+import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {startFlowAnyPreludePrompt, startFlowCorpSelectPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import MandatoryInputModal from '@/client/components/MandatoryInputModal.vue';
 import CardSelectionContent from '@/client/components/CardSelectionContent.vue';
@@ -113,9 +114,32 @@ export default defineComponent({
        * us as waited-on for several seconds while we re-fetch.
        */
       lastSelfHealAt: 0,
+      /** Release fn of the held 'mandatory-choice' presentation lease. */
+      releaseLease: undefined as (() => void) | undefined,
     };
   },
+  beforeUnmount() {
+    this.releaseLease?.();
+    this.releaseLease = undefined;
+  },
   watch: {
+    /*
+     * PRESENTATION FLOW occupancy: while the draft/buy modal is visibly
+     * presenting a mandatory choice, it holds a 'mandatory-choice' lease so
+     * transient notifications queue instead of floating over it. The lease
+     * follows visibility exactly (released when the overlay hides / unmounts).
+     */
+    shouldShow: {
+      immediate: true,
+      handler(visible: boolean): void {
+        if (visible && this.releaseLease === undefined) {
+          this.releaseLease = acquireForegroundLease('mandatory-choice');
+        } else if (!visible && this.releaseLease !== undefined) {
+          this.releaseLease();
+          this.releaseLease = undefined;
+        }
+      },
+    },
     /*
      * Self-heal for the "stuck on waiting screen even though the
      * server has my prompt ready" case.
@@ -266,6 +290,13 @@ export default defineComponent({
       return inCardPickPhase && view.draftedCards.length > 0;
     },
     shouldShow(): boolean {
+      // PRESENTATION FLOW: while the player is being shown what just happened
+      // (the compact AI-turn card / the opened theater), the draft modal
+      // holds off mounting — the prompt presents the moment the hold clears
+      // (dismiss / TTL / theater close). Bounded, never a stall.
+      if (isMandatoryPromptsHeld()) {
+        return false;
+      }
       return this.cardInput !== undefined || this.isWaitingState;
     },
     modalTitle(): string | Message {

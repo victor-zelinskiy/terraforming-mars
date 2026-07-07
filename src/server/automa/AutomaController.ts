@@ -1,5 +1,6 @@
 import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
+import {IPlayer} from '../IPlayer';
 import {newProjectCard} from '../createCard';
 import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
 import {AutomaDeltaProject} from './AutomaDeltaProject';
@@ -23,6 +24,39 @@ export class AutomaController {
     }
     const bot = marsBotOf(game);
 
+    /*
+     * The whole turn resolves inside ONE journal scope (mirrors the
+     * milestone/award precedent): every public log line of the turn carries
+     * the scope's correlationId, so the journal groups the bot's turn as one
+     * premium entry, and the SAME correlationId is stamped onto the turn
+     * script (`lastTurn.correlationId`) — the shared key linking the compact
+     * turn notification, the theater replay and the journal entry. Nested
+     * scopes opened during resolution (a milestone claim, the Delta Project
+     * advance) keep forming their own groups, exactly as before.
+     *
+     * The scope MUST close before `playerIsFinishedTakingActions()` — that
+     * call advances the game (the next turn can start synchronously), and
+     * nothing of it belongs to this turn's journal group.
+     */
+    game.events.beginAction(bot, undefined, {category: 'automa-turn'});
+    let passed = false;
+    try {
+      passed = AutomaController.resolveTurn(game, bot);
+    } finally {
+      game.events.endScope();
+    }
+    if (passed) {
+      game.playerHasPassed(bot);
+    }
+    game.playerIsFinishedTakingActions();
+  }
+
+  /** Resolve the turn body inside the journal scope. Returns true when the bot passed. */
+  private static resolveTurn(game: IGame, bot: IPlayer): boolean {
+    const automa = game.automa;
+    if (automa === undefined) {
+      throw new Error('Not an automa game');
+    }
     // The turn script (the client theater's data feed) records every step +
     // public log line from here to the end of the turn.
     AutomaTurnLog.begin(game);
@@ -39,9 +73,7 @@ export class AutomaController {
       game.log('${0} passed', (b) => b.player(bot));
       AutomaTurnLog.note(game, {kind: 'pass'}, {consumeLog: true});
       AutomaTurnLog.finish(game);
-      game.playerHasPassed(bot);
-      game.playerIsFinishedTakingActions();
-      return;
+      return true;
     }
 
     const entry = automa.actionDeck.shift();
@@ -70,7 +102,7 @@ export class AutomaController {
 
     automa.revealedCard = undefined;
     AutomaTurnLog.finish(game);
-    game.playerIsFinishedTakingActions();
+    return false;
   }
 
   /**

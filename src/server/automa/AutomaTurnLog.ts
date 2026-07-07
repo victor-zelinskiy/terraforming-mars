@@ -1,8 +1,17 @@
 import {Color} from '../../common/Color';
 import {Resource} from '../../common/Resource';
-import {MarsBotImpactChange, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
+import {MarsBotImpactChange, MarsBotTurn, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+
+/**
+ * How many resolved turn scripts the server keeps (`AutomaState.turnHistory`).
+ * Consecutive bot turns can resolve inside ONE human input (the human passed,
+ * the bot plays the generation out alone), so `lastTurn` alone loses the
+ * intermediate scripts — the history keeps every recent turn addressable for
+ * the client's notification queue + the journal's «Осмотреть ход» replay.
+ */
+export const MAX_TURN_HISTORY = 24;
 
 /** The in-flight recording of one bot turn (lives on `AutomaState.turnRecording`). */
 export type MarsBotTurnRecording = {
@@ -145,7 +154,21 @@ export class AutomaTurnLog {
     for (const impact of impacts) {
       recording.steps.push({kind: 'impact', impact});
     }
-    automa.lastTurn = {id: automa.turnCounter, generation: game.generation, steps: recording.steps};
+    // The whole turn resolves inside the 'automa-turn' journal scope opened by
+    // AutomaController — its root id is the journal group of this turn. Stamp
+    // it onto the script so notification / theater / journal share ONE key.
+    const correlationId = game.events.captureContext()?.rootId;
+    const turn: MarsBotTurn = {
+      id: automa.turnCounter,
+      generation: game.generation,
+      ...(correlationId !== undefined ? {correlationId} : {}),
+      steps: recording.steps,
+    };
+    automa.lastTurn = turn;
+    automa.turnHistory.push(turn);
+    if (automa.turnHistory.length > MAX_TURN_HISTORY) {
+      automa.turnHistory.splice(0, automa.turnHistory.length - MAX_TURN_HISTORY);
+    }
     automa.turnRecording = undefined;
   }
 

@@ -32,6 +32,7 @@
 @notif-vploss: #e8806a; // VP pressure / loss (red-gold prestige damage)
 @notif-reveal-deck: #5fb8d8; // cards revealed from the deck (calm blue-cyan)
 @notif-reveal-hand: #9a9cf0; // cards shown from hand (soft blue-purple, public info)
+@notif-bot: #7fc2c9; // MarsBot turn (calm machine steel-teal)
 @notif-aqua: #4fc9d8; // Delta Project / Гидросеть advance (engineering water-cyan)
 @notif-planet: #d99a52; // Ares planetary event (dusty ochre — hazards appear / intensify / recede)
 
@@ -68,6 +69,77 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+    }
+}
+
+// ── Pending-queue indicator — the quiet "+N событий" pill under the feed. ────
+// Events are waiting their FIFO turn behind the active foreground item; click
+// opens the journal (the canonical event center). Deliberately small/calm —
+// it must never compete with a mandatory modal — with a stronger amber accent
+// only when the queue holds a gameplay-critical item.
+.notif-pending {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    pointer-events: auto;
+    cursor: pointer;
+    border: 1px solid rgba(110, 170, 200, 0.4);
+    border-radius: 999px;
+    background: linear-gradient(160deg, rgba(14, 26, 36, 0.94), rgba(10, 18, 26, 0.96));
+    color: rgba(190, 215, 235, 0.85);
+    font-family: 'Prototype', @font_family_main;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+
+    &:hover {
+        border-color: rgba(140, 210, 240, 0.75);
+        box-shadow: 0 0 14px -6px @notif-cyan;
+        transform: translateY(-1px);
+    }
+
+    &__dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: @notif-cyan;
+        box-shadow: 0 0 8px -1px @notif-cyan;
+        animation: notif-pending-pulse calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__count {
+        font-weight: 700;
+        color: rgba(220, 240, 252, 0.95);
+    }
+    &__label {
+        opacity: 0.75;
+    }
+
+    // Gameplay-critical item waiting (a hostile loss / an AI turn) — stronger,
+    // amber, but still a pill: it informs, it never blocks.
+    &--critical {
+        border-color: rgba(240, 180, 74, 0.65);
+
+        .notif-pending__dot {
+            background: @notif-amber;
+            box-shadow: 0 0 9px -1px @notif-amber;
+        }
+        &:hover {
+            box-shadow: 0 0 14px -6px @notif-amber;
+        }
+    }
+}
+
+@keyframes notif-pending-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notif-pending__dot {
+        animation: none;
     }
 }
 
@@ -546,6 +618,9 @@ body:has(.hand-board-overlay .hand-sale-strip) {
 .notification-card--variant-warning { --notif-accent: @notif-red; }
 .notification-card--variant-reveal-deck { --notif-accent: @notif-reveal-deck; }
 .notification-card--variant-reveal-hand { --notif-accent: @notif-reveal-hand; }
+// The compact MarsBot turn card — the expandable entry point of the turn
+// theater (calm steel-teal, distinct from the player-action cyan).
+.notification-card--variant-bot-turn { --notif-accent: @notif-bot; }
 
 // ── Passive-effect notification: the clickable effect chip (name + hint). ──────
 .notification-card__effect-chip {

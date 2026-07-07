@@ -61,15 +61,24 @@ export function turnDedupeKey(turn: MarsBotTurn, botColor: Color | ''): string {
   return `${botColor}:${turn.generation}:${turn.id}`;
 }
 
-/** The identity tag of a track index, resolved from the view's automa model. */
-function tagOfTrack(view: ViewModel, trackIndex: number | undefined): Tag | undefined {
+/**
+ * The identity tags of the automa tracks (index → tag) — captured once per
+ * view so an ARCHIVED turn can be replayed later (e.g. from the journal)
+ * without holding on to the whole ViewModel.
+ */
+export function trackTagsOfView(view: ViewModel | undefined): Array<Tag | undefined> {
+  return (view?.game.automa?.tracks ?? []).map((t) => t.tags[0]);
+}
+
+/** The identity tag of a track index, resolved from the captured track tags. */
+function tagOfTrack(trackTags: ReadonlyArray<Tag | undefined>, trackIndex: number | undefined): Tag | undefined {
   if (trackIndex === undefined) {
     return undefined;
   }
-  return view.game.automa?.tracks[trackIndex]?.tags[0];
+  return trackTags[trackIndex];
 }
 
-function baseStep(view: ViewModel, step: MarsBotTurnStep): TheaterStep {
+function baseStep(trackTags: ReadonlyArray<Tag | undefined>, step: MarsBotTurnStep): TheaterStep {
   switch (step.kind) {
   case 'pass':
     return {kind: 'pass', durationMs: PASS_MS, message: step.message};
@@ -83,14 +92,14 @@ function baseStep(view: ViewModel, step: MarsBotTurnStep): TheaterStep {
       kind: 'tag',
       durationMs: TAG_MS,
       tag: step.tag,
-      targetTag: tagOfTrack(view, step.trackIndex),
+      targetTag: tagOfTrack(trackTags, step.trackIndex),
       ignored: step.trackIndex === undefined,
     };
   case 'advance':
     return {
       kind: 'advance',
       durationMs: ADVANCE_MS,
-      trackTag: tagOfTrack(view, step.trackIndex),
+      trackTag: tagOfTrack(trackTags, step.trackIndex),
       from: step.from,
       to: step.to,
       ...(step.action !== undefined ? {action: step.action} : {}),
@@ -107,15 +116,15 @@ function baseStep(view: ViewModel, step: MarsBotTurnStep): TheaterStep {
 }
 
 /**
- * Build the timed view steps of one turn. `view` is the INCOMING view (its
- * automa model resolves track indices to tags). Compresses a long chain to
- * `MAX_TURN_MS` (floor `MIN_STEP_MS` per step); reduced motion flattens every
- * step to one short readable beat.
+ * Build the timed view steps of one turn from CAPTURED track tags (the
+ * archive-friendly form — a journal replay works long after the source view
+ * is gone). Compresses a long chain to `MAX_TURN_MS` (floor `MIN_STEP_MS`
+ * per step); reduced motion flattens every step to one short readable beat.
  */
-export function buildTheaterSteps(turn: MarsBotTurn, view: ViewModel, reducedMotion: boolean): Array<TheaterStep> {
+export function buildTheaterStepsFromTags(turn: MarsBotTurn, trackTags: ReadonlyArray<Tag | undefined>, reducedMotion: boolean): Array<TheaterStep> {
   const steps: Array<TheaterStep> = [{kind: 'thinking', durationMs: THINKING_MS}];
   for (const step of turn.steps) {
-    steps.push(baseStep(view, step));
+    steps.push(baseStep(trackTags, step));
   }
   if (reducedMotion) {
     return steps.map((s) => ({...s, durationMs: REDUCED_STEP_MS}));
@@ -126,6 +135,14 @@ export function buildTheaterSteps(turn: MarsBotTurn, view: ViewModel, reducedMot
     return steps.map((s) => ({...s, durationMs: Math.max(MIN_STEP_MS, Math.round(s.durationMs * scale))}));
   }
   return steps;
+}
+
+/**
+ * Build the timed view steps of one turn. `view` is the INCOMING view (its
+ * automa model resolves track indices to tags).
+ */
+export function buildTheaterSteps(turn: MarsBotTurn, view: ViewModel, reducedMotion: boolean): Array<TheaterStep> {
+  return buildTheaterStepsFromTags(turn, trackTagsOfView(view), reducedMotion);
 }
 
 /** Total scripted duration (base ms, before the motion-speed preset). */

@@ -356,12 +356,8 @@ import {
   isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {
-  detectMarsBotTurn,
-  endMarsBotTheater,
-  isMarsBotTheaterActive,
-  runMarsBotTheater,
-} from '@/client/components/marsbot/marsBotTheaterState';
+import {isMarsBotTheaterActive} from '@/client/components/marsbot/marsBotTheaterState';
+import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import MarsBotTheaterOverlay from '@/client/components/marsbot/MarsBotTheaterOverlay.vue';
 import {
   applyHazardTileSwap,
@@ -801,23 +797,17 @@ export default defineComponent({
           };
 
           /*
-           * MarsBot turn-theater gate (poll path). The bot's turn resolves
-           * instantly on the server; a poll that brings a NEW automa.lastTurn
-           * replays it with client pacing while the commit is held (the board
-           * doesn't jump, the next prompt stays closed). A conversion that
-           * rides the same response is NOT claimed here — the follow-up poll
-           * (the marker is transient until the next input) picks it up after
-           * the theater ends.
+           * MarsBot turns (poll path) — NOTIFICATION-FIRST (the presentation
+           * flow rework). Fresh bot turns are archived + enqueued as compact
+           * turn-event notifications; the commit is NOT held (the board
+           * updates immediately — the card explains what happened, «Осмотреть»
+           * expands the theater replay). Delivery rides the presentation
+           * queue, so the card never overlaps a result modal / mandatory
+           * prompt, and while it is visible the mandatory surfaces (draft
+           * modal / input modal / console task host) hold off mounting.
            */
-          const botTurn = path === paths.PLAYER ?
-            detectMarsBotTurn(prevView, model as PlayerViewModel) :
-            undefined;
-          if (botTurn !== undefined) {
-            runMarsBotTheater(botTurn, model as PlayerViewModel).then(() => {
-              commit();
-              nextTick(() => endMarsBotTheater());
-            });
-            return;
+          if (path === paths.PLAYER) {
+            presentFreshBotTurns(prevView, model as PlayerViewModel);
           }
           /*
            * Energy→heat conversion gate (poll path). When ANOTHER player's

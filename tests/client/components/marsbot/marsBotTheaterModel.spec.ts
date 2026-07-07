@@ -21,12 +21,12 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {
-  detectMarsBotTurn,
   dismissMarsBotTheater,
   endMarsBotTheater,
   marsBotTheaterState,
   resetMarsBotTheater,
 } from '@/client/components/marsbot/marsBotTheaterState';
+import {recordBotTurnsFromView, resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import {trackCells} from '@/client/components/marsbot/marsBotView';
 import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 
@@ -206,18 +206,20 @@ describe('marsBotTheaterModel', () => {
     expect(marsBotTheaterState.lingering).is.false;
   });
 
-  it('detect claims silently on a fresh session and dedups replays', () => {
+  it('the archive claims silently on a fresh session and dedups (notification-first detect)', () => {
+    resetMarsBotArchive();
     const turn = turnOf([{kind: 'pass'}]);
     const next = view(turn);
-    // Fresh load: claimed, not replayed.
-    expect(detectMarsBotTurn(undefined, next)).is.undefined;
+    // Fresh load: archived silently, never announced.
+    expect(recordBotTurnsFromView(undefined, next)).is.empty;
     // The same turn re-fetched by a poll: still nothing.
-    expect(detectMarsBotTurn(next, next)).is.undefined;
-    // A NEW turn id replays.
+    expect(recordBotTurnsFromView(next, next)).is.empty;
+    // A NEW turn id is fresh.
     const turn2 = turnOf([{kind: 'pass'}], 2);
     const next2 = view(turn2);
-    expect(detectMarsBotTurn(next, next2)).deep.eq(turn2);
-    expect(detectMarsBotTurn(next, next2)).is.undefined;
+    expect(recordBotTurnsFromView(next, next2).map((e) => e.turn)).deep.eq([turn2]);
+    expect(recordBotTurnsFromView(next, next2)).is.empty;
     expect(turnDedupeKey(turn2, 'red')).eq('red:1:2');
+    resetMarsBotArchive();
   });
 });

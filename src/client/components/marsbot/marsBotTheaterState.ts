@@ -1,37 +1,37 @@
 /*
- * MarsBot turn theater — controller + reactive state (the conversion-gate
- * pattern of `energyConversionTransition.ts` applied to the bot's turn).
+ * MarsBot turn theater — controller + reactive state.
  *
- * The server resolves a bot turn synchronously and ships its typed script on
- * `GameModel.automa.lastTurn`. Both commit paths (the viewer's own submit in
- * WaitingFor.fetchPlayerInput — the main one, since ending your turn is what
- * lets the bot act — and App.update's poll) call:
+ * PRESENTATION-FLOW REWORK (notification-first): the theater is no longer an
+ * auto-playing commit gate. A resolved bot turn arrives as a compact
+ * turn-event NOTIFICATION (see `marsBotPresentation.ts`); the theater is its
+ * EXPANDED form — a self-contained REPLAY of the archived turn script, opened
+ * explicitly (the card's «Осмотреть», the journal's «Осмотреть ход», console
+ * X) or automatically in the 'theater' presentation mode. The view commits
+ * freely; while the theater is open the presentation orchestrator
+ * (`presentationFlow.ts`) holds mandatory surfaces + notification delivery,
+ * and `isMarsBotTheaterActive()` keeps the poll from re-committing mid-replay.
  *
- *   detectMarsBotTurn(prev, next) → await runMarsBotTheater(turn, next) →
- *   <commit the new view> → nextTick(endMarsBotTheater())
- *
- * plus `isMarsBotTheaterActive()` as the poll re-entrancy guard. While the
- * theater plays, the PREVIOUS view stays committed — the board doesn't jump,
- * next prompts/modals stay closed — and the overlay narrates the turn step by
- * step. A skip affordance (click / gamepad A) resolves the gate immediately;
- * a safety timer guarantees resolution even with rAF/timers throttled.
+ * Both surfaces (desktop overlay / console band) render this SAME state.
+ * A replay that finishes stays on screen (`lingering`) until an explicit
+ * close (desktop: Close/Esc; console: B); skipping counts as acknowledged
+ * and closes fully.
  */
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
-import {ViewModel} from '@/common/models/PlayerModel';
+import {Tag} from '@/common/cards/Tag';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
-import {TheaterStep, buildTheaterSteps, marsBotOfView, theaterTotalMs, turnDedupeKey} from './marsBotTheaterModel';
+import {TheaterStep, buildTheaterStepsFromTags, theaterTotalMs} from './marsBotTheaterModel';
 
 type MarsBotTheaterState = {
   active: boolean;
   /**
-   * The narration finished replaying and the new view committed, but the
-   * player has not dismissed it yet — the card/band STAYS readable until an
-   * explicit close (desktop: the Close button / Esc; console: B). Skipping
-   * during the replay counts as "read it" and never lingers.
+   * The narration finished replaying, but the player has not dismissed it
+   * yet — the card/band STAYS readable until an explicit close (desktop: the
+   * Close button / Esc; console: B). Skipping during the replay counts as
+   * "read it" and never lingers.
    */
   lingering: boolean;
   botColor: Color | '';
@@ -60,14 +60,21 @@ export const marsBotTheaterState = reactive<MarsBotTheaterState>({
   nonce: 0,
 });
 
-// Replays of the same turn (poll re-fetches of the same view) never re-run.
-const seen = new Set<string>();
+/** Everything a replay needs, captured at archive time (view-independent). */
+export type MarsBotReplaySource = {
+  botColor: Color | '';
+  botName: string;
+  ctx: BonusCardContext;
+  turn: MarsBotTurn;
+  /** Track index → identity tag, captured when the turn was archived. */
+  trackTags: ReadonlyArray<Tag | undefined>;
+};
 
 let stepTimerId = 0;
 let safetyTimerId = 0;
-let resolveActive: (() => void) | undefined;
+let runInFlight = false;
 // The player pressed Skip during the replay — they've acknowledged the turn,
-// so `endMarsBotTheater()` closes fully instead of entering the linger state.
+// so the run closes fully instead of entering the linger state.
 let skipRequested = false;
 
 function cancelTimers(): void {
@@ -81,67 +88,45 @@ function cancelTimers(): void {
   }
 }
 
+/** True while a replay is PLAYING (the poll's re-commit guard). Lingering is
+ *  not "active" — the view is committed; only mandatory surfaces stay held. */
 export function isMarsBotTheaterActive(): boolean {
   return marsBotTheaterState.active;
 }
 
 /**
- * Detect (and atomically CLAIM) a bot turn to replay for the prev→next view
- * transition. A fresh load / reconnect (no prev) claims the key SILENTLY so a
- * stale turn is never replayed to a player who just opened the game.
+ * Open the turn theater as a REPLAY of an archived turn script. Plays the
+ * steps with client pacing, then LINGERS until the player closes it. A safety
+ * timer guarantees the run always reaches its end state even with rAF/timers
+ * throttled in a background tab.
  */
-export function detectMarsBotTurn(prev: ViewModel | undefined, next: ViewModel | undefined): MarsBotTurn | undefined {
-  const turn = next?.game.automa?.lastTurn;
-  if (turn === undefined || next === undefined) {
-    return undefined;
-  }
-  const bot = marsBotOfView(next);
-  const key = turnDedupeKey(turn, bot?.color ?? '');
-  if (seen.has(key)) {
-    return undefined;
-  }
-  seen.add(key);
-  if (prev === undefined || bot === undefined) {
-    return undefined; // silent seed — never replay into a fresh session
-  }
-  return turn;
-}
-
-/**
- * Play the turn theater; resolves when the last step has had its beat (or on
- * skip / the safety cap). `active` flips synchronously so the poll guard is
- * closed before the first await.
- */
-export function runMarsBotTheater(turn: MarsBotTurn, next: ViewModel): Promise<void> {
+export function runMarsBotTheaterReplay(source: MarsBotReplaySource): void {
   cancelTimers();
   const reduced = prefersReducedMotion();
-  const bot = marsBotOfView(next);
-  const steps = buildTheaterSteps(turn, next, reduced);
-  const expansions = next.game.gameOptions.expansions;
+  const steps = buildTheaterStepsFromTags(source.turn, source.trackTags, reduced);
 
   skipRequested = false;
+  runInFlight = true;
   marsBotTheaterState.active = true;
   marsBotTheaterState.lingering = false;
-  marsBotTheaterState.botColor = bot?.color ?? '';
-  marsBotTheaterState.botName = bot?.name ?? 'MarsBot';
+  marsBotTheaterState.botColor = source.botColor;
+  marsBotTheaterState.botName = source.botName;
   marsBotTheaterState.steps = steps;
   marsBotTheaterState.currentIndex = 0;
   marsBotTheaterState.finished = false;
   marsBotTheaterState.reducedMotion = reduced;
-  marsBotTheaterState.ctx = {venus: expansions.venus === true, colonies: expansions.colonies === true};
+  marsBotTheaterState.ctx = {...source.ctx};
   marsBotTheaterState.nonce++;
 
-  const promise = new Promise<void>((resolve) => {
-    resolveActive = resolve;
-  });
-
   const finish = () => {
+    if (!runInFlight) {
+      return;
+    }
+    runInFlight = false;
     cancelTimers();
     marsBotTheaterState.currentIndex = steps.length - 1;
     marsBotTheaterState.finished = true;
-    const r = resolveActive;
-    resolveActive = undefined;
-    r?.();
+    endMarsBotTheater();
   };
 
   const scheduleNext = () => {
@@ -163,35 +148,32 @@ export function runMarsBotTheater(turn: MarsBotTurn, next: ViewModel): Promise<v
   };
   scheduleNext();
 
-  // Timers can be throttled in background tabs — the gate must never hang the
-  // commit (and therefore the next prompt) forever.
+  // Timers can be throttled in background tabs — the run must never stay
+  // "active" forever (it holds mandatory surfaces + the poll guard).
   safetyTimerId = window.setTimeout(finish, motionMs(theaterTotalMs(steps)) + 2500) as unknown as number;
-
-  return promise;
 }
 
 /**
- * The player skips the narration — resolve the gate right away. A skip is an
- * explicit acknowledgement, so the surface won't linger after the commit.
+ * The player skips the narration mid-replay. A skip is an explicit
+ * acknowledgement, so the surface closes fully instead of lingering.
  */
 export function skipMarsBotTheater(): void {
-  if (!marsBotTheaterState.active || resolveActive === undefined) {
+  if (!marsBotTheaterState.active || !runInFlight) {
     return;
   }
+  runInFlight = false;
   cancelTimers();
   skipRequested = true;
   marsBotTheaterState.currentIndex = marsBotTheaterState.steps.length - 1;
   marsBotTheaterState.finished = true;
-  const r = resolveActive;
-  resolveActive = undefined;
-  r?.();
+  endMarsBotTheater();
 }
 
 /**
- * Called AFTER the new view committed (on nextTick). Releases the gate state,
- * but the narration STAYS on screen (`lingering`) until the player dismisses
- * it — a replay that vanishes on its own is unreadable. A skipped replay was
- * already acknowledged and closes fully. Idempotent.
+ * Transition out of the PLAYING state: a skipped replay was already
+ * acknowledged and closes fully; a finished one STAYS on screen
+ * (`lingering`) until the player dismisses it — a replay that vanishes on
+ * its own is unreadable. Idempotent.
  */
 export function endMarsBotTheater(): void {
   cancelTimers();
@@ -209,6 +191,7 @@ export function endMarsBotTheater(): void {
 /** The player closes the lingering narration (Close/Esc on desktop, B on console). */
 export function dismissMarsBotTheater(): void {
   cancelTimers();
+  runInFlight = false;
   marsBotTheaterState.active = false;
   marsBotTheaterState.lingering = false;
   marsBotTheaterState.steps = [];
@@ -216,12 +199,10 @@ export function dismissMarsBotTheater(): void {
   marsBotTheaterState.finished = false;
 }
 
-/** Test-only full reset (state + dedup + timers). */
+/** Test-only full reset (state + timers). */
 export function resetMarsBotTheater(): void {
   skipRequested = false;
   dismissMarsBotTheater();
-  resolveActive = undefined;
-  seen.clear();
   marsBotTheaterState.botColor = '';
   marsBotTheaterState.botName = '';
   marsBotTheaterState.ctx = {venus: false, colonies: false};

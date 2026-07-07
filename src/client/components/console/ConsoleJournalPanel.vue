@@ -184,6 +184,8 @@ import JournalGroup from '@/client/components/journal/JournalGroup.vue';
 import {buildJournalView, JournalGroupNode} from '@/client/components/journal/journalView';
 import {JournalFilter, journalFilterEquals, messagePassesFilter} from '@/client/components/journal/journalFilter';
 import {journalState, JournalDetailMode} from '@/client/components/journal/journalState';
+import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
+import {openMarsBotReplayByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 import {createJournalDataSource, JournalDataSource} from '@/client/components/journal/journalDataSource';
 import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalNodeMode, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
@@ -420,6 +422,13 @@ export default defineComponent({
       const cost = getCard(this.inspect.name)?.cost;
       return cost !== undefined && cost > 0 ? cost : undefined;
     },
+    /** The focused entry is a MarsBot turn whose script is replayable (X → theater). */
+    focusedBotReplay(): boolean {
+      const node = this.focusedNode;
+      return node !== undefined && node.kind === 'group' &&
+        node.group.category === 'automa-turn' &&
+        botReplayAvailableFor(node.group.header.correlationId);
+    },
     /** The command-bar mirror — one watched object, never guessed. */
     uiMirror(): {filterOpen: boolean, inspectOpen: boolean, peekActive: boolean, focusIsGroup: boolean, focusExpanded: boolean, focusInspectable: boolean, focusHasSpace: boolean, canPrevGen: boolean, canNextGen: boolean, filterAvailable: boolean} {
       const node = this.focusedNode;
@@ -430,7 +439,7 @@ export default defineComponent({
         peekActive: this.mapPeek,
         focusIsGroup: isGroup === true,
         focusExpanded: isGroup === true && this.nodeModeFor(node as GroupRenderNode, this.focusIndex) === 'detailed',
-        focusInspectable: hasInspectTarget(this.focusedTargets),
+        focusInspectable: hasInspectTarget(this.focusedTargets) || this.focusedBotReplay,
         focusHasSpace: this.focusedTargets.spaces.length > 0,
         canPrevGen: this.canPrevGen,
         canNextGen: this.canNextGen,
@@ -670,6 +679,20 @@ export default defineComponent({
      * inspect card; a map-only entry → highlight the cell (Model B).
      */
     openInspect(): void {
+      // PRESENTATION FLOW: a MarsBot turn group with an ARCHIVED script — X
+      // reopens the turn theater as a replay (read-only, no game event). The
+      // journal yields the screen so the theater band owns the pad (B closes
+      // it; the journal reopens via the ordinary View button).
+      const node = this.focusedNode;
+      if (node !== undefined && node.kind === 'group' &&
+          node.group.category === 'automa-turn' &&
+          node.group.header.correlationId !== undefined &&
+          botReplayAvailableFor(node.group.header.correlationId)) {
+        if (openMarsBotReplayByCorrelation(node.group.header.correlationId)) {
+          journalState.open = false;
+          return;
+        }
+      }
       const t = this.focusedTargets;
       if (t.cards.length > 0) {
         // Read-only context: no select / action bridge — A can't fire anything.

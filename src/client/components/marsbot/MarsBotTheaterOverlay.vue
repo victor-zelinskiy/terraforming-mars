@@ -45,10 +45,12 @@
 
 <script lang="ts">
 /**
- * Desktop MarsBot turn theater — a top-centre narration card that replays the
- * bot's turn while the held view stays on screen (the commit gate), then
- * LINGERS after the commit until the player explicitly closes it (the Close
- * button or Esc) — a narration that vanishes on its own is unreadable.
+ * Desktop MarsBot turn theater — a top-centre narration card that REPLAYS an
+ * archived bot turn (opened from the compact turn notification's «Осмотреть»,
+ * the journal's «Осмотреть ход», or auto-opened in 'theater' mode), then
+ * LINGERS until the player explicitly closes it (the Close button or Esc) —
+ * a narration that vanishes on its own is unreadable. While it is open the
+ * presentation orchestrator holds mandatory surfaces + notification delivery.
  * Pure presentation over `marsBotTheaterState`; the controller owns the
  * pacing. Suppressed in console mode — `ConsoleMarsBotTheater` renders the
  * SAME state there (close = B, hinted in the command bar).

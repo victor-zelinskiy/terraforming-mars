@@ -37,6 +37,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
   '.con-govsupport', // the dedicated Government Support (WGT) briefing panel
   '.con-banner--deferred', // a DEFERRED task's amber chip IS the surface (B returns)
+  // PRESENTATION FLOW: while the compact AI-turn card / the turn theater is
+  // the foreground item, the mandatory task surfaces intentionally hold off —
+  // the holding card / theater band IS the serving surface for that beat.
+  '.con-notif--holding',
+  '.con-bot-theater',
 ];
 
 /**

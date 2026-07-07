@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForBotTheater">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -35,7 +35,7 @@
       `is-modal-host` class so the inline factory below doesn't fight the
       modal for the same input. See CLAUDE.md "Mandatory-input modal pattern".
     -->
-    <MandatoryInputModal v-if="useModalForCurrentInput && !modalSuppressed"
+    <MandatoryInputModal v-if="useModalForCurrentInput && !modalSuppressed && !presentationHeld"
                          :title="modalPillTitle"
                          :suppressed="clientHandPickActive || playedPickActive">
       <!--
@@ -62,6 +62,17 @@
                       :playerinput="waitingfor"
                       :onsave="onsave" />
     </MandatoryInputModal>
+
+    <!--
+      PRESENTATION FLOW: while the player is being shown what just happened
+      (the compact AI-turn card / the opened theater), a modal-routed prompt
+      renders NOTHING — neither the modal nor the inline factory. The hold is
+      bounded (the card's TTL / the theater close), after which the modal
+      mounts normally. Console (modalSuppressed) keeps its byte-identical
+      fallback rendering below.
+    -->
+    <template v-else-if="useModalForCurrentInput && presentationHeld && !modalSuppressed">
+    </template>
 
     <player-input-factory v-else
                           :players="playerView.players"
@@ -145,11 +156,9 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {
-  detectMarsBotTurn,
-  endMarsBotTheater,
-  runMarsBotTheater,
-} from '@/client/components/marsbot/marsBotTheaterState';
+import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
+import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
+import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -312,13 +321,6 @@ type DataModel = {
    */
   holdingForHazardCleanup: boolean;
   /*
-   * Counterpart hold for the MarsBot turn theater: the response to the
-   * viewer's own submit carries the bot's already-resolved turn; while the
-   * narration replays it, the next prompt is suppressed via the same
-   * empty-render branch. See src/client/components/marsbot/marsBotTheaterState.ts.
-   */
-  holdingForBotTheater: boolean;
-  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -378,7 +380,6 @@ export default defineComponent({
       holdingForTilePlacement: false,
       holdingForConversion: false,
       holdingForHazardCleanup: false,
-      holdingForBotTheater: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
     };
@@ -571,6 +572,10 @@ export default defineComponent({
         console.warn('Server request in progress');
         return;
       }
+      // The player ACTED — playing on is an implicit acknowledgement of any
+      // still-visible flow-holding card (the compact AI-turn notification),
+      // so the follow-up prompt of THIS submit is never held behind it.
+      acknowledgeFlowHoldingCards();
 
       root.isServerSideRequestInProgress = true;
       fetch(url, options)
@@ -603,24 +608,17 @@ export default defineComponent({
              * submit while we're previewing.
              */
             /*
-             * MarsBot turn theater (the MAIN path — ending your turn is what
-             * lets the bot act, so its resolved turn rides THIS response).
-             * Replay the typed turn script with client pacing BEFORE any of
-             * the previews below touch the displayed view: the narration runs
-             * over the untouched pre-turn board, then the bot's tile (if any)
-             * materialises through the ordinary tile-placement hold, then the
-             * view commits. isServerSideRequestInProgress stays raised
-             * throughout (cleared in .finally), so nothing else can submit.
+             * MarsBot turns (the MAIN path — ending your turn is what lets
+             * the bot act, so its resolved turn rides THIS response).
+             * NOTIFICATION-FIRST: the fresh turn(s) are archived + enqueued
+             * as compact turn-event notifications BEFORE the commit below, so
+             * the flow-hold is already up when the committed view would mount
+             * a mandatory surface (draft / input modal) — it waits until the
+             * player has seen (or dismissed) what the bot did. The commit is
+             * NOT held; the bot's tile still materialises through the
+             * ordinary tile-placement hold below.
              */
-            const botTurn = detectMarsBotTurn(this.playerView, newView);
-            if (botTurn !== undefined) {
-              this.holdingForBotTheater = true;
-              try {
-                await runMarsBotTheater(botTurn, newView);
-              } finally {
-                this.holdingForBotTheater = false;
-              }
-            }
+            presentFreshBotTurns(this.playerView, newView);
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,
@@ -697,11 +695,6 @@ export default defineComponent({
               await runEnergyConversion(conversionEvent);
             }
             this.updatePlayerView(newView);
-            if (botTurn !== undefined) {
-              // Dismiss the narration card AFTER the committed view painted,
-              // so the overlay never flashes away over the stale board.
-              nextTick(() => endMarsBotTheater());
-            }
             if (hazardCleanups.length > 0) {
               this.holdingForHazardCleanup = false;
               nextTick(() => endHazardCleanup());
@@ -995,6 +988,13 @@ export default defineComponent({
     // modal (keep it mounted, hidden) so the board below is interactable.
     playedPickActive(): boolean {
       return playedCardsPickState.active;
+    },
+    // PRESENTATION FLOW: the "player is reading what just happened" hold —
+    // true while the compact AI-turn card is visible or the theater is open.
+    // Reactive: reads the orchestrator's flags, so the modal mounts the
+    // moment the hold clears (dismiss / TTL / theater close).
+    presentationHeld(): boolean {
+      return isMandatoryPromptsHeld();
     },
     useModalForCurrentInput(): boolean {
       /*

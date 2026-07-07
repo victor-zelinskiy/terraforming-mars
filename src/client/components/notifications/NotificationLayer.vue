@@ -17,6 +17,7 @@
           @dismiss="onDismiss"
           @toggle="onToggle"
           @cta="onCta"
+          @cta-secondary="onSecondaryCta"
           @cancel="onCancel" />
       </Transition>
 
@@ -33,8 +34,27 @@
           :viewer-color="viewerColor"
           @dismiss="onDismiss"
           @toggle="onToggle"
-          @cta="onCta" />
+          @cta="onCta"
+          @cta-secondary="onSecondaryCta" />
       </TransitionGroup>
+
+      <!-- Pending-queue indicator: a quiet clickable pill under the feed —
+           events are waiting their FIFO turn behind the active foreground
+           item. Click → open the journal (the canonical event center); the
+           queued ordinary cards are dropped there, critical ones stay.
+           Desktop only — the console shell shows its own banner-band chip. -->
+      <Transition name="notification-pop">
+        <button v-if="!consoleEnabled && pending.count > 0"
+                class="notif-pending"
+                :class="{'notif-pending--critical': pending.critical}"
+                type="button"
+                :aria-label="$t('Pending events')"
+                @click="onPendingClick">
+          <span class="notif-pending__dot" aria-hidden="true"></span>
+          <span class="notif-pending__count">+{{ pending.count }}</span>
+          <span class="notif-pending__label" v-i18n>Pending events</span>
+        </button>
+      </Transition>
     </div>
   </Teleport>
 </template>
@@ -50,7 +70,7 @@ import {GameEvent} from '@/common/events/GameEvent';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {journalState, openJournalToEvent} from '@/client/components/journal/journalState';
-import {NotificationModel} from '@/client/components/notifications/notificationTypes';
+import {NotificationCtaAction, NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {
   diffRootNotifications,
   diffNegativeNotifications,
@@ -82,7 +102,13 @@ import {
   dismiss,
   toggleExpanded,
   resetNotifications,
+  pendingSummary,
+  drainQueueToJournal,
+  promoteFromQueue,
 } from '@/client/components/notifications/notificationState';
+import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
+import {openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
 import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
 import {consoleModeState} from '@/client/console/consoleModeState';
@@ -153,6 +179,9 @@ export default defineComponent({
     journalOpen(): boolean {
       return journalState.open;
     },
+    pending(): PendingQueueSummary {
+      return pendingSummary();
+    },
     viewerColor(): Color {
       return this.playerView.thisPlayer.color;
     },
@@ -169,6 +198,14 @@ export default defineComponent({
       },
       deep: false,
     },
+    // Opening the journal (by hand or via the pending pill) makes every queued
+    // ordinary card redundant — the journal IS the event center. Drop them
+    // (critical items stay queued); see drainQueueToJournal.
+    journalOpen(open: boolean): void {
+      if (open) {
+        drainQueueToJournal();
+      }
+    },
   },
   methods: {
     update(): void {
@@ -177,6 +214,11 @@ export default defineComponent({
         setTurn(undefined);
         return;
       }
+      // Presentation-flow self-heal: drain the queue whenever the foreground
+      // is free. The blocked→free transition watcher is the primary driver;
+      // this covers the degenerate case of a blocker opening AND closing
+      // within one tick (invisible to the watcher). No-op while blocked.
+      promoteFromQueue();
       const now = Date.now();
       // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
       // announces ONLY at the START of a fresh turn: the action menu titled
@@ -290,6 +332,7 @@ export default defineComponent({
         resetNotifications();
         resetTerraformingCelebration(); // same boundary — a different game opened in-session
         resetMaCeremony();
+        resetMarsBotArchive(); // stale turn scripts belong to the previous game
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
@@ -397,7 +440,12 @@ export default defineComponent({
         // game model, which flips exactly once per slot, so the announcement
         // can never be silently lost). Pushing the prestige card too would
         // double-announce; the journal record is untouched.
-        pushMany(coalesceBurst(models.filter((m) => m.variant !== 'milestone' && m.variant !== 'award')));
+        //
+        // MarsBot turn roots ('automa-turn') are excluded: the DEDICATED
+        // turn-event pipeline (marsBotPresentation) builds their richer card
+        // from the turn script itself — a generic root card would double-announce.
+        pushMany(coalesceBurst(models.filter((m) =>
+          m.variant !== 'milestone' && m.variant !== 'award' && m.category !== 'automa-turn')));
         pushMany(reveal.models);
       }
       pushMany(neg.models);
@@ -425,7 +473,13 @@ export default defineComponent({
       toggleExpanded(id);
     },
     onCta(notification: NotificationModel): void {
-      switch (notification.cta?.action) {
+      this.performCta(notification.cta?.action, notification);
+    },
+    onSecondaryCta(notification: NotificationModel): void {
+      this.performCta(notification.secondaryCta?.action, notification);
+    },
+    performCta(action: NotificationCtaAction | undefined, notification: NotificationModel): void {
+      switch (action) {
       case 'open-journal':
         if (notification.correlationId !== undefined) {
           openJournalToEvent(notification.correlationId, notification.generation);
@@ -458,6 +512,12 @@ export default defineComponent({
         }
         dismiss(notification.id); // the viewer is now the focus; journal keeps the record
         break;
+      case 'expand-theater':
+        // The compact AI-turn card expands into the full turn theater (replay
+        // of the SAME archived script). The theater flips active before the
+        // card is dismissed, so the next queued card can't sneak under it.
+        openMarsBotReplay(notification.botTurnKey);
+        break;
       case 'dismiss':
       default:
         dismiss(notification.id);
@@ -469,6 +529,12 @@ export default defineComponent({
     // is NOT dismissed here; it clears when the server resolves the prompt.
     onCancel(_notification: NotificationModel): void {
       window.dispatchEvent(new CustomEvent('tm-notification-cancel'));
+    },
+    // The pending pill: open the journal — the canonical event center. The
+    // journalOpen watcher then drops the queued ordinary cards (they are all
+    // visible in the journal); critical items stay queued and present later.
+    onPendingClick(): void {
+      journalState.open = true;
     },
   },
   mounted(): void {

@@ -627,6 +627,7 @@
 .journal-group--standard-project   { --jg-accent: #9fb4c8; --jg-accent-soft: rgba(159, 180, 200, 0.20); }
 .journal-group--colony             { --jg-accent: #78c8d2; --jg-accent-soft: rgba(120, 200, 210, 0.20); }
 .journal-group--copied-action      { --jg-accent: #c496e6; --jg-accent-soft: rgba(196, 150, 230, 0.20); }
+.journal-group--automa-turn        { --jg-accent: #7fc2c9; --jg-accent-soft: rgba(127, 194, 201, 0.20); }
 .journal-group--generic            { --jg-accent: rgba(150, 175, 200, 0.7); --jg-accent-soft: rgba(150, 175, 200, 0.14); }
 
 /* Root action — the dominant header. */
@@ -658,6 +659,38 @@
     line-height: 1.5;
     color: @j-text;
     font-weight: 500;
+}
+
+/* «Осмотреть ход» — reopen the archived MarsBot turn as a theater replay.
+   A quiet pill on the group header (accent-tinted); read-only, no game event. */
+.journal-group__replay {
+    flex-shrink: 0;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--jg-accent-soft);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--jg-accent);
+    font-family: Prototype, Orbitron, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+
+    &:hover,
+    &:focus-visible {
+        border-color: var(--jg-accent);
+        background: rgba(0, 0, 0, 0.4);
+        box-shadow: 0 0 10px -4px var(--jg-accent);
+    }
+}
+.journal-group__replay-glyph {
+    font-size: 8px;
+    line-height: 1;
 }
 
 /* Summary mode: a compact consequence count in place of the rows. */

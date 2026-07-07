@@ -3,7 +3,7 @@
            :class="[
              'notification-card--variant-' + notification.variant,
              'con-notif--' + notification.kind,
-             {'con-notif--prestige': prestige},
+             {'con-notif--prestige': prestige, 'con-notif--holding': notification.holdsFlow === true},
            ]"
            role="status"
            :aria-label="$t(notification.typeLabelKey)">
@@ -167,7 +167,7 @@ const PROD_FIELD: Readonly<Record<string, string>> = {
 // "What an opponent did" variants tint the rail in the actor colour;
 // prestige / system variants keep the variant accent (same rule as desktop).
 const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
-  'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event',
+  'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event', 'bot-turn',
 ]);
 
 export default defineComponent({
@@ -254,6 +254,7 @@ export default defineComponent({
       case 'milestone': return '🏆';
       case 'award': return '🏅';
       case 'warning': return '⚠';
+      case 'bot-turn': return '⌬';
       case 'generation': return '◆';
       case 'pass': return '⏻';
       case 'standard-project': return '⬡';

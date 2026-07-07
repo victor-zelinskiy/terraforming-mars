@@ -38,6 +38,8 @@ export type SerializedAutomaState = {
   instantWin?: boolean;
   turnCounter?: number;
   lastTurn?: MarsBotTurn;
+  /** Recent resolved turn scripts (bounded) — replayable from the journal. */
+  turnHistory?: Array<MarsBotTurn>;
   /** Delta Project: Power-Track increments already consumed for row advances (absent = 0, old saves). */
   deltaPowerConsumed?: number;
   /** Delta Project: the last generation the once-per-generation resolution ran (absent = 0, old saves). */
@@ -90,6 +92,13 @@ export class AutomaState {
   public deltaResolvedGeneration: number = 0;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
+  /**
+   * Recent resolved turn scripts, oldest → newest (bounded by
+   * `MAX_TURN_HISTORY`). Consecutive bot turns can resolve inside one human
+   * input, so `lastTurn` alone would lose the intermediate scripts; the tail
+   * also keeps recent turns replayable (journal «Осмотреть ход») after a reload.
+   */
+  public turnHistory: Array<MarsBotTurn> = [];
   /**
    * The in-flight recording of the CURRENT turn (owned by AutomaTurnLog).
    * Transient by construction — a turn resolves synchronously inside one
@@ -146,6 +155,9 @@ export class AutomaState {
     if (this.lastTurn !== undefined) {
       result.lastTurn = this.lastTurn;
     }
+    if (this.turnHistory.length > 0) {
+      result.turnHistory = [...this.turnHistory];
+    }
     return result;
   }
 
@@ -174,6 +186,7 @@ export class AutomaState {
     state.instantWin = d.instantWin ?? false;
     state.turnCounter = d.turnCounter ?? 0;
     state.lastTurn = d.lastTurn;
+    state.turnHistory = d.turnHistory !== undefined ? [...d.turnHistory] : [];
     state.deltaPowerConsumed = d.deltaPowerConsumed ?? 0;
     state.deltaResolvedGeneration = d.deltaResolvedGeneration ?? 0;
     return state;

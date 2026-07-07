@@ -147,6 +147,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {setModalPickerActive} from '@/client/components/placementLockState';
 import {makeDraggable, DraggableController, DraggablePosition} from '@/client/components/draggable';
+import {acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 
 // Injection key for the picker-mode setter exposed by the modal to its
 // descendants. A nested OrOptions whose selected option is a board-picker
@@ -195,6 +196,8 @@ type DataModel = {
    */
   pillDragOffset: DraggablePosition;
   pillDragController: DraggableController | null;
+  /** Release fn of the held 'mandatory-choice' presentation lease. */
+  releaseLease: (() => void) | undefined;
 };
 
 export default defineComponent({
@@ -254,9 +257,20 @@ export default defineComponent({
       noDealFrozen: !this.dealContent,
       pillDragOffset: {x: 0, y: 0},
       pillDragController: null,
+      releaseLease: undefined,
     };
   },
   computed: {
+    /*
+     * PRESENTATION FLOW occupancy: the modal blocks the presentation slot
+     * only while it is EFFECTIVELY covering the screen. Minimized (pill),
+     * suppressed (handed off to a higher surface) and picker-mode (board
+     * interactive) states release the lease so queued notifications may
+     * present.
+     */
+    effectivelyBlocking(): boolean {
+      return !this.minimized && !this.suppressed && !this.pickerMode;
+    },
     rootClass(): string {
       const classes = ['mandatory-input-modal'];
       if (this.pickerMode) {
@@ -301,6 +315,19 @@ export default defineComponent({
     // in the pill the player wasn't expecting.
     title() {
       this.minimized = false;
+    },
+    // Keep the 'mandatory-choice' presentation lease in lockstep with the
+    // modal's effective visibility (see `effectivelyBlocking`).
+    effectivelyBlocking: {
+      immediate: true,
+      handler(blocking: boolean): void {
+        if (blocking && this.releaseLease === undefined) {
+          this.releaseLease = acquireForegroundLease('mandatory-choice');
+        } else if (!blocking && this.releaseLease !== undefined) {
+          this.releaseLease();
+          this.releaseLease = undefined;
+        }
+      },
     },
   },
   provide() {
@@ -371,6 +398,8 @@ export default defineComponent({
     window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
   },
   beforeUnmount() {
+    this.releaseLease?.();
+    this.releaseLease = undefined;
     window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     document.documentElement.classList.remove('mandatory-input-modal-open');
     document.body.classList.remove('mandatory-input-modal-open');

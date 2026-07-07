@@ -22,6 +22,17 @@
       <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
     </div>
 
+    <!-- PRESENTATION FLOW: the quiet pending-queue chip — events are waiting
+         their FIFO turn behind the active foreground item. Informational
+         (same banner-band placement as the deferred chip); the journal (View)
+         is the event center. Gains the critical accent when the queue holds a
+         gameplay-critical item. -->
+    <div v-if="pendingEvents.count > 0" class="con-banner con-banner--events" :class="{'con-banner--events-critical': pendingEvents.critical}">
+      <span class="con-banner__pulse" aria-hidden="true"></span>
+      <span>{{ $t('Pending events') }}</span>
+      <span class="con-banner__count">+{{ pendingEvents.count }}</span>
+    </div>
+
     <!-- OPTIONAL draft re-pick: the fork does NOT surface re-picking (desktop
          parity). A calm, non-blocking waiting banner tells the player their
          pick is locked while the other players choose; the board stays fully
@@ -473,6 +484,11 @@ import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraf
 import ConsoleMarsBotTheater from '@/client/components/console/ConsoleMarsBotTheater.vue';
 import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
 import {theaterCardNames} from '@/client/components/marsbot/marsBotTheaterModel';
+import {openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
+import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
+import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
@@ -649,6 +665,8 @@ export default defineComponent({
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
+      /** Release fn of the held 'mandatory-choice' presentation lease. */
+      releasePresentationLease: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -688,8 +706,44 @@ export default defineComponent({
       const p = this.convertPlantsPending?.spacePrompt;
       return p !== undefined && p.type === 'space' ? p : undefined;
     },
+    /**
+     * PRESENTATION FLOW: while the player is being shown what just happened
+     * (the compact AI-turn card / the opened theater), the console's
+     * mandatory task surfaces hold off mounting — bounded by the card's TTL /
+     * the theater close. The holding card / theater band is registered as a
+     * serving surface in the leak detector, so the prompt is never "stranded".
+     */
+    presentationHeld(): boolean {
+      return isMandatoryPromptsHeld();
+    },
+    /** The visible flow-holding notification (the compact AI-turn card), if any. */
+    foregroundHoldingCard(): LiveNotification | undefined {
+      return notificationState.transient.find((n) => n.holdsFlow === true);
+    },
+    /** The pending-queue backlog (the banner-band chip). */
+    pendingEvents(): PendingQueueSummary {
+      return pendingSummary();
+    },
+    /** A console blocking foreground surface is actively presenting (drives
+     *  the lease): task host / start scene / gov-support panel, plus the
+     *  reveal overlays ('drawn' also derives from drawnCardsState — the lease
+     *  covers the console-only 'result'/'viewer' modes too). */
+    consoleMandatoryPresenting(): boolean {
+      if (this.consoleRevealMode !== undefined) {
+        return true;
+      }
+      if (this.consoleState.task.deferred) {
+        return false;
+      }
+      return (this.hostTask !== undefined && this.taskSpacePending === undefined) ||
+        this.startTask !== undefined ||
+        this.govSupportActive;
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
+      if (this.presentationHeld) {
+        return undefined;
+      }
       return taskServedByHost(this.playerView);
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
@@ -711,11 +765,17 @@ export default defineComponent({
     },
     /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
     shellTask(): ConsoleTask | undefined {
+      if (this.presentationHeld) {
+        return undefined;
+      }
       const task = taskFor(this.playerView);
       return task !== undefined && SHELL_SECTION_KINDS.has(task.kind) ? task : undefined;
     },
     /** The T5 START SCENE task (initialCards wizard / start-sequence ceremony). */
     startTask(): ConsoleTask | undefined {
+      if (this.presentationHeld) {
+        return undefined;
+      }
       const task = taskFor(this.playerView);
       return task !== undefined && SCENE_KINDS.has(task.kind) ? task : undefined;
     },
@@ -1389,6 +1449,16 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
+      // PRESENTATION FLOW: the compact AI-turn card is the foreground item —
+      // its contract owns the bar (X expand into the theater, B close).
+      if (this.foregroundHoldingCard !== undefined && this.consoleCardZoom.card === undefined) {
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.foregroundHoldingCard.botTurnKey !== undefined) {
+          cmds.push({control: 'secondary', label: 'Watch turn'});
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
+      }
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
@@ -1767,6 +1837,21 @@ export default defineComponent({
         journalState.open = false;
       }
     },
+    // PRESENTATION FLOW occupancy: while a console mandatory surface (task
+    // host / start scene / gov-support panel) is actively presenting, hold a
+    // 'mandatory-choice' lease so transient notifications queue instead of
+    // floating over it. Deferred tasks release it (the board is inspectable).
+    consoleMandatoryPresenting: {
+      immediate: true,
+      handler(presenting: boolean): void {
+        if (presenting && this.releasePresentationLease === undefined) {
+          this.releasePresentationLease = acquireForegroundLease('mandatory-choice');
+        } else if (!presenting && this.releasePresentationLease !== undefined) {
+          this.releasePresentationLease();
+          this.releasePresentationLease = undefined;
+        }
+      },
+    },
     // Leaving the colonies section closes the X-inspect dossier (and clears
     // the composer's command-bar mirror so stale hints can't linger).
     'consoleState.section'(section: string) {
@@ -1920,6 +2005,26 @@ export default defineComponent({
       // consoleCardZoom, so they still route to the DOM engine below.
       if (this.consoleCardZoom.card !== undefined) {
         return this.handleZoomIntent(intent);
+      }
+      // PRESENTATION FLOW: a visible flow-holding notification (the compact
+      // AI-turn card) is the foreground item — B closes it, X expands it into
+      // the turn theater. Deliberately CLAIMS only back/secondary/confirm
+      // (A is swallowed so nothing submits under the card); navigation and
+      // scrolling pass through, so the board stays inspectable. Ordinary
+      // corner toasts never capture the pad (B stays "back" for navigation).
+      const holdingCard = this.foregroundHoldingCard;
+      if (holdingCard !== undefined && this.consoleCardZoom.card === undefined) {
+        if (intent.kind === 'press' && intent.button === 'back') {
+          dismissNotification(holdingCard.id);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'secondary' && holdingCard.botTurnKey !== undefined) {
+          openMarsBotReplay(holdingCard.botTurnKey);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'confirm') {
+          return true;
+        }
       }
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on
       // top → the demoted DOM focus engine drives it. (The Hydronetwork is
@@ -3554,6 +3659,8 @@ export default defineComponent({
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
+    this.releasePresentationLease?.();
+    this.releasePresentationLease = undefined;
     this.consoleState.shellMounted = false;
     stopConsoleLeakDetector();
     resetGovScaleFocus();

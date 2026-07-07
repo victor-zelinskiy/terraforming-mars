@@ -9275,6 +9275,35 @@ html.console-mode .notifications-layer {
     }
 }
 
+/* PRESENTATION FLOW: the quiet pending-events chip — notifications waiting
+   their FIFO turn behind the active foreground item. Informational only;
+   the journal (View) is the event center. Critical accent when the queue
+   holds a hostile loss / an AI turn. Sits BELOW the deferred chip's band so
+   the two never overlap. */
+.con-banner--events {
+    top: calc(1.2vh + 148px);
+
+    .con-banner__count {
+        font-weight: 700;
+        color: fade(#ffffff, 92%);
+    }
+}
+.con-banner--events-critical {
+    box-shadow: inset 0 0 0 1px fade(@con-amber, 55%), 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 14px fade(@con-amber, 12%);
+    .con-banner__pulse {
+        background: @con-amber;
+        box-shadow: 0 0 10px fade(@con-amber, 85%);
+    }
+}
+
+/* The flow-holding AI-turn card: a slightly stronger frame — it is the
+   foreground item of the beat (B closes, X expands into the theater; hints
+   live in the command bar only). Also the leak detector's serving-surface
+   marker while mandatory task surfaces hold off. */
+.con-notif--holding {
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
 /* ── Stranded-prompt guard panel (CTS T0 — never a silent pill) ──── */
 .con-stranded {
     position: fixed;

@@ -1,5 +1,12 @@
 import {reactive} from 'vue';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
+import {
+  isNotificationDeliveryBlocked,
+  onForegroundBlocked,
+  onForegroundFreed,
+  registerFlowHoldSupplier,
+} from '@/client/components/presentation/presentationFlow';
+import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 
 /**
  * notificationState — the module-level reactive NotificationCenter store.
@@ -107,8 +114,16 @@ function knownId(id: string): boolean {
     notificationState.queue.some((n) => n.id === id);
 }
 
-/** Promote queued models into freed transient slots — HIGHEST priority first. */
-function promoteFromQueue(): void {
+/**
+ * Promote queued models into freed transient slots — HIGHEST priority first,
+ * FIFO within a priority (`findIndex`-style stable pick). A no-op while the
+ * presentation flow reports a blocking foreground (result modal / mandatory
+ * choice / theater) — the queue drains the moment it clears.
+ */
+export function promoteFromQueue(): void {
+  if (isNotificationDeliveryBlocked()) {
+    return;
+  }
   while (notificationState.transient.length < MAX_VISIBLE_TRANSIENT && notificationState.queue.length > 0) {
     let bestIdx = 0;
     notificationState.queue.forEach((n, i) => {
@@ -122,13 +137,66 @@ function promoteFromQueue(): void {
 }
 
 /**
+ * Move every VISIBLE transient card back to the FRONT of the queue (order
+ * preserved) — called when a blocking foreground item (result modal /
+ * mandatory modal / theater) OPENS, so nothing floats over it and nothing is
+ * lost: the cards re-present with a fresh lifetime once the blocker clears.
+ */
+export function holdVisibleTransient(): void {
+  if (notificationState.transient.length === 0) {
+    return;
+  }
+  const held: Array<NotificationModel> = notificationState.transient.map((n) => {
+    const {expanded: _expanded, ...model} = n;
+    return model;
+  });
+  notificationState.transient = [];
+  notificationState.queue.unshift(...held);
+}
+
+/** The queue backlog, for the pending indicator (count + critical accent). */
+export function pendingSummary(): PendingQueueSummary {
+  return pendingQueueSummary(notificationState.queue);
+}
+
+/**
+ * The player ACTED (submitted an input) — playing on implicitly acknowledges
+ * any visible flow-holding card (the compact AI-turn notification): it is
+ * dismissed so the follow-up prompt of the submit is never held behind it.
+ * The journal keeps the turn replayable; queued (not yet shown) cards stay.
+ */
+export function acknowledgeFlowHoldingCards(): void {
+  const holding = notificationState.transient.filter((n) => n.holdsFlow === true);
+  for (const n of holding) {
+    dismiss(n.id);
+  }
+}
+
+/**
+ * The player opened the journal (the canonical event center) — the queued
+ * ordinary cards are already fully visible there, so drop them instead of
+ * replaying stale toasts afterwards. Gameplay-critical items are KEPT: hostile
+ * losses and flow-holding AI-turn cards still present after the journal closes.
+ */
+export function drainQueueToJournal(): void {
+  notificationState.queue = notificationState.queue.filter(
+    (n) => n.kind === 'negative' || n.holdsFlow === true);
+}
+
+/**
  * Push one transient (negative/normal/important/warning) card. De-duped by id.
- * PRIORITY-aware: when the visible set is full, a higher-priority card (e.g. a
- * hostile loss the viewer suffered) EVICTS the lowest-priority visible card to
- * the front of the queue rather than waiting behind it.
+ * Delivery is GATED by the presentation flow: while a blocking foreground item
+ * is up, the card waits in the FIFO queue (never dropped). When the visible
+ * slot is taken, a higher-priority card (e.g. a hostile loss the viewer
+ * suffered) EVICTS the lowest-priority visible card to the front of the queue
+ * rather than waiting behind it.
  */
 export function pushTransient(model: NotificationModel): void {
   if (!settingAllows(model.kind) || knownId(model.id)) {
+    return;
+  }
+  if (isNotificationDeliveryBlocked()) {
+    notificationState.queue.push(model);
     return;
   }
   if (notificationState.transient.length < MAX_VISIBLE_TRANSIENT) {
@@ -254,6 +322,18 @@ export function clearTransient(): void {
   notificationState.transient = [];
   notificationState.queue = [];
 }
+
+// ── Presentation-flow wiring (module init) ──────────────────────────────────
+// The orchestrator never imports this store (acyclic graph): it learns about
+// the visible flow-holding card via the injected supplier, and this store
+// reacts to foreground transitions via the subscriptions below.
+/** The real supplier — exported so tests that override it can restore it. */
+export function notificationFlowHoldSupplier(): boolean {
+  return notificationState.transient.some((n) => n.holdsFlow === true);
+}
+registerFlowHoldSupplier(notificationFlowHoldSupplier);
+onForegroundBlocked(() => holdVisibleTransient());
+onForegroundFreed(() => promoteFromQueue());
 
 /** Full reset (game end / layer teardown for a different game). */
 export function resetNotifications(): void {

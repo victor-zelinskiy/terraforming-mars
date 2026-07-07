@@ -16,6 +16,16 @@
           :token="tok"
           :players="players" />
       </span>
+      <!-- A MarsBot turn with an ARCHIVED script — reopen the turn theater as
+           a replay (details mode, read-only; never a new game event). -->
+      <button v-if="botReplayAvailable"
+              type="button"
+              class="journal-group__replay"
+              :aria-label="$t('Watch turn')"
+              @click.stop="openBotReplay">
+        <span class="journal-group__replay-glyph" aria-hidden="true">▶</span>
+        <span v-i18n>Watch turn</span>
+      </button>
       <!-- Summary mode: a compact consequence count instead of the rows. -->
       <span v-if="summary && consequenceCount > 0" class="journal-group__count" :aria-label="$t('Consequences')">
         <span class="journal-group__count-arrow" aria-hidden="true">↳</span>{{ consequenceCount }}
@@ -69,6 +79,8 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
 import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
+import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
+import {openMarsBotReplayByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 
 /**
  * One premium cause/effect GROUP rendered as a single cohesive cluster: a
@@ -171,6 +183,12 @@ export default defineComponent({
     consequenceCount(): number {
       return this.useEvents ? this.eventVMs.length : this.children.length;
     },
+    // A MarsBot turn group whose script is in the client archive — the
+    // journal's permanent «watch it again» affordance (reactive: the archive
+    // is a reactive Map, so the button appears the moment the turn lands).
+    botReplayAvailable(): boolean {
+      return this.category === 'automa-turn' && botReplayAvailableFor(this.header.correlationId);
+    },
     when(): string {
       const d = new Date(this.header.timestamp);
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -180,6 +198,11 @@ export default defineComponent({
     },
   },
   methods: {
+    openBotReplay(): void {
+      if (this.header.correlationId !== undefined) {
+        openMarsBotReplayByCorrelation(this.header.correlationId);
+      }
+    },
     parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {
       return Log.parse({message: this.$t(message.message), data: message.data});
     },

@@ -236,4 +236,97 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(model.automa?.lastTurn?.id).eq(automa.lastTurn!.id);
     expect(model.automa?.lastTurn?.steps.length).eq(automa.lastTurn!.steps.length);
   });
+
+  // ── PRESENTATION FLOW: the journal ↔ notification ↔ theater shared key ──────
+  describe('journal correlation + turn history', () => {
+    it('stamps the journal correlationId onto the turn script and groups the turn logs', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [{kind: 'project', name: CardName.GENE_REPAIR}];
+      humanEndsTurn(game, human);
+
+      const turn = automa.lastTurn!;
+      expect(turn.correlationId, 'the whole turn resolves inside one journal scope').is.not.undefined;
+
+      // The scope's root event exists with the 'automa-turn' category.
+      const root = game.events.events.find((e) => e.id === turn.correlationId);
+      expect(root).is.not.undefined;
+      expect(root!.type).eq('action');
+      expect(root!.category).eq('automa-turn');
+
+      // The turn's public log lines carry the SAME correlationId (the journal
+      // groups them), and the first one is the root-action header.
+      const turnLogs = game.gameLog.filter((m) => m.correlationId === turn.correlationId);
+      expect(turnLogs.length, 'the reveal line must be grouped').greaterThan(0);
+      expect(turnLogs[0].role).eq('root-action');
+      expect(turnLogs[0].category).eq('automa-turn');
+    });
+
+    it('the events scope is CLOSED before the game advances (nothing later leaks into the group)', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [{kind: 'project', name: CardName.GENE_REPAIR}];
+      humanEndsTurn(game, human);
+
+      // After the turn resolves the recorder has no live scope: a fresh log
+      // line is NOT stamped with the bot turn's correlation.
+      game.log('after turn line', (b) => b.player(human));
+      const line = game.gameLog[game.gameLog.length - 1];
+      expect(line.message).eq('after turn line');
+      expect(line.correlationId).is.undefined;
+    });
+
+    it('keeps a bounded turn HISTORY — consecutive turns are all addressable', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [
+        {kind: 'project', name: CardName.GENE_REPAIR},
+        {kind: 'project', name: CardName.GENE_REPAIR},
+      ];
+      humanEndsTurn(game, human);
+      humanEndsTurn(game, human);
+
+      expect(automa.turnHistory.map((t) => t.id)).deep.eq([1, 2]);
+      expect(automa.lastTurn!.id).eq(2);
+      // Every archived turn carries its own correlationId — distinct groups.
+      const [first, second] = automa.turnHistory;
+      expect(first.correlationId).is.not.undefined;
+      expect(second.correlationId).is.not.undefined;
+      expect(first.correlationId).not.eq(second.correlationId);
+    });
+
+    it('turn history serializes, deserializes and reaches the game model (bounded tail)', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [
+        {kind: 'project', name: CardName.GENE_REPAIR},
+        {kind: 'project', name: CardName.GENE_REPAIR},
+      ];
+      humanEndsTurn(game, human);
+      humanEndsTurn(game, human);
+
+      const roundTrip = AutomaState.deserialize(automa.serialize(), game.gameOptions);
+      expect(roundTrip.turnHistory).deep.eq(automa.turnHistory);
+
+      const model = Server.getGameModel(game);
+      expect(model.automa?.turnHistory?.map((t) => t.id)).deep.eq([1, 2]);
+    });
+
+    it('old saves without turnHistory deserialize to an empty history', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [{kind: 'project', name: CardName.GENE_REPAIR}];
+      humanEndsTurn(game, human);
+
+      const serialized = automa.serialize();
+      delete serialized.turnHistory;
+      const roundTrip = AutomaState.deserialize(serialized, game.gameOptions);
+      expect(roundTrip.turnHistory).deep.eq([]);
+    });
+  });
 });
