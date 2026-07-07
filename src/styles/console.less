@@ -9028,10 +9028,23 @@ html.console-mode {
     }
     &__player-dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
 
-    /* ── Filters ── */
-    &__filters { display: flex; flex-wrap: wrap; gap: 10px 26px; }
-    &__filter { display: inline-flex; align-items: center; gap: 8px; }
-    &__filter-label { font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: @con-text-dim; margin-right: 2px; }
+    /* ── Filters — two LABELED groups, each carrying its own trigger chips
+       (the sanctioned exception to the one-bottom-bar rule). ── */
+    &__filters { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+    &__fgroup {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 12px; border-radius: 12px;
+        background: rgba(12, 20, 32, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+    }
+    &__fgroup-head { display: inline-flex; align-items: center; gap: 7px; margin-right: 4px; }
+    &__fgroup-keys {
+        display: inline-flex; align-items: center; gap: 3px;
+        /* The glyph chips read as quiet keycaps, never as big buttons. */
+        opacity: 0.85;
+        .gp-glyph { transform: scale(0.82); }
+    }
+    &__filter-label { font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: @con-text-dim; }
     &__chip {
         display: inline-flex; align-items: center; gap: 7px;
         padding: 5px 13px; border-radius: 999px;
@@ -9095,6 +9108,41 @@ html.console-mode {
     &__graphic { margin: 0 !important; zoom: 1.15; .card-description { display: none; } }
     &__graphic-text { font-size: 17px; color: @con-text; }
     &__tile-reason { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: #ffb0a6; }
+    /* Non-amount pre-submit choices, NAMED (card / player / payment pick). */
+    &__tile-choices {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 14px; color: fade(@con-cyan, 88%);
+        span:first-child { color: @con-cyan; }
+    }
+
+    /* A VARIABLE formula part — the player will choose the value in the
+       composer. Spend = amber family, result = mint, neutral choice = cyan
+       with a "your choice" tag — an honest range, never a debug "X". */
+    &__varchip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 11px 4px 7px; border-radius: 999px;
+        font-size: 16px; line-height: 1; white-space: nowrap;
+        background: rgba(22, 40, 58, 0.55);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 34%);
+        b { font-weight: 800; color: #bfe6ff; font-variant-numeric: tabular-nums; }
+        em { font-style: normal; font-size: 11px; letter-spacing: 0.4px; text-transform: lowercase; color: fade(@con-cyan, 75%); }
+        &--spend {
+            background: rgba(58, 42, 22, 0.5);
+            box-shadow: inset 0 0 0 1px rgba(255, 196, 120, 0.5);
+            b { color: #ffce92; }
+        }
+        &--result {
+            background: rgba(20, 54, 44, 0.5);
+            box-shadow: inset 0 0 0 1px rgba(110, 235, 180, 0.45);
+            b { color: #8ff0c4; }
+        }
+    }
+    &__varchip-icon {
+        flex: 0 0 auto; width: 24px; height: 24px;
+        background-size: contain !important; background-repeat: no-repeat; background-position: center;
+    }
+    /* The quiet divider before the direction-unknown "you choose" cluster. */
+    &__vardiv { font-size: 20px; color: fade(@con-cyan, 55%); }
 
     /* ── The inspector (the ONE detail surface) ── */
     &__detail {
@@ -9141,33 +9189,18 @@ html.console-mode {
     &__usage-icon { display: inline-block; width: 20px; height: 20px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__usage-gen { font-size: 14px; color: @con-text-dim; }
     &__usage-note { font-size: 15px; color: @con-text-dim; line-height: 1.35; }
+    /* The desktop cardScoped caption — activation counts are card-level. */
+    &__usage-scope { font-size: 13px; color: fade(@con-amber, 80%); line-height: 1.3; }
 
     /* ── Empty state ── */
     &__empty { margin: auto; text-align: center; max-width: 460px; padding: 30px; }
     &__empty-mark { font-size: 46px; color: fade(@con-cyan, 55%); }
     &__empty-title { margin-top: 12px; font-size: 24px; font-weight: 800; }
     &__empty-body { margin-top: 8px; font-size: 17px; color: @con-text-dim; line-height: 1.4; }
-
-    /* ── Confirmation sub-overlay (nothing submits until its A) ── */
-    &__confirm { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; }
-    &__confirm-backdrop { position: absolute; inset: 0; background: rgba(4, 8, 14, 0.55); }
-    &__confirm-card {
-        position: relative; width: min(720px, 84vw); max-height: 80vh; overflow-y: auto;
-        display: flex; flex-direction: column; gap: 12px;
-        padding: 24px 28px; border-radius: 16px; background: @con-glass;
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 44%), 0 22px 60px rgba(0, 0, 0, 0.66);
-        .con-scrollbars();
-    }
-    &__confirm-name { font-size: 28px; font-weight: 800; line-height: 1.1; }
-    &__confirm-block { display: flex; flex-direction: column; gap: 7px; }
-    &__confirm-generic { font-size: 18px; color: @con-text-dim; }
-    &__confirm-warn {
-        display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 16px;
-        background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 1px fade(@con-amber, 40%); color: #ffe6b0;
-    }
-    &__confirm-next {
-        display: flex; align-items: center; gap: 8px; font-size: 16px; color: fade(@con-cyan, 92%);
-        padding: 8px 12px; border-radius: 8px; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 26%);
+    &__empty-filters {
+        display: inline-flex; margin-top: 12px; padding: 6px 14px; border-radius: 999px;
+        font-size: 15px; color: fade(@con-cyan, 90%);
+        background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%);
     }
 
     /* ── The ONE bottom command bar ── */
@@ -9199,6 +9232,197 @@ html.console-mode {
 @media (prefers-reduced-motion: reduce) {
     .con-cardactions__tile--shake { animation: none; }
     .con-cardactions__frame { transition: none; }
+}
+
+/* ── ACTION COMPOSER (ConsoleActionComposer.vue) — the pre-submit setup
+   panel for one blue-card action: LIVE cost→reward hero + the decision rows
+   (branch / amount stepper / card / player / payment / spend-heat) + its own
+   single bottom bar (it covers the action center's). Desktop parity: nothing
+   is submitted until every decision is made. ── */
+.con-composer {
+    position: fixed;
+    inset: 0;
+    z-index: 11500; /* above the action-center frame + its footer */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2vh 2vw;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck)
+    }
+
+    &__panel {
+        position: relative; z-index: 1;
+        width: min(880px, 92vw);
+        max-height: 92vh;
+        display: flex; flex-direction: column; gap: 12px;
+        padding: 24px 28px 14px;
+        border-radius: 16px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 40%), 0 22px 60px rgba(0, 0, 0, 0.66);
+    }
+
+    &__kicker {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-size: 15px; letter-spacing: 2.2px; text-transform: uppercase; color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__name { font-size: 28px; font-weight: 800; line-height: 1.1; }
+    &__branch-title { font-size: 17px; color: @con-text-dim; }
+
+    /* ── The LIVE hero formula ── */
+    &__hero {
+        display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap;
+        padding: 14px 16px; border-radius: 12px;
+        background: rgba(14, 24, 36, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
+        &--plain { font-size: 18px; color: @con-text-dim; }
+    }
+    &__hero-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    &__hero-label { font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; color: @con-text-dim; }
+    &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    &__hero-arrow { font-size: 26px; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
+    &__hero .action-effect-chip { font-size: 18px; padding: 6px 13px 6px 8px; }
+    &__hero .action-effect-chip__icon { width: 26px; height: 26px; }
+
+    /* Neutral "your choice" chip (a bare amount with no structural hint). */
+    &__varchip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px 5px 8px; border-radius: 999px;
+        font-size: 17px;
+        background: rgba(22, 40, 58, 0.55);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%);
+        b { font-weight: 800; color: #bfe6ff; font-variant-numeric: tabular-nums; }
+        em { font-style: normal; font-size: 11px; text-transform: lowercase; color: fade(@con-cyan, 75%); }
+    }
+    &__varchip-icon { width: 24px; height: 24px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+
+    /* ── Decision rows / sub-state lists ── */
+    &__scroll {
+        flex: 1; min-height: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 10px; padding-right: 6px;
+        .con-scrollbars();
+    }
+    &__sub-title { font-size: 15px; letter-spacing: 1.2px; text-transform: uppercase; color: fade(@con-cyan, 90%); }
+
+    &__row {
+        display: flex; flex-direction: column; gap: 6px;
+        padding: 12px 16px; border-radius: 11px;
+        background: rgba(14, 22, 34, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--focused { box-shadow: inset 0 0 0 2px @con-cyan, 0 0 18px fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
+        &--missing { box-shadow: inset 0 0 0 1px fade(@con-amber, 45%); }
+        &--missing&--focused { box-shadow: inset 0 0 0 2px @con-amber, 0 0 18px fade(@con-amber, 28%); }
+    }
+    &__row-label { font-size: 14px; letter-spacing: 0.8px; text-transform: uppercase; color: @con-text-dim; }
+    &__row-value { font-size: 19px; font-weight: 700; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    &__row-empty { color: fade(@con-amber, 92%); font-weight: 600; }
+    &__row-impact { font-size: 16px; font-weight: 600; color: #8ff0c4; font-variant-numeric: tabular-nums; }
+    &__row-note { font-size: 15px; color: @con-text-dim; }
+
+    /* Inline amount stepper (adjusts with LB/RB / d-pad ←→ while focused). */
+    &__stepper { display: flex; align-items: center; gap: 12px; }
+    &__stepper-icon { width: 30px; height: 30px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__stepper-value {
+        min-width: 64px; text-align: center;
+        font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums;
+        padding: 2px 14px; border-radius: 10px;
+        background: rgba(10, 18, 28, 0.75);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+        color: #dff1ff;
+    }
+    &__stepper-range { font-size: 15px; color: @con-text-dim; }
+
+    /* Sub-state option rows (branch / card / player / or / repeat). */
+    &__opt {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 12px 16px; border-radius: 11px;
+        background: rgba(14, 22, 34, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--focused { box-shadow: inset 0 0 0 2px @con-cyan, 0 0 18px fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
+        &--disabled { opacity: 0.55; filter: saturate(0.6); }
+        &--disabled&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 2px rgba(150, 175, 205, 0.6); }
+        &--chosen { box-shadow: inset 0 0 0 1px fade(@con-mint, 55%); }
+        &--chosen&--focused { box-shadow: inset 0 0 0 2px @con-mint, 0 0 18px fade(@con-mint, 28%); }
+    }
+    &__opt-dot { width: 13px; height: 13px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    &__opt-name { font-size: 18px; font-weight: 700; }
+    &__opt-meta {
+        font-size: 15px; font-weight: 700; color: #bfe6ff;
+        padding: 1px 9px; border-radius: 999px;
+        background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 1px rgba(140, 170, 200, 0.24);
+    }
+    &__opt-reason { font-size: 14px; color: #ffb0a6; }
+    &__opt-check { margin-left: auto; font-size: 18px; font-weight: 800; color: @con-mint; }
+
+    /* Payment lanes (reuses the pure paymentPlan math). */
+    &__lane {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 16px; border-radius: 11px;
+        background: rgba(14, 22, 34, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--focused { box-shadow: inset 0 0 0 2px @con-cyan, 0 0 18px fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
+        &--auto { opacity: 0.85; }
+    }
+    &__lane-icon { width: 26px; height: 26px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__lane-name { font-size: 17px; font-weight: 700; flex: 1; }
+    &__lane-rate { font-size: 14px; color: @con-text-dim; }
+    &__lane-value {
+        display: inline-flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums;
+        b { font-size: 22px; font-weight: 800; }
+        i { font-style: normal; font-size: 14px; color: @con-text-dim; }
+    }
+    &__paytotal {
+        align-self: flex-end;
+        font-size: 17px; font-weight: 700; padding: 6px 14px; border-radius: 999px;
+        background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 1px fade(@con-amber, 40%); color: #ffe6b0;
+        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 1px fade(@con-mint, 45%); color: @con-mint; }
+    }
+
+    &__warn {
+        display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 16px;
+        background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 1px fade(@con-amber, 40%); color: #ffe6b0;
+    }
+    &__next {
+        display: flex; align-items: center; gap: 8px; font-size: 16px; color: fade(@con-cyan, 92%);
+        padding: 8px 12px; border-radius: 8px;
+        background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 1px fade(@con-cyan, 26%);
+    }
+
+    /* The composer's OWN single bottom bar (covers the action center's). */
+    &__foot {
+        flex-shrink: 0;
+        display: flex; align-items: center; gap: 22px;
+        padding: 10px 4px 0;
+        border-top: 1px solid fade(@con-cyan, 16%);
+    }
+    &__foot-item {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 17px; color: @con-text-dim;
+        &--off { opacity: 0.42; }
+    }
+}
+
+/* Handheld (Steam Deck) — tighter composer chrome. */
+html.con-profile-handheld .con-composer {
+    .con-composer__panel { width: min(760px, 96vw); padding: 14px 16px 10px; gap: 8px; }
+    .con-composer__name { font-size: 21px; }
+    .con-composer__stepper-value { font-size: 24px; min-width: 52px; }
+    .con-composer__opt-name { font-size: 15px; }
+    .con-composer__foot-item { font-size: 13px; }
+}
+
+/* Large / 4K — a gentle readability boost only. */
+html.con-profile-large .con-composer {
+    .con-composer__panel { width: min(1040px, 80vw); }
+    .con-composer__name { font-size: 33px; }
+    .con-composer__opt-name { font-size: 21px; }
+    .con-composer__foot-item { font-size: 20px; }
 }
 
 /* Handheld (Steam Deck) — tighter chrome + smaller type. */

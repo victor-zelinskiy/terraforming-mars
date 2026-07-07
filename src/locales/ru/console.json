@@ -205,5 +205,11 @@
     "One of the gains has no effect — the value is already at maximum.": "Один из бонусов не даст эффекта — значение уже на максимуме.",
     "No card actions": "Нет действий карт",
     "You have no cards with an activatable action.": "У вас нет карт с активируемым действием.",
-    "Adjust the availability or activation filter to see more.": "Измените фильтр доступности или активации, чтобы увидеть больше."
+    "Adjust the availability or activation filter to see more.": "Измените фильтр доступности или активации, чтобы увидеть больше.",
+    "Action setup": "Настройка действия",
+    "your choice": "ваш выбор",
+    "You choose": "Вы выбираете",
+    "Choose a player": "Выберите игрока",
+    "Heat sources": "Источники тепла",
+    "Floaters (2 heat each)": "Аэростаты (по 2 тепла)"
 }

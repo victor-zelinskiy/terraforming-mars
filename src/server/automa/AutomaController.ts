@@ -1,4 +1,6 @@
 import {IGame} from '../IGame';
+import {newProjectCard} from '../createCard';
+import {AutomaResolver} from './AutomaResolver';
 import {marsBotOf} from './AutomaSetup';
 
 /**
@@ -23,9 +25,30 @@ export class AutomaController {
       return;
     }
 
-    // Card resolution (tags → tracks → track actions → Failed Action) is Automa
-    // Phase 3. Failing loudly beats hanging the game on a bot prompt that will
-    // never come — and the automa option is not reachable from the UI yet.
-    throw new Error('MarsBot card resolution is not implemented yet (Automa Phase 3)');
+    const entry = automa.actionDeck.shift();
+    if (entry === undefined) {
+      throw new Error('Unreachable: empty action deck');
+    }
+    // Kept until the turn fully resolves so a mid-turn save (a human sub-prompt
+    // interrupting a bonus card) can restore the reveal.
+    automa.revealedCard = entry;
+
+    if (entry.kind === 'project') {
+      const card = newProjectCard(entry.name);
+      if (card === undefined) {
+        throw new Error(`Unknown project card in MarsBot action deck: ${entry.name}`);
+      }
+      game.log('${0} revealed ${1}', (b) => b.player(bot).card(card, {tags: true}));
+      AutomaResolver.resolveProjectCard(game, card);
+      automa.playedPile.push(entry.name);
+    } else {
+      // Bonus card resolution (B01–B08 + expansion cards) is Automa Phase 8.
+      // Failing loudly beats hanging the game — automa is not reachable from
+      // the UI yet, and tests control the deck contents.
+      throw new Error(`MarsBot bonus card ${entry.id} is not implemented yet (Automa Phase 8)`);
+    }
+
+    automa.revealedCard = undefined;
+    game.playerIsFinishedTakingActions();
   }
 }

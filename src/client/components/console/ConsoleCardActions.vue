@@ -2,8 +2,8 @@
   <div class="con-cardactions" role="dialog" :aria-label="$t('Card actions')">
     <div class="con-cardactions__backdrop" aria-hidden="true"></div>
 
-    <!-- The action center frame (dimmed while the confirm sub-overlay is open). -->
-    <div class="con-cardactions__frame" :class="{'con-cardactions__frame--behind': confirm !== undefined}">
+    <!-- The action center frame (dimmed while the composer is open). -->
+    <div class="con-cardactions__frame" :class="{'con-cardactions__frame--behind': composer !== undefined}">
       <!-- ── Header: title + counts + player chip ─────────────────────── -->
       <header class="con-cardactions__head">
         <div class="con-cardactions__head-main">
@@ -27,10 +27,16 @@
         </div>
       </header>
 
-      <!-- ── Filters: availability (LB/RB) + activation (LT/RT) ────────── -->
+      <!-- ── Filters: two labeled groups with their OWN trigger chips
+           (the sanctioned exception to the one-bottom-bar rule). ─────── -->
       <div class="con-cardactions__filters">
-        <div class="con-cardactions__filter">
-          <span class="con-cardactions__filter-label">{{ $t('Availability') }}</span>
+        <div class="con-cardactions__fgroup">
+          <span class="con-cardactions__fgroup-head">
+            <span class="con-cardactions__filter-label">{{ $t('Availability') }}</span>
+            <span class="con-cardactions__fgroup-keys" aria-hidden="true">
+              <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+            </span>
+          </span>
           <span v-for="chip in model.availabilityChips" :key="chip.value"
                 class="con-cardactions__chip"
                 :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
@@ -38,8 +44,13 @@
             <b>{{ chip.count }}</b>
           </span>
         </div>
-        <div class="con-cardactions__filter">
-          <span class="con-cardactions__filter-label">{{ $t('Activation') }}</span>
+        <div class="con-cardactions__fgroup">
+          <span class="con-cardactions__fgroup-head">
+            <span class="con-cardactions__filter-label">{{ $t('Activation') }}</span>
+            <span class="con-cardactions__fgroup-keys" aria-hidden="true">
+              <GamepadGlyph control="triggerL" /><GamepadGlyph control="triggerR" />
+            </span>
+          </span>
           <span v-for="chip in model.activationChips" :key="chip.value"
                 class="con-cardactions__chip"
                 :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
@@ -52,11 +63,12 @@
       <!-- ── Master (groups) + detail (inspector) ─────────────────────── -->
       <div class="con-cardactions__body">
         <div class="con-cardactions__list" ref="list">
-          <!-- Empty states — never a blank screen. -->
+          <!-- Empty states — never a blank screen; names the hiding filter. -->
           <div v-if="model.groups.length === 0" class="con-cardactions__empty">
             <span class="con-cardactions__empty-mark" aria-hidden="true">◇</span>
             <div class="con-cardactions__empty-title">{{ $t(emptyState.title) }}</div>
             <div class="con-cardactions__empty-body">{{ $t(emptyState.body) }}</div>
+            <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
           </div>
 
           <div v-for="group in model.groups" :key="group.key"
@@ -85,22 +97,47 @@
                        },
                      ]"
                      :ref="focusKey === tile.key ? 'focused' : undefined">
-                  <!-- The live cost → reward formula (from the preview). The DSL
-                       action graphic is the graceful fallback while the preview
-                       loads / for a dynamic action with no computable effects. -->
-                  <div v-if="tile.costEffects.length > 0 || tile.gainEffects.length > 0" class="con-cardactions__formula">
+                  <!-- The COMPLETE cost → reward formula: static chips + the
+                       player-chosen VARIABLE ranges. The DSL graphic is the
+                       safe fallback when nothing structured is known. -->
+                  <div v-if="tileHasFormula(tile)" class="con-cardactions__formula">
                     <template v-for="(eff, k) in tile.costEffects" :key="'c' + k">
                       <ActionEffectChip :effect="eff" />
                     </template>
-                    <span v-if="tile.costEffects.length > 0 && tile.gainEffects.length > 0" class="con-cardactions__arrow" aria-hidden="true">→</span>
+                    <span v-for="(vc, k) in tile.variableCost" :key="'vc' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                      <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                      <b>{{ rangeText(vc) }}</b>
+                    </span>
+                    <span v-if="tileHasBothSides(tile)" class="con-cardactions__arrow" aria-hidden="true">→</span>
                     <template v-for="(eff, k) in tile.gainEffects" :key="'g' + k">
                       <ActionEffectChip :effect="eff" />
+                    </template>
+                    <span v-for="(vc, k) in tile.variableGain" :key="'vg' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                      <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                      <b>{{ rangeText(vc) }}</b>
+                    </span>
+                    <!-- Direction-unknown amounts — their OWN cluster (never
+                         claiming the spent/received side). -->
+                    <template v-if="tile.variableChoice.length > 0">
+                      <span v-if="tile.costEffects.length + tile.gainEffects.length + tile.variableCost.length + tile.variableGain.length > 0" class="con-cardactions__vardiv" aria-hidden="true">·</span>
+                      <span v-for="(vc, k) in tile.variableChoice" :key="'vx' + k" class="con-cardactions__varchip con-cardactions__varchip--choice">
+                        <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                        <b>{{ rangeText(vc) }}</b>
+                        <em>{{ $t('your choice') }}</em>
+                      </span>
                     </template>
                   </div>
                   <div v-else class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
                     <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
                     <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
                     <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                  </div>
+
+                  <!-- Non-amount pre-submit choices (a card / player / payment
+                       pick happens in the composer) — named, never a mute "X". -->
+                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                    <span aria-hidden="true">◈</span>
+                    <span>{{ choiceKindsLabel(tile) }}</span>
                   </div>
 
                   <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
@@ -137,17 +174,35 @@
             <span v-else class="con-cardactions__graphic-text">{{ focusedTile.node.text }}</span>
           </div>
 
-          <!-- The live cost / reward breakdown. -->
-          <div v-if="focusedTile.costEffects.length > 0" class="con-cardactions__detail-block">
+          <!-- The complete cost / reward breakdown (static + variable). -->
+          <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block">
             <div class="con-cardactions__detail-label">{{ $t('Will be spent') }}</div>
             <div class="con-cardactions__detail-chips">
               <ActionEffectChip v-for="(eff, k) in focusedTile.costEffects" :key="k" :effect="eff" />
+              <span v-for="(vc, k) in focusedTile.variableCost" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                <b>{{ rangeText(vc) }}</b>
+              </span>
             </div>
           </div>
-          <div v-if="focusedTile.gainEffects.length > 0" class="con-cardactions__detail-block">
+          <div v-if="focusedTile.gainEffects.length > 0 || focusedTile.variableGain.length > 0" class="con-cardactions__detail-block">
             <div class="con-cardactions__detail-label">{{ $t('You will receive') }}</div>
             <div class="con-cardactions__detail-chips">
               <ActionEffectChip v-for="(eff, k) in focusedTile.gainEffects" :key="k" :effect="eff" />
+              <span v-for="(vc, k) in focusedTile.variableGain" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                <b>{{ rangeText(vc) }}</b>
+              </span>
+            </div>
+          </div>
+          <div v-if="focusedTile.variableChoice.length > 0" class="con-cardactions__detail-block">
+            <div class="con-cardactions__detail-label">{{ $t('You choose') }}</div>
+            <div class="con-cardactions__detail-chips">
+              <span v-for="(vc, k) in focusedTile.variableChoice" :key="'v' + k" class="con-cardactions__varchip con-cardactions__varchip--choice">
+                <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                <b>{{ rangeText(vc) }}</b>
+                <em>{{ $t('your choice') }}</em>
+              </span>
             </div>
           </div>
 
@@ -160,13 +215,13 @@
             </div>
           </div>
 
-          <!-- What happens after confirming (targets / placement / reveal). -->
+          <!-- What genuinely stays AFTER confirming (placement / reveal). -->
           <div v-if="nextStepText !== ''" class="con-cardactions__detail-next">
             <span aria-hidden="true">›</span>
             <span>{{ nextStepText }}</span>
           </div>
 
-          <!-- Per-game usage. -->
+          <!-- Per-VARIANT usage (desktop branchScope parity). -->
           <div class="con-cardactions__detail-block con-cardactions__detail-usage">
             <div class="con-cardactions__detail-label">{{ $t('This game') }}</div>
             <template v-if="!usage.empty">
@@ -183,6 +238,9 @@
               <div v-if="usage.lastGeneration !== undefined" class="con-cardactions__usage-gen">
                 {{ $t('Last used') }}: {{ $t('GEN.') }} {{ usage.lastGeneration }}
               </div>
+              <div v-if="usage.cardScoped === true" class="con-cardactions__usage-scope">
+                {{ $t('Some stats are tracked at the card level') }}
+              </div>
             </template>
             <div v-else class="con-cardactions__usage-note">{{ $t('Action not used yet — its usage stats will appear here.') }}</div>
           </div>
@@ -190,54 +248,19 @@
       </div>
     </div>
 
-    <!-- ── Confirmation sub-overlay (nothing is submitted until its A) ─── -->
-    <div v-if="confirm !== undefined && confirmTile !== undefined" class="con-cardactions__confirm">
-      <div class="con-cardactions__confirm-backdrop" aria-hidden="true"></div>
-      <div class="con-cardactions__confirm-card">
-        <div class="con-cardactions__kicker">
-          <span class="con-cardactions__kicker-mark" aria-hidden="true">◈</span>
-          <span>{{ $t('Confirmation') }}</span>
-        </div>
-        <div class="con-cardactions__confirm-name">{{ $t(confirmTile.cardName) }}</div>
+    <!-- ── The ACTION COMPOSER (every pre-submit choice lives here) ────── -->
+    <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
+                           ref="composerRef"
+                           :playerView="playerView"
+                           :entry="composerEntry"
+                           :preview="composerPreview"
+                           :nodeIndex="composer.nodeIndex"
+                           @confirm="onComposerConfirm"
+                           @cancel="onComposerCancel"
+                           @repeat-pick="onRepeatPick" />
 
-        <div class="con-cardactions__confirm-block">
-          <div class="con-cardactions__detail-label">{{ $t('Selected option') }}</div>
-          <div class="con-cardactions__formula con-cardactions__formula--lg">
-            <template v-for="(eff, k) in confirmTile.costEffects" :key="'c' + k">
-              <ActionEffectChip :effect="eff" />
-            </template>
-            <span v-if="confirmTile.costEffects.length > 0 && confirmTile.gainEffects.length > 0" class="con-cardactions__arrow" aria-hidden="true">→</span>
-            <template v-for="(eff, k) in confirmTile.gainEffects" :key="'g' + k">
-              <ActionEffectChip :effect="eff" />
-            </template>
-            <span v-if="confirmTile.costEffects.length === 0 && confirmTile.gainEffects.length === 0" class="con-cardactions__confirm-generic">{{ $t('Confirm to perform this action.') }}</span>
-          </div>
-        </div>
-
-        <div v-if="confirmTile.costEffects.length > 0" class="con-cardactions__confirm-block">
-          <div class="con-cardactions__detail-label">{{ $t('Will be spent') }}</div>
-          <div class="con-cardactions__detail-chips">
-            <ActionEffectChip v-for="(eff, k) in confirmTile.costEffects" :key="k" :effect="eff" />
-          </div>
-        </div>
-        <div v-if="confirmTile.gainEffects.length > 0" class="con-cardactions__confirm-block">
-          <div class="con-cardactions__detail-label">{{ $t('You will receive') }}</div>
-          <div class="con-cardactions__detail-chips">
-            <ActionEffectChip v-for="(eff, k) in confirmTile.gainEffects" :key="k" :effect="eff" />
-          </div>
-        </div>
-
-        <div v-for="(w, i) in confirmWarnings" :key="'w' + i" class="con-cardactions__confirm-warn">
-          <span aria-hidden="true">!</span><span>{{ $t(w) }}</span>
-        </div>
-        <div v-if="confirmNextStep !== ''" class="con-cardactions__confirm-next">
-          <span aria-hidden="true">›</span><span>{{ confirmNextStep }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── The ONE bottom command bar (no hints anywhere else) ────────── -->
-    <footer class="con-cardactions__foot" aria-hidden="true">
+    <!-- ── The ONE bottom command bar (hidden while the composer owns it) ── -->
+    <footer v-if="composer === undefined" class="con-cardactions__foot" aria-hidden="true">
       <span v-for="(hint, i) in footHints" :key="i"
             class="con-cardactions__foot-item"
             :class="{'con-cardactions__foot-item--off': hint.enabled === false}">
@@ -252,30 +275,23 @@
 <script lang="ts">
 /**
  * ConsoleCardActions — the console-native "Blue Card Action Center"
- * (CONSOLE_MODE_CONCEPT.md §9). Replaces the old bottom-sheet list +
- * bare confirm dialog with a premium master-detail surface: a scrollable
- * list of action GROUPS (one per source card), each showing its variant
- * tiles (the printed render nodes, "ИЛИ" between them) as live cost→reward
- * formulas; a persistent inspector (the ONE detail surface) with the
- * availability verdict, the printed rule graphic, the cost/gain breakdown,
- * stored resources, "what happens next", and the per-game usage stats; two
- * faceted filters (availability LB/RB · activation LT/RT · R3 reset) counted
- * BY VARIANT; and a preview-backed confirmation sub-overlay.
+ * (iteration 2). A premium master-detail surface for activatable blue-card /
+ * corporation actions: groups (one per source card) with variant tiles
+ * (COMPLETE cost→reward formulas — static chips + player-chosen variable
+ * ranges, never a lossy simplification), two labeled faceted filters counted
+ * BY VARIANT, a persistent inspector with per-VARIANT usage stats (desktop
+ * branchScope parity), and the ACTION COMPOSER — every pre-submit choice
+ * (branch / amount / card / player / payment / spend-heat) is made BEFORE
+ * the one final submit, byte-identical to the desktop confirm modal
+ * (`buildActionBatch` mirrors `submitCardActionBatch`; a Viron repeat rides
+ * the same prefix handoff as `submitRepeatActionBatch`).
  *
- * It reuses the SHARED desktop data (`buildActionEntries` availability,
- * `/api/action-preview` branches, `/api/game/action-stats` usage,
- * `getActionUsageSummary`) — zero parallel game logic. Submission is
- * byte-identical to the desktop path: activating a variant emits either the
- * bare card activation (`wrapPath(perform.path, {type:'card', cards:[name]})`)
- * or, for a clean multi-branch card, a BATCH that pre-collects the chosen
- * branch (`[activate, {type:'or', index: branch.index, response:{type:'option'}}]`)
- * so the player never gets asked to pick the variant twice.
- *
- * Control grammar (all hints in the ONE bottom footer, never on a tile):
- *   D-pad = navigate variants · A = confirm the focused action (unavailable →
- *   shows the reason, never fires) · X = inspect the card fullscreen ·
- *   LB/RB = availability filter · LT/RT = activation filter · R3 = reset
- *   filters · RS = scroll · B = close (in the confirm: A = confirm, B = back).
+ * Control grammar (hints in the ONE bottom footer; the filter groups carry
+ * their own LB/RB · LT/RT chips — the sanctioned exception):
+ *   D-pad = navigate variants · A = set up / confirm the focused action
+ *   (unavailable → reason, never fires) · X = inspect the card fullscreen ·
+ *   LB/RB = availability · LT/RT = activation · R3 = reset · RS = scroll ·
+ *   B = close.
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -288,10 +304,10 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
-import {branchPositionForNode} from '@/client/components/actions/actionBranchView';
 import {getActionUsageSummary, ActionUsageViewModel} from '@/client/components/actions/actionUsageSummary';
 import {
   buildConsoleActionsModel,
+  branchScopeForNode,
   consoleCardActionsUi,
   cycleAvailability,
   cycleActivation,
@@ -299,7 +315,10 @@ import {
   ConsoleActionTile,
   ConsoleActionGroup,
   ConsoleActionReason,
+  ConsoleVariableChip,
 } from '@/client/console/consoleCardActions';
+import {buildActionBatch} from '@/client/console/consoleActionComposer';
+import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -326,17 +345,34 @@ const STATUS_LABEL: Record<ActionStatus, string> = {
 };
 const VERDICT_MARK: Record<ActionStatus, string> = {available: '✦', rules: '✕', soft: '⏳', activated: '✓'};
 
+const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHeat', string> = {
+  card: 'Choose a card',
+  player: 'Choose a player',
+  or: 'Choose an option',
+  payment: 'Payment',
+  spendHeat: 'Heat sources',
+};
+
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
 
+type ComposerContext = {
+  cardName: CardName,
+  nodeIndex: number,
+  /** Repeat-action prefix (replaces the activate pick — Viron handoff). */
+  prefix?: ReadonlyArray<unknown>,
+  /** The OUTER composer to restore when this (inner repeat) one cancels. */
+  outer?: {cardName: CardName, nodeIndex: number},
+};
+
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
-  emits: ['close', 'submit', 'submit-batch'],
+  emits: ['close', 'submit-batch'],
   data() {
     return {
       consoleCardActionsUi,
@@ -346,8 +382,8 @@ export default defineComponent({
       previews: {} as Record<string, ActionPreview | undefined>,
       /** Whole-game per-card action usage aggregate (for the "this game" panel). */
       stats: [] as ReadonlyArray<EffectOverlayStat>,
-      /** The confirm sub-overlay target (a focused available variant), or none. */
-      confirm: undefined as {cardName: CardName, nodeIndex: number} | undefined,
+      /** The open ACTION COMPOSER context (undefined = the grid owns input). */
+      composer: undefined as ComposerContext | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       shakeTimer: undefined as number | undefined,
@@ -419,38 +455,27 @@ export default defineComponent({
       const tile = this.focusedTile;
       return tile === undefined ? undefined : this.stats.find((s) => s.card === tile.cardName);
     },
+    /** Per-VARIANT usage — the desktop ActionDetailsPanel.branchScope mirror. */
     usage(): ActionUsageViewModel {
-      return getActionUsageSummary(this.statForFocused);
+      const tile = this.focusedTile;
+      if (tile === undefined) {
+        return getActionUsageSummary(this.statForFocused);
+      }
+      const entry = this.entries.find((e) => e.cardName === tile.cardName);
+      const branches = this.previews[tile.cardName]?.branches ?? [];
+      const scope = entry !== undefined ? branchScopeForNode(entry.group, branches, tile.nodeIndex) : undefined;
+      return getActionUsageSummary(this.statForFocused, scope);
     },
     nextStepText(): string {
       return this.focusedTile === undefined ? '' : this.stepNoteFor(this.focusedTile);
     },
-    /** The confirm target's tile (resolved live from the model). */
-    confirmTile(): ConsoleActionTile | undefined {
-      const c = this.confirm;
-      if (c === undefined) {
-        return undefined;
-      }
-      for (const g of this.model.groups) {
-        for (const t of g.tiles) {
-          if (t.cardName === c.cardName && t.nodeIndex === c.nodeIndex) {
-            return t;
-          }
-        }
-      }
-      return undefined;
+    composerEntry(): ActionEntry | undefined {
+      const c = this.composer;
+      return c === undefined ? undefined : this.entries.find((e) => e.cardName === c.cardName);
     },
-    confirmWarnings(): Array<string> {
-      const tile = this.confirmTile;
-      if (tile === undefined) {
-        return [];
-      }
-      // A gain that changes nothing (a capped global parameter) — never hide it.
-      return tile.gainEffects.some((e) => e.current !== undefined && e.current === e.resulting) ?
-        ['One of the gains has no effect — the value is already at maximum.'] : [];
-    },
-    confirmNextStep(): string {
-      return this.confirmTile === undefined ? '' : this.stepNoteFor(this.confirmTile);
+    composerPreview(): ActionPreview | undefined {
+      const c = this.composer;
+      return c === undefined ? undefined : this.previews[c.cardName];
     },
     emptyState(): {title: string, body: string} {
       if (this.entries.length === 0) {
@@ -458,24 +483,37 @@ export default defineComponent({
       }
       return {title: 'No actions match the filter', body: 'Adjust the availability or activation filter to see more.'};
     },
-    /** The ONE bottom command contract (grid vs confirm). */
-    footHints(): Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> {
-      if (this.confirm !== undefined) {
-        return [
-          {control: 'confirm', label: 'Confirm'},
-          {control: 'back', label: 'Cancel'},
-        ];
+    /** Names the active filter values when they hide everything (2.6). */
+    emptyFilterLine(): string {
+      const f = consoleCardActionsUi.filter;
+      if (f.availability === 'all' && f.activation === 'all') {
+        return '';
       }
+      const availability = this.model.availabilityChips.find((c) => c.active);
+      const activation = this.model.activationChips.find((c) => c.active);
+      return `${translateText('Availability')}: ${translateText(availability?.label ?? '')} · ` +
+        `${translateText('Activation')}: ${translateText(activation?.label ?? '')}`;
+    },
+    /** The ONE bottom command contract (grid context; the composer owns its own). */
+    footHints(): Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> {
       const canAct = this.focusedTile?.status === 'available';
-      return [
+      const hints: Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> = [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: 'Perform', enabled: canAct},
         {control: 'secondary', label: 'Inspect'},
-        {control: 'bumperL', control2: 'bumperR', label: 'Availability'},
-        {control: 'triggerL', control2: 'triggerR', label: 'Activation'},
         {control: 'stickR', label: 'Reset'},
         {control: 'back', label: 'Close'},
       ];
+      if (this.model.groups.length === 0) {
+        // Empty state: the reset affordance leads.
+        return [
+          {control: 'stickR', label: 'Reset'},
+          {control: 'bumperL', control2: 'bumperR', label: 'Availability'},
+          {control: 'triggerL', control2: 'triggerR', label: 'Activation'},
+          {control: 'back', label: 'Close'},
+        ];
+      }
+      return hints;
     },
   },
   watch: {
@@ -506,11 +544,14 @@ export default defineComponent({
         }
       },
     },
-    // A resolved / vanished confirm target (the prompt moved on) closes cleanly.
-    confirmTile(tile) {
-      if (this.confirm !== undefined && tile === undefined) {
-        this.closeConfirm();
+    // The composer's card left the action set (prompt moved on) → close it.
+    composerEntry(entry: ActionEntry | undefined) {
+      if (this.composer !== undefined && entry === undefined) {
+        this.closeComposer();
       }
+    },
+    composer(value: ComposerContext | undefined) {
+      consoleCardActionsUi.confirmOpen = value !== undefined;
     },
   },
   mounted() {
@@ -547,7 +588,24 @@ export default defineComponent({
         translateTextWithParams(reason.message, [...reason.params]) :
         translateMessage(reason.message);
     },
-    /** "What happens after confirming" for a variant with follow-ups. */
+    tileHasFormula(tile: ConsoleActionTile): boolean {
+      return tile.costEffects.length > 0 || tile.gainEffects.length > 0 ||
+        tile.variableCost.length > 0 || tile.variableGain.length > 0 ||
+        tile.variableChoice.length > 0;
+    },
+    tileHasBothSides(tile: ConsoleActionTile): boolean {
+      const cost = tile.costEffects.length > 0 || tile.variableCost.length > 0;
+      const gain = tile.gainEffects.length > 0 || tile.variableGain.length > 0;
+      return cost && gain;
+    },
+    rangeText(vc: ConsoleVariableChip): string {
+      const unit = vc.unit ?? '';
+      return vc.min === vc.max ? `${vc.min}${unit}` : `${vc.min}–${vc.max}${unit}`;
+    },
+    choiceKindsLabel(tile: ConsoleActionTile): string {
+      return tile.choiceKinds.map((k) => translateText(CHOICE_KIND_LABEL[k])).join(' · ');
+    },
+    /** Only what GENUINELY stays post-submit (placement / reveal / notes). */
     stepNoteFor(tile: ConsoleActionTile): string {
       const branch = tile.branch;
       if (branch === undefined) {
@@ -559,7 +617,7 @@ export default defineComponent({
       if (branch.steps.some((s) => s.kind === 'boardPlacement')) {
         return translateText('Next: place on the board');
       }
-      if (branch.steps.some((s) => s.kind === 'input')) {
+      if (branch.steps.some((s) => s.kind === 'note' && s.noteKind !== 'warning')) {
         return translateText('Next: an additional choice');
       }
       return '';
@@ -581,9 +639,27 @@ export default defineComponent({
         .then((p) => {
           if (p !== undefined) {
             this.previews[cardName] = p as ActionPreview;
+          } else {
+            this.seedFallbackPreview(cardName);
           }
         })
-        .catch(() => { /* best effort — the DSL graphic is the fallback */ });
+        .catch(() => this.seedFallbackPreview(cardName));
+    },
+    /** A fetch failure must never BLOCK activation: seed a confirm-only
+     *  dynamic preview (the tile keeps the DSL graphic; the composer offers
+     *  a plain confirm — the follow-ups ride the native tasks, exactly the
+     *  graceful path a desktop fetch failure degrades to). Never overwrites
+     *  a previously-loaded good preview. */
+    seedFallbackPreview(cardName: CardName): void {
+      if (this.previews[cardName] !== undefined) {
+        return;
+      }
+      this.previews[cardName] = {
+        card: cardName,
+        isCorporation: false,
+        kind: 'dynamic',
+        branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+      };
     },
     fetchStats(): void {
       if (String(this.playerView.id) === '' || typeof fetch !== 'function') {
@@ -603,14 +679,9 @@ export default defineComponent({
     },
     // ── input (the shell routes every intent here while open) ───────────
     handleIntent(intent: GamepadIntent): void {
-      if (this.confirm !== undefined) {
-        if (intent.kind === 'press') {
-          if (intent.button === 'confirm' || intent.button === 'secondary') {
-            this.submitAction();
-          } else if (intent.button === 'back') {
-            this.closeConfirm();
-          }
-        }
+      if (this.composer !== undefined) {
+        const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
+        ref?.handleIntent(intent);
         return;
       }
       if (intent.kind === 'nav') {
@@ -656,12 +727,10 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
-      this.confirm = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
-      consoleCardActionsUi.confirmOpen = true;
+      this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
     },
-    closeConfirm(): void {
-      this.confirm = undefined;
-      consoleCardActionsUi.confirmOpen = false;
+    closeComposer(): void {
+      this.composer = undefined;
     },
     inspectFocused(): void {
       const tile = this.focusedTile;
@@ -673,37 +742,67 @@ export default defineComponent({
         openConsoleCardZoom([card], 0, undefined, undefined, {contextLabel: 'Card actions'});
       }
     },
-    submitAction(): void {
-      const c = this.confirm;
-      if (c === undefined) {
+    // ── composer events ─────────────────────────────────────────────────
+    /** Assemble + submit the byte-identical batch (revalidated at submit time,
+     *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
+    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>}): void {
+      const comp = this.composer;
+      if (comp === undefined) {
+        return;
+      }
+      const perform = findPerformActionCard(this.playerView.waitingFor);
+      if (comp.prefix === undefined && perform === undefined) {
+        // The prompt moved on while composing — nothing is submitted.
+        console.warn('Activate action: SelectCard not found in waitingFor tree');
+        this.closeComposer();
+        return;
+      }
+      const batch = buildActionBatch({
+        performPath: perform?.path ?? [],
+        cardName: comp.cardName,
+        prefix: comp.prefix,
+        branchIndex: payload.branchIndex,
+        preResponses: payload.preResponses,
+        optionResponse: payload.optionResponse,
+        stepResponses: payload.stepResponses,
+      });
+      this.closeComposer();
+      this.$emit('submit-batch', batch);
+    },
+    onComposerCancel(): void {
+      const comp = this.composer;
+      if (comp?.outer !== undefined) {
+        // A cancelled repeat-target composer restores the OUTER one (Viron) —
+        // desktop repeatOuter parity, no round-trip.
+        this.composer = {cardName: comp.outer.cardName, nodeIndex: comp.outer.nodeIndex};
+        return;
+      }
+      this.closeComposer();
+    },
+    /** Viron handoff: the chosen used action gets its OWN composer whose batch
+     *  is prefixed by [outer activate, the repeat card pick] (desktop parity —
+     *  the prefix is built at PICK time, like onRepeatActionFromAction). */
+    onRepeatPick(payload: {chosenCard: CardName}): void {
+      const comp = this.composer;
+      if (comp === undefined) {
         return;
       }
       const perform = findPerformActionCard(this.playerView.waitingFor);
       if (perform === undefined) {
-        // The prompt moved on while the confirm was open — back out cleanly.
-        this.closeConfirm();
-        this.$emit('close');
+        console.warn('Repeat action: SelectCard not found in waitingFor tree');
+        this.closeComposer();
         return;
       }
-      const activate = wrapPath(perform.path, {type: 'card' as const, cards: [c.cardName]});
-      const preview = this.previews[c.cardName];
-      const branches = preview?.branches ?? [];
-      const entry = this.entries.find((e) => e.cardName === c.cardName);
-      const pos = entry !== undefined ? branchPositionForNode(entry.group, branches, c.nodeIndex) : undefined;
-      const branch = pos !== undefined ? branches[pos] : undefined;
-      // Pre-collect the chosen variant ONLY for a clean multi-branch SelectOption
-      // (a real index, available, no direct optionInput to host, no pre-branch
-      // step) — so the player isn't asked to pick the variant a second time.
-      // Everything else activates the card and lets the branch / follow-ups ride
-      // the native tasks (byte-identical to the desktop activate-only path).
-      const preCollect = branches.length > 1 && branch !== undefined && branch.index >= 0 &&
-        branch.available && branch.optionInput === undefined && (preview?.preSteps?.length ?? 0) === 0;
-      if (preCollect && branch !== undefined) {
-        this.$emit('submit-batch', [activate, {type: 'or' as const, index: branch.index, response: {type: 'option' as const}}]);
-      } else {
-        this.$emit('submit', activate);
-      }
-      this.closeConfirm();
+      const prefix: ReadonlyArray<unknown> = [
+        wrapPath(perform.path, {type: 'card' as const, cards: [comp.cardName]}),
+        {type: 'card' as const, cards: [payload.chosenCard]},
+      ];
+      this.composer = {
+        cardName: payload.chosenCard,
+        nodeIndex: -1, // no node context → the composer offers the branch pick
+        prefix,
+        outer: {cardName: comp.cardName, nodeIndex: comp.nodeIndex},
+      };
     },
     stepAvailability(step: 1 | -1): void {
       consoleCardActionsUi.filter.availability = cycleAvailability(consoleCardActionsUi.filter.availability, step);

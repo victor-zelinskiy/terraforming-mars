@@ -33,16 +33,35 @@ import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {Message} from '@/common/logs/Message';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
-import {branchPositionForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionForNode, branchPositionsForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 
 type GroupNode = ActionGroup['nodes'][number];
 
 /** A normalized "why not" reason — a raw i18n template + its params; the
  *  component translates via `translateTextWithParams` / `translateMessage`. */
 export type ConsoleActionReason = {message: string | Message, params: ReadonlyArray<string>};
+
+/**
+ * A VARIABLE piece of an action formula — a value the PLAYER will choose in the
+ * composer (never a debug "X → X"). Derived STRUCTURALLY from the branch's
+ * amount inputs: `spend`/`result` pairs come from the model's `amountResult` /
+ * `conversion` hints (their spend-vs-produce semantics are part of the model —
+ * "spend X energy → draw X cards"); a bare amount input with no hint renders as
+ * a NEUTRAL `choice` chip (icon + range + "your choice") — honest, never a
+ * guessed direction.
+ */
+export type ConsoleVariableChip = {
+  role: 'spend' | 'result' | 'choice';
+  icon?: string;
+  min: number;
+  max: number;
+  unit?: string;
+};
 
 /** One variant (render node) of a source card's action. */
 export type ConsoleActionTile = {
@@ -57,10 +76,24 @@ export type ConsoleActionTile = {
   /** The preview branch resolved for this node (undefined until the preview
    *  loads, or for a combined-node card whose 1 node draws every branch). */
   branch: ActionPreviewBranch | undefined;
-  /** The branch's COST chips (spent / lost) — the left side of the formula. */
+  /** The branch's COST chips (spent / lost) — the left side of the formula.
+   *  Filtered: a static chip superseded by a variable spend/result is dropped. */
   costEffects: ReadonlyArray<ActionEffect>;
   /** The branch's GAIN chips (produced / raised) — the right side. */
   gainEffects: ReadonlyArray<ActionEffect>;
+  /** Player-chosen VARIABLE parts of the formula (amount inputs) — the
+   *  "spend X energy → draw X cards" family. Rendered as premium range chips. */
+  variableCost: ReadonlyArray<ConsoleVariableChip>;
+  variableGain: ReadonlyArray<ConsoleVariableChip>;
+  /** Direction-unknown amount choices — an honest separate "you choose" cluster. */
+  variableChoice: ReadonlyArray<ConsoleVariableChip>;
+  /** True when activating this variant requires pre-submit choices (the
+   *  composer will host them) — drives the tile's "choice" marker. */
+  hasChoices: boolean;
+  /** NON-amount pre-submit choice kinds (card / player / or / payment /
+   *  spendHeat) — the tile names them ("choose a card") since no range chip
+   *  can express them. Amount choices ride `variableCost`/`variableGain`. */
+  choiceKinds: ReadonlyArray<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>;
   /** Why this variant can't be used right now (undefined when available). */
   reason: ConsoleActionReason | undefined;
 };
@@ -151,6 +184,109 @@ function reasonFrom(message: string | Message | undefined, params: ReadonlyArray
   return {message, params: (params ?? []).map((p) => String(p))};
 }
 
+/** Every SelectAmount carried by a branch (its direct optionInput + input steps). */
+function branchAmountInputs(branch: ActionPreviewBranch): Array<SelectAmountModel> {
+  const out: Array<SelectAmountModel> = [];
+  if (branch.optionInput?.type === 'amount') {
+    out.push(branch.optionInput as SelectAmountModel);
+  }
+  for (const step of branch.steps) {
+    if (step.kind === 'input' && step.input.type === 'amount') {
+      out.push(step.input as SelectAmountModel);
+    }
+  }
+  return out;
+}
+
+/**
+ * The VARIABLE formula parts of a branch + the static-chip icons they
+ * supersede. An `amountResult`/`conversion` hint is structural spend→produce
+ * semantics, so the matching static chips (a fixed "+1 card" emitted as the
+ * baseline) are SUPPRESSED in favour of the range pair — the formula must
+ * never show both "+1 card" and "cards ×N" for the same outcome. A bare
+ * amount input adds a neutral `choice` chip and suppresses nothing.
+ * (Exported for the composer, which recomputes it per SELECTED branch.)
+ */
+export function variablePartsForBranch(branch: ActionPreviewBranch): {
+  cost: Array<ConsoleVariableChip>,
+  gain: Array<ConsoleVariableChip>,
+  /** Direction-UNKNOWN choices — rendered in their OWN cluster (never under a
+   *  spent/received label a bare SelectAmount doesn't structurally justify). */
+  choice: Array<ConsoleVariableChip>,
+  suppressCostIcons: ReadonlySet<string>,
+  suppressGainIcons: ReadonlySet<string>,
+} {
+  const cost: Array<ConsoleVariableChip> = [];
+  const gain: Array<ConsoleVariableChip> = [];
+  const choice: Array<ConsoleVariableChip> = [];
+  const suppressCostIcons = new Set<string>();
+  const suppressGainIcons = new Set<string>();
+  for (const m of branchAmountInputs(branch)) {
+    if (m.amountResult !== undefined) {
+      const perUnit = m.amountResult.perUnit ?? 1;
+      cost.push({role: 'spend', icon: m.icon, min: m.min, max: m.max, unit: m.unit});
+      gain.push({role: 'result', icon: m.amountResult.icon, min: m.min * perUnit, max: m.max * perUnit});
+      if (m.icon !== undefined) {
+        suppressCostIcons.add(m.icon);
+      }
+      suppressGainIcons.add(m.amountResult.icon);
+    } else if (m.conversion !== undefined) {
+      const ratio = m.conversion.ratio ?? 1;
+      cost.push({role: 'spend', icon: m.conversion.from, min: m.min, max: m.max});
+      gain.push({role: 'result', icon: m.conversion.to, min: m.min * ratio, max: m.max * ratio});
+      suppressCostIcons.add(m.conversion.from);
+      suppressGainIcons.add(m.conversion.to);
+    } else {
+      // Direction unknown (no structural hint) — an honest neutral choice chip.
+      choice.push({role: 'choice', icon: m.icon, min: m.min, max: m.max, unit: m.unit});
+    }
+  }
+  return {cost, gain, choice, suppressCostIcons, suppressGainIcons};
+}
+
+/** Whether activating this branch needs any pre-submit choice (composer-hosted). */
+function branchNeedsChoices(branch: ActionPreviewBranch | undefined): boolean {
+  if (branch === undefined) {
+    return false;
+  }
+  return branch.optionInput !== undefined ||
+    branch.steps.some((s) => s.kind === 'input' || s.kind === 'spendHeat');
+}
+
+/** The NON-amount choice kinds a branch (+ card-level preSteps) will host. */
+function branchChoiceKinds(
+  branch: ActionPreviewBranch | undefined,
+  preview: ActionPreview | undefined,
+): Array<'card' | 'player' | 'or' | 'payment' | 'spendHeat'> {
+  const kinds = new Set<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>();
+  const add = (input: {type: string} | undefined) => {
+    if (input === undefined) {
+      return;
+    }
+    if (input.type === 'card' || input.type === 'player' || input.type === 'or' || input.type === 'payment') {
+      kinds.add(input.type);
+    }
+  };
+  for (const step of preview?.preSteps ?? []) {
+    if (step.kind === 'spendHeat') {
+      kinds.add('spendHeat');
+    } else if (step.kind === 'input') {
+      add(step.input);
+    }
+  }
+  if (branch !== undefined) {
+    add(branch.optionInput);
+    for (const step of branch.steps) {
+      if (step.kind === 'spendHeat') {
+        kinds.add('spendHeat');
+      } else if (step.kind === 'input') {
+        add(step.input);
+      }
+    }
+  }
+  return [...kinds];
+}
+
 /** Build a source group's variant tiles, refining each by its preview branch. */
 function buildTiles(
   entry: ActionEntry,
@@ -185,6 +321,9 @@ function buildTiles(
     }
 
     const effects = branch?.effects ?? [];
+    const variable = branch !== undefined ?
+      variablePartsForBranch(branch) :
+      {cost: [], gain: [], choice: [], suppressCostIcons: new Set<string>(), suppressGainIcons: new Set<string>()};
     return {
       key: entry.cardName + '#' + i,
       cardName: entry.cardName,
@@ -192,11 +331,44 @@ function buildTiles(
       node: stripNodeOr(node),
       status,
       branch,
-      costEffects: effects.filter((e) => e.direction === 'cost'),
-      gainEffects: effects.filter((e) => e.direction === 'gain'),
+      costEffects: effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon)),
+      gainEffects: effects.filter((e) => e.direction === 'gain' && !variable.suppressGainIcons.has(e.icon)),
+      variableCost: variable.cost,
+      variableGain: variable.gain,
+      variableChoice: variable.choice,
+      hasChoices: (preview?.preSteps ?? []).length > 0 || branchNeedsChoices(branch),
+      choiceKinds: branchChoiceKinds(branch, preview),
       reason,
     };
   });
+}
+
+/**
+ * Per-VARIANT usage-stats scope for the focused render node — the EXACT mirror
+ * of the desktop ActionDetailsPanel.branchScope: `mineTokens` are the metric
+ * tokens of the branches THIS node maps to (token-overlap match, never
+ * positional), `siblingTokens` everything else. `undefined` = unscoped
+ * (single-branch card, or a combined node that maps to ALL branches).
+ */
+export function branchScopeForNode(
+  group: ActionGroup,
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): ActionBranchScope | undefined {
+  if (branches.length < 2) {
+    return undefined;
+  }
+  const mine = new Set(branchPositionsForNode(group, branches, nodeIndex));
+  const mineTokens: Array<string> = [];
+  const siblingTokens: Array<string> = [];
+  branches.forEach((b, i) => {
+    const tokens = branchMetricTokens(b.effects);
+    (mine.has(i) ? mineTokens : siblingTokens).push(...tokens);
+  });
+  if (mineTokens.length === 0 || siblingTokens.length === 0) {
+    return undefined;
+  }
+  return {mineTokens, siblingTokens};
 }
 
 /**

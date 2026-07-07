@@ -76,6 +76,7 @@ import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {SendDelegateToArea} from './deferredActions/SendDelegateToArea';
 import {BuildColony} from './deferredActions/BuildColony';
 import {newInitialDraft, newPreludeDraft, newCEOsDraft, newStandardDraft} from './Draft';
+import {newAutomaDraft} from './automa/AutomaDraft';
 import {partition, sum, toID, toName} from '../common/utils/utils';
 import {OrOptions} from './inputs/OrOptions';
 import {SelectOption} from './inputs/SelectOption';
@@ -871,7 +872,11 @@ export class Game implements IGame, Logger {
       player.runResearchPhase();
     });
     if (this.automa !== undefined) {
-      AutomaResearch.buildActionDeck(this);
+      // In the draft variant AutomaDraft already built the action deck from the
+      // bot's drafted cards before entering this phase.
+      if (!this.gameOptions.draftVariant) {
+        AutomaResearch.buildActionDeck(this);
+      }
       this.researchedPlayers.add(marsBotOf(this).id);
     }
   }
@@ -879,7 +884,12 @@ export class Game implements IGame, Logger {
   private gotoDraftPhase(): void {
     this.phase = Phase.DRAFTING;
     this.draftRound = 1;
-    newStandardDraft(this).startDraft();
+    if (this.automa !== undefined) {
+      // The official Automa research draft: MarsBot picks at random, instantly.
+      newAutomaDraft(this).startDraft();
+    } else {
+      newStandardDraft(this).startDraft();
+    }
   }
 
   public gameIsOver(): boolean {
@@ -1409,7 +1419,13 @@ export class Game implements IGame, Logger {
     if (this.phase !== Phase.SOLAR) {
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_CARD_BONUS &&
         this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_CARD_BONUS) {
-        player.drawCard();
+        // MarsBot has no hand — the official Automa material never grants the bot
+        // the Venus 8% card-draw bonus (OQ-7 in AUTOMA_DATA_AUDIT.md), so it is
+        // skipped for it. The 16% TR bonus below applies normally ("per the
+        // normal rules", Adding Expansions p.2).
+        if (!player.isMarsBot) {
+          player.drawCard();
+        }
       }
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_TR_BONUS &&
         this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_TR_BONUS) {
@@ -2050,7 +2066,11 @@ export class Game implements IGame, Logger {
         game.gotoInitialResearchPhase();
       }
     } else if (game.phase === Phase.DRAFTING) {
-      newStandardDraft(game).restoreDraft();
+      if (game.automa !== undefined) {
+        newAutomaDraft(game).restoreDraft();
+      } else {
+        newStandardDraft(game).restoreDraft();
+      }
     } else if (game.phase === Phase.RESEARCH) {
       game.gotoResearchPhase();
     } else if (game.phase === Phase.PRODUCTION) {

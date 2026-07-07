@@ -195,7 +195,6 @@
     <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
                         ref="cardActions"
                         :playerView="playerView"
-                        @submit="onCardActionsSubmit"
                         @submit-batch="onCardActionsSubmitBatch"
                         @close="onCardActionsClose" />
     <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
@@ -2715,12 +2714,8 @@ export default defineComponent({
       }
     },
     // ── the console-native card-action center (ConsoleCardActions.vue) ────
-    // It owns the whole flow (list · inspector · confirm) and builds the
-    // byte-identical activation payload itself; the shell only POSTs + closes.
-    onCardActionsSubmit(response: unknown): void {
-      closeConsoleLayers();
-      this.submit(response);
-    },
+    // It owns the whole flow (list · inspector · composer) and builds the
+    // byte-identical activation batch itself; the shell only POSTs + closes.
     onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
       closeConsoleLayers();
       this.submitBatch(responses);

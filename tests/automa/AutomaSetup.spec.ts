@@ -160,7 +160,6 @@ describe('AutomaSetup', () => {
       ['Underworld', {underworldExpansion: true}],
       ['Delta Project', {deltaProjectExpansion: true}],
       ['initial draft', {initialDraftVariant: true}],
-      ['research draft (Phase 2)', {draftVariant: true}],
       ['random MA', {randomMA: RandomMAOptionType.LIMITED}],
       ['solo TR', {soloTR: true}],
       ['two corps', {twoCorpsVariant: true}],
@@ -226,10 +225,10 @@ describe('Automa game flow (phase guards)', () => {
     expect(bot.heat).eq(0);
   });
 
-  it('MarsBot with cards fails loudly until Phase 3 lands (never a silent hang)', () => {
-    const [game, human] = testAutomaGame();
+  it('MarsBot never has a pending prompt at any point of the flow', () => {
+    const [game, human, bot] = testAutomaGame();
     game.playerIsFinishedWithResearchPhase(human);
-    game.playerHasPassed(human);
-    expect(() => game.playerIsFinishedTakingActions()).to.throw(/not implemented yet \(Automa Phase 3\)/);
+    expect(bot.getWaitingFor()).is.undefined;
+    expect(bot.needsToDraft ?? false).is.false;
   });
 });

@@ -3,10 +3,12 @@ import {CardName} from '@/common/cards/CardName';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {ActionPreview, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {CardResource} from '@/common/CardResource';
 import {
   buildConsoleActionsModel,
+  branchScopeForNode,
   cycleAvailability,
   cycleActivation,
   defaultCardActionsFilter,
@@ -158,5 +160,98 @@ describe('consoleCardActions model', () => {
     expect(cycleAvailability('all', -1)).to.eq('unavailable');
     expect(cycleActivation('dormant', 1)).to.eq('activated');
     expect(cycleActivation('dormant', -1)).to.eq('all');
+  });
+
+  // ── Iteration 2: formula COMPLETENESS (never a lossy simplification) ──────
+
+  it('an amountResult amount step becomes a spend→result range pair and SUPPRESSES its static twin (Hi-Tech Lab)', () => {
+    const entries = [entry('HiTech', 'available', ['use'])];
+    const amountStep = {
+      kind: 'input' as const,
+      input: {
+        type: 'amount', title: 'Select amount of energy to spend',
+        min: 1, max: 2, maxByDefault: false, icon: 'energy',
+        amountResult: {icon: 'cards', perUnit: 1, label: 'Cards drawn'},
+      } as unknown as PlayerInputModel,
+    };
+    const previews = new Map<CardName, ActionPreview>([
+      ['HiTech' as CardName, preview('HiTech', [
+        {index: -1, title: '', available: true, renderKeys: [],
+          effects: [{direction: 'gain', icon: 'cards', amount: 1, note: 'draw'}],
+          steps: [amountStep]},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, defaultCardActionsFilter());
+    const tile = model.groups[0].tiles[0];
+    // The energy cost is IN the formula — as a variable spend range.
+    expect(tile.variableCost).to.deep.eq([{role: 'spend', icon: 'energy', min: 1, max: 2, unit: undefined}]);
+    expect(tile.variableGain).to.deep.eq([{role: 'result', icon: 'cards', min: 1, max: 2}]);
+    // The static "+1 cards" baseline is suppressed (no contradiction).
+    expect(tile.gainEffects).to.have.length(0);
+    expect(tile.hasChoices).to.eq(true);
+  });
+
+  it('a bare amount input yields a NEUTRAL choice chip (own cluster) and suppresses nothing', () => {
+    const entries = [entry('Power', 'available', ['use'])];
+    const previews = new Map<CardName, ActionPreview>([
+      ['Power' as CardName, preview('Power', [
+        {index: -1, title: '', available: true, renderKeys: [],
+          effects: [effect('gain', 'megacredits', 1)],
+          steps: [{kind: 'input', input: {type: 'amount', title: 't', min: 1, max: 5, maxByDefault: false, icon: 'energy'} as unknown as PlayerInputModel}]},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, defaultCardActionsFilter());
+    const tile = model.groups[0].tiles[0];
+    // Direction unknown → NEVER placed on the spent/received side.
+    expect(tile.variableChoice).to.deep.eq([{role: 'choice', icon: 'energy', min: 1, max: 5, unit: undefined}]);
+    expect(tile.variableCost).to.have.length(0);
+    expect(tile.variableGain).to.have.length(0);
+    expect(tile.gainEffects.map((e) => e.icon)).to.deep.eq(['megacredits']); // kept
+  });
+
+  it('names non-amount pre-submit choices (card pick) on the tile', () => {
+    const entries = [entry('SRR', 'available', ['double', 'link'])];
+    const cardInput = {type: 'card', title: 'Select card', cards: [], min: 1, max: 1} as unknown as PlayerInputModel;
+    const previews = new Map<CardName, ActionPreview>([
+      ['SRR' as CardName, preview('SRR', [
+        {index: 0, title: 'double', available: true, renderKeys: [], effects: [], steps: [], optionInput: cardInput},
+        {index: 1, title: 'link', available: true, renderKeys: [], effects: [], steps: [], optionInput: cardInput},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, defaultCardActionsFilter());
+    for (const tile of model.groups[0].tiles) {
+      expect(tile.choiceKinds).to.deep.eq(['card']);
+      expect(tile.hasChoices).to.eq(true);
+    }
+  });
+
+  // ── Iteration 2: per-VARIANT stats scope (desktop branchScope mirror) ─────
+
+  it('branchScopeForNode splits mine vs sibling metric tokens per node', () => {
+    const entries = [entry('Catapult', 'available', ['Spend 1 plant to gain 7 M€.', 'Spend 1 steel to gain 7 M€.'])];
+    const branches = [
+      {index: 0, title: 'Spend 1 plant to gain 7 M€.', available: true, renderKeys: [],
+        effects: [effect('cost', 'plants', 1), effect('gain', 'megacredits', 7)], steps: []},
+      {index: 1, title: 'Spend 1 steel to gain 7 M€.', available: true, renderKeys: [],
+        effects: [effect('cost', 'steel', 1), effect('gain', 'megacredits', 7)], steps: []},
+    ];
+    const scope = branchScopeForNode(entries[0].group, branches, 0);
+    expect(scope).to.not.eq(undefined);
+    expect(scope?.mineTokens).to.include('plants');
+    expect(scope?.siblingTokens).to.include('steel');
+  });
+
+  it('branchScopeForNode is undefined for a single-branch card and a combined node', () => {
+    const single = entry('Solo', 'available', ['use']);
+    expect(branchScopeForNode(single.group, [
+      {index: -1, title: '', available: true, renderKeys: [], effects: [effect('gain', 'megacredits', 1)], steps: []},
+    ], 0)).to.eq(undefined);
+
+    // ONE render node mapping to ALL branches → no siblings → unscoped.
+    const combined = entry('Combined', 'available', ['whole']);
+    expect(branchScopeForNode(combined.group, [
+      {index: 0, title: 'a', available: true, renderKeys: [], effects: [effect('gain', 'megacredits', 1)], steps: []},
+      {index: 1, title: 'b', available: true, renderKeys: [], effects: [effect('gain', 'heat', 1)], steps: []},
+    ], 0)).to.eq(undefined);
   });
 });

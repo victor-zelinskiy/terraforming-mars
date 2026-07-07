@@ -114,8 +114,11 @@ export abstract class Draft {
 
   /**
    * Ask the player to choose from a set of cards.
+   *
+   * Protected (not private) so AutomaDraft can intercept MarsBot's picks —
+   * the bot never receives a prompt; it picks at random, server-side.
    */
-  private askPlayerToDraft(player: IPlayer, repick: boolean): void {
+  protected askPlayerToDraft(player: IPlayer, repick: boolean): void {
     const giveTo = this.givingTo(player);
     const cardsToKeep = this.cardsToKeep(player);
 
@@ -166,7 +169,7 @@ export abstract class Draft {
   }
 
   /** Called when a player has chosen a card to draft. */
-  private onCardDrafted(player: IPlayer): void {
+  protected onCardDrafted(player: IPlayer): void {
     player.needsToDraft = false;
 
     // If anybody still needs to draft, stop here.

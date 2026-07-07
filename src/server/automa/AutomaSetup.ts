@@ -80,9 +80,6 @@ export class AutomaSetup {
     if (gameOptions.ceosDraftVariant) {
       reject('the CEO draft');
     }
-    if (gameOptions.draftVariant) {
-      reject('the research draft yet (Automa Phase 2)');
-    }
     if (gameOptions.randomMA !== RandomMAOptionType.NONE) {
       reject('random milestones and awards');
     }
