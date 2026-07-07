@@ -20,8 +20,6 @@ import {BonusCardId, TrackAction} from '@/common/automa/AutomaTypes';
 import {FailedActionReason, MarsBotAttack, MarsBotImpact, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
 import {ViewModel} from '@/common/models/PlayerModel';
 
-/** The intro beat: MarsBot "thinking" before the reveal (the owner's 800–1500ms). */
-export const THINKING_MS = 1100;
 export const REVEAL_MS = 1600;
 export const TAG_MS = 750;
 export const ADVANCE_MS = 750;
@@ -40,7 +38,6 @@ export const MIN_STEP_MS = 360;
 export const REDUCED_STEP_MS = 420;
 
 export type TheaterStep =
-  | {kind: 'thinking', durationMs: number}
   | {kind: 'pass', durationMs: number, message?: LogMessage}
   | {kind: 'reveal', durationMs: number, card: {kind: 'project', name: CardName} | {kind: 'bonus', id: BonusCardId}, message?: LogMessage}
   | {kind: 'tag', durationMs: number, tag: Tag, targetTag?: Tag, ignored: boolean}
@@ -118,11 +115,14 @@ function baseStep(trackTags: ReadonlyArray<Tag | undefined>, step: MarsBotTurnSt
 /**
  * Build the timed view steps of one turn from CAPTURED track tags (the
  * archive-friendly form — a journal replay works long after the source view
- * is gone). Compresses a long chain to `MAX_TURN_MS` (floor `MIN_STEP_MS`
- * per step); reduced motion flattens every step to one short readable beat.
+ * is gone). The turn ALREADY happened — this is a REVIEW of its script, so
+ * there is deliberately NO synthetic "thinking" intro beat (the old live-turn
+ * simulation language). Compresses a long chain to `MAX_TURN_MS` (floor
+ * `MIN_STEP_MS` per step); reduced motion flattens every step to one short
+ * readable beat.
  */
 export function buildTheaterStepsFromTags(turn: MarsBotTurn, trackTags: ReadonlyArray<Tag | undefined>, reducedMotion: boolean): Array<TheaterStep> {
-  const steps: Array<TheaterStep> = [{kind: 'thinking', durationMs: THINKING_MS}];
+  const steps: Array<TheaterStep> = [];
   for (const step of turn.steps) {
     steps.push(baseStep(trackTags, step));
   }

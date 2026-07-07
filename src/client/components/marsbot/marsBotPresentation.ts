@@ -40,9 +40,11 @@ import {
 } from './marsBotTurnArchive';
 
 /** The compact card's lifetime — bounded, so a held draft can never stall. */
-export const BOT_TURN_TTL = 12_000;
+export const BOT_TURN_TTL = 5_000;
 /** Presents ahead of ordinary important/normal cards (ties with 'negative'). */
 export const BOT_TURN_PRIORITY = 2;
+/** Outcome lines shown on the compact card; the rest lives in the inspect. */
+export const BOT_TURN_SUMMARY_CAP = 3;
 
 export type BotPresentationMode = 'notification' | 'theater';
 
@@ -147,14 +149,68 @@ function headlineOf(entry: ArchivedBotTurn): LogMessage | undefined {
   return firstLog?.kind === 'log' ? firstLog.message : undefined;
 }
 
+/**
+ * The compact OUTCOME lines: the turn's own key log lines — placements,
+ * parameter raises, milestone claims, attack losses, failed-action money —
+ * in script order, minus the headline (never duplicated). Internal automa
+ * bookkeeping (tag processing, track advances) is deliberately NOT here —
+ * that detail belongs to the inspect, not the toast.
+ */
+function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined): {lines: Array<LogMessage>, overflow: number} {
+  const all: Array<LogMessage> = [];
+  for (const step of entry.turn.steps) {
+    if (step.kind !== 'log' && step.kind !== 'attack' && step.kind !== 'failed' && step.kind !== 'pass') {
+      continue;
+    }
+    const message = step.message;
+    if (message !== undefined && message !== headline) {
+      all.push(message);
+    }
+  }
+  return {
+    lines: all.slice(0, BOT_TURN_SUMMARY_CAP),
+    overflow: Math.max(0, all.length - BOT_TURN_SUMMARY_CAP),
+  };
+}
+
+/**
+ * Global-parameter before → after chips (Температура −28°→−26°, Океаны 2→3) —
+ * the changes a player must see WITHOUT opening the inspect. Derived from the
+ * prev → next view diff, so they are only attached when exactly ONE fresh
+ * turn rides the response (a multi-turn diff can't be attributed per turn —
+ * the summary lines still name each raise).
+ */
+export function globalParamChips(prev: ViewModel | undefined, next: ViewModel): Array<JournalImpactChip> {
+  if (prev === undefined) {
+    return [];
+  }
+  const chips: Array<JournalImpactChip> = [];
+  const p = prev.game;
+  const n = next.game;
+  if (p.temperature !== n.temperature) {
+    chips.push({icon: 'temperature', text: `${p.temperature}°→${n.temperature}°`, neutral: true});
+  }
+  if (p.oxygenLevel !== n.oxygenLevel) {
+    chips.push({icon: 'oxygen', text: `${p.oxygenLevel}%→${n.oxygenLevel}%`, neutral: true});
+  }
+  if (p.oceans !== n.oceans) {
+    chips.push({icon: 'ocean', text: `${p.oceans}→${n.oceans}`, neutral: true});
+  }
+  if (p.venusScaleLevel !== n.venusScaleLevel) {
+    chips.push({icon: 'venus', text: `${p.venusScaleLevel}%→${n.venusScaleLevel}%`, neutral: true});
+  }
+  return chips;
+}
+
 /** The de-dup / dismiss id of the compact card for an archived turn. */
 export function botTurnNotificationId(key: string): string {
   return `bot:${key}`;
 }
 
 /** Build the compact turn-event notification for one archived bot turn. */
-export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerColor?: Color, createdAt: number, autoExpand: boolean}): NotificationModel {
+export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerColor?: Color, createdAt: number, autoExpand: boolean, paramChips?: ReadonlyArray<JournalImpactChip>}): NotificationModel {
   const header = headlineOf(entry);
+  const summary = summaryLinesOf(entry, header);
   return {
     id: botTurnNotificationId(entry.key),
     kind: 'important',
@@ -163,7 +219,11 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     typeLabelKey: 'MarsBot finished its turn',
     actor: entry.botColor === '' ? undefined : entry.botColor,
     ...(header !== undefined ? {header} : {}),
-    pills: summaryPills(entry, opts.viewerColor),
+    ...(summary.lines.length > 0 ? {summaryLines: summary.lines} : {}),
+    ...(summary.overflow > 0 ? {summaryOverflow: summary.overflow} : {}),
+    // Global-parameter before → after first (the planet-level outcome), then
+    // the viewer's own / the bot's headline resource deltas.
+    pills: [...(opts.paramChips ?? []), ...summaryPills(entry, opts.viewerColor)],
     detailCount: entry.turn.steps.length,
     ...(entry.correlationId !== undefined ? {correlationId: entry.correlationId} : {}),
     generation: entry.generation,
@@ -187,14 +247,18 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
  */
 export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewModel | undefined): void {
   const fresh = recordBotTurnsFromView(prev, next);
-  if (fresh.length === 0) {
+  if (fresh.length === 0 || next === undefined) {
     return;
   }
   const autoExpand = marsBotPresentationMode() === 'theater';
   const viewerColor = (next as PlayerViewModel | undefined)?.thisPlayer?.color;
+  // The prev → next global-parameter diff is attributable ONLY when exactly
+  // one fresh turn rides the response; with several, each card's summary
+  // lines still name the raises.
+  const paramChips = fresh.length === 1 ? globalParamChips(prev, next) : [];
   const now = Date.now();
   for (const entry of fresh) {
-    pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand}));
+    pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand, paramChips}));
   }
 }
 

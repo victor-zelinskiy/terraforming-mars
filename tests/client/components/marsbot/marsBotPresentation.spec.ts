@@ -5,8 +5,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
 import {
   BOT_TURN_PRIORITY,
+  BOT_TURN_SUMMARY_CAP,
+  BOT_TURN_TTL,
   buildBotTurnNotification,
   botTurnNotificationId,
+  globalParamChips,
   marsBotPresentationMode,
   openMarsBotReplay,
   openMarsBotReplayByCorrelation,
@@ -25,13 +28,18 @@ import {isMandatoryPromptsHeld, registerFlowHoldSupplier, resetPresentationLease
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
-function turn(id: number, opts: {correlationId?: number, generation?: number} = {}): MarsBotTurn {
+function logLine(message: string): never {
+  return {message, data: []} as never;
+}
+
+function turn(id: number, opts: {correlationId?: number, generation?: number, extraSteps?: ReadonlyArray<MarsBotTurn['steps'][number]>} = {}): MarsBotTurn {
   return {
     id,
     generation: opts.generation ?? 1,
     ...(opts.correlationId !== undefined ? {correlationId: opts.correlationId} : {}),
     steps: [
-      {kind: 'reveal', card: {kind: 'project', name: 'Birds' as never}, message: {message: '${0} revealed ${1}', data: []} as never},
+      {kind: 'reveal', card: {kind: 'project', name: 'Birds' as never}, message: logLine('${0} revealed ${1}')},
+      ...(opts.extraSteps ?? []),
       {kind: 'impact', impact: {target: 'blue' as Color, targetIsBot: false, changes: [
         {resource: 'plants' as never, scope: 'stock', before: 5, after: 3},
       ]}},
@@ -42,7 +50,9 @@ function turn(id: number, opts: {correlationId?: number, generation?: number} = 
   };
 }
 
-function botView(opts: {lastTurn?: MarsBotTurn, turnHistory?: ReadonlyArray<MarsBotTurn>} = {}): PlayerViewModel {
+type GameParams = {temperature?: number, oxygenLevel?: number, oceans?: number, venusScaleLevel?: number};
+
+function botView(opts: {lastTurn?: MarsBotTurn, turnHistory?: ReadonlyArray<MarsBotTurn>, params?: GameParams} = {}): PlayerViewModel {
   return {
     thisPlayer: {color: 'blue'},
     players: [
@@ -50,6 +60,11 @@ function botView(opts: {lastTurn?: MarsBotTurn, turnHistory?: ReadonlyArray<Mars
       {color: 'blue', name: 'Вы'},
     ],
     game: {
+      temperature: -30,
+      oxygenLevel: 1,
+      oceans: 2,
+      venusScaleLevel: 4,
+      ...(opts.params ?? {}),
       automa: {
         tracks: [],
         ...(opts.lastTurn !== undefined ? {lastTurn: opts.lastTurn} : {}),
@@ -109,7 +124,10 @@ describe('marsBotPresentation (notification-first turns)', () => {
       expect(model.priority).eq(BOT_TURN_PRIORITY);
       expect(model.holdsFlow).eq(true);
       expect(model.persistent).eq(false);
-      expect(model.ttl).greaterThan(0);
+      // The compact card auto-closes in 5 seconds (B closes instantly, X
+      // expands into the theater — which never auto-closes).
+      expect(model.ttl).eq(BOT_TURN_TTL);
+      expect(BOT_TURN_TTL).eq(5000);
       expect(model.header?.message).eq('${0} revealed ${1}');
       // The VIEWER's own loss leads the pills.
       expect(model.pills).deep.eq([{icon: 'plants', text: '−2'}]);
@@ -125,6 +143,47 @@ describe('marsBotPresentation (notification-first turns)', () => {
       const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
       const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
       expect(model.pills).deep.eq([{icon: 'megacredits', text: '+5'}]);
+    });
+
+    it('carries the turn\'s key log lines as OUTCOME summary — header never duplicated, cap honest', () => {
+      const t = turn(1, {extraSteps: [
+        {kind: 'log', message: logLine('placed a city')},
+        {kind: 'attack', attack: {target: 'blue' as never, resource: 'plants' as never, demanded: 5, removed: 2, before: 5, after: 3, outcome: 'hit'}, message: logLine('removed plants')},
+        {kind: 'failed', reason: 'no-tags', mc: 5, message: logLine('failed action money')},
+        {kind: 'log', message: logLine('raised the temperature')},
+        {kind: 'tag', tag: 'science' as never, trackIndex: 0},
+        {kind: 'advance', trackIndex: 0, from: 0, to: 1},
+      ]});
+      const [entry] = recordBotTurnsFromView(PREV, botView({lastTurn: t}));
+      const model = buildBotTurnNotification(entry, {viewerColor: 'blue' as Color, createdAt: 5, autoExpand: false});
+      // Header = the reveal line; the summary = the other key lines, in order.
+      expect(model.header?.message).eq('${0} revealed ${1}');
+      expect(model.summaryLines?.map((l) => l.message)).deep.eq([
+        'placed a city', 'removed plants', 'failed action money',
+      ]);
+      expect(model.summaryLines).lengthOf(BOT_TURN_SUMMARY_CAP);
+      // One line was cut by the cap — declared, never silent.
+      expect(model.summaryOverflow).eq(1);
+      // Internal automa bookkeeping (tags / track advances) is NOT in the
+      // compact summary — it lives in the detailed inspect.
+      expect(model.detailCount).eq(t.steps.length);
+    });
+
+    it('global-parameter before → after chips lead the pills (single fresh turn)', () => {
+      const prev = botView({params: {temperature: -30, oceans: 2}});
+      const next = botView({lastTurn: turn(1), params: {temperature: -28, oceans: 3}});
+      expect(globalParamChips(prev, next)).deep.eq([
+        {icon: 'temperature', text: '-30°→-28°', neutral: true},
+        {icon: 'ocean', text: '2→3', neutral: true},
+      ]);
+      presentFreshBotTurns(prev, next);
+      const card = notificationState.transient[0];
+      expect(card.pills.slice(0, 2)).deep.eq([
+        {icon: 'temperature', text: '-30°→-28°', neutral: true},
+        {icon: 'ocean', text: '2→3', neutral: true},
+      ]);
+      // The viewer's own loss still follows.
+      expect(card.pills.some((c) => c.icon === 'plants' && c.text === '−2')).eq(true);
     });
   });
 

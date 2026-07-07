@@ -106,6 +106,27 @@
 
       <!-- Pass / generation highlight body. -->
       <span v-else-if="notification.bodyKey !== undefined" class="con-notif__line" v-i18n>{{ notification.bodyKey }}</span>
+
+      <!-- Compact OUTCOME lines (the AI-turn card): the turn's own key log
+           lines — placements / parameter raises / losses / failed-action
+           money. Rendered INERT (a console toast is information); the full
+           script is X = «Осмотреть». -->
+      <ul v-if="notification.summaryLines !== undefined" class="con-notif__summary">
+        <li v-for="(line, i) in notification.summaryLines" :key="i" class="con-notif__summary-line">
+          <span class="con-notif__summary-tick" aria-hidden="true"></span>
+          <span class="con-notif__tokens">
+            <JournalTokenRenderer
+              v-for="(tok, j) in lineEntries(line)"
+              :key="j"
+              :token="tok"
+              :players="players" />
+          </span>
+        </li>
+        <li v-if="notification.summaryOverflow !== undefined" class="con-notif__summary-line con-notif__summary-line--more">
+          <span class="con-notif__summary-tick" aria-hidden="true"></span>
+          <span>+{{ notification.summaryOverflow }}&nbsp;<span v-i18n>events</span></span>
+        </li>
+      </ul>
     </div>
 
     <!-- Net impact pills (hidden for hostile cards — the flow shows them). -->
@@ -118,6 +139,21 @@
         <span>{{ chip.text }}</span>
       </span>
     </div>
+
+    <!-- The FLOW-HOLDING card (the AI turn) is the foreground item of the
+         beat — its pad contract is shown ON the card (the command bar echoes
+         it): X = expand into the turn details, B = close. Ordinary toasts
+         stay hint-less (they self-clear; B keeps meaning "back"). -->
+    <footer v-if="notification.holdsFlow === true" class="con-notif__actions" aria-hidden="true">
+      <span v-if="notification.botTurnKey !== undefined" class="con-notif__action">
+        <GamepadGlyph control="secondary" />
+        <span v-i18n>Watch turn</span>
+      </span>
+      <span class="con-notif__action">
+        <GamepadGlyph control="back" />
+        <span v-i18n>Close</span>
+      </span>
+    </footer>
 
     <!-- Lifetime shrink → auto-dismiss (the console toast has no close
          button — it is a transient, self-clearing information surface). -->
@@ -146,6 +182,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {Log} from '@/common/logs/Log';
+import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -290,12 +327,18 @@ export default defineComponent({
     iconClass(icon: string): string {
       return iconClassFor(icon);
     },
+    // One compact outcome line (summaryLines) → journal tokens.
+    lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
+      return Log.parse({message: this.$t(line.message), data: line.data});
+    },
     chipClass(chip: JournalImpactChip): Record<string, boolean> {
+      const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
       return {
         'con-notif__chip--prod': chip.production === true,
         'con-notif__chip--saved': chip.saved === true,
-        'con-notif__chip--neg': chip.production !== true && chip.saved !== true && chip.text.startsWith('−'),
-        'con-notif__chip--pos': chip.production !== true && chip.saved !== true && chip.text.startsWith('+'),
+        'con-notif__chip--neutral': chip.neutral === true,
+        'con-notif__chip--neg': plain && chip.text.startsWith('−'),
+        'con-notif__chip--pos': plain && chip.text.startsWith('+'),
       };
     },
   },

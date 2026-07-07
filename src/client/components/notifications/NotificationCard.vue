@@ -166,6 +166,27 @@
         </span>
         <span v-i18n>{{ notification.bodyKey }}</span>
       </span>
+
+      <!-- Compact OUTCOME lines (the AI-turn card): the turn's own key log
+           lines — placements / parameter raises / losses / failed-action
+           money. A SPACE token keeps its «показать» affordance; the full
+           script lives in the detailed inspect («Осмотреть»). -->
+      <ul v-if="notification.summaryLines !== undefined" class="notification-card__summary">
+        <li v-for="(line, i) in notification.summaryLines" :key="i" class="notification-card__summary-line">
+          <span class="notification-card__summary-tick" aria-hidden="true"></span>
+          <span class="notification-card__summary-body">
+            <JournalTokenRenderer
+              v-for="(tok, j) in lineEntries(line)"
+              :key="j"
+              :token="tok"
+              :players="players" />
+          </span>
+        </li>
+        <li v-if="notification.summaryOverflow !== undefined" class="notification-card__summary-line notification-card__summary-line--more">
+          <span class="notification-card__summary-tick" aria-hidden="true"></span>
+          <span class="notification-card__summary-body">+{{ notification.summaryOverflow }}&nbsp;<span v-i18n>events</span></span>
+        </li>
+      </ul>
     </div>
 
     <!-- ── Impact pills (hidden for hostile cards — the neg-flow shows them). -->
@@ -255,6 +276,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Message} from '@/common/logs/Message';
+import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Log} from '@/common/logs/Log';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -493,12 +515,18 @@ export default defineComponent({
     iconClass(icon: string): string {
       return iconClassFor(icon);
     },
+    // One compact outcome line (summaryLines) → journal tokens.
+    lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
+      return Log.parse({message: this.$t(line.message), data: line.data});
+    },
     chipClass(chip: JournalImpactChip): Record<string, boolean> {
+      const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
       return {
         'notification-card__chip--prod': chip.production === true,
         'notification-card__chip--saved': chip.saved === true,
-        'notification-card__chip--neg': chip.production !== true && chip.saved !== true && chip.text.startsWith('−'),
-        'notification-card__chip--pos': chip.production !== true && chip.saved !== true && chip.text.startsWith('+'),
+        'notification-card__chip--neutral': chip.neutral === true,
+        'notification-card__chip--neg': plain && chip.text.startsWith('−'),
+        'notification-card__chip--pos': plain && chip.text.startsWith('+'),
       };
     },
     onCardClick(): void {

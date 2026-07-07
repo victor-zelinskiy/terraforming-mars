@@ -464,7 +464,6 @@
     background: fade(@mb-accent, 10%); box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%);
     svg { width: 17px; height: 17px; }
 }
-.mb-theater__glyph--thinking { animation: mb-thinking-pulse calc(1200ms * var(--motion-scale, 1)) ease-in-out infinite; }
 .mb-theater__title {
     flex: 1 1 auto; min-width: 0;
     display: flex; align-items: center; gap: 7px;
@@ -508,20 +507,11 @@
     box-shadow: inset 0 0 0 1px fade(@mb-accent, 55%), 0 0 14px fade(@mb-accent, 12%);
 }
 .mb-theater__step--failed { box-shadow: inset 0 0 0 1px rgba(235, 130, 90, 0.45); }
-.mb-theater__step--thinking { background: transparent; box-shadow: none; }
 .mb-step-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease, transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1); }
 .mb-step-enter-from { opacity: 0; transform: translateY(8px); }
 .mb-theater__skip--close {
     color: #eafff7;
     box-shadow: inset 0 0 0 1px fade(@mb-accent, 55%), 0 0 10px fade(@mb-accent, 14%);
-}
-.mb-theater__foot {
-    padding: 8px 13px 11px;
-    border-top: 1px solid fade(@mb-accent, 16%);
-}
-.mb-theater__foot-note {
-    font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 10.5px; color: @mb-text-dim; font-style: italic;
 }
 
 /* One step's row — shared by desktop + console (sizes scale via the host). */
@@ -530,16 +520,6 @@
     font-family: Prototype, Ubuntu, sans-serif;
     font-size: 12.5px; line-height: 1.45; color: @mb-text;
     .tag-count { flex: 0 0 auto; }
-}
-.mb-step__row--thinking { color: @mb-text-dim; font-family: Prototype, Orbitron, sans-serif; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; }
-.mb-step__dots {
-    display: inline-flex; gap: 4px;
-    i {
-        width: 6px; height: 6px; border-radius: 50%; background: @mb-accent;
-        animation: mb-dot calc(1100ms * var(--motion-scale, 1)) ease-in-out infinite;
-        &:nth-child(2) { animation-delay: calc(160ms * var(--motion-scale, 1)); }
-        &:nth-child(3) { animation-delay: calc(320ms * var(--motion-scale, 1)); }
-    }
 }
 .mb-step__icon {
     flex: 0 0 auto; width: 17px; height: 17px; display: grid; place-items: center;
@@ -639,7 +619,7 @@
 }
 .mb-atk__icon-frame--pair { width: auto; gap: 1px; padding: 0 2px; }
 
-/* The finished checkmark line (replaces the transient thinking intro). */
+/* The finished checkmark line closing the turn review. */
 .mb-step__row--done {
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
@@ -663,14 +643,6 @@
 @keyframes mb-theater-in {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
-}
-@keyframes mb-thinking-pulse {
-    0%, 100% { box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%); }
-    50% { box-shadow: inset 0 0 0 1px fade(@mb-accent, 80%), 0 0 14px fade(@mb-accent, 30%); }
-}
-@keyframes mb-dot {
-    0%, 100% { opacity: 0.25; transform: translateY(0); }
-    50% { opacity: 1; transform: translateY(-3px); }
 }
 
 /* ── Turn theater (console narration band — TV-readable) ─────────────────── */
@@ -708,7 +680,6 @@
     background: fade(@mb-accent, 10%); box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%);
     svg { width: 22px; height: 22px; }
 }
-.con-bot-theater__glyph--thinking { animation: mb-thinking-pulse calc(1200ms * var(--motion-scale, 1)) ease-in-out infinite; }
 .con-bot-theater__name {
     display: flex; align-items: center; gap: 9px;
     font-size: 19px; letter-spacing: 1px; color: @mb-text;
@@ -735,7 +706,6 @@
     box-shadow: inset 0 0 0 1px fade(@mb-accent, 16%);
     /* TV sizing for the shared step rows. */
     .mb-step__row { font-size: 17px; gap: 9px; }
-    .mb-step__row--thinking { font-size: 14px; }
     .mb-step__row--done { font-size: 14px; }
     .mb-step__verb { font-size: 12.5px; }
     .mb-step__pos { font-size: 17px; }
@@ -758,11 +728,6 @@
     padding: 9px 18px 11px;
     border-top: 1px solid fade(@mb-accent, 18%);
 }
-.con-bot-theater__foot-note {
-    flex: 1 1 auto;
-    font-size: 12.5px; letter-spacing: 1px; text-transform: uppercase;
-    color: @mb-text-dim;
-}
 .con-bot-theater__hint {
     flex: 0 0 auto;
     display: inline-flex; align-items: center; gap: 8px;
@@ -782,7 +747,5 @@
     .mb-board-overlay { animation: none; }
     .mb-panel__track-fill, .con-bot__track-fill { transition: none; }
     .mb-theater__card, .con-bot-theater__band { animation: none; }
-    .mb-theater__glyph--thinking, .con-bot-theater__glyph--thinking { animation: none; }
-    .mb-step__dots i { animation: none; opacity: 0.8; }
     .mb-step-enter-active { transition: none; }
 }

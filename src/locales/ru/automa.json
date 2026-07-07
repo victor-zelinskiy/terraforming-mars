@@ -93,10 +93,8 @@
   "The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again": "Куб отмечает текущую позицию; ✕ — клетки отступления, действие которых больше не сработает",
 
   "Player status bot turn": "ХОДИТ",
-  "MarsBot is taking its turn": "Бот делает ход",
   "turn complete": "ход завершён",
   "MarsBot finished its turn": "Бот завершил ход",
-  "The board is updated — close when you are done reading": "Поле обновлено — закройте, когда дочитаете",
   "Watch turn": "Осмотреть ход",
 
   "Discard pile": "Сброс",
@@ -183,9 +181,8 @@
   "Normal: the official Automa rules exactly as printed.": "Обычный: официальные правила автомы как напечатано.",
   "Hard: at the start of each generation, with 8+ M€ and enough milestone progress, MarsBot claims a milestone before its normal turn.": "Сложный: в начале каждого поколения, имея 8+ M€ и достаточный прогресс достижений, бот заявляет достижение до своего обычного хода.",
   "Brutal: the Hard milestone pressure, plus an extra project card in every action deck and +1 VP per played card with a non-negative VP icon.": "Жестокий: давление достижениями как на Сложном, плюс дополнительная карта проекта в каждой колоде действий и +1 ПО за разыгранную карту с неотрицательным значком ПО.",
-  "is thinking": "думает",
-  "is taking its turn": "делает ход",
-  "Drawing from the action deck": "Берёт карту из колоды действий",
+  "turn details": "подробности хода",
+  "AI turn details": "Подробности хода бота",
   "The action deck is empty — MarsBot passes": "Колода действий пуста — бот пасует",
   "Revealed": "Вскрыта карта",
   "Revealed a bonus card": "Вскрыта бонусная карта",

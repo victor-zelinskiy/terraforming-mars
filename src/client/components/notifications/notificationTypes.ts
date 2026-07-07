@@ -159,6 +159,16 @@ export type NotificationModel = {
   // ── Journal-derived content (normal / important) ──────────────────────────
   /** The root `LogMessage` — rendered via `JournalTokenRenderer` (the headline). */
   header?: LogMessage;
+  /**
+   * Compact OUTCOME lines under the headline (the AI-turn card): the turn's
+   * own key log lines (placements, parameter raises, losses, failed-action
+   * money) rendered via `JournalTokenRenderer` — so a SPACE token keeps its
+   * «показать на карте» affordance. Capped; the full script lives in the
+   * detailed inspect.
+   */
+  summaryLines?: ReadonlyArray<LogMessage>;
+  /** How many outcome lines were cut by the cap (honest "+N" marker). */
+  summaryOverflow?: number;
   /** The expanded breakdown rows (source → impact), reusing `JournalChildRow`. */
   childVMs?: ReadonlyArray<JournalChildVM>;
   /** Compact headline impact pills (merged net deltas, top few). */

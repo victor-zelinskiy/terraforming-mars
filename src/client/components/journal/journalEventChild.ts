@@ -31,6 +31,11 @@ export type JournalImpactChip = {
   production?: boolean;
   /** A discount / cost reduction (a SAVING, not a spend) — distinct tone. */
   saved?: boolean;
+  /**
+   * A NEUTRAL before → after readout (a global-parameter change,
+   * "−28°→−26°") — never tinted positive/negative from its leading sign.
+   */
+  neutral?: boolean;
 };
 
 export type JournalChildSource =

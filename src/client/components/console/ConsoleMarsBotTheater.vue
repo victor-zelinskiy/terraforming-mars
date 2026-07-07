@@ -3,10 +3,10 @@
        ancestor is positioned against THAT ancestor (the first-frame
        "bottom-left jump"); the body is the only safe containing block. -->
   <Teleport to="body">
-  <div v-if="state.active || state.lingering" class="con-bot-theater" :key="state.nonce" role="status" :aria-label="$t('MarsBot is taking its turn')">
+  <div v-if="state.active || state.lingering" class="con-bot-theater" :key="state.nonce" role="status" :aria-label="$t('AI turn details')">
     <div class="con-bot-theater__band">
       <header class="con-bot-theater__head">
-        <span class="con-bot-theater__glyph" :class="{'con-bot-theater__glyph--thinking': onThinking}" aria-hidden="true">
+        <span class="con-bot-theater__glyph" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7.5" width="14" height="10" rx="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5 V4.4 M12 4.4 L14 3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9.2" cy="12" r="1.5" fill="currentColor"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor"/><path d="M9 15.4 H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </span>
         <span class="con-bot-theater__name">
@@ -38,7 +38,6 @@
            to the MODAL — the hint hides so the band never lies (mirrors the
            command bar's own suppression in ConsoleShell). -->
       <footer class="con-bot-theater__foot">
-        <span v-if="state.lingering" class="con-bot-theater__foot-note" v-i18n>The board is updated — close when you are done reading</span>
         <template v-if="!state.lingering || !consoleState.fallbackActive">
           <span v-if="inspectable" class="con-bot-theater__hint">
             <GamepadGlyph control="secondary" />
@@ -83,35 +82,20 @@ export default defineComponent({
     return {state: marsBotTheaterState, consoleState};
   },
   computed: {
-    // The thinking beat is a transient intro, not history — it shows only
-    // while it IS the live step (a finished turn must not keep "drawing a
-    // card…" pulsing in the record). Keys are index-stable so filtering the
-    // intro out never re-mounts the later steps.
+    // The turn already happened — the review pages its steps in with the
+    // replay pacing (index-stable keys, no synthetic intro beats).
     visibleSteps(): Array<{key: number, step: TheaterStep}> {
       const out: Array<{key: number, step: TheaterStep}> = [];
       this.state.steps.forEach((step, i) => {
         if (i > this.state.currentIndex) {
           return;
         }
-        if (step.kind === 'thinking' && (i < this.state.currentIndex || this.state.finished)) {
-          return;
-        }
         out.push({key: i, step});
       });
       return out;
     },
-    onThinking(): boolean {
-      if (this.state.lingering) {
-        return false;
-      }
-      const current = this.state.steps[this.state.currentIndex];
-      return current !== undefined && current.kind === 'thinking';
-    },
     headerSub(): string {
-      if (this.state.lingering) {
-        return 'turn complete';
-      }
-      return this.onThinking ? 'is thinking' : 'is taking its turn';
+      return this.state.lingering ? 'turn complete' : 'turn details';
     },
     botDisplayName(): string {
       return participantDisplayName({name: this.state.botName, isMarsBot: true});
@@ -121,10 +105,9 @@ export default defineComponent({
       return theaterCardNames(this.state.steps, this.state.currentIndex).length > 0;
     },
     progressText(): string {
-      // The thinking beat is presentation, not a game step — exclude it.
-      const total = Math.max(0, this.state.steps.length - 1);
-      const at = Math.max(0, this.state.currentIndex);
-      return total > 0 ? `${Math.min(at, total)}/${total}` : '';
+      const total = this.state.steps.length;
+      const at = Math.min(this.state.currentIndex + 1, total);
+      return total > 0 ? `${Math.max(0, at)}/${total}` : '';
     },
   },
   watch: {

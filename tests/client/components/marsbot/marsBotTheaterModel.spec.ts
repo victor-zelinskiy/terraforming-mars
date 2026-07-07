@@ -10,7 +10,6 @@ import {
   MAX_TURN_MS,
   MIN_STEP_MS,
   REDUCED_STEP_MS,
-  THINKING_MS,
   buildTheaterSteps,
   marsBotOfView,
   theaterCardNames,
@@ -64,21 +63,20 @@ describe('marsBotTheaterModel', () => {
     resetMarsBotTheater();
   });
 
-  it('opens with a thinking beat and maps script steps in order', () => {
+  it('maps script steps in order — a turn REVIEW, никакой синтетической «думает»-интро', () => {
     const turn = turnOf([
       {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
       {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1},
       {kind: 'advance', trackIndex: 1, from: 2, to: 3},
     ]);
     const steps = buildTheaterSteps(turn, view(turn), false);
-    expect(steps.map((s) => s.kind)).deep.eq(['thinking', 'reveal', 'tag', 'advance']);
-    expect(steps[0].durationMs).eq(THINKING_MS);
-    const tag = steps[2];
+    expect(steps.map((s) => s.kind)).deep.eq(['reveal', 'tag', 'advance']);
+    const tag = steps[1];
     if (tag.kind === 'tag') {
       expect(tag.targetTag).eq(Tag.SCIENCE);
       expect(tag.ignored).is.false;
     }
-    const advance = steps[3];
+    const advance = steps[2];
     if (advance.kind === 'advance') {
       expect(advance.trackTag).eq(Tag.SCIENCE);
       expect(advance.from).eq(2);
@@ -94,8 +92,8 @@ describe('marsBotTheaterModel', () => {
       }},
     ]);
     const steps = buildTheaterSteps(turn, view(turn), false);
-    expect(steps.map((s) => s.kind)).deep.eq(['thinking', 'attack']);
-    const attack = steps[1];
+    expect(steps.map((s) => s.kind)).deep.eq(['attack']);
+    const attack = steps[0];
     if (attack.kind === 'attack') {
       expect(attack.durationMs).eq(ATTACK_MS);
       expect(attack.attack.target).eq('blue');
@@ -117,16 +115,16 @@ describe('marsBotTheaterModel', () => {
       {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}},
     ]);
     const steps = buildTheaterSteps(turn, view(turn), false);
-    // Steps: [thinking, reveal, log, bonus-reveal].
-    expect(theaterCardNames(steps, 1)).deep.eq([CardName.GENE_REPAIR]);
+    // Steps: [reveal, log, bonus-reveal].
+    expect(theaterCardNames(steps, 0)).deep.eq([CardName.GENE_REPAIR]);
     expect(theaterCardNames(steps, steps.length - 1)).deep.eq([CardName.GENE_REPAIR, CardName.BIRDS]);
-    expect(theaterCardNames(steps, 0)).deep.eq([]);
+    expect(theaterCardNames(steps, -1)).deep.eq([]);
   });
 
   it('marks an unused-expansion tag as ignored', () => {
     const turn = turnOf([{kind: 'tag', tag: Tag.VENUS}]);
     const steps = buildTheaterSteps(turn, view(turn), false);
-    const tag = steps[1];
+    const tag = steps[0];
     if (tag.kind === 'tag') {
       expect(tag.ignored).is.true;
       expect(tag.targetTag).is.undefined;
@@ -136,7 +134,7 @@ describe('marsBotTheaterModel', () => {
   it('compresses a monster turn toward the cap without dropping steps', () => {
     const long = turnOf(Array.from({length: 40}, () => ({kind: 'advance' as const, trackIndex: 0, from: 0, to: 1})));
     const steps = buildTheaterSteps(long, view(long), false);
-    expect(steps).has.length(41);
+    expect(steps).has.length(40);
     // The readability floor wins over the cap, so a 41-step chain may exceed
     // it slightly — but never by more than ~10% (31s of raw script → <15.5s).
     expect(theaterTotalMs(steps)).to.be.at.most(Math.round(MAX_TURN_MS * 1.1));
@@ -184,7 +182,7 @@ describe('marsBotTheaterModel', () => {
   });
 
   it('a naturally finished replay LINGERS until dismissed; dismiss clears it', () => {
-    marsBotTheaterState.steps = [{kind: 'thinking', durationMs: 100}];
+    marsBotTheaterState.steps = [{kind: 'pass', durationMs: 100}];
     marsBotTheaterState.active = true;
     marsBotTheaterState.currentIndex = 0;
 

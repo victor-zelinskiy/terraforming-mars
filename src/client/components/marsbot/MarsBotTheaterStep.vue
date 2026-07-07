@@ -1,12 +1,6 @@
 <template>
-  <!-- Thinking beat -->
-  <div v-if="step.kind === 'thinking'" class="mb-step__row mb-step__row--thinking">
-    <span class="mb-step__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-    <span v-i18n>Drawing from the action deck</span>
-  </div>
-
   <!-- Pass -->
-  <div v-else-if="step.kind === 'pass'" class="mb-step__row">
+  <div v-if="step.kind === 'pass'" class="mb-step__row">
     <span class="mb-step__icon mb-step__icon--pass" aria-hidden="true">∥</span>
     <span v-i18n>The action deck is empty — MarsBot passes</span>
   </div>
