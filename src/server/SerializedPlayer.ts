@@ -20,6 +20,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   alliedParty: AlliedParty | undefined;
   autoPass: boolean;
   beginner: boolean;
+  /** MarsBot (Automa) seat marker. Absent in ordinary saves → false. */
+  isMarsBot?: boolean;
   canUseHeatAsMegaCredits: boolean;
   canUseTitaniumAsMegacredits: boolean;
   canUsePlantsAsMegaCredits: boolean;

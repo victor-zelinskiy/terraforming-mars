@@ -7,6 +7,7 @@ import {RandomMAOptionType} from '../ma/RandomMAOptionType';
 import {AgendaStyle} from '../turmoil/Types';
 import {GameId} from '../Types';
 import {Expansion} from '../cards/GameModule';
+import {AutomaOptions} from '../automa/AutomaTypes';
 
 export type BoardNameType = BoardName | RandomBoardOption;
 
@@ -82,4 +83,6 @@ export interface NewGameConfig {
   customCeos: Array<CardName>;
   startingCeos: number;
   startingPreludes: number;
+  /** Present ⇒ solo game against MarsBot (official Automa). Requires exactly 1 human player. */
+  automa?: AutomaOptions;
 }

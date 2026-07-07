@@ -8,6 +8,7 @@ import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {AgendaStyle} from '../../common/turmoil/Types';
 import {Expansion} from '../../common/cards/GameModule';
 import {EscapeVelocityOptions} from '../../common/game/NewGameConfig';
+import {AutomaOptions} from '../../common/automa/AutomaTypes';
 
 export type GameOptions = {
   boardName: BoardName;
@@ -86,6 +87,12 @@ export type GameOptions = {
   altVenusBoard: boolean;
   escapeVelocity?: EscapeVelocityOptions;
   twoCorpsVariant: boolean;
+  /**
+   * Present ⇒ solo game against MarsBot (the official Automa). The bot is added
+   * to `game.players` as a real player; the automa runtime state lives on
+   * `game.automa`. Undefined ⇒ ordinary game, zero behavior change.
+   */
+  automa?: AutomaOptions;
 }
 
 export const DEFAULT_GAME_OPTIONS: GameOptions = {
@@ -160,4 +167,5 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   undoOption: false,
   venusNextExtension: false,
   twoCorpsVariant: false,
+  automa: undefined,
 };

@@ -1,4 +1,8 @@
 import * as constants from '../common/constants';
+import {AutomaController} from './automa/AutomaController';
+import {AutomaResearch} from './automa/AutomaResearch';
+import {AutomaSetup, marsBotOf} from './automa/AutomaSetup';
+import {AutomaState} from './automa/AutomaState';
 import {BeginnerCorporation} from './cards/corporation/BeginnerCorporation';
 import {Board} from './boards/Board';
 import {CardName} from '../common/cards/CardName';
@@ -166,6 +170,8 @@ export class Game implements IGame, Logger {
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
   public inTurmoil: boolean = false;
+  /** MarsBot (official Automa) runtime state. Undefined ⇒ ordinary game. */
+  public automa: AutomaState | undefined;
 
   // Card-specific data
   // Mons Insurance promo corp
@@ -307,6 +313,23 @@ export class Game implements IGame, Logger {
       throw new Error('Delta Project cannot be banned. It is a global subsystem available to all players, not a prelude card.');
     }
 
+    // Solo vs MarsBot (official Automa): reject unsupported modules loudly and
+    // seat the bot as a REAL second player — every two-player rule (turn order,
+    // first-player rotation, game end without a Venus requirement, no neutral
+    // solo tiles) then applies for free.
+    if (gameOptions.automa !== undefined) {
+      AutomaSetup.validateOptions(gameOptions);
+      if (players.length === 1 && !players[0].isMarsBot) {
+        players = [...players, AutomaSetup.createBotPlayer(id, players.map((p) => p.color))];
+      }
+      if (players.length !== 2 || players.filter((p) => p.isMarsBot).length !== 1) {
+        throw new Error('An automa game is exactly one human player against MarsBot');
+      }
+      if (firstPlayer.isMarsBot) {
+        throw new Error('The human player is the starting player of an automa game');
+      }
+    }
+
     const rng = new SeededRandom(seed);
     const board = GameSetup.newBoard(gameOptions, rng);
     const gameCards = new GameCards(gameOptions);
@@ -407,7 +430,8 @@ export class Game implements IGame, Logger {
 
     // Failsafe for exceeding corporation pool
     // (I do not think this is necessary any further given how corporation cards are stored now)
-    const minCorpsRequired = players.length * gameOptions.startingCorporations;
+    // MarsBot never receives corporation cards, so only humans count here.
+    const minCorpsRequired = players.filter((p) => !p.isMarsBot).length * gameOptions.startingCorporations;
     if (!gameOptions.testMode && minCorpsRequired > corporationDeck.drawPile.length) {
       gameOptions.startingCorporations = 2;
     }
@@ -416,6 +440,12 @@ export class Game implements IGame, Logger {
     // Give them their corporation cards, other cards, starting production,
     // handicaps.
     for (const player of game.playersInGenerationOrder) {
+      // MarsBot has no corporation, hand, preludes or production — its whole
+      // setup (bonus deck + action deck) happens in AutomaSetup.setup below,
+      // AFTER the human got their cards (the official setup order).
+      if (player.isMarsBot) {
+        continue;
+      }
       player.setTerraformRating(player.terraformRating + player.handicap);
       if (!gameOptions.corporateEra) {
         player.production.override({
@@ -458,12 +488,21 @@ export class Game implements IGame, Logger {
       }
     }
 
+    // MarsBot's decks are built AFTER the human's cards are dealt (official order:
+    // you get your starting hand, then MarsBot gets its action deck).
+    if (gameOptions.automa !== undefined) {
+      game.automa = AutomaSetup.setup(game);
+    }
+
     // Print game_id if solo game
     if (players.length === 1) {
       game.log('The id of this game is ${0}', (b) => b.rawString(id));
     }
 
     players.forEach((player) => {
+      if (player.isMarsBot) {
+        return;
+      }
       game.log('Good luck ${0}!', (b) => b.player(player), {reservedFor: player});
     });
 
@@ -550,6 +589,9 @@ export class Game implements IGame, Logger {
     };
     if (this.aresData !== undefined) {
       result.aresData = this.aresData;
+    }
+    if (this.automa !== undefined) {
+      result.automa = this.automa.serialize();
     }
     if (this.clonedGamedId !== undefined) {
       result.clonedGamedId = this.clonedGamedId;
@@ -805,6 +847,11 @@ export class Game implements IGame, Logger {
         player.setWaitingFor(this.selectInitialCards(player));
       }
     }
+    // MarsBot has no setup decisions (no corporation, no starting hand) — it is
+    // immediately done researching, so the human's pick alone starts the game.
+    if (this.automa !== undefined) {
+      this.researchedPlayers.add(marsBotOf(this).id);
+    }
     if (this.players.length === 1 && this.gameOptions.coloniesExtension) {
       this.players[0].production.add(Resource.MEGACREDITS, -2);
       this.defer(new RemoveColonyFromGame(this.players[0]));
@@ -816,8 +863,17 @@ export class Game implements IGame, Logger {
     this.researchedPlayers.clear();
     this.save();
     this.players.forEach((player) => {
+      // MarsBot does not draw-4-and-buy — it builds an action deck instead (below,
+      // after the human drew: the official order).
+      if (player.isMarsBot) {
+        return;
+      }
       player.runResearchPhase();
     });
+    if (this.automa !== undefined) {
+      AutomaResearch.buildActionDeck(this);
+      this.researchedPlayers.add(marsBotOf(this).id);
+    }
   }
 
   private gotoDraftPhase(): void {
@@ -843,6 +899,10 @@ export class Game implements IGame, Logger {
     this.passedPlayers.clear();
     this.someoneHasRemovedOtherPlayersPlants = false;
     this.players.forEach((player) => {
+      // "Your production is unaffected. MarsBot skips this phase." (rulebook p.5)
+      if (player.isMarsBot) {
+        return;
+      }
       player.colonies.cardDiscount = 0; // Iapetus reset hook
       player.runProductionPhase();
     });
@@ -1255,6 +1315,11 @@ export class Game implements IGame, Logger {
 
   private startActionsForPlayer(player: IPlayer) {
     this.activePlayer = player;
+    if (player.isMarsBot) {
+      // MarsBot never waits for input — its whole turn resolves server-side.
+      AutomaController.takeTurn(this);
+      return;
+    }
     player.actionsTakenThisGame++;
     player.actionsTakenThisRound = 0;
 
@@ -1923,6 +1988,9 @@ export class Game implements IGame, Logger {
 
     if (d.underworldData !== undefined) {
       game.underworldData = d.underworldData;
+    }
+    if (d.automa !== undefined) {
+      game.automa = AutomaState.deserialize(d.automa, gameOptions);
     }
     game.passedPlayers = new Set<PlayerId>(d.passedPlayers);
     game.donePlayers = new Set<PlayerId>(d.donePlayers);

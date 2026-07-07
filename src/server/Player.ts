@@ -243,6 +243,9 @@ export class Player implements IPlayer {
 
   public withinDeflectionZone = false;
 
+  /** True for the MarsBot (Automa) seat. Set by AutomaSetup.createBotPlayer / deserialize. */
+  public isMarsBot: boolean = false;
+
   // Stats
   public actionsTakenThisGame: number = 0;
   public victoryPointsByGeneration: Array<number> = [];
@@ -2305,6 +2308,9 @@ export class Player implements IPlayer {
       result.lastCardPlayed = this.lastCardPlayed;
     }
     result.deltaProject = this.deltaProjectData;
+    if (this.isMarsBot) {
+      result.isMarsBot = true;
+    }
     return result;
   }
 
@@ -2395,6 +2401,7 @@ export class Player implements IPlayer {
       player.globalParameterSteps = {...DEFAULT_GLOBAL_PARAMETER_STEPS, ...d.globalParameterSteps};
     }
     player.withinDeflectionZone = d.withinDeflectionZone ?? false;
+    player.isMarsBot = d.isMarsBot ?? false;
     return player;
   }
 

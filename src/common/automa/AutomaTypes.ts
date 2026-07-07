@@ -12,9 +12,10 @@ export type TrackAction =
   | 'ocean'
   | 'city'
   | 'venus' | 'venus2'
+  | 'floater' | 'floater2' // Venus Next MarsBot board: gain 1 / 2 floaters (Adding Expansions p.2)
   | `tag_${number}`;
 
-/** A single track on the MarsBot board (19 positions: 0–18). */
+/** A single track on the MarsBot board (19 positions: 0–18; the Venus track has 13: 0–12). */
 export type TrackLayout = ReadonlyArray<TrackAction | undefined>;
 
 /** Definition of one MarsBot track: which tags and production types map to it. */
@@ -22,10 +23,17 @@ export type TrackDefinition = {
   readonly tags: ReadonlyArray<Tag>;
   readonly productions: ReadonlyArray<Resource>;
   readonly layout: TrackLayout;
+  /** Last position of this track. Defaults to MARSBOT_MAX_TRACK_POSITION (18); the Venus track ends at 12. */
+  readonly maxPosition?: number;
 };
 
 
 export type DifficultyLevel = 'easy' | 'normal' | 'hard' | 'brutal';
+
+/** The `gameOptions.automa` payload: present ⇒ this is a solo game against MarsBot. */
+export type AutomaOptions = {
+  difficulty: DifficultyLevel;
+};
 
 export enum BonusCardId {
   // Base game (B01-B08)

@@ -20,10 +20,13 @@ import {AwardName} from '../common/ma/AwardName';
 import {GlobalParameter} from '../common/GlobalParameter';
 import {MilestoneName} from '../common/ma/MilestoneName';
 import {Tag} from '../common/cards/Tag';
+import {SerializedAutomaState} from './automa/AutomaState';
 
 export type SerializedGame = {
     activePlayer: PlayerId;
     aresData?: AresData;
+    /** MarsBot (Automa) state. Absent in ordinary games. */
+    automa?: SerializedAutomaState;
     awards: Array<AwardName>;
     beholdTheEmperor?: boolean;
     board: SerializedBoard;

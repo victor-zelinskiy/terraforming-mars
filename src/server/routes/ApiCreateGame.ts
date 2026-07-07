@@ -166,6 +166,7 @@ export class ApiCreateGame extends Handler {
             deltaProjectExpansion: gameReq.expansions.deltaProject,
             undoOption: gameReq.undoOption,
             venusNextExtension: gameReq.expansions.venus,
+            automa: gameReq.automa,
           };
 
           let game: IGame;

@@ -80,6 +80,8 @@ export interface IPlayer {
   color: Color;
   beginner: boolean;
   handicap: number;
+  /** True for the MarsBot (Automa) seat — a server-driven player with no hand, production or prompts. */
+  readonly isMarsBot: boolean;
 
   readonly game: IGame;
   tags: Tags;

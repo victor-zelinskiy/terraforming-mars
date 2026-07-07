@@ -35,6 +35,7 @@ import {GlobalParameter} from '../common/GlobalParameter';
 import {UnderworldData} from './underworld/UnderworldData';
 import {OrOptions} from './inputs/OrOptions';
 import {IStandardProjectCard} from './cards/IStandardProjectCard';
+import {AutomaState} from './automa/AutomaState';
 
 export interface Score {
   corporation: String;
@@ -91,6 +92,8 @@ export interface IGame extends Logger {
   moonData: MoonData | undefined;
   pathfindersData: PathfindersData | undefined;
   underworldData: UnderworldData;
+  /** MarsBot (official Automa) runtime state. Undefined ⇒ ordinary game. */
+  automa: AutomaState | undefined;
 
   // Card-specific data
 

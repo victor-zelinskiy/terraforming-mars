@@ -1,0 +1,235 @@
+import {expect} from 'chai';
+import {BonusCardId} from '../../src/common/automa/AutomaTypes';
+import {BoardName} from '../../src/common/boards/BoardName';
+import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
+import {Game} from '../../src/server/Game';
+import {IGame} from '../../src/server/IGame';
+import {AutomaState} from '../../src/server/automa/AutomaState';
+import {TestPlayer} from '../TestPlayer';
+import {testAutomaGame} from './AutomaTestGame';
+
+function automaOf(game: IGame): AutomaState {
+  expect(game.automa).is.not.undefined;
+  return game.automa!;
+}
+
+/** Every bonus card of the game: the deck + the ones shuffled into the action deck. */
+function allBonusCards(automa: AutomaState): Array<BonusCardId> {
+  const inActionDeck = automa.actionDeck
+    .filter((c): c is {kind: 'bonus', id: BonusCardId} => c.kind === 'bonus')
+    .map((c) => c.id);
+  return [...automa.bonusDeck, ...inActionDeck];
+}
+
+describe('AutomaSetup', () => {
+  it('seats MarsBot as a real second player', () => {
+    const [game, human, bot] = testAutomaGame();
+    expect(game.players).has.length(2);
+    expect(bot.isMarsBot).is.true;
+    expect(human.isMarsBot).is.false;
+    expect(bot.name).eq('MarsBot');
+    expect(bot.color).is.not.eq(human.color);
+    expect(game.first.id).eq(human.id);
+    expect(game.isSoloMode()).is.false;
+  });
+
+  it('MarsBot starts with 20 TR, an empty M€ supply and no cards', () => {
+    const [/* game */, /* human */, bot] = testAutomaGame();
+    expect(bot.terraformRating).eq(20);
+    expect(bot.megaCredits).eq(0);
+    expect(bot.dealtCorporationCards).is.empty;
+    expect(bot.dealtProjectCards).is.empty;
+    expect(bot.dealtPreludeCards).is.empty;
+    expect(bot.cardsInHand).is.empty;
+    expect(bot.getWaitingFor()).is.undefined;
+  });
+
+  it('the human keeps the ordinary 20 TR + full setup (not the solo 14 TR path)', () => {
+    const [game, human] = testAutomaGame({keepInitialCardSelection: true});
+    expect(human.terraformRating).eq(20);
+    expect(human.dealtCorporationCards).has.length(2);
+    expect(human.dealtProjectCards).has.length(10);
+    expect(human.getWaitingFor()).is.not.undefined;
+    // No neutral solo tiles: the board starts empty.
+    expect(game.board.spaces.every((space) => space.tile === undefined)).is.true;
+  });
+
+  it('base bonus deck is B01–B08; one card of it starts inside the action deck', () => {
+    const [game] = testAutomaGame();
+    const automa = automaOf(game);
+    expect(allBonusCards(automa).sort()).deep.eq([
+      BonusCardId.B01_METEOR_SHOWER,
+      BonusCardId.B02_INVASIVE_SPECIES,
+      BonusCardId.B03_RESEARCH_AND_DEVELOPMENT,
+      BonusCardId.B04_OVERACHIEVEMENT,
+      BonusCardId.B05_EXPEDITED_CONSTRUCTION,
+      BonusCardId.B06_LOBBYISTS,
+      BonusCardId.B07_LOCAL_NEURAL_INSTANCE,
+      BonusCardId.B08_CORPORATE_COMPETITION,
+    ]);
+    expect(automa.bonusDeck).has.length(7);
+    expect(automa.recurringBonusCards).is.empty;
+    expect(automa.setAsideBonusCards).is.empty;
+  });
+
+  it('base starting action deck is 4 cards: 3 projects + 1 bonus', () => {
+    const [game] = testAutomaGame();
+    const automa = automaOf(game);
+    expect(automa.actionDeck).has.length(4);
+    expect(automa.actionDeck.filter((c) => c.kind === 'project')).has.length(3);
+    expect(automa.actionDeck.filter((c) => c.kind === 'bonus')).has.length(1);
+  });
+
+  it('Prelude: MarsBot gets 3 extra project cards instead of prelude cards', () => {
+    const [game, /* human */, bot] = testAutomaGame({preludeExtension: true});
+    const automa = automaOf(game);
+    expect(automa.actionDeck).has.length(7); // 3 + 3 + 1 bonus
+    expect(automa.actionDeck.filter((c) => c.kind === 'project')).has.length(6);
+    expect(bot.dealtPreludeCards).is.empty;
+  });
+
+  it('Venus Next: B15 replaces B06; Government Intervention recurs and is in the FIRST action deck', () => {
+    const [game] = testAutomaGame({venusNextExtension: true});
+    const automa = automaOf(game);
+    const bonusCards = allBonusCards(automa);
+    expect(bonusCards).contains(BonusCardId.B15_LOBBYISTS_VENUS);
+    expect(bonusCards).does.not.contain(BonusCardId.B06_LOBBYISTS);
+    expect(automa.recurringBonusCards).deep.eq([BonusCardId.B16_GOVERNMENT_INTERVENTION]);
+    // Adding Expansions p.2: B16 joins the action deck "including on the first round".
+    expect(automa.actionDeck.some((c) => c.kind === 'bonus' && c.id === BonusCardId.B16_GOVERNMENT_INTERVENTION)).is.true;
+    expect(automa.actionDeck).has.length(5); // 3 projects + 1 bonus + B16
+    // The Venus track joined the board.
+    expect(automa.board.tracks).has.length(8);
+  });
+
+  it('Colonies: B17 replaces B05, B18 joins the deck, B19/B20 are set aside', () => {
+    const [game] = testAutomaGame({coloniesExtension: true});
+    const automa = automaOf(game);
+    const bonusCards = allBonusCards(automa);
+    expect(bonusCards).contains(BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES);
+    expect(bonusCards).contains(BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD);
+    expect(bonusCards).does.not.contain(BonusCardId.B05_EXPEDITED_CONSTRUCTION);
+    expect(automa.setAsideBonusCards).deep.eq([BonusCardId.B19_SHIPPING_LINES, BonusCardId.B20_EXTENDED_SHIPPING_LINES]);
+    // 5 colony tiles on the table for a 2-player layout.
+    expect(game.colonies).has.length(5);
+  });
+
+  it('the full POC set (CorpEra+Prelude+Venus+Colonies): 9-card bonus pool, 8-card action deck', () => {
+    const [game] = testAutomaGame({
+      corporateEra: true,
+      preludeExtension: true,
+      venusNextExtension: true,
+      coloniesExtension: true,
+    });
+    const automa = automaOf(game);
+    // The bonus POOL excludes B16 — Government Intervention is a recurring card that
+    // cycles through the ACTION deck, never through the bonus deck.
+    const bonusPool = allBonusCards(automa).filter((id) => !automa.recurringBonusCards.includes(id));
+    expect(bonusPool.sort()).deep.eq([
+      BonusCardId.B01_METEOR_SHOWER,
+      BonusCardId.B02_INVASIVE_SPECIES,
+      BonusCardId.B03_RESEARCH_AND_DEVELOPMENT,
+      BonusCardId.B04_OVERACHIEVEMENT,
+      BonusCardId.B07_LOCAL_NEURAL_INSTANCE,
+      BonusCardId.B08_CORPORATE_COMPETITION,
+      BonusCardId.B15_LOBBYISTS_VENUS,
+      BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES,
+      BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD,
+    ]);
+    // 3 + 3 (prelude) + 1 bonus + B16.
+    expect(automa.actionDeck).has.length(8);
+  });
+
+  it('Brutal: one more starting project card', () => {
+    const [game] = testAutomaGame({difficulty: 'brutal'});
+    expect(automaOf(game).actionDeck).has.length(5); // 4 projects + 1 bonus
+    expect(automaOf(game).actionDeck.filter((c) => c.kind === 'project')).has.length(4);
+  });
+
+  describe('rejects unsupported setups loudly', () => {
+    const cases: ReadonlyArray<[string, object]> = [
+      ['Turmoil', {turmoilExtension: true}],
+      ['Prelude 2', {prelude2Expansion: true}],
+      ['promo cards', {promoCardsOption: true}],
+      ['community cards', {communityCardsOption: true}],
+      ['Ares', {aresExtension: true}],
+      ['The Moon', {moonExpansion: true}],
+      ['Pathfinders', {pathfindersExpansion: true}],
+      ['CEOs', {ceoExtension: true}],
+      ['Star Wars', {starWarsExpansion: true}],
+      ['Underworld', {underworldExpansion: true}],
+      ['Delta Project', {deltaProjectExpansion: true}],
+      ['initial draft', {initialDraftVariant: true}],
+      ['research draft (Phase 2)', {draftVariant: true}],
+      ['random MA', {randomMA: RandomMAOptionType.LIMITED}],
+      ['solo TR', {soloTR: true}],
+      ['two corps', {twoCorpsVariant: true}],
+      ['solar phase / WGT', {solarPhaseOption: true}],
+      ['Venus completion requirement', {requiresVenusTrackCompletion: true}],
+      ['alt Venus board', {altVenusBoard: true}],
+      ['shuffled map', {shuffleMapOption: true}],
+      ['banned cards', {bannedCards: ['Birds']}],
+      ['a non-Tharsis board', {boardName: BoardName.HELLAS}],
+    ];
+    for (const [label, options] of cases) {
+      it(label, () => {
+        expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
+      });
+    }
+  });
+
+  it('rejects an automa game with two human players', () => {
+    const p1 = TestPlayer.BLUE.newPlayer({name: 'p1'});
+    const p2 = TestPlayer.RED.newPlayer({name: 'p2'});
+    expect(() => Game.newInstance('game-2h', [p1, p2], p1, 's-2h', {automa: {difficulty: 'normal'}}))
+      .to.throw(/exactly one human player/);
+  });
+
+  it('an ordinary game is untouched: no automa state, no bot', () => {
+    const p1 = TestPlayer.BLUE.newPlayer({name: 'p1'});
+    const game = Game.newInstance('game-ord', [p1], p1, 's-ord', {});
+    expect(game.automa).is.undefined;
+    expect(game.players.some((p) => p.isMarsBot)).is.false;
+    expect(p1.terraformRating).eq(14); // The real solo path still applies.
+  });
+});
+
+describe('Automa game flow (phase guards)', () => {
+  it('the human finishing research alone starts the action phase (MarsBot needs no input)', () => {
+    const [game, human] = testAutomaGame();
+    game.playerIsFinishedWithResearchPhase(human);
+    expect(game.phase).eq('action');
+    expect(game.activePlayer.id).eq(human.id);
+  });
+
+  it('MarsBot with an empty action deck passes; the generation then flows through research', () => {
+    const [game, human, bot] = testAutomaGame();
+    const automa = automaOf(game);
+    game.playerIsFinishedWithResearchPhase(human);
+
+    automa.actionDeck = []; // Force the official "no cards → passes for the round".
+    const bonusCardsBefore = automa.bonusDeck.length;
+    game.playerHasPassed(human);
+    game.playerIsFinishedTakingActions();
+
+    // Bot passed → everyone passed → production (bot skips it) → generation 2 research.
+    expect(game.generation).eq(2);
+    expect(game.phase).eq('research');
+    // MarsBot rebuilt a 4-card action deck (3 projects + 1 bonus) without prompts.
+    expect(automa.actionDeck).has.length(4);
+    expect(automa.bonusDeck).has.length(bonusCardsBefore - 1);
+    expect(bot.getWaitingFor()).is.undefined;
+    // The human is drawing cards as usual.
+    expect(human.getWaitingFor()).is.not.undefined;
+    // Production did not touch the bot.
+    expect(bot.megaCredits).eq(0);
+    expect(bot.heat).eq(0);
+  });
+
+  it('MarsBot with cards fails loudly until Phase 3 lands (never a silent hang)', () => {
+    const [game, human] = testAutomaGame();
+    game.playerIsFinishedWithResearchPhase(human);
+    game.playerHasPassed(human);
+    expect(() => game.playerIsFinishedTakingActions()).to.throw(/not implemented yet \(Automa Phase 3\)/);
+  });
+});

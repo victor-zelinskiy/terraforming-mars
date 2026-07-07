@@ -19,8 +19,13 @@ export class MarsBotTrack {
 
   constructor(public readonly definition: TrackDefinition) {}
 
+  /** Last position of this track (18 for the standard tracks, 12 for the Venus track). */
+  public get maxPosition(): number {
+    return this.definition.maxPosition ?? MARSBOT_MAX_TRACK_POSITION;
+  }
+
   public canAdvance(): boolean {
-    return this.position < MARSBOT_MAX_TRACK_POSITION;
+    return this.position < this.maxPosition;
   }
 
   /** Advance the track by 1. */
