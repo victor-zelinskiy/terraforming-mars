@@ -1,5 +1,5 @@
 import {Tag} from '../../common/cards/Tag';
-import {CardVictoryPointsKind, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
+import {AutomaVictoryPoints, CardVictoryPointsKind, TerraformRatingBreakdown, VictoryPointsBreakdown} from '../../common/game/VictoryPointsBreakdown';
 
 export type VictoryPoints = 'terraformRating' | 'milestones' | 'awards' | 'greenery' | 'city' | 'escapeVelocity' | 'moon habitat' | 'moon mine' | 'moon road' | 'planetary tracks' | 'deltaProject' | 'victoryPoints';
 
@@ -49,6 +49,16 @@ export class VictoryPointsBreakdownBuilder {
     this.points.total += this.points.planetaryTracks;
     this.points.total += this.points.deltaProject;
     this.points.total += this.points.victoryPoints;
+    if (this.points.automa !== undefined) {
+      this.points.total += this.points.automa.mcToVp;
+      this.points.total += this.points.automa.neuralInstance;
+      this.points.total += this.points.automa.cardVp;
+    }
+  }
+
+  /** MarsBot-only scoring parts (M€ → VP, Neural Instance, Hard card VP) — all feed the total. */
+  public setAutomaVictoryPoints(automa: AutomaVictoryPoints): void {
+    this.points.automa = automa;
   }
 
   // Records the attribution of terraform-rating VP by the reason the rating

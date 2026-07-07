@@ -68,6 +68,20 @@ export type TerraformRatingBreakdown = {
   hazards?: number; // Ares — TR from clearing hazard zones (own segment; 0/absent when no Ares)
 };
 
+/**
+ * MarsBot (Automa) scoring exceptions: remaining M€ → VP by final generation,
+ * Neural Instance adjacency VP, and the Hard-difficulty +1 VP per non-negative
+ * VP-icon card in the played pile. Present only on the bot's breakdown; every
+ * field feeds `total`.
+ */
+export type AutomaVictoryPoints = {
+  mcToVp: number;
+  /** The conversion rate used (display: "1 VP / N M€"). */
+  mcPerVp: number;
+  neuralInstance: number;
+  cardVp: number;
+};
+
 export type VictoryPointsBreakdown = {
   terraformRating: number;
   terraformRatingBreakdown: TerraformRatingBreakdown;
@@ -84,6 +98,8 @@ export type VictoryPointsBreakdown = {
   // Shown under the "Достижения и награды" bar in the premium score report.
   deltaProject: number;
   victoryPoints: number;
+  /** MarsBot-only scoring parts. Absent for human players and ordinary games. */
+  automa?: AutomaVictoryPoints;
   total: number;
   detailsCards: ReadonlyArray<CardVictoryPointsDetail>;
   detailsMilestones: ReadonlyArray<MADetail>;

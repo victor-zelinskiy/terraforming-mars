@@ -1,24 +1,14 @@
 import * as constants from '../../common/constants';
 import {CardType} from '../../common/cards/CardType';
 import {Tag} from '../../common/cards/Tag';
-import {Resource} from '../../common/Resource';
-import {FAILED_ACTION_MC, FAILED_ACTION_MC_EASY, TrackAction} from '../../common/automa/AutomaTypes';
+import {TrackAction} from '../../common/automa/AutomaTypes';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
+import {failedAction} from './AutomaFailedAction';
+import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {marsBotOf} from './AutomaSetup';
-
-/**
- * Why MarsBot took a Failed Action. Each maps to its own full log template so
- * the journal always explains the cause (never a vague "failed"). Phase 7/9
- * add the tile/temperature/milestone/award reasons.
- */
-export type FailedActionReason = 'no-tags' | 'track-maxed' | 'venus-maxed';
-
-const FAILED_ACTION_TEMPLATES: Record<FailedActionReason, string> = {
-  'no-tags': '${0} took a Failed Action (the card has no tags) and gained ${1} M€',
-  'track-maxed': '${0} took a Failed Action (the track is already at its end) and gained ${1} M€',
-  'venus-maxed': '${0} took a Failed Action (Venus is already complete) and gained ${1} M€',
-};
+import {AutomaTerraformer} from './AutomaTerraformer';
+import {AutomaTilePlacer} from './AutomaTilePlacer';
 
 /** A data-error guard only: layouts are strictly forward-moving, so a real game never gets near this. */
 const MAX_CASCADE_DEPTH = 32;
@@ -48,7 +38,7 @@ export class AutomaResolver {
   public static resolveProjectCard(game: IGame, card: IProjectCard): void {
     const tags = AutomaResolver.printedTags(card);
     if (tags.length === 0) {
-      AutomaResolver.failedAction(game, 'no-tags');
+      failedAction(game, 'no-tags');
       return;
     }
     for (const tag of tags) {
@@ -90,7 +80,7 @@ export class AutomaResolver {
     if (result.type === 'maxed') {
       // "MarsBot is already at the end of a track and needs to advance that
       // track" → Failed Action (rulebook p.6).
-      AutomaResolver.failedAction(game, 'track-maxed');
+      failedAction(game, 'track-maxed');
       return;
     }
     if (result.type === 'action') {
@@ -143,14 +133,29 @@ export class AutomaResolver {
       return;
     }
     case 'temperature':
+      AutomaTerraformer.raiseTemperature(game);
+      return;
     case 'temperature2':
+      // A doubled icon: two single steps, each checked separately (the second
+      // raise onto a just-completed temperature is a Failed Action).
+      AutomaTerraformer.raiseTemperature(game);
+      AutomaTerraformer.raiseTemperature(game);
+      return;
     case 'greenery':
+      AutomaTilePlacer.placeGreenery(game);
+      return;
     case 'ocean':
+      AutomaTilePlacer.placeOcean(game);
+      return;
     case 'city':
-      throw new Error(`MarsBot track action '${action}' is not implemented yet (Automa Phase 7)`);
+      AutomaTilePlacer.placeCity(game);
+      return;
     case 'milestone':
+      AutomaMilestonesAwards.claimMilestoneAction(game);
+      return;
     case 'award':
-      throw new Error(`MarsBot track action '${action}' is not implemented yet (Automa Phase 9)`);
+      AutomaMilestonesAwards.fundAwardAction(game);
+      return;
     default:
       throw new Error(`Unknown MarsBot track action '${action}'`);
     }
@@ -166,23 +171,11 @@ export class AutomaResolver {
       return;
     }
     if (game.getVenusScaleLevel() >= constants.MAX_VENUS_SCALE) {
-      AutomaResolver.failedAction(game, 'venus-maxed');
+      failedAction(game, 'venus-maxed');
       return;
     }
     const bot = marsBotOf(game);
     game.increaseVenusScaleLevel(bot, 1);
     game.log('${0} raised Venus 1 step', (b) => b.player(bot));
-  }
-
-  /** "MarsBot gains 5 M€ from taking a Failed Action" (3 on Easy). */
-  public static failedAction(game: IGame, reason: FailedActionReason): void {
-    const automa = game.automa;
-    if (automa === undefined) {
-      throw new Error('Not an automa game');
-    }
-    const bot = marsBotOf(game);
-    const mc = automa.difficulty === 'easy' ? FAILED_ACTION_MC_EASY : FAILED_ACTION_MC;
-    bot.stock.add(Resource.MEGACREDITS, mc);
-    game.log(FAILED_ACTION_TEMPLATES[reason], (b) => b.player(bot).number(mc));
   }
 }

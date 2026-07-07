@@ -33,6 +33,7 @@ export type SerializedAutomaState = {
   neuralInstanceSpaceId?: SpaceId;
   hardClaimCheckedGeneration: number;
   revealedCard?: AutomaActionCard;
+  instantWin?: boolean;
 };
 
 /**
@@ -64,6 +65,8 @@ export class AutomaState {
   public hardClaimCheckedGeneration: number = 0;
   /** The card currently being resolved (survives a mid-turn human sub-prompt + save). */
   public revealedCard: AutomaActionCard | undefined = undefined;
+  /** "If the game enters round 20 (18 with Prelude), you instantly lose" — MarsBot won on the clock. */
+  public instantWin: boolean = false;
 
   private constructor(
     public readonly difficulty: DifficultyLevel,
@@ -104,6 +107,9 @@ export class AutomaState {
     if (this.revealedCard !== undefined) {
       result.revealedCard = this.revealedCard;
     }
+    if (this.instantWin) {
+      result.instantWin = true;
+    }
     return result;
   }
 
@@ -129,6 +135,7 @@ export class AutomaState {
     state.neuralInstanceSpaceId = d.neuralInstanceSpaceId;
     state.hardClaimCheckedGeneration = d.hardClaimCheckedGeneration;
     state.revealedCard = d.revealedCard;
+    state.instantWin = d.instantWin ?? false;
     return state;
   }
 }

@@ -15,6 +15,7 @@ import {TileType} from '../../common/TileType';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
+import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {SpectatorModel} from '../../common/models/SpectatorModel';
@@ -258,11 +259,22 @@ export class Server {
       );
       let scores: Array<MilestoneScore> = [];
       if (claimed === undefined && claimedMilestones.length < MAX_MILESTONES) {
-        scores = game.players.map((player) => ({
-          color: player.color,
-          score: milestone.getScore(player),
-          claimable: milestone.canClaim(player),
-        }));
+        scores = game.players.map((player) => {
+          // MarsBot meets milestones via the board reference card (tracks,
+          // tiles, TR) — its displayed progress uses the automa evaluation.
+          if (player.isMarsBot) {
+            return {
+              color: player.color,
+              score: AutomaMAEvaluation.botMilestoneScore(milestone, game),
+              claimable: AutomaMAEvaluation.botMilestoneMet(milestone, game),
+            };
+          }
+          return {
+            color: player.color,
+            score: milestone.getScore(player),
+            claimable: milestone.canClaim(player),
+          };
+        });
       }
 
       // Per-game threshold + description. Most milestones return their static

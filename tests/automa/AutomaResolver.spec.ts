@@ -196,13 +196,10 @@ describe('AutomaResolver', () => {
     expect(game.automa!.floaters).eq(3);
   });
 
-  it('physical track actions fail loudly until their phase lands', () => {
-    const [game] = testAutomaGame();
-    expect(() => AutomaResolver.performTrackAction(game, 'ocean', BUILDING)).to.throw(/Automa Phase 7/);
-    expect(() => AutomaResolver.performTrackAction(game, 'temperature', BUILDING)).to.throw(/Automa Phase 7/);
-    expect(() => AutomaResolver.performTrackAction(game, 'greenery', BUILDING)).to.throw(/Automa Phase 7/);
-    expect(() => AutomaResolver.performTrackAction(game, 'city', EARTH)).to.throw(/Automa Phase 7/);
-    expect(() => AutomaResolver.performTrackAction(game, 'milestone', BUILDING)).to.throw(/Automa Phase 9/);
-    expect(() => AutomaResolver.performTrackAction(game, 'award', BUILDING)).to.throw(/Automa Phase 9/);
+  it('the milestone track action with no criteria met is a Failed Action', () => {
+    const [game, /* human */, bot] = testAutomaGame();
+    AutomaResolver.performTrackAction(game, 'milestone', BUILDING);
+    expect(bot.megaCredits).eq(5);
+    expect(game.claimedMilestones).is.empty;
   });
 });

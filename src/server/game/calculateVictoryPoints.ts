@@ -10,6 +10,7 @@ import {Turmoil} from '../turmoil/Turmoil';
 import {VictoryPointsBreakdownBuilder} from './VictoryPointsBreakdownBuilder';
 import {FundedAward} from '../awards/FundedAward';
 import {AwardScorer} from '../awards/AwardScorer';
+import {AutomaScoring} from '../automa/AutomaScoring';
 import {CardName} from '../../common/cards/CardName';
 import {CardVictoryPointsKind, TerraformRatingBreakdown, TRSourceEntry} from '../../common/game/VictoryPointsBreakdown';
 
@@ -210,6 +211,13 @@ export function calculateVictoryPoints(player: IPlayer) {
       const vpPenalty = options.penaltyVPPerPeriod * Math.floor(overageMin / options.penaltyPeriodMinutes);
       builder.setVictoryPoints('escapeVelocity', -vpPenalty);
     }
+  }
+
+  // MarsBot scoring exceptions (Automa rulebook p.10): remaining M€ → VP by
+  // final generation, Neural Instance adjacency, Hard-difficulty card VP. Its
+  // TR/milestones/awards/greenery/city already rode the standard paths above.
+  if (player.isMarsBot && player.game.automa !== undefined) {
+    builder.setAutomaVictoryPoints(AutomaScoring.automaVictoryPoints(player.game));
   }
 
   return builder.build();

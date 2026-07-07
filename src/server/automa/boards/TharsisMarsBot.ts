@@ -53,3 +53,14 @@ export const THARSIS_MARSBOT_BOARD: ReadonlyArray<TrackDefinition> = [
   TRACK_EARTH,
   TRACK_PLANT,
 ];
+
+/** Track indexes on the Tharsis MarsBot board — used by the milestone/award evaluation. */
+export const THARSIS_TRACK = {
+  BUILDING: 0,
+  SPACE: 1,
+  EVENT: 2,
+  SCIENCE: 3,
+  ENERGY: 4, // Power + Jovian
+  EARTH: 5, // Earth + City
+  BIO: 6, // Plant + Animal + Microbe
+} as const;

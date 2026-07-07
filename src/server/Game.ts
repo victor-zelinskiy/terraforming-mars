@@ -1,8 +1,12 @@
 import * as constants from '../common/constants';
+import {getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
 import {AutomaController} from './automa/AutomaController';
+import {failedAction as automaFailedAction} from './automa/AutomaFailedAction';
+import {AutomaGameEnd} from './automa/AutomaGameEnd';
 import {AutomaResearch} from './automa/AutomaResearch';
 import {AutomaSetup, marsBotOf} from './automa/AutomaSetup';
 import {AutomaState} from './automa/AutomaState';
+import {AutomaTilePlacer} from './automa/AutomaTilePlacer';
 import {BeginnerCorporation} from './cards/corporation/BeginnerCorporation';
 import {Board} from './boards/Board';
 import {CardName} from '../common/cards/CardName';
@@ -1027,6 +1031,20 @@ export class Game implements IGame, Logger {
     this.updateGlobalsForTheGeneration();
 
     this.generation++;
+
+    // "If the game enters round 20 (18 with Prelude), you instantly lose!"
+    // (Automa rulebook p.10 / Adding Expansions p.1). Checked AFTER the
+    // terraforming end (postProductionPhase) had its chance — reaching here
+    // means Mars is not terraformed and the next generation would begin.
+    if (this.automa !== undefined &&
+        this.generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension)) {
+      this.automa.instantWin = true;
+      this.log('${0} instantly wins — the game entered generation ${1}',
+        (b) => b.player(marsBotOf(this)).number(this.generation));
+      this.gotoEndGame();
+      return;
+    }
+
     this.log('Generation ${0}', (b) => b.forNewGeneration().number(this.generation));
     this.setNextFirstPlayer();
 
@@ -1300,6 +1318,14 @@ export class Game implements IGame, Logger {
         continue;
       }
 
+      // MarsBot's final greeneries come from its tracks, not plants — placed in
+      // its turn-order slot, all at once, with no prompt (rulebook p.10).
+      if (player.isMarsBot) {
+        AutomaGameEnd.placeFinalGreeneries(this);
+        this.donePlayers.add(player.id);
+        continue;
+      }
+
       // You many not place greeneries in solo mode unless you have already won the game
       // (e.g. completed global parameters, reached TR63.)
       if (this.isSoloMode() && !this.isSoloModeWin()) {
@@ -1385,7 +1411,14 @@ export class Game implements IGame, Logger {
     }
     if (this.oxygenLevel < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
       this.oxygenLevel + steps >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
-      this.increaseTemperature(player, 1);
+      if (player.isMarsBot && this.temperature >= constants.MAX_TEMPERATURE) {
+        // "If MarsBot increases the temperature or oxygen to a bonus step that
+        // gives another terraforming action, it resolves that other terraforming
+        // action immediately (taking a Failed Action if it cannot resolve it)."
+        automaFailedAction(this, 'temperature-maxed');
+      } else {
+        this.increaseTemperature(player, 1);
+      }
     }
 
     this.claimCrossedScaleBonuses(player, 'oxygen', this.oxygenLevel, this.oxygenLevel + steps, [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS]);
@@ -1497,13 +1530,24 @@ export class Game implements IGame, Logger {
 
     if (this.phase !== Phase.SOLAR) {
       // BONUS FOR HEAT PRODUCTION AT -20 and -24
+      // MarsBot has no production: "If MarsBot raises the temperature to a bonus
+      // step that gives a heat production (-24 C and -20 C), MarsBot gains 2 MC
+      // instead of the heat bonus." (Automa rulebook p.9)
       if (this.temperature < constants.TEMPERATURE_BONUS_FOR_HEAT_1 &&
         this.temperature + steps * 2 >= constants.TEMPERATURE_BONUS_FOR_HEAT_1) {
-        player.production.add(Resource.HEAT, 1, {log: true});
+        if (player.isMarsBot) {
+          player.stock.add(Resource.MEGACREDITS, 2, {log: true});
+        } else {
+          player.production.add(Resource.HEAT, 1, {log: true});
+        }
       }
       if (this.temperature < constants.TEMPERATURE_BONUS_FOR_HEAT_2 &&
         this.temperature + steps * 2 >= constants.TEMPERATURE_BONUS_FOR_HEAT_2) {
-        player.production.add(Resource.HEAT, 1, {log: true});
+        if (player.isMarsBot) {
+          player.stock.add(Resource.MEGACREDITS, 2, {log: true});
+        } else {
+          player.production.add(Resource.HEAT, 1, {log: true});
+        }
       }
 
       for (const card of player.playedCards) {
@@ -1520,7 +1564,14 @@ export class Game implements IGame, Logger {
 
     // BONUS FOR OCEAN TILE AT 0
     if (this.temperature < constants.TEMPERATURE_FOR_OCEAN_BONUS && this.temperature + steps * 2 >= constants.TEMPERATURE_FOR_OCEAN_BONUS) {
-      this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from temperature increase'}));
+      if (player.isMarsBot) {
+        // The bonus terraforming action resolves immediately for MarsBot — its
+        // own deterministic placement, or a Failed Action when no ocean is left
+        // (rulebook p.9). No prompt is ever created for the bot.
+        AutomaTilePlacer.placeOcean(this);
+      } else {
+        this.defer(new PlaceOceanTile(player, {title: 'Select space for ocean from temperature increase'}));
+      }
     }
 
     this.claimCrossedScaleBonuses(player, 'temperature', this.temperature, this.temperature + steps * 2,
@@ -1636,8 +1687,23 @@ export class Game implements IGame, Logger {
 
   public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false) {
     if (!coveringExistingTile) {
-      // Attribute the hex's printed bonuses to "cell bonus" in the journal.
-      this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
+      if (player.isMarsBot) {
+        // "If MarsBot places a tile that covers placement bonus icons (plants,
+        // steel, titanium, cards, etc.), it gains 1 MC for each icon covered
+        // (instead of the printed rewards)." (Automa rulebook p.9). The ocean
+        // adjacency M€ below is shared — the bot's oceanBonus is the default 2.
+        const icons = space.bonus.length;
+        if (icons > 0) {
+          this.events.withSource({kind: 'spaceBonus'}, () => {
+            player.stock.add(Resource.MEGACREDITS, icons);
+            this.log('${0} gained ${1} M€ for ${2} covered bonus icon(s)', (b) =>
+              b.player(player).number(icons).number(icons));
+          });
+        }
+      } else {
+        // Attribute the hex's printed bonuses to "cell bonus" in the journal.
+        this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
+      }
     }
 
     const {oceans: adjacentOceanCount, megacredits: oceanAdjacencyBonus} = this.board.oceanAdjacencyBonus(player, space);
