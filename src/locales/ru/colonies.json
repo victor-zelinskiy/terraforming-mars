@@ -171,6 +171,8 @@
     "Colony bonus (each trade)": "Бонус владельцам (каждая торговля)",
     "Don't increase colony track": "Не продвигать трек колонии",
     "+${0} to ${1} (the only eligible card)": "+${0} на «${1}» (единственная подходящая карта)",
-    "Edit": "Изменить"
+    "Edit": "Изменить",
+    "Payment method": "Способ оплаты",
+    "Your choices": "Ваши решения"
 
 }

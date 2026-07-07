@@ -1,5 +1,5 @@
 <template>
-  <div class="mb-tracks" :class="{'mb-tracks--large': large}">
+  <div class="mb-tracks" :class="{'mb-tracks--large': large}" :style="{'--mb-cols': maxCells}">
     <div v-for="(track, ti) in tracks" :key="ti" class="mb-track">
       <div class="mb-track__id">
         <Tag v-for="tag in track.tags" :key="tag" :tag="tag" :size="large ? 'big' : 'med'" type="secondary" />
@@ -123,6 +123,15 @@ export default defineComponent({
   computed: {
     cubeClass(): string {
       return `player_bg_color_${this.botColor}`;
+    },
+    /**
+     * The widest track's cell count — every row renders on the SAME grid
+     * template (`--mb-cols` columns), so cell k sits in the same column in
+     * every row and a shorter track (Venus, 13 cells) simply ends early
+     * instead of stretching its cells wider.
+     */
+    maxCells(): number {
+      return Math.max(1, ...this.tracks.map((t) => t.maxPosition + 1));
     },
   },
 });

@@ -13,33 +13,34 @@
 
 import {reactive} from 'vue';
 
-export type ColonyGridLayout = 'solo' | 'few' | 'five' | 'six' | 'catalog';
+export type ColonyGridLayout = 'solo' | 'duo' | 'trio' | 'four' | 'five' | 'six' | 'catalog';
 
-/** Which premium layout the tile grid uses for `count` colonies. */
+/** Which premium layout the tile grid uses for `count` colonies. Designed
+ *  Steam-Deck-first (1280×800): 1–3 = one centred row, 4 = a 2×2 block,
+ *  5 = the deliberate 3+2, 6 = 3×2 — every in-game count fits WITHOUT
+ *  clipping; the rare >6 add-a-tile catalog is its own compact mode. */
 export function colonyGridLayout(count: number, catalogMode: boolean): ColonyGridLayout {
   if (catalogMode && count > 6) {
     return 'catalog';
   }
-  if (count <= 1) {
-    return 'solo';
+  switch (Math.max(1, count)) {
+  case 1: return 'solo';
+  case 2: return 'duo';
+  case 3: return 'trio';
+  case 4: return 'four';
+  case 5: return 'five';
+  case 6: return 'six';
+  default: return 'catalog';
   }
-  if (count <= 4) {
-    return 'few';
-  }
-  if (count === 5) {
-    return 'five';
-  }
-  if (count === 6) {
-    return 'six';
-  }
-  return 'catalog';
 }
 
 /** Columns per layout — drives both CSS and the d-pad 2D stepping. */
 export function colonyGridCols(layout: ColonyGridLayout, count: number): number {
   switch (layout) {
   case 'solo': return 1;
-  case 'few': return Math.max(1, count);
+  case 'duo': return 2;
+  case 'trio': return 3;
+  case 'four': return 2; // 2 × 2 — large tiles
   case 'five': return 3; // 3 + 2 (second row centred)
   case 'six': return 3; // 3 × 2
   case 'catalog': return 4;

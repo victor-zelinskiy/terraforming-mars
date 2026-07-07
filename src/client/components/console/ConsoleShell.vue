@@ -130,11 +130,7 @@
                               :pick="colonyPick"
                               :players="playerView.players"
                               :viewerColor="thisPlayer.color"
-                              :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
-                              :fleetSize="thisPlayer.fleetSize"
-                              :freeFleets="colonyFreeFleets"
-                              :paymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
-                              :disabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []" />
+                              :tradeOffset="thisPlayer.colonyTradeOffset ?? 0" />
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
            hydroNetworkState + buildHydroModel; the shell keeps the pick
@@ -509,7 +505,7 @@ import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardC
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
-import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -1054,10 +1050,6 @@ export default defineComponent({
       }
       return 'Unavailable right now';
     },
-    /** Free trade fleets (fleetSize − fleets already out) — the header indicator. */
-    colonyFreeFleets(): number {
-      return freeTradeFleets(this.thisPlayer);
-    },
     /** The colony the X = «Осмотреть» overlay shows (←/→ page while open). */
     colonyInspectModel(): ColonyModel | undefined {
       if (!this.colonyInspectOpen || this.consoleState.section !== 'colonies') {
@@ -1463,7 +1455,7 @@ export default defineComponent({
         }
         return [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Edit', enabled: consoleColoniesUi.composerEditable},
+          {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
           {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
           {control: 'back', label: 'Cancel'},
         ];

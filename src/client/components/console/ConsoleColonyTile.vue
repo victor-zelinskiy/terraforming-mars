@@ -1,11 +1,12 @@
 <template>
   <!--
-    CONSOLE COLONY TILE — the premium couch-readable colony tile (the tile IS
-    the information: name, planet art, build slots + owner cubes, the 7-cell
-    trade track with the live marker, the trade reward at the position the
-    trade would actually read (offset applied), the fixed colony bonus, the
-    parked trade fleet, and an honest availability status). No button hints
-    here — the bottom command bar owns the controls (console rule).
+    CONSOLE COLONY TILE (iteration 2 — Steam-Deck-first). A compact, couch-
+    readable strategy card: name + planet medallion, the PARKED TRADE FLEET
+    badge (whose ship is here), the three build slots with owner cubes, the
+    7-cell live track strip, what a trade READS right now (offset applied) +
+    the fixed owner bonus, and an honest availability status line. The tile
+    is the decision surface — no button hints (the bottom bar owns controls),
+    no side panel needed for the common questions.
   -->
   <div class="con-coltile"
        :class="{
@@ -15,54 +16,54 @@
          'con-coltile--ok': status.kind === 'ok',
        }"
        :data-test="'con-colony-' + colony.name">
-    <div class="con-coltile__planet" :class="planetClass" aria-hidden="true"></div>
-
     <header class="con-coltile__head">
       <span class="con-coltile__name">{{ $t(colony.name) }}</span>
-      <span v-if="fleet !== undefined" class="con-coltile__fleet" :class="'con-coltile__fleet--' + fleet.color">
+      <!-- The parked trade fleet — colour ship + owner, ON the tile. -->
+      <span v-if="fleet !== undefined" class="con-coltile__fleet">
         <span class="con-coltile__fleet-ship colonies-fleet" :class="'colonies-fleet-' + fleet.color" aria-hidden="true"></span>
-        <span class="con-coltile__fleet-name">{{ fleet.label }}</span>
+        <span class="con-coltile__fleet-name" :class="'con-coltile__fleet-name--' + fleet.color">{{ fleet.label }}</span>
       </span>
+      <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
     </header>
 
-    <!-- Build slots: what building here grants + the owner cubes. -->
-    <div class="con-coltile__build">
-      <div v-for="idx in [0, 1, 2]" :key="idx"
-           class="con-coltile__build-slot"
-           :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}">
-        <BenefitGlyph :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
-        <span v-if="colony.colonies[idx] !== undefined"
-              class="con-coltile__cube"
-              :class="'player_bg_color_' + colony.colonies[idx]"></span>
+    <!-- Build slots (owner cubes) + the live 7-cell track in ONE band. -->
+    <div class="con-coltile__mid">
+      <div class="con-coltile__build">
+        <div v-for="idx in [0, 1, 2]" :key="idx"
+             class="con-coltile__build-slot"
+             :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}">
+          <BenefitGlyph :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+          <span v-if="colony.colonies[idx] !== undefined"
+                class="con-coltile__cube"
+                :class="'player_bg_color_' + colony.colonies[idx]"></span>
+        </div>
+      </div>
+      <div class="con-coltile__track" aria-hidden="true">
+        <span v-for="pos in trackCells" :key="pos.index"
+              class="con-coltile__track-cell"
+              :class="{
+                'con-coltile__track-cell--marker': pos.marker,
+                'con-coltile__track-cell--effective': pos.effective,
+                'con-coltile__track-cell--passed': pos.passed,
+              }"></span>
+        <span class="con-coltile__track-pos">{{ trackPositionDisplay }}</span>
       </div>
     </div>
 
-    <!-- The 7-cell trade track: filled up to the marker; the reward cell the
-         trade would READ (trade offset applied) glows when it differs. -->
-    <div class="con-coltile__track" aria-hidden="true">
-      <span v-for="pos in trackCells" :key="pos.index"
-            class="con-coltile__track-cell"
-            :class="{
-              'con-coltile__track-cell--marker': pos.marker,
-              'con-coltile__track-cell--effective': pos.effective,
-              'con-coltile__track-cell--passed': pos.passed,
-            }"></span>
-      <span class="con-coltile__track-pos">{{ trackPositionDisplay }}</span>
-    </div>
-
+    <!-- Trade reward (at the position a trade READS) · owner bonus. -->
     <div class="con-coltile__rows">
-      <div class="con-coltile__row">
-        <span class="con-coltile__row-label">{{ $t('Trade') }}</span>
-        <span class="con-coltile__row-value">
-          <span v-if="reward.quantity > 1" class="con-coltile__row-num">{{ reward.quantity }}</span>
+      <div class="con-coltile__cell con-coltile__cell--trade">
+        <span class="con-coltile__cell-label">{{ $t('Trade') }}</span>
+        <span class="con-coltile__cell-value">
+          <span v-if="reward.quantity > 1" class="con-coltile__cell-num">{{ reward.quantity }}</span>
           <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResource="metadata.cardResource" />
-          <span v-if="offsetSteps > 0" class="con-coltile__row-offset">+{{ offsetSteps }}</span>
+          <span v-if="offsetSteps > 0" class="con-coltile__cell-offset">+{{ offsetSteps }}</span>
         </span>
       </div>
-      <div class="con-coltile__row">
-        <span class="con-coltile__row-label">{{ $t('Bonus') }}</span>
-        <span class="con-coltile__row-value">
-          <span v-if="bonusQuantity > 1" class="con-coltile__row-num">{{ bonusQuantity }}</span>
+      <div class="con-coltile__cell">
+        <span class="con-coltile__cell-label">{{ $t('Bonus') }}</span>
+        <span class="con-coltile__cell-value">
+          <span v-if="bonusQuantity > 1" class="con-coltile__cell-num">{{ bonusQuantity }}</span>
           <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
         </span>
       </div>
@@ -72,13 +73,13 @@
     <footer class="con-coltile__status" :class="'con-coltile__status--' + status.kind">
       <template v-if="status.kind === 'ok'">
         <span class="con-coltile__status-dot" aria-hidden="true"></span>
-        <span>{{ status.text }}</span>
+        <span class="con-coltile__status-text">{{ status.text }}</span>
       </template>
       <template v-else-if="status.kind === 'blocked' || status.kind === 'inactive'">
         <span class="con-coltile__status-mark" aria-hidden="true">✕</span>
-        <span>{{ status.text }}</span>
+        <span class="con-coltile__status-text">{{ status.text }}</span>
       </template>
-      <span v-else class="con-coltile__status-idle">{{ status.text }}</span>
+      <span v-else class="con-coltile__status-idle" aria-hidden="true"></span>
     </footer>
   </div>
 </template>

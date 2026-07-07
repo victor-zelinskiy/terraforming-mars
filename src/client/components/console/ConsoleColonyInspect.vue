@@ -29,22 +29,26 @@
       </header>
 
       <div class="con-colinspect__main">
-        <!-- ── LEFT: the full 7-position trade track. ──────────────────── -->
+        <!-- ── LEFT: the full 7-position trade track — a strict grid table
+             ([position | quantity | reward | status tag], equal-height rows). -->
         <section class="con-colinspect__track">
           <div class="con-colinspect__section-title">{{ $t('Trade track') }}</div>
-          <div v-for="cell in trackRows" :key="cell.index"
-               class="con-colinspect__track-row"
-               :class="{
-                 'con-colinspect__track-row--marker': cell.marker,
-                 'con-colinspect__track-row--effective': cell.effective,
-               }">
-            <span class="con-colinspect__track-num">{{ cell.index + 1 }}</span>
-            <span class="con-colinspect__track-reward">
-              <span v-if="cell.quantity > 1" class="con-colinspect__track-qty">{{ cell.quantity }}</span>
-              <BenefitGlyph :benefit="tradeBenefit(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
-            </span>
-            <span v-if="cell.marker" class="con-colinspect__track-tag">{{ $t('Marker') }}</span>
-            <span v-else-if="cell.effective" class="con-colinspect__track-tag con-colinspect__track-tag--eff">{{ $t('Trade reads here') }}</span>
+          <div class="con-colinspect__track-table">
+            <div v-for="cell in trackRows" :key="cell.index"
+                 class="con-colinspect__track-row"
+                 :class="{
+                   'con-colinspect__track-row--marker': cell.marker,
+                   'con-colinspect__track-row--effective': cell.effective,
+                 }">
+              <span class="con-colinspect__track-num">{{ cell.index + 1 }}</span>
+              <span class="con-colinspect__track-qty">{{ cell.quantity > 0 ? cell.quantity : '—' }}</span>
+              <span class="con-colinspect__track-glyph">
+                <BenefitGlyph :benefit="tradeBenefit(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
+              </span>
+              <span v-if="cell.marker" class="con-colinspect__track-tag">{{ $t('Marker') }}</span>
+              <span v-else-if="cell.effective" class="con-colinspect__track-tag con-colinspect__track-tag--eff">{{ $t('Trade reads here') }}</span>
+              <span v-else class="con-colinspect__track-tag con-colinspect__track-tag--void" aria-hidden="true"></span>
+            </div>
           </div>
           <div v-if="offsetSteps > 0" class="con-colinspect__note">
             {{ $t('Your trade advances the track first') }} (+{{ offsetSteps }})
@@ -106,14 +110,17 @@
                 <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
               </template>
             </div>
-            <div v-if="paymentChips.length > 0" class="con-colonies__pay con-colinspect__pay">
-              <span class="con-colonies__pay-label">{{ $t('Payment') }}</span>
-              <span v-for="(chip, i) in paymentChips" :key="i"
-                    class="con-colonies__pay-chip"
-                    :class="{'con-colonies__pay-chip--off': !chip.available}">
-                <i v-if="chip.iconClass !== ''" :class="chip.iconClass" aria-hidden="true"></i>
-                <b>{{ chip.amount }}</b>
-              </span>
+            <!-- EVERY payment path, affordable AND not — a strict grid table
+                 ([icon | label | current → resulting / reason]). -->
+            <div v-if="paymentRows.length > 0" class="con-colinspect__paytable">
+              <div v-for="(row, i) in paymentRows" :key="i"
+                   class="con-colinspect__payrow"
+                   :class="{'con-colinspect__payrow--off': !row.available}">
+                <i v-if="row.iconClass !== ''" class="con-colinspect__payrow-icon" :class="row.iconClass" aria-hidden="true"></i>
+                <span class="con-colinspect__payrow-title">{{ row.title }}</span>
+                <span v-if="row.available" class="con-colinspect__payrow-delta">{{ row.preview }}</span>
+                <span v-else class="con-colinspect__payrow-reason">{{ row.reason }}</span>
+              </div>
             </div>
           </div>
 
@@ -158,8 +165,16 @@ import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradeP
 import {colonyOwnerCounts, effectiveTradePosition} from '@/client/components/colonies/colonyTradePlan';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {Message} from '@/common/logs/Message';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+
+function textOf(v: string | Message | undefined): string {
+  if (v === undefined) {
+    return '';
+  }
+  return typeof v === 'string' ? translateText(v) : translateMessage(v);
+}
 
 type TrackRow = {index: number, quantity: number, marker: boolean, effective: boolean};
 type TargetRow = {roleLabel: string, iconClass: string, amount: number, cards: ReadonlyArray<CardModel>};
@@ -249,21 +264,31 @@ export default defineComponent({
       }
       return translateText('Trade fleet currently here');
     },
-    paymentChips(): Array<{iconClass: string, amount: string, available: boolean}> {
-      const chips: Array<{iconClass: string, amount: string, available: boolean}> = [];
+    /** EVERY payment path — affordable with `current → resulting`, the rest
+     *  disabled with the server reason (the full picture, never hidden). */
+    paymentRows(): Array<{iconClass: string, title: string, preview: string, reason: string, available: boolean}> {
+      const rows: Array<{iconClass: string, title: string, preview: string, reason: string, available: boolean}> = [];
       for (const option of this.paymentOptions) {
         const meta = option.metadata;
-        if (meta?.icon !== undefined) {
-          chips.push({iconClass: iconClassFor(meta.icon) + ' con-colonies__pay-icon', amount: String(meta.amount ?? ''), available: true});
-        }
+        const res = meta?.resource;
+        rows.push({
+          iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) + ' con-colinspect__pay-icon' : '',
+          title: textOf(option.title),
+          preview: res !== undefined ? `${res.current} → ${res.resulting}` : '',
+          reason: '',
+          available: true,
+        });
       }
       for (const disabled of this.disabledPayments) {
-        const meta = disabled.metadata;
-        if (meta?.icon !== undefined) {
-          chips.push({iconClass: iconClassFor(meta.icon) + ' con-colonies__pay-icon', amount: String(meta.amount ?? ''), available: false});
-        }
+        rows.push({
+          iconClass: disabled.metadata?.icon !== undefined ? iconClassFor(disabled.metadata.icon) + ' con-colinspect__pay-icon' : '',
+          title: textOf(disabled.title),
+          preview: '',
+          reason: textOf(disabled.reason),
+          available: false,
+        });
       }
-      return chips;
+      return rows;
     },
     targetRows(): Array<TargetRow> {
       const rows: Array<TargetRow> = [];

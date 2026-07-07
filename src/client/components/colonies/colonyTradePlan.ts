@@ -262,6 +262,8 @@ export type TradeOutcomeArgs = {
   stocks: Readonly<Partial<Record<string, number>>>;
   /** The viewer's live production, for production gains. */
   production: Readonly<Partial<Record<string, number>>>;
+  /** Flat every-trade card modifiers (Venus Trade Hub +3 M€) from the preview. */
+  flatBonuses?: ReadonlyArray<{card: string, resource: string, amount: number}>;
 };
 
 /**
@@ -382,6 +384,16 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
   const bonusResource = Array.isArray(colonyBonus.resource) ? colonyBonus.resource[0] : colonyBonus.resource;
   for (let i = 0; i < args.ownColonyCount; i++) {
     pushBenefit(colonyBonus.type, colonyBonus.quantity ?? 1, typeof bonusResource === 'string' ? bonusResource : undefined, 'colony bonus');
+  }
+
+  // Flat every-trade card modifiers (Venus Trade Hub) — named by their card.
+  for (const bonus of args.flatBonuses ?? []) {
+    const current = running[bonus.resource];
+    const resulting = current !== undefined ? current + bonus.amount : undefined;
+    gains.push({direction: 'gain', icon: bonus.resource, amount: bonus.amount, current, resulting, note: bonus.card});
+    if (resulting !== undefined) {
+      running[bonus.resource] = resulting;
+    }
   }
 
   return {cost, gains};

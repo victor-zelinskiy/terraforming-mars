@@ -85,4 +85,9 @@ export type ColonyTradePreviewModel = {
   megacreditsPayment?: SelectPaymentModel;
   /** Every other follow-up, in live prompt order. */
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
+  /**
+   * Flat card-effect modifiers applied to EVERY trade (Venus Trade Hub's
+   * +3 M€) — shown in the outcome so the numbers add up visibly.
+   */
+  flatBonuses?: ReadonlyArray<{card: CardName, resource: string, amount: number}>;
 };

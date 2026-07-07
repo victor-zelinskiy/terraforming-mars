@@ -1,4 +1,5 @@
 import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
+import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
@@ -85,12 +86,19 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
       .previewPaymentModel() :
     undefined;
 
+  // ── Flat every-trade card modifiers (mirrors Colony.handleTrade). ─────────
+  const flatBonuses: Array<{card: CardName, resource: string, amount: number}> = [];
+  if (player.tableau.has(CardName.VENUS_TRADE_HUB)) {
+    flatBonuses.push({card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3});
+  }
+
   return {
     colonyName: colony.name,
     track: {current: colony.trackPosition, effective, steps, willAsk},
     rewardQuantity,
     ...(megacreditsPayment !== undefined ? {megacreditsPayment} : {}),
     followUps,
+    ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
   };
 }
 

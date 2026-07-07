@@ -96,13 +96,34 @@
 
 /* ── Shared track strips (board overlay + console info mode) ─────────────── */
 
-.mb-tracks { display: flex; flex-direction: column; gap: 7px; }
-.mb-track { display: flex; align-items: center; gap: 9px; }
-.mb-track__id { flex: 0 0 58px; display: flex; align-items: center; gap: 3px; justify-content: flex-end; }
-.mb-track__cells { flex: 1 1 auto; min-width: 0; display: flex; gap: 2px; }
+/* Every row is a GRID with the SAME column template (a fixed identity column
+   + `--mb-cols` equal cell columns + a fixed position readout pinned to the
+   LAST column) — so cell k lands in the same x in every row, a 3-tag identity
+   can't push its strip right (the old flex basis was overridden by
+   min-content), and a shorter track (Venus) ends early instead of stretching
+   its cells wider. `--mb-cols` = the widest track's cell count, set by
+   MarsBotTracks.vue. */
+/* --mb-id-w must FIT the widest identity: 3 secondary tags (3×34 + 2×3 gap =
+   108) + the 7px inner padding — anything narrower re-introduces the
+   min-content push this grid exists to kill. */
+.mb-tracks { display: flex; flex-direction: column; gap: 7px; --mb-id-w: 118px; --mb-pos-w: 40px; }
+.mb-track {
+    display: grid;
+    grid-template-columns: var(--mb-id-w) repeat(var(--mb-cols, 19), minmax(0, 1fr)) var(--mb-pos-w);
+    column-gap: 2px;
+    align-items: center;
+}
+.mb-track__id {
+    display: flex; align-items: center; gap: 3px; justify-content: flex-end;
+    padding-right: 7px;
+    /* The base .tag-count margins (3px left / −6px top) would overflow the
+       fixed column with 3 tags — the flex gap owns the spacing here. */
+    .tag-count { margin: 0; }
+}
+.mb-track__cells { display: contents; /* the cells themselves are the grid items */ }
 .mb-cell {
     .premium-tooltip(230px);
-    flex: 1 1 0; min-width: 0; height: 26px;
+    min-width: 0; height: 26px;
     display: grid; place-items: center;
     border-radius: 4px;
     background: rgba(10, 18, 16, 0.7);
@@ -144,13 +165,17 @@
 .mb-ico--greenery { background-image: url('./assets/tiles/greenery.png'); }
 .mb-ico--city { background-image: url('./assets/tiles/city.png'); }
 .mb-ico--floater { background-image: url('./assets/resources/floater.png'); }
-.mb-track__pos { flex: 0 0 40px; text-align: right; font-size: 13px; color: @mb-text; font-family: Prototype, Orbitron, sans-serif; }
+.mb-track__pos {
+    grid-column: -2; /* always the LAST column — a short track's readout stays in the right rail */
+    padding-left: 5px;
+    text-align: right; font-size: 13px; color: @mb-text; font-family: Prototype, Orbitron, sans-serif;
+}
 .mb-track__pos-max { font-size: 10px; color: @mb-text-dim; }
 
 /* TV-readable sizing for the console info-mode detail. */
 .mb-tracks--large {
     gap: 12px;
-    .mb-track__id { flex-basis: 84px; }
+    --mb-pos-w: 60px;
     .mb-cell { height: 38px; border-radius: 6px; }
     .mb-glyph { font-size: 13px; }
     .mb-glyph--tr { font-size: 14px; }

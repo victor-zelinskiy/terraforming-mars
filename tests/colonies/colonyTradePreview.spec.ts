@@ -12,6 +12,7 @@ import {buildColonyTradePreview} from '../../src/server/colonies/colonyTradePrev
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {GHGProducingBacteria} from '../../src/server/cards/base/GHGProducingBacteria';
 import {TradingColony} from '../../src/server/cards/colonies/TradingColony';
+import {VenusTradeHub} from '../../src/server/cards/prelude2/VenusTradeHub';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
@@ -126,6 +127,14 @@ describe('colonyTradePreview', () => {
     const plutoPreview = buildColonyTradePreview(player, pluto);
     // Pluto's trade reward is a plain draw (keepAll) — no follow-up prompt.
     expect(plutoPreview.followUps).to.deep.eq([]);
+  });
+
+  it('flat every-trade modifiers (Venus Trade Hub) surface in the preview', () => {
+    expect(buildColonyTradePreview(player, luna).flatBonuses).is.undefined;
+    player.playedCards.push(new VenusTradeHub());
+    expect(buildColonyTradePreview(player, luna).flatBonuses).to.deep.eq([
+      {card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3},
+    ]);
   });
 
   it('M€ payment preview appears only when the payment would prompt', () => {
