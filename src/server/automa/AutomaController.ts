@@ -5,7 +5,7 @@ import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * Orchestrates MarsBot's turn. Entered from `Game.startActionsForPlayer` when the

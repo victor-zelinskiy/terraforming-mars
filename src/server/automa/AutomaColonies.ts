@@ -6,7 +6,7 @@ import {IColony} from '../colonies/IColony';
 import {IGame} from '../IGame';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * The MarsBot Colonies machinery (Adding Expansions pp.4–6): the shipping

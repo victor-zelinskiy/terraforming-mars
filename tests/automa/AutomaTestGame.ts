@@ -5,7 +5,7 @@ import {GameOptions} from '../../src/server/game/GameOptions';
 import {DifficultyLevel} from '../../src/common/automa/AutomaTypes';
 import {TestPlayer} from '../TestPlayer';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
-import {marsBotOf} from '../../src/server/automa/AutomaSetup';
+import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 
 export type AutomaTestOptions = Partial<GameOptions> & {
   difficulty?: DifficultyLevel;

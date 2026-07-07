@@ -7,19 +7,9 @@ import {safeCast, isPlayerId} from '../../common/Types';
 import {inplaceShuffle} from '../utils/shuffle';
 import {GameOptions} from '../game/GameOptions';
 import {IGame} from '../IGame';
-import {IPlayer} from '../IPlayer';
 import {Player} from '../Player';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
-
-/** The one MarsBot player of an automa game. Throws when called on an ordinary game. */
-export function marsBotOf(game: IGame): IPlayer {
-  const bot = game.players.find((p) => p.isMarsBot);
-  if (bot === undefined) {
-    throw new Error('This game has no MarsBot player');
-  }
-  return bot;
-}
 
 export class AutomaSetup {
   /**

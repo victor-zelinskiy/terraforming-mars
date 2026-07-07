@@ -9,6 +9,7 @@ import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
 import {DisabledOptionModel} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {AutomaTargeting} from '../automa/AutomaTargeting';
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
@@ -23,7 +24,10 @@ export class RemoveAnyPlants extends DeferredAction {
   }
 
   private createOption(target: IPlayer) {
-    let qtyToRemove = Math.min(target.plants, this.count);
+    // MarsBot's removable "plants" = the Ganymede storage + its M€-supply proxy
+    // (attack() applies the composite removal).
+    const removable = AutomaTargeting.attackableStock(target, Resource.PLANTS);
+    let qtyToRemove = Math.min(removable, this.count);
 
     // Botanical Experience hook.
     if (target.tableau.has(CardName.BOTANICAL_EXPERIENCE)) {
@@ -37,7 +41,7 @@ export class RemoveAnyPlants extends DeferredAction {
         .getMessage();
 
     return new SelectOption(message, 'Remove plants')
-      .withMetadata(removeResourceFromPlayer(target, Resource.PLANTS, qtyToRemove, target.plants))
+      .withMetadata(removeResourceFromPlayer(target, Resource.PLANTS, qtyToRemove, removable))
       .andThen(() => {
         target.attack(this.player, Resource.PLANTS, qtyToRemove, {log: true});
         return undefined;
@@ -92,7 +96,7 @@ export class RemoveAnyPlants extends DeferredAction {
    */
   public opponentOptions(): Array<SelectOption> {
     return this.player.opponents
-      .filter((p) => !p.plantsAreProtected() && p.plants > 0)
+      .filter((p) => !p.plantsAreProtected() && AutomaTargeting.attackableStock(p, Resource.PLANTS) > 0)
       .map((target) => this.createOption(target));
   }
 
@@ -105,7 +109,7 @@ export class RemoveAnyPlants extends DeferredAction {
    */
   public disabledOpponents(): Array<DisabledOptionModel> {
     return this.player.opponents
-      .filter((p) => p.plantsAreProtected() || p.plants === 0)
+      .filter((p) => p.plantsAreProtected() || AutomaTargeting.attackableStock(p, Resource.PLANTS) === 0)
       .map((p) => disabledPlayerTarget(p, 'plants', p.plantsAreProtected() ? 'Plants are protected' : 'No plants to remove'));
   }
 

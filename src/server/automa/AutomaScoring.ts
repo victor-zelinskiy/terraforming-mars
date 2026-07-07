@@ -3,7 +3,7 @@ import {AutomaVictoryPoints} from '../../common/game/VictoryPointsBreakdown';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
 import {IProjectCard} from '../cards/IProjectCard';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * MarsBot's scoring exceptions (rulebook p.10 + Adding Expansions p.1):

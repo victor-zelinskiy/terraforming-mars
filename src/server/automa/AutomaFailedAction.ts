@@ -1,7 +1,7 @@
 import {FAILED_ACTION_MC, FAILED_ACTION_MC_EASY} from '../../common/automa/AutomaTypes';
 import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * Why MarsBot took a Failed Action. Each maps to its own full log template so

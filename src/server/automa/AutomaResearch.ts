@@ -3,7 +3,7 @@ import {inplaceShuffle} from '../utils/shuffle';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {AutomaActionCard, AutomaState} from './AutomaState';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * MarsBot's Research Phase (generation 2+).

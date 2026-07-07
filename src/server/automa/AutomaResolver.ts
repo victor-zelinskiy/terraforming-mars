@@ -6,7 +6,7 @@ import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 

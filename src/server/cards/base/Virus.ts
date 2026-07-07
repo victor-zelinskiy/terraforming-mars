@@ -15,6 +15,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all, digit} from '../Options';
 import {ActionPreview, TabbedPlantTarget, TabbedTargetsStep} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
+import {ColonyName} from '../../../common/colonies/ColonyName';
+import {message} from '../../logs/MessageBuilder';
 
 export class Virus extends Card implements IProjectCard {
   constructor() {
@@ -77,6 +80,22 @@ export class Virus extends Card implements IProjectCard {
       orOptions.options.push(removeAnimals);
     }
     orOptions.options.push(...removePlants);
+    // MarsBot as an animal target: the Miranda storage animals ("as usual",
+    // Adding Expansions p.5) + the M€-supply proxy (rulebook p.4). Appended
+    // AFTER the plant options so the two-tab preview's introspected indices
+    // for animals/plants stay untouched.
+    const bot = player.opponents.find((p) => p.isMarsBot);
+    if (bot !== undefined) {
+      const removable = Math.min(2, AutomaTargeting.cardResourceLikeStock(player.game, ColonyName.MIRANDA));
+      if (removable > 0) {
+        orOptions.options.push(new SelectOption(
+          message('Remove ${0} animals from ${1}', (b) => b.number(removable).player(bot)), 'Remove animals')
+          .andThen(() => {
+            AutomaTargeting.removeCardResourceLikeFromBot(player.game, removable, ColonyName.MIRANDA);
+            return undefined;
+          }));
+      }
+    }
     orOptions.options.push(new SelectOption('Skip removal'));
 
     return orOptions;

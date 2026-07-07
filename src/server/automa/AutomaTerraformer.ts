@@ -1,7 +1,7 @@
 import * as constants from '../../common/constants';
 import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * MarsBot's global-parameter raises. TR follows the normal rules; the

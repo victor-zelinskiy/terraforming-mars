@@ -4,7 +4,7 @@ import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {AutomaResearch} from './AutomaResearch';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * The official Automa research draft (rulebook p.4): two piles of 4 cards, the

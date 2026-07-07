@@ -7,6 +7,7 @@ import {Countable, CountableUnits} from './Countable';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import {CardResource} from '../../common/CardResource';
 import {Space} from '../boards/Space';
+import {AutomaTargeting} from '../automa/AutomaTargeting';
 import {once} from './Lazy';
 
 /**
@@ -152,7 +153,17 @@ export class Counter {
         // When counting all the other players' tags, just count raw, so as to disregard their wild tags.
         if (countable.all === true || countable.others === true) {
           player.opponents
-            .forEach((p) => sum += p.tags.count(tag, 'raw'));
+            .forEach((p) => {
+              // MarsBot's tags ARE its track positions (rulebook p.5): "use the
+              // respective tracks on MarsBot's board instead of its played
+              // cards" — always the current position, even after a regression.
+              // (Galilean Waystation's half-track FAQ rides the same helper.)
+              if (p.isMarsBot) {
+                sum += AutomaTargeting.automaTagCount(p.game, tag, this.card.name);
+              } else {
+                sum += p.tags.count(tag, 'raw');
+              }
+            });
         }
       }
     }

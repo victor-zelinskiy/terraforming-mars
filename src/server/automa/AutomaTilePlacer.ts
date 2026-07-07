@@ -3,7 +3,7 @@ import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {failedAction} from './AutomaFailedAction';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /** Keep the items with the highest score. */
 function keepMax(spaces: ReadonlyArray<Space>, score: (space: Space) => number): Array<Space> {

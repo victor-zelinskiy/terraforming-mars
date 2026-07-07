@@ -2,6 +2,7 @@ import {IProjectCard} from '../IProjectCard';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
 import {OrOptions} from '../../inputs/OrOptions';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
@@ -66,22 +67,25 @@ export class Sabotage extends Card implements IProjectCard {
         }));
     } else {
       player.opponents.forEach((target) => {
-        if (target.titanium > 0 && !target.alloysAreProtected()) {
-          const amountRemoved = Math.min(3, target.titanium);
+        // MarsBot's removable alloys = its storage areas + the M€-supply proxy.
+        const titanium = AutomaTargeting.attackableStock(target, Resource.TITANIUM);
+        const steel = AutomaTargeting.attackableStock(target, Resource.STEEL);
+        if (titanium > 0 && !target.alloysAreProtected()) {
+          const amountRemoved = Math.min(3, titanium);
           const optionTitle = this.title(amountRemoved, 'titanium', target);
           availableActions.options.push(new SelectOption(optionTitle, 'Remove')
-            .withMetadata(removeResourceFromPlayer(target, Resource.TITANIUM, amountRemoved, target.titanium))
+            .withMetadata(removeResourceFromPlayer(target, Resource.TITANIUM, amountRemoved, titanium))
             .andThen(() => {
               target.attack(player, Resource.TITANIUM, 3, {log: true});
               return undefined;
             }));
         }
 
-        if (target.steel > 0 && !target.alloysAreProtected()) {
-          const amountRemoved = Math.min(4, target.steel);
+        if (steel > 0 && !target.alloysAreProtected()) {
+          const amountRemoved = Math.min(4, steel);
           const optionTitle = this.title(amountRemoved, 'steel', target);
           availableActions.options.push(new SelectOption(optionTitle, 'Remove')
-            .withMetadata(removeResourceFromPlayer(target, Resource.STEEL, amountRemoved, target.steel))
+            .withMetadata(removeResourceFromPlayer(target, Resource.STEEL, amountRemoved, steel))
             .andThen(() => {
               target.attack(player, Resource.STEEL, 4, {log: true});
               return undefined;
@@ -103,8 +107,8 @@ export class Sabotage extends Card implements IProjectCard {
       // Opponents we can't take anything from → greyed cards with a reason.
       const disabled = player.opponents
         .filter((target) => {
-          const hasRemovable = (target.titanium > 0 && !target.alloysAreProtected()) ||
-            (target.steel > 0 && !target.alloysAreProtected()) ||
+          const hasRemovable = (AutomaTargeting.attackableStock(target, Resource.TITANIUM) > 0 && !target.alloysAreProtected()) ||
+            (AutomaTargeting.attackableStock(target, Resource.STEEL) > 0 && !target.alloysAreProtected()) ||
             target.megaCredits > 0;
           return !hasRemovable;
         })

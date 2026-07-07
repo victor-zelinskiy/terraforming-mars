@@ -6,7 +6,7 @@ import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 function humanOf(game: IGame): IPlayer {
   const human = game.players.find((p) => !p.isMarsBot);

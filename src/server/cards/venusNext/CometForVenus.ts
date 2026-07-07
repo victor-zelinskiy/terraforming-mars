@@ -13,6 +13,7 @@ import {IProjectCard} from '../IProjectCard';
 import {skip} from '../../inputs/optionMetadata';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
 
 export class CometForVenus extends Card implements IProjectCard {
   constructor() {
@@ -52,14 +53,15 @@ export class CometForVenus extends Card implements IProjectCard {
   // Side-effect-free construction shared by `bespokePlay` + the preview (the
   // attack only runs in the SelectPlayer `andThen`).
   private buildOptions(player: IPlayer): OrOptions | undefined {
-    const venusTagPlayers = player.opponents.filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') > 0);
+    // MarsBot's Venus tags ARE its Venus track position (rulebook p.5).
+    const venusTagPlayers = player.opponents.filter((opponent) => AutomaTargeting.effectiveTagCount(opponent, Tag.VENUS) > 0);
 
     if (player.game.isSoloMode()|| venusTagPlayers.length === 0) {
       return undefined;
     }
 
     const noVenusTag = player.opponents
-      .filter((opponent) => opponent.tags.count(Tag.VENUS, 'raw') === 0)
+      .filter((opponent) => AutomaTargeting.effectiveTagCount(opponent, Tag.VENUS) === 0)
       .map((opponent) => ({player: opponent, reason: 'No Venus tag' as const}));
     return new OrOptions(
       new SelectPlayer(

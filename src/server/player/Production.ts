@@ -3,6 +3,7 @@ import {Resource} from '../../common/Resource';
 import {From, isFromPlayer} from '../logs/From';
 import {BaseStock} from './StockBase';
 import {IPlayer} from '../IPlayer';
+import {AutomaTargeting} from '../automa/AutomaTargeting';
 
 export class Production extends BaseStock {
   constructor(player: IPlayer) {
@@ -13,6 +14,13 @@ export class Production extends BaseStock {
     amount : number,
     options? : { log: boolean, from? : From, stealing?: boolean},
   ) {
+    // MarsBot has no production: a production DECREASE regresses the mapped
+    // track instead (rulebook pp.4–5), leaving the no-reactivation marker.
+    // No in-scope effect ever increases the bot's production.
+    if (this.player.isMarsBot && amount < 0) {
+      AutomaTargeting.regressForProduction(this.player.game, resource, -amount);
+      return;
+    }
     const adj = resource === Resource.MEGACREDITS ? -5 : 0;
     const delta = (amount >= 0) ? amount : Math.max(amount, -(this[resource] - adj));
     this[resource] += delta;

@@ -2,7 +2,7 @@ import {Tag} from '../../common/cards/Tag';
 import {IAward} from '../awards/IAward';
 import {IMilestone} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 function trackPosition(game: IGame, index: number): number {

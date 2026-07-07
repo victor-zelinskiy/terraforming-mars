@@ -8,6 +8,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
+import {AutomaTargeting} from '../automa/AutomaTargeting';
 
 export class StealResources extends DeferredAction {
   constructor(
@@ -27,7 +28,8 @@ export class StealResources extends DeferredAction {
     mandatory: boolean = false): Array<IPlayer> {
     return player.opponents.filter((p) => {
       const minimum = mandatory ? count : 1;
-      const amt = p.stock.get(resource);
+      // MarsBot's stealable stock = the matching storage area + its M€-supply proxy.
+      const amt = AutomaTargeting.attackableStock(p, resource);
       if (amt < minimum) {
         return false;
       }
@@ -74,7 +76,8 @@ export class StealResources extends DeferredAction {
     }
 
     const stealOptions = candidates.map((target) => {
-      let qtyToSteal = Math.min(target.stock.get(this.resource), this.count);
+      const stealable = AutomaTargeting.attackableStock(target, this.resource);
+      let qtyToSteal = Math.min(stealable, this.count);
 
       // Botanical Experience hook.
       if (this.resource === Resource.PLANTS && target.tableau.has(CardName.BOTANICAL_EXPERIENCE)) {
@@ -84,7 +87,7 @@ export class StealResources extends DeferredAction {
       return new SelectOption(
         message('Steal ${0} ${1} from ${2}', (b) => b.number(qtyToSteal).string(this.resource).player(target)),
         'Steal')
-        .withMetadata(stealResourceFromPlayer(target, this.resource, qtyToSteal, target.stock.get(this.resource)))
+        .withMetadata(stealResourceFromPlayer(target, this.resource, qtyToSteal, stealable))
         .andThen(() => {
           target.attack(this.player, this.resource, qtyToSteal, {log: true, stealing: true});
           return undefined;
@@ -108,7 +111,7 @@ export class StealResources extends DeferredAction {
         let reason: string;
         if (protectedResource) {
           reason = 'Resources are protected';
-        } else if (p.stock.get(this.resource) === 0) {
+        } else if (AutomaTargeting.attackableStock(p, this.resource) === 0) {
           reason = 'Nothing to steal';
         } else {
           reason = 'Not enough to steal';

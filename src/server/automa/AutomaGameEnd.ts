@@ -1,6 +1,6 @@
 import {IGame} from '../IGame';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 
 /**
  * MarsBot's game-end behavior (rulebook p.10).

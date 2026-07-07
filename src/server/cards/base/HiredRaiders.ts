@@ -1,5 +1,6 @@
 import {Card} from '../Card';
 import {IPlayer} from '../../IPlayer';
+import {AutomaTargeting} from '../../automa/AutomaTargeting';
 import {IProjectCard} from '../IProjectCard';
 import {CardType} from '../../../common/cards/CardType';
 import {OrOptions} from '../../inputs/OrOptions';
@@ -65,12 +66,14 @@ export class HiredRaiders extends Card implements IProjectCard {
     const availableActions = new OrOptions();
 
     player.opponents.forEach((target) => {
-      if (target.steel > 0 && !target.alloysAreProtected()) {
-        const amountStolen = Math.min(2, target.steel);
+      // MarsBot's stealable steel = the Ceres storage + its M€-supply proxy.
+      const steel = AutomaTargeting.attackableStock(target, Resource.STEEL);
+      if (steel > 0 && !target.alloysAreProtected()) {
+        const amountStolen = Math.min(2, steel);
         const optionTitle = message('Steal ${0} steel from ${1}', (b) => b.number(amountStolen).player(target).getMessage());
 
         availableActions.options.push(new SelectOption(optionTitle, 'Steal')
-          .withMetadata(stealResourceFromPlayer(target, Resource.STEEL, amountStolen, target.steel))
+          .withMetadata(stealResourceFromPlayer(target, Resource.STEEL, amountStolen, steel))
           .andThen(() => {
             target.attack(player, Resource.STEEL, 2, {stealing: true, log: true});
             return undefined;

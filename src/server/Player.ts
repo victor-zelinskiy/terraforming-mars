@@ -60,6 +60,7 @@ import {getBehaviorExecutor} from './behavior/BehaviorExecutor';
 import {CeoExtension} from './CeoExtension';
 import {ICeoCard, isCeoCard} from './cards/ceos/ICeoCard';
 import {message} from './logs/MessageBuilder';
+import {AutomaTargeting} from './automa/AutomaTargeting';
 import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {fromToEventSource} from './events/fromToEventSource';
@@ -484,6 +485,11 @@ export class Player implements IPlayer {
   }
 
   public canHaveProductionReduced(resource: Resource, minQuantity: number, attacker: IPlayer) {
+    // MarsBot's "production" is the mapped track position — reducible while the
+    // tracker can regress that far (a track at 0 is not a valid target).
+    if (this.isMarsBot) {
+      return AutomaTargeting.botCanHaveProductionReduced(this.game, resource, minQuantity);
+    }
     const reducable = this.production[resource] + (resource === Resource.MEGACREDITS ? 5 : 0);
     if (reducable < minQuantity) {
       return false;
@@ -512,6 +518,13 @@ export class Player implements IPlayer {
     }
     if (count < 0) {
       throw new Error('Unexpected attack count is less than 0 ' + count);
+    }
+    // Remove/steal against MarsBot hits its M€ supply as the matching resource
+    // type (rulebook p.4) — Colonies storage resources of the real type first
+    // (Adding Expansions p.5). One guard covers every stock attack.
+    if (this.isMarsBot) {
+      AutomaTargeting.removeFromBot(this, perpetrator, resource, count, options);
+      return;
     }
     const msg = message('Lose ${0} ${1}', (b) => b.number(count).string(resource));
     this.maybeBlockAttack(perpetrator, msg, (proceed) => {

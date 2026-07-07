@@ -1,5 +1,6 @@
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
+import {Resource} from '../../../common/Resource';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
@@ -50,6 +51,11 @@ export class SponsoredAcademies extends Card implements IProjectCard {
     player.game.defer(new DiscardCards(player), Priority.SPONSORED_ACADEMIES).andThen(() => {});
     player.game.defer(DrawCards.keepAll(player, 3), Priority.SPONSORED_ACADEMIES);
     for (const p of player.opponents) {
+      // Automa FAQ (rulebook p.11): "MarsBot gains 1 M€ instead of the free card draw."
+      if (p.isMarsBot) {
+        p.stock.add(Resource.MEGACREDITS, 1, {log: true});
+        continue;
+      }
       player.game.defer(DrawCards.keepAll(p));
     }
     return undefined;

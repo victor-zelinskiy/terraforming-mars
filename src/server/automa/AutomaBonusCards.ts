@@ -19,7 +19,7 @@ import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
-import {marsBotOf} from './AutomaSetup';
+import {marsBotOf} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /** Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay in their holding pool. */
