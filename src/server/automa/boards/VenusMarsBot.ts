@@ -18,11 +18,9 @@ import {TrackDefinition} from '../../../common/automa/AutomaTypes';
  * 6 empty, 7 floater×2, 8 venus, 9 advance-Bio-track (circular tag icon), 10 venus,
  * 11 floater×2, 12 gain 5 TR.
  *
- * TODO(component-photo): position 9 shows a circular "advance another track" tag icon that
- * reads as MICROBE (green, single blob) → advance the Bio track. Verify against a physical
- * photo of the Venus Next MarsBot board (the alternative reading is a Jovian icon → Energy
- * track). Encoded as `tag_${VENUS_CELL9_TARGET_TRACK}` below; flip the constant if the photo
- * disagrees. Everything else on this track is unambiguous.
+ * Position 9 is a MICROBE tag icon → advance the Bio track — VERIFIED against the
+ * physical Venus Next MarsBot board by the owner (2026-07-07); the alternative
+ * Jovian/Energy reading is ruled out. Encoded as `tag_${VENUS_CELL9_TARGET_TRACK}` below.
  */
 
 /** Track index (on THARSIS_MARSBOT_BOARD) that the circular tag icon on position 9 advances. */
@@ -45,7 +43,7 @@ export const VENUS_TRACK: TrackDefinition = {
     undefined, // 6
     'floater2', // 7
     'venus', // 8
-    `tag_${VENUS_CELL9_TARGET_TRACK}`, // 9 — advance Bio track (see TODO above)
+    `tag_${VENUS_CELL9_TARGET_TRACK}`, // 9 — microbe tag: advance the Bio track (verified vs the component)
     'venus', // 10
     'floater2', // 11
     'tr5', // 12 — end of track
