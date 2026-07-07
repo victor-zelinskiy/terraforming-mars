@@ -65,7 +65,8 @@ export class RematchManager {
   /**
    * A player proposes (or re-proposes) a rematch. Resets any prior offer, seeds
    * every player to `pending` except the offerer (`accepted`). A solo game has
-   * no other players, so this immediately creates the new game.
+   * no other players, so this immediately creates the new game. MarsBot never
+   * votes — it always "accepts" (an automa game creates immediately, like solo).
    */
   public async offer(game: IGame, color: Color, loader: IGameLoader): Promise<void> {
     const e = this.entry(game.id);
@@ -78,6 +79,9 @@ export class RematchManager {
     e.newGame = undefined;
     e.votes = new Map();
     for (const player of game.players) {
+      if (player.isMarsBot) {
+        continue;
+      }
       e.votes.set(player.color, player.color === color ? 'accepted' : 'pending');
     }
     await this.maybeCreate(game, e, loader);
@@ -150,11 +154,14 @@ export class RematchManager {
       }
     }
 
-    const votes: ReadonlyArray<RematchVoteModel> = game.players.map((p) => ({
-      color: p.color,
-      name: p.name,
-      status: e.votes.get(p.color) ?? 'pending',
-    }));
+    // MarsBot is not a voter — the tally lists only the human seats.
+    const votes: ReadonlyArray<RematchVoteModel> = game.players
+      .filter((p) => !p.isMarsBot)
+      .map((p) => ({
+        color: p.color,
+        name: p.name,
+        status: e.votes.get(p.color) ?? 'pending',
+      }));
 
     const viewerMustVote = e.status === 'offered' &&
       viewerColor !== undefined &&
@@ -202,16 +209,22 @@ export class RematchManager {
 async function createRematchGame(game: IGame, loader: IGameLoader): Promise<IGame> {
   const newGameId = safeCast(generateRandomId('g'), isGameId);
   const spectatorId = safeCast(generateRandomId('s'), isSpectatorId);
-  const players = game.players.map((p) => new Player(
-    p.name,
-    p.color,
-    p.beginner,
-    p.handicap,
-    safeCast(generateRandomId('p'), isPlayerId),
-  ));
+  // The MarsBot seat is never COPIED — `Game.newInstance` seats a fresh bot
+  // itself when `gameOptions.automa` is set (copying it as an ordinary Player
+  // would drop the isMarsBot flag and trip the exactly-one-bot guard).
+  const players = game.players
+    .filter((p) => !p.isMarsBot)
+    .map((p) => new Player(
+      p.name,
+      p.color,
+      p.beginner,
+      p.handicap,
+      safeCast(generateRandomId('p'), isPlayerId),
+    ));
   // "Random first player" re-randomizes on the rematch (the create form resolves
   // it client-side, so the finished game only records the INTENT); an explicit
-  // first player is kept by colour.
+  // first player is kept by colour. (In an automa game the human is always the
+  // starting player — the bot is filtered out above, so both branches hold.)
   const firstPlayer = game.gameOptions.randomFirstPlayer === true ?
     players[Math.floor(Math.random() * players.length)] :
     (players.find((p) => p.color === game.first.color) ?? players[0]);

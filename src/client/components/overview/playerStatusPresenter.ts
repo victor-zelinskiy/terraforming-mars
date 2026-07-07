@@ -125,6 +125,14 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
     textKey: 'Player status delegate pick',
     showCounter: false,
   },
+  // MarsBot's turn as the theater replays it — the same premium active look
+  // as a human's turn (cyan dot + glow); no 1/2 counter (one card per turn).
+  'bottheater': {
+    category: 'active',
+    glyph: 'dot',
+    textKey: 'Player status bot turn',
+    showCounter: false,
+  },
   // ─── intermediate ────────────────────────────────────────────────
   'next': {
     category: 'next',

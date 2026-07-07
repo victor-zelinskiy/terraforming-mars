@@ -86,6 +86,7 @@
   "No cards played yet": "Карты ещё не разыграны",
   "The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again": "Куб отмечает текущую позицию; ✕ — клетки отступления, действие которых больше не сработает",
 
+  "Player status bot turn": "ХОДИТ",
   "MarsBot is taking its turn": "MarsBot делает ход",
   "is thinking": "думает",
   "is taking its turn": "делает ход",

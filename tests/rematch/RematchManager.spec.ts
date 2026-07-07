@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
+import {testAutomaGame} from '../automa/AutomaTestGame';
 import {RematchManager} from '../../src/server/rematch/RematchManager';
 import {IGame} from '../../src/server/IGame';
 import {IGameLoader} from '../../src/server/database/IGameLoader';
@@ -242,5 +243,35 @@ describe('RematchManager', () => {
 
     expect(added).to.have.length(1);
     expect(manager.getModel(game, p1.id).status).to.eq('created');
+  });
+
+  it('an automa rematch creates immediately — MarsBot never votes', async () => {
+    const [game, human, bot] = testAutomaGame({difficulty: 'hard'});
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, human.color, loader);
+
+    // The lone human is the only voter, so the offer resolves like solo.
+    expect(added).to.have.length(1);
+    const model = manager.getModel(game, human.id);
+    expect(model.status).to.eq('created');
+    expect(model.votes).to.have.length(1);
+    expect(model.votes[0].color).to.eq(human.color);
+    expect(model.joinKind).to.eq('player');
+
+    // The new game seats a FRESH MarsBot (never a copied ordinary Player).
+    const rematch = added[0];
+    expect(rematch.players).to.have.length(2);
+    const newBot = rematch.players.find((p) => p.isMarsBot);
+    expect(newBot, 'the rematch must seat a MarsBot').to.not.eq(undefined);
+    expect(newBot?.name).to.eq('MarsBot');
+    expect(newBot?.id).to.not.eq(bot.id);
+    expect(rematch.gameOptions.automa?.difficulty).to.eq('hard');
+    expect(rematch.automa).to.not.eq(undefined);
+    // The human starts (the automa guard requires it) and keeps their join slot.
+    expect(rematch.first.isMarsBot).to.not.eq(true);
+    const joinSlot = rematch.players.find((p) => p.color === human.color);
+    expect(model.joinId).to.eq(joinSlot?.id);
   });
 });

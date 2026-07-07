@@ -34,6 +34,12 @@ export type ActionLabel =
   | 'globalsupport'    // World Government Terraforming — picking which global
                        // parameter to bump as the "world government" (SOLAR phase).
   | 'delegate'         // Turmoil delegate placement / party choice prompt.
+  | 'bottheater'       // MarsBot's already-resolved turn is being replayed by
+                       // the client turn theater. The server never waits on the
+                       // bot (its turn resolves synchronously), so this is the
+                       // ONLY "active" window the other participants ever see
+                       // for it — presented exactly like a human's turn (active
+                       // category, pulsing dot), just without the 1/2 counter.
   | 'passed'           // Player has passed this generation; server is not
                        // waiting on them (Philares-style exceptions land in one
                        // of the active states because `isWaiting` is checked

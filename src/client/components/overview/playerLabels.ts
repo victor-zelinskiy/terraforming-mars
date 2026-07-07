@@ -2,6 +2,7 @@ import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {ActionLabel} from './ActionLabel';
+import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
 
 const SHOW_NEXT_LABEL_MIN = 2;
 
@@ -38,6 +39,22 @@ export function actionLabelForPlayer(
   livePlayersWaitingFor?: ReadonlyArray<Color>,
 ): ActionLabel {
   const game = playerView.game;
+
+  // MarsBot's turn resolves synchronously on the server, so the model never
+  // shows it as active — the CLIENT theater window IS its turn as far as the
+  // humans at the table are concerned. While the theater replays the bot's
+  // turn, its status chip reads as a regular active turn (same category /
+  // glyph as a human's), keeping the participant rail in sync with the
+  // narration. Checked FIRST: the held view underneath still shows the
+  // pre-turn state, where the bot would otherwise read as idle/passed.
+  // (This is the ONE label decided by client presentation state — both the
+  // desktop rail and the console status strip route through here, so the two
+  // modes can't diverge.)
+  if (player.isMarsBot === true &&
+      marsBotTheaterState.active &&
+      marsBotTheaterState.botColor === player.color) {
+    return 'bottheater';
+  }
 
   // Источник истины — `waitingFor` сервера: если сервер чего-то ждёт от
   // игрока, статус ОБЯЗАН показать это, даже если игрок уже спасовал
