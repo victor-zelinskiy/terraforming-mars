@@ -39,10 +39,16 @@
            command bar's own suppression in ConsoleShell). -->
       <footer class="con-bot-theater__foot">
         <span v-if="state.lingering" class="con-bot-theater__foot-note" v-i18n>The board is updated — close when you are done reading</span>
-        <span v-if="!state.lingering || !consoleState.fallbackActive" class="con-bot-theater__hint" :class="{'con-bot-theater__hint--close': state.lingering}">
-          <GamepadGlyph :control="state.lingering ? 'back' : 'confirm'" />
-          <span v-i18n>{{ state.lingering ? 'Close' : 'Skip' }}</span>
-        </span>
+        <template v-if="!state.lingering || !consoleState.fallbackActive">
+          <span v-if="inspectable" class="con-bot-theater__hint">
+            <GamepadGlyph control="secondary" />
+            <span v-i18n>Inspect</span>
+          </span>
+          <span class="con-bot-theater__hint" :class="{'con-bot-theater__hint--close': state.lingering}">
+            <GamepadGlyph :control="state.lingering ? 'back' : 'confirm'" />
+            <span v-i18n>{{ state.lingering ? 'Close' : 'Skip' }}</span>
+          </span>
+        </template>
       </footer>
     </div>
   </div>
@@ -62,7 +68,7 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {consoleState} from '@/client/console/consoleRouter';
 import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
-import {TheaterStep} from '@/client/components/marsbot/marsBotTheaterModel';
+import {TheaterStep, theaterCardNames} from '@/client/components/marsbot/marsBotTheaterModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import MarsBotTheaterStep from '@/client/components/marsbot/MarsBotTheaterStep.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -109,6 +115,10 @@ export default defineComponent({
     },
     botDisplayName(): string {
       return participantDisplayName({name: this.state.botName, isMarsBot: true});
+    },
+    /** The narration has shown a project card → the X = Inspect hint is honest. */
+    inspectable(): boolean {
+      return theaterCardNames(this.state.steps, this.state.currentIndex).length > 0;
     },
     progressText(): string {
       // The thinking beat is presentation, not a game step — exclude it.

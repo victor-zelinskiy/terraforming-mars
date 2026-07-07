@@ -482,12 +482,20 @@
     &:hover { color: #eafff7; box-shadow: inset 0 0 0 1px fade(@mb-accent, 55%); }
     &:focus-visible { outline: none; box-shadow: inset 0 0 0 1px fade(@mb-accent, 75%), 0 0 0 2px fade(@mb-accent, 30%); }
 }
+/* Scrollable feed: `justify-content: flex-end` + overflow made the overflowed
+   TOP unreachable (flex-end puts it before the scroll origin) — the newest
+   step is kept visible by the auto-scroll watcher instead, and the wheel /
+   right stick can go back up. */
 .mb-theater__steps {
     display: flex; flex-direction: column; gap: 6px;
     padding: 11px 13px 13px;
-    max-height: min(46vh, 430px);
-    overflow: hidden; /* the pacing keeps the tail visible; no scrollbar chrome */
-    justify-content: flex-end;
+    max-height: min(58vh, 560px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: fade(@mb-accent, 35%) transparent;
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-thumb { background: fade(@mb-accent, 30%); border-radius: 3px; }
+    &::-webkit-scrollbar-track { background: transparent; }
 }
 .mb-theater__step {
     border-radius: 7px;
@@ -540,11 +548,7 @@
 .mb-step__icon--pass { color: @mb-text-dim; box-shadow: inset 0 0 0 1px fade(@mb-accent, 30%); }
 .mb-step__icon--failed { color: #1a0e08; background: rgb(235, 130, 90); box-shadow: 0 0 8px rgba(235, 130, 90, 0.5); }
 .mb-step__verb { font-family: Prototype, Orbitron, sans-serif; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: @mb-text-dim; }
-.mb-step__row--reveal { align-items: flex-start; }
-.mb-step__cardwrap {
-    display: block;
-    > .card-container { margin: 0; zoom: 0.55; }
-}
+.mb-step__row--reveal { align-items: flex-start; } /* the bonus FACE is tall — verb stays at its top */
 .mb-step__bonus {
     flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px;
     b { font-family: Prototype, Orbitron, sans-serif; font-size: 12.5px; letter-spacing: 0.6px; color: @mb-text; }
@@ -586,7 +590,18 @@
     background: rgba(140, 92, 50, 0.55);
     box-shadow: inset 0 0 0 1px rgba(200, 150, 100, 0.55);
 }
-.mb-imp__icon { display: inline-block; transform: scale(0.8); transform-origin: center; }
+/* The base .resource_icon is a 36×36 box with `background-size: contain` and
+   NO no-repeat — inside this 20px flex frame the box got flex-shrunk to
+   20×36 and the contained 20×20 sprite TILED vertically (the "two coins"
+   bug). Own explicit sizing per the codebase convention. */
+.mb-imp__icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
 .mb-imp__values { display: inline-flex; align-items: baseline; gap: 4px; }
 .mb-imp__before { color: @mb-text-dim; }
 .mb-imp__arrow { color: fade(@mb-accent, 75%); font-size: 11px; }
@@ -671,6 +686,10 @@
 }
 .con-bot-theater__band {
     width: min(880px, calc(100vw - 96px));
+    /* Grow with the content up to (almost) the free band between the top HUD
+       (~60px) and the command bar (84px) — a long turn uses the height
+       instead of clipping. */
+    max-height: calc(100vh - 172px);
     display: flex;
     flex-direction: column;
     border-radius: 12px;
@@ -697,13 +716,17 @@
 }
 .con-bot-theater__sub { flex: 1 1 auto; font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: @mb-text-dim; }
 .con-bot-theater__progress { font-size: 15px; color: fade(@mb-accent, 90%); }
+/* Same scroll fix as .mb-theater__steps: no flex-end (it hides the overflowed
+   top from scrolling), right-stick scrollable, no scrollbar chrome (console
+   convention). Height comes from the band's max-height via flex. */
 .con-bot-theater__steps {
+    flex: 1 1 auto; min-height: 0;
     display: flex; flex-direction: column; gap: 8px;
     padding: 14px 18px 16px;
-    max-height: 34vh;
-    overflow: hidden;
-    justify-content: flex-end;
+    overflow-y: auto;
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
 }
 .con-bot-theater__step {
     border-radius: 9px;
@@ -716,12 +739,11 @@
     .mb-step__row--done { font-size: 14px; }
     .mb-step__verb { font-size: 12.5px; }
     .mb-step__pos { font-size: 17px; }
-    .mb-step__cardwrap > .card-container { zoom: 0.7; }
     .mb-step__icon { width: 22px; height: 22px; font-size: 14px; }
     .mb-imp__name { font-size: 14.5px; }
     .mb-imp__chip { font-size: 15px; padding: 4px 10px 4px 6px; }
     .mb-imp__icon-frame { width: 24px; height: 22px; }
-    .mb-imp__icon { transform: scale(1); }
+    .mb-imp__icon { width: 20px; height: 20px; }
     .mb-imp__dot { width: 12px; height: 12px; }
     .mb-atk__label { font-size: 12px; padding: 4px 10px; }
     .mb-atk__note { font-size: 12.5px; }

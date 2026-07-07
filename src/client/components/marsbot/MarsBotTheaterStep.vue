@@ -11,11 +11,23 @@
     <span v-i18n>The action deck is empty — MarsBot passes</span>
   </div>
 
-  <!-- Reveal: a project card face or a bonus card summary -->
+  <!-- Reveal: a COMPACT card chip (hover preview / click fullscreen on
+       desktop, X = Inspect on console) or the bonus card summary face.
+       A full card render dominated the whole narration — the chip is the
+       journal's own language for "a card". -->
   <div v-else-if="step.kind === 'reveal'" class="mb-step__row mb-step__row--reveal">
     <template v-if="step.card.kind === 'project'">
-      <span class="mb-step__verb" v-i18n>Revealed</span>
-      <span class="mb-step__cardwrap"><Card :card="{name: step.card.name}" :key="step.card.name" lightweight /></span>
+      <template v-if="step.message !== undefined">
+        <span class="mb-step__tokens">
+          <template v-for="(token, i) in tokensOf(step.message)" :key="i">
+            <JournalTokenRenderer :token="token" :players="players" />
+          </template>
+        </span>
+      </template>
+      <template v-else>
+        <span class="mb-step__verb" v-i18n>Revealed</span>
+        <JournalCardChip :name="step.card.name" />
+      </template>
     </template>
     <template v-else>
       <span class="mb-step__verb" v-i18n>Revealed a bonus card</span>
@@ -139,12 +151,12 @@ import {trackActionLabel} from './marsBotView';
 import {TheaterStep} from './marsBotTheaterModel';
 import BonusCardFace from './BonusCardFace.vue';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
+import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import Tag from '@/client/components/Tag.vue';
-import Card from '@/client/components/card/Card.vue';
 
 export default defineComponent({
   name: 'MarsBotTheaterStep',
-  components: {BonusCardFace, JournalTokenRenderer, Tag, Card},
+  components: {BonusCardFace, JournalTokenRenderer, JournalCardChip, Tag},
   props: {
     step: {type: Object as PropType<TheaterStep>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
@@ -158,7 +170,13 @@ export default defineComponent({
       if (message === undefined) {
         return [];
       }
-      return Log.parse(message);
+      // Translate the TEMPLATE before parsing (exactly like JournalEntry) —
+      // the tokens stay chips, only the string segments get localized.
+      const e = {
+        message: this.$t(message.message),
+        data: message.data,
+      };
+      return Log.parse(e);
     },
     actionText(action: TrackAction): string {
       const label = trackActionLabel(action);

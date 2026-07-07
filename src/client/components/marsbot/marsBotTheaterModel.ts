@@ -15,6 +15,7 @@ import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessage} from '@/common/logs/LogMessage';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {BonusCardId, TrackAction} from '@/common/automa/AutomaTypes';
 import {FailedActionReason, MarsBotAttack, MarsBotImpact, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
 import {ViewModel} from '@/common/models/PlayerModel';
@@ -41,7 +42,7 @@ export const REDUCED_STEP_MS = 420;
 export type TheaterStep =
   | {kind: 'thinking', durationMs: number}
   | {kind: 'pass', durationMs: number, message?: LogMessage}
-  | {kind: 'reveal', durationMs: number, card: {kind: 'project', name: CardName} | {kind: 'bonus', id: BonusCardId}}
+  | {kind: 'reveal', durationMs: number, card: {kind: 'project', name: CardName} | {kind: 'bonus', id: BonusCardId}, message?: LogMessage}
   | {kind: 'tag', durationMs: number, tag: Tag, targetTag?: Tag, ignored: boolean}
   | {kind: 'advance', durationMs: number, trackTag?: Tag, from: number, to: number, action?: TrackAction}
   | {kind: 'failed', durationMs: number, reason: FailedActionReason, mc: number, message?: LogMessage}
@@ -73,7 +74,10 @@ function baseStep(view: ViewModel, step: MarsBotTurnStep): TheaterStep {
   case 'pass':
     return {kind: 'pass', durationMs: PASS_MS, message: step.message};
   case 'reveal':
-    return {kind: 'reveal', durationMs: REVEAL_MS, card: step.card};
+    // The server's own reveal log line ("${0} revealed ${1}" with the CARD
+    // token) IS the compact presentation — the theater renders it as a chip
+    // row instead of a full card render.
+    return {kind: 'reveal', durationMs: REVEAL_MS, card: step.card, message: step.message};
   case 'tag':
     return {
       kind: 'tag',
@@ -127,4 +131,31 @@ export function buildTheaterSteps(turn: MarsBotTurn, view: ViewModel, reducedMot
 /** Total scripted duration (base ms, before the motion-speed preset). */
 export function theaterTotalMs(steps: ReadonlyArray<TheaterStep>): number {
   return steps.reduce((sum, s) => sum + s.durationMs, 0);
+}
+
+/**
+ * Every PROJECT card the narration has shown up to `upTo` (inclusive):
+ * reveal steps + CARD tokens riding any step's log line (an R&D draw-and-
+ * resolve reveals a second card as a log line). Ordered, deduped — feeds the
+ * console "X = Inspect" fullscreen browser.
+ */
+export function theaterCardNames(steps: ReadonlyArray<TheaterStep>, upTo: number): Array<CardName> {
+  const out: Array<CardName> = [];
+  const push = (name: CardName) => {
+    if (!out.includes(name)) {
+      out.push(name);
+    }
+  };
+  for (const step of steps.slice(0, upTo + 1)) {
+    if (step.kind === 'reveal' && step.card.kind === 'project') {
+      push(step.card.name);
+    }
+    const message = 'message' in step ? step.message : undefined;
+    for (const d of message?.data ?? []) {
+      if (d.type === LogMessageDataType.CARD) {
+        push(d.value as CardName);
+      }
+    }
+  }
+  return out;
 }

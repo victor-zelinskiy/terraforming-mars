@@ -13,9 +13,13 @@ import {
   THINKING_MS,
   buildTheaterSteps,
   marsBotOfView,
+  theaterCardNames,
   theaterTotalMs,
   turnDedupeKey,
 } from '@/client/components/marsbot/marsBotTheaterModel';
+import {LogMessage} from '@/common/logs/LogMessage';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
+import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {
   detectMarsBotTurn,
   dismissMarsBotTheater,
@@ -97,6 +101,26 @@ describe('marsBotTheaterModel', () => {
       expect(attack.attack.target).eq('blue');
       expect(attack.attack.outcome).eq('nothing-to-lose');
     }
+  });
+
+  it('collects the shown project cards (reveal steps + CARD log tokens), ordered + deduped', () => {
+    const log = {
+      message: '${0} revealed ${1}',
+      data: [
+        {type: LogMessageDataType.PLAYER, value: 'red'},
+        {type: LogMessageDataType.CARD, value: CardName.BIRDS},
+      ],
+    } as unknown as LogMessage;
+    const turn = turnOf([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'log', message: log},
+      {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}},
+    ]);
+    const steps = buildTheaterSteps(turn, view(turn), false);
+    // Steps: [thinking, reveal, log, bonus-reveal].
+    expect(theaterCardNames(steps, 1)).deep.eq([CardName.GENE_REPAIR]);
+    expect(theaterCardNames(steps, steps.length - 1)).deep.eq([CardName.GENE_REPAIR, CardName.BIRDS]);
+    expect(theaterCardNames(steps, 0)).deep.eq([]);
   });
 
   it('marks an unused-expansion tag as ignored', () => {
