@@ -14,6 +14,7 @@ import {ICard} from '../cards/ICard';
 import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
+import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
@@ -133,13 +134,11 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
   case BonusCardId.B07_LOCAL_NEURAL_INSTANCE: return localNeuralInstance(game);
   case BonusCardId.B08_CORPORATE_COMPETITION: return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);
-  case BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES:
-  case BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD:
+  case BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES: return expeditedConstructionColonies(game);
+  case BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD: return outerSystemFoothold(game);
   case BonusCardId.B19_SHIPPING_LINES:
   case BonusCardId.B20_EXTENDED_SHIPPING_LINES:
-    // These need the MarsBot colony/trade machinery (shipping storage grants,
-    // colony placement, trading) — the whole of Automa Phase 6.
-    throw new Error(`MarsBot bonus card ${id} is not implemented yet (Automa Phase 6)`);
+    return shippingLines(game);
   default:
     throw new Error(`MarsBot bonus card ${id} is out of the POC scope`);
   }
@@ -231,17 +230,69 @@ function overachievement(game: IGame): BonusCardOutcome {
  * tiebreakers). Placed → destroy; no legal spot → nothing (discard).
  */
 function expeditedConstruction(game: IGame): BonusCardOutcome {
+  return tryCitySurroundedByTwo(game) ? 'destroy' : 'discard';
+}
+
+/** The shared "city adjacent to 2+ greenery/ocean tiles" placement of B05/B17. */
+function tryCitySurroundedByTwo(game: IGame): boolean {
   const bot = marsBotOf(game);
   const surrounded = (space: Space): number =>
     game.board.getAdjacentSpaces(space).filter((adj) => Board.isGreenerySpace(adj) || Board.isOceanSpace(adj)).length;
   const candidates = game.board.getAvailableSpacesForCity(bot).filter((space) => surrounded(space) >= 2);
   if (candidates.length === 0) {
-    return 'discard';
+    return false;
   }
   const most = Math.max(...candidates.map(surrounded));
   const space = AutomaTilePlacer.breakTie(game, candidates.filter((s) => surrounded(s) === most));
   game.addCity(bot, space);
-  return 'destroy';
+  return true;
+}
+
+/**
+ * B17 Expedited Construction (Colonies, Adding Expansions p.4) — the first
+ * possible effect only:
+ *  a. the B05 city (adjacent to 2+ greenery/ocean) → destroy;
+ *  b. with 1 or 0 colonies in play, place one on a random eligible tile (the
+ *     flip method) + 2 resources into its storage area — does NOT destroy;
+ *  c. otherwise, no effect.
+ */
+function expeditedConstructionColonies(game: IGame): BonusCardOutcome {
+  if (tryCitySurroundedByTwo(game)) {
+    return 'destroy';
+  }
+  if (AutomaColonies.botColonyCount(game) <= 1 && AutomaColonies.botBuildColony(game)) {
+    return 'discard';
+  }
+  return 'discard';
+}
+
+/**
+ * B18 Outer System Foothold (Adding Expansions p.5): place a colony on a
+ * random eligible tile (+2 storage resources), then draw a card from the
+ * BONUS deck (reshuffling the discard if necessary — never this card itself,
+ * which is still in hand) and discard it without resolving it.
+ */
+function outerSystemFoothold(game: IGame): BonusCardOutcome {
+  const automa = game.automa;
+  if (automa === undefined) {
+    throw new Error('Not an automa game');
+  }
+  if (!AutomaColonies.botBuildColony(game)) {
+    return 'discard'; // No eligible tile: the primary effect is impossible — nothing happens.
+  }
+  AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
+  const thinned = automa.bonusDeck.shift();
+  if (thinned !== undefined) {
+    automa.bonusDiscard.push(thinned);
+    game.log('${0} discarded a bonus card without resolving it', (b) => b.player(marsBotOf(game)));
+  }
+  return 'discard';
+}
+
+/** B19 Shipping Lines / B20 Extended Shipping Lines: MarsBot trades (Adding Expansions p.5). */
+function shippingLines(game: IGame): BonusCardOutcome {
+  AutomaColonies.botTrade(game); // Impossible (all visited / no M€) → nothing; never a Failed Action.
+  return 'discard';
 }
 
 /**

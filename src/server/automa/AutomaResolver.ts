@@ -83,6 +83,14 @@ export class AutomaResolver {
       failedAction(game, 'track-maxed');
       return;
     }
+    // Colonies (Adding Expansions p.6): reaching the 9th space of the Energy
+    // track unlocks the 2nd trade fleet — in ADDITION to the space's effect.
+    // Inline (no AutomaColonies import) to keep the module graph acyclic.
+    if (game.gameOptions.coloniesExtension && !automa.secondFleetUnlocked &&
+        trackIndex === 4 /* Energy */ && track.position === 9) {
+      automa.secondFleetUnlocked = true;
+      game.log('${0} unlocked its second trade fleet', (b) => b.player(marsBotOf(game)));
+    }
     if (result.type === 'action') {
       AutomaResolver.performTrackAction(game, result.action, trackIndex, depth);
     }

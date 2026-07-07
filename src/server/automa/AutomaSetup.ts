@@ -9,6 +9,7 @@ import {GameOptions} from '../game/GameOptions';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {Player} from '../Player';
+import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 
 /** The one MarsBot player of an automa game. Throws when called on an ordinary game. */
@@ -170,6 +171,12 @@ export class AutomaSetup {
       throw new Error('Not an automa game');
     }
     const state = AutomaState.newInstance(options.automa.difficulty, options);
+
+    if (options.coloniesExtension) {
+      // Every colony tile starts active with its tracker on the highlighted
+      // second step (Adding Expansions p.4).
+      AutomaColonies.setupColonies(game);
+    }
 
     state.bonusDeck = AutomaSetup.bonusDeckContents(options);
     inplaceShuffle(state.bonusDeck, game.rng);

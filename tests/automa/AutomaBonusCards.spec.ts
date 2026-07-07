@@ -326,10 +326,4 @@ describe('Automa bonus cards', () => {
       expect(game.getVenusScaleLevel()).eq(0);
     });
   });
-
-  it('B17–B20 stay a loud Phase 6 boundary', () => {
-    const [game] = testAutomaGame({coloniesExtension: true});
-    expect(() => resolveBonusCard(game, BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES)).to.throw(/Automa Phase 6/);
-    expect(() => resolveBonusCard(game, BonusCardId.B19_SHIPPING_LINES)).to.throw(/Automa Phase 6/);
-  });
 });
