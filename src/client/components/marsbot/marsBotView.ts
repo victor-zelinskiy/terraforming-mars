@@ -94,7 +94,10 @@ export function trackCells(track: MarsBotTrackModel): Array<TrackCell> {
   for (let i = 0; i <= track.maxPosition; i++) {
     cells.push({
       index: i,
-      action: track.layout[i],
+      // The layout's empty slots are authored as `undefined`, but JSON
+      // serialization ships them as `null` — normalize, or every "empty"
+      // cell reads as an action and the glyph resolver crashes the render.
+      action: track.layout[i] ?? undefined,
       current: track.position === i,
       regressed: track.regressed.includes(i),
     });

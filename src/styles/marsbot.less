@@ -251,26 +251,123 @@
 }
 .mb-board__storage-count { color: @mb-accent; }
 .mb-board__empty { font-size: 11px; color: @mb-text-dim; }
-.mb-board__bonuses { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
-.mb-bonus {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 9px 11px; border-radius: 7px;
-    background: rgba(10, 18, 16, 0.65);
-    box-shadow: inset 0 0 0 1px fade(@mb-accent, 20%);
-}
-.mb-bonus__name { font-size: 12px; letter-spacing: 0.6px; color: @mb-text; }
-.mb-bonus__text { font-family: Prototype, Ubuntu, sans-serif; font-size: 10.5px; line-height: 1.4; color: @mb-text-dim; }
-.mb-bonus--destroyed { opacity: 0.75; box-shadow: inset 0 0 0 1px rgba(235, 130, 90, 0.4); }
-.mb-bonus__destroyed-chip {
-    align-self: flex-start;
-    font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase;
-    padding: 2px 6px; border-radius: 3px;
-    color: #f6c9b4; background: rgba(235, 130, 90, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(235, 130, 90, 0.35);
-}
-.mb-bonus--revealed { box-shadow: inset 0 0 0 1.5px fade(@mb-accent, 70%), 0 0 14px fade(@mb-accent, 18%); }
+.mb-board__bonuses { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; align-items: start; }
 .mb-board__revealed { display: flex; align-items: flex-start; gap: 10px; }
+.mb-board__revealed .mb-face { flex: 1 1 320px; max-width: 460px; box-shadow: inset 0 0 0 1.5px fade(@mb-accent, 70%), 0 0 14px fade(@mb-accent, 18%); }
 .mb-board__revealed > .card-container { margin: 0; zoom: 0.62; }
+.mb-board__hint {
+    margin: -4px 0 2px;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10.5px; line-height: 1.4; color: @mb-text-dim; font-style: italic;
+}
+
+/* ── Bonus card FACE (shared: overlay / console detail / theater reveal) ──── */
+
+.mb-face {
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 10px 12px; border-radius: 8px;
+    background: linear-gradient(180deg, rgba(12, 22, 19, 0.85), rgba(7, 13, 11, 0.92));
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 24%), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    font-family: Prototype, Ubuntu, sans-serif;
+    color: @mb-text;
+}
+.mb-face__head { display: flex; align-items: center; gap: 8px; }
+.mb-face__name {
+    flex: 1 1 auto; min-width: 0;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 12.5px; letter-spacing: 0.8px; color: @mb-text;
+}
+.mb-face__fate {
+    .premium-tooltip(260px);
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 4px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase;
+}
+.mb-face__fate-glyph { font-size: 10px; }
+.mb-face__fate--discard { color: @mb-text-dim; background: rgba(120, 140, 135, 0.1); box-shadow: inset 0 0 0 1px rgba(120, 140, 135, 0.35); }
+.mb-face__fate--destroyOnSuccess,
+.mb-face__fate--conditional { color: #ffd9a8; background: rgba(240, 168, 80, 0.1); box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.4); }
+.mb-face__fate--alwaysDestroy { color: #f6b0a0; background: rgba(235, 110, 90, 0.12); box-shadow: inset 0 0 0 1px rgba(235, 110, 90, 0.45); }
+.mb-face__fate--recurring { color: @mb-accent; background: fade(@mb-accent, 9%); box-shadow: inset 0 0 0 1px fade(@mb-accent, 38%); }
+.mb-face__lines { display: flex; flex-direction: column; gap: 5px; }
+.mb-face__line { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.45; }
+.mb-face__line--muted { color: @mb-text-dim; font-size: 11px; }
+.mb-face__icon-slot {
+    flex: 0 0 20px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+}
+.mb-face__icon { display: inline-block; transform: scale(0.85); transform-origin: center; }
+.mb-face__icon.mb-ico { width: 18px; height: 18px; transform: none; }
+.mb-face__glyph {
+    font-size: 13px; line-height: 1; color: @mb-accent;
+    text-shadow: 0 0 8px fade(@mb-accent, 35%);
+}
+.mb-face__text { flex: 1 1 auto; min-width: 0; }
+.mb-face__fate-note {
+    padding-top: 6px;
+    border-top: 1px dashed fade(@mb-accent, 18%);
+    font-size: 10.5px; line-height: 1.4; color: @mb-text-dim; font-style: italic;
+}
+.mb-face--destroyed {
+    opacity: 0.78;
+    box-shadow: inset 0 0 0 1px rgba(235, 110, 90, 0.4);
+}
+.mb-face--large {
+    padding: 14px 17px; gap: 10px;
+    .mb-face__name { font-size: 17px; }
+    .mb-face__fate { font-size: 11px; padding: 4px 10px; }
+    .mb-face__line { font-size: 15.5px; gap: 10px; }
+    .mb-face__line--muted { font-size: 14px; }
+    .mb-face__icon-slot { flex-basis: 26px; height: 24px; }
+    .mb-face__icon { transform: scale(1.05); }
+    .mb-face__icon.mb-ico { width: 24px; height: 24px; transform: none; }
+    .mb-face__glyph { font-size: 18px; }
+    .mb-face__fate-note { font-size: 13px; }
+}
+/* Theater reveal hosts the face full-width. */
+.mb-step__bonusface { flex: 1 1 auto; min-width: 0; }
+
+/* ── Teaching layer ("How MarsBot plays") — shared desktop/console ────────── */
+
+.mb-guide {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+}
+.mb-guide__block {
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 10px 12px; border-radius: 8px;
+    background: rgba(10, 18, 16, 0.6);
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 16%);
+}
+.mb-guide__title {
+    margin: 0; display: flex; align-items: center; gap: 8px;
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: fade(@mb-accent, 92%);
+}
+.mb-guide__glyph {
+    flex: 0 0 auto; width: 20px; height: 20px;
+    display: grid; place-items: center;
+    border-radius: 5px; font-size: 12px; color: @mb-accent;
+    background: fade(@mb-accent, 9%); box-shadow: inset 0 0 0 1px fade(@mb-accent, 32%);
+}
+.mb-guide__body {
+    margin: 0;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11.5px; line-height: 1.5; color: @mb-text-dim;
+}
+.mb-guide--console {
+    margin-top: 18px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+    .mb-guide__block { padding: 14px 17px; gap: 8px; }
+    .mb-guide__title { font-size: 14px; }
+    .mb-guide__glyph { width: 26px; height: 26px; font-size: 15px; }
+    .mb-guide__body { font-size: 14.5px; }
+}
 
 /* ── Endgame: the MarsBot clock-win center line (duel hero) ──────────────── */
 
@@ -301,9 +398,8 @@
     color: fade(@mb-accent, 85%);
     &:first-child { margin-top: 0; }
 }
-.con-bot__bonuses { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
-.con-bot__bonuses .mb-bonus__name { font-size: 15px; }
-.con-bot__bonuses .mb-bonus__text { font-size: 12.5px; }
+.con-bot__pile-note { margin: -2px 0 10px; font-style: italic; }
+.con-bot__bonuses { display: grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap: 12px; align-items: start; margin-bottom: 6px; }
 .con-bot__legend { margin-top: 12px; }
 
 @keyframes mb-board-in {
@@ -382,6 +478,18 @@
 .mb-theater__step--thinking { background: transparent; box-shadow: none; }
 .mb-step-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease, transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1); }
 .mb-step-enter-from { opacity: 0; transform: translateY(8px); }
+.mb-theater__skip--close {
+    color: #eafff7;
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 55%), 0 0 10px fade(@mb-accent, 14%);
+}
+.mb-theater__foot {
+    padding: 8px 13px 11px;
+    border-top: 1px solid fade(@mb-accent, 16%);
+}
+.mb-theater__foot-note {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 10.5px; color: @mb-text-dim; font-style: italic;
+}
 
 /* One step's row — shared by desktop + console (sizes scale via the host). */
 .mb-step__row {

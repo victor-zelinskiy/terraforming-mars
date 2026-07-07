@@ -1,5 +1,9 @@
 <template>
-  <div v-if="state.active" class="con-bot-theater" :key="state.nonce" role="status" :aria-label="$t('MarsBot is taking its turn')">
+  <!-- Teleported: a `position: fixed` band inside a transformed/filtered
+       ancestor is positioned against THAT ancestor (the first-frame
+       "bottom-left jump"); the body is the only safe containing block. -->
+  <Teleport to="body">
+  <div v-if="state.active || state.lingering" class="con-bot-theater" :key="state.nonce" role="status" :aria-label="$t('MarsBot is taking its turn')">
     <div class="con-bot-theater__band">
       <header class="con-bot-theater__head">
         <span class="con-bot-theater__glyph" :class="{'con-bot-theater__glyph--thinking': onThinking}" aria-hidden="true">
@@ -9,7 +13,7 @@
           <span :class="'con-status__dot player_bg_color_' + state.botColor" aria-hidden="true"></span>
           {{ state.botName }}
         </span>
-        <span class="con-bot-theater__sub" v-i18n>{{ onThinking ? 'is thinking' : 'is taking its turn' }}</span>
+        <span class="con-bot-theater__sub" v-i18n>{{ headerSub }}</span>
         <span class="con-bot-theater__progress">{{ progressText }}</span>
       </header>
       <div ref="feed" class="con-bot-theater__steps">
@@ -19,11 +23,12 @@
           class="con-bot-theater__step"
           :class="['mb-theater__step--' + entry.kind, {'con-bot-theater__step--live': i === visibleSteps.length - 1 && !state.finished}]"
         >
-          <MarsBotTheaterStep :step="entry" :players="players" />
+          <MarsBotTheaterStep :step="entry" :players="players" :ctx="state.ctx" large />
         </div>
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script lang="ts">
@@ -55,6 +60,12 @@ export default defineComponent({
     onThinking(): boolean {
       const current = this.state.steps[this.state.currentIndex];
       return current !== undefined && current.kind === 'thinking';
+    },
+    headerSub(): string {
+      if (this.state.lingering) {
+        return 'turn complete';
+      }
+      return this.onThinking ? 'is thinking' : 'is taking its turn';
     },
     progressText(): string {
       // The thinking beat is presentation, not a game step — exclude it.

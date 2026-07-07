@@ -449,7 +449,7 @@ import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeRes
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
 import ConsoleMarsBotTheater from '@/client/components/console/ConsoleMarsBotTheater.vue';
-import {marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -1323,6 +1323,11 @@ export default defineComponent({
       if (this.marsBotTheaterState.active) {
         return [{control: 'confirm', label: 'Skip'}];
       }
+      // The narration lingers until acknowledged — B closes it (while a
+      // follow-up prompt modal is up, the modal's own hints take over).
+      if (this.marsBotTheaterState.lingering && !this.consoleState.fallbackActive) {
+        return [{control: 'back', label: 'Close'}];
+      }
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
@@ -1820,6 +1825,14 @@ export default defineComponent({
       this.consoleState.fallbackScopeId = scope?.def.id ?? '';
       if (fallback) {
         return false;
+      }
+      // A LINGERING bot narration (the replay finished, the band stays until
+      // acknowledged): B closes it; every other intent plays through to the
+      // game. Placed AFTER the fallback branch on purpose — while a follow-up
+      // prompt modal is up, B belongs to the modal first.
+      if (this.marsBotTheaterState.lingering && intent.kind === 'press' && intent.button === 'back') {
+        dismissMarsBotTheater();
+        return true;
       }
       if (intent.kind === 'release') {
         return true;

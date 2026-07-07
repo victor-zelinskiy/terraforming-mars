@@ -25,7 +25,7 @@
 
       <!-- ── DASHBOARD (MarsBot participant) ─────────────────────────── -->
       <div v-if="infoModeState.detail === undefined && viewedIsBot && botAutoma !== undefined" class="con-info__scroll con-info__grid">
-        <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" />
+        <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" :ctx="botCardContext" />
         <!-- VP — the SAME block as a human participant (shared model + rule). -->
         <section class="con-info__block">
           <h3 class="con-info__block-title">{{ $t('Victory Points') }}
@@ -144,7 +144,8 @@
           v-if="isBotDetail && botAutoma !== undefined"
           :mode="botDetailMode"
           :bot="viewed"
-          :automa="botAutoma" />
+          :automa="botAutoma"
+          :ctx="botCardContext" />
 
         <!-- Extra resources detail -->
         <div v-if="infoModeState.detail === 'extras'" class="con-info__scroll con-info__detail-scroll">
@@ -270,6 +271,7 @@ import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import TagCount from '@/client/components/TagCount.vue';
@@ -321,6 +323,11 @@ export default defineComponent({
     botDifficultyLabel(): string {
       const automa = this.botAutoma;
       return automa !== undefined ? DIFFICULTY_LABEL[automa.difficulty] : '';
+    },
+    /** The expansion context — resolves bonus-card faces for THIS game. */
+    botCardContext(): BonusCardContext {
+      const expansions = this.playerView.game.gameOptions.expansions;
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
     },
     isBotDetail(): boolean {
       const d = this.infoModeState.detail;

@@ -21,10 +21,7 @@
           <template v-if="automa.revealedCard.kind === 'project'">
             <Card :card="{name: automa.revealedCard.name}" :key="automa.revealedCard.name" lightweight />
           </template>
-          <div v-else class="mb-bonus mb-bonus--revealed">
-            <span class="mb-bonus__name" v-i18n>{{ bonusName(automa.revealedCard.id) }}</span>
-            <span class="mb-bonus__text" v-i18n>{{ bonusText(automa.revealedCard.id) }}</span>
-          </div>
+          <BonusCardFace v-else :id="automa.revealedCard.id" :ctx="ctx" />
         </div>
       </section>
 
@@ -75,21 +72,30 @@
       <!-- The open bonus piles: discard (reshuffles later) + destroyed (gone). -->
       <section class="mb-board__section">
         <h3 class="mb-board__label" v-i18n>Bonus discard</h3>
+        <p class="mb-board__hint" v-i18n>Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out</p>
         <div v-if="automa.bonusDiscard.length === 0" class="mb-board__empty" v-i18n>Empty</div>
         <div v-else class="mb-board__bonuses">
-          <div v-for="id in automa.bonusDiscard" :key="id" class="mb-bonus">
-            <span class="mb-bonus__name" v-i18n>{{ bonusName(id) }}</span>
-            <span class="mb-bonus__text" v-i18n>{{ bonusText(id) }}</span>
-          </div>
+          <BonusCardFace v-for="id in automa.bonusDiscard" :key="id" :id="id" :ctx="ctx" />
         </div>
       </section>
       <section v-if="automa.destroyedBonusCards.length > 0" class="mb-board__section">
         <h3 class="mb-board__label" v-i18n>Destroyed bonus cards</h3>
+        <p class="mb-board__hint" v-i18n>Destroyed cards are removed from the game permanently — they are never reshuffled</p>
         <div class="mb-board__bonuses">
-          <div v-for="id in automa.destroyedBonusCards" :key="id" class="mb-bonus mb-bonus--destroyed">
-            <span class="mb-bonus__name" v-i18n>{{ bonusName(id) }}</span>
-            <span class="mb-bonus__text" v-i18n>{{ bonusText(id) }}</span>
-            <span class="mb-bonus__destroyed-chip" v-i18n>Removed from the game</span>
+          <BonusCardFace v-for="id in automa.destroyedBonusCards" :key="id" :id="id" :ctx="ctx" destroyed />
+        </div>
+      </section>
+
+      <!-- How MarsBot plays — the teaching layer (shared with the console). -->
+      <section class="mb-board__section">
+        <h3 class="mb-board__label" v-i18n>How MarsBot plays</h3>
+        <div class="mb-guide">
+          <div v-for="section in guide" :key="section.id" class="mb-guide__block">
+            <h4 class="mb-guide__title">
+              <span class="mb-guide__glyph" aria-hidden="true">{{ section.glyph }}</span>
+              <span v-i18n>{{ section.title }}</span>
+            </h4>
+            <p v-for="(body, i) in section.body" :key="i" class="mb-guide__body" v-i18n>{{ body }}</p>
           </div>
         </div>
       </section>
@@ -108,19 +114,22 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
-import {bonusCardInfo} from '@/common/automa/BonusCardData';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {DIFFICULTY_LABEL} from './marsBotView';
+import {GuideSection, marsBotGuide} from './marsBotGuide';
 import MarsBotTracks from './MarsBotTracks.vue';
+import BonusCardFace from './BonusCardFace.vue';
 import Card from '@/client/components/card/Card.vue';
 
 export default defineComponent({
   name: 'MarsBotBoardOverlay',
-  components: {MarsBotTracks, Card},
+  components: {MarsBotTracks, BonusCardFace, Card},
   props: {
     automa: {type: Object as PropType<MarsBotModel>, required: true},
     botColor: {type: String as PropType<Color>, required: true},
+    /** The expansion context — resolves the bonus-card faces for THIS game. */
+    ctx: {type: Object as PropType<BonusCardContext>, required: true},
   },
   emits: ['close'],
   computed: {
@@ -136,13 +145,8 @@ export default defineComponent({
         .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
         .map(([colony, count]) => ({colony, count}));
     },
-  },
-  methods: {
-    bonusName(id: BonusCardId): string {
-      return bonusCardInfo(id).name;
-    },
-    bonusText(id: BonusCardId): string {
-      return bonusCardInfo(id).text;
+    guide(): ReadonlyArray<GuideSection> {
+      return marsBotGuide(this.automa.difficulty, this.ctx);
     },
   },
   mounted() {

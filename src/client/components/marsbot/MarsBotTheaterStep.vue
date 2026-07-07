@@ -19,10 +19,7 @@
     </template>
     <template v-else>
       <span class="mb-step__verb" v-i18n>Revealed a bonus card</span>
-      <span class="mb-step__bonus">
-        <b>{{ $t(bonusName(step.card.id)) }}</b>
-        <span class="mb-step__bonus-text">{{ $t(bonusText(step.card.id)) }}</span>
-      </span>
+      <BonusCardFace class="mb-step__bonusface" :id="step.card.id" :ctx="ctx" :large="large" />
     </template>
   </div>
 
@@ -82,21 +79,26 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Log} from '@/common/logs/Log';
-import {BonusCardId, TrackAction} from '@/common/automa/AutomaTypes';
-import {bonusCardInfo} from '@/common/automa/BonusCardData';
+import {TrackAction} from '@/common/automa/AutomaTypes';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {trackActionLabel} from './marsBotView';
 import {TheaterStep} from './marsBotTheaterModel';
+import BonusCardFace from './BonusCardFace.vue';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import Tag from '@/client/components/Tag.vue';
 import Card from '@/client/components/card/Card.vue';
 
 export default defineComponent({
   name: 'MarsBotTheaterStep',
-  components: {JournalTokenRenderer, Tag, Card},
+  components: {BonusCardFace, JournalTokenRenderer, Tag, Card},
   props: {
     step: {type: Object as PropType<TheaterStep>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
+    /** The expansion context — resolves the bonus-card face for THIS game. */
+    ctx: {type: Object as PropType<BonusCardContext>, required: true},
+    /** TV-readable sizing (console). */
+    large: {type: Boolean, default: false},
   },
   methods: {
     tokensOf(message: LogMessage | undefined): Array<string | LogMessageData> {
@@ -104,12 +106,6 @@ export default defineComponent({
         return [];
       }
       return Log.parse(message);
-    },
-    bonusName(id: BonusCardId): string {
-      return bonusCardInfo(id).name;
-    },
-    bonusText(id: BonusCardId): string {
-      return bonusCardInfo(id).text;
     },
     actionText(action: TrackAction): string {
       const label = trackActionLabel(action);

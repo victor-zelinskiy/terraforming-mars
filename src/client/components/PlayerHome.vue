@@ -391,6 +391,7 @@
       v-if="activeOverlay === 'marsbot' && game.automa !== undefined"
       :automa="game.automa"
       :botColor="marsBotColor"
+      :ctx="botCardContext"
       @close="activeOverlay = null" />
 
     <!--
@@ -774,6 +775,7 @@ import StandardProjectsOverlay from '@/client/components/overview/StandardProjec
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
 import MarsBotBoardOverlay from '@/client/components/marsbot/MarsBotBoardOverlay.vue';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
@@ -1620,6 +1622,11 @@ export default defineComponent({
     // The automa seat's colour (the bot is a real player in `players`).
     marsBotColor(): Color {
       return this.playerView.players.find((p) => p.isMarsBot === true)?.color ?? this.thisPlayer.color;
+    },
+    // The expansion context — resolves the bot's bonus-card faces for THIS game.
+    botCardContext(): BonusCardContext {
+      const expansions = this.game.gameOptions.expansions;
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
     },
     playedCardsTitleClass(): string {
       return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;

@@ -20,12 +20,20 @@ import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {TheaterStep, buildTheaterSteps, marsBotOfView, theaterTotalMs, turnDedupeKey} from './marsBotTheaterModel';
 
 type MarsBotTheaterState = {
   active: boolean;
+  /**
+   * The narration finished replaying and the new view committed, but the
+   * player has not dismissed it yet — the card/band STAYS readable until an
+   * explicit close (desktop: the Close button / Esc; console: B). Skipping
+   * during the replay counts as "read it" and never lingers.
+   */
+  lingering: boolean;
   botColor: Color | '';
   botName: string;
   steps: Array<TheaterStep>;
@@ -33,18 +41,22 @@ type MarsBotTheaterState = {
   currentIndex: number;
   finished: boolean;
   reducedMotion: boolean;
+  /** The expansion context of the game — resolves bonus-card texts in steps. */
+  ctx: BonusCardContext;
   /** Bumped per run so surfaces reset their local presentation state. */
   nonce: number;
 };
 
 export const marsBotTheaterState = reactive<MarsBotTheaterState>({
   active: false,
+  lingering: false,
   botColor: '',
   botName: '',
   steps: [],
   currentIndex: -1,
   finished: false,
   reducedMotion: false,
+  ctx: {venus: false, colonies: false},
   nonce: 0,
 });
 
@@ -54,6 +66,9 @@ const seen = new Set<string>();
 let stepTimerId = 0;
 let safetyTimerId = 0;
 let resolveActive: (() => void) | undefined;
+// The player pressed Skip during the replay — they've acknowledged the turn,
+// so `endMarsBotTheater()` closes fully instead of entering the linger state.
+let skipRequested = false;
 
 function cancelTimers(): void {
   if (stepTimerId !== 0) {
@@ -102,14 +117,18 @@ export function runMarsBotTheater(turn: MarsBotTurn, next: ViewModel): Promise<v
   const reduced = prefersReducedMotion();
   const bot = marsBotOfView(next);
   const steps = buildTheaterSteps(turn, next, reduced);
+  const expansions = next.game.gameOptions.expansions;
 
+  skipRequested = false;
   marsBotTheaterState.active = true;
+  marsBotTheaterState.lingering = false;
   marsBotTheaterState.botColor = bot?.color ?? '';
   marsBotTheaterState.botName = bot?.name ?? 'MarsBot';
   marsBotTheaterState.steps = steps;
   marsBotTheaterState.currentIndex = 0;
   marsBotTheaterState.finished = false;
   marsBotTheaterState.reducedMotion = reduced;
+  marsBotTheaterState.ctx = {venus: expansions.venus === true, colonies: expansions.colonies === true};
   marsBotTheaterState.nonce++;
 
   const promise = new Promise<void>((resolve) => {
@@ -151,12 +170,16 @@ export function runMarsBotTheater(turn: MarsBotTurn, next: ViewModel): Promise<v
   return promise;
 }
 
-/** The player skips the narration — resolve the gate right away. */
+/**
+ * The player skips the narration — resolve the gate right away. A skip is an
+ * explicit acknowledgement, so the surface won't linger after the commit.
+ */
 export function skipMarsBotTheater(): void {
   if (!marsBotTheaterState.active || resolveActive === undefined) {
     return;
   }
   cancelTimers();
+  skipRequested = true;
   marsBotTheaterState.currentIndex = marsBotTheaterState.steps.length - 1;
   marsBotTheaterState.finished = true;
   const r = resolveActive;
@@ -164,10 +187,30 @@ export function skipMarsBotTheater(): void {
   r?.();
 }
 
-/** Clear the overlay AFTER the new view committed (call on nextTick). Idempotent. */
+/**
+ * Called AFTER the new view committed (on nextTick). Releases the gate state,
+ * but the narration STAYS on screen (`lingering`) until the player dismisses
+ * it — a replay that vanishes on its own is unreadable. A skipped replay was
+ * already acknowledged and closes fully. Idempotent.
+ */
 export function endMarsBotTheater(): void {
   cancelTimers();
   marsBotTheaterState.active = false;
+  if (skipRequested || marsBotTheaterState.steps.length === 0) {
+    skipRequested = false;
+    dismissMarsBotTheater();
+    return;
+  }
+  marsBotTheaterState.finished = true;
+  marsBotTheaterState.currentIndex = marsBotTheaterState.steps.length - 1;
+  marsBotTheaterState.lingering = true;
+}
+
+/** The player closes the lingering narration (Close/Esc on desktop, B on console). */
+export function dismissMarsBotTheater(): void {
+  cancelTimers();
+  marsBotTheaterState.active = false;
+  marsBotTheaterState.lingering = false;
   marsBotTheaterState.steps = [];
   marsBotTheaterState.currentIndex = -1;
   marsBotTheaterState.finished = false;
@@ -175,10 +218,12 @@ export function endMarsBotTheater(): void {
 
 /** Test-only full reset (state + dedup + timers). */
 export function resetMarsBotTheater(): void {
-  endMarsBotTheater();
+  skipRequested = false;
+  dismissMarsBotTheater();
   resolveActive = undefined;
   seen.clear();
   marsBotTheaterState.botColor = '';
   marsBotTheaterState.botName = '';
+  marsBotTheaterState.ctx = {venus: false, colonies: false};
   marsBotTheaterState.nonce = 0;
 }

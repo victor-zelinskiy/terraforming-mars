@@ -14,10 +14,11 @@
         </div>
       </div>
       <div class="con-info__note">{{ $t('MarsBot has no production — its economy is the M€ supply') }}</div>
+      <div class="con-info__note">{{ $t('Leftover M€ converts to VP at game end') }}</div>
     </section>
 
     <section class="con-info__block">
-      <h3 class="con-info__block-title">{{ $t('Tracks') }}
+      <h3 class="con-info__block-title">{{ $t('MarsBot tracks') }}
         <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
       </h3>
       <div class="con-info__stat-lines">
@@ -27,6 +28,7 @@
           <b>{{ t.position }}<span class="con-bot__track-max">/{{ t.maxPosition }}</span></b>
         </div>
       </div>
+      <div class="con-info__note">{{ $t('Tags on its flipped cards push the matching tracker — open the board for the printed icons') }}</div>
     </section>
 
     <section class="con-info__block">
@@ -35,7 +37,7 @@
         <div class="con-info__stat-line"><span>{{ $t('Action deck') }}</span><b class="con-info__mint">{{ automa.actionDeckSize }}</b></div>
         <div class="con-info__stat-line"><span>{{ $t('Bonus deck') }}</span><b>{{ automa.bonusDeckSize }}</b></div>
       </div>
-      <div class="con-info__note">{{ $t('Face-down deck contents are hidden') }}</div>
+      <div class="con-info__note">{{ $t('One flip per turn; an empty action deck means MarsBot passes') }}</div>
     </section>
 
     <section class="con-info__block">
@@ -45,6 +47,7 @@
       <div class="con-info__stat-lines">
         <div class="con-info__stat-line"><span>{{ $t('Project cards') }}</span><b class="con-info__mint">{{ automa.playedPile.length }}</b></div>
       </div>
+      <div class="con-info__note">{{ $t('Everything MarsBot flipped from its action deck this game') }}</div>
     </section>
 
     <section class="con-info__block">
@@ -52,9 +55,10 @@
         <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
       </h3>
       <div class="con-info__stat-lines">
-        <div class="con-info__stat-line"><span>{{ $t('Discard') }}</span><b>{{ automa.bonusDiscard.length }}</b></div>
-        <div class="con-info__stat-line"><span>{{ $t('Destroyed') }}</span><b>{{ automa.destroyedBonusCards.length }}</b></div>
+        <div class="con-info__stat-line"><span>{{ $t('Discard pile') }}</span><b>{{ automa.bonusDiscard.length }}</b></div>
+        <div class="con-info__stat-line"><span>{{ $t('Destroyed cards') }}</span><b>{{ automa.destroyedBonusCards.length }}</b></div>
       </div>
+      <div class="con-info__note">{{ $t('Discarded cards can return after a reshuffle; destroyed cards never do') }}</div>
     </section>
 
     <section v-if="storageEntries.length > 0" class="con-info__block">
@@ -65,13 +69,23 @@
         </div>
         <div v-if="automa.secondFleetUnlocked" class="con-info__stat-line"><span>{{ $t('Trade fleets') }}</span><b>2</b></div>
       </div>
+      <div class="con-info__note">{{ $t('Every 5 resources here exchange into a tracker step') }}</div>
     </section>
   </template>
 
-  <!-- ── Detail: the printed board (tracks, TV-sized) ───────────────────── -->
+  <!-- ── Detail: the printed board (tracks, TV-sized) + the teaching layer ── -->
   <div v-else-if="mode === 'botBoard'" class="con-info__scroll con-info__detail-scroll">
     <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" large />
     <div class="con-info__note con-bot__legend">{{ $t('The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again') }}</div>
+    <div class="mb-guide mb-guide--console">
+      <div v-for="section in guide" :key="section.id" class="mb-guide__block">
+        <h4 class="mb-guide__title">
+          <span class="mb-guide__glyph" aria-hidden="true">{{ section.glyph }}</span>
+          <span v-i18n>{{ section.title }}</span>
+        </h4>
+        <p v-for="(body, i) in section.body" :key="i" class="mb-guide__body" v-i18n>{{ body }}</p>
+      </div>
+    </div>
   </div>
 
   <!-- ── Detail: the played project pile (real card renders) ───────────── -->
@@ -87,21 +101,16 @@
   <!-- ── Detail: the open bonus piles ───────────────────────────────────── -->
   <div v-else-if="mode === 'botBonus'" class="con-info__scroll con-info__detail-scroll">
     <h4 class="con-bot__pile-title">{{ $t('Bonus discard') }}</h4>
+    <p class="con-info__note con-bot__pile-note">{{ $t('Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out') }}</p>
     <div v-if="automa.bonusDiscard.length === 0" class="con-info__empty">{{ $t('Empty') }}</div>
     <div v-else class="con-bot__bonuses">
-      <div v-for="id in automa.bonusDiscard" :key="id" class="mb-bonus">
-        <span class="mb-bonus__name">{{ $t(bonusName(id)) }}</span>
-        <span class="mb-bonus__text">{{ $t(bonusText(id)) }}</span>
-      </div>
+      <BonusCardFace v-for="id in automa.bonusDiscard" :key="id" :id="id" :ctx="ctx" large />
     </div>
     <template v-if="automa.destroyedBonusCards.length > 0">
       <h4 class="con-bot__pile-title">{{ $t('Destroyed bonus cards') }}</h4>
+      <p class="con-info__note con-bot__pile-note">{{ $t('Destroyed cards are removed from the game permanently — they are never reshuffled') }}</p>
       <div class="con-bot__bonuses">
-        <div v-for="id in automa.destroyedBonusCards" :key="id" class="mb-bonus mb-bonus--destroyed">
-          <span class="mb-bonus__name">{{ $t(bonusName(id)) }}</span>
-          <span class="mb-bonus__text">{{ $t(bonusText(id)) }}</span>
-          <span class="mb-bonus__destroyed-chip">{{ $t('Removed from the game') }}</span>
-        </div>
+        <BonusCardFace v-for="id in automa.destroyedBonusCards" :key="id" :id="id" :ctx="ctx" large destroyed />
       </div>
     </template>
   </div>
@@ -110,31 +119,37 @@
 <script lang="ts">
 /**
  * The MarsBot participant sections of the console INFO MODE — the bot's
- * dashboard blocks plus its three details (printed board / played pile /
- * bonus piles). The human extras/actions/effects don't exist for the Automa,
- * so these replace them while the viewed participant is the bot. Read-only,
- * public `GameModel.automa` data; input routing stays in ConsoleShell and
- * button hints stay in the info-mode footer (never inside these blocks).
+ * dashboard blocks plus its three details (printed board + the teaching layer
+ * / played pile / bonus piles). The human extras/actions/effects don't exist
+ * for the Automa, so these replace them while the viewed participant is the
+ * bot. Bonus cards render through the SHARED `BonusCardFace` — the effect
+ * lines are already resolved for THIS game's expansion set; the teaching
+ * blocks come from the SHARED `marsBotGuide`, so console and desktop explain
+ * the bot identically. Read-only public data; input routing stays in
+ * ConsoleShell and button hints stay in the info-mode footer.
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
-import {bonusCardInfo} from '@/common/automa/BonusCardData';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {trackTag} from '@/client/components/marsbot/marsBotView';
+import {GuideSection, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
+import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Tag from '@/client/components/Tag.vue';
 import Card from '@/client/components/card/Card.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotSections',
-  components: {MarsBotTracks, GamepadGlyph, Tag, Card},
+  components: {MarsBotTracks, BonusCardFace, GamepadGlyph, Tag, Card},
   props: {
     mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botPlayed' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},
     automa: {type: Object as PropType<MarsBotModel>, required: true},
+    /** The expansion context — resolves bonus-card faces for THIS game. */
+    ctx: {type: Object as PropType<BonusCardContext>, required: true},
   },
   computed: {
     storageEntries(): Array<{colony: string, count: number}> {
@@ -146,6 +161,9 @@ export default defineComponent({
         .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
         .map(([colony, count]) => ({colony, count}));
     },
+    guide(): ReadonlyArray<GuideSection> {
+      return marsBotGuide(this.automa.difficulty, this.ctx);
+    },
   },
   methods: {
     tagOf(track: MarsBotTrackModel): CardTag | undefined {
@@ -156,12 +174,6 @@ export default defineComponent({
         return '0%';
       }
       return `${Math.round((track.position / track.maxPosition) * 100)}%`;
-    },
-    bonusName(id: BonusCardId): string {
-      return bonusCardInfo(id).name;
-    },
-    bonusText(id: BonusCardId): string {
-      return bonusCardInfo(id).text;
     },
   },
 });

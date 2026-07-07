@@ -115,3 +115,184 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
 export function bonusCardInfo(id: BonusCardId): BonusCardInfo {
   return BONUS_CARD_INFO[id] ?? {name: id, text: ''};
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contextual card VIEW — what the card DOES in THIS game.
+//
+// The printed faces describe every expansion variant ("2 M€ and a floater with
+// Venus or Colonies…"); the UI must never make the player resolve that
+// themselves. `buildBonusCardView(id, ctx)` returns the ALREADY-RESOLVED
+// structure for the current option set: icon-anchored effect lines + the
+// card's FATE (destroyed / discarded / recurring), each honest about its
+// condition. Texts are English i18n templates (translate with params).
+// Wording is future-proof for multi-human games: "MarsBot's opponent", never
+// a bare "you".
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The option subset that changes what a bonus card actually does. */
+export type BonusCardContext = {
+  venus: boolean;
+  colonies: boolean;
+};
+
+/**
+ * One icon-anchored effect line. `icon` is the shared icon-key vocabulary
+ * (standard resources / global params / card resources) plus the MarsBot
+ * extras the face renderer resolves itself: 'city' | 'greenery' | 'tile' |
+ * 'milestone' | 'award' | 'vp' | 'cards' | 'tr' | 'deck' | 'colony' | 'trade'.
+ */
+export type BonusCardEffectLine = {
+  icon?: string;
+  /** English i18n template; params substituted after translation. */
+  text: string;
+  params?: ReadonlyArray<string>;
+  /** A secondary, quieter clarification line. */
+  muted?: boolean;
+};
+
+/** What happens to the card after it resolves — the player-facing FATE. */
+export type BonusCardFate = {
+  kind: 'discard' | 'destroyOnSuccess' | 'alwaysDestroy' | 'recurring' | 'conditional';
+  /** English i18n template explaining the fate honestly (incl. the else-branch). */
+  text: string;
+  params?: ReadonlyArray<string>;
+};
+
+export type BonusCardView = {
+  name: string;
+  lines: ReadonlyArray<BonusCardEffectLine>;
+  fate: BonusCardFate;
+};
+
+const FATE_DISCARD: BonusCardFate = {kind: 'discard', text: 'Then it goes to the bonus discard and may return after a reshuffle'};
+
+export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): BonusCardView {
+  const name = bonusCardInfo(id).name;
+  switch (id) {
+  case BonusCardId.B01_METEOR_SHOWER:
+    return {
+      name,
+      lines: [
+        {icon: 'plants', text: 'MarsBot\'s opponent loses up to ${0} plants', params: ['5']},
+      ],
+      fate: {kind: 'conditional', text: 'Destroyed if it removed 3+ plants or they were protected; discarded otherwise'},
+    };
+  case BonusCardId.B02_INVASIVE_SPECIES:
+    return {
+      name,
+      lines: ctx.venus || ctx.colonies ? [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['2']},
+        {icon: 'floater', text: 'MarsBot gains 1 floater'},
+        {icon: 'animal', text: 'The opponent removes their most valuable animal or microbe', muted: false},
+      ] : [
+        {icon: 'megacredits', text: 'MarsBot gains ${0} M€', params: ['5']},
+        {icon: 'animal', text: 'The opponent removes their most valuable animal or microbe'},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B03_RESEARCH_AND_DEVELOPMENT:
+    return {
+      name,
+      lines: [{icon: 'cards', text: 'MarsBot draws the top project card and resolves it like a normal turn'}],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B04_OVERACHIEVEMENT:
+    return {
+      name,
+      lines: [
+        {icon: 'milestone', text: 'MarsBot claims a milestone for free'},
+        {icon: 'award', text: 'From generation 6 it may fund an award instead', muted: true},
+        {icon: 'megacredits', text: 'If neither is possible, it gains ${0} M€ instead', params: ['5'], muted: true},
+      ],
+      fate: {kind: 'destroyOnSuccess', text: 'Destroyed if it claimed or funded; discarded otherwise'},
+    };
+  case BonusCardId.B05_EXPEDITED_CONSTRUCTION:
+    return {
+      name,
+      lines: [{icon: 'city', text: 'MarsBot places a city adjacent to at least 2 greeneries or oceans'}],
+      fate: {kind: 'destroyOnSuccess', text: 'Destroyed if the city was placed; discarded if no legal space exists'},
+    };
+  case BonusCardId.B06_LOBBYISTS:
+  case BonusCardId.B15_LOBBYISTS_VENUS:
+    return {
+      name,
+      lines: [
+        {text: 'MarsBot performs the FIRST possible option:'},
+        {icon: 'temperature', text: 'Raise the temperature toward a bonus step (within 2 steps)'},
+        {icon: 'greenery', text: 'Place a greenery when within 2 steps of an oxygen bonus'},
+        id === BonusCardId.B15_LOBBYISTS_VENUS ?
+          {icon: 'venus', text: 'Raise Venus toward its next bonus (within 2 steps)'} :
+          {icon: 'ocean', text: 'Place an ocean next to at least 2 oceans'},
+        {icon: 'tr', text: 'Otherwise: advance the furthest Martian parameter', muted: true},
+      ],
+      fate: id === BonusCardId.B15_LOBBYISTS_VENUS ?
+        {kind: 'conditional', text: 'Destroyed after options 1–2; the Venus option and the fallback discard it'} :
+        {kind: 'conditional', text: 'Destroyed after options 1–3; the fallback discards it'},
+    };
+  case BonusCardId.B07_LOCAL_NEURAL_INSTANCE:
+    return {
+      name,
+      lines: [
+        {icon: 'neural', text: 'MarsBot places the Neural Instance tile away from the map edge, all neighbors empty'},
+        {icon: 'vp', text: 'At game end it scores 1 VP per adjacent space its opponent does not occupy'},
+        {icon: 'cards', text: 'If no legal space exists, it draws and resolves a project card instead', muted: true},
+      ],
+      fate: {kind: 'alwaysDestroy', text: 'Destroyed after resolving — it never returns'},
+    };
+  case BonusCardId.B08_CORPORATE_COMPETITION:
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B16_GOVERNMENT_INTERVENTION:
+    return {
+      name,
+      lines: [
+        {icon: 'tr', text: 'World government terraforming: advances the furthest Martian parameter'},
+        {icon: 'venus', text: 'On even generations (or when a parameter is complete) it raises Venus instead'},
+        {text: 'No TR, no placement bonuses — the parameter simply moves', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.B17_EXPEDITED_CONSTRUCTION_COLONIES:
+    return {
+      name,
+      lines: [
+        {icon: 'city', text: 'MarsBot places a city adjacent to at least 2 greeneries or oceans'},
+        {icon: 'colony', text: 'With at most 1 colony it builds a colony instead', muted: true},
+      ],
+      fate: {kind: 'destroyOnSuccess', text: 'Destroyed if the city was placed; building a colony discards it'},
+    };
+  case BonusCardId.B18_OUTER_SYSTEM_FOOTHOLD:
+    return {
+      name,
+      lines: [
+        {icon: 'colony', text: 'MarsBot builds a colony and adds 2 resources to that storage area'},
+        {icon: 'deck', text: 'Then it thins the bonus deck: the top card is discarded unresolved', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.B19_SHIPPING_LINES:
+  case BonusCardId.B20_EXTENDED_SHIPPING_LINES:
+    return {
+      name,
+      lines: [
+        {icon: 'trade', text: 'MarsBot trades with the colony whose tracker is furthest along'},
+        id === BonusCardId.B20_EXTENDED_SHIPPING_LINES ?
+          {text: 'Joins the deck once MarsBot unlocks its second trade fleet', muted: true} :
+          {text: 'Joins the deck from generation 2', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  default:
+    return {
+      name,
+      lines: [{text: bonusCardInfo(id).text}],
+      fate: FATE_DISCARD,
+    };
+  }
+}

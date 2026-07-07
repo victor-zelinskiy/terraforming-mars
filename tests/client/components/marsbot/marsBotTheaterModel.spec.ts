@@ -13,7 +13,15 @@ import {
   theaterTotalMs,
   turnDedupeKey,
 } from '@/client/components/marsbot/marsBotTheaterModel';
-import {detectMarsBotTurn, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {
+  detectMarsBotTurn,
+  dismissMarsBotTheater,
+  endMarsBotTheater,
+  marsBotTheaterState,
+  resetMarsBotTheater,
+} from '@/client/components/marsbot/marsBotTheaterState';
+import {trackCells} from '@/client/components/marsbot/marsBotView';
+import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 
 function view(turn: MarsBotTurn | undefined): ViewModel {
   return {
@@ -112,6 +120,46 @@ describe('marsBotTheaterModel', () => {
     const v = view(undefined);
     expect(marsBotOfView(v)).deep.eq({color: 'red', name: 'MarsBot'});
     expect(marsBotOfView(undefined)).is.undefined;
+  });
+
+  it('trackCells normalizes the JSON null empty slots (the blank-board bug)', () => {
+    // The layout's empty slots are authored as `undefined` but arrive as
+    // `null` over JSON — un-normalized they crashed the glyph resolver and
+    // blanked the whole printed board.
+    const track = {
+      tags: [Tag.BUILDING],
+      position: 1,
+      maxPosition: 3,
+      layout: [null, 'advance', null, 'tr2'],
+      regressed: [2],
+    } as unknown as MarsBotTrackModel;
+    const cells = trackCells(track);
+    expect(cells.map((c) => c.action)).deep.eq([undefined, 'advance', undefined, 'tr2']);
+    expect(cells[1].current).is.true;
+    expect(cells[2].regressed).is.true;
+  });
+
+  it('a naturally finished replay LINGERS until dismissed; dismiss clears it', () => {
+    marsBotTheaterState.steps = [{kind: 'thinking', durationMs: 100}];
+    marsBotTheaterState.active = true;
+    marsBotTheaterState.currentIndex = 0;
+
+    endMarsBotTheater(); // the commit path, after the new view landed
+    expect(marsBotTheaterState.active).is.false;
+    expect(marsBotTheaterState.lingering, 'the narration must stay readable').is.true;
+    expect(marsBotTheaterState.finished).is.true;
+    expect(marsBotTheaterState.steps).has.length(1);
+
+    dismissMarsBotTheater();
+    expect(marsBotTheaterState.lingering).is.false;
+    expect(marsBotTheaterState.steps).is.empty;
+  });
+
+  it('an empty replay never lingers', () => {
+    marsBotTheaterState.active = true;
+    marsBotTheaterState.steps = [];
+    endMarsBotTheater();
+    expect(marsBotTheaterState.lingering).is.false;
   });
 
   it('detect claims silently on a fresh session and dedups replays', () => {

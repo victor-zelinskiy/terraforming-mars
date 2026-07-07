@@ -1,5 +1,9 @@
 <template>
-  <div v-if="state.active" class="mb-theater" :key="state.nonce" role="status" :aria-label="$t('MarsBot is taking its turn')">
+  <!-- Teleported: a `position: fixed` card inside a transformed/filtered
+       ancestor is positioned against THAT ancestor (a first-frame jump);
+       the body is the only safe containing block. -->
+  <Teleport to="body">
+  <div v-if="state.active || state.lingering" class="mb-theater" :key="state.nonce" role="status" :aria-label="$t('MarsBot is taking its turn')">
     <div class="mb-theater__card">
       <header class="mb-theater__head">
         <span class="mb-theater__glyph" :class="{'mb-theater__glyph--thinking': onThinking}" aria-hidden="true">
@@ -8,9 +12,10 @@
         <span class="mb-theater__title">
           <span :class="'con-status__dot player_bg_color_' + state.botColor" aria-hidden="true"></span>
           {{ state.botName }}
-          <span class="mb-theater__title-sub" v-i18n>{{ onThinking ? 'is thinking' : 'is taking its turn' }}</span>
+          <span class="mb-theater__title-sub" v-i18n>{{ headerSub }}</span>
         </span>
-        <button type="button" class="mb-theater__skip" @click="skip"><span v-i18n>Skip</span></button>
+        <button v-if="state.lingering" type="button" class="mb-theater__skip mb-theater__skip--close" @click="dismiss"><span v-i18n>Close</span></button>
+        <button v-else type="button" class="mb-theater__skip" @click="skip"><span v-i18n>Skip</span></button>
       </header>
 
       <transition-group tag="div" class="mb-theater__steps" name="mb-step">
@@ -20,24 +25,31 @@
           class="mb-theater__step"
           :class="['mb-theater__step--' + entry.kind, {'mb-theater__step--live': i === visibleSteps.length - 1 && !state.finished}]"
         >
-          <MarsBotTheaterStep :step="entry" :players="players" />
+          <MarsBotTheaterStep :step="entry" :players="players" :ctx="state.ctx" />
         </div>
       </transition-group>
+
+      <footer v-if="state.lingering" class="mb-theater__foot">
+        <span class="mb-theater__foot-note" v-i18n>The board is updated — close when you are done reading</span>
+      </footer>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script lang="ts">
 /**
  * Desktop MarsBot turn theater — a top-centre narration card that replays the
- * bot's turn while the held view stays on screen (the commit gate). Pure
- * presentation over `marsBotTheaterState`; the controller owns the pacing.
- * Suppressed in console mode — `ConsoleMarsBotTheater` is the console-native
- * presentation of the SAME state.
+ * bot's turn while the held view stays on screen (the commit gate), then
+ * LINGERS after the commit until the player explicitly closes it (the Close
+ * button or Esc) — a narration that vanishes on its own is unreadable.
+ * Pure presentation over `marsBotTheaterState`; the controller owns the
+ * pacing. Suppressed in console mode — `ConsoleMarsBotTheater` renders the
+ * SAME state there (close = B, hinted in the command bar).
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {marsBotTheaterState, skipMarsBotTheater} from './marsBotTheaterState';
+import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from './marsBotTheaterState';
 import {TheaterStep} from './marsBotTheaterModel';
 import MarsBotTheaterStep from './MarsBotTheaterStep.vue';
 
@@ -48,21 +60,51 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },
   data() {
-    return {state: marsBotTheaterState};
+    return {
+      state: marsBotTheaterState,
+      onKey: (e: KeyboardEvent) => {
+        if (e.code !== 'Escape') {
+          return;
+        }
+        if (marsBotTheaterState.lingering) {
+          dismissMarsBotTheater();
+        } else if (marsBotTheaterState.active) {
+          skipMarsBotTheater();
+        }
+      },
+    };
   },
   computed: {
     visibleSteps(): Array<TheaterStep> {
       return this.state.steps.slice(0, this.state.currentIndex + 1);
     },
     onThinking(): boolean {
+      if (this.state.lingering) {
+        return false;
+      }
       const current = this.state.steps[this.state.currentIndex];
       return current !== undefined && current.kind === 'thinking';
+    },
+    headerSub(): string {
+      if (this.state.lingering) {
+        return 'turn complete';
+      }
+      return this.onThinking ? 'is thinking' : 'is taking its turn';
     },
   },
   methods: {
     skip(): void {
       skipMarsBotTheater();
     },
+    dismiss(): void {
+      dismissMarsBotTheater();
+    },
+  },
+  mounted() {
+    document.addEventListener('keydown', this.onKey);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKey);
   },
 });
 </script>
