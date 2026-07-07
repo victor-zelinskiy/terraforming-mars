@@ -43,13 +43,18 @@ describe('AutomaController — MarsBot turn', () => {
     expect(game.gameLog.some((m) => m.message.includes('revealed'))).is.true;
   });
 
-  it('a revealed bonus card fails loudly until Phase 8 lands', () => {
+  it('a revealed bonus card resolves and routes to the right pile', () => {
     const [game, human] = testAutomaGame();
+    const automa = game.automa!;
     startActionPhase(game, human);
-    game.automa!.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
-    human.popWaitingFor();
-    game.playerHasPassed(human);
-    expect(() => game.playerIsFinishedTakingActions()).to.throw(/Automa Phase 8/);
+    human.plants = 5;
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+    humanPasses(game, human);
+
+    expect(human.plants).eq(0);
+    expect(automa.destroyedBonusCards).contains(BonusCardId.B01_METEOR_SHOWER);
+    expect(automa.revealedCard).is.undefined;
+    expect(game.gameLog.some((m) => m.message.includes('revealed a bonus card'))).is.true;
   });
 
   it('alternates: human acts, bot resolves exactly one card, human acts again', () => {

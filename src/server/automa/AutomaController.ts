@@ -1,5 +1,9 @@
+import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
+import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
+import {AutomaMAEvaluation} from './AutomaMAEvaluation';
+import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
 import {marsBotOf} from './AutomaSetup';
 
@@ -16,6 +20,8 @@ export class AutomaController {
       throw new Error('Not an automa game');
     }
     const bot = marsBotOf(game);
+
+    AutomaController.maybeHardClaim(game);
 
     // "If MarsBot has no cards in its action deck, it passes for the round." (rulebook p.5)
     if (automa.actionDeck.length === 0) {
@@ -42,13 +48,51 @@ export class AutomaController {
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {
-      // Bonus card resolution (B01–B08 + expansion cards) is Automa Phase 8.
-      // Failing loudly beats hanging the game — automa is not reachable from
-      // the UI yet, and tests control the deck contents.
-      throw new Error(`MarsBot bonus card ${entry.id} is not implemented yet (Automa Phase 8)`);
+      game.log('${0} revealed a bonus card', (b) => b.player(bot));
+      const outcome = resolveBonusCard(game, entry.id);
+      routeBonusCard(game, entry.id, outcome);
     }
 
     automa.revealedCard = undefined;
     game.playerIsFinishedTakingActions();
+  }
+
+  /**
+   * Hard/Brutal (rulebook p.11): on MarsBot's FIRST turn of each generation,
+   * with 8+ M€ and enough milestone pressure — no milestones claimed and it
+   * meets 3+, one claimed and it meets 2+, or two claimed and it meets any —
+   * it claims a milestone (normal tiebreakers) and loses 8 M€. Then the turn
+   * proceeds as normal.
+   */
+  private static maybeHardClaim(game: IGame): void {
+    const automa = game.automa;
+    if (automa === undefined) {
+      throw new Error('Not an automa game');
+    }
+    if (automa.difficulty !== 'hard' && automa.difficulty !== 'brutal') {
+      return;
+    }
+    if (automa.hardClaimCheckedGeneration >= game.generation) {
+      return; // Not the first turn of this generation.
+    }
+    automa.hardClaimCheckedGeneration = game.generation;
+
+    const bot = marsBotOf(game);
+    if (bot.megaCredits < 8) {
+      return;
+    }
+    const claimedCount = game.claimedMilestones.length;
+    if (claimedCount >= 3) {
+      return;
+    }
+    const metCount = game.milestones
+      .filter((m) => !game.milestoneClaimed(m))
+      .filter((m) => AutomaMAEvaluation.botMilestoneMet(m, game))
+      .length;
+    if (metCount < 3 - claimedCount) {
+      return;
+    }
+    bot.stock.deduct(Resource.MEGACREDITS, 8, {log: true});
+    AutomaMilestonesAwards.tryClaimMilestone(game);
   }
 }
