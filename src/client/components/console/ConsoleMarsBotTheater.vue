@@ -33,10 +33,13 @@
         </div>
       </div>
       <!-- The control hint lives ON the band too (the command bar echoes it):
-           the player must see how to dismiss without hunting the screen edge. -->
+           the player must see how to dismiss without hunting the screen edge.
+           While a follow-up prompt modal owns input (fallbackActive), B belongs
+           to the MODAL — the hint hides so the band never lies (mirrors the
+           command bar's own suppression in ConsoleShell). -->
       <footer class="con-bot-theater__foot">
         <span v-if="state.lingering" class="con-bot-theater__foot-note" v-i18n>The board is updated — close when you are done reading</span>
-        <span class="con-bot-theater__hint" :class="{'con-bot-theater__hint--close': state.lingering}">
+        <span v-if="!state.lingering || !consoleState.fallbackActive" class="con-bot-theater__hint" :class="{'con-bot-theater__hint--close': state.lingering}">
           <GamepadGlyph :control="state.lingering ? 'back' : 'confirm'" />
           <span v-i18n>{{ state.lingering ? 'Close' : 'Skip' }}</span>
         </span>
@@ -57,6 +60,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {consoleState} from '@/client/console/consoleRouter';
 import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
 import {TheaterStep} from '@/client/components/marsbot/marsBotTheaterModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -70,7 +74,7 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },
   data() {
-    return {state: marsBotTheaterState};
+    return {state: marsBotTheaterState, consoleState};
   },
   computed: {
     // The thinking beat is a transient intro, not history — it shows only
