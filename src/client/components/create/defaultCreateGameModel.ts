@@ -92,7 +92,14 @@ export function defaultCreateGameModel(): CreateGameModel {
     startingCeos: 3,
     startingPreludes: 4,
     testMode: false,
-    preludeDraftVariant: true,
+    // NOT "playing with preludes" (that's expansions.prelude + the standard
+    // pick 2 of 4 in SelectInitialCards). This flag is the pick-and-pass
+    // prelude draft INSIDE the initial draft (Draft.ts) — dead while
+    // `initialDraft` is false. The owner's games never draft preludes, and a
+    // stray `true` here leaked into payloads (it 500'd the MarsBot create
+    // until the server normalization) — keep it OFF unless deliberately
+    // drafting.
+    preludeDraftVariant: false,
     ceosDraftVariant: false,
   };
 }

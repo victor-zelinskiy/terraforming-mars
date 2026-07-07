@@ -783,8 +783,13 @@ export class Game implements IGame, Logger {
   private playerHasPickedCorporationCard(player: IPlayer, corporationCard: ICorporationCard): void {
     // TODO(kberg): I think we can get rid of this weird validation at a later time.
     player.pickedCorporationCard = corporationCard;
-    if (this.players.every((p) => p.pickedCorporationCard !== undefined)) {
+    // MarsBot never picks a corporation (out of the POC scope) — waiting on it
+    // here would deadlock the start of the game after the human's pick.
+    if (this.players.every((p) => p.isMarsBot || p.pickedCorporationCard !== undefined)) {
       for (const somePlayer of this.playersInGenerationOrder) {
+        if (somePlayer.isMarsBot) {
+          continue;
+        }
         if (somePlayer.pickedCorporationCard === undefined) {
           throw new Error(`pickedCorporationCard is not defined for ${somePlayer.id}`);
         }
@@ -1363,6 +1368,15 @@ export class Game implements IGame, Logger {
   private startActionsForPlayer(player: IPlayer) {
     this.activePlayer = player;
     if (player.isMarsBot) {
+      // Preludes are setup, not turns: MarsBot has none (its compensation is
+      // the extra action-deck cards), so when the human's prelude plays hand
+      // the turn over in the PRELUDES phase, the bot passes it straight back
+      // WITHOUT flipping — its first real flip answers the human's first
+      // ACTION-phase turn, never the setup.
+      if (this.phase === Phase.PRELUDES) {
+        this.playerIsFinishedTakingActions();
+        return;
+      }
       // MarsBot never waits for input — its whole turn resolves server-side.
       AutomaController.takeTurn(this);
       return;
