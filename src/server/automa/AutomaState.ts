@@ -2,7 +2,8 @@ import {CardName} from '../../common/cards/CardName';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
-import {MarsBotTurn, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
+import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
+import type {MarsBotTurnRecording} from './AutomaTurnLog';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBotBoard} from './MarsBotBoard';
 import {THARSIS_MARSBOT_BOARD} from './boards/TharsisMarsBot';
@@ -75,11 +76,12 @@ export class AutomaState {
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
-   * The in-flight recording of the CURRENT turn. Transient by construction —
-   * a turn resolves synchronously inside one server call, so this never has
-   * to survive a save (and is deliberately not serialized).
+   * The in-flight recording of the CURRENT turn (owned by AutomaTurnLog).
+   * Transient by construction — a turn resolves synchronously inside one
+   * server call, so this never has to survive a save (and is deliberately
+   * not serialized).
    */
-  public turnRecording: {steps: Array<MarsBotTurnStep>, logIndex: number} | undefined = undefined;
+  public turnRecording: MarsBotTurnRecording | undefined = undefined;
 
   private constructor(
     public readonly difficulty: DifficultyLevel,

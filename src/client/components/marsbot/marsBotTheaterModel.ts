@@ -16,7 +16,7 @@ import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {BonusCardId, TrackAction} from '@/common/automa/AutomaTypes';
-import {FailedActionReason, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
+import {FailedActionReason, MarsBotImpact, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
 import {ViewModel} from '@/common/models/PlayerModel';
 
 /** The intro beat: MarsBot "thinking" before the reveal (the owner's 800–1500ms). */
@@ -27,6 +27,8 @@ export const ADVANCE_MS = 750;
 export const FAILED_MS = 1500;
 export const LOG_MS = 1050;
 export const PASS_MS = 1300;
+/** One "turn results" line (a participant's before → after changes). */
+export const IMPACT_MS = 1500;
 /** The whole turn (sum of steps) is compressed to fit this, never truncated. */
 export const MAX_TURN_MS = 14000;
 /** Compression floor — steps stay readable even in a monster bonus chain. */
@@ -41,7 +43,8 @@ export type TheaterStep =
   | {kind: 'tag', durationMs: number, tag: Tag, targetTag?: Tag, ignored: boolean}
   | {kind: 'advance', durationMs: number, trackTag?: Tag, from: number, to: number, action?: TrackAction}
   | {kind: 'failed', durationMs: number, reason: FailedActionReason, mc: number, message?: LogMessage}
-  | {kind: 'log', durationMs: number, message: LogMessage};
+  | {kind: 'log', durationMs: number, message: LogMessage}
+  | {kind: 'impact', durationMs: number, impact: MarsBotImpact};
 
 /** The bot participant of the view, if any. */
 export function marsBotOfView(view: ViewModel | undefined): {color: Color, name: string} | undefined {
@@ -89,6 +92,8 @@ function baseStep(view: ViewModel, step: MarsBotTurnStep): TheaterStep {
     return {kind: 'failed', durationMs: FAILED_MS, reason: step.reason, mc: step.mc, message: step.message};
   case 'log':
     return {kind: 'log', durationMs: LOG_MS, message: step.message};
+  case 'impact':
+    return {kind: 'impact', durationMs: IMPACT_MS, impact: step.impact};
   }
 }
 

@@ -64,6 +64,31 @@
       </template>
     </span>
   </div>
+
+  <!-- Turn results: WHO was affected + every change as before → after -->
+  <div v-else-if="step.kind === 'impact'" class="mb-step__row mb-step__row--impact">
+    <span class="mb-imp__who" :class="{'mb-imp__who--bot': step.impact.targetIsBot}">
+      <span class="mb-imp__dot" :class="'player_bg_color_' + step.impact.target" aria-hidden="true"></span>
+      <span class="mb-imp__name">{{ targetName(step.impact.target) }}</span>
+    </span>
+    <span class="mb-imp__chips">
+      <span
+        v-for="(change, i) in step.impact.changes"
+        :key="i"
+        class="mb-imp__chip"
+        :class="[changeTone(change), {'mb-imp__chip--production': change.scope === 'production'}]"
+      >
+        <span class="mb-imp__icon-frame" :class="{'mb-imp__icon-frame--production': change.scope === 'production'}">
+          <i class="mb-imp__icon" :class="impactIconClass(change)" aria-hidden="true"></i>
+        </span>
+        <span class="mb-imp__values">
+          <span class="mb-imp__before">{{ change.before }}</span>
+          <span class="mb-imp__arrow" aria-hidden="true">→</span>
+          <span class="mb-imp__after">{{ change.after }}</span>
+        </span>
+      </span>
+    </span>
+  </div>
 </template>
 
 <script lang="ts">
@@ -79,8 +104,11 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Log} from '@/common/logs/Log';
+import {Color} from '@/common/Color';
 import {TrackAction} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
+import {MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {trackActionLabel} from './marsBotView';
 import {TheaterStep} from './marsBotTheaterModel';
@@ -110,6 +138,18 @@ export default defineComponent({
     actionText(action: TrackAction): string {
       const label = trackActionLabel(action);
       return translateTextWithParams(label.message, label.params);
+    },
+    targetName(color: Color): string {
+      return this.players.find((p) => p.color === color)?.name ?? color;
+    },
+    impactIconClass(change: MarsBotImpactChange): string {
+      return iconClassFor(change.resource === 'tr' ? 'tr' : change.resource);
+    },
+    changeTone(change: MarsBotImpactChange): string {
+      if (change.after < change.before) {
+        return 'mb-imp__chip--loss';
+      }
+      return change.after > change.before ? 'mb-imp__chip--gain' : '';
     },
   },
 });

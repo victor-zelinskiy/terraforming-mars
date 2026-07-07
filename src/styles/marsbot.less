@@ -536,6 +536,61 @@
     .journal-token, .journal-cardchip { vertical-align: baseline; }
 }
 
+/* Turn results: WHO was affected + explicit before → after chips. */
+.mb-step__row--impact { align-items: center; gap: 10px; }
+.mb-imp__who {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px 3px 6px; border-radius: 5px;
+    background: rgba(6, 12, 10, 0.6);
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 18%);
+    font-family: Prototype, Orbitron, sans-serif;
+}
+.mb-imp__dot { width: 10px; height: 10px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4); }
+.mb-imp__name { font-size: 11.5px; letter-spacing: 0.6px; color: @mb-text; }
+.mb-imp__chips { flex: 1 1 auto; min-width: 0; display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.mb-imp__chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px 2px 4px; border-radius: 5px;
+    background: rgba(10, 18, 16, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(140, 160, 155, 0.25);
+    font-family: Prototype, Orbitron, sans-serif; font-size: 12px;
+}
+.mb-imp__icon-frame { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 18px; }
+.mb-imp__icon-frame--production {
+    border-radius: 3px;
+    background: rgba(140, 92, 50, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(200, 150, 100, 0.55);
+}
+.mb-imp__icon { display: inline-block; transform: scale(0.8); transform-origin: center; }
+.mb-imp__values { display: inline-flex; align-items: baseline; gap: 4px; }
+.mb-imp__before { color: @mb-text-dim; }
+.mb-imp__arrow { color: fade(@mb-accent, 75%); font-size: 11px; }
+.mb-imp__after { color: @mb-text; }
+.mb-imp__chip--loss {
+    box-shadow: inset 0 0 0 1px rgba(235, 110, 90, 0.5);
+    .mb-imp__after { color: #ff9d8a; text-shadow: 0 0 8px rgba(235, 90, 70, 0.3); }
+}
+.mb-imp__chip--gain {
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 45%);
+    .mb-imp__after { color: #9df0d2; text-shadow: 0 0 8px fade(@mb-accent, 30%); }
+}
+
+/* The finished checkmark line (replaces the transient thinking intro). */
+.mb-step__row--done {
+    font-family: Prototype, Orbitron, sans-serif;
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: @mb-accent;
+}
+.mb-step__icon--done {
+    color: #0c1712; background: @mb-accent;
+    box-shadow: 0 0 10px fade(@mb-accent, 45%);
+}
+.mb-theater__step--done,
+.con-bot-theater__step--done {
+    background: fade(@mb-accent, 7%);
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 40%);
+}
+
 @keyframes mb-theater-in {
     from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
     to { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -604,12 +659,16 @@
     /* TV sizing for the shared step rows. */
     .mb-step__row { font-size: 17px; gap: 9px; }
     .mb-step__row--thinking { font-size: 14px; }
+    .mb-step__row--done { font-size: 14px; }
     .mb-step__verb { font-size: 12.5px; }
-    .mb-step__bonus b { font-size: 16px; }
-    .mb-step__bonus-text { font-size: 14px; }
     .mb-step__pos { font-size: 17px; }
     .mb-step__cardwrap > .card-container { zoom: 0.7; }
     .mb-step__icon { width: 22px; height: 22px; font-size: 14px; }
+    .mb-imp__name { font-size: 14.5px; }
+    .mb-imp__chip { font-size: 15px; padding: 4px 10px 4px 6px; }
+    .mb-imp__icon-frame { width: 24px; height: 22px; }
+    .mb-imp__icon { transform: scale(1); }
+    .mb-imp__dot { width: 12px; height: 12px; }
 }
 .con-bot-theater__step--live { box-shadow: inset 0 0 0 1px fade(@mb-accent, 60%), 0 0 18px fade(@mb-accent, 14%); }
 

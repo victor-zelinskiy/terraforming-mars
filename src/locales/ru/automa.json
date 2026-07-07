@@ -89,6 +89,7 @@
   "Player status bot turn": "ХОДИТ",
   "MarsBot is taking its turn": "MarsBot делает ход",
   "turn complete": "ход завершён",
+  "MarsBot finished its turn": "MarsBot завершил ход",
   "The board is updated — close when you are done reading": "Поле обновлено — закройте, когда дочитаете",
 
   "Discard pile": "Сброс",

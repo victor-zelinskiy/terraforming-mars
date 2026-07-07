@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
-import {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
+import type {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
 import {AutomaState} from '../../src/server/automa/AutomaState';
 import {IGame} from '../../src/server/IGame';
 import {Server} from '../../src/server/models/ServerModel';
@@ -52,7 +52,7 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(cascade).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 1, to: 2});
   });
 
-  it('a tagless card records a failed step carrying its own log line', () => {
+  it('a tagless card records a failed step + the bot\'s own before → after impact', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;
     startActionPhase(game, human);
@@ -60,13 +60,37 @@ describe('AutomaTurnLog — the typed turn script', () => {
     humanEndsTurn(game, human);
 
     const steps = automa.lastTurn!.steps;
-    expect(kinds(steps)).deep.eq(['reveal', 'failed']);
+    expect(kinds(steps)).deep.eq(['reveal', 'failed', 'impact']);
     const failed = steps[1];
     if (failed.kind === 'failed') {
       expect(failed.reason).eq('no-tags');
       expect(failed.mc).eq(5);
       expect(failed.message?.message).to.include('took a Failed Action');
     }
+    // The turn-results section: the Failed-Action money as explicit 0 → 5.
+    const impact = steps[2];
+    if (impact.kind === 'impact') {
+      expect(impact.impact.targetIsBot).is.true;
+      expect(impact.impact.changes).deep.eq([{resource: 'megacredits', scope: 'stock', before: 0, after: 5}]);
+    }
+  });
+
+  it('an attack records the VICTIM\'s before → after impact (who + how much)', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    human.plants = 5;
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+    humanEndsTurn(game, human);
+
+    const steps = automa.lastTurn!.steps;
+    const impacts = steps.filter((s): s is Extract<MarsBotTurnStep, {kind: 'impact'}> => s.kind === 'impact');
+    const victim = impacts.find((s) => !s.impact.targetIsBot);
+    expect(victim, 'the victim impact must be recorded').is.not.undefined;
+    expect(victim!.impact.target).eq(human.color);
+    expect(victim!.impact.changes).deep.eq([{resource: 'plants', scope: 'stock', before: 5, after: 0}]);
+    // Impact steps close the script — after every narrated log line.
+    expect(steps[steps.length - 1].kind).eq('impact');
   });
 
   it('an empty action deck records a pass turn', () => {

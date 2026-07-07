@@ -21,11 +21,17 @@
       <transition-group tag="div" class="mb-theater__steps" name="mb-step">
         <div
           v-for="(entry, i) in visibleSteps"
-          :key="i"
+          :key="entry.key"
           class="mb-theater__step"
-          :class="['mb-theater__step--' + entry.kind, {'mb-theater__step--live': i === visibleSteps.length - 1 && !state.finished}]"
+          :class="['mb-theater__step--' + entry.step.kind, {'mb-theater__step--live': i === visibleSteps.length - 1 && !state.finished}]"
         >
-          <MarsBotTheaterStep :step="entry" :players="players" :ctx="state.ctx" />
+          <MarsBotTheaterStep :step="entry.step" :players="players" :ctx="state.ctx" />
+        </div>
+        <div v-if="state.finished" key="done" class="mb-theater__step mb-theater__step--done">
+          <div class="mb-step__row mb-step__row--done">
+            <span class="mb-step__icon mb-step__icon--done" aria-hidden="true">✓</span>
+            <span v-i18n>MarsBot finished its turn</span>
+          </div>
         </div>
       </transition-group>
 
@@ -75,8 +81,22 @@ export default defineComponent({
     };
   },
   computed: {
-    visibleSteps(): Array<TheaterStep> {
-      return this.state.steps.slice(0, this.state.currentIndex + 1);
+    // The thinking beat is a transient intro, not history — it shows only
+    // while it IS the live step (a finished turn must not keep "drawing a
+    // card…" pulsing in the record). Keys are index-stable so filtering the
+    // intro out never re-mounts the later steps.
+    visibleSteps(): Array<{key: number, step: TheaterStep}> {
+      const out: Array<{key: number, step: TheaterStep}> = [];
+      this.state.steps.forEach((step, i) => {
+        if (i > this.state.currentIndex) {
+          return;
+        }
+        if (step.kind === 'thinking' && (i < this.state.currentIndex || this.state.finished)) {
+          return;
+        }
+        out.push({key: i, step});
+      });
+      return out;
     },
     onThinking(): boolean {
       if (this.state.lingering) {

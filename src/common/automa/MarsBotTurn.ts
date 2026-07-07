@@ -1,4 +1,6 @@
 import {CardName} from '../cards/CardName';
+import {Color} from '../Color';
+import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {LogMessage} from '../logs/LogMessage';
 import {BonusCardId, TrackAction} from './AutomaTypes';
@@ -36,6 +38,28 @@ export type MarsBotRevealedCard =
   | {kind: 'project', name: CardName}
   | {kind: 'bonus', id: BonusCardId};
 
+/**
+ * One concrete BEFORE → AFTER change the turn caused for one participant.
+ * `resource` is a standard resource; `scope` says whether the STOCK or the
+ * PRODUCTION moved; 'tr' is the terraform rating. Derived on the server from
+ * per-player snapshots taken around the whole turn, so ANY mechanic (bonus
+ * cards, tile triggers, failed-action money) is covered without per-site
+ * instrumentation — and it names the TARGET explicitly, which is exactly what
+ * a future multi-human game needs.
+ */
+export type MarsBotImpactChange = {
+  resource: Resource | 'tr';
+  scope: 'stock' | 'production';
+  before: number;
+  after: number;
+};
+
+export type MarsBotImpact = {
+  target: Color;
+  targetIsBot: boolean;
+  changes: ReadonlyArray<MarsBotImpactChange>;
+};
+
 export type MarsBotTurnStep =
   /** Empty action deck — MarsBot passes for the round. */
   | {kind: 'pass', message?: LogMessage}
@@ -52,7 +76,13 @@ export type MarsBotTurnStep =
   /** A Failed Action: the cause + the M€ gained (5, or 3 on Easy). */
   | {kind: 'failed', reason: FailedActionReason, mc: number, message?: LogMessage}
   /** Any other public log line emitted during the turn, in order. */
-  | {kind: 'log', message: LogMessage};
+  | {kind: 'log', message: LogMessage}
+  /**
+   * The turn's NET effect on one participant — every stock/production/TR
+   * value that changed, as explicit before → after pairs. Appended at the end
+   * of the script (the "turn results" section), one step per affected player.
+   */
+  | {kind: 'impact', impact: MarsBotImpact};
 
 export type MarsBotTurn = {
   /** Monotonic per-game turn number — the client's replay/dedup key. */

@@ -1,5 +1,58 @@
-import {MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
+import {Color} from '../../common/Color';
+import {Resource} from '../../common/Resource';
+import {MarsBotImpactChange, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
+import {IPlayer} from '../IPlayer';
+
+/** The in-flight recording of one bot turn (lives on `AutomaState.turnRecording`). */
+export type MarsBotTurnRecording = {
+  steps: Array<MarsBotTurnStep>;
+  logIndex: number;
+  snapshots: ReadonlyArray<PlayerSnapshot>;
+};
+
+/** The values snapshotted around the whole turn to derive the impact steps. */
+type PlayerSnapshot = {
+  color: Color;
+  isBot: boolean;
+  stock: Record<Resource, number>;
+  production: Record<Resource, number>;
+  tr: number;
+};
+
+const RESOURCES: ReadonlyArray<Resource> = [
+  Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM,
+  Resource.PLANTS, Resource.ENERGY, Resource.HEAT,
+];
+
+function snapshotOf(player: IPlayer): PlayerSnapshot {
+  const stock = {} as Record<Resource, number>;
+  const production = {} as Record<Resource, number>;
+  for (const resource of RESOURCES) {
+    stock[resource] = player.stock.get(resource);
+    production[resource] = player.production.get(resource);
+  }
+  return {color: player.color, isBot: player.isMarsBot === true, stock, production, tr: player.terraformRating};
+}
+
+function diffOf(before: PlayerSnapshot, player: IPlayer): Array<MarsBotImpactChange> {
+  const after = snapshotOf(player);
+  const changes: Array<MarsBotImpactChange> = [];
+  for (const resource of RESOURCES) {
+    if (after.stock[resource] !== before.stock[resource]) {
+      changes.push({resource, scope: 'stock', before: before.stock[resource], after: after.stock[resource]});
+    }
+  }
+  for (const resource of RESOURCES) {
+    if (after.production[resource] !== before.production[resource]) {
+      changes.push({resource, scope: 'production', before: before.production[resource], after: after.production[resource]});
+    }
+  }
+  if (after.tr !== before.tr) {
+    changes.push({resource: 'tr', scope: 'stock', before: before.tr, after: after.tr});
+  }
+  return changes;
+}
 
 /**
  * Records the typed script of a MarsBot turn (see `MarsBotTurn` in common) —
@@ -27,7 +80,15 @@ export class AutomaTurnLog {
       throw new Error('Not an automa game');
     }
     automa.turnCounter++;
-    automa.turnRecording = {steps: [], logIndex: game.gameLog.length};
+    automa.turnRecording = {
+      steps: [],
+      logIndex: game.gameLog.length,
+      // Whole-turn per-player snapshots: the finish() diff turns them into
+      // explicit "before → after" impact steps for every affected participant
+      // (the target of an attack, the bot's own gains). Snapshot-based, so any
+      // mechanic is covered without per-site instrumentation.
+      snapshots: game.players.map(snapshotOf),
+    };
   }
 
   public static note(game: IGame, step: MarsBotTurnStep, opts?: {consumeLog?: boolean}): void {
@@ -56,6 +117,22 @@ export class AutomaTurnLog {
     }
     for (const message of AutomaTurnLog.takeFreshLogs(game)) {
       recording.steps.push({kind: 'log', message});
+    }
+    // The "turn results" section: one impact step per participant the turn
+    // actually touched — the bot's own gains first, then its targets.
+    const impacts = recording.snapshots
+      .map((snapshot) => {
+        const player = game.players.find((p) => p.color === snapshot.color);
+        return player === undefined ? undefined : {
+          target: snapshot.color,
+          targetIsBot: snapshot.isBot,
+          changes: diffOf(snapshot, player),
+        };
+      })
+      .filter((impact): impact is NonNullable<typeof impact> => impact !== undefined && impact.changes.length > 0)
+      .sort((a, b) => Number(b.targetIsBot) - Number(a.targetIsBot));
+    for (const impact of impacts) {
+      recording.steps.push({kind: 'impact', impact});
     }
     automa.lastTurn = {id: automa.turnCounter, generation: game.generation, steps: recording.steps};
     automa.turnRecording = undefined;
