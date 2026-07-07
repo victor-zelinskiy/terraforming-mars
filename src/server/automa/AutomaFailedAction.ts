@@ -1,24 +1,13 @@
 import {FAILED_ACTION_MC, FAILED_ACTION_MC_EASY} from '../../common/automa/AutomaTypes';
+import {FailedActionReason} from '../../common/automa/MarsBotTurn';
 import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
+import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 
-/**
- * Why MarsBot took a Failed Action. Each maps to its own full log template so
- * the journal always explains the cause (never a vague "failed"). Phase 9 adds
- * the milestone/award reasons.
- */
-export type FailedActionReason =
-  | 'no-tags'
-  | 'track-maxed'
-  | 'venus-maxed'
-  | 'temperature-maxed'
-  | 'oceans-complete'
-  | 'no-tile-space'
-  | 'milestones-claimed'
-  | 'no-milestone-criteria'
-  | 'awards-funded'
-  | 'not-ahead-any-award';
+// The reason union lives in common (`MarsBotTurn.ts`) — the turn script carries
+// it to the client theater. Re-exported for the existing server-side importers.
+export type {FailedActionReason} from '../../common/automa/MarsBotTurn';
 
 const FAILED_ACTION_TEMPLATES: Record<FailedActionReason, string> = {
   'no-tags': '${0} took a Failed Action (the card has no tags) and gained ${1} M€',
@@ -43,4 +32,5 @@ export function failedAction(game: IGame, reason: FailedActionReason): void {
   const mc = automa.difficulty === 'easy' ? FAILED_ACTION_MC_EASY : FAILED_ACTION_MC;
   bot.stock.add(Resource.MEGACREDITS, mc);
   game.log(FAILED_ACTION_TEMPLATES[reason], (b) => b.player(bot).number(mc));
+  AutomaTurnLog.note(game, {kind: 'failed', reason, mc}, {consumeLog: true});
 }

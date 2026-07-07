@@ -106,6 +106,9 @@ function makeScale(key: string, label: string, accent: string, segments: Array<V
 // are the genuine sources of growth.
 function trScale(b: VictoryPointsBreakdown): VPScale {
   const tr = b.terraformRatingBreakdown;
+  // MarsBot's direct TR comes from its board TRACK ACTIONS, not cards — the
+  // honest label for the same accumulator (`terraformRatingFromCards`).
+  const directTrLabel = b.automa !== undefined ? 'Track actions' : 'Cards & effects';
   const segments = nonZero([
     {key: 'tr.base', accent: 'tr-base', label: 'Starting rating', value: tr.base},
     {key: 'tr.temperature', accent: 'temperature', label: 'Temperature', value: tr.temperature},
@@ -114,11 +117,29 @@ function trScale(b: VictoryPointsBreakdown): VPScale {
     {key: 'tr.venus', accent: 'venus', label: 'Venus', value: tr.venus},
     // Ares — diegetic, never expansion-named («Очистка опасных зон»). 0/absent → filtered.
     {key: 'tr.hazards', accent: 'tr-hazards', label: 'Hazard cleanup', value: tr.hazards ?? 0},
-    {key: 'tr.cards', accent: 'tr-cards', label: 'Cards & effects', value: tr.cards},
+    {key: 'tr.cards', accent: 'tr-cards', label: directTrLabel, value: tr.cards},
   ]);
   // base can fall slightly negative on heavy TR loss — clamp the SEGMENT for
   // honesty (the value chip still shows the real terraformRating).
   return makeScale('tr', 'Terraform rating', 'tr', segments);
+}
+
+// ── MarsBot scoring bar (automa-only) ─────────────────────────────────
+// The Automa's scoring exceptions: remaining M€ → VP by the final-generation
+// ladder, Neural Instance adjacency, and the Hard/Brutal played-pile VP.
+// Present only on the bot's breakdown; every field is already inside
+// `breakdown.total`, so this bar keeps the segment-sum ≡ total invariant.
+function automaScale(b: VictoryPointsBreakdown): VPScale | undefined {
+  const a = b.automa;
+  if (a === undefined) {
+    return undefined;
+  }
+  const scale = makeScale('automa', 'MarsBot scoring', 'automa', nonZero([
+    {key: 'automa.mc', accent: 'automa-mc', label: 'M€ converted to VP', value: a.mcToVp},
+    {key: 'automa.neural', accent: 'automa-neural', label: 'Neural Instance', value: a.neuralInstance},
+    {key: 'automa.cards', accent: 'automa-cards', label: 'Played card icons', value: a.cardVp},
+  ]));
+  return scale.segments.length > 0 ? scale : undefined;
 }
 
 // ── "From cards" bar + grouped detail ─────────────────────────────────
@@ -184,6 +205,10 @@ export function buildVictoryPointsModel(b: VictoryPointsBreakdown, opts: Victory
     ])),
   ];
 
+  const automa = automaScale(b);
+  if (automa !== undefined) {
+    scales.push(automa);
+  }
   if (opts.hasMoon && (b.moonHabitats + b.moonMines + b.moonRoads) !== 0) {
     scales.push(makeScale('moon', 'Moon', 'moon', nonZero([
       {key: 'moon.habitats', accent: 'moon', label: 'Habitats', value: b.moonHabitats},

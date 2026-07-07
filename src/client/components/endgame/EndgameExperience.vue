@@ -108,12 +108,18 @@ export default defineComponent({
           // Rework §4–§20 — the strategy-archetype raw inputs (needs the card manifest).
           strategyInput: this.strategyInputFor(p),
         }));
+      // MarsBot clock win: entering the final generation means the human lost
+      // regardless of totals (Automa rules) — the bot is the forced winner.
+      const automaClockWinner = game.automa?.instantWin === true ?
+        this.view.players.find((p) => p.isMarsBot === true)?.color :
+        undefined;
       return buildEndgameModel(inputs, {
         hasMoon: game.moon !== undefined,
         hasPathfinders: game.pathfinders !== undefined,
         hasVenus: game.gameOptions.expansions.venus === true,
         generation: game.generation,
         soloWin: game.isSoloModeWin,
+        automaClockWinner,
         facts: this.facts,
         playerCards: this.playerCards,
         cardResources: this.cardResources,

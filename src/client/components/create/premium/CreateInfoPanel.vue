@@ -16,6 +16,7 @@
       <div :key="transitionKey" class="info-panel__content">
         <h3 class="info-panel__title" v-i18n>{{ title }}</h3>
         <p class="info-panel__desc" v-i18n>{{ desc }}</p>
+        <p v-if="botNote !== ''" class="info-panel__note" v-i18n>{{ botNote }}</p>
       </div>
     </transition>
   </aside>
@@ -26,7 +27,7 @@ import {defineComponent} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {createGameState, InfoFocus} from './createGameState';
 import {
-  PREMIUM_EXPANSIONS, PREMIUM_RULES, expansionIcon, expansionLabelKey, mapMeta,
+  BOT_SUPPORTED_MODULES_KEY, PREMIUM_EXPANSIONS, PREMIUM_RULES, botDifficultyMeta, expansionIcon, expansionLabelKey, mapMeta,
 } from './createGameMeta';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 
@@ -57,6 +58,8 @@ export default defineComponent({
       case 'map': return 'Map';
       case 'rule': return 'Rule';
       case 'players': return 'Players';
+      case 'mode': return 'Game mode';
+      case 'bot': return 'MarsBot';
       default: return 'Briefing';
       }
     },
@@ -67,6 +70,8 @@ export default defineComponent({
       case 'map': return mapMeta(i.id).labelKey;
       case 'rule': return PREMIUM_RULES.find((r) => r.id === i.id)?.labelKey ?? '';
       case 'players': return 'Party players';
+      case 'mode': return 'Game mode';
+      case 'bot': return botDifficultyMeta(i.difficulty).labelKey;
       default: return 'Mission setup';
       }
     },
@@ -77,8 +82,14 @@ export default defineComponent({
       case 'map': return mapMeta(i.id).descKey;
       case 'rule': return PREMIUM_RULES.find((r) => r.id === i.id)?.descKey ?? '';
       case 'players': return 'Enter each player\'s name and cube colour. The first player is you, the creator.';
+      case 'mode': return 'Play with other people, or solo against MarsBot — the official Automa opponent that runs itself.';
+      case 'bot': return botDifficultyMeta(i.difficulty).descKey;
       default: return 'Hover or focus any option to see what it does, then create the game.';
       }
+    },
+    /** MarsBot focus: the supported-module note under the difficulty text. */
+    botNote(): string {
+      return this.info.kind === 'bot' ? BOT_SUPPORTED_MODULES_KEY : '';
     },
     statusChip(): string {
       const i = this.info;

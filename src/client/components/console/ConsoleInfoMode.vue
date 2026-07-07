@@ -16,14 +16,35 @@
         </div>
         <div class="con-info__head-meta">
           <span v-if="corpName !== ''" class="con-info__corp">{{ $t(corpName) }}</span>
+          <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
           <span class="con-info__tr">{{ viewed.terraformRating }} {{ $t('TR') }}</span>
           <span v-if="vpVisible" class="con-info__vp">{{ vpTotal }} {{ $t('VP') }}</span>
           <span class="con-info__close-hint"><GamepadGlyph control="inspect" /><span>{{ $t('Close') }}</span></span>
         </div>
       </header>
 
+      <!-- ── DASHBOARD (MarsBot participant) ─────────────────────────── -->
+      <div v-if="infoModeState.detail === undefined && viewedIsBot && botAutoma !== undefined" class="con-info__scroll con-info__grid">
+        <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" />
+        <!-- VP — the SAME block as a human participant (shared model + rule). -->
+        <section class="con-info__block">
+          <h3 class="con-info__block-title">{{ $t('Victory Points') }}
+            <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
+          </h3>
+          <template v-if="vpVisible">
+            <div class="con-info__vp-total">{{ vpTotal }}</div>
+            <div class="con-info__stat-lines">
+              <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
+                <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
+              </div>
+            </div>
+          </template>
+          <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
+        </section>
+      </div>
+
       <!-- ── DASHBOARD ───────────────────────────────────────────────── -->
-      <div v-if="infoModeState.detail === undefined" class="con-info__scroll con-info__grid">
+      <div v-else-if="infoModeState.detail === undefined" class="con-info__scroll con-info__grid">
         <!-- Resources & production — the headline block. -->
         <section class="con-info__block con-info__block--resources">
           <h3 class="con-info__block-title">{{ $t('Resources') }}</h3>
@@ -118,6 +139,13 @@
           <span class="con-info__detail-back"><GamepadGlyph control="back" /><span>{{ $t('To overview') }}</span></span>
         </div>
 
+        <!-- MarsBot details: printed board / played pile / bonus piles -->
+        <ConsoleMarsBotSections
+          v-if="isBotDetail && botAutoma !== undefined"
+          :mode="botDetailMode"
+          :bot="viewed"
+          :automa="botAutoma" />
+
         <!-- Extra resources detail -->
         <div v-if="infoModeState.detail === 'extras'" class="con-info__scroll con-info__detail-scroll">
           <div v-if="extraGroups.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No resources on cards') }}</div>
@@ -188,7 +216,13 @@
       <!-- ── Foot hints ──────────────────────────────────────────────── -->
       <footer class="con-info__foot" aria-hidden="true">
         <span class="con-info__foot-item"><GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" /><span>{{ $t('Players') }}</span></span>
-        <template v-if="infoModeState.detail === undefined">
+        <template v-if="infoModeState.detail === undefined && viewedIsBot">
+          <span class="con-info__foot-item"><GamepadGlyph control="secondary" /><span>{{ $t('MarsBot board') }}</span></span>
+          <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Played cards') }}</span></span>
+          <span class="con-info__foot-item"><GamepadGlyph control="triggerR" /><span>{{ $t('Bonus cards') }}</span></span>
+          <span class="con-info__foot-item" :class="{'con-info__foot-item--off': !vpVisible}"><GamepadGlyph control="confirm" /><span>{{ $t('VP overview') }}</span></span>
+        </template>
+        <template v-else-if="infoModeState.detail === undefined">
           <span class="con-info__foot-item"><GamepadGlyph control="secondary" /><span>{{ $t('Extra resources') }}</span></span>
           <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Actions') }}</span></span>
           <span class="con-info__foot-item"><GamepadGlyph control="triggerR" /><span>{{ $t('Effects') }}</span></span>
@@ -235,6 +269,9 @@ import {buildVictoryPointsModel, VictoryPointsModel} from '@/client/components/o
 import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
+import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
+import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
 import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -251,11 +288,14 @@ const DETAIL_TITLES: Record<string, string> = {
   actions: 'Actions',
   effects: 'Effects',
   vp: 'Victory Points',
+  botBoard: 'MarsBot board',
+  botPlayed: 'Played cards',
+  botBonus: 'Bonus cards',
 };
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {'tag-count': TagCount, EffectBlock, GamepadGlyph, Card},
+  components: {'tag-count': TagCount, ConsoleMarsBotSections, EffectBlock, GamepadGlyph, Card},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -270,6 +310,25 @@ export default defineComponent({
     },
     isSelf(): boolean {
       return this.viewed.color === this.playerView.thisPlayer.color;
+    },
+    /** The viewed participant is the MarsBot seat → bot-specific sections. */
+    viewedIsBot(): boolean {
+      return this.viewed.isMarsBot === true;
+    },
+    botAutoma(): MarsBotModel | undefined {
+      return this.playerView.game.automa;
+    },
+    botDifficultyLabel(): string {
+      const automa = this.botAutoma;
+      return automa !== undefined ? DIFFICULTY_LABEL[automa.difficulty] : '';
+    },
+    isBotDetail(): boolean {
+      const d = this.infoModeState.detail;
+      return d === 'botBoard' || d === 'botPlayed' || d === 'botBonus';
+    },
+    botDetailMode(): 'botBoard' | 'botPlayed' | 'botBonus' {
+      const d = this.infoModeState.detail;
+      return d === 'botPlayed' || d === 'botBonus' ? d : 'botBoard';
     },
     isPassed(): boolean {
       return this.playerView.game.passedPlayers.includes(this.viewed.color);

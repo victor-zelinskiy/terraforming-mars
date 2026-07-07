@@ -1,6 +1,6 @@
-import {BoardName} from '../../common/boards/BoardName';
 import {PLAYER_COLORS} from '../../common/Color';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {AutomaCompatibilityInput, automaConflicts} from '../../common/automa/automaCompatibility';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {GameId} from '../../common/Types';
 import {safeCast, isPlayerId} from '../../common/Types';
@@ -12,98 +12,56 @@ import {AutomaColonies} from './AutomaColonies';
 import {AutomaState, AutomaActionCard} from './AutomaState';
 
 export class AutomaSetup {
+  /** Normalize the server `GameOptions` into the shared compatibility input. */
+  public static compatibilityInput(gameOptions: GameOptions): AutomaCompatibilityInput {
+    return {
+      boardName: gameOptions.boardName,
+      turmoil: gameOptions.turmoilExtension,
+      prelude2: gameOptions.prelude2Expansion,
+      promo: gameOptions.promoCardsOption,
+      community: gameOptions.communityCardsOption,
+      ares: gameOptions.aresExtension,
+      moon: gameOptions.moonExpansion,
+      pathfinders: gameOptions.pathfindersExpansion,
+      ceo: gameOptions.ceoExtension,
+      starwars: gameOptions.starWarsExpansion,
+      underworld: gameOptions.underworldExpansion,
+      deltaProject: gameOptions.deltaProjectExpansion,
+      initialDraftVariant: gameOptions.initialDraftVariant,
+      preludeDraftVariant: gameOptions.preludeDraftVariant,
+      ceosDraftVariant: gameOptions.ceosDraftVariant,
+      randomMA: gameOptions.randomMA !== RandomMAOptionType.NONE,
+      soloTR: gameOptions.soloTR,
+      twoCorpsVariant: gameOptions.twoCorpsVariant,
+      escapeVelocity: gameOptions.escapeVelocity !== undefined,
+      solarPhaseOption: gameOptions.solarPhaseOption,
+      requiresVenusTrackCompletion: gameOptions.requiresVenusTrackCompletion,
+      altVenusBoard: gameOptions.altVenusBoard,
+      shuffleMapOption: gameOptions.shuffleMapOption,
+      customLists: gameOptions.customCorporationsList.length > 0 ||
+        gameOptions.customColoniesList.length > 0 ||
+        gameOptions.customPreludes.length > 0 ||
+        gameOptions.customCeos.length > 0 ||
+        gameOptions.bannedCards.length > 0 ||
+        gameOptions.includedCards.length > 0,
+    };
+  }
+
   /**
    * The POC supports exactly the officially-covered module set on Tharsis:
    * Corporate Era + Prelude 1 + Venus Next + Colonies (any subset). Everything
-   * else is rejected loudly at creation — never silently ignored.
+   * else is rejected loudly at creation — never silently ignored. The RULES
+   * live in the shared `automaConflicts` (src/common/automa/automaCompatibility.ts)
+   * so the premium create-game UI highlights the SAME conflicts before submit;
+   * this server check stays the source of truth.
    */
   public static validateOptions(gameOptions: GameOptions): void {
     if (gameOptions.automa === undefined) {
       return;
     }
-    const reject = (what: string) => {
-      throw new Error(`MarsBot (Automa) does not support ${what}`);
-    };
-    if (gameOptions.boardName !== BoardName.THARSIS) {
-      reject(`the ${gameOptions.boardName} board yet — the POC covers Tharsis`);
-    }
-    // Unsupported expansions / modules.
-    if (gameOptions.turmoilExtension) {
-      reject('Turmoil in the POC');
-    }
-    if (gameOptions.prelude2Expansion) {
-      reject('Prelude 2 (per the official rules, and out of POC scope)');
-    }
-    if (gameOptions.promoCardsOption) {
-      reject('promo cards in the POC');
-    }
-    if (gameOptions.communityCardsOption) {
-      reject('community cards');
-    }
-    if (gameOptions.aresExtension) {
-      reject('Ares');
-    }
-    if (gameOptions.moonExpansion) {
-      reject('The Moon');
-    }
-    if (gameOptions.pathfindersExpansion) {
-      reject('Pathfinders');
-    }
-    if (gameOptions.ceoExtension) {
-      reject('CEOs');
-    }
-    if (gameOptions.starWarsExpansion) {
-      reject('Star Wars');
-    }
-    if (gameOptions.underworldExpansion) {
-      reject('Underworld');
-    }
-    if (gameOptions.deltaProjectExpansion) {
-      reject('the Delta Project');
-    }
-    // Variants the official Automa setup does not describe.
-    if (gameOptions.initialDraftVariant) {
-      reject('the initial draft (the official Automa setup deals 10 cards)');
-    }
-    if (gameOptions.preludeDraftVariant) {
-      reject('the prelude draft');
-    }
-    if (gameOptions.ceosDraftVariant) {
-      reject('the CEO draft');
-    }
-    if (gameOptions.randomMA !== RandomMAOptionType.NONE) {
-      reject('random milestones and awards');
-    }
-    if (gameOptions.soloTR) {
-      reject('the 63 TR solo variant (the win condition is beating MarsBot)');
-    }
-    if (gameOptions.twoCorpsVariant) {
-      reject('the two-corporations variant');
-    }
-    if (gameOptions.escapeVelocity !== undefined) {
-      reject('Escape Velocity');
-    }
-    // Venus Next's World Government Terraforming: its role is played by the
-    // Government Intervention bonus card (Adding Expansions p.3) — never both.
-    if (gameOptions.solarPhaseOption) {
-      reject('the Solar Phase / WGT option (Government Intervention covers it)');
-    }
-    if (gameOptions.requiresVenusTrackCompletion) {
-      reject('the "Venus must be completed" variant');
-    }
-    if (gameOptions.altVenusBoard) {
-      reject('the alternate Venus board');
-    }
-    if (gameOptions.shuffleMapOption) {
-      reject('the shuffled map (MarsBot tile placement uses the printed board)');
-    }
-    if (gameOptions.customCorporationsList.length > 0 ||
-        gameOptions.customColoniesList.length > 0 ||
-        gameOptions.customPreludes.length > 0 ||
-        gameOptions.customCeos.length > 0 ||
-        gameOptions.bannedCards.length > 0 ||
-        gameOptions.includedCards.length > 0) {
-      reject('custom card/colony lists in the POC');
+    const conflicts = automaConflicts(AutomaSetup.compatibilityInput(gameOptions));
+    if (conflicts.length > 0) {
+      throw new Error(`MarsBot (Automa) does not support ${conflicts[0].reason}`);
     }
   }
 

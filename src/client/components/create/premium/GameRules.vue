@@ -5,8 +5,9 @@
       :key="r.id"
       type="button"
       class="rule-toggle"
-      :class="{'rule-toggle--on': value(r.id)}"
+      :class="{'rule-toggle--on': value(r.id), 'rule-toggle--conflict': isConflicted(r.id)}"
       :aria-pressed="value(r.id) ? 'true' : 'false'"
+      :data-hint="isConflicted(r.id) ? $t(conflictHint(r.id)) : ''"
       @click="toggle(r.id)"
       @mouseenter="focusInfo(r.id)"
       @focus="focusInfo(r.id)"
@@ -16,6 +17,7 @@
         <span class="rule-toggle__title" v-i18n>{{ r.labelKey }}</span>
         <span class="rule-toggle__help" v-i18n>{{ r.descKey }}</span>
       </span>
+      <span v-if="isConflicted(r.id)" class="rule-toggle__conflict" aria-hidden="true">!</span>
       <span class="rule-toggle__switch" aria-hidden="true"><span class="rule-toggle__knob"></span></span>
     </button>
   </div>
@@ -24,7 +26,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {PREMIUM_RULES, PremiumRuleMeta, PremiumRuleId} from './createGameMeta';
-import {createGameState, setInfoFocus} from './createGameState';
+import {automaBlockerText, createGameState, setInfoFocus, stateAutomaConflictKeys} from './createGameState';
 
 const ICONS: Record<PremiumRuleMeta['icon'], string> = {
   draft: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="6" width="9" height="13" rx="1.6" stroke="currentColor" stroke-width="1.6"/><path d="M12.5 8 H19 M12.5 11 H19 M12.5 14 H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
@@ -41,8 +43,17 @@ export default defineComponent({
       const selected = createGameState.config.selectedExpansions;
       return PREMIUM_RULES.filter((r) => r.requiresExpansion === undefined || selected[r.requiresExpansion] === true);
     },
+    conflictKeys(): ReadonlySet<string> {
+      return stateAutomaConflictKeys();
+    },
   },
   methods: {
+    isConflicted(id: PremiumRuleId): boolean {
+      return this.conflictKeys.has('rule:' + id);
+    },
+    conflictHint(id: PremiumRuleId): string {
+      return automaBlockerText('rule:' + id);
+    },
     value(id: PremiumRuleId): boolean {
       return createGameState.config.rules[id];
     },

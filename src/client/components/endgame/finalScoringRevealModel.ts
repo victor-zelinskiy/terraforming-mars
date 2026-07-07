@@ -77,7 +77,7 @@ export function cardKindTotal(b: VictoryPointsBreakdown, kind: CardVictoryPoints
 // The top-level scoring GROUPS shown as pills + lane chips.
 export type RevealGroupKey =
   | 'tr' | 'greenery' | 'city' | 'cards'
-  | 'milestones' | 'awards' | 'moon' | 'tracks' | 'delta' | 'penalty';
+  | 'milestones' | 'awards' | 'automa' | 'moon' | 'tracks' | 'delta' | 'penalty';
 
 export type FinalScoringRevealSegment = {
   // Unique colour/identity key — drives the `.fsr-cat--<key>` accent. For TR
@@ -158,6 +158,13 @@ const SEGMENTS: ReadonlyArray<SegMeta> = [
   {key: 'cards-resource', group: 'cards', label: 'Resource cards', penalty: false, value: (b) => cardKindTotal(b, 'resource')},
   {key: 'milestones', group: 'milestones', label: 'Milestones', penalty: false, value: (b) => b.milestones},
   {key: 'awards', group: 'awards', label: 'Awards', penalty: false, value: (b) => b.awards},
+  // MarsBot's scoring exceptions (only the automa breakdown carries them, so
+  // in an ordinary game these segments are all-zero and drop out). Each pulls
+  // ONE field the server already summed into `total` — the segment-sum ≡ total
+  // invariant holds for the bot lane too.
+  {key: 'automa-mc', group: 'automa', label: 'M€ converted to VP', penalty: false, value: (b) => b.automa?.mcToVp ?? 0},
+  {key: 'automa-neural', group: 'automa', label: 'Neural Instance', penalty: false, value: (b) => b.automa?.neuralInstance ?? 0},
+  {key: 'automa-cards', group: 'automa', label: 'Played card icons', penalty: false, value: (b) => b.automa?.cardVp ?? 0},
   {key: 'moon', group: 'moon', label: 'Moon', penalty: false, value: (b) => b.moonHabitats + b.moonMines + b.moonRoads},
   {key: 'tracks', group: 'tracks', label: 'Planetary tracks', penalty: false, value: (b) => b.planetaryTracks},
   {key: 'delta', group: 'delta', label: 'Hydronetwork', penalty: false, value: (b) => b.deltaProject},
@@ -173,13 +180,14 @@ const GROUP_META: Record<RevealGroupKey, {label: string; accent: string; descrip
   cards: {label: 'Cards', accent: 'cards', description: 'VP printed on and stored by your cards'},
   milestones: {label: 'Milestones', accent: 'milestones', description: 'Milestones you claimed'},
   awards: {label: 'Awards', accent: 'awards', description: 'Awards you placed in'},
+  automa: {label: 'MarsBot scoring', accent: 'automa', description: 'MarsBot\'s M€ conversion, Neural Instance and played-card VP'},
   moon: {label: 'Moon', accent: 'moon', description: 'Lunar habitats, mines and roads'},
   tracks: {label: 'Planetary tracks', accent: 'tracks', description: 'Planetary track positions'},
   delta: {label: 'Hydronetwork', accent: 'delta', description: 'Hydronetwork end-game VP'},
   penalty: {label: 'Penalties', accent: 'penalty', description: 'Negative VP — penalties and adjustments'},
 };
 
-const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'moon', 'tracks', 'delta', 'penalty'];
+const GROUP_ORDER: ReadonlyArray<RevealGroupKey> = ['tr', 'greenery', 'city', 'cards', 'milestones', 'awards', 'automa', 'moon', 'tracks', 'delta', 'penalty'];
 
 /**
  * Build the reveal model from the already-built endgame model.
@@ -257,6 +265,8 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
   }
 
   // Tie-break: highest total wins, equal total decided on M€ (engine rule).
+  // A MarsBot CLOCK win overrides the comparison entirely — the model already
+  // forced the winner; recomputing from totals here would contradict it.
   const totals = model.players.map((p) => p.breakdown.total);
   const topTotal = totals.length > 0 ? Math.max(...totals) : 0;
   const topByTotal = model.players.filter((p) => p.breakdown.total === topTotal);
@@ -265,7 +275,9 @@ export function buildFinalScoringRevealModel(model: EndgameModel, playerOrder: R
   let winner: Color | undefined = model.winner?.color;
   let winners: Array<Color> = winner !== undefined ? [winner] : [];
 
-  if (model.mode !== 'solo' && topByTotal.length > 1) {
+  if (model.automaClockWin) {
+    // keep the forced winner; no tie-break drama over a rule-decided finish.
+  } else if (model.mode !== 'solo' && topByTotal.length > 1) {
     const maxMc = Math.max(...topByTotal.map((p) => p.megacredits));
     const coWinners = topByTotal.filter((p) => p.megacredits === maxMc).map((p) => p.color);
     winners = coWinners;

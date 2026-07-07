@@ -4,7 +4,7 @@
     <section class="briefing__section">
       <h3 class="briefing__label">
         <span v-i18n>Players</span>
-        <span class="briefing__count">{{ players.length }}</span>
+        <span class="briefing__count">{{ participantCount }}</span>
       </h3>
       <ul class="briefing__players">
         <li v-for="(p, i) in players" :key="i" class="briefing__player" :class="{'briefing__player--missing': isMissing(i)}">
@@ -14,6 +14,13 @@
           <span class="briefing__player-name">{{ displayName(i) }}</span>
           <span v-if="p.isCreator" class="briefing__creator" v-i18n>Creator</span>
           <span v-if="trEnabled" class="briefing__tr">+{{ p.trBoost }}</span>
+        </li>
+        <li v-if="marsBotMode" key="marsbot" class="briefing__player briefing__player--bot">
+          <span class="briefing__player-cube briefing__bot-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7.5" width="14" height="10" rx="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5 V4.4 M12 4.4 L14 3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9.2" cy="12" r="1.5" fill="currentColor"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor"/><path d="M9 15.4 H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </span>
+          <span class="briefing__player-name">MarsBot</span>
+          <span class="briefing__bot-diff" v-i18n>{{ botDifficultyLabel }}</span>
         </li>
       </ul>
     </section>
@@ -58,7 +65,7 @@ import {BoardName} from '@/common/boards/BoardName';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {createGameState, PremiumPlayerSlot, slotNameIssue} from './createGameState';
-import {PREMIUM_EXPANSIONS, PREMIUM_RULES, PremiumRuleMeta, expansionIcon, expansionLabelKey, mapMeta} from './createGameMeta';
+import {PREMIUM_EXPANSIONS, PREMIUM_RULES, PremiumRuleMeta, botDifficultyMeta, expansionIcon, expansionLabelKey, mapMeta} from './createGameMeta';
 
 export default defineComponent({
   name: 'PartyBriefing',
@@ -66,6 +73,15 @@ export default defineComponent({
   computed: {
     players(): ReadonlyArray<PremiumPlayerSlot> {
       return createGameState.config.players;
+    },
+    marsBotMode(): boolean {
+      return createGameState.config.gameMode === 'marsbot';
+    },
+    participantCount(): number {
+      return this.players.length + (this.marsBotMode ? 1 : 0);
+    },
+    botDifficultyLabel(): string {
+      return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
     },
     trEnabled(): boolean {
       return createGameState.config.rules.trBoostEnabled;

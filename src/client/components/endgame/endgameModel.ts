@@ -73,6 +73,13 @@ export type EndgameModelOptions = {
   generation: number;
   // game.isSoloModeWin — only meaningful for a solo game.
   soloWin?: boolean;
+  /**
+   * MarsBot won ON THE CLOCK (the game entered its final generation before
+   * the human ended it — `automa.instantWin`). Per the Automa rules this
+   * OVERRIDES the score comparison: the given color is THE winner regardless
+   * of VP totals, and the tie-break never applies.
+   */
+  automaClockWinner?: Color;
   // Iteration 5: the analysis-ready facts (`buildEndgameFacts`) + per-player card
   // names, fetched/derived upstream. Optional → the engine falls back to the base
   // template analyzers when absent (old games / before the fetch resolves).
@@ -183,6 +190,8 @@ export type EndgameModel = {
   // Generation (1-based) the eventual winner took the lead and never lost it.
   // undefined when they led from generation 1 (wire-to-wire) or it's solo.
   winnerTookLeadGen: number | undefined;
+  /** MarsBot won on the clock — the winner override, not a score comparison. */
+  automaClockWin: boolean;
 };
 
 const CATEGORY_LABEL: Record<EndgameCategoryKey, string> = {
@@ -332,6 +341,19 @@ function findBestCard(players: ReadonlyArray<EndgamePlayerScore>): EndgameBestCa
 
 export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opts: EndgameModelOptions): EndgameModel {
   const ranked = [...inputs].sort(compareScores);
+  // MarsBot clock win: the bot leads the standings regardless of totals —
+  // reaching the final generation IS the victory condition (Automa rules).
+  if (opts.automaClockWinner !== undefined) {
+    ranked.sort((a, b) => {
+      if (a.color === opts.automaClockWinner) {
+        return -1;
+      }
+      if (b.color === opts.automaClockWinner) {
+        return 1;
+      }
+      return compareScores(a, b);
+    });
+  }
   const mode: EndgameMode = ranked.length <= 1 ? 'solo' : (ranked.length === 2 ? 'duel' : 'standings');
 
   // Which VP categories are present at all (any player scored non-zero, gated
@@ -355,7 +377,9 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
   const topMc = ranked.length > 0 ? ranked[0].megacredits : 0;
 
   const players: Array<EndgamePlayerScore> = ranked.map((p, i) => {
-    const isWinner = mode === 'solo' ? (opts.soloWin === true) : (p.breakdown.total === topVal && p.megacredits === topMc);
+    const isWinner = opts.automaClockWinner !== undefined ?
+      p.color === opts.automaClockWinner :
+      (mode === 'solo' ? (opts.soloWin === true) : (p.breakdown.total === topVal && p.megacredits === topMc));
     const categories = {} as Record<EndgameCategoryKey, number>;
     for (const key of allCategoryKeys) {
       categories[key] = categoryValue(p.breakdown, key);
@@ -527,6 +551,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     generation: opts.generation,
     soloWin: opts.soloWin === true,
     winnerTookLeadGen,
+    automaClockWin: opts.automaClockWinner !== undefined,
   };
 }
 

@@ -49,6 +49,8 @@ export type PublicPlayerModel = {
   coloniesCount: number;
   color: Color;
   deltaProject?: DeltaProjectPlayerModel;
+  /** True for the MarsBot (Automa) seat — its automa state rides GameModel.automa. */
+  isMarsBot?: boolean;
   energy: number;
   energyProduction: number;
   fleetSize: number;

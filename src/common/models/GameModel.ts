@@ -1,4 +1,5 @@
 import {GameOptionsModel} from './GameOptionsModel';
+import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
 import {Color} from '../Color';
 import {TurmoilModel} from './TurmoilModel';
@@ -47,6 +48,8 @@ export type GameModel = {
   oxygenLevel: number;
   passedPlayers: ReadonlyArray<Color>;
   pathfinders: PathfindersModel | undefined;
+  /** MarsBot (Automa) public state. Undefined in ordinary games. */
+  automa: MarsBotModel | undefined;
   phase: Phase;
   spaces: ReadonlyArray<SpaceModel>;
   spectatorId?: SpectatorId;

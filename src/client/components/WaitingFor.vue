@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForBotTheater">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -145,6 +145,11 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {
+  detectMarsBotTurn,
+  endMarsBotTheater,
+  runMarsBotTheater,
+} from '@/client/components/marsbot/marsBotTheaterState';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -307,6 +312,13 @@ type DataModel = {
    */
   holdingForHazardCleanup: boolean;
   /*
+   * Counterpart hold for the MarsBot turn theater: the response to the
+   * viewer's own submit carries the bot's already-resolved turn; while the
+   * narration replays it, the next prompt is suppressed via the same
+   * empty-render branch. See src/client/components/marsbot/marsBotTheaterState.ts.
+   */
+  holdingForBotTheater: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -366,6 +378,7 @@ export default defineComponent({
       holdingForTilePlacement: false,
       holdingForConversion: false,
       holdingForHazardCleanup: false,
+      holdingForBotTheater: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
     };
@@ -589,6 +602,25 @@ export default defineComponent({
              * whole hold (cleared in `.finally`), so nothing else can
              * submit while we're previewing.
              */
+            /*
+             * MarsBot turn theater (the MAIN path — ending your turn is what
+             * lets the bot act, so its resolved turn rides THIS response).
+             * Replay the typed turn script with client pacing BEFORE any of
+             * the previews below touch the displayed view: the narration runs
+             * over the untouched pre-turn board, then the bot's tile (if any)
+             * materialises through the ordinary tile-placement hold, then the
+             * view commits. isServerSideRequestInProgress stays raised
+             * throughout (cleared in .finally), so nothing else can submit.
+             */
+            const botTurn = detectMarsBotTurn(this.playerView, newView);
+            if (botTurn !== undefined) {
+              this.holdingForBotTheater = true;
+              try {
+                await runMarsBotTheater(botTurn, newView);
+              } finally {
+                this.holdingForBotTheater = false;
+              }
+            }
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,
@@ -665,6 +697,11 @@ export default defineComponent({
               await runEnergyConversion(conversionEvent);
             }
             this.updatePlayerView(newView);
+            if (botTurn !== undefined) {
+              // Dismiss the narration card AFTER the committed view painted,
+              // so the overlay never flashes away over the stale board.
+              nextTick(() => endMarsBotTheater());
+            }
             if (hazardCleanups.length > 0) {
               this.holdingForHazardCleanup = false;
               nextTick(() => endHazardCleanup());

@@ -153,6 +153,16 @@
       <EnergyConversionOverlay
         v-if="screen === 'player-home' && playerView !== undefined" />
       <!--
+        MarsBot turn theater (desktop presentation). App-level so the playerkey
+        remount can't tear the narration down mid-turn; the commit gate holds
+        the previous view while it plays, so nothing on the board jumps. Self-
+        gates via marsBotTheaterState.active. Console mode renders the SAME
+        state through its own ConsoleMarsBotTheater band.
+      -->
+      <MarsBotTheaterOverlay
+        v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
+        :players="playerView.players" />
+      <!--
         Hazard-cleanup sequence overlay. App-level so it survives the playerkey
         remount; self-gates via hazardCleanupState.active; positions itself over
         the cleared board hex. Visible for own AND opponent cleanups (poll path).
@@ -347,6 +357,13 @@ import {
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
 import {
+  detectMarsBotTurn,
+  endMarsBotTheater,
+  isMarsBotTheaterActive,
+  runMarsBotTheater,
+} from '@/client/components/marsbot/marsBotTheaterState';
+import MarsBotTheaterOverlay from '@/client/components/marsbot/MarsBotTheaterOverlay.vue';
+import {
   applyHazardTileSwap,
   detectHazardCleanup,
   endHazardCleanup,
@@ -510,6 +527,7 @@ export default defineComponent({
     MaCeremonyOverlay,
     EnergyConversionOverlay,
     HazardCleanupOverlay,
+    MarsBotTheaterOverlay,
     RematchLayer,
     GameExitButton,
     EndgameExperience,
@@ -690,7 +708,7 @@ export default defineComponent({
            * next-phase modal over it). The poll loop keeps running, so the next
            * poll after the animation finishes commits fresh state.
            */
-          if (isEnergyConversionActive() || isHazardCleanupActive()) {
+          if (isEnergyConversionActive() || isHazardCleanupActive() || isMarsBotTheaterActive()) {
             return;
           }
           /*
@@ -782,6 +800,25 @@ export default defineComponent({
             }
           };
 
+          /*
+           * MarsBot turn-theater gate (poll path). The bot's turn resolves
+           * instantly on the server; a poll that brings a NEW automa.lastTurn
+           * replays it with client pacing while the commit is held (the board
+           * doesn't jump, the next prompt stays closed). A conversion that
+           * rides the same response is NOT claimed here — the follow-up poll
+           * (the marker is transient until the next input) picks it up after
+           * the theater ends.
+           */
+          const botTurn = path === paths.PLAYER ?
+            detectMarsBotTurn(prevView, model as PlayerViewModel) :
+            undefined;
+          if (botTurn !== undefined) {
+            runMarsBotTheater(botTurn, model as PlayerViewModel).then(() => {
+              commit();
+              nextTick(() => endMarsBotTheater());
+            });
+            return;
+          }
           /*
            * Energy→heat conversion gate (poll path). When ANOTHER player's
            * action advanced the game into production, the viewer's own

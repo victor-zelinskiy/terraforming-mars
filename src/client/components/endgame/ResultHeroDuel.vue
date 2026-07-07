@@ -30,7 +30,13 @@
 
       <div class="eg-rhduel__center">
         <div class="eg-rhduel__vs" aria-hidden="true">VS</div>
-        <div v-if="model.margin > 0" class="eg-rhduel__margin">
+        <!-- MarsBot clock win: the finish is RULE-decided (the game reached
+             its final generation), not a score comparison — say so instead of
+             a misleading VP lead / tie-break line. -->
+        <div v-if="model.automaClockWin" class="eg-rhduel__margin eg-rhduel__margin--clock">
+          <span class="eg-rhduel__margin-lbl" v-i18n>Won on the clock — the final generation was reached</span>
+        </div>
+        <div v-else-if="model.margin > 0" class="eg-rhduel__margin">
           <span class="eg-rhduel__margin-val">+{{ model.margin }}</span>
           <span class="eg-rhduel__margin-lbl" v-i18n>Lead</span>
         </div>

@@ -31,6 +31,14 @@
     <div class="left-panel-card-turn-badge"
          v-i18n="[turnOrderLabel]">Turn ${0}</div>
     <div v-if="corporationName" class="left-panel-card-corp" :title="corporationName" v-i18n>{{ corporationName }}</div>
+    <!-- The MarsBot seat has no corporation — its identity chip takes the
+         corp row's slot so the card reads as a full participant. -->
+    <div v-else-if="player.isMarsBot" class="left-panel-card-corp left-panel-card-corp--bot">
+      <span class="left-panel-card-bot-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="7.5" width="14" height="10" rx="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5 V4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9.2" cy="12" r="1.5" fill="currentColor"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor"/><path d="M9 15.4 H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </span>
+      <span v-i18n>Automa opponent</span>
+    </div>
     <div class="left-panel-card-row left-panel-card-row--stats">
       <div class="left-panel-card-stat left-panel-card-stat--vp" :title="privateMask ? '' : $t('Victory points')">
         <span class="left-panel-card-stat-label" v-i18n>VP</span>

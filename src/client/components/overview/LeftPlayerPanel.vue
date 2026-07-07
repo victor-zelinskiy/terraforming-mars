@@ -37,7 +37,20 @@
       doesn't shift the label. Section corner ticks still flank the
       whole frame.
     -->
-    <div class="left-panel-section left-panel-section--resources">
+    <!-- MarsBot seat: the bot has no production / resource stocks besides its
+         M€ supply, so the ordinary resources/tags tables would read as
+         misleading zeros. Its participant panel (economy, decks, compact
+         tracks, «MarsBot board» entry) takes the whole cluster instead. -->
+    <div v-if="displayedIsMarsBot && botAutoma !== undefined" class="left-panel-section left-panel-section--marsbot">
+      <div class="left-panel-section__label">MarsBot</div>
+      <MarsBotPanel
+        :player="displayedPlayer"
+        :automa="botAutoma"
+        :epoch="playerView.runId"
+        @open-board="$emit('openMarsBotBoard')" />
+    </div>
+
+    <div v-if="!displayedIsMarsBot" class="left-panel-section left-panel-section--resources">
       <div class="left-panel-section__label" v-i18n>Resources</div>
       <!--
         Resource column headers — tiny shared captions above the
@@ -83,7 +96,7 @@
          zero-count tags get a muted style. This keeps every tag at the same
          grid position regardless of who's selected, so switching players
          doesn't make icons "jump" to new cells. -->
-    <div class="left-panel-tags-secondary left-panel-section">
+    <div v-if="!displayedIsMarsBot" class="left-panel-tags-secondary left-panel-section">
       <div class="left-panel-section__label" v-i18n>Tags</div>
       <PlayerTags
         section="cardTags"
@@ -92,7 +105,7 @@
         :conciseTagsViewDefaultValue="false" />
     </div>
 
-    <div class="left-panel-tags-secondary left-panel-tags-extras left-panel-section">
+    <div v-if="!displayedIsMarsBot" class="left-panel-tags-secondary left-panel-tags-extras left-panel-section">
       <div class="left-panel-section__label" v-i18n>Extra</div>
       <PlayerTags
         section="extras"
@@ -101,17 +114,19 @@
         :conciseTagsViewDefaultValue="false" />
     </div>
 
-    <PlayerAlliedParty :player="displayedPlayer"/>
+    <PlayerAlliedParty v-if="!displayedIsMarsBot" :player="displayedPlayer"/>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import PlayerResources from '@/client/components/overview/PlayerResources.vue';
 import PlayerAlliedParty from '@/client/components/overview/PlayerAlliedParty.vue';
 import PlayerTags from '@/client/components/overview/PlayerTags.vue';
 import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
+import MarsBotPanel from '@/client/components/marsbot/MarsBotPanel.vue';
 import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {ActionLabel} from './ActionLabel';
@@ -179,15 +194,22 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['selectPlayer', 'convertHeat', 'convertPlants', 'pass', 'end-turn'],
+  emits: ['selectPlayer', 'convertHeat', 'convertPlants', 'pass', 'end-turn', 'openMarsBotBoard'],
   components: {
     PlayerResources,
     PlayerAlliedParty,
     PlayerTags,
     LeftPlayerCard,
+    MarsBotPanel,
     AdditionalResourcesPanel,
   },
   computed: {
+    displayedIsMarsBot(): boolean {
+      return this.displayedPlayer.isMarsBot === true;
+    },
+    botAutoma(): MarsBotModel | undefined {
+      return this.playerView.game.automa;
+    },
     // The viewer's own player (if any) is pulled to the top of the list so it
     // always appears first in the panel — players intuitively expect "their"
     // card to be the first one.

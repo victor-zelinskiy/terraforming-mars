@@ -564,6 +564,131 @@
 @keyframes pcg-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pcg-pop { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
+// ── Game mode selector (multiplayer / solo vs MarsBot) ──────────────────────
+@pcg-bot: rgb(130, 220, 190); // mint-teal accent — MarsBot's visual identity
+.pc-mode { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.pc-mode__chip {
+    appearance: none; -webkit-appearance: none; border: 0; cursor: pointer;
+    display: flex; align-items: center; gap: 11px; text-align: left;
+    padding: 11px 14px; border-radius: 7px;
+    background: linear-gradient(180deg, rgba(20, 30, 44, 0.5), rgba(9, 15, 24, 0.62));
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.14);
+    transition: box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease;
+    &:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.3), 0 8px 16px rgba(0, 0, 0, 0.34); }
+    &:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(174, 224, 255, 0.7), 0 0 0 2px rgba(127, 200, 240, 0.4); }
+}
+.pc-mode__icon {
+    flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: 6px; color: @pcg-ice-bright;
+    background: rgba(127, 200, 240, 0.08); box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.24);
+    svg { width: 20px; height: 20px; }
+}
+.pc-mode__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pc-mode__title { font-size: 13px; letter-spacing: 0.5px; color: @pcg-text; }
+.pc-mode__help { font-family: Prototype, Ubuntu, sans-serif; font-size: 10.5px; color: @pcg-text-dim; line-height: 1.3; }
+.pc-mode__chip--active {
+    background: linear-gradient(180deg, rgba(46, 36, 26, 0.7), rgba(20, 15, 11, 0.78));
+    box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.5), 0 0 16px rgba(240, 168, 80, 0.12);
+    .pc-mode__icon { color: @pcg-gold-bright; background: rgba(240, 168, 80, 0.12); box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.4); }
+    .pc-mode__title { color: #fbf1e4; }
+}
+.pc-mode__chip--bot.pc-mode__chip--active {
+    background: linear-gradient(180deg, rgba(22, 42, 37, 0.72), rgba(10, 20, 18, 0.8));
+    box-shadow: inset 0 0 0 1px fade(@pcg-bot, 55%), 0 0 16px fade(@pcg-bot, 14%);
+    .pc-mode__icon { color: @pcg-bot; background: fade(@pcg-bot, 10%); box-shadow: inset 0 0 0 1px fade(@pcg-bot, 40%); }
+    .pc-mode__title { color: #e6faf3; }
+}
+
+// ── MarsBot opponent slot (difficulty picker) ───────────────────────────────
+.marsbot-slot {
+    margin-top: 10px; padding: 12px 14px; border-radius: 8px;
+    background: linear-gradient(180deg, rgba(18, 34, 30, 0.62), rgba(8, 16, 14, 0.72));
+    box-shadow: inset 0 0 0 1px fade(@pcg-bot, 32%), 0 0 18px fade(@pcg-bot, 07%);
+}
+.marsbot-slot__head { display: flex; align-items: center; gap: 10px; }
+.marsbot-slot__avatar {
+    flex: 0 0 auto; width: 30px; height: 30px; display: grid; place-items: center;
+    border-radius: 6px; color: @pcg-bot;
+    background: fade(@pcg-bot, 10%); box-shadow: inset 0 0 0 1px fade(@pcg-bot, 40%);
+    svg { width: 19px; height: 19px; }
+}
+.marsbot-slot__name { font-size: 14px; letter-spacing: 0.8px; color: #e6faf3; }
+.marsbot-slot__chip {
+    font-family: Prototype, Orbitron, sans-serif; font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px; color: fade(@pcg-bot, 95%);
+    background: fade(@pcg-bot, 08%); box-shadow: inset 0 0 0 1px fade(@pcg-bot, 30%);
+}
+.marsbot-slot__difficulty { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 11px; }
+.marsbot-slot__diff {
+    appearance: none; -webkit-appearance: none; border: 0; cursor: pointer;
+    height: 34px; border-radius: 6px; color: @pcg-text-dim;
+    font-family: Prototype, Orbitron, sans-serif; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    background: linear-gradient(180deg, rgba(22, 32, 46, 0.6), rgba(9, 15, 24, 0.7));
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.16);
+    transition: color 0.18s ease, box-shadow 0.2s ease, background 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    &:hover { color: @pcg-text; transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.34); }
+    &:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(174, 224, 255, 0.7), 0 0 0 2px rgba(127, 200, 240, 0.4); }
+}
+// Per-difficulty accent when active: calm mint → gold → ember → red.
+.marsbot-slot__diff--active { color: #0c1118; }
+.marsbot-slot__diff--easy.marsbot-slot__diff--active { background: linear-gradient(180deg, #9fe8c9, #6fc9a6); box-shadow: 0 0 0 1px fade(@pcg-bot, 50%), 0 0 14px fade(@pcg-bot, 25%); }
+.marsbot-slot__diff--normal.marsbot-slot__diff--active { background: linear-gradient(180deg, @pcg-gold-bright, @pcg-gold); box-shadow: 0 0 0 1px rgba(240, 168, 80, 0.5), 0 0 14px rgba(240, 168, 80, 0.25); }
+.marsbot-slot__diff--hard.marsbot-slot__diff--active { background: linear-gradient(180deg, #f2b27a, #d9812f); box-shadow: 0 0 0 1px rgba(217, 129, 47, 0.55), 0 0 14px rgba(217, 129, 47, 0.28); }
+.marsbot-slot__diff--brutal.marsbot-slot__diff--active { background: linear-gradient(180deg, #f09090, #cf4b4b); box-shadow: 0 0 0 1px rgba(207, 75, 75, 0.55), 0 0 14px rgba(207, 75, 75, 0.3); }
+.marsbot-slot__desc {
+    margin: 10px 0 0; font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px; color: @pcg-text-dim; line-height: 1.45; min-height: 2.9em;
+}
+
+// ── MarsBot conflict highlighting (shared compatibility rules) ──────────────
+@pcg-conflict: rgb(235, 130, 90);
+.exp-card--conflict {
+    .premium-tooltip(240px);
+    filter: none;
+    box-shadow: inset 0 0 0 1px fade(@pcg-conflict, 60%), 0 0 14px fade(@pcg-conflict, 14%);
+    .exp-card__name { color: #f6c9b4; }
+}
+.exp-card__conflict, .rule-toggle__conflict {
+    flex: 0 0 auto; width: 16px; height: 16px; display: grid; place-items: center;
+    border-radius: 50%; font-size: 11px; font-weight: 700; color: #1a0e08;
+    background: @pcg-conflict; box-shadow: 0 0 8px fade(@pcg-conflict, 50%);
+}
+.rule-toggle--conflict {
+    .premium-tooltip(240px);
+    box-shadow: inset 0 0 0 1px fade(@pcg-conflict, 60%), 0 0 14px fade(@pcg-conflict, 14%);
+    .rule-toggle__title { color: #f6c9b4; }
+}
+.map-compact--conflict {
+    box-shadow: inset 0 0 0 1px fade(@pcg-conflict, 55%), 0 0 16px fade(@pcg-conflict, 12%);
+    border-radius: 8px;
+}
+.map-compact__conflict {
+    display: flex; align-items: center; gap: 7px; margin-top: 6px;
+    font-family: Prototype, Ubuntu, sans-serif; font-size: 11px; color: #f6c9b4;
+}
+.map-compact__conflict-icon {
+    flex: 0 0 auto; width: 15px; height: 15px; display: grid; place-items: center;
+    border-radius: 50%; font-size: 10.5px; font-weight: 700; color: #1a0e08;
+    background: @pcg-conflict; box-shadow: 0 0 8px fade(@pcg-conflict, 50%);
+}
+
+// ── Briefing: the MarsBot participant row + info-panel note ─────────────────
+.briefing__player--bot { .briefing__player-name { color: #cff3e6; } }
+.briefing__bot-glyph {
+    display: grid; place-items: center; width: 17px; height: 17px; color: @pcg-bot;
+    svg { width: 15px; height: 15px; }
+}
+.briefing__bot-diff {
+    font-family: Prototype, Orbitron, sans-serif; font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px; color: fade(@pcg-bot, 95%);
+    background: fade(@pcg-bot, 08%); box-shadow: inset 0 0 0 1px fade(@pcg-bot, 30%);
+}
+.info-panel__note {
+    margin: 9px 0 0; padding-top: 8px;
+    border-top: 1px solid rgba(127, 200, 240, 0.14);
+    font-family: Prototype, Ubuntu, sans-serif; font-size: 10.5px; color: @pcg-text-dim; line-height: 1.4;
+}
+
 // ── Responsive ──────────────────────────────────────────────────────────────
 @media (max-width: 1180px) {
     .premium-create { height: auto; min-height: 100vh; overflow: visible; }

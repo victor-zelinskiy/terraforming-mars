@@ -197,4 +197,45 @@ describe('finalScoringRevealModel', () => {
     expect(reveal.winner).to.eq('red');
     expect(reveal.maxTotal).to.eq(44);
   });
+
+  it('reveals the MarsBot scoring group and keeps the bot lane segment-sum ≡ total', () => {
+    const human = player('blue', 'Human', {terraformRating: 30});
+    // Bot: TR 24 + mcToVp 3 + neural 4 + cardVp 2 = 33.
+    const bot = player('red', 'MarsBot', {
+      terraformRating: 24,
+      total: 33,
+      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2},
+    });
+    const reveal = buildFinalScoringRevealModel(model([human, bot]), ['blue', 'red']);
+    const automaGroup = reveal.groups.find((g) => g.key === 'automa');
+    expect(automaGroup).to.not.eq(undefined);
+    expect(automaGroup?.values['red']).to.eq(9);
+    expect(automaGroup?.values['blue']).to.eq(0);
+    // The segment-sum ≡ final-total invariant holds for the bot lane.
+    let botSum = 0;
+    for (const seg of reveal.segments) {
+      botSum += seg.values['red'] ?? 0;
+    }
+    expect(botSum).to.eq(33);
+  });
+
+  it('omits the MarsBot group in an ordinary game', () => {
+    const a = player('red', 'A', {terraformRating: 40});
+    const b = player('blue', 'B', {terraformRating: 30});
+    const reveal = buildFinalScoringRevealModel(model([a, b]), ['red', 'blue']);
+    expect(reveal.groups.find((g) => g.key === 'automa')).to.eq(undefined);
+  });
+
+  it('a MarsBot clock win forces the winner regardless of totals, no tie-break', () => {
+    const human = player('blue', 'Human', {terraformRating: 60}, {megacredits: 30});
+    const bot = player('red', 'MarsBot', {terraformRating: 25});
+    const m = model([human, bot], {automaClockWinner: 'red'});
+    expect(m.winner?.color).to.eq('red');
+    expect(m.players[0].color).to.eq('red');
+    expect(m.automaClockWin).to.eq(true);
+    const reveal = buildFinalScoringRevealModel(m, ['blue', 'red']);
+    expect(reveal.winner).to.eq('red');
+    expect(reveal.winners).to.deep.eq(['red']);
+    expect(reveal.tieBreak).to.eq(undefined);
+  });
 });

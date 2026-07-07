@@ -1,0 +1,139 @@
+import {BoardName} from '../boards/BoardName';
+
+/**
+ * The ONE source of truth for "which game options can be combined with
+ * MarsBot (the official Automa)" — shared by the server-side creation guard
+ * (`AutomaSetup.validateOptions`, which throws on the first conflict) and the
+ * premium create-game UI (which highlights every conflicting control and
+ * blocks the Create button BEFORE any payload is sent).
+ *
+ * Pure and framework-free: callers normalize their own options shape into
+ * `AutomaCompatibilityInput`. Server validation stays authoritative — the UI
+ * merely runs the same rules earlier.
+ */
+
+/** Which UI control family a conflict belongs to (drives premium highlighting). */
+export type AutomaConflictKey =
+  | 'board'
+  | 'expansion:turmoil'
+  | 'expansion:prelude2'
+  | 'expansion:promo'
+  | 'expansion:community'
+  | 'expansion:ares'
+  | 'expansion:moon'
+  | 'expansion:pathfinders'
+  | 'expansion:ceo'
+  | 'expansion:starwars'
+  | 'expansion:underworld'
+  | 'expansion:deltaProject'
+  | 'variant:initialDraft'
+  | 'variant:preludeDraft'
+  | 'variant:ceoDraft'
+  | 'rule:randomMilestonesAwards'
+  | 'variant:soloTR'
+  | 'variant:twoCorps'
+  | 'variant:escapeVelocity'
+  | 'variant:solarPhase'
+  | 'variant:venusCompletion'
+  | 'rule:alternativeVenusBoard'
+  | 'rule:randomBoardTiles'
+  | 'variant:customLists';
+
+export type AutomaConflict = {
+  key: AutomaConflictKey;
+  /**
+   * The reason SUFFIX, exactly as the server throws it:
+   * `MarsBot (Automa) does not support ${reason}`. English i18n source.
+   */
+  reason: string;
+};
+
+/** The option subset the MarsBot POC compatibility rules read (normalized). */
+export type AutomaCompatibilityInput = {
+  boardName: string;
+  turmoil: boolean;
+  prelude2: boolean;
+  promo: boolean;
+  community: boolean;
+  ares: boolean;
+  moon: boolean;
+  pathfinders: boolean;
+  ceo: boolean;
+  starwars: boolean;
+  underworld: boolean;
+  deltaProject: boolean;
+  initialDraftVariant: boolean;
+  preludeDraftVariant: boolean;
+  ceosDraftVariant: boolean;
+  /** True when random milestones/awards are enabled at all (any mode). */
+  randomMA: boolean;
+  soloTR: boolean;
+  twoCorpsVariant: boolean;
+  /** True when Escape Velocity is configured. */
+  escapeVelocity: boolean;
+  solarPhaseOption: boolean;
+  requiresVenusTrackCompletion: boolean;
+  altVenusBoard: boolean;
+  shuffleMapOption: boolean;
+  /** True when any custom corporation/colony/prelude/CEO/banned/included list is set. */
+  customLists: boolean;
+};
+
+type Rule = {
+  key: AutomaConflictKey;
+  test: (o: AutomaCompatibilityInput) => boolean;
+  reason: (o: AutomaCompatibilityInput) => string;
+};
+
+/**
+ * The POC supports exactly the officially-covered module set on Tharsis:
+ * Corporate Era + Prelude 1 + Venus Next + Colonies (any subset). The rule
+ * ORDER is load-bearing — the server throws the FIRST conflict, and existing
+ * tests/messages rely on the current wording.
+ */
+const RULES: ReadonlyArray<Rule> = [
+  {key: 'board', test: (o) => o.boardName !== BoardName.THARSIS, reason: (o) => `the ${o.boardName} board yet — the POC covers Tharsis`},
+  // Unsupported expansions / modules.
+  {key: 'expansion:turmoil', test: (o) => o.turmoil, reason: () => 'Turmoil in the POC'},
+  {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},
+  {key: 'expansion:promo', test: (o) => o.promo, reason: () => 'promo cards in the POC'},
+  {key: 'expansion:community', test: (o) => o.community, reason: () => 'community cards'},
+  {key: 'expansion:ares', test: (o) => o.ares, reason: () => 'Ares'},
+  {key: 'expansion:moon', test: (o) => o.moon, reason: () => 'The Moon'},
+  {key: 'expansion:pathfinders', test: (o) => o.pathfinders, reason: () => 'Pathfinders'},
+  {key: 'expansion:ceo', test: (o) => o.ceo, reason: () => 'CEOs'},
+  {key: 'expansion:starwars', test: (o) => o.starwars, reason: () => 'Star Wars'},
+  {key: 'expansion:underworld', test: (o) => o.underworld, reason: () => 'Underworld'},
+  {key: 'expansion:deltaProject', test: (o) => o.deltaProject, reason: () => 'the Delta Project'},
+  // Variants the official Automa setup does not describe.
+  {key: 'variant:initialDraft', test: (o) => o.initialDraftVariant, reason: () => 'the initial draft (the official Automa setup deals 10 cards)'},
+  {key: 'variant:preludeDraft', test: (o) => o.preludeDraftVariant, reason: () => 'the prelude draft'},
+  {key: 'variant:ceoDraft', test: (o) => o.ceosDraftVariant, reason: () => 'the CEO draft'},
+  {key: 'rule:randomMilestonesAwards', test: (o) => o.randomMA, reason: () => 'random milestones and awards'},
+  {key: 'variant:soloTR', test: (o) => o.soloTR, reason: () => 'the 63 TR solo variant (the win condition is beating MarsBot)'},
+  {key: 'variant:twoCorps', test: (o) => o.twoCorpsVariant, reason: () => 'the two-corporations variant'},
+  {key: 'variant:escapeVelocity', test: (o) => o.escapeVelocity, reason: () => 'Escape Velocity'},
+  // Venus Next's World Government Terraforming: its role is played by the
+  // Government Intervention bonus card (Adding Expansions p.3) — never both.
+  {key: 'variant:solarPhase', test: (o) => o.solarPhaseOption, reason: () => 'the Solar Phase / WGT option (Government Intervention covers it)'},
+  {key: 'variant:venusCompletion', test: (o) => o.requiresVenusTrackCompletion, reason: () => 'the "Venus must be completed" variant'},
+  {key: 'rule:alternativeVenusBoard', test: (o) => o.altVenusBoard, reason: () => 'the alternate Venus board'},
+  {key: 'rule:randomBoardTiles', test: (o) => o.shuffleMapOption, reason: () => 'the shuffled map (MarsBot tile placement uses the printed board)'},
+  {key: 'variant:customLists', test: (o) => o.customLists, reason: () => 'custom card/colony lists in the POC'},
+];
+
+/** Every conflict of the given configuration, in the server's check order. */
+export function automaConflicts(input: AutomaCompatibilityInput): Array<AutomaConflict> {
+  const conflicts: Array<AutomaConflict> = [];
+  for (const rule of RULES) {
+    if (rule.test(input)) {
+      conflicts.push({key: rule.key, reason: rule.reason(input)});
+    }
+  }
+  return conflicts;
+}
+
+/** The conflict hitting a specific UI control, if any. */
+export function conflictFor(conflicts: ReadonlyArray<AutomaConflict>, key: AutomaConflictKey): AutomaConflict | undefined {
+  return conflicts.find((c) => c.key === key);
+}

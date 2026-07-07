@@ -1,5 +1,6 @@
 import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
+import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {expansionIconUrl} from '@/client/components/mainMenu/expansionMeta';
 
 /**
@@ -76,6 +77,29 @@ export function mapMeta(id: BoardName | 'random-all'): PremiumMapMeta {
 export function mapLabelKey(id: BoardName | 'random-all'): string {
   return mapMeta(id).labelKey;
 }
+
+// ── MarsBot (Automa) ────────────────────────────────────────────────────────
+export type BotDifficultyMeta = {
+  id: DifficultyLevel;
+  /** Display name (English i18n source). */
+  labelKey: string;
+  /** Short info-panel description (English i18n source). */
+  descKey: string;
+};
+
+export const BOT_DIFFICULTIES: ReadonlyArray<BotDifficultyMeta> = [
+  {id: 'easy', labelKey: 'Easy', descKey: 'MarsBot ignores the Advance Tracker action, gains only 3 M€ from failed actions and scores awards with a −5 handicap.'},
+  {id: 'normal', labelKey: 'Normal', descKey: 'The standard MarsBot experience — the official Automa rules as printed.'},
+  {id: 'hard', labelKey: 'Hard', descKey: 'MarsBot claims milestones aggressively at the start of each generation when it meets enough of them.'},
+  {id: 'brutal', labelKey: 'Brutal', descKey: 'Hard, plus an extra project card every round and +1 VP for each played card with a non-negative VP icon.'},
+];
+
+export function botDifficultyMeta(id: DifficultyLevel): BotDifficultyMeta {
+  return BOT_DIFFICULTIES.find((m) => m.id === id) ?? BOT_DIFFICULTIES[1];
+}
+
+/** The module set the MarsBot POC officially covers (info-panel copy). */
+export const BOT_SUPPORTED_MODULES_KEY = 'MarsBot supports the Tharsis map with Corporate Era, Prelude, Venus Next and Colonies. Conflicting options are highlighted below.';
 
 // ── Rules ───────────────────────────────────────────────────────────────────
 export type PremiumRuleId =

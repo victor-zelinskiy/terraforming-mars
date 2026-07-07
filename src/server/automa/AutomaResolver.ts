@@ -6,6 +6,7 @@ import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
+import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {AutomaTerraformer} from './AutomaTerraformer';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
@@ -61,9 +62,11 @@ export class AutomaResolver {
       if (trackIndex === undefined) {
         // A tag with no track on this board (e.g. a Venus tag without Venus
         // Next) is an unused-expansion icon: ignored, no Failed Action.
+        AutomaTurnLog.note(game, {kind: 'tag', tag});
         return;
       }
     }
+    AutomaTurnLog.note(game, {kind: 'tag', tag, trackIndex});
     AutomaResolver.advanceTrack(game, trackIndex);
   }
 
@@ -76,6 +79,7 @@ export class AutomaResolver {
       throw new Error('Not an automa game');
     }
     const track = automa.board.tracks[trackIndex];
+    const from = track.position;
     const result = track.advance();
     if (result.type === 'maxed') {
       // "MarsBot is already at the end of a track and needs to advance that
@@ -83,6 +87,13 @@ export class AutomaResolver {
       failedAction(game, 'track-maxed');
       return;
     }
+    AutomaTurnLog.note(game, {
+      kind: 'advance',
+      trackIndex,
+      from,
+      to: track.position,
+      ...(result.type === 'action' ? {action: result.action} : {}),
+    });
     // Colonies (Adding Expansions p.6): reaching the 9th space of the Energy
     // track unlocks the 2nd trade fleet — in ADDITION to the space's effect.
     // Inline (no AutomaColonies import) to keep the module graph acyclic.

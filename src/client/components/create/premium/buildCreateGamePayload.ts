@@ -33,6 +33,7 @@ export function buildPlayers(state: PremiumCreateGameState, randomFirstPlayer: b
 
 export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameState): NewGameConfig {
   const d = defaultCreateGameModel();
+  const marsBot = state.gameMode === 'marsbot';
   const players = buildPlayers(state, d.randomFirstPlayer);
 
   const expansions: Record<Expansion, boolean> = {...d.expansions};
@@ -59,7 +60,9 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     aresExtremeVariant: d.aresExtremeVariant,
     politicalAgendasExtension: d.politicalAgendasExtension,
     // Venus solar phase follows the Venus expansion, like the legacy form.
-    solarPhaseOption: venusOn,
+    // MarsBot: never — the Government Intervention bonus card plays the WGT
+    // role per the official Automa rules (the server rejects the combination).
+    solarPhaseOption: venusOn && !marsBot,
     removeNegativeGlobalEventsOption: d.removeNegativeGlobalEventsOption,
     modularMA: d.modularMA,
     draftVariant: state.rules.draftVariant,
@@ -88,5 +91,7 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     customCeos: d.customCeos,
     startingCeos: d.startingCeos,
     startingPreludes: d.startingPreludes,
+    // Solo vs the official Automa: the bot seat is created by the server.
+    automa: marsBot ? {difficulty: state.botDifficulty} : undefined,
   };
 }

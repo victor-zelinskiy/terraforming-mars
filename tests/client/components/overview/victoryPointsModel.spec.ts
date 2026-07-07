@@ -136,4 +136,32 @@ describe('victoryPointsModel', () => {
     const tracks = model.scales.find((s) => s.key === 'tracks')!;
     expect(tracks.total).eq(3);
   });
+
+  it('adds the MarsBot scoring bar only for the automa breakdown', () => {
+    const human = buildVictoryPointsModel(breakdown(), NO_EXPANSIONS);
+    expect(human.scales.map((s) => s.key)).to.not.include('automa');
+
+    // Bot: total = 28 TR + 3 mcToVp + 4 neural + 2 cardVp = 37; the automa
+    // parts are already inside `total`, so the bar keeps segment-sum ≡ total.
+    const bot = buildVictoryPointsModel(breakdown({
+      milestones: 0, awards: 0, greenery: 0, city: 0,
+      total: 37,
+      automa: {mcToVp: 3, mcPerVp: 8, neuralInstance: 4, cardVp: 2},
+    }), NO_EXPANSIONS);
+    const automa = bot.scales.find((s) => s.key === 'automa')!;
+    expect(automa.segments.map((s) => s.key)).to.eql(['automa.mc', 'automa.neural', 'automa.cards']);
+    expect(automa.total).eq(9);
+    const allSegments = bot.scales.reduce((sum, s) => sum + s.total, 0);
+    expect(allSegments).eq(37);
+    // The bot's direct TR is honestly labelled as track actions, not cards.
+    const tr = bot.scales.find((s) => s.key === 'tr')!;
+    expect(tr.segments.find((s) => s.key === 'tr.cards')?.label).eq('Track actions');
+  });
+
+  it('drops the automa bar when every automa part is zero', () => {
+    const bot = buildVictoryPointsModel(breakdown({
+      automa: {mcToVp: 0, mcPerVp: 8, neuralInstance: 0, cardVp: 0},
+    }), NO_EXPANSIONS);
+    expect(bot.scales.map((s) => s.key)).to.not.include('automa');
+  });
 });

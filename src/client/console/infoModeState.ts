@@ -19,7 +19,10 @@ import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {consoleState, ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
 
-export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp';
+// The bot-specific details replace the human ones while the viewed
+// participant is MarsBot: its printed board (tracks), the played pile and
+// the open bonus piles — the human extras/actions/effects don't exist for it.
+export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp' | 'botBoard' | 'botPlayed' | 'botBonus';
 
 /** What LT-open captures and LT-close restores. */
 export type ConsoleContextSnapshot = {

@@ -2,6 +2,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
+import {MarsBotTurn, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBotBoard} from './MarsBotBoard';
 import {THARSIS_MARSBOT_BOARD} from './boards/TharsisMarsBot';
@@ -34,6 +35,8 @@ export type SerializedAutomaState = {
   hardClaimCheckedGeneration: number;
   revealedCard?: AutomaActionCard;
   instantWin?: boolean;
+  turnCounter?: number;
+  lastTurn?: MarsBotTurn;
 };
 
 /**
@@ -67,6 +70,16 @@ export class AutomaState {
   public revealedCard: AutomaActionCard | undefined = undefined;
   /** "If the game enters round 20 (18 with Prelude), you instantly lose" — MarsBot won on the clock. */
   public instantWin: boolean = false;
+  /** Monotonic turn number — the id of `lastTurn` (client replay/dedup key). */
+  public turnCounter: number = 0;
+  /** The typed script of the last resolved turn (feeds the client turn theater). */
+  public lastTurn: MarsBotTurn | undefined = undefined;
+  /**
+   * The in-flight recording of the CURRENT turn. Transient by construction —
+   * a turn resolves synchronously inside one server call, so this never has
+   * to survive a save (and is deliberately not serialized).
+   */
+  public turnRecording: {steps: Array<MarsBotTurnStep>, logIndex: number} | undefined = undefined;
 
   private constructor(
     public readonly difficulty: DifficultyLevel,
@@ -100,6 +113,7 @@ export class AutomaState {
       shippingStorage: {...this.shippingStorage},
       secondFleetUnlocked: this.secondFleetUnlocked,
       hardClaimCheckedGeneration: this.hardClaimCheckedGeneration,
+      turnCounter: this.turnCounter,
     };
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
@@ -109,6 +123,9 @@ export class AutomaState {
     }
     if (this.instantWin) {
       result.instantWin = true;
+    }
+    if (this.lastTurn !== undefined) {
+      result.lastTurn = this.lastTurn;
     }
     return result;
   }
@@ -136,6 +153,8 @@ export class AutomaState {
     state.hardClaimCheckedGeneration = d.hardClaimCheckedGeneration;
     state.revealedCard = d.revealedCard;
     state.instantWin = d.instantWin ?? false;
+    state.turnCounter = d.turnCounter ?? 0;
+    state.lastTurn = d.lastTurn;
     return state;
   }
 }

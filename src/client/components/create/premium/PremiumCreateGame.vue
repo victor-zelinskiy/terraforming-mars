@@ -23,6 +23,11 @@
     <div class="pc-deck">
       <div class="pc-deck__config">
         <section class="pc-section">
+          <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Game mode</h2></div>
+          <game-mode-selector />
+        </section>
+
+        <section v-if="!marsBotMode" class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Number of players</h2></div>
           <player-count-selector v-model="playerCount" />
         </section>
@@ -30,6 +35,7 @@
         <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Party players</h2></div>
           <player-slots />
+          <mars-bot-slot v-if="marsBotMode" />
         </section>
 
         <section class="pc-section">
@@ -86,6 +92,8 @@ import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChi
 import PremiumIdentityModal from '@/client/components/mainMenu/PremiumIdentityModal.vue';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
+import GameModeSelector from '@/client/components/create/premium/GameModeSelector.vue';
+import MarsBotSlot from '@/client/components/create/premium/MarsBotSlot.vue';
 import PlayerCountSelector from '@/client/components/create/premium/PlayerCountSelector.vue';
 import PlayerSlots from '@/client/components/create/premium/PlayerSlots.vue';
 import GameRules from '@/client/components/create/premium/GameRules.vue';
@@ -105,6 +113,8 @@ export default defineComponent({
   components: {
     PremiumIdentityChip,
     PremiumIdentityModal,
+    GameModeSelector,
+    MarsBotSlot,
     PlayerCountSelector,
     PlayerSlots,
     GameRules,
@@ -126,6 +136,9 @@ export default defineComponent({
       set(v: number) {
         setPlayerCount(v);
       },
+    },
+    marsBotMode(): boolean {
+      return createGameState.config.gameMode === 'marsbot';
     },
     mapPickerOpen(): boolean {
       return createGameState.mapPickerOpen;

@@ -57,6 +57,11 @@
          in the top-HUD rail + generation marker). -->
     <ConsoleTerraformingBanner />
 
+    <!-- MarsBot turn theater — the console-native narration band. Renders the
+         SAME marsBotTheaterState as the desktop overlay (suppressed in console
+         mode); A skips, hinted only in the command bar. -->
+    <ConsoleMarsBotTheater :players="playerView.players" />
+
     <!-- Milestone coronation / award seal — the cinematic post-confirm beat
          (pointer-events: none, bounded lifetime; fired only when the fresh
          playerView proves the viewer's OWN claim/fund resolved). -->
@@ -443,6 +448,8 @@ import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeRes
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
+import ConsoleMarsBotTheater from '@/client/components/console/ConsoleMarsBotTheater.vue';
+import {marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -546,6 +553,7 @@ export default defineComponent({
   components: {
     ConsoleStatusStrip,
     ConsoleTerraformingBanner,
+    ConsoleMarsBotTheater,
     ConsoleCommandBar,
     ConsoleSheet,
     ConsoleMaScreen,
@@ -586,6 +594,7 @@ export default defineComponent({
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
+      marsBotTheaterState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
@@ -1310,6 +1319,10 @@ export default defineComponent({
       }
     },
     commands(): Array<ConsoleCommand> {
+      // MarsBot turn theater: the ONLY affordance is skipping the narration.
+      if (this.marsBotTheaterState.active) {
+        return [{control: 'confirm', label: 'Skip'}];
+      }
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
@@ -1772,6 +1785,15 @@ export default defineComponent({
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
+      // MarsBot turn theater: while the narration band replays the bot's turn
+      // (the commit is held), A skips it; everything else is swallowed so no
+      // command fires under the held view. The hint lives in the command bar.
+      if (this.marsBotTheaterState.active) {
+        if (intent.kind === 'press' && intent.button === 'confirm') {
+          skipMarsBotTheater();
+        }
+        return true;
+      }
       // Government Support scale-focus hold: a brief, inert transition beat
       // while the board scale animates — swallow input so nothing fires under
       // the (about-to-open) next modal.
@@ -1984,25 +2006,32 @@ export default defineComponent({
         return;
       }
       const colors = this.playerView.players.map((p) => p.color);
+      // The MarsBot participant swaps the hotkey details: its printed board /
+      // played pile / bonus piles replace the human extras/actions/effects
+      // (which don't exist for the Automa). Same buttons, same flow.
+      const viewedIsBot = this.playerView.players
+        .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       switch (intent.button) {
       case 'bumperL':
         this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, -1);
+        this.reconcileInfoDetail();
         break;
       case 'bumperR':
         this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, 1);
+        this.reconcileInfoDetail();
         break;
       case 'secondary':
-        this.openInfoDetail('extras');
+        this.openInfoDetail(viewedIsBot ? 'botBoard' : 'extras');
         break;
       case 'triggerL':
         // P27: the actions detail moved from Y to LT (Y toggles Info Mode).
-        this.openInfoDetail('actions');
+        this.openInfoDetail(viewedIsBot ? 'botPlayed' : 'actions');
         break;
       case 'inspect':
         this.toggleInfoMode(); // Y closes — the same key that opened it
         break;
       case 'triggerR':
-        this.openInfoDetail('effects');
+        this.openInfoDetail(viewedIsBot ? 'botBonus' : 'effects');
         break;
       case 'confirm':
         if (this.infoModeState.detail === undefined) {
@@ -2026,6 +2055,21 @@ export default defineComponent({
     },
     openInfoDetail(detail: InfoDetail): void {
       this.infoModeState.detail = this.infoModeState.detail === detail ? undefined : detail;
+    },
+    // Cycling between a human and the MarsBot participant: a detail that
+    // exists only for the OTHER participant type falls back to the dashboard
+    // ('vp' is shared and survives the switch).
+    reconcileInfoDetail(): void {
+      const detail = this.infoModeState.detail;
+      if (detail === undefined || detail === 'vp') {
+        return;
+      }
+      const isBot = this.playerView.players
+        .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
+      const botOnly = detail === 'botBoard' || detail === 'botPlayed' || detail === 'botBonus';
+      if (botOnly !== isBot) {
+        this.infoModeState.detail = undefined;
+      }
     },
     // ── P27: the quick selectors — DIRECT input, no aiming ───────────────
     handleQuickIntent(intent: GamepadIntent): void {

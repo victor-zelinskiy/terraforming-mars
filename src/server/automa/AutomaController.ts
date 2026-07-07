@@ -5,6 +5,7 @@ import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
+import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 
 /**
@@ -21,11 +22,17 @@ export class AutomaController {
     }
     const bot = marsBotOf(game);
 
+    // The turn script (the client theater's data feed) records every step +
+    // public log line from here to the end of the turn.
+    AutomaTurnLog.begin(game);
+
     AutomaController.maybeHardClaim(game);
 
     // "If MarsBot has no cards in its action deck, it passes for the round." (rulebook p.5)
     if (automa.actionDeck.length === 0) {
       game.log('${0} passed', (b) => b.player(bot));
+      AutomaTurnLog.note(game, {kind: 'pass'}, {consumeLog: true});
+      AutomaTurnLog.finish(game);
       game.playerHasPassed(bot);
       game.playerIsFinishedTakingActions();
       return;
@@ -45,15 +52,18 @@ export class AutomaController {
         throw new Error(`Unknown project card in MarsBot action deck: ${entry.name}`);
       }
       game.log('${0} revealed ${1}', (b) => b.player(bot).card(card, {tags: true}));
+      AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {
       game.log('${0} revealed a bonus card', (b) => b.player(bot));
+      AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
       const outcome = resolveBonusCard(game, entry.id);
       routeBonusCard(game, entry.id, outcome);
     }
 
     automa.revealedCard = undefined;
+    AutomaTurnLog.finish(game);
     game.playerIsFinishedTakingActions();
   }
 

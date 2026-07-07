@@ -199,7 +199,8 @@
       @convert-heat="convertHeat"
       @convert-plants="toggleConvertPlantsPicker"
       @pass="onPassClick"
-      @end-turn="onEndTurnClick" />
+      @end-turn="onEndTurnClick"
+      @openMarsBotBoard="toggleOverlay('marsbot')" />
 
     <!--
       Initial draft status rail — компактная замена LeftPlayerPanel на
@@ -376,8 +377,20 @@
     -->
     <PlayedCardsOverlay
       v-if="activeOverlay === 'played'"
-      :displayedPlayer="displayedPlayer"
+      :displayedPlayer="playedOverlayPlayer"
       :viewerColor="thisPlayer.color"
+      @close="activeOverlay = null" />
+
+    <!--
+      MarsBot printed board — the bot participant's "details on demand"
+      surface (tracks / decks / bonus piles / storage), opened from the
+      MarsBot sidebar panel. Rides the same activeOverlay machinery as the
+      other view overlays; only rendered while the game has an automa seat.
+    -->
+    <MarsBotBoardOverlay
+      v-if="activeOverlay === 'marsbot' && game.automa !== undefined"
+      :automa="game.automa"
+      :botColor="marsBotColor"
       @close="activeOverlay = null" />
 
     <!--
@@ -759,6 +772,8 @@ import AwardFundedBadge from '@/client/components/overview/AwardFundedBadge.vue'
 import SelectSpace from '@/client/components/SelectSpace.vue';
 import StandardProjectsOverlay from '@/client/components/overview/StandardProjectsOverlay.vue';
 import PlayedCardsOverlay from '@/client/components/playedCards/PlayedCardsOverlay.vue';
+import MarsBotBoardOverlay from '@/client/components/marsbot/MarsBotBoardOverlay.vue';
+import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import EffectsOverlay from '@/client/components/effects/EffectsOverlay.vue';
 import ActionsOverlay from '@/client/components/actions/ActionsOverlay.vue';
 import {actionsOverlayState} from '@/client/components/actions/actionsOverlayState';
@@ -887,7 +902,7 @@ type ToggleableState = {
 // Overlays opened by the top/bottom bar buttons. Only one can be visible at a time —
 // pressing a different button closes the previous overlay. Pressing the same button
 // again closes the active overlay.
-type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'effects' | 'victoryPoints' | 'hydronetwork' | 'legacyUi';
+type OverlayId = 'milestones' | 'standardProjects' | 'awards' | 'colonies' | 'cards' | 'actions' | 'played' | 'effects' | 'victoryPoints' | 'hydronetwork' | 'legacyUi' | 'marsbot';
 
 // Set while the player has chosen a Standard Project from the overlay
 // AND the choice requires picking between M€ and alternative resources.
@@ -1590,6 +1605,21 @@ export default defineComponent({
     // rail) in that player's colour and reveals the "Viewing: <name>" chip.
     isViewingOther(): boolean {
       return this.displayedPlayer.color !== this.thisPlayer.color;
+    },
+    // The player object the РАЗЫГРАНО board renders. MarsBot's played project
+    // pile lives in the public automa state (the bot has no engine tableau),
+    // so the board gets the SAME participant with its pile projected as
+    // minimal CardModels — the premium grouped board works unchanged.
+    playedOverlayPlayer(): PublicPlayerModel {
+      const p = this.displayedPlayer;
+      if (p.isMarsBot === true && this.game.automa !== undefined) {
+        return {...p, tableau: botTableauCards(this.game.automa)};
+      }
+      return p;
+    },
+    // The automa seat's colour (the bot is a real player in `players`).
+    marsBotColor(): Color {
+      return this.playerView.players.find((p) => p.isMarsBot === true)?.color ?? this.thisPlayer.color;
     },
     playedCardsTitleClass(): string {
       return `dynamic-title ${playerColorClass(this.displayedPlayer.color, 'shadow')}`;
@@ -2364,6 +2394,7 @@ export default defineComponent({
     'select-space': SelectSpace,
     StandardProjectsOverlay,
     PlayedCardsOverlay,
+    MarsBotBoardOverlay,
     EffectsOverlay,
     ActionsOverlay,
     HydroNetworkOverlay,
@@ -2591,6 +2622,7 @@ export default defineComponent({
           target.closest('.vp-board-overlay') ||
           target.closest('.hydronetwork-overlay') ||
           target.closest('.legacy-ui-overlay') ||
+          target.closest('.mb-board-overlay') ||
           target.closest('.sidebar_cont') ||
           target.closest('.bottom-bar-btn') ||
           target.closest('.bar-rail') ||

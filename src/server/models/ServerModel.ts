@@ -20,6 +20,7 @@ import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {SpectatorModel} from '../../common/models/SpectatorModel';
 import {GameModel} from '../../common/models/GameModel';
+import {MarsBotModel} from '../../common/models/MarsBotModel';
 import {Turmoil} from '../turmoil/Turmoil';
 import {createPathfindersModel} from './PathfindersModel';
 import {MoonModel} from '../../common/models/MoonModel';
@@ -163,6 +164,7 @@ export class Server {
       oxygenLevel: game.getOxygenLevel(),
       passedPlayers: game.getPassedPlayers(),
       pathfinders: createPathfindersModel(game),
+      automa: this.getAutomaModel(game),
       phase: game.phase,
       spaces: this.getSpaces(game.board, game.gagarinBase, game.stJosephCathedrals, game.nomadSpace),
       spectatorId: game.spectatorId,
@@ -246,6 +248,49 @@ export class Server {
       showCalculatedCost: true,
       unplayableReasons: modelIsForThisPlayer,
     })];
+  }
+
+  /**
+   * The public MarsBot state: tracks with regression markers, deck COUNTS
+   * (contents/order stay hidden — face-down decks), the open discards, the
+   * played pile, floaters and the shipping storage. Everything mirrors the
+   * physically-open information of the tabletop game.
+   */
+  private static getAutomaModel(game: IGame): MarsBotModel | undefined {
+    const automa = game.automa;
+    if (automa === undefined) {
+      return undefined;
+    }
+    const model: MarsBotModel = {
+      difficulty: automa.difficulty,
+      tracks: automa.board.tracks.map((t) => ({
+        tags: t.definition.tags,
+        position: t.position,
+        maxPosition: t.maxPosition,
+        layout: t.definition.layout,
+        regressed: Array.from(t.regressedPositions),
+      })),
+      actionDeckSize: automa.actionDeck.length,
+      bonusDeckSize: automa.bonusDeck.length,
+      bonusDiscard: [...automa.bonusDiscard],
+      destroyedBonusCards: [...automa.destroyedBonusCards],
+      playedPile: [...automa.playedPile],
+      floaters: automa.floaters,
+    };
+    if (automa.revealedCard !== undefined) {
+      model.revealedCard = automa.revealedCard;
+    }
+    if (automa.lastTurn !== undefined) {
+      model.lastTurn = automa.lastTurn;
+    }
+    if (game.gameOptions.coloniesExtension) {
+      model.shippingStorage = {...automa.shippingStorage};
+      model.secondFleetUnlocked = automa.secondFleetUnlocked;
+    }
+    if (automa.instantWin) {
+      model.instantWin = true;
+    }
+    return model;
   }
 
   public static getMilestones(game: IGame): Array<ClaimedMilestoneModel> {
@@ -415,6 +460,7 @@ export class Server {
       id: game.phase === Phase.END ? player.id : undefined,
       influence: Turmoil.ifTurmoilElse(game, (turmoil) => turmoil.getInfluence(player), () => 0),
       isActive: player.id === game.activePlayer.id,
+      isMarsBot: player.isMarsBot === true ? true : undefined,
       isWaitingForInput: player.getWaitingFor() !== undefined,
       waitingForKind: detectWaitingForKind(player.getWaitingFor()),
       lastCardPlayed: player.lastCardPlayed,
