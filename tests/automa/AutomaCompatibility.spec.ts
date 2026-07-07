@@ -15,7 +15,6 @@ function cleanInput(): AutomaCompatibilityInput {
     ceo: false,
     starwars: false,
     underworld: false,
-    deltaProject: false,
     randomMA: false,
     soloTR: false,
     twoCorpsVariant: false,

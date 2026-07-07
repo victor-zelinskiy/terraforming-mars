@@ -187,7 +187,8 @@ describe('AutomaSetup', () => {
       ['CEOs', {ceoExtension: true}],
       ['Star Wars', {starWarsExpansion: true}],
       ['Underworld', {underworldExpansion: true}],
-      ['Delta Project', {deltaProjectExpansion: true}],
+      // NOTE: the Delta Project is SUPPORTED (Solo Delta Project reference
+      // card) — covered positively in AutomaDeltaProject.spec.ts.
       ['random MA', {randomMA: RandomMAOptionType.LIMITED}],
       ['solo TR', {soloTR: true}],
       ['two corps', {twoCorpsVariant: true}],

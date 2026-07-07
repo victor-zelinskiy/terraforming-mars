@@ -41,4 +41,12 @@ export type MarsBotModel = {
   secondFleetUnlocked?: boolean;
   /** "MarsBot instantly wins" — the game entered the loss round. */
   instantWin?: boolean;
+  /**
+   * Delta Project (present only with the Hydronetwork): the bot's Power budget —
+   * unconsumed Energy-track increments available for row advances + the
+   * increments already consumed. Open information (both derive from the public
+   * track position). The bot's track POSITION rides the ordinary per-player
+   * `deltaProject` model like any player's.
+   */
+  deltaPower?: {available: number, consumed: number};
 };

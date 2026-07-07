@@ -25,7 +25,6 @@ export type AutomaConflictKey =
   | 'expansion:ceo'
   | 'expansion:starwars'
   | 'expansion:underworld'
-  | 'expansion:deltaProject'
   | 'rule:randomMilestonesAwards'
   | 'variant:soloTR'
   | 'variant:twoCorps'
@@ -58,7 +57,6 @@ export type AutomaCompatibilityInput = {
   ceo: boolean;
   starwars: boolean;
   underworld: boolean;
-  deltaProject: boolean;
   /** True when random milestones/awards are enabled at all (any mode). */
   randomMA: boolean;
   soloTR: boolean;
@@ -98,7 +96,8 @@ const RULES: ReadonlyArray<Rule> = [
   {key: 'expansion:ceo', test: (o) => o.ceo, reason: () => 'CEOs'},
   {key: 'expansion:starwars', test: (o) => o.starwars, reason: () => 'Star Wars'},
   {key: 'expansion:underworld', test: (o) => o.underworld, reason: () => 'Underworld'},
-  {key: 'expansion:deltaProject', test: (o) => o.deltaProject, reason: () => 'the Delta Project'},
+  // NOTE: the Delta Project ("Гидросеть") is NOT a conflict — MarsBot plays it
+  // via the Solo Delta Project reference card (see AutomaDeltaProject).
   // Variants the official Automa setup does not describe.
   // NOTE: the start-of-game DRAFT variants (initial / prelude / CEO) are NOT
   // conflicts — with a single human there is nobody to pass to and MarsBot

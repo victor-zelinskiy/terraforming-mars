@@ -26,7 +26,6 @@ export class AutomaSetup {
       ceo: gameOptions.ceoExtension,
       starwars: gameOptions.starWarsExpansion,
       underworld: gameOptions.underworldExpansion,
-      deltaProject: gameOptions.deltaProjectExpansion,
       randomMA: gameOptions.randomMA !== RandomMAOptionType.NONE,
       soloTR: gameOptions.soloTR,
       twoCorpsVariant: gameOptions.twoCorpsVariant,

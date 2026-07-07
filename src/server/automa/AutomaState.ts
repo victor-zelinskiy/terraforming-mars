@@ -38,6 +38,10 @@ export type SerializedAutomaState = {
   instantWin?: boolean;
   turnCounter?: number;
   lastTurn?: MarsBotTurn;
+  /** Delta Project: Power-Track increments already consumed for row advances (absent = 0, old saves). */
+  deltaPowerConsumed?: number;
+  /** Delta Project: the last generation the once-per-generation resolution ran (absent = 0, old saves). */
+  deltaResolvedGeneration?: number;
 };
 
 /**
@@ -73,6 +77,17 @@ export class AutomaState {
   public instantWin: boolean = false;
   /** Monotonic turn number — the id of `lastTurn` (client replay/dedup key). */
   public turnCounter: number = 0;
+  /**
+   * Delta Project (Solo reference card): how many Power-Track increments the bot
+   * has already consumed for Delta row advances. Available power is
+   * `energyTrack.position − deltaPowerConsumed` — the consumption counter is the
+   * digital equivalent of "Remove 1-4 resources to represent consumed Power"
+   * and deliberately never mutates the official Energy track (regressing it is
+   * the HUMAN-attack mechanic and would corrupt official MarsBot logic).
+   */
+  public deltaPowerConsumed: number = 0;
+  /** Delta Project: the last generation the once-per-generation resolution ran (mirrors hardClaimCheckedGeneration). */
+  public deltaResolvedGeneration: number = 0;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -116,6 +131,8 @@ export class AutomaState {
       secondFleetUnlocked: this.secondFleetUnlocked,
       hardClaimCheckedGeneration: this.hardClaimCheckedGeneration,
       turnCounter: this.turnCounter,
+      deltaPowerConsumed: this.deltaPowerConsumed,
+      deltaResolvedGeneration: this.deltaResolvedGeneration,
     };
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
@@ -157,6 +174,8 @@ export class AutomaState {
     state.instantWin = d.instantWin ?? false;
     state.turnCounter = d.turnCounter ?? 0;
     state.lastTurn = d.lastTurn;
+    state.deltaPowerConsumed = d.deltaPowerConsumed ?? 0;
+    state.deltaResolvedGeneration = d.deltaResolvedGeneration ?? 0;
     return state;
   }
 }

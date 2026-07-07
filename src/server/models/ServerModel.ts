@@ -15,6 +15,7 @@ import {TileType} from '../../common/TileType';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {ClaimedMilestoneModel, MilestoneScore} from '../../common/models/ClaimedMilestoneModel';
+import {AutomaDeltaProject} from '../automa/AutomaDeltaProject';
 import {AutomaMAEvaluation} from '../automa/AutomaMAEvaluation';
 import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel';
 import {getTurmoilModel} from '../models/TurmoilModel';
@@ -289,6 +290,12 @@ export class Server {
     }
     if (automa.instantWin) {
       model.instantWin = true;
+    }
+    if (game.gameOptions.deltaProjectExpansion) {
+      model.deltaPower = {
+        available: AutomaDeltaProject.availablePower(game),
+        consumed: automa.deltaPowerConsumed,
+      };
     }
     return model;
   }

@@ -168,7 +168,7 @@ let multiplayerSnapshot: {
  *
  * MarsBot mode keeps exactly ONE human seat (the creator — the bot itself is
  * seated by the server) and applies the POC PRESET: the fork's default lineup
- * includes modules the Automa doesn't cover yet (Promo / Ares / Hydronetworks,
+ * includes modules the Automa doesn't cover yet (Promo / Ares,
  * random M&A, shuffled tiles, random board), so entering the mode starts from
  * the clean supported set instead of a wall of conflict highlights. Options
  * the USER toggles afterwards are never silently reverted — they highlight as
@@ -315,7 +315,6 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     ceo: on('ceo'),
     starwars: on('starwars'),
     underworld: on('underworld'),
-    deltaProject: on('deltaProject'),
     randomMA: config.rules.randomMilestonesAwards,
     soloTR: false,
     twoCorpsVariant: false,
@@ -343,7 +342,6 @@ const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'board': 'MarsBot plays on the Tharsis map only for now',
   'expansion:promo': 'MarsBot does not support Promos yet',
   'expansion:ares': 'MarsBot does not support Ares yet',
-  'expansion:deltaProject': 'MarsBot does not support Hydronetworks yet',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
   'rule:alternativeVenusBoard': 'MarsBot does not support the alternative Venus board',

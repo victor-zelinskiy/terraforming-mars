@@ -2,6 +2,7 @@ import {Resource} from '../../common/Resource';
 import {IGame} from '../IGame';
 import {newProjectCard} from '../createCard';
 import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
+import {AutomaDeltaProject} from './AutomaDeltaProject';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
@@ -27,6 +28,11 @@ export class AutomaController {
     AutomaTurnLog.begin(game);
 
     AutomaController.maybeHardClaim(game);
+
+    // Solo Delta Project reference card: once per generation, on the bot's
+    // FIRST turn (before the reveal + before the empty-deck pass check, so a
+    // passing bot still advances). No-op without the Delta Project expansion.
+    AutomaDeltaProject.resolve(game);
 
     // "If MarsBot has no cards in its action deck, it passes for the round." (rulebook p.5)
     if (automa.actionDeck.length === 0) {

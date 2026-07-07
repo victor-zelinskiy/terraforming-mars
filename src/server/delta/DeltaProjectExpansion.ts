@@ -62,7 +62,9 @@ export class DeltaProjectExpansion {
   }
 
   // True if another player (not `excludePlayer`) occupies this track position.
-  private static hasOtherPlayerAtPosition(game: IGame, position: number, excludePlayer: IPlayer): boolean {
+  // Public: shared with the MarsBot resolution (AutomaDeltaProject) so the VP-slot
+  // occupancy semantics can never diverge between the human and the bot.
+  public static hasOtherPlayerAtPosition(game: IGame, position: number, excludePlayer: IPlayer): boolean {
     for (const p of game.players) {
       if (p === excludePlayer) {
         continue;
