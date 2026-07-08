@@ -64,7 +64,11 @@ export function buildJournalView(messages: ReadonlyArray<LogMessage>): Array<Jou
     if ('kind' in n) {
       return n;
     }
-    if (n.messages.length === 1) {
+    // A single-message group collapses to a flat row — EXCEPT a MarsBot turn:
+    // the strict "one journal entry per bot turn, always with «Осмотреть ход»"
+    // rule needs the GROUP shape (category accent + the replay affordance),
+    // even when the turn produced just one public log line (a bare reveal).
+    if (n.messages.length === 1 && n.messages[0].category !== 'automa-turn') {
       return {kind: 'message', message: n.messages[0]};
     }
     // Header = the explicit root-action (lowest role rank), else the first row.

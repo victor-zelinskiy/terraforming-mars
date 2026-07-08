@@ -73,6 +73,8 @@
   "Trade fleets": "Торговые флоты",
   "Shipping storage": "Области хранения",
   "Bonus discard": "Сброс бонусных карт",
+  "Recurring bonus cards": "Постоянные бонусные карты",
+  "These cards never go to the discard — they are shuffled back into the action deck every generation": "Эти карты никогда не уходят в сброс — они замешиваются обратно в колоду действий каждое поколение",
   "Destroyed bonus cards": "Уничтоженные бонусные карты",
   "Removed from the game": "Убрана из игры",
   "Empty": "Пусто",
@@ -97,6 +99,7 @@
   "MarsBot finished its turn": "Бот завершил ход",
   "Watch turn": "Осмотреть ход",
 
+  "Recurring": "Постоянные",
   "Discard pile": "Сброс",
   "Destroyed cards": "Уничтожено",
   "MarsBot tracks": "Треки бота",

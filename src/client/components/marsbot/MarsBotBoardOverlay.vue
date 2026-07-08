@@ -69,7 +69,14 @@
         </div>
       </section>
 
-      <!-- The open bonus piles: discard (reshuffles later) + destroyed (gone). -->
+      <!-- The open bonus piles: recurring (circulate) + discard (reshuffles later) + destroyed (gone). -->
+      <section v-if="automa.recurringBonusCards.length > 0" class="mb-board__section">
+        <h3 class="mb-board__label" v-i18n>Recurring bonus cards</h3>
+        <p class="mb-board__hint" v-i18n>These cards never go to the discard — they are shuffled back into the action deck every generation</p>
+        <div class="mb-board__bonuses">
+          <BonusCardFace v-for="id in automa.recurringBonusCards" :key="id" :id="id" :ctx="ctx" />
+        </div>
+      </section>
       <section class="mb-board__section">
         <h3 class="mb-board__label" v-i18n>Bonus discard</h3>
         <p class="mb-board__hint" v-i18n>Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out</p>

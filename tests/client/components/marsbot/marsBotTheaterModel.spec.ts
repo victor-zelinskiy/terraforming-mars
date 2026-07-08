@@ -45,6 +45,7 @@ function view(turn: MarsBotTurn | undefined): ViewModel {
         actionDeckSize: 3,
         bonusDeckSize: 5,
         bonusDiscard: [],
+        recurringBonusCards: [],
         destroyedBonusCards: [],
         playedPile: [],
         floaters: 0,

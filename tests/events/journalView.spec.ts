@@ -52,6 +52,18 @@ describe('buildJournalView', () => {
     expect(view[0].kind).to.eq('message');
   });
 
+  it('STRICT: a single-message MARSBOT TURN stays a GROUP (the «Осмотреть ход» affordance needs it)', () => {
+    const view = buildJournalView([
+      log('Bot revealed a card', {correlationId: 11, role: 'root-action', category: 'automa-turn'}),
+    ]);
+    expect(view.length).to.eq(1);
+    const group = view[0] as JournalGroupNode;
+    expect(group.kind).to.eq('group');
+    expect(group.correlationId).to.eq(11);
+    expect(group.category).to.eq('automa-turn');
+    expect(group.children).to.have.length(0);
+  });
+
   it('chooses the root-action as header even if it is not the first row', () => {
     const view = buildJournalView([
       log('child first', {correlationId: 3, role: 'effect-result'}),

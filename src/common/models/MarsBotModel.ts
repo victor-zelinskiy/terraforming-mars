@@ -27,6 +27,12 @@ export type MarsBotModel = {
   bonusDeckSize: number;
   /** The open bonus discard pile. */
   bonusDiscard: ReadonlyArray<BonusCardId>;
+  /**
+   * Recurring bonus cards (the WGT stand-in B16, later B19/B20): publicly known,
+   * they never enter the discard — they circulate back into the action deck each
+   * generation. Shown so a resolved recurring card is not read as "vanished".
+   */
+  recurringBonusCards: ReadonlyArray<BonusCardId>;
   /** Destroyed bonus cards — removed from the game, publicly known. */
   destroyedBonusCards: ReadonlyArray<BonusCardId>;
   /** MarsBot's played project cards (face up). */

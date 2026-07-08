@@ -55,6 +55,7 @@
         <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
       </h3>
       <div class="con-info__stat-lines">
+        <div v-if="automa.recurringBonusCards.length > 0" class="con-info__stat-line"><span>{{ $t('Recurring') }}</span><b class="con-info__mint">{{ automa.recurringBonusCards.length }}</b></div>
         <div class="con-info__stat-line"><span>{{ $t('Discard pile') }}</span><b>{{ automa.bonusDiscard.length }}</b></div>
         <div class="con-info__stat-line"><span>{{ $t('Destroyed cards') }}</span><b>{{ automa.destroyedBonusCards.length }}</b></div>
       </div>
@@ -100,6 +101,13 @@
 
   <!-- ── Detail: the open bonus piles ───────────────────────────────────── -->
   <div v-else-if="mode === 'botBonus'" class="con-info__scroll con-info__detail-scroll">
+    <template v-if="automa.recurringBonusCards.length > 0">
+      <h4 class="con-bot__pile-title">{{ $t('Recurring bonus cards') }}</h4>
+      <p class="con-info__note con-bot__pile-note">{{ $t('These cards never go to the discard — they are shuffled back into the action deck every generation') }}</p>
+      <div class="con-bot__bonuses">
+        <BonusCardFace v-for="id in automa.recurringBonusCards" :key="id" :id="id" :ctx="ctx" large />
+      </div>
+    </template>
     <h4 class="con-bot__pile-title">{{ $t('Bonus discard') }}</h4>
     <p class="con-info__note con-bot__pile-note">{{ $t('Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out') }}</p>
     <div v-if="automa.bonusDiscard.length === 0" class="con-info__empty">{{ $t('Empty') }}</div>

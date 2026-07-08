@@ -319,6 +319,47 @@ describe('AutomaTurnLog — the typed turn script', () => {
       expect(model.automa?.turnHistory?.map((t) => t.id)).deep.eq([1, 2]);
     });
 
+    it('STRICT: a nested action inside the automa-turn scope JOINS the turn\'s journal group', () => {
+      const [game] = testAutomaGame();
+      const bot = game.players.find((p) => p.isMarsBot)!;
+
+      game.events.beginAction(bot, undefined, {category: 'automa-turn'});
+      const turnCorrelation = game.events.captureContext()!.rootId;
+      // A nested scope, exactly like the Delta advance / a milestone claim /
+      // an award funding opened during the bot's resolution.
+      game.events.beginAction(bot, {kind: 'milestone', name: 'Terraformer' as never}, {category: 'milestone'});
+      game.log('nested claim line', (b) => b.player(bot));
+      game.events.endScope();
+      game.log('outer reveal line', (b) => b.player(bot));
+      game.events.endScope();
+
+      const nested = game.gameLog.find((m) => m.message === 'nested claim line')!;
+      const outer = game.gameLog.find((m) => m.message === 'outer reveal line')!;
+      // ONE journal group for the whole turn…
+      expect(nested.correlationId).eq(turnCorrelation);
+      expect(outer.correlationId).eq(turnCorrelation);
+      // …with ONE header: the nested scope's lines are details, never a
+      // second root that would split the entry.
+      expect(nested.role).eq('detail');
+      expect(outer.role).eq('root-action');
+      expect(outer.category).eq('automa-turn');
+
+      // The nested 'action' EVENT keeps its own category (analytics/facts
+      // unchanged) but shares the turn's correlation.
+      const nestedEvent = game.events.events.find((e) => e.type === 'action' && e.category === 'milestone');
+      expect(nestedEvent).is.not.undefined;
+      expect(nestedEvent!.correlationId).eq(turnCorrelation);
+
+      // A HUMAN action outside the automa scope still roots its own group.
+      const human = game.players.find((p) => p.isMarsBot !== true)!;
+      game.events.beginAction(human, undefined, {category: 'standard-project'});
+      game.log('human line', (b) => b.player(human));
+      game.events.endScope();
+      const humanLine = game.gameLog.find((m) => m.message === 'human line')!;
+      expect(humanLine.role).eq('root-action');
+      expect(humanLine.correlationId).not.eq(turnCorrelation);
+    });
+
     it('records the turn\'s board-visible footprint (tiles + params) into turn.visual', () => {
       const [game, human] = testAutomaGame();
       const automa = game.automa!;

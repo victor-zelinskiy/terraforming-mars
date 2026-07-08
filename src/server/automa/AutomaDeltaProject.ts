@@ -171,10 +171,12 @@ export class AutomaDeltaProject {
       DeltaProjectExpansion.hasOtherPlayerAtPosition(game, VP2_POSITION, bot);
     const stageName = DELTA_STAGE_NAMES[newPos] ?? '';
 
-    // The same journal root scope as the human advance (category
-    // 'delta-project'), so the premium journal groups it and the notification
-    // layer surfaces it as a "Гидросеть" card. The bot's turn theater picks the
-    // log lines up automatically (the resolution runs inside the turn recording).
+    // The same scope kind as the human advance (category 'delta-project' —
+    // analytics / endgame facts unchanged). Opened INSIDE the automa-turn
+    // scope, it JOINS the turn's single journal group (EventRecorder's
+    // automa-turn coalescing): the advance reads as a detail of the bot's
+    // turn — one entry, one «Осмотреть ход». The turn theater picks the log
+    // lines up automatically (the resolution runs inside the turn recording).
     game.events.beginAction(bot, {kind: 'card', card: CardName.DELTA_PROJECT, owner: bot.color}, {category: 'delta-project'});
     try {
       automa.deltaPowerConsumed += steps;

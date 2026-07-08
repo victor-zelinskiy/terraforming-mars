@@ -277,6 +277,7 @@ export class Server {
       actionDeckSize: automa.actionDeck.length,
       bonusDeckSize: automa.bonusDeck.length,
       bonusDiscard: [...automa.bonusDiscard],
+      recurringBonusCards: [...automa.recurringBonusCards],
       destroyedBonusCards: [...automa.destroyedBonusCards],
       playedPile: [...automa.playedPile],
       floaters: automa.floaters,
