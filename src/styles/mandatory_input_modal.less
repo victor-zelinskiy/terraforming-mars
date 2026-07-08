@@ -810,14 +810,15 @@ body.initial-draft-active .mandatory-input-modal {
     background-size: 30px 30px;
     filter: drop-shadow(0 0 4px rgba(80, 160, 220, 0.5));
 }
-/* The global-parameters/venus.png asset is the WIDE scale LOGO (the "V" + the
- * rainbow gauge) — squished into a small square icon slot its silver arc reads
- * as a broken "white crescent". Every COMPACT venus icon (chips / summaries /
- * modal options / HUD label) uses the canonical square Venus SYMBOL instead
- * (tags/venus.png); the board's venus scale is a separate arc element, untouched. */
+/* The Venus SCALE icon (the "V" + rainbow-gauge global-parameter logo). It is
+ * WIDE, so it's sized by height with an auto width in a wider (40px) slot — do
+ * NOT swap it for the square Venus TAG (tags/venus.png): this class is the
+ * global-PARAMETER icon (top HUD scale readout, WGT "Increase Venus scale",
+ * param-change chips), never a card tag. */
 .wgt-icon--venus {
-    background-image: url('./assets/tags/venus.png');
-    background-size: contain;
+    background-image: url('./assets/global-parameters/venus.png');
+    background-size: auto 28px;
+    width: 40px;
 }
 .wgt-icon--moon-habitat {
     background-image: url('./assets/moon/card-habitat-rate.png');
