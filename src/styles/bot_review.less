@@ -1,14 +1,13 @@
 /*
- * «Разбор хода» — the static, structured bot-turn review (desktop modal +
- * console fullscreen). Width-first layout: a full-width hero, a left rail of
- * supporting facts and a wide right column of cause → effect chains that pack
- * into columns. Visual language: CYAN = card tags driving tracks, AMBER = a
- * TRACK ACTION firing — so the two event sources never blur together.
+ * «Разбор хода» — the static bot-turn review (desktop modal + console
+ * fullscreen). ONE premium cause → effect flow: a minimal identity header, the
+ * played card + service flips, then per-source chains where each track
+ * movement reads SOURCE → TRACK CAPSULE → from→to → MINI-SCALE → reached cell.
+ * CYAN = card tags / tracks; AMBER = a track action (the reached-cell bonus).
  */
 @mbr-accent: rgb(122, 210, 182);
 @mbr-accent-dim: rgba(122, 210, 182, 0.55);
 @mbr-amber: rgb(240, 194, 120);
-@mbr-amber-dim: rgba(240, 194, 120, 0.5);
 @mbr-text: rgb(226, 240, 236);
 @mbr-text-dim: rgb(150, 178, 170);
 @mbr-bg-hi: rgba(17, 32, 29, 0.94);
@@ -16,7 +15,6 @@
 @mbr-line: rgba(122, 210, 182, 0.16);
 @mbr-warn: rgb(240, 176, 96);
 @mbr-loss: rgb(255, 138, 122);
-@mbr-gain: rgb(150, 232, 196);
 
 /* ───────────────────────── desktop modal chrome ───────────────────────── */
 .mbr-overlay {
@@ -34,11 +32,9 @@
     background: radial-gradient(120% 120% at 50% 30%, rgba(6, 14, 12, 0.62), rgba(3, 7, 6, 0.82));
     backdrop-filter: blur(2px);
   }
-
   &__card {
     position: relative;
-    /* NOTE: lessc mis-evaluates `100vw - 48px` (its own min()/unit math turns
-       it into ~52vw) — use the codebase's `min(px, vw)` form, no subtraction. */
+    /* lessc breaks `min(px, 100vw - N)` (turns it into vw math) — use `min(px, Nvw)`. */
     width: min(1120px, 94vw);
     max-height: 90vh;
     display: flex;
@@ -50,22 +46,16 @@
     overflow: hidden;
     animation: mbr-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
-
   &__tick {
     position: absolute;
-    width: 16px;
-    height: 16px;
+    width: 16px; height: 16px;
     border: 2px solid @mbr-accent;
-    opacity: 0.65;
-    z-index: 2;
+    opacity: 0.65; z-index: 2;
     &--tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
     &--br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
   }
-
   &__head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    display: flex; align-items: center; gap: 12px;
     padding: 12px 16px;
     border-bottom: 1px solid @mbr-line;
     flex: 0 0 auto;
@@ -73,91 +63,76 @@
   &__title {
     flex: 1;
     font-family: 'Orbitron', 'Prototype', sans-serif;
-    font-size: 13px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
     color: @mbr-accent;
   }
   &__close {
     appearance: none;
     background: rgba(122, 210, 182, 0.08);
     border: 1px solid rgba(122, 210, 182, 0.3);
-    color: @mbr-text;
-    border-radius: 6px;
-    width: 30px;
-    height: 30px;
-    cursor: pointer;
+    color: @mbr-text; border-radius: 6px;
+    width: 30px; height: 30px; cursor: pointer;
     transition: background 140ms ease, transform 140ms ease;
     &:hover { background: rgba(122, 210, 182, 0.18); transform: translateY(-1px); }
   }
   &__scroll {
     overflow-y: auto;
-    padding: 4px 6px 10px;
+    padding: 4px 8px 10px;
     scrollbar-width: thin;
     scrollbar-color: rgba(122, 210, 182, 0.35) transparent;
     &::-webkit-scrollbar { width: 8px; }
     &::-webkit-scrollbar-thumb { background: rgba(122, 210, 182, 0.3); border-radius: 4px; }
   }
-
-  /* Peek: fade + click-through so the pulsing board cell reads underneath. */
   &--peek {
     pointer-events: none;
     .mbr-overlay__backdrop { opacity: 0; }
     .mbr-overlay__card { opacity: 0.12; transition: opacity 160ms ease; }
   }
 }
-
 @keyframes mbr-in {
   from { opacity: 0; transform: translateY(10px) scale(0.99); }
   to { opacity: 1; transform: none; }
 }
 
-/* ───────── console fullscreen chrome (reserves the bottom command bar) ───── */
+/* ───────── console fullscreen — a COMPLETE surface (its own bottom bar) ───── */
 .con-bot-review {
   position: fixed;
-  /* Stop ABOVE the shell's command bar (in-flow, ~60px) so it stays crisp —
-     never covered by the review's backdrop. */
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 68px;
+  inset: 0;               /* full cover — no board sliver under the review */
   z-index: 900;
   display: flex;
   align-items: stretch;
   justify-content: center;
-  background: radial-gradient(120% 100% at 50% 20%, rgba(9, 20, 17, 0.97), rgba(3, 7, 6, 0.99));
+  background: radial-gradient(120% 100% at 50% 15%, rgba(9, 20, 17, 0.98), rgba(3, 7, 6, 1));
 
   &__panel {
-    /* `min(px, vw)` form only — lessc breaks `100vw - Npx` (see the desktop
-       card note). The horizontal breathing room comes from the padding below. */
     width: min(1500px, 96vw);
     display: flex;
     flex-direction: column;
-    padding: 16px 30px 8px;
+    padding: 14px 30px 0;
   }
   &__head {
     flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px;
     padding-bottom: 8px;
     border-bottom: 1px solid @mbr-line;
   }
   &__title {
     font-family: 'Orbitron', 'Prototype', sans-serif;
-    font-size: 18px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
+    font-size: 18px; letter-spacing: 3px; text-transform: uppercase;
     color: @mbr-accent;
   }
   &__scroll {
     flex: 1;
     overflow-y: auto;
-    padding-top: 10px;
+    padding: 10px 0;
     scrollbar-width: none;
     &::-webkit-scrollbar { display: none; }
   }
+  &__bar { flex: 0 0 auto; padding: 8px 0 12px; }
   &--peek {
     background: transparent;
     pointer-events: none;
-    .con-bot-review__panel { opacity: 0.1; transition: opacity 160ms ease; }
+    .con-bot-review__panel { opacity: 0.08; transition: opacity 160ms ease; }
   }
 }
 
@@ -167,157 +142,77 @@
   color: @mbr-text;
   font-family: 'Ubuntu', sans-serif;
   font-size: var(--mbr-fz);
-  padding: 12px 14px 6px;
+  padding: 10px 14px 6px;
 
-  &--large { --mbr-fz: 15px; padding: 14px 18px 10px; }
+  &--large { --mbr-fz: 15px; padding: 12px 18px 8px; }
 
-  /* HERO — full width row: glyph · identity+verdict · chips */
+  /* minimal header */
   &__hero {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding-bottom: 12px;
-    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 9px;
+    padding-bottom: 10px; margin-bottom: 12px;
     border-bottom: 1px solid @mbr-line;
   }
   &__glyph {
-    width: 30px; height: 30px; flex: 0 0 auto;
+    width: 28px; height: 28px; flex: 0 0 auto;
     color: @mbr-accent;
     display: inline-flex; align-items: center; justify-content: center;
     background: rgba(122, 210, 182, 0.1);
-    border: 1px solid rgba(122, 210, 182, 0.32);
-    border-radius: 7px;
-    svg { width: 22px; height: 22px; }
+    border: 1px solid rgba(122, 210, 182, 0.32); border-radius: 7px;
+    svg { width: 20px; height: 20px; }
   }
-  &__hero-main { flex: 1; min-width: 0; }
-  &__idline { display: flex; align-items: center; gap: 8px; }
   &__botname { font-family: 'Orbitron', sans-serif; font-size: calc(var(--mbr-fz) + 1px); letter-spacing: 1px; }
   &__diff {
     font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase;
     color: @mbr-accent; background: rgba(122, 210, 182, 0.12);
-    border: 1px solid rgba(122, 210, 182, 0.28); border-radius: 4px;
-    padding: 1px 7px;
+    border: 1px solid rgba(122, 210, 182, 0.28); border-radius: 4px; padding: 1px 7px;
   }
   &__gen { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-text-dim; }
-  &__verdict {
-    margin-top: 5px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: calc(var(--mbr-fz) + 4px);
-    line-height: 1.25;
-    color: @mbr-text;
-  }
-  &__chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 46%; }
 
-  /* Generic chips */
-  &__chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 2px 8px; border-radius: 5px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    font-family: 'Orbitron', sans-serif; font-size: calc(var(--mbr-fz) - 0.5px);
-    &--neutral { color: @mbr-text; }
-    &--gain { color: @mbr-gain; border-color: rgba(150, 232, 196, 0.35); }
-    &--loss { color: @mbr-loss; border-color: rgba(255, 138, 122, 0.35); }
-  }
-  &__chip-icon {
-    width: 16px; height: 16px; display: inline-block;
-    background-repeat: no-repeat; background-position: center; background-size: contain;
-    flex: 0 0 auto;
-  }
-  &__chip-text { white-space: nowrap; }
-
-  /* ── the width-filling split ── */
-  &__grid {
-    display: grid;
-    grid-template-columns: minmax(280px, 340px) 1fr;
-    gap: 16px;
-    align-items: start;
-  }
-  @media (max-width: 900px) {
-    &__grid { grid-template-columns: 1fr; }
-  }
-
-  &__rail { display: flex; flex-direction: column; gap: 12px; }
-  &__panel {
+  /* played-card strip */
+  &__card {
+    display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
     background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(122, 210, 182, 0.14);
-    border-radius: 9px;
-    padding: 10px 12px;
+    border: 1px solid @mbr-line; border-radius: 9px;
+    padding: 10px 14px; margin-bottom: 14px;
   }
-  &__panel-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase;
+  &__card-chip { flex: 0 0 auto; }
+  &__card-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  &__card-kicker {
+    font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
     color: @mbr-accent-dim;
-    margin-bottom: 8px;
   }
-
-  /* Card block */
-  &__card-chip { display: block; margin-bottom: 8px; }
-  &__rule {
-    margin: 0 0 8px; font-size: calc(var(--mbr-fz) - 0.5px); line-height: 1.35;
-    color: @mbr-text-dim;
-    border-left: 2px solid @mbr-accent-dim; padding-left: 8px;
-  }
+  &__rule { color: @mbr-text-dim; text-transform: none; letter-spacing: 0; font-family: 'Ubuntu', sans-serif; font-size: 10.5px; }
   &__tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  &__tag { display: inline-flex; align-items: center; gap: 4px; }
+  &__tag { display: inline-flex; align-items: center; gap: 3px; }
   &__tag--ignored { opacity: 0.5; }
-  &__tag-arrow { color: @mbr-accent; }
   &__tag-x { color: @mbr-text-dim; }
-
   &__fate {
-    display: inline-flex; align-items: center; gap: 8px; margin-top: 8px;
+    display: inline-flex; align-items: center; gap: 8px;
     padding: 3px 10px; border-radius: 5px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);
     &--destroyed { border-color: rgba(255, 138, 122, 0.4); }
     &--recurring { border-color: rgba(122, 210, 182, 0.4); }
   }
   &__fate-label { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; color: @mbr-text-dim; }
   &__fate-value { font-family: 'Orbitron', sans-serif; font-size: calc(var(--mbr-fz) - 0.5px); color: @mbr-text; }
 
-  /* On the board — the ONE unified "show on map" affordance */
-  &__tilerow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  &__tile-name { flex: 1; font-family: 'Orbitron', sans-serif; letter-spacing: 0.5px; }
-  &__show {
-    appearance: none; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 3px 10px; border-radius: 6px;
-    background: rgba(122, 210, 182, 0.1);
-    border: 1px solid rgba(122, 210, 182, 0.34);
-    color: @mbr-accent;
-    font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-    transition: background 140ms ease, transform 140ms ease;
-    &:hover { background: rgba(122, 210, 182, 0.2); transform: translateY(-1px); }
+  /* service (tie-break / pick) flips — clearly NOT the played card */
+  &__tech-list {
+    margin-left: auto; padding-left: 14px;
+    border-left: 1px dashed rgba(150, 178, 170, 0.3);
+    display: flex; flex-direction: column; gap: 5px;
   }
-  &__show-pin { font-size: 12px; }
-  &__params { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  &__tech { display: flex; align-items: center; gap: 8px; opacity: 0.85; }
+  &__tech-reason { font-size: 9.5px; letter-spacing: 0.6px; text-transform: uppercase; color: @mbr-text-dim; }
 
-  /* Impact rows */
-  &__who { display: inline-flex; align-items: center; gap: 6px; }
-  &__pdot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
-  &__pname { font-size: calc(var(--mbr-fz) - 0.5px); }
-  &__improw { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
-  &__imp-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-  &__imp-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 2px 8px; border-radius: 5px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+  &__panel-label {
     font-family: 'Orbitron', sans-serif;
-    &--loss { color: @mbr-loss; border-color: rgba(255, 138, 122, 0.35); background: rgba(255, 138, 122, 0.06); }
-    &--gain { color: @mbr-gain; border-color: rgba(150, 232, 196, 0.32); background: rgba(150, 232, 196, 0.06); }
-    &--calm { color: @mbr-text-dim; }
+    font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: @mbr-text-dim;
   }
-  &__imp-icons { display: inline-flex; gap: 1px; }
-  &__vals { display: inline-flex; align-items: center; gap: 3px; }
-  &__note { font-size: 9.5px; letter-spacing: 0.8px; text-transform: uppercase; color: @mbr-text-dim; }
 
-  /* ── CHAINS — pack into columns to fill the width ── */
-  &__chains-wrap { min-width: 0; }
-  &__chains {
-    column-width: 320px;
-    column-gap: 12px;
-  }
+  /* ── the flow: chains packed into columns ── */
+  &__chains { column-width: 340px; column-gap: 14px; }
   &__chain {
     break-inside: avoid;
     margin-bottom: 12px;
@@ -325,11 +220,9 @@
     border: 1px solid @mbr-line;
     border-left: 2px solid @mbr-accent-dim;
     border-radius: 8px;
-    padding: 8px 12px;
-    /* Colony trade / delta / bonus keep the cyan family; only the ACTION line
-       inside a chain turns amber, so the "source" reads at a glance. */
+    padding: 9px 12px;
   }
-  &__chain-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  &__chain-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   &__chain-kicker {
     font-family: 'Orbitron', sans-serif;
     font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase;
@@ -338,36 +231,75 @@
     &--warn { color: @mbr-warn; background: rgba(240, 176, 96, 0.12); border-color: rgba(240, 176, 96, 0.32); }
   }
   &__chain-title { font-family: 'Orbitron', sans-serif; font-size: var(--mbr-fz); letter-spacing: 0.5px; }
-  &__lines { display: flex; flex-direction: column; gap: 5px; }
+
+  &__lines { display: flex; flex-direction: column; gap: 7px; }
   &__line {
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.4;
-    &--d1 { padding-left: 4px; }
-    &--d2 { padding-left: 18px; }
-    &--d3 { padding-left: 32px; }
+    display: flex; align-items: flex-start; gap: 6px; line-height: 1.4;
+    &--d2 { padding-left: 16px; }
+    &--d3 { padding-left: 30px; }
     &--note { opacity: 0.62; }
   }
-  &__move { font-family: 'Orbitron', sans-serif; letter-spacing: 0.5px; color: @mbr-text; }
-  &__arrow { color: @mbr-accent-dim; padding: 0 1px; }
+  &__ladder { color: @mbr-accent-dim; font-size: calc(var(--mbr-fz)); flex: 0 0 auto; margin-top: 3px; }
 
-  /* A TRACK ACTION fired — the distinct amber row (vs the calm cyan tag-move) */
-  &__line--action {
-    background: rgba(240, 194, 120, 0.08);
-    border: 1px solid rgba(240, 194, 120, 0.28);
-    border-radius: 6px;
-    padding: 3px 8px 3px 6px;
-    .mbr__move { color: @mbr-amber; }
+  /* ── track movement card ── */
+  &__move {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 6px 8px; border-radius: 7px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(122, 210, 182, 0.14);
+    &--action { border-color: rgba(240, 194, 120, 0.28); background: rgba(240, 194, 120, 0.05); }
+  }
+  &__move-top { display: flex; align-items: center; gap: 8px; }
+  &__capsule {
+    display: inline-flex; align-items: center; gap: 1px;
+    padding: 2px 6px; border-radius: 6px;
+    background: rgba(122, 210, 182, 0.08);
+    border: 1px solid rgba(122, 210, 182, 0.28);
+  }
+  &__from-to { font-family: 'Orbitron', sans-serif; font-size: calc(var(--mbr-fz) + 1px); letter-spacing: 0.5px; color: @mbr-text; }
+  &__arrow { color: @mbr-accent-dim; padding: 0 3px; }
+
+  /* mini-scale strip */
+  &__scale { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+  &__cell {
+    width: 22px; height: 22px; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    &--past { opacity: 0.4; }
+    &--mid { opacity: 0.55; }
+    &--from { border-color: rgba(122, 210, 182, 0.5); background: rgba(122, 210, 182, 0.1); }
+    &--to {
+      border-color: @mbr-amber; background: rgba(240, 194, 120, 0.16);
+      box-shadow: 0 0 8px rgba(240, 194, 120, 0.35);
+    }
+    &--future { opacity: 0.62; border-style: dashed; }
+  }
+  &__cell-icon {
+    width: 15px; height: 15px; display: inline-block;
+    background-repeat: no-repeat; background-position: center; background-size: contain;
+  }
+  &__cell-sym { font-size: 12px; color: @mbr-text; }
+  &__cell-dot { width: 4px; height: 4px; border-radius: 50%; background: @mbr-text-dim; opacity: 0.6; }
+
+  /* reached-cell action (the amber bonus) */
+  &__cellbonus {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding-top: 5px; border-top: 1px dashed rgba(240, 194, 120, 0.25);
   }
   &__act-badge { color: @mbr-amber; font-size: calc(var(--mbr-fz) + 1px); }
-  &__act-kicker {
-    font-family: 'Orbitron', sans-serif; font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase;
-    color: @mbr-amber; background: rgba(240, 194, 120, 0.14);
-    border: 1px solid rgba(240, 194, 120, 0.3); border-radius: 3px; padding: 1px 5px;
+  &__cellbonus-cell { font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-amber; }
+  &__cellbonus-idx {
+    font-family: 'Orbitron', sans-serif; font-size: 10px;
+    min-width: 16px; text-align: center; color: @mbr-amber;
+    background: rgba(240, 194, 120, 0.14); border: 1px solid rgba(240, 194, 120, 0.3);
+    border-radius: 3px; padding: 0 3px;
   }
   &__act-name { color: @mbr-text; }
-  /* A cascade / consequence of an action — amber-tinted, nested */
-  &__line--cascade .mbr__move,
-  &__line--consequence { color: fade(@mbr-amber, 88%); }
 
+  /* consequences (logs / attacks / notes) */
   &__cost-label {
     font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;
     color: @mbr-warn; background: rgba(240, 176, 96, 0.1);
@@ -376,6 +308,25 @@
   &__tokens { display: inline; }
   &__notemark { color: @mbr-text-dim; }
   &__notetext { color: @mbr-text-dim; font-size: calc(var(--mbr-fz) - 0.5px); }
+
+  &__who { display: inline-flex; align-items: center; gap: 6px; }
+  &__pdot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  &__pname { font-size: calc(var(--mbr-fz) - 0.5px); }
+  &__imp-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: 'Orbitron', sans-serif;
+    &--loss { color: @mbr-loss; border-color: rgba(255, 138, 122, 0.35); background: rgba(255, 138, 122, 0.06); }
+    &--calm { color: @mbr-text-dim; }
+  }
+  &__imp-icons { display: inline-flex; gap: 1px; }
+  &__chip-icon {
+    width: 16px; height: 16px; display: inline-block;
+    background-repeat: no-repeat; background-position: center; background-size: contain;
+  }
+  &__vals { display: inline-flex; align-items: center; gap: 3px; }
+  &__note { font-size: 9.5px; letter-spacing: 0.8px; text-transform: uppercase; color: @mbr-text-dim; }
 }
 
 @media (prefers-reduced-motion: reduce) {

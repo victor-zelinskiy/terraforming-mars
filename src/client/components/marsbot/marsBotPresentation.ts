@@ -354,6 +354,7 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
     ctx: entry.ctx,
     turn: entry.turn,
     trackTags: entry.trackTags,
+    tracks: entry.tracks,
   });
   markBotTurnViewed(entry.key);
   dismiss(botTurnNotificationId(entry.key));

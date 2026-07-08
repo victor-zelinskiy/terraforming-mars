@@ -27,8 +27,9 @@ import {
   MarsBotTurn,
   MarsBotTurnStep,
 } from '@/common/automa/MarsBotTurn';
+import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
-import {tagOfTrack, turnCardNames} from './marsBotTurnView';
+import {tagOfTrack} from './marsBotTurnView';
 import {trackActionGlyph} from './marsBotView';
 
 /** A before → after resource/param chip (reuses the journal's chip shape). */
@@ -37,14 +38,24 @@ export type BotReviewChip = JournalImpactChip;
 /** One printed tag of a played project card + the track it pushed. */
 export type BotReviewTag = {tag: Tag, trackTag?: Tag, ignored: boolean};
 
+/** A card the bot only FLIPPED for randomness (tie-break / colony pick) — never played. */
+export type BotReviewTechnicalReveal = {name: CardName, reason: 'tiebreak' | 'pick', cost?: number};
+
 /** The card MarsBot PLAYED this turn (never "revealed" — it executes it). */
 export type BotReviewCard =
   | {kind: 'project', name: CardName, tags: Array<BotReviewTag>}
   | {kind: 'bonus', id: BonusCardId, fate?: MarsBotBonusFate};
 
+/**
+ * One cell of a track's mini-scale window. `state` drives the highlight:
+ * where the bot came FROM, where it landed (TO), the cells it crossed, and a
+ * few UPCOMING bonus cells so the player sees what the track offers next.
+ */
+export type BotReviewScaleCell = {index: number, action?: TrackAction, state: 'past' | 'from' | 'mid' | 'to' | 'future'};
+
 /** A single line inside a cause→effect chain. `depth` drives the connector indent. */
 export type BotReviewLine =
-  | {kind: 'track', depth: number, trackTag?: Tag, from: number, to: number, action?: TrackAction}
+  | {kind: 'track', depth: number, capsule: ReadonlyArray<Tag>, from: number, to: number, action?: TrackAction, cells: ReadonlyArray<BotReviewScaleCell>}
   | {kind: 'log', depth: number, message: LogMessage, tone?: 'cost' | 'gain', labelKey?: string}
   | {kind: 'attack', depth: number, attack: MarsBotAttack}
   | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info'};
@@ -90,8 +101,10 @@ export type BotTurnReview = {
   playerImpacts: Array<BotReviewImpact>;
   /** The bot's own net changes. */
   botResult?: BotReviewImpact;
-  /** Project cards shown this turn — X = Осмотреть карту. */
+  /** Project cards REFERENCED by the review (played + genuine reveals) — X = Осмотреть карту. */
   cardNames: Array<CardName>;
+  /** Cards flipped only for randomness (tie-break / pick) — shown as service reveals, never played. */
+  technicalReveals: Array<BotReviewTechnicalReveal>;
   /** First placed tile — L3 = Показать на карте. */
   primarySpaceId?: SpaceId;
   /** Was this a pass / a failed action with no board effect. */
@@ -107,6 +120,8 @@ export type BotTurnReviewSource = {
   turn: MarsBotTurn;
   /** Track index → identity tag, captured when the turn was archived. */
   trackTags: ReadonlyArray<Tag | undefined>;
+  /** Full track models — feed the mini-scales + composite capsules. */
+  tracks: ReadonlyArray<MarsBotTrackModel>;
 };
 
 /** The Colonies "trade with a colony" bonus cards (their M€ deduct = trade cost). */
@@ -159,6 +174,55 @@ function isNoiseLog(message: LogMessage): boolean {
   }
   // A placement-location line — deduped against the board block's tile + show.
   return message.data.some((d) => d.type === LogMessageDataType.SPACE);
+}
+
+/** A track's capsule = ALL its tags (single icon, or a group for a composite track). */
+function trackCapsule(source: BotTurnReviewSource, trackIndex: number): ReadonlyArray<Tag> {
+  const t = source.tracks[trackIndex];
+  if (t !== undefined && t.tags.length > 0) {
+    return t.tags;
+  }
+  const tag = tagOfTrack(source.trackTags, trackIndex);
+  return tag !== undefined ? [tag] : [];
+}
+
+const MINISCALE_MAX = 8;
+
+/**
+ * The mini-scale WINDOW around a movement: one cell before `from`, through
+ * `to`, plus a few upcoming cells so the player sees what the track offers
+ * next — never the whole (possibly 18-long) strip.
+ */
+function buildMiniScale(source: BotTurnReviewSource, trackIndex: number, from: number, to: number): ReadonlyArray<BotReviewScaleCell> {
+  const t = source.tracks[trackIndex];
+  if (t === undefined) {
+    return [];
+  }
+  const end = Math.min(t.maxPosition, to + 3);
+  let start = Math.max(0, from - 1);
+  if (end - start + 1 > MINISCALE_MAX) {
+    start = Math.max(0, end - MINISCALE_MAX + 1);
+  }
+  const cells: Array<BotReviewScaleCell> = [];
+  for (let i = start; i <= end; i++) {
+    const action = t.layout[i] ?? undefined;
+    const state: BotReviewScaleCell['state'] = i < from ? 'past' : i === from ? 'from' : i < to ? 'mid' : i === to ? 'to' : 'future';
+    cells.push({index: i, ...(action !== undefined ? {action} : {}), state});
+  }
+  return cells;
+}
+
+/** Build a track-movement line (capsule + mini-scale window). */
+function trackMovementLine(source: BotTurnReviewSource, step: Extract<MarsBotTurnStep, {kind: 'advance'}>, depth: number): Extract<BotReviewLine, {kind: 'track'}> {
+  return {
+    kind: 'track',
+    depth,
+    capsule: trackCapsule(source, step.trackIndex),
+    from: step.from,
+    to: step.to,
+    ...(step.action !== undefined ? {action: step.action} : {}),
+    cells: buildMiniScale(source, step.trackIndex, step.from, step.to),
+  };
 }
 
 /** Is this log line "the bot lost N of a resource" (the trade-fee deduct)? */
@@ -277,14 +341,7 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
         break;
       }
       const chain = ensureChain(step.cause);
-      chain.lines.push({
-        kind: 'track',
-        depth: Math.min(MAX_DEPTH, (step.depth ?? 0) + 1),
-        trackTag: tagOfTrack(source.trackTags, step.trackIndex),
-        from: step.from,
-        to: step.to,
-        ...(step.action !== undefined ? {action: step.action} : {}),
-      });
+      chain.lines.push(trackMovementLine(source, step, Math.min(MAX_DEPTH, (step.depth ?? 0) + 1)));
       break;
     }
     case 'attack': {
@@ -351,14 +408,7 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     }
     case 'advance': {
       const chain = current ?? ensureLoose();
-      chain.lines.push({
-        kind: 'track',
-        depth: nextDepth(chain, true),
-        trackTag: tagOfTrack(source.trackTags, step.trackIndex),
-        from: step.from,
-        to: step.to,
-        ...(step.action !== undefined ? {action: step.action} : {}),
-      });
+      chain.lines.push(trackMovementLine(source, step, nextDepth(chain, true)));
       break;
     }
     case 'failed':
@@ -504,6 +554,50 @@ function buildHeadlineChips(params: Array<BotReviewParam>, botResult: BotReviewI
   return chips;
 }
 
+/**
+ * Split the turn's cards into REFERENCED (the played card + genuine reveals a
+ * player would expect to inspect) and TECHNICAL (flipped only for a random
+ * tie-break / colony pick). The X = «Осмотреть карту» browser shows only the
+ * referenced set, so it never lists a card the review doesn't mention; the
+ * technical flips get their own honest «служебное вскрытие» chip.
+ */
+function buildCardReferences(turn: MarsBotTurn, card: BotReviewCard | undefined): {cardNames: Array<CardName>, technicalReveals: Array<BotReviewTechnicalReveal>} {
+  const referenced: Array<CardName> = [];
+  const technicalReveals: Array<BotReviewTechnicalReveal> = [];
+  const add = (name: CardName) => {
+    if (!referenced.includes(name)) {
+      referenced.push(name);
+    }
+  };
+  if (card?.kind === 'project') {
+    add(card.name);
+  }
+  for (const step of turn.steps) {
+    if (step.kind === 'reveal' && step.card.kind === 'project') {
+      add(step.card.name);
+    }
+    const message = 'message' in step ? step.message : undefined;
+    if (message === undefined) {
+      continue;
+    }
+    const cardTok = message.data.find((d) => d.type === LogMessageDataType.CARD);
+    if (NOISE_LOG_TEMPLATES.has(message.message)) {
+      // A random flip — never played; kept out of the inspect browser.
+      if (cardTok !== undefined) {
+        technicalReveals.push({name: cardTok.value as CardName, reason: message.message.includes('tie') ? 'tiebreak' : 'pick'});
+      }
+      continue;
+    }
+    // A genuine reveal (R&D draw-and-resolve) IS referenced.
+    for (const d of message.data) {
+      if (d.type === LogMessageDataType.CARD) {
+        add(d.value as CardName);
+      }
+    }
+  }
+  return {cardNames: referenced, technicalReveals};
+}
+
 export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
   const {turn} = source;
   let card: BotReviewCard | undefined;
@@ -544,6 +638,7 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
   const tiles: Array<BotReviewTile> = (turn.visual?.tiles ?? []).map((t) => ({spaceId: t.spaceId, tileType: t.tileType, ...(t.color !== undefined ? {color: t.color} : {})}));
   const params = paramsOfVisual(turn);
   const chains = buildChains(turn.steps, source, card);
+  const {cardNames, technicalReveals} = buildCardReferences(turn, card);
   const verdict = buildVerdict(turn, card, tiles, params);
   const headlineChips = buildHeadlineChips(params, botResult, playerImpacts);
   const quiet = turn.steps.some((s) => s.kind === 'pass') ||
@@ -564,7 +659,8 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
     attacks,
     playerImpacts,
     ...(botResult !== undefined ? {botResult} : {}),
-    cardNames: turnCardNames(turn),
+    cardNames,
+    technicalReveals,
     ...(tiles.length > 0 ? {primarySpaceId: tiles[0].spaceId} : {}),
     quiet,
   };

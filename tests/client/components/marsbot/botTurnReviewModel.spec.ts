@@ -8,9 +8,16 @@ import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {MarsBotTurn, MarsBotTurnStep} from '@/common/automa/MarsBotTurn';
+import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {buildBotTurnReview, BotTurnReviewSource} from '@/client/components/marsbot/botTurnReviewModel';
 
 const TRACK_TAGS = [Tag.BUILDING, Tag.SCIENCE];
+// Track 0 = Building (single tag); track 1 = a COMPOSITE Science+Jovian track,
+// with a bonus at cell 3 (city) so the mini-scale + reached-cell tests have data.
+const TRACKS = [
+  {tags: [Tag.BUILDING], position: 4, maxPosition: 18, layout: [undefined, 'advance', undefined, 'city', undefined, 'tr1'], regressed: []},
+  {tags: [Tag.SCIENCE, Tag.JOVIAN], position: 3, maxPosition: 18, layout: [undefined, undefined, 'advance', 'city', undefined, 'ocean'], regressed: []},
+] as unknown as ReadonlyArray<MarsBotTrackModel>;
 
 function log(message: string, data: LogMessage['data'] = []): LogMessage {
   return {message, data} as unknown as LogMessage;
@@ -24,6 +31,7 @@ function src(steps: ReadonlyArray<MarsBotTurnStep>, visual?: MarsBotTurn['visual
     ctx: {venus: false, colonies: true},
     turn: {id: 1, generation: 3, steps, ...(visual !== undefined ? {visual} : {})},
     trackTags: TRACK_TAGS,
+    tracks: TRACKS,
   };
 }
 
@@ -223,5 +231,55 @@ describe('botTurnReviewModel', () => {
     expect(r.cardNames).deep.eq([CardName.BIRDS]);
     // The biggest opponent loss surfaces as a headline chip.
     expect(r.headlineChips.some((c) => c.icon === 'plants' && c.text === '−2')).is.true;
+  });
+
+  // ── layout iteration: capsule / mini-scale / service reveals ──────────────
+
+  it('C1. a composite track shows ALL its tags as one capsule (no "icon → same icon")', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3, cause: {kind: 'tag', index: 0}},
+    ]));
+    const line = r.chains[0].lines.find((l) => l.kind === 'track');
+    expect(line?.kind === 'track' && line.capsule).deep.eq([Tag.SCIENCE, Tag.JOVIAN]);
+  });
+
+  it('C2. the mini-scale windows around from→to with the reached bonus cell + upcoming cells', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 0}},
+      // track 1 layout: [_, _, advance, city@3, _, ocean@5]; move 2 → 3 lands on the city cell.
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3, action: 'city', cause: {kind: 'tag', index: 0}},
+    ]));
+    const line = r.chains[0].lines.find((l) => l.kind === 'track');
+    if (line?.kind !== 'track') {
+      throw new Error('expected a track line');
+    }
+    // Window starts one cell before `from` (index 1) and shows a few upcoming cells.
+    expect(line.cells[0].index).eq(1);
+    const from = line.cells.find((c) => c.state === 'from');
+    const to = line.cells.find((c) => c.state === 'to');
+    expect(from?.index).eq(2);
+    expect(to?.index).eq(3);
+    expect(to?.action).eq('city');
+    // An upcoming bonus (ocean at 5) is visible as a future cell.
+    expect(line.cells.some((c) => c.state === 'future' && c.action === 'ocean')).is.true;
+  });
+
+  it('C3. a tie-break FLIP is a service reveal, kept OUT of the played-card list', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.BIRDS}},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 0, from: 3, to: 4, action: 'city', cause: {kind: 'tag', index: 0}},
+      {kind: 'log', message: log('${0} flipped ${1} (cost ${2}) to break a placement tie', [
+        {type: LogMessageDataType.PLAYER, value: 'red'},
+        {type: LogMessageDataType.CARD, value: CardName.GENE_REPAIR},
+        {type: LogMessageDataType.STRING, value: '13'},
+      ] as never), cause: {kind: 'tag', index: 0}},
+    ]));
+    // The played card is the ONLY inspectable card — the flip never appears there.
+    expect(r.cardNames).deep.eq([CardName.BIRDS]);
+    expect(r.technicalReveals).deep.eq([{name: CardName.GENE_REPAIR, reason: 'tiebreak'}]);
   });
 });

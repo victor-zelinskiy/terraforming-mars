@@ -12,6 +12,7 @@ import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
+import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {ViewModel} from '@/common/models/PlayerModel';
 
 /** The bot participant of the view, if any. */
@@ -26,12 +27,19 @@ export function turnDedupeKey(turn: MarsBotTurn, botColor: Color | ''): string {
 }
 
 /**
- * The identity tags of the automa tracks (index → tag) — captured once per
- * view so an ARCHIVED turn can be reviewed later (e.g. from the journal)
- * without holding on to the whole ViewModel.
+ * The FULL automa track models (tags + layout + maxPosition) — captured once
+ * per view so an ARCHIVED turn can be reviewed later (e.g. from the journal)
+ * without holding on to the whole ViewModel. The layout is static (only the
+ * live `position` moves), so a snapshot is enough to render the review's
+ * mini-scales + composite track capsules.
  */
+export function tracksOfView(view: ViewModel | undefined): ReadonlyArray<MarsBotTrackModel> {
+  return view?.game.automa?.tracks ?? [];
+}
+
+/** The identity tags of the automa tracks (index → tag). */
 export function trackTagsOfView(view: ViewModel | undefined): Array<Tag | undefined> {
-  return (view?.game.automa?.tracks ?? []).map((t) => t.tags[0]);
+  return tracksOfView(view).map((t) => t.tags[0]);
 }
 
 /** The identity tag of a track index, resolved from captured track tags. */
