@@ -329,6 +329,81 @@
   &__note { font-size: 9.5px; letter-spacing: 0.8px; text-transform: uppercase; color: @mbr-text-dim; }
 }
 
+/* bonus-card compact chip (opens the full-rules inspect) + resolved branch */
+.mbr {
+  &__bonus-chip {
+    appearance: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px; border-radius: 7px;
+    background: rgba(122, 210, 182, 0.08);
+    border: 1px solid rgba(122, 210, 182, 0.32);
+    color: @mbr-text;
+    transition: background 140ms ease, transform 140ms ease;
+    &:hover { background: rgba(122, 210, 182, 0.18); transform: translateY(-1px); }
+    &--sm { padding: 2px 8px; font-size: calc(var(--mbr-fz) - 1px); }
+  }
+  &__bonus-glyph { color: @mbr-accent; font-size: calc(var(--mbr-fz) + 2px); }
+  &__bonus-name { font-family: 'Orbitron', sans-serif; letter-spacing: 0.5px; }
+  &__bonus-zoom { color: @mbr-accent-dim; font-size: calc(var(--mbr-fz) + 1px); }
+
+  &__branch {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 4px 10px; border-radius: 6px;
+    background: rgba(240, 194, 120, 0.08);
+    border: 1px solid rgba(240, 194, 120, 0.28);
+    &--chain { background: rgba(122, 210, 182, 0.06); border-color: rgba(122, 210, 182, 0.28); }
+  }
+  &__branch-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-amber; }
+  &__branch--chain .mbr__branch-label { color: @mbr-accent; }
+  &__branch-value { color: @mbr-text; }
+}
+
+/* ── fullscreen Automa bonus card inspect (the FULL rule text lives here) ── */
+.bcz {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: radial-gradient(120% 120% at 50% 30%, rgba(6, 14, 12, 0.86), rgba(2, 5, 4, 0.95));
+  backdrop-filter: blur(3px);
+  animation: mbr-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  &__frame {
+    position: relative;
+    width: min(560px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, @mbr-bg-hi, @mbr-bg-lo);
+    border: 1px solid rgba(122, 210, 182, 0.4);
+    border-radius: 14px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(122, 210, 182, 0.08);
+    padding: 16px 18px 20px;
+  }
+  &__tick {
+    position: absolute; width: 16px; height: 16px;
+    border: 2px solid @mbr-accent; opacity: 0.7;
+    &--tl { top: 9px; left: 9px; border-right: none; border-bottom: none; }
+    &--br { bottom: 9px; right: 9px; border-left: none; border-top: none; }
+  }
+  &__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  &__kicker {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: @mbr-accent;
+  }
+  &__close {
+    appearance: none; cursor: pointer;
+    background: rgba(122, 210, 182, 0.08); border: 1px solid rgba(122, 210, 182, 0.3);
+    color: @mbr-text; border-radius: 6px; width: 30px; height: 30px;
+    transition: background 140ms ease;
+    &:hover { background: rgba(122, 210, 182, 0.2); }
+  }
+  &__card { display: flex; justify-content: center; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mbr-overlay__card { animation: none; }
+  .mbr-overlay__card, .bcz { animation: none; }
 }

@@ -3,7 +3,8 @@ import {LogMessage} from '../../common/logs/LogMessage';
 import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {SpaceId} from '../../common/Types';
-import {MarsBotBonusFate, MarsBotImpactChange, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
+import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -224,6 +225,21 @@ export class AutomaTurnLog {
 
   /** Phase B: stamp the resolved fate onto the turn's bonus-card reveal step. */
   public static setBonusFate(game: IGame, fate: MarsBotBonusFate): void {
+    AutomaTurnLog.mergeBonusResolution(game, {fate});
+  }
+
+  /** The ONE branch the bonus card actually took (an i18n template + params). */
+  public static setBonusBranch(game: IGame, branch: {key: string, params?: ReadonlyArray<string>}): void {
+    AutomaTurnLog.mergeBonusResolution(game, {branch});
+  }
+
+  /** A chained fallback bonus card this one drew (parent → secondary as one flow). */
+  public static setBonusSecondary(game: IGame, secondaryCard: BonusCardId): void {
+    AutomaTurnLog.mergeBonusResolution(game, {secondaryCard});
+  }
+
+  /** Merge into the turn's bonus reveal-step resolution (created lazily; fate defaults). */
+  private static mergeBonusResolution(game: IGame, partial: Partial<MarsBotBonusResolution>): void {
     const recording = game.automa?.turnRecording;
     if (recording === undefined) {
       return;
@@ -231,7 +247,7 @@ export class AutomaTurnLog {
     for (let i = recording.steps.length - 1; i >= 0; i--) {
       const step = recording.steps[i];
       if (step.kind === 'reveal' && step.card.kind === 'bonus') {
-        step.resolution = {fate};
+        step.resolution = {fate: 'discarded', ...step.resolution, ...partial};
         return;
       }
     }

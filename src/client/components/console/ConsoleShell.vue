@@ -484,6 +484,7 @@ import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.v
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
+import {closeBonusCardZoom, isBonusCardZoomOpen, openBonusCardZoom} from '@/client/components/marsbot/bonusCardZoomState';
 import {openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
@@ -1986,6 +1987,14 @@ export default defineComponent({
         if (this.consoleCardZoom.card !== undefined) {
           return this.handleZoomIntent(intent);
         }
+        // The bonus-card full-rules inspect (opened by X on a bonus turn): B
+        // closes IT first, everything else swallowed.
+        if (isBonusCardZoomOpen()) {
+          if (intent.kind === 'press' && intent.button === 'back') {
+            closeBonusCardZoom();
+          }
+          return true;
+        }
         if (this.botTurnReviewState.peek) {
           if (intent.kind === 'press') {
             setBotReviewPeek(false);
@@ -1997,7 +2006,7 @@ export default defineComponent({
           return true;
         }
         if (intent.kind === 'press') {
-          if (intent.button === 'secondary' && this.reviewInspectable) {
+          if (intent.button === 'secondary') {
             this.inspectReviewCard();
           } else if (intent.button === 'stickL' && this.reviewMapSpace !== undefined) {
             setBotReviewPeek(true, this.reviewMapSpace);
@@ -3527,11 +3536,17 @@ export default defineComponent({
       return true;
     },
     /**
-     * X on the review — open every project card the turn played (the flip + any
-     * draw-and-resolve log cards) in the fullscreen browser, newest on screen.
-     * Returns false when the turn played none.
+     * X on the review — inspect the played card. A BONUS turn opens the
+     * full-rules bonus-card inspect; a PROJECT turn opens the fullscreen browser
+     * over the project cards the turn played (newest on screen).
      */
     inspectReviewCard(): boolean {
+      const review = this.botTurnReviewState.review;
+      const card = review?.card;
+      if (review !== undefined && card?.kind === 'bonus') {
+        openBonusCardZoom(card.id, review.ctx);
+        return true;
+      }
       const names = this.reviewCardNames;
       if (names.length === 0) {
         return false;

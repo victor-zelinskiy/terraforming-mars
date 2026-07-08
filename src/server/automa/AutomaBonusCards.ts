@@ -333,8 +333,11 @@ function shippingLines(game: IGame): BonusCardOutcome {
 function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
   const bot = marsBotOf(game);
 
+  // The review shows this ONE resolved branch (the "first possible effect"),
+  // never the card's whole a/b/c/d rule text.
   const temperatureSteps = temperatureStepsToTarget(game);
   if (temperatureSteps !== undefined && temperatureSteps <= 2) {
+    AutomaTurnLog.setBonusBranch(game, {key: 'Temperature near a bonus step'});
     game.increaseTemperature(bot, 2); // Clamped internally at completion.
     game.log('${0} raised the temperature 2 steps', (b) => b.player(bot));
     return 'destroy';
@@ -343,6 +346,7 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
   const oxygenSteps = oxygenStepsToTarget(game);
   if (oxygenSteps !== undefined && oxygenSteps <= 2 &&
       game.board.getAvailableSpacesForGreenery(bot).length > 0) {
+    AutomaTurnLog.setBonusBranch(game, {key: 'Oxygen near a bonus step'});
     AutomaTilePlacer.placeGreenery(game); // Raises oxygen 1 step for the greenery.
     game.increaseOxygenLevel(bot, 1);
     game.log('${0} raised oxygen 1 step', (b) => b.player(bot));
@@ -352,6 +356,7 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
   if (venus) {
     const venusSteps = venusStepsToTarget(game);
     if (game.gameOptions.venusNextExtension && venusSteps !== undefined && venusSteps <= 2) {
+      AutomaTurnLog.setBonusBranch(game, {key: 'Venus near a bonus step'});
       game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
       game.log('${0} raised Venus 2 steps', (b) => b.player(bot));
       return 'discard'; // The Venus branch explicitly does NOT destroy the card.
@@ -360,12 +365,14 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
     const oceanTarget = game.board.getAvailableSpacesForOcean(bot).filter((space) =>
       game.board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length >= 2);
     if (oceanTarget.length > 0) {
+      AutomaTurnLog.setBonusBranch(game, {key: 'Ocean next to two oceans'});
       const space = AutomaTilePlacer.breakTie(game, oceanTarget);
       game.addOcean(bot, space);
       return 'destroy';
     }
   }
 
+  AutomaTurnLog.setBonusBranch(game, {key: 'Advanced the furthest Martian parameter'});
   advanceFurthestMartianParameter(game);
   return 'discard';
 }
@@ -419,30 +426,39 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
   const bot = marsBotOf(game);
   const human = humanOf(game);
 
-  if (bot.megaCredits < 5 || game.fundedAwards.length === 0) {
+  // Can't afford the 5 M€ cost → the card does nothing (rulebook: needs 5+ M€).
+  if (bot.megaCredits < 5) {
     return 'discard';
   }
 
-  // Order the funded awards by closeness.
-  const withMargin = game.fundedAwards.map(({award}) => {
-    const scorer = new AwardScorer(game, award);
-    return {award, humanLead: scorer.get(human) - scorer.get(bot)};
-  });
-  const humanLeads = withMargin.filter((e) => e.humanLead >= 0).sort((a, b) => a.humanLead - b.humanLead);
-  const botLeads = withMargin.filter((e) => e.humanLead < 0).sort((a, b) => b.humanLead - a.humanLead);
-  const ordered = humanLeads.length > 0 ? [...humanLeads, ...botLeads] : botLeads;
+  // Try to help the CLOSEST funded award (leftmost on ties); a resolved help
+  // costs 5 M€. With no funded awards this loop simply doesn't run.
+  if (game.fundedAwards.length > 0) {
+    const withMargin = game.fundedAwards.map(({award}) => {
+      const scorer = new AwardScorer(game, award);
+      return {award, humanLead: scorer.get(human) - scorer.get(bot)};
+    });
+    const humanLeads = withMargin.filter((e) => e.humanLead >= 0).sort((a, b) => a.humanLead - b.humanLead);
+    const botLeads = withMargin.filter((e) => e.humanLead < 0).sort((a, b) => b.humanLead - a.humanLead);
+    const ordered = humanLeads.length > 0 ? [...humanLeads, ...botLeads] : botLeads;
 
-  for (const {award} of ordered) {
-    if (tryAwardHelper(game, award.name)) {
-      bot.stock.deduct(Resource.MEGACREDITS, 5, {log: true});
-      return 'discard';
+    for (const {award} of ordered) {
+      if (tryAwardHelper(game, award.name)) {
+        AutomaTurnLog.setBonusBranch(game, {key: 'Helped the closest funded award: ${0}', params: [award.name]});
+        bot.stock.deduct(Resource.MEGACREDITS, 5, {log: true});
+        return 'discard';
+      }
     }
   }
 
-  // No helping action could be resolved: draw another bonus card and resolve it.
+  // No funded award / no valid helper → draw and resolve ANOTHER bonus card
+  // (the primary effect is impossible). Shown as ONE linked flow: the review
+  // names the secondary card and nests its resolution under this card.
+  AutomaTurnLog.setBonusBranch(game, {key: 'No award to help — drew another card'});
   AutomaResearch.reshuffleBonusDeckIfEmpty(game, automa);
   const next = automa.bonusDeck.shift();
   if (next !== undefined) {
+    AutomaTurnLog.setBonusSecondary(game, next);
     game.log('${0} drew another bonus card', (b) => b.player(bot));
     const outcome = resolveBonusCard(game, next);
     routeBonusCard(game, next, outcome);
@@ -513,11 +529,12 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
   game.phase = Phase.SOLAR;
   try {
     const venusComplete = game.getVenusScaleLevel() >= constants.MAX_VENUS_SCALE;
-    if (game.generation % 2 === 0 || venusComplete) {
-      if (advanceFurthestMartianParameter(game)) {
-        return 'discard';
-      }
-      // Every Martian parameter complete: fall through to Venus (first POSSIBLE effect).
+    const raiseMartian = game.generation % 2 === 0 || venusComplete;
+    // The review shows this ONE trigger branch, not the card's full rule text;
+    // the effect (Temperature / Venus +1) is the flow's own consequence line.
+    AutomaTurnLog.setBonusBranch(game, {key: venusComplete ? 'Venus is complete' : (raiseMartian ? 'Even generation' : 'Odd generation')});
+    if (raiseMartian && advanceFurthestMartianParameter(game)) {
+      return 'discard';
     }
     if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE) {
       game.increaseVenusScaleLevel(bot, 1);

@@ -104,6 +104,31 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(attack?.cause).deep.eq({kind: 'bonus'});
   });
 
+  it('PHASE B: a branching bonus card records its RESOLVED branch (not the full rule text)', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    game.generation = 2; // even → raises the furthest Martian parameter
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B16_GOVERNMENT_INTERVENTION}];
+    humanEndsTurn(game, human);
+
+    const reveal = automa.lastTurn!.steps.find((s) => s.kind === 'reveal');
+    expect(reveal?.kind === 'reveal' && reveal.resolution?.branch?.key).eq('Even generation');
+  });
+
+  it('PHASE B: Lobbyists records its resolved "first possible" branch', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    // Fresh board: temperature/oxygen far from a bonus, no ocean-adjacency →
+    // the fallback branch (advance the furthest Martian parameter) fires.
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B06_LOBBYISTS}];
+    humanEndsTurn(game, human);
+
+    const reveal = automa.lastTurn!.steps.find((s) => s.kind === 'reveal');
+    expect(reveal?.kind === 'reveal' && reveal.resolution?.branch?.key).eq('Advanced the furthest Martian parameter');
+  });
+
   it('a tagless card records a failed step + the bot\'s own before → after impact', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;

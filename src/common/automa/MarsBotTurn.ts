@@ -62,13 +62,18 @@ export type MarsBotStepCause =
 export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring';
 
 /**
- * The RESOLVED outcome of the played bonus card this turn (Phase B): its fate.
- * The chosen a/b/c/d branch is intentionally NOT captured as an index — the
- * branch's effect is already fully shown by its cause-grouped effect steps, so
- * the fate is the one fact those steps can't convey.
+ * The RESOLVED outcome of the played bonus card this turn:
+ *  - `fate` — where the card went (destroyed / discarded / recurring);
+ *  - `branch` — the ONE branch a multi-branch card actually took (an English
+ *    i18n template + params), so the review shows «сработавшая ветка» instead
+ *    of the card's full if/else rule text;
+ *  - `secondaryCard` — a chained fallback bonus card this one drew (Corporate
+ *    Competition), so the review presents parent → secondary as ONE flow.
  */
 export type MarsBotBonusResolution = {
   fate: MarsBotBonusFate;
+  branch?: {key: string, params?: ReadonlyArray<string>};
+  secondaryCard?: BonusCardId;
 };
 
 /**

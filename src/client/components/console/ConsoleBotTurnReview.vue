@@ -24,6 +24,8 @@
           <ConsoleCommandBar :context="context" :commands="commands" />
         </div>
       </div>
+      <!-- Full-rules inspect for an Automa bonus card (X on a bonus turn). -->
+      <BonusCardZoomOverlay console />
     </div>
   </Teleport>
 </template>
@@ -40,12 +42,14 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
 import {botTurnReviewState, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
+import {isBonusCardZoomOpen} from '@/client/components/marsbot/bonusCardZoomState';
 import BotTurnReviewBody from '@/client/components/marsbot/BotTurnReviewBody.vue';
+import BonusCardZoomOverlay from '@/client/components/marsbot/BonusCardZoomOverlay.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 
 export default defineComponent({
   name: 'ConsoleBotTurnReview',
-  components: {BotTurnReviewBody, ConsoleCommandBar},
+  components: {BotTurnReviewBody, BonusCardZoomOverlay, ConsoleCommandBar},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },
@@ -58,11 +62,16 @@ export default defineComponent({
     },
     /** The bar mirrors ConsoleShell's input contract for the review-open state. */
     commands(): Array<ConsoleCommand> {
+      if (isBonusCardZoomOpen()) {
+        return [{control: 'back', label: 'Close'}];
+      }
       if (this.state.peek) {
         return [{control: 'confirm', label: 'Back to review'}];
       }
       const cmds: Array<ConsoleCommand> = [];
-      if ((this.state.review?.cardNames.length ?? 0) > 0) {
+      // A bonus turn → X opens the full-rules card; a project turn → the played cards.
+      const inspectable = this.state.review?.card?.kind === 'bonus' || (this.state.review?.cardNames.length ?? 0) > 0;
+      if (inspectable) {
         cmds.push({control: 'secondary', label: 'Inspect card'});
       }
       if (this.state.review?.primarySpaceId !== undefined) {

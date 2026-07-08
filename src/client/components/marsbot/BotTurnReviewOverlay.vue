@@ -25,6 +25,8 @@
           <BotTurnReviewBody :review="state.review" :players="players" @peek="onPeek" />
         </div>
       </div>
+      <!-- Full-rules inspect for an Automa bonus card (X / click a bonus chip). -->
+      <BonusCardZoomOverlay />
     </div>
   </Teleport>
 </template>
@@ -42,10 +44,11 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from './botTurnReviewState';
 import BotTurnReviewBody from './BotTurnReviewBody.vue';
+import BonusCardZoomOverlay from './BonusCardZoomOverlay.vue';
 
 export default defineComponent({
   name: 'BotTurnReviewOverlay',
-  components: {BotTurnReviewBody},
+  components: {BotTurnReviewBody, BonusCardZoomOverlay},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },

@@ -93,10 +93,14 @@
                 <span v-if="isPickedHere(card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               </div>
             </div>
-            <!-- P15 grammar: A ONLY selects/deselects; Y is the ONE continue. -->
+            <!-- P15 grammar: multi-pick → A select/deselect + Y continue;
+                 single-pick (corp / CEO) → A SELECTS + advances (draft parity). -->
             <div v-if="focusedCard !== undefined" class="con-cards__verdictbar">
               <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
-              <span v-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
+              <span v-if="singlePickStep" class="con-cards__verdict con-cards__verdict--ok">
+                <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+              </span>
+              <span v-else-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
                 <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
               </span>
               <span v-else-if="canPickFocused" class="con-cards__verdict con-cards__verdict--ok">
@@ -108,7 +112,7 @@
               <span class="con-cards__verdict con-cards__verdict--zoom">
                 <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
               </span>
-              <span v-if="currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
+              <span v-if="!singlePickStep && currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
                 <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
               </span>
             </div>
@@ -590,16 +594,19 @@ export default defineComponent({
           ];
           return hints;
         }
-        // P15 grammar: A = select/deselect ONLY, X = fullscreen card,
-        // Y = the ONE continue; LB is STEP navigation (hidden on step 1,
-        // never presented as a generic «back»); B = minimize to inspect
-        // the board (intentional — the amber chip returns).
+        // P15 grammar: multi-pick → A select/deselect + Y the ONE continue;
+        // single-pick (corp / CEO) → A SELECTS + advances in one press (draft
+        // parity), so no separate Continue. X = fullscreen card; LB is STEP
+        // navigation (hidden on step 1, never a generic «back»); B = minimize
+        // to inspect the board (intentional — the amber chip returns).
         const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
           {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: 'Select / Deselect'},
+          {control: 'confirm', label: this.singlePickStep ? 'Select' : 'Select / Deselect'},
           {control: 'secondary', label: 'Inspect'},
-          {control: 'triggerR', label: 'Continue', enabled: this.currentStepComplete},
         ];
+        if (!this.singlePickStep) {
+          hints.push({control: 'triggerR', label: 'Continue', enabled: this.currentStepComplete});
+        }
         if (this.railPos > 0) {
           hints.push({control: 'bumperL', label: 'Prev step'});
         }
@@ -715,6 +722,17 @@ export default defineComponent({
     zoomFocused(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep !== undefined && this.stepEntries.length > 0) {
+          // Single-pick step: A in the viewer SELECTS the focused card and
+          // advances (parity with the strip's A-commit + the between-generation
+          // draft's fullscreen Select). Multi-pick steps keep the toggle context.
+          if (this.singlePickStep) {
+            openConsoleCardZoom(this.stepEntries, this.focusIdx, undefined, {
+              labelFor: () => 'Select',
+              reasonsFor: () => [],
+              execute: (name) => this.commitSinglePickByName(name),
+            });
+            return;
+          }
           openConsoleCardZoom(this.stepEntries, this.focusIdx, {
             isSelected: (name) => this.isPickedHere(name),
             toggle: (name) => this.togglePickByName(name),
@@ -884,13 +902,22 @@ export default defineComponent({
         return;
       }
     },
-    /** A: wizard = toggle the pick ONLY (Y continues); ceremony = act. */
+    /** A: wizard = single-pick commits + advances / multi-pick toggles (Y
+     *  continues); ceremony = act. */
     onPrimary(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep === undefined) {
           return; // the summary: Y begins the game (A stays selection-only)
         }
-        this.togglePick();
+        // Single-pick step (corp / CEO): A selects the focused card AND advances
+        // to the next step in one press — parity with the between-generation
+        // draft's A-commit. Multi-pick steps (2-of-N preludes, the project buy)
+        // KEEP toggle-then-Continue so several picks / the buy stay deliberate.
+        if (this.singlePickStep) {
+          this.commitSinglePick();
+        } else {
+          this.togglePick();
+        }
         return;
       }
       this.actOnFocused();
@@ -938,6 +965,25 @@ export default defineComponent({
         this.state.projects = [...names];
         break;
       }
+    },
+    /** Single-pick step (corp / CEO): select the focused card and advance to
+     *  the next step in one A press — the draft-style A-commit. */
+    commitSinglePick(): void {
+      const card = this.focusedCard;
+      if (card !== undefined) {
+        this.commitSinglePickByName(card.name);
+      }
+    },
+    /** Shared by the strip's A AND the fullscreen viewer's A: write the single
+     *  pick (always SELECT, never deselect) then advance via onContinue (which
+     *  guards on currentStepComplete — satisfied once the one card is written). */
+    commitSinglePickByName(name: CardName): void {
+      const step = this.currentStep;
+      if (step === undefined || !this.singlePickStep) {
+        return;
+      }
+      this.writePicks(step.id, [name]);
+      this.onContinue();
     },
     /** X / RB: advance the wizard; on the summary — submit. */
     onContinue(): void {

@@ -482,6 +482,23 @@ export default defineComponent({
     taskKey(): string {
       return this.nested !== undefined ? `${this.baseKey}|n${this.nested.index}` : this.baseKey;
     },
+    /**
+     * The RESET epoch — a genuinely new server ask OR a fresh card SET inside
+     * the SAME prompt identity. The between-generation draft re-uses ONE prompt
+     * across rounds (same type + title; only the dealt cards shrink 4→3→2→1), so
+     * `taskKey` never changes between rounds and the focus would stay on the
+     * previous round's slot — the fresh set then reads "unfocused / dim" (most
+     * visible against a bot that answers instantly, so the next deal lands at
+     * once). Folding the card identities in re-fires resetState() → focus snaps
+     * back to the first available card. The frame `:key` stays `taskKey` (no
+     * cross-fade between rounds — the content updates in place).
+     */
+    resetKey(): string {
+      if (this.activeTask.kind !== 'cardSelect') {
+        return this.taskKey;
+      }
+      return `${this.taskKey}|c${this.cardEntries.map((e) => e.card.name).join(',')}`;
+    },
     titleText(): string {
       // Phase-aware card-browser titles — the server title there is generic
       // ("Select up to N cards to buy" / "Select a card to keep and pass…").
@@ -916,7 +933,7 @@ export default defineComponent({
     },
   },
   watch: {
-    taskKey: {
+    resetKey: {
       immediate: true,
       handler() {
         this.resetState();

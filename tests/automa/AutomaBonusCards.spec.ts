@@ -264,6 +264,19 @@ describe('Automa bonus cards', () => {
       expect(game.automa!.bonusDeck).is.empty;
     });
 
+    it('no funded awards + 5 M€ → draws and resolves ANOTHER bonus card (the primary is impossible)', () => {
+      const [game, /* human */, bot] = testAutomaGame();
+      expect(game.fundedAwards).is.empty;
+      bot.megaCredits = 6;
+      bot.setTerraformRating(35); // The drawn Overachievement will claim a milestone.
+      game.automa!.bonusDeck = [BonusCardId.B04_OVERACHIEVEMENT];
+
+      resolve(game, BonusCardId.B08_CORPORATE_COMPETITION);
+      expect(bot.megaCredits).eq(6); // No award to help → the 5 M€ was never paid.
+      expect(game.claimedMilestones).has.length(1); // The chained B04 resolved.
+      expect(game.automa!.bonusDeck).is.empty;
+    });
+
     it('the Venuphile helper advances the Venus track (Adding Expansions p.3)', () => {
       const [game, human, bot] = testAutomaGame({venusNextExtension: true});
       const venuphile = game.awards.find((a) => a.name === 'Venuphile') ?? new Venuphile();

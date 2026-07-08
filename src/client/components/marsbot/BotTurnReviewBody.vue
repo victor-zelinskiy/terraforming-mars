@@ -26,9 +26,26 @@
         </div>
       </template>
       <template v-else>
-        <BonusCardFace :id="review.card.id" :ctx="review.ctx" :large="large" />
+        <button type="button" class="mbr__bonus-chip" @click="openBonusZoom(review.card.id)" :title="$t('Full rules')">
+          <span class="mbr__bonus-glyph" aria-hidden="true">◈</span>
+          <span class="mbr__bonus-name">{{ $t(bonusName(review.card.id)) }}</span>
+          <span class="mbr__bonus-zoom" aria-hidden="true">⤢</span>
+        </button>
         <div class="mbr__card-meta">
           <div class="mbr__card-kicker" v-i18n>Bonus card</div>
+          <!-- The ONE resolved branch — never the card's full if/else rule text. -->
+          <div v-if="review.card.branch !== undefined" class="mbr__branch">
+            <span class="mbr__branch-label" v-i18n>Resolved branch</span>
+            <span class="mbr__branch-value">{{ branchText(review.card.branch) }}</span>
+          </div>
+          <!-- A chained fallback card presented as part of THIS flow. -->
+          <div v-if="review.card.secondaryCard !== undefined" class="mbr__branch mbr__branch--chain">
+            <span class="mbr__branch-label" v-i18n>Drew another card</span>
+            <button type="button" class="mbr__bonus-chip mbr__bonus-chip--sm" @click="openBonusZoom(review.card.secondaryCard)">
+              <span class="mbr__bonus-name">{{ $t(bonusName(review.card.secondaryCard)) }}</span>
+              <span class="mbr__bonus-zoom" aria-hidden="true">⤢</span>
+            </button>
+          </div>
           <div v-if="review.card.fate !== undefined" class="mbr__fate" :class="'mbr__fate--' + review.card.fate">
             <span class="mbr__fate-label" v-i18n>Card fate</span>
             <span class="mbr__fate-value" v-i18n>{{ fateLabel(review.card.fate) }}</span>
@@ -170,7 +187,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {participantDisplayName} from './marsBotDisplay';
 import {DIFFICULTY_LABEL, trackActionGlyph, trackActionLabel} from './marsBotView';
-import BonusCardFace from './BonusCardFace.vue';
+import {openBonusCardZoom} from './bonusCardZoomState';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import Tag from '@/client/components/Tag.vue';
@@ -179,7 +196,7 @@ type CellGlyph = {iconClass: string, symbol: string};
 
 export default defineComponent({
   name: 'BotTurnReviewBody',
-  components: {BonusCardFace, JournalTokenRenderer, JournalCardChip, Tag},
+  components: {JournalTokenRenderer, JournalCardChip, Tag},
   props: {
     review: {type: Object as PropType<BotTurnReview>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
@@ -200,6 +217,12 @@ export default defineComponent({
   methods: {
     bonusName(id: BonusCardId): string {
       return buildBonusCardView(id, this.review.ctx).name;
+    },
+    openBonusZoom(id: BonusCardId): void {
+      openBonusCardZoom(id, this.review.ctx);
+    },
+    branchText(branch: {key: string, params?: ReadonlyArray<string>}): string {
+      return translateTextWithParams(branch.key, [...(branch.params ?? [])]);
     },
     fateLabel(fate: MarsBotBonusFate | undefined): string {
       return fate !== undefined ? FATE_LABEL[fate] : '';

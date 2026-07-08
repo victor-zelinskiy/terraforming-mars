@@ -44,7 +44,7 @@ export type BotReviewTechnicalReveal = {name: CardName, reason: 'tiebreak' | 'pi
 /** The card MarsBot PLAYED this turn (never "revealed" — it executes it). */
 export type BotReviewCard =
   | {kind: 'project', name: CardName, tags: Array<BotReviewTag>}
-  | {kind: 'bonus', id: BonusCardId, fate?: MarsBotBonusFate};
+  | {kind: 'bonus', id: BonusCardId, fate?: MarsBotBonusFate, branch?: {key: string, params?: ReadonlyArray<string>}, secondaryCard?: BonusCardId};
 
 /**
  * One cell of a track's mini-scale window. `state` drives the highlight:
@@ -611,7 +611,13 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
     case 'reveal':
       card = step.card.kind === 'project' ?
         {kind: 'project', name: step.card.name, tags} :
-        {kind: 'bonus', id: step.card.id, ...(step.resolution !== undefined ? {fate: step.resolution.fate} : {})};
+        {
+          kind: 'bonus',
+          id: step.card.id,
+          ...(step.resolution?.fate !== undefined ? {fate: step.resolution.fate} : {}),
+          ...(step.resolution?.branch !== undefined ? {branch: step.resolution.branch} : {}),
+          ...(step.resolution?.secondaryCard !== undefined ? {secondaryCard: step.resolution.secondaryCard} : {}),
+        };
       break;
     case 'tag':
       tags.push({
