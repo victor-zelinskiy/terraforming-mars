@@ -229,6 +229,17 @@
     color: @mbr-text-dim;
     border-left: 2px solid @mbr-accent-dim; padding-left: 8px;
   }
+  &__fate {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 8px;
+    padding: 3px 10px; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    &--destroyed { border-color: rgba(255, 138, 122, 0.4); }
+    &--recurring { border-color: rgba(122, 210, 182, 0.4); }
+  }
+  &__fate-label { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; color: @mbr-text-dim; }
+  &__fate-value { font-family: 'Orbitron', sans-serif; font-size: calc(var(--mbr-fz) - 0.5px); color: @mbr-text; }
+
   &__tags { display: flex; flex-wrap: wrap; gap: 8px; }
   &__tag { display: inline-flex; align-items: center; gap: 4px; }
   &__tag--ignored { opacity: 0.5; }

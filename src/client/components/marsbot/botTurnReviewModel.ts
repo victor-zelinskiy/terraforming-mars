@@ -21,7 +21,9 @@ import {BonusCardId, DifficultyLevel, TrackAction} from '@/common/automa/AutomaT
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {
   MarsBotAttack,
+  MarsBotBonusFate,
   MarsBotImpactChange,
+  MarsBotStepCause,
   MarsBotTurn,
   MarsBotTurnStep,
 } from '@/common/automa/MarsBotTurn';
@@ -38,7 +40,7 @@ export type BotReviewTag = {tag: Tag, trackTag?: Tag, ignored: boolean};
 /** The card MarsBot PLAYED this turn (never "revealed" — it executes it). */
 export type BotReviewCard =
   | {kind: 'project', name: CardName, tags: Array<BotReviewTag>}
-  | {kind: 'bonus', id: BonusCardId};
+  | {kind: 'bonus', id: BonusCardId, fate?: MarsBotBonusFate};
 
 /** A single line inside a cause→effect chain. `depth` drives the connector indent. */
 export type BotReviewLine =
@@ -173,8 +175,122 @@ function nextDepth(chain: BotReviewChain, isTrack: boolean): number {
   return Math.min(MAX_DEPTH, lastTrack.depth);
 }
 
-/** Build the cause→effect chains from the ordered script. */
+/** Dispatcher: prefer the server's `cause` markers (Phase B, robust); fall back
+ *  to the order-heuristic for turns recorded before they existed (Phase A). */
 function buildChains(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTurnReviewSource, card: BotReviewCard | undefined): Array<BotReviewChain> {
+  const hasCause = steps.some((s) => 'cause' in s && s.cause !== undefined);
+  return hasCause ?
+    buildChainsByCause(steps, source, card) :
+    buildChainsByOrder(steps, source, card);
+}
+
+/** The chain identity of a cause (one chain per tag index / bonus / colony / delta). */
+function chainCauseKey(cause: MarsBotStepCause): string {
+  return cause.kind === 'tag' ? `tag:${cause.index}` : cause.kind;
+}
+
+/** The display depth of a log/attack line: nested under the last track in its chain. */
+function logDepthOf(chain: BotReviewChain): number {
+  const lastTrack = [...chain.lines].reverse().find((l) => l.kind === 'track');
+  return lastTrack !== undefined && lastTrack.kind === 'track' ? Math.min(MAX_DEPTH, lastTrack.depth + 1) : 1;
+}
+
+/**
+ * Phase B: build the chains from the server's `cause` markers — each step is
+ * attributed authoritatively, so the review groups cause → effect from DATA
+ * (no order heuristic) and nests cascades from the `advance.depth` field.
+ */
+function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTurnReviewSource, card: BotReviewCard | undefined): Array<BotReviewChain> {
+  const chains: Array<BotReviewChain> = [];
+  const byKey = new Map<string, BotReviewChain>();
+  const isTradeCard = card?.kind === 'bonus' && TRADE_BONUS_CARDS.includes(card.id);
+  const reviewCauseOf = (cause: MarsBotStepCause, tagStep?: Extract<MarsBotTurnStep, {kind: 'tag'}>): BotReviewChainCause => {
+    switch (cause.kind) {
+    case 'tag':
+      return {kind: 'tag', tag: tagStep?.tag ?? Tag.WILD, trackTag: tagOfTrack(source.trackTags, tagStep?.trackIndex)};
+    case 'colony':
+      return card?.kind === 'bonus' ? {kind: 'trade', id: card.id} : {kind: 'effect'};
+    case 'bonus':
+      return card?.kind === 'bonus' ? (isTradeCard ? {kind: 'trade', id: card.id} : {kind: 'bonus', id: card.id}) : {kind: 'effect'};
+    case 'delta':
+      return {kind: 'delta'};
+    case 'failed':
+      return {kind: 'failed', reason: 'no-tags'};
+    }
+  };
+  const ensureChain = (cause: MarsBotStepCause, tagStep?: Extract<MarsBotTurnStep, {kind: 'tag'}>): BotReviewChain => {
+    const key = chainCauseKey(cause);
+    let chain = byKey.get(key);
+    if (chain === undefined) {
+      chain = {cause: reviewCauseOf(cause, tagStep), lines: []};
+      byKey.set(key, chain);
+      chains.push(chain);
+    }
+    return chain;
+  };
+
+  for (const step of steps) {
+    switch (step.kind) {
+    case 'reveal':
+    case 'pass':
+    case 'impact':
+      break;
+    case 'failed': {
+      const chain: BotReviewChain = {cause: {kind: 'failed', reason: step.reason}, lines: []};
+      chains.push(chain);
+      if (step.message !== undefined) {
+        chain.lines.push({kind: 'log', depth: 1, message: step.message});
+      }
+      break;
+    }
+    case 'tag': {
+      if (step.cause === undefined) {
+        break;
+      }
+      const chain = ensureChain(step.cause, step);
+      if (step.trackIndex === undefined) {
+        chain.lines.push({kind: 'note', depth: 1, noteKey: 'tag of an unused expansion — ignored', tone: 'ignored'});
+      }
+      break;
+    }
+    case 'advance': {
+      if (step.cause === undefined) {
+        break;
+      }
+      const chain = ensureChain(step.cause);
+      chain.lines.push({
+        kind: 'track',
+        depth: Math.min(MAX_DEPTH, (step.depth ?? 0) + 1),
+        trackTag: tagOfTrack(source.trackTags, step.trackIndex),
+        from: step.from,
+        to: step.to,
+        ...(step.action !== undefined ? {action: step.action} : {}),
+      });
+      break;
+    }
+    case 'attack': {
+      const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
+      chain.lines.push({kind: 'attack', depth: logDepthOf(chain), attack: step.attack});
+      break;
+    }
+    case 'log': {
+      const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
+      const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step.message, source.botColor);
+      chain.lines.push({
+        kind: 'log',
+        depth: logDepthOf(chain),
+        message: step.message,
+        ...(cost ? {tone: 'cost' as const, labelKey: 'Trade cost'} : {}),
+      });
+      break;
+    }
+    }
+  }
+  return chains.filter((c) => c.lines.length > 0 || c.cause.kind === 'tag');
+}
+
+/** Phase A fallback: build the cause→effect chains from the ordered script. */
+function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTurnReviewSource, card: BotReviewCard | undefined): Array<BotReviewChain> {
   const chains: Array<BotReviewChain> = [];
   let current: BotReviewChain | undefined;
   // After a reveal we know what the FIRST loose (non-tag) chain represents:
@@ -376,7 +492,7 @@ export function buildBotTurnReview(source: BotTurnReviewSource): BotTurnReview {
     case 'reveal':
       card = step.card.kind === 'project' ?
         {kind: 'project', name: step.card.name, tags} :
-        {kind: 'bonus', id: step.card.id};
+        {kind: 'bonus', id: step.card.id, ...(step.resolution !== undefined ? {fate: step.resolution.fate} : {})};
       break;
     case 'tag':
       tags.push({

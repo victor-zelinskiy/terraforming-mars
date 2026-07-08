@@ -1,8 +1,9 @@
 import {Color} from '../../common/Color';
+import {LogMessage} from '../../common/logs/LogMessage';
 import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {SpaceId} from '../../common/Types';
-import {MarsBotImpactChange, MarsBotParamChange, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
+import {MarsBotBonusFate, MarsBotImpactChange, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -22,6 +23,14 @@ export type MarsBotTurnRecording = {
   snapshots: ReadonlyArray<PlayerSnapshot>;
   /** Board-visible state around the whole turn — diffed into `turn.visual`. */
   boardSnapshot: BoardSnapshot;
+  /**
+   * Phase B: the WHY the resolver is currently attributing steps to (which tag
+   * / the bonus effect / a colony trade / the Delta advance). Stamped onto the
+   * typed steps + the public log lines flushed under it, so the review groups
+   * cause → effect from data. Flushed eagerly on every `setCause` transition
+   * so a lazily-flushed log lands under the cause that was live when it fired.
+   */
+  currentCause?: MarsBotStepCause;
 };
 
 /** The board-visible values snapshotted around the turn (for `turn.visual`). */
@@ -172,6 +181,7 @@ export class AutomaTurnLog {
       snapshots: game.players.map(snapshotOf),
       // Board-visible snapshot (tiles + global params) → `turn.visual`.
       boardSnapshot: boardSnapshotOf(game),
+      currentCause: undefined,
     };
   }
 
@@ -187,10 +197,51 @@ export class AutomaTurnLog {
         step.message = own;
       }
     }
-    for (const message of fresh) {
-      recording.steps.push({kind: 'log', message});
+    AutomaTurnLog.pushLogs(recording, fresh);
+    // Attribute the typed step to the live cause (tag / advance / attack / log
+    // carry `cause`; a step that already set its own keeps it).
+    if ((step.kind === 'tag' || step.kind === 'advance' || step.kind === 'attack' || step.kind === 'log') &&
+        step.cause === undefined && recording.currentCause !== undefined) {
+      step.cause = recording.currentCause;
     }
     recording.steps.push(step);
+  }
+
+  /**
+   * Phase B: switch the cause the resolver attributes subsequent steps to.
+   * Flushes the pending public log lines FIRST — under the OUTGOING cause — so
+   * a lazily-flushed board-effect line (a tile placement, a Delta advance) is
+   * grouped with the effect that produced it, not the next one.
+   */
+  public static setCause(game: IGame, cause: MarsBotStepCause | undefined): void {
+    const recording = game.automa?.turnRecording;
+    if (recording === undefined) {
+      return;
+    }
+    AutomaTurnLog.pushLogs(recording, AutomaTurnLog.takeFreshLogs(game));
+    recording.currentCause = cause;
+  }
+
+  /** Phase B: stamp the resolved fate onto the turn's bonus-card reveal step. */
+  public static setBonusFate(game: IGame, fate: MarsBotBonusFate): void {
+    const recording = game.automa?.turnRecording;
+    if (recording === undefined) {
+      return;
+    }
+    for (let i = recording.steps.length - 1; i >= 0; i--) {
+      const step = recording.steps[i];
+      if (step.kind === 'reveal' && step.card.kind === 'bonus') {
+        step.resolution = {fate};
+        return;
+      }
+    }
+  }
+
+  /** Push flushed public log lines as `{kind:'log'}` steps, stamped with the live cause. */
+  private static pushLogs(recording: MarsBotTurnRecording, messages: ReadonlyArray<LogMessage>): void {
+    for (const message of messages) {
+      recording.steps.push({kind: 'log', message, ...(recording.currentCause !== undefined ? {cause: recording.currentCause} : {})});
+    }
   }
 
   public static finish(game: IGame): void {
@@ -199,9 +250,7 @@ export class AutomaTurnLog {
     if (automa === undefined || recording === undefined) {
       return;
     }
-    for (const message of AutomaTurnLog.takeFreshLogs(game)) {
-      recording.steps.push({kind: 'log', message});
-    }
+    AutomaTurnLog.pushLogs(recording, AutomaTurnLog.takeFreshLogs(game));
     // A change an explicit attack step already narrated (same target, same
     // resource, the EXACT same before → after) would read as a SECOND loss if
     // the results section repeated it — drop only that exact duplicate. A

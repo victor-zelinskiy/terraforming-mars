@@ -222,6 +222,9 @@
   "Advanced its internal tracks": "Продвинул внутренние треки",
   "Failed action — gained ${0} M€": "Неудачное действие — получил ${0} M€",
   "Gained ${0} TR": "Получил ${0} РТ",
+  "Card fate": "Судьба карты",
+  "Destroyed this turn": "Уничтожена в этом ходу",
+  "Returns to the deck": "Возвращается в колоду",
 
   "MarsBot scoring": "Подсчёт бота",
   "M€ converted to VP": "M€, обменянные на ПО",

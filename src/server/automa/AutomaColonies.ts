@@ -6,6 +6,7 @@ import {IColony} from '../colonies/IColony';
 import {IGame} from '../IGame';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
+import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 
 /**
@@ -180,6 +181,9 @@ export class AutomaColonies {
     }
     const colony = candidates.length === 1 ? candidates[0] : AutomaColonies.flipToPick(game, candidates);
 
+    // Phase B: the trade's log lines (the −1 M€ fee, the storage income) belong
+    // to their own 'colony' chain, not the generic bonus-card effect.
+    AutomaTurnLog.setCause(game, {kind: 'colony'});
     bot.stock.deduct(Resource.MEGACREDITS, 1, {log: true});
     game.log('${0} trades with ${1}', (b) => b.player(bot).colony(colony));
 

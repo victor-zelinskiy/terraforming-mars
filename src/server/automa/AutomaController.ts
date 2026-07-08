@@ -1,4 +1,5 @@
 import {Resource} from '../../common/Resource';
+import {MarsBotBonusFate} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {newProjectCard} from '../createCard';
@@ -66,7 +67,10 @@ export class AutomaController {
     // Solo Delta Project reference card: once per generation, on the bot's
     // FIRST turn (before the reveal + before the empty-deck pass check, so a
     // passing bot still advances). No-op without the Delta Project expansion.
+    // Phase B: attribute its log lines to the 'delta' cause.
+    AutomaTurnLog.setCause(game, {kind: 'delta'});
     AutomaDeltaProject.resolve(game);
+    AutomaTurnLog.setCause(game, undefined);
 
     // "If MarsBot has no cards in its action deck, it passes for the round." (rulebook p.5)
     if (automa.actionDeck.length === 0) {
@@ -96,8 +100,16 @@ export class AutomaController {
     } else {
       game.log('${0} revealed a bonus card', (b) => b.player(bot));
       AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
+      // Phase B: the bonus card's effect steps are attributed to the 'bonus'
+      // cause (a colony trade re-attributes to 'colony' internally); the card's
+      // RESOLVED fate is stamped onto the reveal step.
+      AutomaTurnLog.setCause(game, {kind: 'bonus'});
       const outcome = resolveBonusCard(game, entry.id);
       routeBonusCard(game, entry.id, outcome);
+      AutomaTurnLog.setCause(game, undefined);
+      const fate: MarsBotBonusFate = outcome === 'destroy' ? 'destroyed' :
+        (automa.recurringBonusCards.includes(entry.id) ? 'recurring' : 'discarded');
+      AutomaTurnLog.setBonusFate(game, fate);
     }
 
     automa.revealedCard = undefined;

@@ -41,6 +41,37 @@ export type MarsBotRevealedCard =
   | {kind: 'bonus', id: BonusCardId};
 
 /**
+ * WHY a step happened — the cause anchor the client groups a turn's steps into
+ * (Phase B). The server stamps it authoritatively as the turn resolves, so the
+ * review builds cause → effect chains from DATA, not from step ORDER
+ * (the Phase-A fallback, kept for turns recorded before this field existed):
+ *  - `tag`   the i-th printed tag of the PLAYED project card (0-based);
+ *  - `bonus` the bonus card's own effect;
+ *  - `colony` a colony trade (Shipping Lines);
+ *  - `failed` the failed-action compensation;
+ *  - `delta` the Hydronetwork (Delta Project) advance.
+ */
+export type MarsBotStepCause =
+  | {kind: 'tag', index: number}
+  | {kind: 'bonus'}
+  | {kind: 'colony'}
+  | {kind: 'failed'}
+  | {kind: 'delta'};
+
+/** What became of a bonus card THIS turn (Phase B — resolved, not the printed rule). */
+export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring';
+
+/**
+ * The RESOLVED outcome of the played bonus card this turn (Phase B): its fate.
+ * The chosen a/b/c/d branch is intentionally NOT captured as an index — the
+ * branch's effect is already fully shown by its cause-grouped effect steps, so
+ * the fate is the one fact those steps can't convey.
+ */
+export type MarsBotBonusResolution = {
+  fate: MarsBotBonusFate;
+};
+
+/**
  * One concrete BEFORE → AFTER change the turn caused for one participant.
  * `resource` is a standard resource; `scope` says whether the STOCK or the
  * PRODUCTION moved; 'tr' is the terraform rating. Derived on the server from
@@ -96,25 +127,33 @@ export type MarsBotAttack = {
 export type MarsBotTurnStep =
   /** Empty action deck — MarsBot passes for the round. */
   | {kind: 'pass', message?: LogMessage}
-  /** The action-deck card flipped this turn (open from this moment on). */
-  | {kind: 'reveal', card: MarsBotRevealedCard, message?: LogMessage}
+  /**
+   * The action-deck card flipped this turn (open from this moment on).
+   * `resolution` (Phase B, bonus cards only) carries the card's resolved fate.
+   */
+  | {kind: 'reveal', card: MarsBotRevealedCard, message?: LogMessage, resolution?: MarsBotBonusResolution}
   /**
    * One printed tag being processed (left to right). `trackIndex` is the
    * track it advances — resolved for Wild; undefined = an unused-expansion
    * icon that is ignored.
    */
-  | {kind: 'tag', tag: Tag, trackIndex?: number}
-  /** A tracker moved `from` → `to`; `action` is the landed-on icon, if any. */
-  | {kind: 'advance', trackIndex: number, from: number, to: number, action?: TrackAction}
+  | {kind: 'tag', tag: Tag, trackIndex?: number, cause?: MarsBotStepCause}
+  /**
+   * A tracker moved `from` → `to`; `action` is the landed-on icon, if any.
+   * `depth` (Phase B) is the cascade depth — 0 for the tag's direct advance,
+   * deeper for a track action that advances again — so the review nests the
+   * chain reaction from DATA instead of guessing.
+   */
+  | {kind: 'advance', trackIndex: number, from: number, to: number, action?: TrackAction, cause?: MarsBotStepCause, depth?: number}
   /** A Failed Action: the cause + the M€ gained (5, or 3 on Easy). */
   | {kind: 'failed', reason: FailedActionReason, mc: number, message?: LogMessage}
   /**
    * A direct attack on a participant — always recorded, even for a zero
    * outcome, so the theater never leaves "did I lose anything?" unanswered.
    */
-  | {kind: 'attack', attack: MarsBotAttack, message?: LogMessage}
+  | {kind: 'attack', attack: MarsBotAttack, message?: LogMessage, cause?: MarsBotStepCause}
   /** Any other public log line emitted during the turn, in order. */
-  | {kind: 'log', message: LogMessage}
+  | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause}
   /**
    * The turn's NET effect on one participant — every stock/production/TR
    * value that changed, as explicit before → after pairs. Appended at the end

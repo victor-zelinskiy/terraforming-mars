@@ -49,6 +49,10 @@
         <template v-else>
           <div class="mbr__sect-label" v-i18n>MarsBot played a bonus card</div>
           <BonusCardFace :id="review.card.id" :ctx="review.ctx" :large="large" />
+          <div v-if="review.card.fate !== undefined" class="mbr__fate" :class="'mbr__fate--' + review.card.fate">
+            <span class="mbr__fate-label" v-i18n>Card fate</span>
+            <span class="mbr__fate-value" v-i18n>{{ fateLabel(review.card.fate) }}</span>
+          </div>
         </template>
       </section>
 
@@ -203,7 +207,7 @@ import {Color} from '@/common/Color';
 import {TileType} from '@/common/TileType';
 import {TrackAction, BonusCardId} from '@/common/automa/AutomaTypes';
 import {buildBonusCardView} from '@/common/automa/BonusCardData';
-import {MarsBotAttack, MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
+import {MarsBotAttack, MarsBotBonusFate, MarsBotImpactChange} from '@/common/automa/MarsBotTurn';
 import {BotReviewChip, BotReviewParam, BotTurnReview} from './botTurnReviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -218,6 +222,12 @@ const TILE_LABEL: Partial<Record<TileType, string>> = {
   [TileType.OCEAN]: 'Ocean',
   [TileType.GREENERY]: 'Greenery',
   [TileType.CITY]: 'City',
+};
+
+const FATE_LABEL: Record<MarsBotBonusFate, string> = {
+  destroyed: 'Destroyed this turn',
+  discarded: 'Discarded',
+  recurring: 'Returns to the deck',
 };
 
 export default defineComponent({
@@ -248,6 +258,9 @@ export default defineComponent({
     },
     tileLabel(tileType: TileType): string {
       return TILE_LABEL[tileType] ?? 'Special tile';
+    },
+    fateLabel(fate: MarsBotBonusFate): string {
+      return FATE_LABEL[fate];
     },
     paramText(p: BotReviewParam): string {
       const suffix = p.icon === 'temperature' ? '°' : (p.icon === 'oxygen' || p.icon === 'venus') ? '%' : '';

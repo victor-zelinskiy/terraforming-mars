@@ -159,6 +159,59 @@ describe('botTurnReviewModel', () => {
     expect(r.verdict.key).eq('Claimed a milestone');
   });
 
+  // ── Phase B: the server's `cause`/`depth`/`resolution` markers ────────────
+
+  it('B1. cause markers group steps into one chain per tag — from data, not order', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 0, from: 3, to: 4, cause: {kind: 'tag', index: 0}},
+      {kind: 'tag', tag: Tag.SCIENCE, trackIndex: 1, cause: {kind: 'tag', index: 1}},
+      {kind: 'advance', trackIndex: 1, from: 2, to: 3, action: 'tr1', cause: {kind: 'tag', index: 1}},
+      {kind: 'log', message: log('${0} gained 1 TR'), cause: {kind: 'tag', index: 1}},
+    ]));
+    expect(r.chains).lengthOf(2);
+    expect(r.chains[0].cause).deep.eq({kind: 'tag', tag: Tag.BUILDING, trackTag: Tag.BUILDING});
+    expect(r.chains[1].cause).deep.eq({kind: 'tag', tag: Tag.SCIENCE, trackTag: Tag.SCIENCE});
+    // The TR log is grouped under the SECOND tag (its cause), nested under the track.
+    const scienceLines = r.chains[1].lines;
+    expect(scienceLines.map((l) => l.kind)).deep.eq(['track', 'log']);
+    expect(scienceLines[1].depth).eq(2);
+  });
+
+  it('B2. advance.depth nests the cascade exactly (no order guessing)', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 0, from: 0, to: 1, action: 'advance', cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 0, from: 1, to: 2, cause: {kind: 'tag', index: 0}, depth: 1},
+    ]));
+    const tracks = r.chains[0].lines.filter((l) => l.kind === 'track');
+    expect(tracks.map((l) => l.depth)).deep.eq([1, 2]);
+  });
+
+  it('B3. a bonus card\'s resolved fate rides the card block', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}, message: log('${0} revealed a bonus card'), resolution: {fate: 'destroyed'}},
+      {kind: 'attack', attack: {target: 'blue' as Color, resource: Resource.PLANTS, demanded: 5, removed: 4, before: 6, after: 2, outcome: 'hit'}, cause: {kind: 'bonus'}},
+    ]));
+    expect(r.card).deep.eq({kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER, fate: 'destroyed'});
+    // The bonus attack is grouped under the bonus chain via its cause.
+    expect(r.chains[0].cause).deep.eq({kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER});
+  });
+
+  it('B4. colony cause → a trade chain with the fee tagged as a trade cost', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B19_SHIPPING_LINES}, message: log('${0} revealed a bonus card'), resolution: {fate: 'discarded'}},
+      {kind: 'log', message: log('${0} lost ${1} ${2}', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.STRING, value: '1'}, {type: LogMessageDataType.STRING, value: 'M€'}] as never), cause: {kind: 'colony'}},
+      {kind: 'log', message: log('${0} trades with ${1}'), cause: {kind: 'colony'}},
+    ]));
+    expect(r.card?.kind === 'bonus' && r.card.fate).eq('discarded');
+    expect(r.chains[0].cause).deep.eq({kind: 'trade', id: BonusCardId.B19_SHIPPING_LINES});
+    const costLine = r.chains[0].lines.find((l) => l.kind === 'log' && l.tone === 'cost');
+    expect(costLine).is.not.undefined;
+  });
+
   it('11. bot + opponent impacts split into result vs affected, cardNames collected', () => {
     const r = buildBotTurnReview(src([
       {kind: 'reveal', card: {kind: 'project', name: CardName.BIRDS}},

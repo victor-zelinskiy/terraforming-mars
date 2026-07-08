@@ -52,9 +52,11 @@ describe('AutomaTurnLog — the typed turn script', () => {
       // The reveal log line is attached to the step itself, not duplicated.
       expect(reveal.message?.message).eq('${0} revealed ${1}');
     }
-    expect(tag).deep.eq({kind: 'tag', tag: Tag.SCIENCE, trackIndex: SCIENCE});
-    expect(first).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 0, to: 1, action: 'advance'});
-    expect(cascade).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 1, to: 2});
+    // Phase B: every step carries its cause (the 0-th printed tag); the cascade
+    // advance carries depth 1 (the "advance again" chain reaction).
+    expect(tag).deep.eq({kind: 'tag', tag: Tag.SCIENCE, trackIndex: SCIENCE, cause: {kind: 'tag', index: 0}});
+    expect(first).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 0, to: 1, action: 'advance', cause: {kind: 'tag', index: 0}});
+    expect(cascade).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 1, to: 2, cause: {kind: 'tag', index: 0}, depth: 1});
   });
 
   // CONTRACT the «Разбор хода» review's Phase-A cause→effect grouping depends
@@ -84,6 +86,22 @@ describe('AutomaTurnLog — the typed turn script', () => {
     for (const i of tagIdxs) {
       expect(steps[i + 1]?.kind, 'a tag is always immediately followed by the advance it caused').eq('advance');
     }
+  });
+
+  it('PHASE B: a bonus card records its RESOLVED fate + its effect steps carry the bonus cause', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    human.plants = 5; // Meteor Shower removes 5 (≥3) → the card is destroyed.
+    automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+    humanEndsTurn(game, human);
+
+    const steps = automa.lastTurn!.steps;
+    const reveal = steps.find((s) => s.kind === 'reveal');
+    expect(reveal?.kind === 'reveal' && reveal.resolution).deep.eq({fate: 'destroyed'});
+    // The attack is attributed to the bonus effect (a data-driven chain anchor).
+    const attack = steps.find((s): s is Extract<MarsBotTurnStep, {kind: 'attack'}> => s.kind === 'attack');
+    expect(attack?.cause).deep.eq({kind: 'bonus'});
   });
 
   it('a tagless card records a failed step + the bot\'s own before → after impact', () => {

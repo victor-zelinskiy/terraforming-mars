@@ -42,8 +42,11 @@ export class AutomaResolver {
       failedAction(game, 'no-tags');
       return;
     }
-    for (const tag of tags) {
-      AutomaResolver.resolveTag(game, tag);
+    // Phase B: attribute each tag's steps to its printed position so the review
+    // builds one cause → effect chain per tag (left to right), from data.
+    for (let i = 0; i < tags.length; i++) {
+      AutomaTurnLog.setCause(game, {kind: 'tag', index: i});
+      AutomaResolver.resolveTag(game, tags[i]);
     }
   }
 
@@ -93,6 +96,9 @@ export class AutomaResolver {
       from,
       to: track.position,
       ...(result.type === 'action' ? {action: result.action} : {}),
+      // Phase B: the cascade depth (0 = the tag's direct advance) — the review
+      // nests the chain reaction from data instead of guessing by order.
+      ...(depth > 0 ? {depth} : {}),
     });
     // Colonies (Adding Expansions p.6): reaching the 9th space of the Energy
     // track unlocks the 2nd trade fleet — in ADDITION to the space's effect.
