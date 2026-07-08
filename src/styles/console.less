@@ -5829,8 +5829,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     min-width: 0;
     display: flex;
     flex-direction: column;
-    /* The count-aware tile width (the layout classes below re-tune it). */
+    /* The count-aware tile size (the layout classes below re-tune width; the
+       HEIGHT is FIXED so the grid never floats with content). */
     --con-coltile-w: 384px;
+    --con-coltile-h: 192px;
 
     /* ── Header strip: title + EVERY player's fleet summary (one slim row,
        never a floating banner over the grid). ─────────────────────── */
@@ -5960,10 +5962,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── The premium console colony TILE (compact, couch-readable) ────── */
+/* ── The premium console colony TILE (compact, couch-readable) ────── *
+ * FIXED premium grid: every tile is the SAME height regardless of content
+ * (fleet badge / a status reason / an ocean build glyph must never make one
+ * tile taller than its neighbours). The tile is a flex column of fixed-height
+ * zones; the status row is pinned to the bottom (`margin-top: auto`), and
+ * every glyph zone clips its content so a natural-size icon can't distend it.
+ * `--con-coltile-h` is the single knob (re-tuned per layout / profile). */
 .con-coltile {
     position: relative;
     width: var(--con-coltile-w, 384px);
+    height: var(--con-coltile-h, 190px);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     padding: 10px 14px 9px;
     border-radius: 12px;
     background: @con-glass;
@@ -5982,10 +5994,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
     /* ── Header: name · fleet badge · planet medallion. ───────────── */
     &__head {
+        flex: 0 0 auto;
         display: flex;
         align-items: center;
         gap: 10px;
-        min-height: 40px;
+        height: 42px;
     }
     &__name {
         flex: 1;
@@ -6041,10 +6054,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
     /* ── Build slots (owner cubes) + the live track, one band. ────── */
     &__mid {
+        flex: 0 0 auto;
+        height: 38px;
         display: flex;
         align-items: center;
         gap: 14px;
-        margin-top: 6px;
+        margin-top: 8px;
     }
     &__build {
         display: flex;
@@ -6061,8 +6076,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         border-radius: 7px;
         background: rgba(255, 255, 255, 0.05);
         box-shadow: inset 0 0 0 1px fade(@con-text, 18%);
+        /* CLAMP: a build glyph (ocean/venus TILE especially — bigger than a
+           plain resource icon) must never distend the fixed-height slot. */
+        overflow: hidden;
 
         &--occupied { box-shadow: inset 0 0 0 1.5px fade(@con-cyan, 55%); }
+
+        /* Tiles (ocean / venus / hazard) render larger than a 32px resource
+           icon — scale them down to sit cleanly inside the 42×38 slot. */
+        .benefit-glyph__tile { transform: scale(0.58); }
+        .benefit-glyph__production { transform: scale(0.6); }
     }
     &__cube {
         position: absolute;
@@ -6106,8 +6129,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-variant-numeric: tabular-nums;
     }
 
-    /* ── Trade reward · owner bonus — one two-cell row. ───────────── */
+    /* ── Trade reward · owner bonus — one two-cell row (fixed height). ── */
     &__rows {
+        flex: 0 0 auto;
         display: flex;
         gap: 10px;
         margin-top: 8px;
@@ -6118,11 +6142,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 5px 10px;
+        padding: 4px 10px;
         border-radius: 8px;
         background: rgba(255, 255, 255, 0.04);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-        min-height: 38px;
+        height: 40px;
+        overflow: hidden;
 
         &--trade { box-shadow: inset 0 0 0 1px fade(@con-mint, 25%); }
     }
@@ -6156,18 +6181,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-cyan;
     }
 
-    /* ── Honest availability status (information, never a hint). ──── */
+    /* ── Honest availability status (information, never a hint). ──── *
+     * Pinned to the BOTTOM (`margin-top: auto`) so the tile's fixed height is
+     * absorbed here, not by stretching the content zones — a status reason
+     * ("Здесь уже стоит флот") never shifts the rows above it. */
     &__status {
+        flex: 0 0 auto;
+        margin-top: auto;
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-top: 8px;
         padding-top: 7px;
         border-top: 1px solid rgba(255, 255, 255, 0.09);
         font-size: 13px;
         font-weight: 700;
         letter-spacing: 0.4px;
-        min-height: 24px;
+        height: 30px;
+        box-sizing: border-box;
+        overflow: hidden;
 
         &--ok { color: @con-mint; }
         &--blocked { color: #ffc9c4; }
@@ -10992,6 +11023,7 @@ html.con-profile-handheld {
      *   scroller's `margin: auto` contract keeps row 1 reachable if not). */
     .con-colonies {
         --con-coltile-w: 348px;
+        --con-coltile-h: 182px;
 
         &--solo { --con-coltile-w: 430px; }
         &--duo { --con-coltile-w: 410px; }
@@ -11005,17 +11037,19 @@ html.con-profile-handheld {
         &__fleetchip-name { max-width: 96px; }
         &__grid { gap: 14px 16px; padding: 8px 16px 12px; }
     }
+    /* Compact FIXED zones (the height/margin structure is the same as the base
+       tile — only the numbers shrink, so the fixed grid stays intact). */
     .con-coltile {
         padding: 8px 12px 8px;
 
-        &__head { min-height: 36px; gap: 8px; }
+        &__head { height: 38px; gap: 8px; }
         &__name { font-size: 17px; }
         &__planet { width: 36px; height: 36px; }
         &__build-slot { width: 37px; height: 33px; }
-        &__mid { margin-top: 5px; gap: 12px; }
+        &__mid { height: 34px; margin-top: 6px; gap: 12px; }
         &__rows { margin-top: 7px; gap: 8px; }
-        &__cell { min-height: 34px; padding: 4px 9px; }
-        &__status { margin-top: 7px; padding-top: 6px; font-size: 12.5px; }
+        &__cell { height: 38px; padding: 4px 9px; }
+        &__status { padding-top: 6px; font-size: 12.5px; }
     }
     .con-colinspect {
         &__frame { width: min(1080px, 96vw); }

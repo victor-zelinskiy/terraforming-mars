@@ -154,3 +154,23 @@ each(@tag-fill, {
         }
     });
 }
+
+/*
+ * ── D. «Разбор хода» (bot-turn review) tags ────────────────────────────────
+ * The review renders <Tag> in three spots — the played card's tag row, a chain
+ * SOURCE header, and the track capsule / mini-scale. Without seating they fall
+ * back to the legacy disc, whose face isn't scaled per-tag, so the PNG's own
+ * silver ring doesn't sit flush and a light rim shows (the Venus "white contour
+ * on the left" the player flagged). Seat them like inline body tags: transparent
+ * fill + the per-tag face scale so every ring lands at the box edge.
+ */
+.mbr {
+    each(@tag-fill, {
+        @n: extract(@value, 1);
+        @s: extract(@value, 2);
+        .tag-count.tag-@{n} {
+            --tag-face-scale: @s;
+            .tag-seat(inline);
+        }
+    });
+}

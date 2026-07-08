@@ -142,11 +142,14 @@ describe('botTurnReviewModel', () => {
     expect(r.chains[0].lines[0]).deep.eq({kind: 'note', depth: 1, noteKey: 'tag of an unused expansion — ignored', tone: 'ignored'});
   });
 
-  it('8. pass → quiet, pass verdict, no card', () => {
+  it('8. pass → quiet, pass verdict, no card, no chains (the body shows the verdict panel)', () => {
     const r = buildBotTurnReview(src([{kind: 'pass', message: log('${0} passed')}]));
     expect(r.verdict.key).eq('MarsBot passed this turn');
     expect(r.quiet).is.true;
     expect(r.card).is.undefined;
+    // The body's quiet-state panel keys off (card === undefined && chains empty);
+    // a pass has both, so the review is never blank.
+    expect(r.chains).lengthOf(0);
   });
 
   it('9. a global-parameter-only turn → param verdict + neutral chips', () => {

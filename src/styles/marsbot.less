@@ -298,7 +298,11 @@
     font-family: Prototype, Ubuntu, sans-serif;
     color: @mb-text;
 }
-.mb-face__head { display: flex; align-items: center; gap: 8px; }
+/* WRAP so a long fate badge (e.g. «УНИЧТОЖАЕТСЯ ПРИ УСПЕХЕ») drops to its own
+ * line under the title instead of overlapping it — the name has min-width:0 and
+ * no truncation, so without wrap its text overflowed into the non-shrinking
+ * fate badge (the "text налазит" defect in --large fullscreen). */
+.mb-face__head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 6px; }
 .mb-face__name {
     flex: 1 1 auto; min-width: 0;
     font-family: Prototype, Orbitron, sans-serif;
@@ -306,11 +310,14 @@
 }
 .mb-face__fate {
     .premium-tooltip(260px);
-    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+    flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 5px;
     padding: 3px 8px; border-radius: 4px;
     font-family: Prototype, Orbitron, sans-serif;
     font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase;
 }
+/* The badge text can be long — let it wrap inside the badge rather than force a
+ * horizontal overflow. */
+.mb-face__fate > span:not(.mb-face__fate-glyph) { min-width: 0; }
 .mb-face__fate-glyph { font-size: 10px; }
 .mb-face__fate--discard { color: @mb-text-dim; background: rgba(120, 140, 135, 0.1); box-shadow: inset 0 0 0 1px rgba(120, 140, 135, 0.35); }
 .mb-face__fate--destroyOnSuccess,

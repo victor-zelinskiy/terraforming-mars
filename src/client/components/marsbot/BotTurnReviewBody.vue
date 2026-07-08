@@ -118,6 +118,14 @@
         </div>
       </div>
     </section>
+
+    <!-- Quiet turn (a PASS, or a turn with no revealed card and no effect
+         chains): the card + chain sections above render nothing, so without
+         this the body is blank. A calm verdict panel keeps a pass informative. -->
+    <section v-if="isQuiet" class="mbr__quiet">
+      <span class="mbr__quiet-glyph" aria-hidden="true">{{ quietGlyph }}</span>
+      <span class="mbr__quiet-text">{{ quietText }}</span>
+    </section>
   </div>
 </template>
 
@@ -169,6 +177,20 @@ export default defineComponent({
     },
     difficultyLabel(): string {
       return translateText(DIFFICULTY_LABEL[this.review.difficulty]);
+    },
+    /** A turn with no revealed card AND no effect chains — the card + chain
+     *  sections both render nothing (a PASS, or an internal-only turn). */
+    isQuiet(): boolean {
+      return this.review.card === undefined && this.review.chains.length === 0;
+    },
+    /** The verdict the model already computed (e.g. «Бот спасовал») — shown only
+     *  in the quiet state, so a normal turn never duplicates the notification's
+     *  summary. */
+    quietText(): string {
+      return translateTextWithParams(this.review.verdict.key, [...this.review.verdict.params]);
+    },
+    quietGlyph(): string {
+      return this.review.verdict.key === 'MarsBot passed this turn' ? '⏸' : '◦';
     },
   },
   methods: {

@@ -45,8 +45,9 @@
               <span class="con-colinspect__track-glyph">
                 <BenefitGlyph :benefit="tradeBenefit(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
               </span>
-              <span v-if="cell.marker" class="con-colinspect__track-tag">{{ $t('Marker') }}</span>
-              <span v-else-if="cell.effective" class="con-colinspect__track-tag con-colinspect__track-tag--eff">{{ $t('Trade reads here') }}</span>
+              <!-- The marker needs no label — the highlighted row IS the
+                   marker. Only the offset-shifted "reads here" cell is tagged. -->
+              <span v-if="cell.effective" class="con-colinspect__track-tag con-colinspect__track-tag--eff">{{ $t('Trade reads here') }}</span>
               <span v-else class="con-colinspect__track-tag con-colinspect__track-tag--void" aria-hidden="true"></span>
             </div>
           </div>
