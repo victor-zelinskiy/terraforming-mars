@@ -35,6 +35,9 @@ export type PlayResultSection = {
   text: string;
   /** A short suffix detail (e.g. the VP amount `+2`). */
   detail?: string;
+  /** A VP whose exact endgame value can't be known in the preview (conditional /
+   *  per-resource) — the component shows "depends on conditions" instead of a number. */
+  variable?: boolean;
   /** The printed tags this card adds (for the `tags` section chips). */
   tags?: ReadonlyArray<Tag>;
 };
@@ -90,15 +93,17 @@ function victoryPointSection(vp: PlayCardResultMeta['victoryPoints']): PlayResul
   if (vp === undefined) {
     return undefined;
   }
+  // Compact label — the player knows card VP are scored at game end, so the row
+  // reads "Victory points: +1" (the "at game end" detail lives in fullscreen).
   if (typeof vp === 'number') {
     if (vp === 0) {
       return undefined;
     }
-    return {kind: 'vp', text: 'Victory points at game end', detail: vp > 0 ? `+${vp}` : `${vp}`};
+    return {kind: 'vp', text: 'Victory points', detail: vp > 0 ? `+${vp}` : `${vp}`};
   }
   // 'special' or a CountableVictoryPoints (per-resource / per-tag / conditional)
   // — the exact endgame value can't be known now, so state it honestly.
-  return {kind: 'vp', text: 'May grant victory points at game end'};
+  return {kind: 'vp', text: 'Victory points', variable: true};
 }
 
 /**

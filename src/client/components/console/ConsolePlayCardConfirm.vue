@@ -96,11 +96,14 @@
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
               </div>
 
-              <!-- Derived result categories — the block is NEVER empty. -->
+              <!-- Derived result categories — the block is NEVER empty. A tag
+                   row is "label: [inline chips]"; a VP row is "label: +N". -->
               <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :class="'con-composer__rescat--' + sec.kind">
                 <span class="con-composer__rescat-glyph" aria-hidden="true">{{ rescatGlyph(sec.kind) }}</span>
-                <span class="con-composer__rescat-text">{{ $t(sec.text) }}<b v-if="sec.detail !== undefined"> {{ sec.detail }}</b></span>
-                <span v-if="sec.tags !== undefined" class="con-composer__rescat-tags">
+                <span class="con-composer__rescat-text"
+                >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
+                ><template v-else-if="sec.kind === 'tags'">:</template></span>
+                <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                   <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
                 </span>
               </div>
@@ -151,23 +154,31 @@
                 </template>
               </div>
 
-              <!-- PAYMENT summary row (A opens the lanes; auto when no choice). -->
-              <div class="con-composer__row con-composer__row--payment"
-                   :class="{'con-composer__row--focused': focusIdx === paymentRowIndex}"
-                   :ref="focusIdx === paymentRowIndex ? 'focusedEl' : undefined">
-                <div class="con-composer__row-label">{{ $t('Payment') }}</div>
-                <div class="con-composer__row-value">
-                  <span>{{ paymentSummary }}</span>
-                  <span v-if="payLanes.length === 0" class="con-composer__row-note">{{ $t('auto') }}</span>
+              <!-- PAYMENT — an INFO panel (resource chips + было → стало), NOT a
+                   button. LT opens the lanes; a pure-AUTO M€ payment shows «авто». -->
+              <div class="con-composer__pay">
+                <div class="con-composer__pay-head">
+                  <span class="con-composer__pay-title">{{ $t('Payment') }}</span>
+                  <span class="con-composer__pay-cost">{{ $t('Cost') }}: <b>{{ cost }}</b></span>
+                  <span v-if="payLanes.length > 0" class="con-composer__pay-lt">
+                    <GamepadGlyph control="triggerL" /><span>{{ $t('Configure payment') }}</span>
+                  </span>
+                  <span v-else class="con-composer__pay-auto">{{ $t('auto') }}</span>
+                </div>
+                <div class="con-composer__pay-chips">
+                  <ActionEffectChip v-for="(eff, k) in paymentChipsView" :key="k" :effect="eff" />
+                  <span v-if="paymentChipsView.length === 0" class="con-composer__pay-free">{{ cost === 0 ? $t('Free') : (cost + ' M€') }}</span>
+                </div>
+                <div v-if="!paymentReady" class="con-composer__pay-short">
+                  <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="paymentDeficit > 0">:
+                    <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ paymentDeficit }}</template>
                 </div>
               </div>
 
-              <!-- PLAY CTA row. -->
-              <div class="con-composer__cta"
-                   :class="{'con-composer__cta--focused': focusIdx === playRowIndex, 'con-composer__cta--off': !canConfirm}"
-                   :ref="focusIdx === playRowIndex ? 'focusedEl' : undefined">
-                <span class="con-composer__cta-label">{{ $t('Play card') }}</span>
-                <span v-if="!canConfirm" class="con-composer__cta-reason">{{ $t(ctaReason) }}</span>
+              <!-- The single big CTA — a STATUS strip driven by the primary action
+                   (A plays / leads to the choice / shows the blocker). Not focusable. -->
+              <div class="con-composer__cta" :class="{'con-composer__cta--off': !ctaReady}">
+                <span class="con-composer__cta-label">{{ $t(ctaLabel) }}</span>
               </div>
             </template>
           </div>
@@ -205,10 +216,12 @@
  * non-empty by `consolePlayCardResult.ts` (immediate effects → new action →
  * permanent effect → VP → tags → honest fallback).
  *
- * Control grammar (hints ONLY in the bottom bar): ↑↓ = rows · ←→ / LB/RB =
- * adjust a focused amount · RT = MAX · A = select variant / open a pick /
- * open payment / PLAY · X = inspect the card fullscreen · B = cancel
- * (client-side, nothing committed).
+ * Control grammar (hints ONLY in the bottom bar): ↑↓ = navigate variants +
+ * step picks (moving onto a variant SELECTS it) · ←→ / LB/RB = adjust a focused
+ * amount · RT = MAX · A = the ONE smart primary action (plays when ready, else
+ * leads to the first unresolved choice) · LT = configure the payment mix · X =
+ * inspect the card fullscreen · B = cancel (client-side, nothing committed).
+ * The primary action is `computePrimaryAction`, NOT raw DOM focus.
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
@@ -237,18 +250,25 @@ import {
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses,
 } from '@/client/console/consoleActionComposer';
-import {playComposerFootHints, FootHint, PlayFocusKind} from '@/client/console/consolePlayCardComposer';
+import {
+  playComposerFootHints, FootHint, PlayFocusKind,
+  computePrimaryAction, PrimaryActionState, paymentChips,
+} from '@/client/console/consolePlayCardComposer';
 import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, paymentTotal, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 
+/**
+ * The NAVIGABLE pre-select rows — variants + collectable step picks ONLY. Payment
+ * and the play CTA are NOT rows: A is a smart global primary action (it plays /
+ * advances / opens payment from anywhere) and LT opens the payment lanes, so
+ * neither needs to be a focus target competing with the CTA.
+ */
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
-  | {i: number, id: string, kind: 'step', choice: ComposerChoice}
-  | {i: number, id: string, kind: 'payment'}
-  | {i: number, id: string, kind: 'play'};
+  | {i: number, id: string, kind: 'step', choice: ComposerChoice};
 
 type SubState = {kind: 'list', choiceId: string, index: number} | {kind: 'payment', index: number};
 
@@ -347,21 +367,19 @@ export default defineComponent({
     paymentReady(): boolean {
       return paymentCovers(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
-    paymentSummary(): string {
-      const parts: Array<string> = [];
-      if (this.payAutoMc > 0) {
-        parts.push(`${this.payAutoMc} M€`);
-      }
-      for (const lane of this.payLanes) {
-        const n = this.payCount(lane.unit);
-        if (n > 0) {
-          parts.push(`${n} ${translateText(this.laneLabel(lane.unit))}`);
-        }
-      }
-      if (parts.length > 0) {
-        return parts.join(' + ');
-      }
-      return this.cost === 0 ? translateText('Free') : `${this.cost} M€`;
+    /** The payment mix as unified resource chips (icon + −spent + было → стало). */
+    paymentChipsView(): ReadonlyArray<ActionEffect> {
+      const p = this.thisPlayer as unknown as Record<string, number>;
+      return paymentChips({
+        lanes: this.payLanes,
+        counts: this.payCounts,
+        mcSpent: this.payAutoMc,
+        stock: {megacredits: p.megacredits, steel: p.steel, titanium: p.titanium, plants: p.plants, energy: p.energy, heat: p.heat},
+      });
+    },
+    /** M€-equivalent shortfall when the current mix can't cover the cost. */
+    paymentDeficit(): number {
+      return Math.max(0, this.cost - this.payTotal);
     },
     // ── branches / choices ──────────────────────────────────────────────
     branches(): ReadonlyArray<ActionPreviewBranch> {
@@ -410,8 +428,6 @@ export default defineComponent({
       for (const c of this.stepChoices) {
         out.push({i: 0, id: 'step#' + c.id, kind: 'step', choice: c});
       }
-      out.push({i: 0, id: 'payment', kind: 'payment'});
-      out.push({i: 0, id: 'play', kind: 'play'});
       return out.map((r, i) => ({...r, i}));
     },
     variantRows(): ReadonlyArray<PlayRow & {kind: 'variant'}> {
@@ -420,14 +436,19 @@ export default defineComponent({
     stepRows(): ReadonlyArray<PlayRow & {kind: 'step'}> {
       return this.rows.filter((r): r is PlayRow & {kind: 'step'} => r.kind === 'step');
     },
-    paymentRowIndex(): number {
-      return this.rows.find((r) => r.kind === 'payment')?.i ?? -1;
-    },
-    playRowIndex(): number {
-      return this.rows.find((r) => r.kind === 'play')?.i ?? -1;
-    },
     focusedRow(): PlayRow | undefined {
-      return this.rows[this.focusIdx];
+      return this.focusIdx >= 0 ? this.rows[this.focusIdx] : undefined;
+    },
+    /** The ONE smart primary action — see computePrimaryAction. Focus-independent. */
+    primaryActionState(): PrimaryActionState {
+      const b = this.selectedBranch;
+      const branchSelectable = b !== undefined && b.available;
+      const firstMissing = this.rows.findIndex((r) => r.kind === 'step' && this.stepMissing(r.choice));
+      return computePrimaryAction({
+        branchSelectable,
+        paymentReady: this.paymentReady,
+        firstUnresolvedStepRowIndex: firstMissing >= 0 ? firstMissing : undefined,
+      });
     },
     // ── result sections (never empty) ───────────────────────────────────
     resultSections(): ReadonlyArray<PlayResultSection> {
@@ -513,36 +534,36 @@ export default defineComponent({
         return this.captured[i] !== undefined;
       });
     },
-    ctaReason(): string {
-      if (this.selectedBranch === undefined) {
-        return 'Choose a variant first';
+    ctaReady(): boolean {
+      return this.primaryActionState.kind === 'ready';
+    },
+    /** The big CTA strip label — the primary action in words. */
+    ctaLabel(): string {
+      const st = this.primaryActionState;
+      switch (st.kind) {
+      case 'ready': return 'Play card';
+      case 'need-preselect': return 'Choose an option';
+      case 'blocked-payment': return 'Not enough resources';
+      case 'blocked-requirement': return st.reason;
       }
-      if (!this.paymentReady) {
-        return 'Not enough resources to cover the cost';
-      }
-      return 'Make the required choices first';
     },
     statusLabel(): string {
-      if (!this.paymentReady) {
-        return 'Not enough resources';
+      const st = this.primaryActionState;
+      switch (st.kind) {
+      case 'ready': return 'Ready to play';
+      case 'blocked-payment': return 'Not enough resources';
+      case 'need-preselect': return 'Choice required';
+      default: return 'Choice required';
       }
-      if (this.selectedBranch === undefined) {
-        return 'Choose a variant';
-      }
-      return this.canConfirm ? 'Ready to play' : 'Choice required';
     },
     statusClass(): string {
-      return this.canConfirm ? 'con-composer__paytag--ready' : 'con-composer__paytag--wait';
+      return this.ctaReady ? 'con-composer__paytag--ready' : 'con-composer__paytag--wait';
     },
     focusedKind(): PlayFocusKind {
       const row = this.focusedRow;
-      if (row === undefined) {
-        return 'none';
+      if (row === undefined || row.kind !== 'step') {
+        return row?.kind === 'variant' ? 'variant' : 'none';
       }
-      if (row.kind === 'variant' || row.kind === 'payment' || row.kind === 'play') {
-        return row.kind;
-      }
-      // row.kind === 'step'
       if (row.choice.kind === 'amount') {
         return 'amount';
       }
@@ -551,14 +572,28 @@ export default defineComponent({
       }
       return 'pick';
     },
+    /** The A-button verb, from the primary state: "Play now" when ready, "Select"
+     *  while it leads the player to an unresolved choice, disabled when blocked. */
+    primaryFooter(): {label: string, enabled: boolean} {
+      const st = this.primaryActionState;
+      if (st.kind === 'ready') {
+        return {label: 'Play now', enabled: true};
+      }
+      if (st.kind === 'need-preselect') {
+        return {label: 'Select', enabled: true};
+      }
+      return {label: 'Play now', enabled: false};
+    },
     footHints(): Array<FootHint> {
       return playComposerFootHints({
         sub: this.sub === undefined ? 'none' : this.sub.kind,
         subIsCardList: this.subChoice?.input.type === 'card',
+        hasRows: this.rows.length > 0,
         focusedKind: this.focusedKind,
-        hasPaymentLanes: this.payLanes.length > 0,
-        canConfirm: this.canConfirm,
+        configurablePayment: this.payLanes.length > 0,
         paymentReady: this.paymentReady,
+        primaryLabel: this.primaryFooter.label,
+        primaryEnabled: this.primaryFooter.enabled,
       });
     },
     // ── sub-state derived views ─────────────────────────────────────────
@@ -645,6 +680,9 @@ export default defineComponent({
       default: return '›';
       }
     },
+    vpDetail(sec: PlayResultSection): string {
+      return sec.variable === true ? translateText('depends on conditions') : (sec.detail ?? '');
+    },
     fetchPreview(): void {
       const cardName = this.cardName;
       const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) + '?id=' + encodeURIComponent(this.playerView.id) + '&card=' + encodeURIComponent(cardName);
@@ -676,14 +714,15 @@ export default defineComponent({
       this.submitting = false;
     },
     applyPreview(): void {
-      // Branch pre-selection (desktop mirror): a single branch auto-selects;
-      // for a variant card, the lone AVAILABLE branch auto-selects, else none.
+      // AUTO-SELECT the first available variant (desktop mirror + the "short
+      // path" contract): a variant is ALWAYS visibly selected, so the card is
+      // immediately playable and A plays it; the player changes it with ↑↓.
       const branches = this.branches;
       if (branches.length === 1) {
         this.selectedPos = 0;
       } else if (branches.length > 1) {
-        const avail = branches.map((b, i) => ({b, i})).filter((x) => x.b.available);
-        this.selectedPos = avail.length === 1 ? avail[0].i : undefined;
+        const firstAvail = branches.findIndex((b) => b.available);
+        this.selectedPos = firstAvail >= 0 ? firstAvail : undefined;
       }
       this.seedChoiceDefaults();
       this.focusIdx = this.firstActionableIndex();
@@ -693,22 +732,15 @@ export default defineComponent({
         console.warn(`[console play] no computable preview for ${this.cardName} — showing fallback result`);
       }
     },
+    /** The row to focus on open: the first UNRESOLVED step, else the first row
+     *  (a variant), else none (a no-choice card — A just plays). */
     firstActionableIndex(): number {
       const rows = this.rows;
-      if (this.hasVariants && this.selectedPos === undefined) {
-        const first = rows.find((r) => r.kind === 'variant' && this.branches[r.pos].available);
-        if (first !== undefined) {
-          return first.i;
-        }
+      if (rows.length === 0) {
+        return -1;
       }
-      const missing = rows.find((r) => r.kind === 'step' && this.stepMissing(r.choice));
-      if (missing !== undefined) {
-        return missing.i;
-      }
-      if (!this.paymentReady) {
-        return this.paymentRowIndex;
-      }
-      return this.playRowIndex;
+      const missing = rows.findIndex((r) => r.kind === 'step' && this.stepMissing(r.choice));
+      return missing >= 0 ? missing : 0;
     },
     seedChoiceDefaults(): void {
       for (const c of this.stepChoices) {
@@ -911,8 +943,17 @@ export default defineComponent({
         }
         return;
       }
+      if (this.rows.length === 0) {
+        return;
+      }
       if (dir === 'up' || dir === 'down') {
         this.focusIdx = Math.min(this.rows.length - 1, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
+        // Moving onto an available variant SELECTS it (focus = selection for the
+        // radio-group of variants; the result recomputes live).
+        const row = this.focusedRow;
+        if (row?.kind === 'variant' && this.branches[row.pos].available) {
+          this.setSelectedVariant(row.pos);
+        }
         this.scrollFocused();
         return;
       }
@@ -935,23 +976,13 @@ export default defineComponent({
       const row = this.focusedRow;
       switch (button) {
       case 'confirm':
-        if (row === undefined) {
-          return;
-        }
-        if (row.kind === 'variant') {
-          this.selectVariant(row.pos);
-        } else if (row.kind === 'step') {
-          const c = row.choice;
-          if (c.kind === 'card' || c.kind === 'player' || c.kind === 'or') {
-            this.sub = {kind: 'list', choiceId: c.id, index: 0};
-          }
-          // amount / spendHeat adjust inline — A is a no-op on them.
-        } else if (row.kind === 'payment') {
-          if (this.payLanes.length > 0) {
-            this.sub = {kind: 'payment', index: 0};
-          }
-        } else if (row.kind === 'play') {
-          this.submit();
+        this.primaryAction();
+        return;
+      case 'triggerL':
+        // LT = enter the payment lanes (secondary — never A). Only when there's
+        // a non-M€ mix to dial; a pure-AUTO M€ payment has nothing to configure.
+        if (this.payLanes.length > 0) {
+          this.sub = {kind: 'payment', index: 0};
         }
         return;
       case 'secondary':
@@ -980,6 +1011,38 @@ export default defineComponent({
       default:
         return;
       }
+    },
+    /**
+     * The A button — the ONE smart primary action, derived from
+     * `primaryActionState`, NOT raw DOM focus. When READY, A PLAYS regardless of
+     * where focus is (so a no-choice / all-resolved card plays with one press).
+     * When a choice is still needed, A LEADS the player to it: it opens the
+     * focused unresolved pick, else jumps to the first unresolved one.
+     */
+    primaryAction(): void {
+      const st = this.primaryActionState;
+      if (st.kind === 'ready') {
+        this.submit();
+        return;
+      }
+      if (st.kind === 'need-preselect') {
+        const row = this.focusedRow;
+        // Focused ON an unresolved pick → open it right here; else jump to the
+        // first unresolved one and open it.
+        const target = (row?.kind === 'step' && this.stepMissing(row.choice)) ? row : this.rows[st.rowIndex];
+        if (target !== undefined && target.kind === 'step') {
+          this.focusIdx = target.i;
+          if (target.choice.kind === 'card' || target.choice.kind === 'player' || target.choice.kind === 'or') {
+            this.sub = {kind: 'list', choiceId: target.choice.id, index: 0};
+          }
+          this.scrollFocused();
+        }
+        return;
+      }
+      if (st.kind === 'blocked-payment' && this.payLanes.length > 0) {
+        this.sub = {kind: 'payment', index: 0};
+      }
+      // blocked-requirement: nothing to do — the CTA + status show the reason.
     },
     onSubPress(button: string): void {
       const sub = this.sub;
@@ -1019,23 +1082,21 @@ export default defineComponent({
         return;
       }
     },
-    selectVariant(pos: number): void {
+    /** Select a variant (from navigation) — resets the branch-specific captures
+     *  and re-seeds defaults. Focus is owned by the caller (nav), not changed here. */
+    setSelectedVariant(pos: number): void {
       const branch = this.branches[pos];
-      if (branch === undefined || !branch.available) {
+      if (branch === undefined || !branch.available || this.selectedPos === pos) {
         return;
       }
-      if (this.selectedPos !== pos) {
-        this.selectedPos = pos;
-        // Branch-specific captures reset (desktop selectBranch parity).
-        this.captured = {};
-        this.capturedOption = undefined;
-        this.picks = {};
-        this.amounts = {};
-        this.floaters = {};
-        this.seedChoiceDefaults();
-      }
-      this.focusIdx = this.firstActionableIndex();
-      this.scrollFocused();
+      this.selectedPos = pos;
+      // Branch-specific captures reset (desktop selectBranch parity).
+      this.captured = {};
+      this.capturedOption = undefined;
+      this.picks = {};
+      this.amounts = {};
+      this.floaters = {};
+      this.seedChoiceDefaults();
     },
     pickListItem(index: number): void {
       const c = this.subChoice;

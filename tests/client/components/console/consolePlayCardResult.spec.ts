@@ -27,10 +27,12 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(sections.map((s) => s.kind)).to.include('effect');
   });
 
-  it('a fixed-VP card shows the amount with a sign', () => {
+  it('a fixed-VP card shows the compact "Victory points" label + signed amount', () => {
     const sections = derivePlayResultSections(meta({tags: [Tag.BUILDING], victoryPoints: 2}), noImmediate);
     const vp = sections.find((s) => s.kind === 'vp');
+    expect(vp?.text).to.equal('Victory points');
     expect(vp?.detail).to.equal('+2');
+    expect(vp?.variable).to.not.equal(true);
   });
 
   it('a negative-VP card keeps the sign', () => {
@@ -38,10 +40,11 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(sections.find((s) => s.kind === 'vp')?.detail).to.equal('-1');
   });
 
-  it('a conditional/resource VP card states it honestly (no fake amount)', () => {
+  it('a conditional/resource VP card is marked variable (no fake amount)', () => {
     const sections = derivePlayResultSections(meta({victoryPoints: 'special'}), noImmediate);
     const vp = sections.find((s) => s.kind === 'vp');
-    expect(vp?.text).to.equal('May grant victory points at game end');
+    expect(vp?.text).to.equal('Victory points');
+    expect(vp?.variable).to.equal(true);
     expect(vp?.detail).to.be.undefined;
   });
 
