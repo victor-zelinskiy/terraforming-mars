@@ -26,8 +26,9 @@ import {
   recordBotTurnsFromView,
   resetMarsBotArchive,
 } from '@/client/components/marsbot/marsBotTurnArchive';
+import {isBotStagingActive, resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {botTurnReviewState, closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
-import {notificationState, resetNotifications, acknowledgeFlowHoldingCards, notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
+import {dismiss, notificationState, resetNotifications, acknowledgeFlowHoldingCards, notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
 import {isMandatoryPromptsHeld, registerFlowHoldSupplier, resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
@@ -84,6 +85,7 @@ const PREV = botView();
 describe('marsBotPresentation (notification-first turns)', () => {
   beforeEach(() => {
     resetMarsBotArchive();
+    resetBotStaging();
     resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
@@ -248,6 +250,51 @@ describe('marsBotPresentation (notification-first turns)', () => {
       // The freed slot stays empty while the theater blocks delivery.
       expect(notificationState.transient).lengthOf(0);
       expect(notificationState.queue.map((n) => n.id)).deep.eq(['bot:red:1:2']);
+    });
+  });
+
+  describe('staged-commit liveness (no deadlock when reviewing a batch via navigation)', () => {
+    // Reproduces the reported deadlock: the player passes, the server resolves a
+    // BATCH of bot turns + the between-generation draft in ONE response. The
+    // client STAGES it (buffers the draft view, presents the turns one card at a
+    // time). Opening the first card's review then RB-navigating through the rest
+    // used to dismiss the QUEUED cards without ever delivering the last turn, so
+    // the buffer never committed and the draft never arrived → hard hang.
+    it('RB-navigating through every staged turn commits the buffered draft view', async () => {
+      let committed = false;
+      const next = botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)});
+      const staged = presentFreshBotTurns(PREV, next, {commitLatest: () => {
+        committed = true;
+      }});
+      expect(staged).eq(true); // staging owns the commit — the caller must NOT commit
+      expect(isBotStagingActive()).eq(true);
+      await nextTick(); // the first card is delivered (its footprint applies)
+      expect(notificationState.transient.map((n) => n.botTurnKey)).deep.eq(['red:1:1']);
+
+      openBotTurnReviewByKey('red:1:1'); // open the first turn's review (X)
+      stepBotTurnReview(1); // RB → red:1:2
+      expect(committed).eq(false); // not the last turn yet
+      stepBotTurnReview(1); // RB → red:1:3 (the LAST) → commits the buffer
+      expect(committed).eq(true);
+      expect(isBotStagingActive()).eq(false);
+    });
+
+    it('the liveness backstop commits when every staged card leaves WITHOUT delivering the last turn', async () => {
+      let committed = false;
+      const next = botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)});
+      presentFreshBotTurns(PREV, next, {commitLatest: () => {
+        committed = true;
+      }});
+      await nextTick();
+      openBotTurnReviewByKey('red:1:1'); // review open → delivery is blocked
+      // The middle + last cards are dismissed WITHOUT navigation (evicted / TTL /
+      // drained). The last turn is never delivered — only the reactive liveness
+      // watch can rescue the window.
+      dismiss(botTurnNotificationId('red:1:2'));
+      dismiss(botTurnNotificationId('red:1:3'));
+      await nextTick(); // the card-set change fires the liveness watch
+      expect(committed).eq(true);
+      expect(isBotStagingActive()).eq(false);
     });
   });
 

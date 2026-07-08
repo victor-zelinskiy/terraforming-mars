@@ -42,7 +42,7 @@ function fullPreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> 
 }
 
 function viewer(overrides: Partial<HydroPlayerPos> = {}): HydroPlayerPos {
-  return {color: 'red', name: 'Red', position: 0, isViewer: true, stops: [], ...overrides};
+  return {color: 'red', name: 'Red', position: 0, isViewer: true, isMarsBot: false, stops: [], ...overrides};
 }
 
 function input(overrides: Partial<HydroModelInput> = {}): HydroModelInput {
@@ -146,7 +146,7 @@ describe('buildHydroModel (iteration 2)', () => {
         destinations: Array.from({length: 8}, (_v, i) => dest(i + 1, {position: 4 + i}))}),
       players: [
         viewer({position: 3, stops: [{position: 2, generation: 1, choice: 0}, {position: 3, generation: 2}]}),
-        {color: 'blue', name: 'Blue', position: 5, isViewer: false, stops: [{position: 5, generation: 2}]},
+        {color: 'blue', name: 'Blue', position: 5, isViewer: false, isMarsBot: false, stops: [{position: 5, generation: 2}]},
       ],
       selectedPosition: 2,
     }));
@@ -163,7 +163,7 @@ describe('buildHydroModel (iteration 2)', () => {
     const m = buildHydroModel(input({
       preview: fullPreview(5, {currentPosition: 9, maxPreviewSteps: 2, maxEnergySteps: 2, maxLegalSteps: 2,
         destinations: [dest(1, {position: 10, occupied: true, legal: false}), dest(2, {position: 11, jumpedOverVp2: true})]}),
-      players: [viewer({position: 9}), {color: 'blue', name: 'Blue', position: 10, isViewer: false, stops: [{position: 10, generation: 3}]}],
+      players: [viewer({position: 9}), {color: 'blue', name: 'Blue', position: 10, isViewer: false, isMarsBot: false, stops: [{position: 10, generation: 3}]}],
       selectedPosition: 11,
     }));
     expect(m.stages[10].occupiedByOther).eq(true);
@@ -177,11 +177,11 @@ describe('buildHydroModel (iteration 2)', () => {
       players: [
         viewer({position: 0}),
         // Standing at 2 now (took the reward on landing, choice 1) → 'current'.
-        {color: 'blue', name: 'Blue', position: 2, isViewer: false, stops: [{position: 2, generation: 1, choice: 1}]},
+        {color: 'blue', name: 'Blue', position: 2, isViewer: false, isMarsBot: false, stops: [{position: 2, generation: 1, choice: 1}]},
         // Stopped at 2 in gen 1 (choice 0), has since moved on to 4 → 'rewarded'.
-        {color: 'red', name: 'Red', position: 4, isViewer: false, stops: [{position: 2, generation: 1, choice: 0}, {position: 4, generation: 2}]},
+        {color: 'red', name: 'Red', position: 4, isViewer: false, isMarsBot: false, stops: [{position: 2, generation: 1, choice: 0}, {position: 4, generation: 2}]},
         // Leapt OVER 2 (no stop there), now at 5 → 'passed' (took no reward).
-        {color: 'green', name: 'Green', position: 5, isViewer: false, stops: [{position: 5, generation: 1}]},
+        {color: 'green', name: 'Green', position: 5, isViewer: false, isMarsBot: false, stops: [{position: 5, generation: 1}]},
       ],
       selectedPosition: 2, // plan target
     }));
@@ -196,11 +196,42 @@ describe('buildHydroModel (iteration 2)', () => {
 
   it('targetVisitors is empty in details mode (own current / past cells use the full history)', () => {
     const m = buildHydroModel(input({
-      players: [viewer({position: 0}), {color: 'blue', name: 'Blue', position: 0, isViewer: false, stops: []}],
+      players: [viewer({position: 0}), {color: 'blue', name: 'Blue', position: 0, isViewer: false, isMarsBot: false, stops: []}],
       selectedPosition: 0, // == current → details mode
     }));
     expect(m.mode).eq('details');
     expect(m.targetVisitors.length).eq(0);
+  });
+
+  it('the MarsBot (no reward stops) reads its CURRENT position as «current», not «passed»', () => {
+    // The bot advanced to 5 without any stop records (it never takes a Delta
+    // reward). Its current position must read «Сейчас здесь», and its traversed
+    // stages must carry isMarsBot so the UI shows «Пройден», never «Прошёл мимо».
+    const m = buildHydroModel(input({
+      preview: fullPreview(3), // viewer at 0, can preview the whole track
+      players: [
+        viewer({position: 0}),
+        {color: 'blue', name: 'MarsBot', position: 5, isViewer: false, isMarsBot: true, stops: []},
+      ],
+      selectedPosition: 5, // plan target = the bot's current position
+    }));
+    const bot = m.targetVisitors.find((v) => v.color === 'blue');
+    expect(bot?.status).eq('current'); // NOT 'passed'
+    expect(bot?.isMarsBot).eq(true);
+
+    // Details mode: a stage the bot advanced THROUGH (3 < 5, no stop) → 'passed'
+    // but flagged isMarsBot so the label reads «Пройден», not «Прошёл мимо».
+    const at3 = buildHydroModel(input({
+      preview: fullPreview(3, {currentPosition: 5}), // viewer at 5
+      players: [
+        viewer({position: 5}),
+        {color: 'blue', name: 'MarsBot', position: 5, isViewer: false, isMarsBot: true, stops: []},
+      ],
+      selectedPosition: 3, // <= viewer current → details mode, per-stage history
+    }));
+    const botAt3 = at3.detailsHistory.find((h) => h.color === 'blue');
+    expect(botAt3?.status).eq('passed');
+    expect(botAt3?.isMarsBot).eq(true);
   });
 
   it('gates confirm on a pos-9 animal target preselection (mandatory — no skip)', () => {

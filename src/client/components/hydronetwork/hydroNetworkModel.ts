@@ -55,6 +55,9 @@ export type HydroStageHistoryEntry = {
   color: Color;
   name: string;
   isViewer: boolean;
+  /** The MarsBot never takes a Delta reward (reference-card rule) — its traversed
+   *  stages read «Пройден», never a human's «Прошёл мимо» (leapt over). */
+  isMarsBot: boolean;
   status: HydroHistoryStatus;
   choice?: number;
   generation?: number;
@@ -65,6 +68,7 @@ export type HydroPlayerPos = {
   name: string;
   position: number;
   isViewer: boolean;
+  isMarsBot: boolean;
   stops: ReadonlyArray<DeltaStop>;
 };
 
@@ -137,9 +141,18 @@ function hasStopAt(stops: ReadonlyArray<DeltaStop>, position: number): DeltaStop
 }
 
 function statusFor(player: HydroPlayerPos, position: number): {status: HydroHistoryStatus; choice?: number; generation?: number} {
+  // The CURRENT position is always 'current' — it is where the marker stands
+  // NOW, never something the player "passed". A human stops (and takes a reward)
+  // at its current position, so it also has a stop here; the MarsBot records NO
+  // stops (it never collects a Delta reward), so without this its own current
+  // position fell through to 'passed' and read the wrong «Прошёл мимо».
+  if (position > 0 && player.position === position) {
+    const stop = hasStopAt(player.stops, position);
+    return {status: 'current', choice: stop?.choice, generation: stop?.generation};
+  }
   const stop = hasStopAt(player.stops, position);
   if (stop !== undefined) {
-    return {status: player.position === position ? 'current' : 'rewarded', choice: stop.choice, generation: stop.generation};
+    return {status: 'rewarded', choice: stop.choice, generation: stop.generation};
   }
   if (player.position >= position && position > 0) {
     return {status: 'passed'};
@@ -283,7 +296,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       }
       const s = statusFor(p, selectedPosition);
       if (s.status === 'rewarded' || s.status === 'current' || s.status === 'passed') {
-        targetVisitors.push({color: p.color, name: p.name, isViewer: false, status: s.status, choice: s.choice, generation: s.generation});
+        targetVisitors.push({color: p.color, name: p.name, isViewer: false, isMarsBot: p.isMarsBot, status: s.status, choice: s.choice, generation: s.generation});
       }
     }
     // Reward-takers (current/rewarded) first, pass-throughs last.
@@ -299,7 +312,7 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     detailsStage = HYDRO_STAGES[selectedPosition];
     for (const p of input.players) {
       const s = statusFor(p, selectedPosition);
-      detailsHistory.push({color: p.color, name: p.name, isViewer: p.isViewer, status: s.status, choice: s.choice, generation: s.generation});
+      detailsHistory.push({color: p.color, name: p.name, isViewer: p.isViewer, isMarsBot: p.isMarsBot, status: s.status, choice: s.choice, generation: s.generation});
       if (p.isViewer) {
         viewerStatusAtDetails = s.status;
         viewerChoiceAtDetails = s.choice;

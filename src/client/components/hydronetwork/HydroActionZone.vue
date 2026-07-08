@@ -80,7 +80,7 @@
           <span class="hydro-action__visitor-dot" :class="'player_bg_color_' + v.color" aria-hidden="true"></span>
           <span class="hydro-action__visitor-name">{{ v.name }}</span>
           <span class="hydro-action__visitor-took">
-            <span v-if="v.status === 'passed'" class="hydro-action__visitor-none" v-i18n>Passed through — no reward</span>
+            <span v-if="v.status === 'passed'" class="hydro-action__visitor-none" v-i18n>{{ v.isMarsBot ? 'Advanced through' : 'Passed through — no reward' }}</span>
             <HydroReward v-else-if="historyReward(v.choice).length > 0" :chips="historyReward(v.choice)" :compact="true" />
             <span v-else-if="targetStage && targetStage.vp !== undefined" class="hydro-action__visitor-vp">{{ targetStage.vp }} <span v-i18n>VP</span></span>
             <span v-else class="hydro-action__visitor-none" v-i18n>No reward</span>
@@ -220,7 +220,7 @@
                   <span v-else-if="detailsStage.vp !== undefined" class="hydro-action__history-vp">{{ detailsStage.vp }} <span v-i18n>VP</span></span>
                 </span>
               </template>
-              <span v-else-if="h.status === 'passed'" v-i18n>Passed through — no reward</span>
+              <span v-else-if="h.status === 'passed'" v-i18n>{{ h.isMarsBot ? 'Advanced through' : 'Passed through — no reward' }}</span>
               <span v-else v-i18n>Not reached yet</span>
             </span>
           </div>

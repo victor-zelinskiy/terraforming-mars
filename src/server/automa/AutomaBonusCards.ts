@@ -99,7 +99,9 @@ function drawAndResolveProjectCard(game: IGame): boolean {
   if (card === undefined) {
     return false; // Draw + discard piles fully exhausted — nothing to resolve.
   }
-  game.log('${0} revealed ${1}', (b) => b.player(marsBotOf(game)).card(card, {tags: true}));
+  // The bot PLAYS the card (its tags), it does not "show/reveal" it — reuse the
+  // standard "played" log so the journal reads «Бот сыграл …», never «показал».
+  game.log('${0} played ${1}', (b) => b.player(marsBotOf(game)).card(card, {tags: true}));
   AutomaResolver.resolveProjectCard(game, card);
   automa.playedPile.push(card.name);
   return true;

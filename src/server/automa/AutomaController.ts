@@ -93,12 +93,16 @@ export class AutomaController {
       if (card === undefined) {
         throw new Error(`Unknown project card in MarsBot action deck: ${entry.name}`);
       }
-      game.log('${0} revealed ${1}', (b) => b.player(bot).card(card, {tags: true}));
+      // The bot PLAYS the card (only its tags count — the automa's own way of
+      // playing) — it does NOT merely "reveal"/"show" it. Reuse the standard
+      // "played" log so the journal + turn review read «Бот разыграл …», never
+      // «показал / раскрыл».
+      game.log('${0} played ${1}', (b) => b.player(bot).card(card, {tags: true}));
       AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {
-      game.log('${0} revealed a bonus card', (b) => b.player(bot));
+      game.log('${0} played a bonus card', (b) => b.player(bot));
       AutomaTurnLog.note(game, {kind: 'reveal', card: entry}, {consumeLog: true});
       // Phase B: the bonus card's effect steps are attributed to the 'bonus'
       // cause (a colony trade re-attributes to 'colony' internally); the card's

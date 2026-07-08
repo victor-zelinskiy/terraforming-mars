@@ -39,8 +39,8 @@ describe('AutomaController — MarsBot turn', () => {
     expect(automa.revealedCard).is.undefined;
     expect(game.generation).eq(2);
     expect(game.phase).eq('research');
-    // The reveal is journaled.
-    expect(game.gameLog.some((m) => m.message.includes('revealed'))).is.true;
+    // The bot PLAYS the card (its tags) — journaled as «played», not «revealed».
+    expect(game.gameLog.some((m) => m.message.includes('played'))).is.true;
   });
 
   it('a revealed bonus card resolves and routes to the right pile', () => {
@@ -54,7 +54,7 @@ describe('AutomaController — MarsBot turn', () => {
     expect(human.plants).eq(0);
     expect(automa.destroyedBonusCards).contains(BonusCardId.B01_METEOR_SHOWER);
     expect(automa.revealedCard).is.undefined;
-    expect(game.gameLog.some((m) => m.message.includes('revealed a bonus card'))).is.true;
+    expect(game.gameLog.some((m) => m.message.includes('played a bonus card'))).is.true;
   });
 
   it('alternates: human acts, bot resolves exactly one card, human acts again', () => {

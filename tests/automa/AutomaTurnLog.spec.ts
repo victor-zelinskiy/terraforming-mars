@@ -49,8 +49,9 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(reveal).deep.include({kind: 'reveal'});
     if (reveal.kind === 'reveal') {
       expect(reveal.card).deep.eq({kind: 'project', name: CardName.GENE_REPAIR});
-      // The reveal log line is attached to the step itself, not duplicated.
-      expect(reveal.message?.message).eq('${0} revealed ${1}');
+      // The bot's play log line is attached to the step itself, not duplicated
+      // (the bot PLAYS the card for its tags — «played», not «revealed»).
+      expect(reveal.message?.message).eq('${0} played ${1}');
     }
     // Phase B: every step carries its cause (the 0-th printed tag); the cascade
     // advance carries depth 1 (the "advance again" chain reaction).

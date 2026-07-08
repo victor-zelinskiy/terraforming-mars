@@ -99,6 +99,7 @@ export default defineComponent({
         name: p.name,
         position: p.deltaProject?.position ?? 0,
         isViewer: p.color === this.viewerColor,
+        isMarsBot: p.isMarsBot === true,
         stops: p.deltaProject?.stops ?? [],
       }));
       return buildHydroModel({

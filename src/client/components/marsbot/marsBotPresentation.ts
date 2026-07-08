@@ -358,6 +358,16 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
     tracks: entry.tracks,
   });
   markBotTurnViewed(entry.key);
+  // CONSUMING a turn via the review advances the staged-commit sequence: apply
+  // THIS turn's visual footprint (catching up any skipped predecessors) so the
+  // board behind the review matches the turn being reviewed (e.g. the L3 «show
+  // on map» peek highlights a tile that is actually placed). The LAST pending
+  // turn commits the full authoritative view. Idempotent (a re-open / a
+  // non-staged journal replay is a no-op) — before this, RB/LB navigating past
+  // the notification FEED dismissed queued cards WITHOUT ever delivering the
+  // last turn, so the buffered view (with the between-generation draft) never
+  // committed → the game deadlocked.
+  deliverBotTurnVisual(entry.key);
   dismiss(botTurnNotificationId(entry.key));
   return true;
 }
@@ -419,4 +429,24 @@ watch(
       openBotTurnReviewByKey(card.botTurnKey);
     }
   },
+);
+
+// The LIVENESS backstop — the robust guarantee against a stranded staging
+// window. `ensureBotPresentationLiveness()` used to run ONLY from
+// `NotificationLayer.update()`, which fires on a `playerView` CHANGE — but a
+// staging window SUPPRESSES that change (the authoritative view is buffered,
+// the presented view is frozen), so the self-heal never ran while staging was
+// active. That is exactly the deadlock: RB/LB-navigating past the notification
+// feed dismisses the queued bot-turn cards WITHOUT delivering the last turn, so
+// nothing commits the buffer and the between-generation draft never arrives.
+// Watching the notification card SET (reactive) re-checks liveness the instant
+// the last staged card leaves the presentation by ANY path — delivered,
+// review-navigated, TTL-expired, evicted, or drained to the journal — and
+// commits the buffered authoritative view. It never fires prematurely: Vue
+// watchers are post-flush, so `beginBotStaging` + every `pushTransient` of the
+// batch have already run when it evaluates, and `ensureBotPresentationLiveness`
+// only commits when NO pending card remains known. No-op without a window.
+watch(
+  () => notificationState.transient.length + notificationState.queue.length,
+  () => ensureBotPresentationLiveness(),
 );
