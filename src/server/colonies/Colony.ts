@@ -387,7 +387,7 @@ export abstract class Colony implements IColony {
 
     case ColonyBenefit.INCREASE_VENUS_SCALE:
       game.increaseVenusScaleLevel(player, quantity as 3|2|1);
-      game.log('${0} increased Venus scale ${1} step(s)', (b) => b.player(player).number(quantity));
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(player).globalParameter(GlobalParameter.VENUS).number(quantity));
       break;
 
     case ColonyBenefit.LOSE_RESOURCES:

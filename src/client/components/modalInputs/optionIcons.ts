@@ -23,6 +23,12 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 // Pseudo-icons that map onto the global `resource_icon` sprite family (the same
 // art the card renderer uses, but its own classes are scoped under `.card-container`).
 const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {tr: 'rating', cards: 'cards'};
+// The `GlobalParameter` enum uses the PLURAL 'oceans', but the icon class is the
+// singular `wgt-icon--ocean` (the ocean TILE art). Normalise here — the single
+// resolution point — so both the journal's `impact` chips (which pass
+// `EventImpact.globalParameter.parameter`) AND the RESOURCE log token resolve
+// the ocean sprite instead of falling through to a non-existent card-resource.
+const GLOBAL_PARAMETER_ALIASES: Readonly<Record<string, string>> = {oceans: 'ocean'};
 
 export function iconClassFor(icon: string | undefined): string {
   if (icon === undefined || icon === '') {
@@ -33,6 +39,9 @@ export function iconClassFor(icon: string | undefined): string {
   }
   if (icon in RESOURCE_ICON_ALIASES) {
     return 'resource_icon resource_icon--' + RESOURCE_ICON_ALIASES[icon];
+  }
+  if (icon in GLOBAL_PARAMETER_ALIASES) {
+    return 'wgt-icon wgt-icon--' + GLOBAL_PARAMETER_ALIASES[icon];
   }
   if (GLOBAL_PARAMETER_ICONS.has(icon)) {
     return 'wgt-icon wgt-icon--' + icon;

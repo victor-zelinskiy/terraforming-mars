@@ -5,20 +5,23 @@
       class="bcz"
       :key="state.nonce"
       role="dialog"
-      :aria-label="$t('Bonus card')"
+      :aria-label="$t('Automa bonus card')"
       @click.self="close"
     >
-      <div class="bcz__frame">
-        <span class="bcz__tick bcz__tick--tl" aria-hidden="true"></span>
-        <span class="bcz__tick bcz__tick--br" aria-hidden="true"></span>
-        <header class="bcz__head">
-          <span class="bcz__kicker" v-i18n>Automa bonus card</span>
-          <button v-if="!console" type="button" class="bcz__close" :aria-label="$t('Close')" @click="close">
-            <span aria-hidden="true">✕</span>
+      <span class="bcz__kicker" v-i18n>Automa bonus card</span>
+      <div class="bcz__card">
+        <BonusCardFace :id="state.id" :ctx="state.ctx" large />
+      </div>
+      <!-- Same Close footer as a normal fullscreen card. -->
+      <div class="card-zoom-actions">
+        <div class="card-zoom-actions__panel">
+          <span class="card-zoom-actions__corner card-zoom-actions__corner--tl" aria-hidden="true"></span>
+          <span class="card-zoom-actions__corner card-zoom-actions__corner--tr" aria-hidden="true"></span>
+          <span class="card-zoom-actions__corner card-zoom-actions__corner--bl" aria-hidden="true"></span>
+          <span class="card-zoom-actions__corner card-zoom-actions__corner--br" aria-hidden="true"></span>
+          <button class="card-zoom-actions__btn card-zoom-actions__btn--secondary" @click="close">
+            <span v-i18n>Close</span>
           </button>
-        </header>
-        <div class="bcz__card">
-          <BonusCardFace :id="state.id" :ctx="state.ctx" large />
         </div>
       </div>
     </div>

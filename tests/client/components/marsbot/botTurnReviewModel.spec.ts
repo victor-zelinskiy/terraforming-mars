@@ -282,4 +282,24 @@ describe('botTurnReviewModel', () => {
     expect(r.cardNames).deep.eq([CardName.BIRDS]);
     expect(r.technicalReveals).deep.eq([{name: CardName.GENE_REPAIR, reason: 'tiebreak'}]);
   });
+
+  it('C4. a chained fallback bonus card nests as a "secondary-card" sub-block in the parent chain (ONE flow)', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B08_CORPORATE_COMPETITION}, message: log('${0} revealed a bonus card'), resolution: {fate: 'discarded', secondaryCard: BonusCardId.B04_OVERACHIEVEMENT}},
+      {kind: 'log', message: log('${0} drew another bonus card'), cause: {kind: 'bonus'}},
+      {kind: 'log', message: log('${0} claimed ${1} milestone'), cause: {kind: 'secondary-bonus'}},
+    ]));
+    // The parent card carries the secondary id (for the chip + fullscreen).
+    expect(r.card?.kind === 'bonus' && r.card.secondaryCard).eq(BonusCardId.B04_OVERACHIEVEMENT);
+    // The secondary's effect nests INSIDE the parent bonus chain, not a 2nd chain.
+    const bonusChain = r.chains.find((c) => c.cause.kind === 'bonus');
+    if (bonusChain === undefined) {
+      throw new Error('expected a bonus chain');
+    }
+    const secondary = bonusChain.lines.find((l) => l.kind === 'secondary-card');
+    expect(secondary?.kind === 'secondary-card' && secondary.id).eq(BonusCardId.B04_OVERACHIEVEMENT);
+    expect(secondary?.kind === 'secondary-card' && secondary.lines.length).eq(1);
+    // No separate top-level chain for the secondary card.
+    expect(r.chains.filter((c) => c.cause.kind === 'bonus')).lengthOf(1);
+  });
 });

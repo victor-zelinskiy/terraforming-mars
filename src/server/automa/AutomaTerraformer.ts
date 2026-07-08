@@ -1,4 +1,5 @@
 import * as constants from '../../common/constants';
+import {GlobalParameter} from '../../common/GlobalParameter';
 import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
 import {marsBotOf} from './AutomaUtil';
@@ -20,6 +21,6 @@ export class AutomaTerraformer {
     }
     const bot = marsBotOf(game);
     game.increaseTemperature(bot, 1);
-    game.log('${0} raised the temperature 1 step', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
   }
 }

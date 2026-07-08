@@ -1,4 +1,5 @@
 import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {CardResource} from '../../common/CardResource';
 import {inplaceShuffle} from '../utils/shuffle';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
@@ -62,7 +63,7 @@ export class AutomaResearch {
       return false;
     }
     automa.floaters -= 5;
-    game.log('${0} spent 5 floaters for an extra action card', (b) => b.player(marsBotOf(game)));
+    game.log('${0} spent ${1} ${2} for an extra action card', (b) => b.player(marsBotOf(game)).number(5).cardResource(CardResource.FLOATER));
     return true;
   }
 

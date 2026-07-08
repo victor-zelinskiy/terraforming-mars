@@ -62,6 +62,11 @@ type Types = {
 } | {
   type: LogMessageDataType.CARDS;
   value: ReadonlyArray<CardName>;
+} | {
+  // An icon key understood by the client's shared `iconClassFor`
+  // (a Resource / CardResource / GlobalParameter value, or 'tr' / 'cards').
+  type: LogMessageDataType.RESOURCE;
+  value: string;
 };
 
 export type LogMessageData = Types & {

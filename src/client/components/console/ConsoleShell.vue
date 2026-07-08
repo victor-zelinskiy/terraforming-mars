@@ -3547,11 +3547,15 @@ export default defineComponent({
         openBonusCardZoom(card.id, review.ctx);
         return true;
       }
-      const names = this.reviewCardNames;
+      // A project turn: page the played card(s) FIRST, then the SERVICE flips
+      // (tie-break / pick — themselves project cards) LAST, all via LB/RB. So X
+      // never lists a card the review doesn't mention, but the flips are still
+      // reachable by browsing to the end.
+      const names = [...this.reviewCardNames, ...(review?.technicalReveals ?? []).map((t) => t.name)];
       if (names.length === 0) {
         return false;
       }
-      openConsoleCardZoom(names.map((name) => ({name} as CardModel)), names.length - 1, undefined, undefined, {contextLabel: 'MarsBot turn'});
+      openConsoleCardZoom(names.map((name) => ({name} as CardModel)), 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
       return true;
     },
     /** X in the hand section: read the focused card fullscreen. In SALE

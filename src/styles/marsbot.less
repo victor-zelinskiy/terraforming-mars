@@ -325,8 +325,17 @@
     display: inline-flex; align-items: center; justify-content: center;
     margin-top: 1px;
 }
-.mb-face__icon { display: inline-block; transform: scale(0.85); transform-origin: center; }
-.mb-face__icon.mb-ico { width: 18px; height: 18px; transform: none; }
+/* Constrain EVERY icon family to the slot — the global `.resource_icon` is
+ * 36×36, so an unsized `resource_icon`/`card-resource` (e.g. the TR icon on
+ * Government Intervention) overflowed the 20×18 slot and read as a duplicated /
+ * broken glyph. One fixed box + contain fixes it for mb-ico, resource_icon and
+ * card-resource alike. */
+.mb-face__icon {
+    display: inline-block;
+    width: 18px; height: 18px;
+    background-size: contain; background-repeat: no-repeat; background-position: center;
+    transform: none;
+}
 .mb-face__glyph {
     font-size: 13px; line-height: 1; color: @mb-accent;
     text-shadow: 0 0 8px fade(@mb-accent, 35%);
@@ -342,14 +351,18 @@
     box-shadow: inset 0 0 0 1px rgba(235, 110, 90, 0.4);
 }
 .mb-face--large {
-    padding: 14px 17px; gap: 10px;
+    /* Card-like proportions: a fixed portrait-ish width + generous padding so
+       the bonus card reads as part of the same card system, not a wide banner. */
+    width: min(340px, 88vw);
+    padding: 18px 20px; gap: 11px;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px fade(@mb-accent, 32%), inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 20px 60px rgba(0, 0, 0, 0.5);
     .mb-face__name { font-size: 17px; }
     .mb-face__fate { font-size: 11px; padding: 4px 10px; }
     .mb-face__line { font-size: 15.5px; gap: 10px; }
     .mb-face__line--muted { font-size: 14px; }
     .mb-face__icon-slot { flex-basis: 26px; height: 24px; }
-    .mb-face__icon { transform: scale(1.05); }
-    .mb-face__icon.mb-ico { width: 24px; height: 24px; transform: none; }
+    .mb-face__icon { width: 24px; height: 24px; }
     .mb-face__glyph { font-size: 18px; }
     .mb-face__fate-note { font-size: 13px; }
 }

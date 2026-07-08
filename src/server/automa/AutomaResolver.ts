@@ -1,5 +1,7 @@
 import * as constants from '../../common/constants';
 import {CardType} from '../../common/cards/CardType';
+import {CardResource} from '../../common/CardResource';
+import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {TrackAction} from '../../common/automa/AutomaTypes';
 import {IGame} from '../IGame';
@@ -154,7 +156,7 @@ export class AutomaResolver {
       // research-phase floater spend, so `automa.floaters` is the one counter.
       const count = action === 'floater2' ? 2 : 1;
       automa.floaters += count;
-      game.log('${0} gained ${1} floater(s)', (b) => b.player(bot).number(count));
+      game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(count).cardResource(CardResource.FLOATER));
       return;
     }
     case 'temperature':
@@ -201,6 +203,6 @@ export class AutomaResolver {
     }
     const bot = marsBotOf(game);
     game.increaseVenusScaleLevel(bot, 1);
-    game.log('${0} raised Venus 1 step', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
   }
 }

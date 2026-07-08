@@ -418,11 +418,14 @@ export class Player implements IPlayer {
       }
 
       if (opts.log === true) {
+        // `${2}` is a premium TR (РТ) icon token. Reuses the shared resource-gain
+        // templates ('${0} gained ${1} ${2}' / '… because of ${3}') so no new
+        // i18n key is needed — only the icon differs from a stock-resource gain.
         if (opts.from !== undefined) {
           const from = opts.from;
-          this.game.log('${0} gained ${1} TR from ${2}', (b) => b.player(this).number(steps).from(from));
+          this.game.log('${0} gained ${1} ${2} because of ${3}', (b) => b.player(this).number(steps).tr().from(from));
         } else {
-          this.game.log('${0} gained ${1} TR', (b) => b.player(this).number(steps));
+          this.game.log('${0} gained ${1} ${2}', (b) => b.player(this).number(steps).tr());
         }
       }
       this.game?.events?.recordTrDelta(this, steps, opts.from);

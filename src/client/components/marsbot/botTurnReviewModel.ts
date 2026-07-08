@@ -58,7 +58,9 @@ export type BotReviewLine =
   | {kind: 'track', depth: number, capsule: ReadonlyArray<Tag>, from: number, to: number, action?: TrackAction, cells: ReadonlyArray<BotReviewScaleCell>}
   | {kind: 'log', depth: number, message: LogMessage, tone?: 'cost' | 'gain', labelKey?: string}
   | {kind: 'attack', depth: number, attack: MarsBotAttack}
-  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info'};
+  | {kind: 'note', depth: number, noteKey: string, tone: 'ignored' | 'skip' | 'info'}
+  /** A chained fallback bonus card, its OWN effect lines nested — ONE flow. */
+  | {kind: 'secondary-card', depth: number, id: BonusCardId, lines: Array<BotReviewLine>};
 
 /** Why a chain of effects fired — the human-readable anchor of the chain. */
 export type BotReviewChainCause =
@@ -294,6 +296,7 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     case 'colony':
       return card?.kind === 'bonus' ? {kind: 'trade', id: card.id} : {kind: 'effect'};
     case 'bonus':
+    case 'secondary-bonus': // never a top-level chain — routed into the parent's sub-block
       return card?.kind === 'bonus' ? (isTradeCard ? {kind: 'trade', id: card.id} : {kind: 'bonus', id: card.id}) : {kind: 'effect'};
     case 'delta':
       return {kind: 'delta'};
@@ -311,6 +314,24 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     }
     return chain;
   };
+  // A chained fallback card's steps nest INSIDE the parent bonus chain, as one
+  // «Secondary card» sub-block — so parent → «drew another» → its effects reads
+  // as a single flow, never a second event.
+  const secondaryId = card?.kind === 'bonus' ? card.secondaryCard : undefined;
+  const routeSecondary = (line: BotReviewLine): void => {
+    const parent = ensureChain({kind: 'bonus'});
+    const last = parent.lines[parent.lines.length - 1];
+    const sub = last !== undefined && last.kind === 'secondary-card' ?
+      last :
+      (() => {
+        const created: Extract<BotReviewLine, {kind: 'secondary-card'}> = {kind: 'secondary-card', depth: 1, id: secondaryId ?? BonusCardId.B01_METEOR_SHOWER, lines: []};
+        parent.lines.push(created);
+        return created;
+      })();
+    sub.lines.push(line);
+  };
+  const isSecondaryStep = (step: MarsBotTurnStep): boolean =>
+    'cause' in step && step.cause?.kind === 'secondary-bonus' && secondaryId !== undefined;
 
   for (const step of steps) {
     switch (step.kind) {
@@ -340,17 +361,29 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       if (step.cause === undefined) {
         break;
       }
-      const chain = ensureChain(step.cause);
-      chain.lines.push(trackMovementLine(source, step, Math.min(MAX_DEPTH, (step.depth ?? 0) + 1)));
+      const line = trackMovementLine(source, step, Math.min(MAX_DEPTH, (step.depth ?? 0) + 1));
+      if (isSecondaryStep(step)) {
+        routeSecondary(line);
+      } else {
+        ensureChain(step.cause).lines.push(line);
+      }
       break;
     }
     case 'attack': {
+      if (isSecondaryStep(step)) {
+        routeSecondary({kind: 'attack', depth: 1, attack: step.attack});
+        break;
+      }
       const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
       chain.lines.push({kind: 'attack', depth: logDepthOf(chain), attack: step.attack});
       break;
     }
     case 'log': {
       if (isNoiseLog(step.message)) {
+        break;
+      }
+      if (isSecondaryStep(step)) {
+        routeSecondary({kind: 'log', depth: 1, message: step.message});
         break;
       }
       const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});

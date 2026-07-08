@@ -30,6 +30,15 @@
         </span>
         <span v-else-if="data.type === LogMessageDataType.CARDS" v-html="cardsToHtml(data)"></span>
 
+        <!-- Resource / card-resource / global-parameter / TR icon. The spectator
+             + game-end panels reuse this legacy renderer, so it renders the same
+             shared `iconClassFor` sprite (never the raw enum text). -->
+        <span v-else-if="data.type === LogMessageDataType.RESOURCE"
+              class="log-resource-icon"
+              :class="resourceIconClass(data.value)"
+              role="img"
+              :aria-label="$t(resourceLabelKey(data.value))"></span>
+
         <span v-else-if="data.type === LogMessageDataType.RAW_STRING">{{ data.value }}</span>
         <span v-else v-i18n>{{ data.value }}</span>
       </span>
@@ -56,6 +65,7 @@ import {isMoonSpace, getSpaceName} from '@/common/boards/spaces';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {gameLocaleToIntlLocale} from '@/client/utils/LocaleUtils';
 import {range} from '@/common/utils/utils';
+import {logResourceIconClass, logResourceLabelKey} from '@/client/components/journal/logResourceToken';
 
 const cardTypeToCss: Record<CardType, string | undefined> = {
   event: 'background-color-events',
@@ -130,6 +140,12 @@ export default defineComponent({
     getPlayerName(color: Color) {
       const player = this.viewModel.players.find((player) => player.color === color);
       return player?.name ?? color;
+    },
+    resourceIconClass(value: string): string {
+      return logResourceIconClass(value);
+    },
+    resourceLabelKey(value: string): string {
+      return logResourceLabelKey(value);
     },
   },
   computed: {

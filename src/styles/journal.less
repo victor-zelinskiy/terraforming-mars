@@ -1126,6 +1126,34 @@
     flex-shrink: 0;
 }
 
+/* ── Resource / card-resource / global-parameter / TR icon token ──────
+ * A premium inline icon-chip that replaces the bare resource WORD in a
+ * log line (e.g. "получил 5 [steel]"). The sprite comes from the shared
+ * `iconClassFor` family (`resource_icon--*` / `card-resource-*` /
+ * `wgt-icon--*`); this element sizes it small + `contain`. The nested
+ * `.journal-res .journal-res__icon` selector (specificity 0,2,0) DELIBERATELY
+ * beats the sprite families' own single-class rules (`.resource_icon` is 36px,
+ * `.wgt-icon--ocean/oxygen` bake a 30px background-size) so every family lands
+ * at the same small inline size regardless of @import order. */
+.journal-res {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    /* Nudge the icon onto the text baseline so "5 [icon]" reads level. */
+    margin: 0 1px;
+    transform: translateY(-1px);
+}
+.journal-res .journal-res__icon {
+    width: 15px;
+    height: 15px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+    /* A calm premium lift — the icon reads as a physical chit, not a flat glyph. */
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+
 /* ── Card hover preview popover (Teleported to body) ──────────────── */
 
 .journal-card-preview {

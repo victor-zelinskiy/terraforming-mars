@@ -18,6 +18,9 @@ import {UndergroundResourceToken} from '../../common/underworld/UndergroundResou
 import {Space} from '../boards/Space';
 import {SpaceId} from '../../common/Types';
 import {toName} from '../../common/utils/utils';
+import {Resource, StandardResource} from '../../common/Resource';
+import {CardResource} from '../../common/CardResource';
+import {GlobalParameter} from '../../common/GlobalParameter';
 
 export class MessageBuilder {
   protected message: Message;
@@ -133,6 +136,36 @@ export class MessageBuilder {
 
   public spaceId(value: SpaceId): this {
     this.message.data.push({type: LogMessageDataType.SPACE, value: value});
+    return this;
+  }
+
+  // ─── Icon tokens (rendered as premium inline icon-chips) ───
+  // These push a RESOURCE token whose `value` is an icon KEY the client's
+  // shared `iconClassFor` resolves. They are ICON-ONLY: keep the amount as a
+  // separate `.number(n)` token so the surrounding i18n template is unchanged
+  // (e.g. `'${0} gained ${1} ${2}'` — number in `${1}`, this icon in `${2}`).
+
+  /** A standard resource (M€ / steel / titanium / plants / energy / heat). */
+  public resource(value: Resource | StandardResource): this {
+    this.message.data.push({type: LogMessageDataType.RESOURCE, value});
+    return this;
+  }
+
+  /** A card resource (floater / microbe / animal / …). */
+  public cardResource(value: CardResource): this {
+    this.message.data.push({type: LogMessageDataType.RESOURCE, value});
+    return this;
+  }
+
+  /** A global parameter (temperature / oxygen / oceans / venus / moon rates). */
+  public globalParameter(value: GlobalParameter): this {
+    this.message.data.push({type: LogMessageDataType.RESOURCE, value});
+    return this;
+  }
+
+  /** Terraform rating (РТ). */
+  public tr(): this {
+    this.message.data.push({type: LogMessageDataType.RESOURCE, value: 'tr'});
     return this;
   }
 

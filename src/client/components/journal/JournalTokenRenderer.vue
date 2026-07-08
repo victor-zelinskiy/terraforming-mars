@@ -51,6 +51,16 @@
     <span v-else-if="token.type === LogMessageDataType.UNDERGROUND_TOKEN" class="journal-token journal-token--underground" v-i18n>{{ undergroundDescription[token.value] }}</span>
     <span v-else-if="token.type === LogMessageDataType.TILE_TYPE" class="journal-em" v-i18n>{{ tileTypeToString[token.value] }}</span>
 
+    <!-- Resource / card-resource / global-parameter / TR — a premium inline
+         icon-chip (the shared visual vocabulary via `iconClassFor`), replacing
+         the bare resource WORD so a log line reads at a glance. -->
+    <span v-else-if="token.type === LogMessageDataType.RESOURCE"
+          class="journal-res"
+          role="img"
+          :aria-label="$t(resourceLabelKey(token.value))">
+      <span class="journal-res__icon" :class="resourceIconClass(token.value)" aria-hidden="true"></span>
+    </span>
+
     <!-- RAW_STRING is intentionally untranslated; everything else (incl.
          STRING, SPACE_BONUS) gets a translation pass like the legacy UI. -->
     <span v-else-if="token.type === LogMessageDataType.RAW_STRING" class="journal-em">{{ token.value }}</span>
@@ -76,6 +86,7 @@ import JournalColonyChip from '@/client/components/journal/JournalColonyChip.vue
 import JournalMaChip from '@/client/components/journal/JournalMaChip.vue';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {logResourceIconClass, logResourceLabelKey} from '@/client/components/journal/logResourceToken';
 
 type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
 
@@ -142,6 +153,12 @@ export default defineComponent({
     },
     onSpaceClick(spaceId: SpaceId): void {
       highlightBoardSpace(spaceId);
+    },
+    resourceIconClass(value: string): string {
+      return logResourceIconClass(value);
+    },
+    resourceLabelKey(value: string): string {
+      return logResourceLabelKey(value);
     },
   },
 });

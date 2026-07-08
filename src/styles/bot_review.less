@@ -182,6 +182,11 @@
     color: @mbr-accent-dim;
   }
   &__rule { color: @mbr-text-dim; text-transform: none; letter-spacing: 0; font-family: 'Ubuntu', sans-serif; font-size: 10.5px; }
+  &__card-essence {
+    color: @mbr-text; font-family: 'Ubuntu', sans-serif; font-size: calc(var(--mbr-fz) - 0.5px);
+    line-height: 1.35; max-width: 340px;
+    border-left: 2px solid @mbr-accent-dim; padding-left: 8px;
+  }
   &__tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   &__tag { display: inline-flex; align-items: center; gap: 3px; }
   &__tag--ignored { opacity: 0.5; }
@@ -356,50 +361,50 @@
   &__branch-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: @mbr-amber; }
   &__branch--chain .mbr__branch-label { color: @mbr-accent; }
   &__branch-value { color: @mbr-text; }
+
+  /* chained fallback card — nested sub-flow inside the parent bonus chain */
+  &__secondary {
+    flex: 1; min-width: 0;
+    margin-top: 2px; padding: 7px 9px;
+    border-radius: 7px;
+    background: rgba(122, 210, 182, 0.05);
+    border: 1px solid rgba(122, 210, 182, 0.22);
+    border-left: 2px solid @mbr-accent-dim;
+  }
+  &__secondary-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  &__secondary-kicker {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: @mbr-accent; background: rgba(122, 210, 182, 0.12);
+    border: 1px solid rgba(122, 210, 182, 0.3); border-radius: 3px; padding: 1px 6px;
+  }
+  &__secondary-lines { display: flex; flex-direction: column; gap: 5px; }
 }
 
-/* ── fullscreen Automa bonus card inspect (the FULL rule text lives here) ── */
+/* ── fullscreen Automa bonus card inspect — SAME presentation as a normal
+ *    fullscreen card (the card-zoom dim scrim + a Close footer), but NO heavy
+ *    blur (console/native-friendly): the full rule text lives here. ── */
 .bcz {
   position: fixed;
   inset: 0;
   z-index: 12000;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
-  background: radial-gradient(120% 120% at 50% 30%, rgba(6, 14, 12, 0.86), rgba(2, 5, 4, 0.95));
-  backdrop-filter: blur(3px);
+  gap: 20px;
+  padding: 24px;
+  /* Match the normal card-zoom backdrop dim (no blur — cheap on Steam Deck). */
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(8, 14, 22, 0.55) 0%, rgba(4, 8, 14, 0.92) 80%),
+    rgba(0, 0, 0, 0.7);
   animation: mbr-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  &__frame {
-    position: relative;
-    width: min(560px, 92vw);
-    max-height: 88vh;
-    overflow-y: auto;
-    background: linear-gradient(180deg, @mbr-bg-hi, @mbr-bg-lo);
-    border: 1px solid rgba(122, 210, 182, 0.4);
-    border-radius: 14px;
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(122, 210, 182, 0.08);
-    padding: 16px 18px 20px;
-  }
-  &__tick {
-    position: absolute; width: 16px; height: 16px;
-    border: 2px solid @mbr-accent; opacity: 0.7;
-    &--tl { top: 9px; left: 9px; border-right: none; border-bottom: none; }
-    &--br { bottom: 9px; right: 9px; border-left: none; border-top: none; }
-  }
-  &__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   &__kicker {
+    flex: 0 0 auto;
     font-family: 'Orbitron', sans-serif;
     font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
     color: @mbr-accent;
-  }
-  &__close {
-    appearance: none; cursor: pointer;
-    background: rgba(122, 210, 182, 0.08); border: 1px solid rgba(122, 210, 182, 0.3);
-    color: @mbr-text; border-radius: 6px; width: 30px; height: 30px;
-    transition: background 140ms ease;
-    &:hover { background: rgba(122, 210, 182, 0.2); }
   }
   &__card { display: flex; justify-content: center; }
 }

@@ -1,6 +1,7 @@
 import * as constants from '../../common/constants';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {CardResource} from '../../common/CardResource';
+import {GlobalParameter} from '../../common/GlobalParameter';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {Tag} from '../../common/cards/Tag';
@@ -78,12 +79,12 @@ function advanceFurthestMartianParameter(game: IGame): boolean {
   // The tie order IS the priority order among the leaders.
   if (oxygenLeft === most) {
     game.increaseOxygenLevel(bot, 1);
-    game.log('${0} raised oxygen 1 step', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
   } else if (oceansLeft === most) {
     AutomaTilePlacer.placeOcean(game);
   } else {
     game.increaseTemperature(bot, 1);
-    game.log('${0} raised the temperature 1 step', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(1));
   }
   return true;
 }
@@ -190,7 +191,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
   if (game.gameOptions.venusNextExtension || game.gameOptions.coloniesExtension) {
     bot.stock.add(Resource.MEGACREDITS, 2, {log: true});
     automa.floaters += 1;
-    game.log('${0} gained 1 floater', (b) => b.player(bot));
+    game.log('${0} gained ${1} ${2}', (b) => b.player(bot).number(1).cardResource(CardResource.FLOATER));
   } else {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }
@@ -339,7 +340,7 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
   if (temperatureSteps !== undefined && temperatureSteps <= 2) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Temperature near a bonus step'});
     game.increaseTemperature(bot, 2); // Clamped internally at completion.
-    game.log('${0} raised the temperature 2 steps', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
     return 'destroy';
   }
 
@@ -349,7 +350,7 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
     AutomaTurnLog.setBonusBranch(game, {key: 'Oxygen near a bonus step'});
     AutomaTilePlacer.placeGreenery(game); // Raises oxygen 1 step for the greenery.
     game.increaseOxygenLevel(bot, 1);
-    game.log('${0} raised oxygen 1 step', (b) => b.player(bot));
+    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     return 'destroy';
   }
 
@@ -358,7 +359,7 @@ function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
     if (game.gameOptions.venusNextExtension && venusSteps !== undefined && venusSteps <= 2) {
       AutomaTurnLog.setBonusBranch(game, {key: 'Venus near a bonus step'});
       game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
-      game.log('${0} raised Venus 2 steps', (b) => b.player(bot));
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
       return 'discard'; // The Venus branch explicitly does NOT destroy the card.
     }
   } else {
@@ -460,8 +461,12 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
   if (next !== undefined) {
     AutomaTurnLog.setBonusSecondary(game, next);
     game.log('${0} drew another bonus card', (b) => b.player(bot));
+    // Attribute the SECONDARY card's own steps to their own cause so the review
+    // nests them under this card as ONE flow (not a second event).
+    AutomaTurnLog.setCause(game, {kind: 'secondary-bonus'});
     const outcome = resolveBonusCard(game, next);
     routeBonusCard(game, next, outcome);
+    AutomaTurnLog.setCause(game, {kind: 'bonus'});
   }
   return 'discard';
 }
@@ -538,7 +543,7 @@ function governmentIntervention(game: IGame): BonusCardOutcome {
     }
     if (game.getVenusScaleLevel() < constants.MAX_VENUS_SCALE) {
       game.increaseVenusScaleLevel(bot, 1);
-      game.log('${0} raised Venus 1 step', (b) => b.player(bot));
+      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(1));
     }
     return 'discard';
   } finally {

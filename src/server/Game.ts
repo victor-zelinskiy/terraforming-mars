@@ -1092,7 +1092,7 @@ export class Game implements IGame, Logger {
           .annotate(GlobalParameter.TEMPERATURE)
           .andThen(() => {
             this.increaseTemperature(player, 1);
-            this.log('${0} acted as World Government and increased temperature', (b) => b.player(player));
+            this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.TEMPERATURE));
             return undefined;
           }),
       );
@@ -1103,7 +1103,7 @@ export class Game implements IGame, Logger {
           .annotate(GlobalParameter.OXYGEN)
           .andThen(() => {
             this.increaseOxygenLevel(player, 1);
-            this.log('${0} acted as World Government and increased oxygen level', (b) => b.player(player));
+            this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OXYGEN));
             return undefined;
           }),
       );
@@ -1114,7 +1114,7 @@ export class Game implements IGame, Logger {
           .annotate(GlobalParameter.OCEANS)
           .andThen((space) => {
             this.addOcean(player, space);
-            this.log('${0} acted as World Government and placed an ocean', (b) => b.player(player));
+            this.log('${0} acted as World Government and placed ${1}', (b) => b.player(player).globalParameter(GlobalParameter.OCEANS));
             return undefined;
           }),
       );
@@ -1123,7 +1123,7 @@ export class Game implements IGame, Logger {
       orOptions.options.push(
         new SelectOption('Increase Venus scale', 'Increase').andThen(() => {
           this.increaseVenusScaleLevel(player, 1);
-          this.log('${0} acted as World Government and increased Venus scale', (b) => b.player(player));
+          this.log('${0} acted as World Government and raised ${1}', (b) => b.player(player).globalParameter(GlobalParameter.VENUS));
           return undefined;
         }),
       );
@@ -1721,8 +1721,8 @@ export class Game implements IGame, Logger {
         if (icons > 0) {
           this.events.withSource({kind: 'spaceBonus'}, () => {
             player.stock.add(Resource.MEGACREDITS, icons);
-            this.log('${0} gained ${1} M€ for ${2} covered bonus icon(s)', (b) =>
-              b.player(player).number(icons).number(icons));
+            this.log('${0} gained ${1} ${2} for ${3} covered bonus icon(s)', (b) =>
+              b.player(player).number(icons).resource(Resource.MEGACREDITS).number(icons));
           });
         }
       } else {
@@ -1735,7 +1735,7 @@ export class Game implements IGame, Logger {
     if (oceanAdjacencyBonus > 0) {
       this.events.withSource({kind: 'oceanBonus'}, () => {
         player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);
-        this.log('${0} gained ${1} M€ from ${2} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).number(adjacentOceanCount));
+        this.log('${0} gained ${1} ${2} from ${3} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).resource(Resource.MEGACREDITS).number(adjacentOceanCount));
       });
     }
 

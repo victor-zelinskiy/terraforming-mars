@@ -125,36 +125,28 @@ export abstract class BaseStock {
       return;
     }
 
-    // 1. Peter gained 5 MC
-    // 2. Peter gained 5 MC from Robotic Workforce
-    // 3. Peter gained 5 MC production
-    // 4. Peter gained 5 MC production beacuse of Robotic Workforce
+    // 1. Peter gained 5 [M€]
+    // 2. Peter gained 5 [M€] from Robotic Workforce
+    // 3. Peter gained 5 [M€] production
+    // 4. Peter gained 5 [M€] production beacuse of Robotic Workforce
 
-    // 5. Peter lost 5 MC
-    // 6. Peter lost 5 MC from Robotic Workforce
-    // 7. Peter lost 5 MC production
-    // 8. Peter lost 5 MC production beacuse of Robotic Workforce
+    // 5. Peter lost 5 [M€]
+    // 6. Peter lost 5 [M€] from Robotic Workforce
+    // 7. Peter lost 5 [M€] production
+    // 8. Peter lost 5 [M€] production beacuse of Robotic Workforce
 
-    // 9. Peter lost 1 MC production, stolen by Alan
+    // 9. Peter lost 1 [M€] production, stolen by Alan
+    //
+    // `${2}` is now a premium RESOURCE icon token (the resource sprite), not the
+    // resource WORD — so plural handling is unneeded and the i18n templates are
+    // unchanged (only the DATA for `${2}` changed: `.string('steel')` →
+    // `.resource(Resource.STEEL)`, value still 'steel').
 
-    const singular: Record<Resource, string> = {
-      [Resource.MEGACREDITS]: 'M€',
-      [Resource.STEEL]: 'steel',
-      [Resource.TITANIUM]: 'titanium',
-      [Resource.PLANTS]: 'plant',
-      [Resource.ENERGY]: 'energy',
-      [Resource.HEAT]: 'heat',
-    };
-
-    let resourceString = singular[resource];
-    if (resource === Resource.PLANTS && production === false && Math.abs(amount) > 1) {
-      resourceString = 'plants';
-    }
     const modifier = amount > 0 ? 'gained' : 'lost';
     let message = production ?
       '${0} ' + modifier + ' ${1} ${2} production' :
       '${0} ' + modifier + ' ${1} ${2}';
-      //  You   lost           1   plant production
+      //  You   lost           1   [plant]  production
 
     if (from !== undefined) {
       if (stealing === true) {
@@ -169,7 +161,7 @@ export abstract class BaseStock {
     this.player.game.log(message, (b) => {
       b.player(this.player)
         .number(Math.abs(amount))
-        .string(resourceString);
+        .resource(resource);
 
       if (from !== undefined) {
         b.from(from);

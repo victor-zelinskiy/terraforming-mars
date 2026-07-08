@@ -54,6 +54,9 @@ export type MarsBotRevealedCard =
 export type MarsBotStepCause =
   | {kind: 'tag', index: number}
   | {kind: 'bonus'}
+  /** A chained fallback bonus card's OWN effect (Corporate Competition draws
+   *  another card) — the review nests it under the parent as ONE flow. */
+  | {kind: 'secondary-bonus'}
   | {kind: 'colony'}
   | {kind: 'failed'}
   | {kind: 'delta'};

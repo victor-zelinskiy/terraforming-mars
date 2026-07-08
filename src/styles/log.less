@@ -92,6 +92,22 @@
   margin: 0 -6px -4px 0px;
 }
 
+/* Resource / card-resource / global-parameter / TR icon in the LEGACY log
+ * (spectator + game-end). The sprite comes from the shared `iconClassFor`
+ * family; the doubled class (specificity 0,2,0) beats those families' own
+ * single-class size rules (`.resource_icon` 36px, `.wgt-icon--ocean` 30px) so
+ * the icon lands at the legacy line size regardless of stylesheet order. */
+.log-resource-icon.log-resource-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  margin: 0 1px -3px 1px;
+  vertical-align: middle;
+}
+
 .log-excavation-token {
     color: #fff;
     background: linear-gradient(-60deg, #805700 10%, #816a4c, #805700 90%);    // TODO(kberg): Add a pointer when this is clickable?
