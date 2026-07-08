@@ -609,16 +609,28 @@ export default defineComponent({
              */
             /*
              * MarsBot turns (the MAIN path — ending your turn is what lets
-             * the bot act, so its resolved turn rides THIS response).
-             * NOTIFICATION-FIRST: the fresh turn(s) are archived + enqueued
-             * as compact turn-event notifications BEFORE the commit below, so
-             * the flow-hold is already up when the committed view would mount
-             * a mandatory surface (draft / input modal) — it waits until the
-             * player has seen (or dismissed) what the bot did. The commit is
-             * NOT held; the bot's tile still materialises through the
-             * ordinary tile-placement hold below.
+             * the bot act, so its resolved turn(s) ride THIS response).
+             * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
+             * turns arrive, the latest view is NOT committed here — each
+             * turn's visual footprint applies to the presented view when its
+             * compact card is DELIVERED, and the LAST turn's delivery runs
+             * the closure below (arming the placement animation for any
+             * remaining fresh tiles). The marker/tile/conversion holds are
+             * deliberately skipped on a staged response: the bot's tiles
+             * animate per turn through the staging itself, and a transient
+             * conversion marker is picked up by the next poll (the same
+             * documented behaviour as the poll path).
              */
-            presentFreshBotTurns(this.playerView, newView);
+            if (presentFreshBotTurns(this.playerView, newView, {
+              commitLatest: () => {
+                if (shouldHoldForTilePlacement(this.playerView.game.spaces, newView.game.spaces)) {
+                  armPlacementAnimations();
+                }
+                this.updatePlayerView(newView);
+              },
+            })) {
+              return;
+            }
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,

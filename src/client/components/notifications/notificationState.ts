@@ -114,6 +114,12 @@ function knownId(id: string): boolean {
     notificationState.queue.some((n) => n.id === id);
 }
 
+/** Is a notification with this id anywhere in the presentation (visible or
+ *  queued)? Public for liveness checks (staged bot commits). */
+export function notificationKnownId(id: string): boolean {
+  return knownId(id);
+}
+
 /**
  * Promote queued models into freed transient slots — HIGHEST priority first,
  * FIFO within a priority (`findIndex`-style stable pick). A no-op while the

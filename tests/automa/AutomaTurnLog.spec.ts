@@ -1,14 +1,17 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
+import {TileType} from '../../src/common/TileType';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import type {MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
 import {AutomaState} from '../../src/server/automa/AutomaState';
+import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
 import {IGame} from '../../src/server/IGame';
 import {Server} from '../../src/server/models/ServerModel';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {TestPlayer} from '../TestPlayer';
+import {addOcean, setTemperature} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
 
 const SCIENCE = 3;
@@ -314,6 +317,38 @@ describe('AutomaTurnLog — the typed turn script', () => {
 
       const model = Server.getGameModel(game);
       expect(model.automa?.turnHistory?.map((t) => t.id)).deep.eq([1, 2]);
+    });
+
+    it('records the turn\'s board-visible footprint (tiles + params) into turn.visual', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      // Drive the recording directly: the footprint is a whole-turn snapshot
+      // diff, so ANY mechanic that places a tile / moves a parameter between
+      // begin() and finish() is covered without per-site instrumentation.
+      AutomaTurnLog.begin(game);
+      setTemperature(game, -26);
+      addOcean(human, '32');
+      AutomaTurnLog.note(game, {kind: 'pass'});
+      AutomaTurnLog.finish(game);
+
+      const visual = automa.lastTurn!.visual;
+      expect(visual, 'a visible footprint must be recorded').is.not.undefined;
+      expect(visual!.temperature).deep.eq({before: -30, after: -26});
+      expect(visual!.oceans).deep.eq({before: 0, after: 1});
+      expect(visual!.tiles).deep.eq([{spaceId: '32', tileType: TileType.OCEAN}]);
+      // Oxygen / Venus did not move — no empty entries.
+      expect(visual!.oxygenLevel).is.undefined;
+      expect(visual!.venusScaleLevel).is.undefined;
+    });
+
+    it('a turn with no board-visible footprint carries NO visual (no empty objects)', () => {
+      const [game, human] = testAutomaGame();
+      const automa = game.automa!;
+      startActionPhase(game, human);
+      automa.actionDeck = [];
+      humanEndsTurn(game, human); // an empty deck → a pass turn
+      expect(automa.lastTurn!.visual).is.undefined;
     });
 
     it('old saves without turnHistory deserialize to an empty history', () => {

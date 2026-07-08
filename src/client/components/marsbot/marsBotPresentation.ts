@@ -25,12 +25,20 @@
 import {watch} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel, PlayerViewModel} from '@/common/models/PlayerModel';
-import {MarsBotImpact} from '@/common/automa/MarsBotTurn';
+import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
-import {notificationState, pushTransient, dismiss} from '@/client/components/notifications/notificationState';
+import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {runMarsBotTheaterReplay} from './marsBotTheaterState';
+import {
+  beginBotStaging,
+  botStagingPendingKeys,
+  commitBotStagingNow,
+  deliverBotTurnVisual,
+  isBotStagingActive,
+  updateBotStagingLatest,
+} from './marsBotStagedCommits';
 import {
   ArchivedBotTurn,
   archivedTurnByCorrelation,
@@ -174,11 +182,34 @@ function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined
 }
 
 /**
- * Global-parameter before → after chips (Температура −28°→−26°, Океаны 2→3) —
- * the changes a player must see WITHOUT opening the inspect. Derived from the
- * prev → next view diff, so they are only attached when exactly ONE fresh
- * turn rides the response (a multi-turn diff can't be attributed per turn —
- * the summary lines still name each raise).
+ * Global-parameter before → after chips from THIS turn's own footprint
+ * (`turn.visual`, snapshot-diffed on the server) — exact per turn, so a
+ * multi-turn batch attributes each raise to its own card.
+ */
+export function paramChipsOfVisual(visual: MarsBotTurnVisual | undefined): Array<JournalImpactChip> | undefined {
+  if (visual === undefined) {
+    return undefined;
+  }
+  const chips: Array<JournalImpactChip> = [];
+  if (visual.temperature !== undefined) {
+    chips.push({icon: 'temperature', text: `${visual.temperature.before}°→${visual.temperature.after}°`, neutral: true});
+  }
+  if (visual.oxygenLevel !== undefined) {
+    chips.push({icon: 'oxygen', text: `${visual.oxygenLevel.before}%→${visual.oxygenLevel.after}%`, neutral: true});
+  }
+  if (visual.oceans !== undefined) {
+    chips.push({icon: 'ocean', text: `${visual.oceans.before}→${visual.oceans.after}`, neutral: true});
+  }
+  if (visual.venusScaleLevel !== undefined) {
+    chips.push({icon: 'venus', text: `${visual.venusScaleLevel.before}%→${visual.venusScaleLevel.after}%`, neutral: true});
+  }
+  return chips.length > 0 ? chips : undefined;
+}
+
+/**
+ * Fallback for turns recorded before `turn.visual` existed: the prev → next
+ * view diff — only attributable when exactly ONE fresh turn rides the
+ * response (the summary lines still name each raise otherwise).
  */
 export function globalParamChips(prev: ViewModel | undefined, next: ViewModel): Array<JournalImpactChip> {
   if (prev === undefined) {
@@ -221,9 +252,10 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     ...(header !== undefined ? {header} : {}),
     ...(summary.lines.length > 0 ? {summaryLines: summary.lines} : {}),
     ...(summary.overflow > 0 ? {summaryOverflow: summary.overflow} : {}),
-    // Global-parameter before → after first (the planet-level outcome), then
-    // the viewer's own / the bot's headline resource deltas.
-    pills: [...(opts.paramChips ?? []), ...summaryPills(entry, opts.viewerColor)],
+    // Global-parameter before → after first (the planet-level outcome; exact
+    // per-turn from the script's own footprint, the view diff as fallback),
+    // then the viewer's own / the bot's headline resource deltas.
+    pills: [...(paramChipsOfVisual(entry.turn.visual) ?? opts.paramChips ?? []), ...summaryPills(entry, opts.viewerColor)],
     detailCount: entry.turn.steps.length,
     ...(entry.correlationId !== undefined ? {correlationId: entry.correlationId} : {}),
     generation: entry.generation,
@@ -242,23 +274,66 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
 /**
  * The commit-path hook (App.update poll + WaitingFor.fetchPlayerInput):
  * archive the incoming view's bot turns and enqueue a compact notification
- * per FRESH one. Never holds the commit — the board updates immediately; the
- * cards ride the presentation queue.
+ * per FRESH one.
+ *
+ * STAGED VISUAL COMMITS: when the caller passes its `commitLatest` closure
+ * and the response carries fresh bot turns, the latest view is NOT committed
+ * — it is buffered, and each turn's visual footprint applies to the PRESENTED
+ * view only when that turn's card is DELIVERED (the last pending turn's
+ * delivery performs the full authoritative commit). Returns TRUE when the
+ * staging window took ownership of the commit — the caller must NOT commit.
+ * A response with no fresh turns while a window is open only refreshes the
+ * buffered latest (also returns true). Without `commitLatest` (tests / legacy
+ * call sites) the cards are enqueued and the caller commits as before.
  */
-export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewModel | undefined): void {
+export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewModel | undefined, opts?: {commitLatest?: () => void}): boolean {
   const fresh = recordBotTurnsFromView(prev, next);
   if (fresh.length === 0 || next === undefined) {
-    return;
+    if (next !== undefined && opts?.commitLatest !== undefined && isBotStagingActive()) {
+      // Never commit the latest view directly under a playing sequence —
+      // refresh the buffered latest instead; the drain commits it in order.
+      return updateBotStagingLatest(next, opts.commitLatest);
+    }
+    return false;
   }
   const autoExpand = marsBotPresentationMode() === 'theater';
   const viewerColor = (next as PlayerViewModel | undefined)?.thisPlayer?.color;
-  // The prev → next global-parameter diff is attributable ONLY when exactly
-  // one fresh turn rides the response; with several, each card's summary
-  // lines still name the raises.
+  // Fallback chips for pre-`visual` turns: the prev → next diff is
+  // attributable only when exactly one fresh turn rides the response.
   const paramChips = fresh.length === 1 ? globalParamChips(prev, next) : [];
   const now = Date.now();
   for (const entry of fresh) {
     pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand, paramChips}));
+  }
+  if (opts?.commitLatest === undefined) {
+    return false;
+  }
+  if (prev === undefined) {
+    // Fresh session seed — nothing was enqueued; commit normally.
+    return false;
+  }
+  beginBotStaging(prev, fresh.map((e) => ({key: e.key, turn: e.turn})), next, opts.commitLatest);
+  // Self-heal: if NONE of the cards could enter the presentation (master
+  // notification switch off / kind filtered), the sequence can never drain —
+  // fall back to the immediate authoritative commit.
+  if (!fresh.some((e) => notificationKnownId(botTurnNotificationId(e.key)))) {
+    commitBotStagingNow();
+  }
+  return true;
+}
+
+/**
+ * Liveness self-heal (called from NotificationLayer's poll): a staging window
+ * whose pending cards are ALL gone from the presentation (dismissed from the
+ * queue without ever showing) would never drain — commit the buffered latest.
+ */
+export function ensureBotPresentationLiveness(): void {
+  if (!isBotStagingActive()) {
+    return;
+  }
+  const pending = botStagingPendingKeys();
+  if (!pending.some((key) => notificationKnownId(botTurnNotificationId(key)))) {
+    commitBotStagingNow();
   }
 }
 
@@ -289,13 +364,24 @@ export function openMarsBotReplayByCorrelation(correlationId: number): boolean {
   return openMarsBotReplay(archivedTurnByCorrelation(correlationId)?.key);
 }
 
-// 'theater' presentation mode: the moment a bot-turn card is DELIVERED
-// (visible — i.e. every gate/queue already let it through), it expands into
-// the full theater instead of showing the compact card.
+// The DELIVERY hook — the heart of the staged visual timeline. The moment a
+// bot-turn card becomes VISIBLE (every gate/queue already let it through):
+//  1. the presented view advances to THAT turn (its tiles / parameters /
+//     resource deltas apply; the LAST pending turn performs the full
+//     authoritative commit instead) — consequences appear exactly with their
+//     explanation, never before;
+//  2. in the 'theater' presentation mode the card then auto-expands into the
+//     full turn theater instead of showing the compact card.
+// The watch is pre-flush: the mutation lands in the same tick as the card's
+// render, before paint.
 watch(
-  () => notificationState.transient.find((n) => n.autoExpand === true && n.botTurnKey !== undefined),
+  () => notificationState.transient.find((n) => n.botTurnKey !== undefined),
   (card) => {
-    if (card !== undefined) {
+    if (card?.botTurnKey === undefined) {
+      return;
+    }
+    deliverBotTurnVisual(card.botTurnKey);
+    if (card.autoExpand === true) {
       openMarsBotReplay(card.botTurnKey);
     }
   },

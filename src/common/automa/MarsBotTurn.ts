@@ -2,6 +2,8 @@ import {CardName} from '../cards/CardName';
 import {Color} from '../Color';
 import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
+import {TileType} from '../TileType';
+import {SpaceId} from '../Types';
 import {LogMessage} from '../logs/LogMessage';
 import {BonusCardId, TrackAction} from './AutomaTypes';
 
@@ -120,6 +122,30 @@ export type MarsBotTurnStep =
    */
   | {kind: 'impact', impact: MarsBotImpact};
 
+/** A tile this ONE turn placed on the Mars board (snapshot-diffed). */
+export type MarsBotTurnTile = {
+  spaceId: SpaceId;
+  tileType: TileType;
+  color?: Color;
+};
+
+export type MarsBotParamChange = {before: number, after: number};
+
+/**
+ * The turn's BOARD-VISIBLE footprint, snapshot-diffed around the whole turn
+ * (like the per-player impacts): the tiles it placed + the global-parameter
+ * changes it caused. This is what lets the client STAGE visual commits — the
+ * presented board/HUD advances turn-by-turn in lockstep with the turn's
+ * compact notification instead of jumping to the batch total.
+ */
+export type MarsBotTurnVisual = {
+  tiles?: ReadonlyArray<MarsBotTurnTile>;
+  temperature?: MarsBotParamChange;
+  oxygenLevel?: MarsBotParamChange;
+  oceans?: MarsBotParamChange;
+  venusScaleLevel?: MarsBotParamChange;
+};
+
 export type MarsBotTurn = {
   /** Monotonic per-game turn number — the client's replay/dedup key. */
   id: number;
@@ -131,5 +157,7 @@ export type MarsBotTurn = {
    * entry to the SAME script. Absent on turns recorded before this field.
    */
   correlationId?: number;
+  /** The board-visible footprint of the turn (absent = nothing visible moved). */
+  visual?: MarsBotTurnVisual;
   steps: ReadonlyArray<MarsBotTurnStep>;
 };

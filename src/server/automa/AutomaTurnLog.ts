@@ -1,6 +1,8 @@
 import {Color} from '../../common/Color';
 import {Resource} from '../../common/Resource';
-import {MarsBotImpactChange, MarsBotTurn, MarsBotTurnStep} from '../../common/automa/MarsBotTurn';
+import {TileType} from '../../common/TileType';
+import {SpaceId} from '../../common/Types';
+import {MarsBotImpactChange, MarsBotParamChange, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -18,6 +20,18 @@ export type MarsBotTurnRecording = {
   steps: Array<MarsBotTurnStep>;
   logIndex: number;
   snapshots: ReadonlyArray<PlayerSnapshot>;
+  /** Board-visible state around the whole turn — diffed into `turn.visual`. */
+  boardSnapshot: BoardSnapshot;
+};
+
+/** The board-visible values snapshotted around the turn (for `turn.visual`). */
+type BoardSnapshot = {
+  temperature: number;
+  oxygenLevel: number;
+  oceans: number;
+  venusScaleLevel: number;
+  /** Occupied spaces at turn start (id → tile type). */
+  tiles: Map<SpaceId, TileType>;
 };
 
 /** The values snapshotted around the whole turn to derive the impact steps. */
@@ -42,6 +56,65 @@ function snapshotOf(player: IPlayer): PlayerSnapshot {
     production[resource] = player.production.get(resource);
   }
   return {color: player.color, isBot: player.isMarsBot === true, stock, production, tr: player.terraformRating};
+}
+
+function boardSnapshotOf(game: IGame): BoardSnapshot {
+  const tiles = new Map<SpaceId, TileType>();
+  for (const space of game.board.spaces) {
+    if (space.tile !== undefined) {
+      tiles.set(space.id, space.tile.tileType);
+    }
+  }
+  return {
+    temperature: game.getTemperature(),
+    oxygenLevel: game.getOxygenLevel(),
+    oceans: game.board.getOceanSpaces().length,
+    venusScaleLevel: game.getVenusScaleLevel(),
+    tiles,
+  };
+}
+
+/**
+ * The turn's board-visible footprint: the tiles it placed + the global
+ * parameters it moved (before → after). Feeds the client's STAGED visual
+ * commits — the presented board/HUD advances turn-by-turn in lockstep with
+ * the turn's compact notification. Returns undefined when nothing visible
+ * moved (no empty objects in the script).
+ */
+function boardVisualOf(before: BoardSnapshot, game: IGame): MarsBotTurnVisual | undefined {
+  const visual: MarsBotTurnVisual = {};
+  const tiles: Array<MarsBotTurnTile> = [];
+  for (const space of game.board.spaces) {
+    if (space.tile !== undefined && before.tiles.get(space.id) !== space.tile.tileType) {
+      tiles.push({
+        spaceId: space.id,
+        tileType: space.tile.tileType,
+        ...(space.player !== undefined ? {color: space.player.color} : {}),
+      });
+    }
+  }
+  if (tiles.length > 0) {
+    visual.tiles = tiles;
+  }
+  const param = (b: number, a: number): MarsBotParamChange | undefined =>
+    (a !== b ? {before: b, after: a} : undefined);
+  const temperature = param(before.temperature, game.getTemperature());
+  const oxygenLevel = param(before.oxygenLevel, game.getOxygenLevel());
+  const oceans = param(before.oceans, game.board.getOceanSpaces().length);
+  const venusScaleLevel = param(before.venusScaleLevel, game.getVenusScaleLevel());
+  if (temperature !== undefined) {
+    visual.temperature = temperature;
+  }
+  if (oxygenLevel !== undefined) {
+    visual.oxygenLevel = oxygenLevel;
+  }
+  if (oceans !== undefined) {
+    visual.oceans = oceans;
+  }
+  if (venusScaleLevel !== undefined) {
+    visual.venusScaleLevel = venusScaleLevel;
+  }
+  return Object.keys(visual).length > 0 ? visual : undefined;
 }
 
 function diffOf(before: PlayerSnapshot, player: IPlayer): Array<MarsBotImpactChange> {
@@ -97,6 +170,8 @@ export class AutomaTurnLog {
       // (the target of an attack, the bot's own gains). Snapshot-based, so any
       // mechanic is covered without per-site instrumentation.
       snapshots: game.players.map(snapshotOf),
+      // Board-visible snapshot (tiles + global params) → `turn.visual`.
+      boardSnapshot: boardSnapshotOf(game),
     };
   }
 
@@ -158,10 +233,12 @@ export class AutomaTurnLog {
     // AutomaController — its root id is the journal group of this turn. Stamp
     // it onto the script so notification / theater / journal share ONE key.
     const correlationId = game.events.captureContext()?.rootId;
+    const visual = boardVisualOf(recording.boardSnapshot, game);
     const turn: MarsBotTurn = {
       id: automa.turnCounter,
       generation: game.generation,
       ...(correlationId !== undefined ? {correlationId} : {}),
+      ...(visual !== undefined ? {visual} : {}),
       steps: recording.steps,
     };
     automa.lastTurn = turn;

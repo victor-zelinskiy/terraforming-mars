@@ -797,17 +797,22 @@ export default defineComponent({
           };
 
           /*
-           * MarsBot turns (poll path) — NOTIFICATION-FIRST (the presentation
-           * flow rework). Fresh bot turns are archived + enqueued as compact
-           * turn-event notifications; the commit is NOT held (the board
-           * updates immediately — the card explains what happened, «Осмотреть»
-           * expands the theater replay). Delivery rides the presentation
-           * queue, so the card never overlaps a result modal / mandatory
-           * prompt, and while it is visible the mandatory surfaces (draft
-           * modal / input modal / console task host) hold off mounting.
+           * MarsBot turns (poll path) — NOTIFICATION-FIRST with STAGED visual
+           * commits. A response carrying fresh bot turns is NOT committed
+           * here: it is buffered by the staging window, and each turn's
+           * visual footprint (tiles / parameters / resource deltas) applies
+           * to the PRESENTED view exactly when that turn's compact card is
+           * DELIVERED; the LAST pending turn's delivery performs this full
+           * `commit`. Consequences never precede their explanation, and the
+           * queued turns' changes are never visible ahead of their card.
+           * While a window is open, later polls only refresh the buffered
+           * latest (also handled inside — returns true). A response with no
+           * fresh turns and no open window falls through to the normal
+           * immediate commit (human actions are never delayed).
            */
-          if (path === paths.PLAYER) {
-            presentFreshBotTurns(prevView, model as PlayerViewModel);
+          if (path === paths.PLAYER &&
+              presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {
+            return;
           }
           /*
            * Energy→heat conversion gate (poll path). When ANOTHER player's

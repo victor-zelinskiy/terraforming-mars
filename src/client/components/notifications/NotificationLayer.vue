@@ -107,7 +107,8 @@ import {
   promoteFromQueue,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
-import {openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import {ensureBotPresentationLiveness, openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
 import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
@@ -219,6 +220,10 @@ export default defineComponent({
       // this covers the degenerate case of a blocker opening AND closing
       // within one tick (invisible to the watcher). No-op while blocked.
       promoteFromQueue();
+      // Staged bot commits liveness: a staging window whose pending cards all
+      // left the presentation (queue-dismissed, never shown) would never
+      // drain — commit the buffered authoritative state. No-op otherwise.
+      ensureBotPresentationLiveness();
       const now = Date.now();
       // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
       // announces ONLY at the START of a fresh turn: the action menu titled
@@ -333,6 +338,7 @@ export default defineComponent({
         resetTerraformingCelebration(); // same boundary — a different game opened in-session
         resetMaCeremony();
         resetMarsBotArchive(); // stale turn scripts belong to the previous game
+        resetBotStaging(); // a stale staging window must not swallow the new game's commits
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }
       const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
