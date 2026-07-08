@@ -14,8 +14,9 @@ import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
+import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
-import {marsBotOfView, trackTagsOfView, turnDedupeKey} from './marsBotTheaterModel';
+import {marsBotOfView, trackTagsOfView, turnDedupeKey} from './marsBotTurnView';
 
 export type ArchivedBotTurn = {
   /** `${botColor}:${generation}:${id}` — the session dedup/replay key. */
@@ -23,14 +24,16 @@ export type ArchivedBotTurn = {
   turn: MarsBotTurn;
   botColor: Color | '';
   botName: string;
-  /** Expansion context (resolves bonus-card texts in theater steps). */
+  /** The bot's difficulty (captured so a journal review is self-contained). */
+  difficulty: DifficultyLevel;
+  /** Expansion context (resolves bonus-card texts in the review). */
   ctx: BonusCardContext;
   /** Track index → identity tag, captured at archive time. */
   trackTags: ReadonlyArray<Tag | undefined>;
   /** The journal group id of the turn (server-stamped), when available. */
   correlationId?: number;
   generation: number;
-  /** The player opened the theater for this turn at least once. */
+  /** The player opened the review for this turn at least once. */
   viewed: boolean;
 };
 
@@ -69,6 +72,7 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
   // spectator mock without them degrades to the base context.
   const expansions = next.game.gameOptions?.expansions;
   const ctx: BonusCardContext = {venus: expansions?.venus === true, colonies: expansions?.colonies === true};
+  const difficulty: DifficultyLevel = next.game.automa?.difficulty ?? 'normal';
   const trackTags = trackTagsOfView(next);
   const silentSeed = prev === undefined;
   const fresh: Array<ArchivedBotTurn> = [];
@@ -82,6 +86,7 @@ export function recordBotTurnsFromView(prev: ViewModel | undefined, next: ViewMo
       turn,
       botColor: bot.color,
       botName: bot.name,
+      difficulty,
       ctx,
       trackTags,
       generation: turn.generation,

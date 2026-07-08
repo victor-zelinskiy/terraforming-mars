@@ -34,7 +34,7 @@
 import {computed, reactive, watch} from 'vue';
 import {hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import {revealResultState} from '@/client/components/actions/revealResultState';
-import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {
   ForegroundLeaseKind,
   PresentationBlockReason,
@@ -63,7 +63,7 @@ function flags(): PresentationFlags {
     resultModalOpen: hasVisibleReveal() || revealResultState.active,
     mandatoryLeases: leaseCounts['mandatory-choice'],
     ceremonyLeases: leaseCounts['ceremony'],
-    theaterOpen: marsBotTheaterState.active || marsBotTheaterState.lingering,
+    theaterOpen: botTurnReviewState.open,
     flowHoldingNotificationVisible: flowHoldSupplier(),
   };
 }

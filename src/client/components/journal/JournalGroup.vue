@@ -16,8 +16,8 @@
           :token="tok"
           :players="players" />
       </span>
-      <!-- A MarsBot turn with an ARCHIVED script — reopen the turn theater as
-           a replay (details mode, read-only; never a new game event). -->
+      <!-- A MarsBot turn with an ARCHIVED script — reopen the «Разбор хода»
+           review (read-only; never a new game event). -->
       <button v-if="botReplayAvailable"
               type="button"
               class="journal-group__replay"
@@ -80,7 +80,7 @@ import JournalTokenRenderer from '@/client/components/journal/JournalTokenRender
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
 import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
 import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
-import {openMarsBotReplayByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
+import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 
 /**
  * One premium cause/effect GROUP rendered as a single cohesive cluster: a
@@ -200,7 +200,7 @@ export default defineComponent({
   methods: {
     openBotReplay(): void {
       if (this.header.correlationId !== undefined) {
-        openMarsBotReplayByCorrelation(this.header.correlationId);
+        openBotTurnReviewByCorrelation(this.header.correlationId);
       }
     },
     parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {

@@ -68,10 +68,11 @@
          in the top-HUD rail + generation marker). -->
     <ConsoleTerraformingBanner />
 
-    <!-- MarsBot turn theater — the console-native narration band. Renders the
-         SAME marsBotTheaterState as the desktop overlay (suppressed in console
-         mode); A skips, hinted only in the command bar. -->
-    <ConsoleMarsBotTheater :players="playerView.players" />
+    <!-- MarsBot «Разбор хода» — the console-native FULLSCREEN turn review.
+         Renders the SAME botTurnReviewState as the desktop overlay (suppressed
+         in console mode); B closes, X inspects the card, L3 shows on map —
+         hinted only in the command bar. -->
+    <ConsoleBotTurnReview :players="playerView.players" />
 
     <!-- Milestone coronation / award seal — the cinematic post-confirm beat
          (pointer-events: none, bounded lifetime; fired only when the fresh
@@ -481,10 +482,9 @@ import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeRes
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
-import ConsoleMarsBotTheater from '@/client/components/console/ConsoleMarsBotTheater.vue';
-import {dismissMarsBotTheater, marsBotTheaterState, skipMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
-import {theaterCardNames} from '@/client/components/marsbot/marsBotTheaterModel';
-import {openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
+import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
+import {openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
@@ -599,7 +599,7 @@ export default defineComponent({
   components: {
     ConsoleStatusStrip,
     ConsoleTerraformingBanner,
-    ConsoleMarsBotTheater,
+    ConsoleBotTurnReview,
     ConsoleCommandBar,
     ConsoleSheet,
     ConsoleMaScreen,
@@ -641,7 +641,7 @@ export default defineComponent({
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
-      marsBotTheaterState,
+      botTurnReviewState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
@@ -709,10 +709,10 @@ export default defineComponent({
     },
     /**
      * PRESENTATION FLOW: while the player is being shown what just happened
-     * (the compact AI-turn card / the opened theater), the console's
-     * mandatory task surfaces hold off mounting — bounded by the card's TTL /
-     * the theater close. The holding card / theater band is registered as a
-     * serving surface in the leak detector, so the prompt is never "stranded".
+     * (the compact AI-turn card / the opened «Разбор хода» review), the
+     * console's mandatory task surfaces hold off mounting — bounded by the
+     * card's TTL / the review close. The holding card / review is registered as
+     * a serving surface in the leak detector, so the prompt is never "stranded".
      */
     presentationHeld(): boolean {
       return isMandatoryPromptsHeld();
@@ -1424,34 +1424,37 @@ export default defineComponent({
         return this.consoleState.inspecting ? 'Board inspection' : 'Board';
       }
     },
-    /** The theater has shown at least one project card → X = Inspect. */
-    theaterInspectable(): boolean {
-      const s = this.marsBotTheaterState;
-      return (s.active || s.lingering) && theaterCardNames(s.steps, s.currentIndex).length > 0;
+    /** The played project card(s) shown this turn — X = Осмотреть карту. */
+    reviewCardNames(): ReadonlyArray<CardName> {
+      return this.botTurnReviewState.review?.cardNames ?? [];
+    },
+    reviewInspectable(): boolean {
+      return this.botTurnReviewState.open && this.reviewCardNames.length > 0;
+    },
+    /** The first placed tile — L3 = Показать на карте. */
+    reviewMapSpace(): SpaceId | undefined {
+      return this.botTurnReviewState.review?.primarySpaceId;
     },
     commands(): Array<ConsoleCommand> {
-      // MarsBot turn theater: skip + inspect-the-revealed-card. While the
-      // fullscreen viewer is up its OWN footer carries the contract.
-      if (this.marsBotTheaterState.active && this.consoleCardZoom.card === undefined) {
-        const cmds: Array<ConsoleCommand> = [];
-        if (this.theaterInspectable) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
+      // «Разбор хода» review: X inspect the played card, L3 show on map, B
+      // close. While the fullscreen viewer is up its OWN footer carries the
+      // contract; during a peek any button returns.
+      if (this.botTurnReviewState.open && this.consoleCardZoom.card === undefined) {
+        if (this.botTurnReviewState.peek) {
+          return [{control: 'confirm', label: 'Back to review'}];
         }
-        cmds.push({control: 'confirm', label: 'Skip'});
-        return cmds;
-      }
-      // The narration lingers until acknowledged — B closes it (while a
-      // follow-up prompt modal is up, the modal's own hints take over).
-      if (this.marsBotTheaterState.lingering && !this.consoleState.fallbackActive && this.consoleCardZoom.card === undefined) {
         const cmds: Array<ConsoleCommand> = [];
-        if (this.theaterInspectable) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
+        if (this.reviewInspectable) {
+          cmds.push({control: 'secondary', label: 'Inspect card'});
+        }
+        if (this.reviewMapSpace !== undefined) {
+          cmds.push({control: 'stickL', label: 'Show on map'});
         }
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
       // PRESENTATION FLOW: the compact AI-turn card is the foreground item —
-      // its contract owns the bar (X expand into the theater, B close).
+      // its contract owns the bar (X open the review, B close).
       if (this.foregroundHoldingCard !== undefined && this.consoleCardZoom.card === undefined) {
         const cmds: Array<ConsoleCommand> = [];
         if (this.foregroundHoldingCard.botTurnKey !== undefined) {
@@ -1970,25 +1973,33 @@ export default defineComponent({
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
-      // MarsBot turn theater: while the narration band replays the bot's turn
-      // (the commit is held), A skips, X inspects the revealed card(s), the
-      // right stick scrolls the feed; everything else is swallowed so no
-      // command fires under the held view.
-      if (this.marsBotTheaterState.active) {
+      // «Разбор хода» review owns the pad while open (a read-only foreground
+      // item — the presentation flow holds every other surface). B closes, X
+      // inspects the played card, L3 shows the placed tile on the board, the
+      // right stick scrolls; during a peek any press returns to the review.
+      if (this.botTurnReviewState.open) {
         // The fullscreen viewer opened via X owns the pad while it is up.
         if (this.consoleCardZoom.card !== undefined) {
           return this.handleZoomIntent(intent);
         }
+        if (this.botTurnReviewState.peek) {
+          if (intent.kind === 'press') {
+            setBotReviewPeek(false);
+          }
+          return true;
+        }
         if (intent.kind === 'scroll') {
-          this.scrollTheaterFeed(intent.dy);
+          this.scrollReviewFeed(intent.dy);
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'secondary') {
-          this.inspectTheaterCard();
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'confirm') {
-          skipMarsBotTheater();
+        if (intent.kind === 'press') {
+          if (intent.button === 'secondary' && this.reviewInspectable) {
+            this.inspectReviewCard();
+          } else if (intent.button === 'stickL' && this.reviewMapSpace !== undefined) {
+            setBotReviewPeek(true, this.reviewMapSpace);
+          } else if (intent.button === 'back') {
+            closeBotTurnReview();
+          }
         }
         return true;
       }
@@ -2008,11 +2019,11 @@ export default defineComponent({
         return this.handleZoomIntent(intent);
       }
       // PRESENTATION FLOW: a visible flow-holding notification (the compact
-      // AI-turn card) is the foreground item — B closes it, X expands it into
-      // the turn theater. Deliberately CLAIMS only back/secondary/confirm
-      // (A is swallowed so nothing submits under the card); navigation and
-      // scrolling pass through, so the board stays inspectable. Ordinary
-      // corner toasts never capture the pad (B stays "back" for navigation).
+      // AI-turn card) is the foreground item — B closes it, X opens the «Разбор
+      // хода» review. Deliberately CLAIMS only back/secondary/confirm (A is
+      // swallowed so nothing submits under the card); navigation and scrolling
+      // pass through, so the board stays inspectable. Ordinary corner toasts
+      // never capture the pad (B stays "back" for navigation).
       const holdingCard = this.foregroundHoldingCard;
       if (holdingCard !== undefined && this.consoleCardZoom.card === undefined) {
         if (intent.kind === 'press' && intent.button === 'back') {
@@ -2020,7 +2031,7 @@ export default defineComponent({
           return true;
         }
         if (intent.kind === 'press' && intent.button === 'secondary' && holdingCard.botTurnKey !== undefined) {
-          openMarsBotReplay(holdingCard.botTurnKey);
+          openBotTurnReviewByKey(holdingCard.botTurnKey);
           return true;
         }
         if (intent.kind === 'press' && intent.button === 'confirm') {
@@ -2038,25 +2049,6 @@ export default defineComponent({
       this.consoleState.fallbackScopeId = scope?.def.id ?? '';
       if (fallback) {
         return false;
-      }
-      // A LINGERING bot narration (the replay finished, the band stays until
-      // acknowledged): B closes it, X inspects the revealed card(s), the
-      // right stick scrolls an OVERFLOWING feed; every other intent plays
-      // through to the game. Placed AFTER the fallback branch on purpose —
-      // while a follow-up prompt modal is up, input belongs to the modal
-      // first. Scroll/X are claimed only when the band can actually serve
-      // them, so the home surface keeps them otherwise.
-      if (this.marsBotTheaterState.lingering) {
-        if (intent.kind === 'press' && intent.button === 'back') {
-          dismissMarsBotTheater();
-          return true;
-        }
-        if (intent.kind === 'scroll' && this.scrollTheaterFeed(intent.dy)) {
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'secondary' && this.inspectTheaterCard()) {
-          return true;
-        }
       }
       if (intent.kind === 'release') {
         return true;
@@ -3518,13 +3510,10 @@ export default defineComponent({
         }
       }
     },
-    /**
-     * Right-stick scroll of the theater band's step feed. Returns true when
-     * the feed actually OVERFLOWS (so a lingering band only claims the stick
-     * when it can serve it — otherwise the home surface keeps it).
-     */
-    scrollTheaterFeed(dy: number): boolean {
-      const feed = document.querySelector<HTMLElement>('.con-bot-theater__steps');
+    /** Right-stick scroll of the review's scroll area. Returns true when it
+     *  actually OVERFLOWS. */
+    scrollReviewFeed(dy: number): boolean {
+      const feed = document.querySelector<HTMLElement>('.con-bot-review__scroll');
       if (feed === null || feed.scrollHeight <= feed.clientHeight + 1) {
         return false;
       }
@@ -3534,13 +3523,12 @@ export default defineComponent({
       return true;
     },
     /**
-     * X on the theater band — open every project card the narration has shown
-     * so far (the flip + any draw-and-resolve log cards) in the fullscreen
-     * browser, newest on screen. Returns false when the turn revealed none.
+     * X on the review — open every project card the turn played (the flip + any
+     * draw-and-resolve log cards) in the fullscreen browser, newest on screen.
+     * Returns false when the turn played none.
      */
-    inspectTheaterCard(): boolean {
-      const s = this.marsBotTheaterState;
-      const names = theaterCardNames(s.steps, s.currentIndex);
+    inspectReviewCard(): boolean {
+      const names = this.reviewCardNames;
       if (names.length === 0) {
         return false;
       }

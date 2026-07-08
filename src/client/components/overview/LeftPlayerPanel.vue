@@ -129,7 +129,7 @@ import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
 import MarsBotPanel from '@/client/components/marsbot/MarsBotPanel.vue';
 import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
-import {marsBotTheaterState} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -247,11 +247,11 @@ export default defineComponent({
     // keep their own simultaneous-pick statuses), so no card is the turn owner.
     //
     // MarsBot exception: its turn resolves synchronously on the server, so the
-    // model never marks it active — the theater replay window IS its turn for
-    // everyone at the table. While it plays, the bot's card owns the turn with
-    // the same player-colour accent a human turn owner gets.
+    // model never marks it active — the open «Разбор хода» review IS its turn
+    // for everyone at the table. While it is open, the bot's card owns the turn
+    // with the same player-colour accent a human turn owner gets.
     isTurnOwnerFor(p: PublicPlayerModel): boolean {
-      if (p.isMarsBot === true && marsBotTheaterState.active && marsBotTheaterState.botColor === p.color) {
+      if (p.isMarsBot === true && botTurnReviewState.open && botTurnReviewState.botColor === p.color) {
         return true;
       }
       return this.playerView.game.phase === Phase.ACTION && p.isActive;

@@ -6,16 +6,16 @@
  * fullscreen theater over whatever the player is doing (the old commit-hold
  * flow), each fresh turn becomes a compact TURN-EVENT NOTIFICATION:
  *
- *   «ИИ завершил ход» + headline (the revealed card / pass) + impact pills
- *   + «Осмотреть» (expand into the full theater) + «В журнал».
+ *   «Бот завершил ход» + headline (the played card / pass) + impact pills
+ *   + «Осмотреть» (open the «Разбор хода» review) + «В журнал».
  *
  * The card rides the ordinary notification queue, so it NEVER overlaps a
  * result modal / mandatory choice / another notification — it waits its FIFO
  * turn. While it is VISIBLE it HOLDS mandatory surfaces (`holdsFlow`, bounded
  * by its TTL) so a draft that arrived in the same response opens only after
- * the player has seen (or dismissed) what the bot did. Expanding opens the
- * theater as a REPLAY of the archived script; the journal keeps the turn
- * forever and can reopen the same replay later.
+ * the player has seen (or dismissed) what the bot did. «Осмотреть» opens the
+ * «Разбор хода» review of the archived script; the journal keeps the turn
+ * forever and can reopen the same review later.
  *
  * PRESENTATION MODE (architecture knob — no settings UI yet, mirrors the
  * motionTokens URL/localStorage pattern): 'notification' (default) shows the
@@ -30,7 +30,7 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
-import {runMarsBotTheaterReplay} from './marsBotTheaterState';
+import {openBotTurnReview} from './botTurnReviewState';
 import {
   beginBotStaging,
   botStagingPendingKeys,
@@ -338,18 +338,19 @@ export function ensureBotPresentationLiveness(): void {
 }
 
 /**
- * Expand an archived turn into the theater replay. The theater flips ACTIVE
+ * Open the «Разбор хода» review of an archived turn. The review flips OPEN
  * synchronously BEFORE the card is dismissed, so the freed visible slot can't
- * promote the next queued card under the opening theater.
+ * promote the next queued card under the opening review.
  */
-export function openMarsBotReplay(key: string | undefined): boolean {
+export function openBotTurnReviewByKey(key: string | undefined): boolean {
   const entry = key !== undefined ? archivedTurnByKey(key) : undefined;
   if (entry === undefined) {
     return false;
   }
-  runMarsBotTheaterReplay({
+  openBotTurnReview({
     botColor: entry.botColor,
     botName: entry.botName,
+    difficulty: entry.difficulty,
     ctx: entry.ctx,
     turn: entry.turn,
     trackTags: entry.trackTags,
@@ -359,9 +360,9 @@ export function openMarsBotReplay(key: string | undefined): boolean {
   return true;
 }
 
-/** Journal path: open the replay of the turn whose journal group is `correlationId`. */
-export function openMarsBotReplayByCorrelation(correlationId: number): boolean {
-  return openMarsBotReplay(archivedTurnByCorrelation(correlationId)?.key);
+/** Journal path: open the review of the turn whose journal group is `correlationId`. */
+export function openBotTurnReviewByCorrelation(correlationId: number): boolean {
+  return openBotTurnReviewByKey(archivedTurnByCorrelation(correlationId)?.key);
 }
 
 // The DELIVERY hook — the heart of the staged visual timeline. The moment a
@@ -382,7 +383,7 @@ watch(
     }
     deliverBotTurnVisual(card.botTurnKey);
     if (card.autoExpand === true) {
-      openMarsBotReplay(card.botTurnKey);
+      openBotTurnReviewByKey(card.botTurnKey);
     }
   },
 );

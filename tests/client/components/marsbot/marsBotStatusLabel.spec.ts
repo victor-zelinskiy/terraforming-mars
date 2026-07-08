@@ -3,7 +3,7 @@ import {Phase} from '@/common/Phase';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus} from '@/client/components/overview/playerStatusPresenter';
-import {marsBotTheaterState, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 
 function player(overrides: Partial<PublicPlayerModel>): PublicPlayerModel {
   return {
@@ -24,7 +24,7 @@ function view(players: ReadonlyArray<PublicPlayerModel>, passedPlayers: Readonly
 
 describe('marsBot status label (the theater IS the bot\'s active window)', () => {
   afterEach(() => {
-    resetMarsBotTheater();
+    resetBotTurnReview();
   });
 
   it('shows the bot as actively taking its turn while the theater plays', () => {
@@ -32,8 +32,8 @@ describe('marsBot status label (the theater IS the bot\'s active window)', () =>
     const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true});
     const v = view([human, bot]);
 
-    marsBotTheaterState.active = true;
-    marsBotTheaterState.botColor = 'red';
+    botTurnReviewState.open = true;
+    botTurnReviewState.botColor = 'red';
 
     expect(actionLabelForPlayer(v, bot)).to.eq('bottheater');
     // Presented exactly like a human's active turn — same category and glyph,
@@ -55,8 +55,8 @@ describe('marsBot status label (the theater IS the bot\'s active window)', () =>
   it('never marks a human with the bot-theater label', () => {
     const human = player({color: 'blue'});
     const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true});
-    marsBotTheaterState.active = true;
-    marsBotTheaterState.botColor = 'red';
+    botTurnReviewState.open = true;
+    botTurnReviewState.botColor = 'red';
     expect(actionLabelForPlayer(view([human, bot]), human)).to.not.eq('bottheater');
   });
 });

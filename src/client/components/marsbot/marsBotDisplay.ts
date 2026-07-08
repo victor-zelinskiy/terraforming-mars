@@ -3,8 +3,8 @@
  *
  * Server-side the bot stays canonical `MarsBot` (player name, ids, events,
  * saves — nothing renamed). The USER-FACING label localizes through the
- * i18n key 'MarsBot': English UI keeps "MarsBot", the Russian UI shows «ИИ»
- * (with «ИИ • Обычный»-style compact badges where a difficulty fits).
+ * i18n key 'MarsBot': English UI keeps "MarsBot", the Russian UI shows «Бот»
+ * (with «Бот • Обычный»-style compact badges where a difficulty fits).
  *
  * Every component that renders a participant label routes through these
  * helpers — never a scattered `name === 'MarsBot'` check, never a raw

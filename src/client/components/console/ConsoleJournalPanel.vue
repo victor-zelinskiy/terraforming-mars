@@ -185,7 +185,7 @@ import {buildJournalView, JournalGroupNode} from '@/client/components/journal/jo
 import {JournalFilter, journalFilterEquals, messagePassesFilter} from '@/client/components/journal/journalFilter';
 import {journalState, JournalDetailMode} from '@/client/components/journal/journalState';
 import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
-import {openMarsBotReplayByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
+import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 import {createJournalDataSource, JournalDataSource} from '@/client/components/journal/journalDataSource';
 import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJournalState';
 import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalNodeMode, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
@@ -680,15 +680,15 @@ export default defineComponent({
      */
     openInspect(): void {
       // PRESENTATION FLOW: a MarsBot turn group with an ARCHIVED script — X
-      // reopens the turn theater as a replay (read-only, no game event). The
-      // journal yields the screen so the theater band owns the pad (B closes
-      // it; the journal reopens via the ordinary View button).
+      // opens the «Разбор хода» review (read-only, no game event). The journal
+      // yields the screen so the review owns the pad (B closes it; the journal
+      // reopens via the ordinary View button).
       const node = this.focusedNode;
       if (node !== undefined && node.kind === 'group' &&
           node.group.category === 'automa-turn' &&
           node.group.header.correlationId !== undefined &&
           botReplayAvailableFor(node.group.header.correlationId)) {
-        if (openMarsBotReplayByCorrelation(node.group.header.correlationId)) {
+        if (openBotTurnReviewByCorrelation(node.group.header.correlationId)) {
           journalState.open = false;
           return;
         }

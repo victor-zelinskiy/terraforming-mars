@@ -11,8 +11,8 @@ import {
   botTurnNotificationId,
   globalParamChips,
   marsBotPresentationMode,
-  openMarsBotReplay,
-  openMarsBotReplayByCorrelation,
+  openBotTurnReviewByKey,
+  openBotTurnReviewByCorrelation,
   presentFreshBotTurns,
   setMarsBotPresentationMode,
 } from '@/client/components/marsbot/marsBotPresentation';
@@ -22,7 +22,7 @@ import {
   recordBotTurnsFromView,
   resetMarsBotArchive,
 } from '@/client/components/marsbot/marsBotTurnArchive';
-import {dismissMarsBotTheater, marsBotTheaterState, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState, closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {notificationState, resetNotifications, acknowledgeFlowHoldingCards, notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
 import {isMandatoryPromptsHeld, registerFlowHoldSupplier, resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
@@ -80,7 +80,7 @@ const PREV = botView();
 describe('marsBotPresentation (notification-first turns)', () => {
   beforeEach(() => {
     resetMarsBotArchive();
-    resetMarsBotTheater();
+    resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
     dismissReveal();
@@ -93,7 +93,7 @@ describe('marsBotPresentation (notification-first turns)', () => {
   });
 
   afterEach(() => {
-    dismissMarsBotTheater();
+    closeBotTurnReview();
   });
 
   describe('archive', () => {
@@ -222,9 +222,9 @@ describe('marsBotPresentation (notification-first turns)', () => {
   describe('theater replay', () => {
     it('expand: the theater opens on the archived script, the card is dismissed, the turn is marked viewed', () => {
       presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}));
-      expect(openMarsBotReplay('red:1:1')).eq(true);
-      expect(marsBotTheaterState.active).eq(true);
-      expect(marsBotTheaterState.botName).eq('ИИ');
+      expect(openBotTurnReviewByKey('red:1:1')).eq(true);
+      expect(botTurnReviewState.open).eq(true);
+      expect(botTurnReviewState.botName).eq('ИИ');
       expect(notificationState.transient).lengthOf(0);
       expect(archivedTurnByKey('red:1:1')?.viewed).eq(true);
       // Case B: while the theater is open, mandatory prompts stay held.
@@ -233,14 +233,14 @@ describe('marsBotPresentation (notification-first turns)', () => {
 
     it('journal path: opens the replay by the turn\'s correlationId (later, replay-only)', () => {
       recordBotTurnsFromView(undefined, botView({lastTurn: turn(3, {correlationId: 42})}));
-      expect(openMarsBotReplayByCorrelation(42)).eq(true);
-      expect(marsBotTheaterState.active).eq(true);
-      expect(openMarsBotReplayByCorrelation(999)).eq(false);
+      expect(openBotTurnReviewByCorrelation(42)).eq(true);
+      expect(botTurnReviewState.open).eq(true);
+      expect(openBotTurnReviewByCorrelation(999)).eq(false);
     });
 
     it('a queued next card is NOT promoted under the opening theater', () => {
       presentFreshBotTurns(PREV, botView({lastTurn: turn(2), turnHistory: [turn(1), turn(2)]}));
-      openMarsBotReplay('red:1:1');
+      openBotTurnReviewByKey('red:1:1');
       // The freed slot stays empty while the theater blocks delivery.
       expect(notificationState.transient).lengthOf(0);
       expect(notificationState.queue.map((n) => n.id)).deep.eq(['bot:red:1:2']);
@@ -262,13 +262,13 @@ describe('marsBotPresentation (notification-first turns)', () => {
         await nextTick(); // the blocked transition is observed
         presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}));
         await nextTick();
-        expect(marsBotTheaterState.active).eq(false);
+        expect(botTurnReviewState.open).eq(false);
         expect(notificationState.queue).lengthOf(1);
 
         dismissReveal();
         await nextTick(); // delivered…
         await nextTick(); // …and auto-expanded by the watcher
-        expect(marsBotTheaterState.active).eq(true);
+        expect(botTurnReviewState.open).eq(true);
         expect(notificationState.transient).lengthOf(0);
       } finally {
         setMarsBotPresentationMode('notification');

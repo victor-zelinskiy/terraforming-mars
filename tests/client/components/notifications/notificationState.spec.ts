@@ -16,7 +16,7 @@ import {
 } from '@/client/components/notifications/notificationState';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
-import {marsBotTheaterState, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 
 function model(id: string, kind: NotificationKind = 'normal', extra: Partial<NotificationModel> = {}): NotificationModel {
@@ -41,7 +41,7 @@ describe('notificationState (lifecycle)', () => {
     resetNotifications();
     // Presentation flow: no blocking foreground — delivery is open.
     resetPresentationLeases();
-    resetMarsBotTheater();
+    resetBotTurnReview();
     dismissReveal();
     drawnCardsState.events = [];
     notificationState.seeded = true;
@@ -115,11 +115,11 @@ describe('notificationState (lifecycle)', () => {
     });
 
     it('the open theater blocks delivery too (no toasts over the narration)', () => {
-      marsBotTheaterState.active = true;
+      botTurnReviewState.open = true;
       pushTransient(model('a'));
       expect(notificationState.transient).to.have.length(0);
       expect(notificationState.queue).to.have.length(1);
-      marsBotTheaterState.active = false;
+      botTurnReviewState.open = false;
     });
 
     it('holdVisibleTransient re-queues the visible card at the FRONT (a blocker opened)', () => {

@@ -16,7 +16,7 @@ import {
   resetBotStaging,
 } from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
-import {dismissMarsBotTheater, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {notificationState, resetNotifications, dismiss} from '@/client/components/notifications/notificationState';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
@@ -103,7 +103,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     committed = 0;
     resetBotStaging();
     resetMarsBotArchive();
-    resetMarsBotTheater();
+    resetBotTurnReview();
     resetNotifications();
     resetPresentationLeases();
     dismissReveal();
@@ -113,7 +113,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
   });
 
   afterEach(() => {
-    dismissMarsBotTheater();
+    closeBotTurnReview();
     resetBotStaging();
   });
 

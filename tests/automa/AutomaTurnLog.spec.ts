@@ -57,6 +57,35 @@ describe('AutomaTurnLog — the typed turn script', () => {
     expect(cascade).deep.eq({kind: 'advance', trackIndex: SCIENCE, from: 1, to: 2});
   });
 
+  // CONTRACT the «Разбор хода» review's Phase-A cause→effect grouping depends
+  // on: a project card writes its steps STRICTLY as reveal → (tag → its own
+  // advance(s))* — each printed tag is immediately followed by the advance(s)
+  // it caused, never interleaved with another tag. The order-based grouper
+  // (botTurnReviewModel.buildChains) attaches each advance to the preceding
+  // tag; if the server ever reordered these, the review would misattribute.
+  it('CONTRACT: a multi-tag project writes each tag immediately followed by its own advance', () => {
+    const [game, human] = testAutomaGame();
+    const automa = game.automa!;
+    startActionPhase(game, human);
+    automa.actionDeck = [{kind: 'project', name: CardName.RESEARCH}]; // two science tags
+    humanEndsTurn(game, human);
+
+    const steps = automa.lastTurn!.steps;
+    expect(steps[0].kind).eq('reveal');
+    // No advance precedes the first tag.
+    const firstTag = steps.findIndex((s) => s.kind === 'tag');
+    const firstAdvance = steps.findIndex((s) => s.kind === 'advance');
+    expect(firstTag).greaterThan(0);
+    expect(firstAdvance).greaterThan(firstTag);
+    // Exactly two tags (the card's two science icons), each immediately
+    // followed by the advance it caused.
+    const tagIdxs = steps.map((s, i) => ({s, i})).filter((x) => x.s.kind === 'tag').map((x) => x.i);
+    expect(tagIdxs).lengthOf(2);
+    for (const i of tagIdxs) {
+      expect(steps[i + 1]?.kind, 'a tag is always immediately followed by the advance it caused').eq('advance');
+    }
+  });
+
   it('a tagless card records a failed step + the bot\'s own before → after impact', () => {
     const [game, human] = testAutomaGame();
     const automa = game.automa!;

@@ -107,7 +107,7 @@ import {
   promoteFromQueue,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
-import {ensureBotPresentationLiveness, openMarsBotReplay} from '@/client/components/marsbot/marsBotPresentation';
+import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
@@ -519,10 +519,10 @@ export default defineComponent({
         dismiss(notification.id); // the viewer is now the focus; journal keeps the record
         break;
       case 'expand-theater':
-        // The compact AI-turn card expands into the full turn theater (replay
-        // of the SAME archived script). The theater flips active before the
-        // card is dismissed, so the next queued card can't sneak under it.
-        openMarsBotReplay(notification.botTurnKey);
+        // The compact bot-turn card opens the «Разбор хода» review of the SAME
+        // archived script. The review flips open before the card is dismissed,
+        // so the next queued card can't sneak under it.
+        openBotTurnReviewByKey(notification.botTurnKey);
         break;
       case 'dismiss':
       default:

@@ -11,14 +11,14 @@ import {
   resetPresentationLeases,
 } from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
-import {marsBotTheaterState, resetMarsBotTheater} from '@/client/components/marsbot/marsBotTheaterState';
+import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
 
 describe('presentationFlow (reactive orchestrator)', () => {
   beforeEach(() => {
     resetPresentationLeases();
-    resetMarsBotTheater();
+    resetBotTurnReview();
     dismissReveal();
     drawnCardsState.events = [];
     registerFlowHoldSupplier(() => false);
@@ -60,15 +60,11 @@ describe('presentationFlow (reactive orchestrator)', () => {
     expect(currentBlockReason()).eq(undefined);
   });
 
-  it('theater occupancy: playing AND lingering both hold mandatory prompts + block delivery', () => {
-    marsBotTheaterState.active = true;
+  it('review occupancy: an open «Разбор хода» holds mandatory prompts + blocks delivery', () => {
+    botTurnReviewState.open = true;
     expect(currentBlockReason()).eq('turn-theater');
     expect(isMandatoryPromptsHeld()).eq(true);
-    marsBotTheaterState.active = false;
-    marsBotTheaterState.lingering = true;
-    expect(currentBlockReason()).eq('turn-theater');
-    expect(isMandatoryPromptsHeld()).eq(true);
-    marsBotTheaterState.lingering = false;
+    botTurnReviewState.open = false;
     expect(isMandatoryPromptsHeld()).eq(false);
   });
 

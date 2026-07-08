@@ -153,13 +153,13 @@
       <EnergyConversionOverlay
         v-if="screen === 'player-home' && playerView !== undefined" />
       <!--
-        MarsBot turn theater (desktop presentation). App-level so the playerkey
-        remount can't tear the narration down mid-turn; the commit gate holds
-        the previous view while it plays, so nothing on the board jumps. Self-
-        gates via marsBotTheaterState.active. Console mode renders the SAME
-        state through its own ConsoleMarsBotTheater band.
+        MarsBot «Разбор хода» review (desktop presentation). App-level so the
+        playerkey remount can't tear it down; read-only over the archived turn
+        script (no playback, no commit gate). Self-gates via
+        botTurnReviewState.open. Console mode renders the SAME state through its
+        own fullscreen ConsoleBotTurnReview.
       -->
-      <MarsBotTheaterOverlay
+      <BotTurnReviewOverlay
         v-if="screen === 'player-home' && playerView !== undefined && !consoleModeState.enabled"
         :players="playerView.players" />
       <!--
@@ -356,9 +356,8 @@ import {
   isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {isMarsBotTheaterActive} from '@/client/components/marsbot/marsBotTheaterState';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
-import MarsBotTheaterOverlay from '@/client/components/marsbot/MarsBotTheaterOverlay.vue';
+import BotTurnReviewOverlay from '@/client/components/marsbot/BotTurnReviewOverlay.vue';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -523,7 +522,7 @@ export default defineComponent({
     MaCeremonyOverlay,
     EnergyConversionOverlay,
     HazardCleanupOverlay,
-    MarsBotTheaterOverlay,
+    BotTurnReviewOverlay,
     RematchLayer,
     GameExitButton,
     EndgameExperience,
@@ -704,7 +703,7 @@ export default defineComponent({
            * next-phase modal over it). The poll loop keeps running, so the next
            * poll after the animation finishes commits fresh state.
            */
-          if (isEnergyConversionActive() || isHazardCleanupActive() || isMarsBotTheaterActive()) {
+          if (isEnergyConversionActive() || isHazardCleanupActive()) {
             return;
           }
           /*
