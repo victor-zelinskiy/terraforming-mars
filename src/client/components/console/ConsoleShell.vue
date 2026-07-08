@@ -523,6 +523,7 @@ import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColony
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -3035,13 +3036,15 @@ export default defineComponent({
       this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
     },
     /**
-     * T8: the native play confirm resolved — submit the bare
-     * `{type:'projectCard', card, payment}` (wrapped into the action-menu
-     * path; empty path for the mandatory play-from-hand prompt). The
-     * on-play choices arrive as NATIVE follow-up tasks — the sequential
-     * server contract the legacy radio UI has always used.
+     * T8 (pre-select parity): the native play composer resolved — assemble the
+     * byte-identical PlayerInputBatch (`buildPlayCardBatch` mirrors
+     * PlayerHome.submitPlayCardBatch): the wrapped `{type:'projectCard', card,
+     * payment}` + pre-branch responses + the on-play BRANCH pick + every
+     * pre-collected step. Genuine follow-ups (board placement / multi-card
+     * picks) still arrive as native tasks — the batch's graceful fallback
+     * leaves the leftover prompt for them.
      */
-    onPlayCardConfirmNative(payment: Payment): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       this.pendingPlayCard = undefined;
@@ -3050,7 +3053,16 @@ export default defineComponent({
       }
       closeConsoleLayers();
       this.consoleState.section = 'board';
-      this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: pending.cardName, payment}));
+      const batch = buildPlayCardBatch({
+        playPath: action.path,
+        cardName: pending.cardName,
+        payment: payload.payment,
+        branchIndex: payload.branchIndex,
+        preResponses: payload.preResponses,
+        optionResponse: payload.optionResponse,
+        stepResponses: payload.stepResponses,
+      });
+      this.submitBatch(batch);
     },
     /**
      * P24: the hydro card pick (reuse-a-blue-action / animal target) is a

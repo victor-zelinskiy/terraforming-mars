@@ -10420,12 +10420,102 @@ html.console-mode {
     }
 }
 
+/* ── Play-card composer: a two-column card · pre-select layout ───────────── */
+.con-composer {
+    &__panel--play { width: min(1180px, 94vw); }
+
+    &__playhead {
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    &__paycost {
+        font-size: 17px; color: @con-text-dim;
+        b { font-size: 20px; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+        i { width: 20px; height: 20px; display: inline-block; vertical-align: middle; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    }
+    &__paytag {
+        margin-left: auto;
+        font-size: 14px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+        padding: 4px 12px; border-radius: 999px;
+        &--ready { background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 1px fade(@con-mint, 55%); color: @con-mint; }
+        &--wait { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 1px fade(@con-amber, 42%); color: #ffe6b0; }
+    }
+
+    &__playmain {
+        display: flex; gap: 20px; flex: 1; min-height: 0;
+    }
+    &__playcard {
+        flex-shrink: 0; align-self: flex-start; zoom: 1.0;
+        > .card-container { margin: 0; }
+    }
+    &__playright {
+        flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0;
+    }
+    &__loading { font-size: 19px; color: @con-text-dim; padding: 10px 0; }
+
+    &__sub-title--spaced { margin-top: 6px; }
+    &__result-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+    /* Selectable variant cards (the on-play branch pick — live result). */
+    &__variant {
+        display: flex; flex-direction: column; gap: 8px;
+        padding: 12px 16px; border-radius: 11px;
+        background: rgba(14, 22, 34, 0.6);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
+        &--focused { box-shadow: inset 0 0 0 2px @con-cyan, 0 0 18px fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
+        &--selected { box-shadow: inset 0 0 0 2px @con-mint, 0 0 16px fade(@con-mint, 24%); }
+        &--selected&--focused { box-shadow: inset 0 0 0 2px @con-mint, 0 0 22px fade(@con-mint, 34%); }
+        &--off { opacity: 0.55; filter: saturate(0.6); }
+        &--off&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 2px rgba(150, 175, 205, 0.6); }
+    }
+    &__variant-head { display: flex; align-items: center; gap: 10px; }
+    &__variant-title { font-size: 18px; font-weight: 700; flex: 1; }
+    &__variant-check { font-size: 18px; font-weight: 800; color: @con-mint; }
+    &__variant-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    &__variant-reason { font-size: 14px; color: #ffb0a6; }
+
+    /* Derived result category lines (never-empty result). */
+    &__rescat {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 14px; border-radius: 9px; font-size: 16px;
+        background: rgba(14, 24, 36, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
+        &--vp { box-shadow: inset 0 0 0 1px fade(@con-mint, 34%); }
+        &--fallback { color: @con-text-dim; }
+    }
+    &__rescat-glyph {
+        width: 22px; text-align: center; font-size: 16px; color: fade(@con-cyan, 90%);
+        flex-shrink: 0; background-size: contain !important; background-repeat: no-repeat; background-position: center;
+    }
+    &__rescat-text b { color: @con-mint; font-variant-numeric: tabular-nums; }
+    &__rescat-tags { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+    &__rescat-tag { width: 24px; height: 24px; }
+
+    /* The play CTA row (navigable, A plays). */
+    &__cta {
+        display: flex; align-items: center; gap: 14px;
+        margin-top: 4px; padding: 14px 18px; border-radius: 12px;
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 50%);
+        &--focused { box-shadow: inset 0 0 0 2px @con-mint, 0 0 20px fade(@con-mint, 30%); background: fade(@con-mint, 18%); }
+        &--off { background: rgba(20, 28, 38, 0.7); box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.2); }
+        &--off&--focused { box-shadow: inset 0 0 0 2px fade(@con-amber, 55%), 0 0 18px fade(@con-amber, 22%); }
+    }
+    &__cta-label { font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: @con-mint; }
+    &__cta--off &__cta-label { color: @con-text-dim; }
+    &__cta-reason { margin-left: auto; font-size: 14px; color: fade(@con-amber, 92%); }
+}
+
 /* Handheld (Steam Deck) — tighter composer chrome. */
 html.con-profile-handheld .con-composer {
     .con-composer__panel { width: min(760px, 96vw); padding: 14px 16px 10px; gap: 8px; }
+    .con-composer__panel--play { width: min(1160px, 97vw); }
+    .con-composer__playmain { gap: 14px; }
+    .con-composer__playcard { zoom: 0.82; }
     .con-composer__name { font-size: 21px; }
     .con-composer__stepper-value { font-size: 24px; min-width: 52px; }
     .con-composer__opt-name { font-size: 15px; }
+    .con-composer__variant-title { font-size: 16px; }
+    .con-composer__cta-label { font-size: 17px; }
     .con-composer__foot-item { font-size: 13px; }
 }
 

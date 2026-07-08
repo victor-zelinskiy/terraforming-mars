@@ -1436,5 +1436,17 @@
     "Board / interface": "Поле / интерфейс",
     "Controller connected": "Контроллер подключён",
     "Controller disconnected": "Контроллер отключён",
-    "Installer updated — re-run the Steam Deck install": "Установщик обновлён — перезапустите установку на Steam Deck"
+    "Installer updated — re-run the Steam Deck install": "Установщик обновлён — перезапустите установку на Steam Deck",
+    "Grants a new action": "Даёт новое действие",
+    "Adds a permanent effect": "Добавляет постоянный эффект",
+    "Victory points at game end": "Победные очки в конце игры",
+    "May grant victory points at game end": "Может дать ПО в конце игры",
+    "Adds tags": "Добавляет метки",
+    "The card effect will be applied after confirming": "Эффект карты будет применён после подтверждения",
+    "Choose a variant first": "Сначала выберите вариант",
+    "Make the required choices first": "Сначала сделайте нужный выбор",
+    "Choose a variant": "Выберите вариант",
+    "Choice required": "Нужен выбор",
+    "Choose before playing": "Выбор перед розыгрышем",
+    "Not enough resources": "Недостаточно ресурсов"
 }

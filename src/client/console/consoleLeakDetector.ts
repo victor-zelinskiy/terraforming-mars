@@ -50,7 +50,9 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
  * over an unrelated stranded prompt must not mask the guard panel).
  */
 const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
-  projectCard: ['.con-hand', '.con-sheet'],
+  // '.con-composer--play' = the native play-card pre-select composer, which
+  // serves the projectCard prompt on top of the hand while it is open.
+  projectCard: ['.con-hand', '.con-sheet', '.con-composer--play'],
   colony: ['.con-colonies'],
   // FREE award funding (Vitor) is served by the premium awards MA screen.
   awardFunding: ['.con-ma'],
