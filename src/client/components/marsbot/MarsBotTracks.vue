@@ -17,8 +17,11 @@
           }"
           :data-hint="hintFor(cell)"
         >
-          <span v-if="cell.current" class="mb-cell__cube" :class="cubeClass" aria-hidden="true"></span>
-          <template v-else-if="cell.action !== undefined">
+          <!-- The current cell is marked by the bright `mb-cell--current`
+               OUTLINE only — never a cube INSIDE it (a cube covered the cell's
+               own bonus glyph, hiding WHICH bonus the bot is standing on). So
+               the current cell still renders its action glyph like any other. -->
+          <template v-if="cell.action !== undefined">
             <span v-if="glyphFor(cell).kind === 'tr'" class="mb-glyph mb-glyph--tr">+{{ trSteps(cell) }}</span>
             <span v-else-if="glyphFor(cell).kind === 'advance'" class="mb-glyph mb-glyph--advance" aria-hidden="true">»</span>
             <span v-else-if="glyphFor(cell).kind === 'tag'" class="mb-glyph mb-glyph--tag">
@@ -121,9 +124,6 @@ export default defineComponent({
     },
   },
   computed: {
-    cubeClass(): string {
-      return `player_bg_color_${this.botColor}`;
-    },
     /**
      * The widest track's cell count — every row renders on the SAME grid
      * template (`--mb-cols` columns), so cell k sits in the same column in

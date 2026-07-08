@@ -201,12 +201,11 @@ export class AutomaDeltaProject {
           game.log('${0} claimed the ${1} position on the Delta Project (5 VP at game end)', (b) =>
             b.player(bot).string(stageName));
         }
-      } else {
-        // Landing on a reward row (1-9): the reward is skipped per the
-        // reference card — say so explicitly, never silently.
-        game.log('${0} does not receive the Delta Project reward (MarsBot gains only the final VP)', (b) =>
-          b.player(bot));
       }
+      // Landing on a reward row (1-9): the bot takes NO row reward (reference
+      // card). This is an IMPLEMENTATION detail — it belongs ONLY to the MarsBot
+      // guide (marsBotGuide.ts), NOT the journal, so no "does not receive the
+      // reward" line is logged here (the advance itself is already journaled).
     } finally {
       game.events.endScope();
     }

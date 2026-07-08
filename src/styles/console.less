@@ -7093,6 +7093,17 @@ html.console-mode {
             box-shadow: inset 0 0 0 1px rgba(255, 220, 170, 0.4);
         }
     }
+    /* Several server-computed rows (a MarsBot storage + M€ loss, or a track hit)
+       stack; each is its own pill. */
+    &__opt-previews {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+    /* A MarsBot production hit renders the TRACK's identity Tag in the pill. */
+    &__opt-tag .tag-count { transform: scale(0.62); margin: -7px; }
+    &__opt-steps { font-size: 15px; color: #f0c07a; }
     &__opt-board {
         font-size: 18px;
         color: @con-mint;

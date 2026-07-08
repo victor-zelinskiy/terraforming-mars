@@ -93,8 +93,18 @@
             </span>
           </span>
 
-          <!-- Impact preview: resource icon + current → resulting. -->
-          <span v-if="hasPreview(e.opt)" class="modal-input__option-preview" aria-hidden="true">
+          <!-- Impact preview. SERVER-computed rows first (correct for a MarsBot —
+               it loses M€, shown with the M€ icon), then the single-value
+               fallback for options without server changes. -->
+          <span v-if="optionChanges(e.opt).length > 0" class="modal-input__option-preview modal-input__option-preview--multi" aria-hidden="true">
+            <span v-for="(row, ri) in optionChanges(e.opt)" :key="ri" class="modal-input__option-preview-line">
+              <span class="modal-input__option-icon" :class="rowIconClass(row)"></span>
+              <span class="modal-input__option-preview-from">{{ row.from }}</span>
+              <span class="modal-input__option-preview-arrow">→</span>
+              <span class="modal-input__option-preview-to">{{ row.to }}</span>
+            </span>
+          </span>
+          <span v-else-if="hasPreview(e.opt)" class="modal-input__option-preview" aria-hidden="true">
             <span v-if="optionIcon(e.opt) !== ''" class="modal-input__option-icon" :class="optionIconClass(e.opt)"></span>
             <span class="modal-input__option-preview-from">{{ previewFrom(e.opt) }}</span>
             <span class="modal-input__option-preview-arrow">→</span>
@@ -244,6 +254,7 @@ import {defineComponent} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DisabledOptionModel, OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 import {InputResponse, OrOptionsResponse, SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -536,6 +547,15 @@ export default defineComponent({
     },
     optionIconClass(opt: PlayerInputModel): string {
       return iconClassFor(this.optionIcon(opt));
+    },
+    // SERVER-computed per-target changes (the actual before→after — a MarsBot
+    // loses M€, not the named resource). Present for remove/steal options; the
+    // client renders these verbatim instead of the single current/resulting.
+    optionChanges(opt: PlayerInputModel): ReadonlyArray<TargetImpactChange> {
+      return this.optionMeta(opt)?.player?.changes ?? [];
+    },
+    rowIconClass(row: TargetImpactChange): string {
+      return iconClassFor(row.icon);
     },
     // Main action text. For a player-target option the player + amount live in
     // the chip + preview, so the action verb (the buttonLabel — "Remove plants")

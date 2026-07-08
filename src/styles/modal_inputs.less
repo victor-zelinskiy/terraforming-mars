@@ -520,6 +520,19 @@
 
     .modal-input__option-icon { width: 18px; height: 18px; }
 }
+/* Several server-computed rows (a MarsBot Colonies-storage loss splits into a
+   storage row + the M€-supply row) stack compactly. */
+.modal-input__option-preview--multi {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+.modal-input__option-preview-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    .modal-input__option-icon { width: 18px; height: 18px; }
+}
 .modal-input__option-preview-from { color: #9fb4cc; }
 .modal-input__option-preview-arrow { color: #6f8aa8; font-size: 12px; }
 .modal-input__option-preview-to { color: #aed8ff; font-weight: 700; }
@@ -878,15 +891,33 @@
     color: #c9a06a;
     line-height: 1;
 }
+/* One change (server-computed) — label over [icon] from → to. Several stack for
+   a MarsBot Colonies-storage loss (a storage row + the M€-supply row). */
+.modal-input__target-impact-line {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
 .modal-input__target-impact-row {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 .modal-input__target-impact-icon-wrap .modal-input__option-icon { width: 18px; height: 18px; }
+/* A MarsBot production hit renders the TRACK's identity Tag in the same slot. */
+.modal-input__target-impact-icon-wrap .tag-count { transform: scale(0.62); margin: -6px; }
 .modal-input__target-impact-from { color: #9fb4cc; }
 .modal-input__target-impact-arrow { color: #5e7790; }
 .modal-input__target-impact-to { color: #f0c878; font-weight: 700; }
+/* «−N делений» on a track regression (the divisions moved). */
+.modal-input__target-impact-steps {
+    margin-left: 2px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #c98e4a;
+    font-variant-numeric: tabular-nums;
+}
 .modal-input__target-disabled-reason {
     flex-shrink: 0;
     font-size: 12px;

@@ -156,7 +156,10 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
       expect(bot.deltaProjectData!.stops).is.empty;
       expect(bot.steel).eq(0);
       expect(bot.plants).eq(0);
-      expect(game.gameLog.some((m) => m.message === '${0} does not receive the Delta Project reward (MarsBot gains only the final VP)')).is.true;
+      // The "no reward" line is a guide-only implementation detail (marsBotGuide) —
+      // it must NOT leak into the journal; the reward is proven skipped by the
+      // empty stops + zero resources above.
+      expect(game.gameLog.some((m) => m.message.includes('does not receive the Delta Project reward'))).is.false;
     });
 
     it('traversed and landed production rows grant nothing', () => {
@@ -322,7 +325,8 @@ describe('AutomaDeltaProject — Solo Delta Project reference card', () => {
     const grouped = game.gameLog.filter((m) => m.correlationId === root!.correlationId).map((m) => m.message);
     expect(grouped).contains('${0} consumed ${1} Power increment(s) for the Delta Project');
     expect(grouped).contains('${0} advanced ${1} row(s) on the Delta Project, reaching ${2}');
-    expect(grouped).contains('${0} does not receive the Delta Project reward (MarsBot gains only the final VP)');
+    // The guide-only "no reward" implementation detail is NOT journaled.
+    expect(grouped).not.contains('${0} does not receive the Delta Project reward (MarsBot gains only the final VP)');
     const ev = game.events.events.find((e) =>
       e.type === 'action' && e.source?.kind === 'card' && e.source.card === CardName.DELTA_PROJECT && e.player === bot.color);
     expect(ev, 'delta-project action event').is.not.undefined;

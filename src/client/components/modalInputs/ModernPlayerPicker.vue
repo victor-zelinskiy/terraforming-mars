@@ -64,20 +64,25 @@
           </span>
         </span>
 
-        <!-- Target-specific impact mini-HUD: a "ПРОИЗВОДСТВО" label (production
-             only) over a framed icon (brown = production) + from→to. -->
-        <span v-if="t.hasPreview"
+        <!-- Target-specific impact mini-HUD — the SAME premium layout for a
+             human resource/production row and a MarsBot TRACK row (server truth,
+             the client only renders). One row per server-computed change. -->
+        <span v-if="t.changes.length > 0"
               class="modal-input__target-impact"
-              :class="{'modal-input__target-impact--prod': isProduction}"
+              :class="{'modal-input__target-impact--prod': t.changes.some((c) => c.scope !== 'stock')}"
               aria-hidden="true">
-          <span v-if="isProduction" class="modal-input__target-impact-label">{{ productionWord }}</span>
-          <span class="modal-input__target-impact-row">
-            <span class="modal-input__target-impact-icon-wrap" :class="{'modal-input__prod-frame': isProduction}">
-              <span class="modal-input__option-icon" :class="actionIconClass"></span>
+          <span v-for="(row, ri) in t.changes" :key="ri" class="modal-input__target-impact-line">
+            <span v-if="rowLabel(row) !== ''" class="modal-input__target-impact-label">{{ rowLabel(row) }}</span>
+            <span class="modal-input__target-impact-row">
+              <span class="modal-input__target-impact-icon-wrap" :class="{'modal-input__prod-frame': row.scope === 'production'}">
+                <Tag v-if="rowIsTrack(row)" :tag="rowTag(row)" size="small" type="secondary" />
+                <span v-else class="modal-input__option-icon" :class="rowIconClass(row)"></span>
+              </span>
+              <span class="modal-input__target-impact-from">{{ row.from }}</span>
+              <span class="modal-input__target-impact-arrow">→</span>
+              <span class="modal-input__target-impact-to">{{ row.to }}</span>
+              <span v-if="rowStepsText(row) !== ''" class="modal-input__target-impact-steps">{{ rowStepsText(row) }}</span>
             </span>
-            <span class="modal-input__target-impact-from">{{ t.current }}</span>
-            <span class="modal-input__target-impact-arrow">→</span>
-            <span class="modal-input__target-impact-to">{{ t.resulting }}</span>
           </span>
         </span>
         <span v-else-if="t.disabled" class="modal-input__target-disabled-reason">{{ t.disabledReason }}</span>
@@ -97,14 +102,18 @@
 import {defineComponent} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectPlayerModel} from '@/common/models/PlayerInputModel';
+import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 import {SelectPlayerResponse} from '@/common/inputs/InputResponse';
 import {Color} from '@/common/Color';
+import {Tag} from '@/common/cards/Tag';
 import {CardType} from '@/common/cards/CardType';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {getCard} from '@/client/cards/ClientCardManifest';
-// Shared icon-key → player-model field maps (also used by the amount stepper's
-// conversion preview) — one source of truth for the client-side value derivation.
+import TagComponent from '@/client/components/Tag.vue';
+// Shared icon-key → player-model field maps — the CLIENT-side fallback for a
+// prompt WITHOUT server-computed impacts. Attack prompts now carry
+// `targetImpacts` (server truth, correct for a MarsBot too) and use that.
 import {STOCK_FIELD, PRODUCTION_FIELD, MC_PRODUCTION_FLOOR} from '@/client/components/modalInputs/playerResourceFields';
 
 type TargetCard = {
@@ -112,9 +121,9 @@ type TargetCard = {
   name: string;
   corporation: string;
   self: boolean;
-  hasPreview: boolean;
-  current: number;
-  resulting: number;
+  // The SERVER-computed before→after rows (correct for humans AND the MarsBot).
+  // 0 rows = no preview.
+  changes: ReadonlyArray<TargetImpactChange>;
   muted: boolean;     // the effect produces no change (e.g. 0 → 0)
   disabled: boolean;  // the effect cannot apply at all (production at floor)
   disabledReason: string;
@@ -126,6 +135,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'ModernPlayerPicker',
+  components: {Tag: TagComponent},
   props: {
     playerView: {
       type: Object as () => PlayerViewModel,
@@ -236,13 +246,20 @@ export default defineComponent({
         name: this.playerName(color),
         corporation: this.corporationName(color),
         self,
-        hasPreview: false,
-        current: 0,
-        resulting: 0,
+        changes: [],
         muted: false,
         disabled: false,
         disabledReason: '',
       };
+      // SERVER truth first — the picker renders the exact rows the server
+      // computed (a MarsBot production hit is a TRACK regression, its stock loss
+      // is M€), never a client-derived number. No isMarsBot branch here.
+      const serverImpact = (this.playerinput.targetImpacts ?? []).find((ti) => ti.color === color);
+      if (serverImpact !== undefined) {
+        const changes = serverImpact.changes;
+        return {...base, changes, muted: changes.length === 0 || changes.every((c) => c.from === c.to)};
+      }
+      // Fallback (a prompt without server impacts): derive from the public model.
       const player = this.publicPlayer(color);
       const field = (this.isProduction ? PRODUCTION_FIELD : STOCK_FIELD)[this.icon];
       if (this.icon === '' || this.actionAmount === undefined || player === undefined || field === undefined) {
@@ -251,12 +268,17 @@ export default defineComponent({
       const current = player[field] as number;
       const floor = (this.isProduction && this.icon === 'megacredits') ? MC_PRODUCTION_FLOOR : 0;
       const resulting = Math.max(floor, current - this.actionAmount);
-      // Production already at the floor can't be reduced (defensive — the server
-      // normally pre-filters these out of the candidate list).
       if (this.isProduction && current <= floor) {
         return {...base, disabled: true, disabledReason: translateText('Production already at minimum')};
       }
-      return {...base, hasPreview: true, current, resulting, muted: resulting === current};
+      const change: TargetImpactChange = {
+        icon: this.icon,
+        from: current,
+        to: resulting,
+        scope: this.isProduction ? 'production' : 'stock',
+        ...(this.isProduction ? {steps: this.actionAmount} : {}),
+      };
+      return {...base, changes: [change], muted: resulting === current};
     },
     // A relevant-but-unavailable target the server flagged: rendered greyed,
     // non-selectable, with the server's reason. No impact preview.
@@ -267,13 +289,41 @@ export default defineComponent({
         name: this.playerName(color),
         corporation: this.corporationName(color),
         self: this.playerView.thisPlayer?.color === color,
-        hasPreview: false,
-        current: 0,
-        resulting: 0,
+        changes: [],
         muted: false,
         disabled: true,
         disabledReason: reasonText,
       };
+    },
+    // ── per-row rendering (scope-aware) — the SAME premium layout for a human
+    // resource/production row and a MarsBot track row ──
+    rowIsTrack(row: TargetImpactChange): boolean {
+      return row.scope === 'track';
+    },
+    // A track row's icon key IS a Tag value (server-set) — the Tag component
+    // needs the typed value.
+    rowTag(row: TargetImpactChange): Tag {
+      return row.icon as Tag;
+    },
+    rowIconClass(row: TargetImpactChange): string {
+      return iconClassFor(row.icon);
+    },
+    rowLabel(row: TargetImpactChange): string {
+      if (row.scope === 'production') {
+        return translateText('Production rate');
+      }
+      if (row.scope === 'track') {
+        return translateText('Track');
+      }
+      return '';
+    },
+    rowStepsText(row: TargetImpactChange): string {
+      // A track regression names the divisions moved («−2 деления»); a plain
+      // production row already reads its own from→to, so no step suffix.
+      if (row.scope === 'track' && row.steps !== undefined && row.steps > 0) {
+        return `−${row.steps}`;
+      }
+      return '';
     },
     pick(target: TargetCard): void {
       if (target.disabled) {

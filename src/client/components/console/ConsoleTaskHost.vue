@@ -128,9 +128,15 @@
                     <span>{{ p.name }}</span>
                   </span>
                   <span v-if="p.corp !== ''" class="con-task__opt-corp">{{ $t(p.corp) }}</span>
-                  <span v-if="p.impact !== ''" class="con-task__opt-preview" :class="{'con-task__opt-preview--prod': p.production}">
-                    <i v-if="p.iconClass !== ''" :class="p.iconClass" class="con-task__opt-icon" aria-hidden="true"></i>
-                    {{ p.impact }}
+                  <!-- Server-computed before→after rows — the SAME layout for a
+                       human resource/production row and a MarsBot track row. -->
+                  <span v-if="p.changes.length > 0" class="con-task__opt-previews">
+                    <span v-for="(row, ri) in p.changes" :key="ri" class="con-task__opt-preview" :class="{'con-task__opt-preview--prod': row.prod}">
+                      <Tag v-if="row.isTrack" :tag="row.tag!" size="small" type="secondary" class="con-task__opt-tag" />
+                      <i v-else :class="row.iconClass" class="con-task__opt-icon" aria-hidden="true"></i>
+                      {{ row.from }} → {{ row.to }}
+                      <span v-if="row.steps !== undefined && row.steps > 0" class="con-task__opt-steps">−{{ row.steps }}</span>
+                    </span>
                   </span>
                   <GamepadGlyph v-if="focusIdx === i" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
                 </div>
@@ -340,11 +346,18 @@ import {Phase} from '@/common/Phase';
 import {Color} from '@/common/Color';
 import {Units} from '@/common/Units';
 import {Message} from '@/common/logs/Message';
+import {Tag} from '@/common/cards/Tag';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
+import TagComponent from '@/client/components/Tag.vue';
+
+/** A render-ready target-impact row: a resource/M€ stock change (iconClass), or
+ *  a MarsBot production hit shown as its track's Tag + step count. */
+type TargetRowVM = {isTrack: boolean, tag?: Tag, iconClass: string, from: number, to: number, steps?: number, prod: boolean};
 import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
@@ -422,7 +435,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -599,12 +612,13 @@ export default defineComponent({
       });
     },
     // ── player ───────────────────────────────────────────────────────
-    playerEntries(): Array<{color: Color, name: string, corp: string, impact: string, iconClass: string, production: boolean}> {
+    playerEntries(): Array<{color: Color, name: string, corp: string, changes: Array<TargetRowVM>}> {
       if (this.wf?.type !== 'player') {
         return [];
       }
-      const model = this.wf as PlayerInputModel & {type: 'player', players: ReadonlyArray<Color>, icon?: string, amount?: number, scope?: 'stock' | 'production'};
+      const model = this.wf as PlayerInputModel & {type: 'player', players: ReadonlyArray<Color>, icon?: string, amount?: number, scope?: 'stock' | 'production', targetImpacts?: ReadonlyArray<TargetImpact>};
       const scope = model.scope ?? 'stock';
+      const serverImpacts = model.targetImpacts ?? [];
       return model.players.map((color) => {
         const p = this.playerView.players.find((pp) => pp.color === color);
         let corp = '';
@@ -616,24 +630,20 @@ export default defineComponent({
             }
           } catch (err) { /* manifest gap */ }
         }
-        let impact = '';
-        if (model.icon !== undefined && model.amount !== undefined && p !== undefined) {
+        // SERVER truth first (correct for a MarsBot — its production hit is a
+        // TRACK regression, its stock loss is M€), else derive from the model.
+        const server = serverImpacts.find((ti) => ti.color === color);
+        let raw: ReadonlyArray<TargetImpactChange> = [];
+        if (server !== undefined) {
+          raw = server.changes;
+        } else if (model.icon !== undefined && model.amount !== undefined && p !== undefined) {
           const field = RESOURCE_FIELD[model.icon]?.[scope];
           const current = field !== undefined ? (p as unknown as Record<string, number>)[field] : undefined;
           if (current !== undefined) {
-            impact = `${current} → ${current - model.amount}`;
-          } else {
-            impact = `−${model.amount}`;
+            raw = [{icon: model.icon, from: current, to: current - model.amount, scope}];
           }
         }
-        return {
-          color,
-          name: p?.name ?? color,
-          corp,
-          impact,
-          iconClass: model.icon !== undefined ? iconClassFor(model.icon) + ' con-task__opt-res' : '',
-          production: scope === 'production',
-        };
+        return {color, name: p?.name ?? color, corp, changes: raw.map((r) => this.toTargetRow(r))};
       });
     },
     disabledPlayerEntries(): Array<{color: Color, name: string, reason: string}> {
@@ -972,6 +982,20 @@ export default defineComponent({
     window.removeEventListener('resize', this.scheduleFit);
   },
   methods: {
+    // Render-ready row for a server-computed target change (resource/M€ stock, or
+    // a MarsBot track regression shown as the track's Tag + step count).
+    toTargetRow(r: TargetImpactChange): TargetRowVM {
+      const isTrack = r.scope === 'track';
+      return {
+        isTrack,
+        tag: isTrack ? (r.icon as Tag) : undefined,
+        iconClass: isTrack ? '' : iconClassFor(r.icon) + ' con-task__opt-res',
+        from: r.from,
+        to: r.to,
+        steps: r.scope === 'track' ? r.steps : undefined,
+        prod: r.scope !== 'stock',
+      };
+    },
     resetState(): void {
       this.focusIdx = 0;
       this.armed = false;

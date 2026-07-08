@@ -5,6 +5,7 @@ import {CardResource} from '../../common/CardResource';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {IPlayer} from '../IPlayer';
+import {computeTargetImpact} from './targetImpact';
 
 /**
  * Factory helpers for the OPTIONAL `OptionMetadata` attached to a SelectOption
@@ -28,13 +29,16 @@ const RESOURCE_ICON: Record<Resource, string> = {
   heat: 'heat',
 };
 
-/** "Remove N <resource> from <player>" — destructive, target preview. */
+/** "Remove N <resource> from <player>" — destructive, target preview. The
+ *  SERVER-computed `changes` render the ACTUAL loss (a MarsBot drops M€, not the
+ *  named resource); `current`/`resulting` stay as the client fallback. */
 export function removeResourceFromPlayer(target: IPlayer, resource: Resource, amount: number, current: number): OptionMetadata {
   return {
     kind: 'resourceRemoval',
     icon: RESOURCE_ICON[resource],
     amount,
-    player: {color: target.color, current, resulting: Math.max(0, current - amount)},
+    player: {color: target.color, current, resulting: Math.max(0, current - amount),
+      changes: computeTargetImpact(target, resource, amount, 'stock').changes},
   };
 }
 
@@ -44,7 +48,8 @@ export function stealResourceFromPlayer(target: IPlayer, resource: Resource, amo
     kind: 'steal',
     icon: RESOURCE_ICON[resource],
     amount,
-    player: {color: target.color, current, resulting: Math.max(0, current - amount)},
+    player: {color: target.color, current, resulting: Math.max(0, current - amount),
+      changes: computeTargetImpact(target, resource, amount, 'stock').changes},
   };
 }
 

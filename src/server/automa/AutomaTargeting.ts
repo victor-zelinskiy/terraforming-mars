@@ -162,6 +162,48 @@ export class AutomaTargeting {
     }
   }
 
+  /**
+   * READ-ONLY preview of a decrease-production attack on MarsBot — which TRACK
+   * regresses, its `from → to`, and how many steps actually apply (capped by the
+   * track position). Mirrors `regressForProduction` WITHOUT mutating. Used to
+   * build the target-selection preview (`targetImpact.ts`); `tag` is the track's
+   * identity tag so the row can show WHICH track is hit.
+   */
+  public static previewProductionRegression(game: IGame, resource: Resource, steps: number): {tag: Tag, from: number, to: number, steps: number} | undefined {
+    const automa = game.automa;
+    if (automa === undefined) {
+      return undefined;
+    }
+    const track = automa.board.tracks[AutomaTargeting.PRODUCTION_TRACK[resource]];
+    const applied = Math.min(steps, track.position);
+    return {tag: track.definition.tags[0], from: track.position, to: track.position - applied, steps: applied};
+  }
+
+  /**
+   * READ-ONLY preview of a remove/steal attack on MarsBot — the SAME order
+   * `removeFromBot` drains: real Colonies storage of the type first (M€ itself:
+   * supply first, Luna tops up), then the M€ supply. So the picker can show the
+   * ACTUAL loss (storage row + the M€-supply row) instead of the static
+   * placeholder field. Non-mutating.
+   */
+  public static previewStockLoss(target: IPlayer, resource: Resource, amount: number): {
+    storageColony: ColonyName | undefined, storageFrom: number, storageLost: number, supplyFrom: number, supplyLost: number,
+  } {
+    const game = target.game;
+    const supplyFrom = target.megaCredits;
+    if (resource === Resource.MEGACREDITS) {
+      const supplyLost = Math.min(amount, supplyFrom);
+      const storageFrom = AutomaTargeting.storageOf(game, ColonyName.LUNA);
+      const storageLost = Math.min(amount - supplyLost, storageFrom);
+      return {storageColony: ColonyName.LUNA, storageFrom, storageLost, supplyFrom, supplyLost};
+    }
+    const storageColony = AutomaTargeting.RESOURCE_STORAGE[resource];
+    const storageFrom = AutomaTargeting.storageOf(game, storageColony);
+    const storageLost = Math.min(amount, storageFrom);
+    const supplyLost = Math.min(amount - storageLost, supplyFrom);
+    return {storageColony, storageFrom, storageLost, supplyFrom, supplyLost};
+  }
+
   /** A decrease-production target is valid while the mapped track can regress that far. */
   public static botCanHaveProductionReduced(game: IGame, resource: Resource, minQuantity: number): boolean {
     const automa = game.automa;

@@ -49,6 +49,31 @@ describe('ModernPlayerPicker', () => {
     expect(component.find('[data-test="modern-player-neutral"]').text()).to.not.eq('');
   });
 
+  it('renders SERVER-computed target impacts verbatim (a MarsBot track hit + a human resource)', () => {
+    const component = factory(
+      {type: 'player', title: 'Decrease production', buttonLabel: 'Decrease', players: ['red', 'blue'],
+        icon: 'heat', amount: 2, scope: 'production',
+        // Server truth: the human loses production; the MarsBot's heat-production
+        // hit REGRESSES its EARTH track (shown by the tag + steps), never a field.
+        targetImpacts: [
+          {color: 'red', changes: [{icon: 'heat', from: 4, to: 2, scope: 'production', steps: 2}]},
+          {color: 'blue', changes: [{icon: 'earth', from: 3, to: 1, scope: 'track', steps: 2}]},
+        ]},
+      playerView,
+      () => {},
+    );
+    // The human row shows the resource from→to.
+    const red = component.find('[data-test="modern-player-red"]');
+    expect(red.text()).to.include('4');
+    expect(red.text()).to.include('2');
+    // The bot row shows the TRACK tag (rendered as a <Tag>) + the from→to + steps.
+    const blue = component.find('[data-test="modern-player-blue"]');
+    expect(blue.find('.tag-earth').exists()).to.eq(true); // the EARTH track tag
+    expect(blue.text()).to.include('3');
+    expect(blue.text()).to.include('1');
+    expect(blue.text()).to.include('−2'); // divisions moved
+  });
+
   it('renders server-flagged disabled targets as non-selectable cards with a reason', async () => {
     let saved: InputResponse | undefined;
     const component = factory(

@@ -1,6 +1,7 @@
 import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect} from './ActionPreviewModel';
+import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
 import {Color, ColorWithNeutral} from '../Color';
 import {PayProductionModel} from './PayProductionUnitsModel';
@@ -199,8 +200,11 @@ export type OptionMetadata = {
   icon?: string;
   /** Magnitude involved (plants removed, M€ stolen, parameter steps…). */
   amount?: number;
-  /** Player-target context (remove / steal from a player) for the preview. */
-  player?: {color: Color, current?: number, resulting?: number};
+  /** Player-target context (remove / steal from a player) for the preview.
+   *  `changes` is the SERVER-computed before→after (correct for a MarsBot too —
+   *  its stock loss drains M€, not the named resource); the client renders it
+   *  VERBATIM and only falls back to `current`/`resulting` when absent. */
+  player?: {color: Color, current?: number, resulting?: number, changes?: ReadonlyArray<TargetImpactChange>};
   /** Global-parameter context for the preview. */
   global?: {current?: number, resulting?: number, unit?: string};
   /** SELF-resource spend context (e.g. paying a trade fee) — the viewer's own
@@ -303,6 +307,12 @@ export type SelectPlayerModel = BaseInputModel & {
   // no Venus tag, …). The selectable `players` list is unchanged (and is what
   // the server validates against); these never get submitted.
   disabledPlayers?: ReadonlyArray<{color: Color, reason?: string | Message}>;
+  // SERVER-computed `current → resulting` per selectable player — the picker
+  // renders this VERBATIM instead of deriving numbers from the public model, so
+  // a MarsBot target reads correctly (its production hit regresses a TRACK, its
+  // stock loss drains M€). One entry per `players` colour; present only for a
+  // resource attack (`icon` is a Resource + `amount`). See TargetImpactModel.
+  targetImpacts?: ReadonlyArray<TargetImpact>;
 }
 
 export type SelectSpaceModel = BaseInputModel & {
