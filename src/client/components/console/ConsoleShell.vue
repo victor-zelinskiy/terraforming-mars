@@ -1348,6 +1348,10 @@ export default defineComponent({
     },
     // ── the command bar (the truth of the current context) ─────────────
     commandContext(): string {
+      // «Разбор хода» review owns the screen — the bar reads as the review.
+      if (this.botTurnReviewState.open) {
+        return 'Turn review';
+      }
       // Scale-focus hold: the modal is briefly gone while the board scale
       // animates — read as the board, not the (hidden) upcoming modal.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {

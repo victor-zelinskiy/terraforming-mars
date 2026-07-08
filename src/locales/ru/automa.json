@@ -196,9 +196,9 @@
 
   "Turn review": "Разбор хода",
   "MarsBot turn review": "Разбор хода бота",
-  "MarsBot played a project card": "Бот разыграл карту проекта",
-  "MarsBot played a bonus card": "Бот разыграл бонусную карту",
-  "MarsBot plays only the card tags — its text, cost and requirements are ignored": "Бот разыгрывает только метки карты — её текст, стоимость и требования игнорируются",
+  "Project card": "Карта проекта",
+  "Only the card tags are played": "Играются только метки карты",
+  "Track action": "Действие трека",
   "What happened": "Что произошло",
   "Card tag": "Метка карты",
   "Bonus card": "Бонусная карта",

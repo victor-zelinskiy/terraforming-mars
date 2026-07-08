@@ -142,6 +142,25 @@ function paramsOfVisual(turn: MarsBotTurn): Array<BotReviewParam> {
   return out;
 }
 
+/**
+ * Internal automa bookkeeping that adds noise, not information, to the review:
+ * the random tie-break / colony-pick FLIPS, and the "placed tile at <space>"
+ * lines (the tile + its «показать» affordance live in the board block, so the
+ * chain never repeats the button).
+ */
+const NOISE_LOG_TEMPLATES: ReadonlySet<string> = new Set([
+  '${0} flipped ${1} (cost ${2}) to break a placement tie',
+  '${0} flipped ${1} (cost ${2}) to pick a colony tile',
+]);
+
+function isNoiseLog(message: LogMessage): boolean {
+  if (NOISE_LOG_TEMPLATES.has(message.message)) {
+    return true;
+  }
+  // A placement-location line — deduped against the board block's tile + show.
+  return message.data.some((d) => d.type === LogMessageDataType.SPACE);
+}
+
 /** Is this log line "the bot lost N of a resource" (the trade-fee deduct)? */
 function isBotResourceLoss(message: LogMessage | undefined, botColor: Color | ''): boolean {
   // The English template is a stable constant (`StockBase.logUnitDelta`);
@@ -274,6 +293,9 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'log': {
+      if (isNoiseLog(step.message)) {
+        break;
+      }
       const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
       const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step.message, source.botColor);
       chain.lines.push({
@@ -352,6 +374,9 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'log': {
+      if (isNoiseLog(step.message)) {
+        break;
+      }
       const chain = current ?? ensureLoose();
       const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step.message, source.botColor);
       chain.lines.push({
