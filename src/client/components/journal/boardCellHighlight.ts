@@ -72,3 +72,41 @@ export function highlightBoardSpace(spaceId: SpaceId): void {
   }, PULSE_DURATION);
   activeTimers.set(spaceId, timer);
 }
+
+/** Pulse SEVERAL cells at once — one «показать» that references N tiles. */
+export function highlightBoardSpaces(spaceIds: ReadonlyArray<SpaceId>): void {
+  for (const spaceId of spaceIds) {
+    highlightBoardSpace(spaceId);
+  }
+}
+
+// ── Persistent "show on map" peek ─────────────────────────────────────────
+// The console journal + bot-turn-review «Показать» affordances keep the
+// referenced cells pulsing UNTIL the player presses a button (the surface
+// fades so the rings read through). A single module-level interval re-pulses
+// ALL the referenced cells — the one-shot `.journal-pulse` animation lasts
+// ~1.9s, so we re-arm every 2s to keep drawing attention. Only ONE peek is
+// ever active at a time (opening the bot review closes the journal), so one
+// shared timer suffices. When stopped, the last pulse fades out on its own
+// per-cell timer, so the highlight disappears cleanly with no leftover ring.
+const PEEK_REPULSE_INTERVAL = 2000;
+let peekPulseTimer = 0;
+let peekPulseSpaces: ReadonlyArray<SpaceId> = [];
+
+export function startBoardHighlightPulse(spaceIds: ReadonlyArray<SpaceId>): void {
+  stopBoardHighlightPulse();
+  if (spaceIds.length === 0) {
+    return;
+  }
+  peekPulseSpaces = spaceIds;
+  highlightBoardSpaces(peekPulseSpaces);
+  peekPulseTimer = window.setInterval(() => highlightBoardSpaces(peekPulseSpaces), PEEK_REPULSE_INTERVAL);
+}
+
+export function stopBoardHighlightPulse(): void {
+  if (peekPulseTimer !== 0) {
+    window.clearInterval(peekPulseTimer);
+    peekPulseTimer = 0;
+  }
+  peekPulseSpaces = [];
+}

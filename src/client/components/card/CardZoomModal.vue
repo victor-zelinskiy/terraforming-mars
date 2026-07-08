@@ -170,11 +170,17 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
-import {CardModel} from '@/common/models/CardModel';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {ZoomCard} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
-
 import dialogPolyfill from 'dialog-polyfill';
+
+// The measured card element differs by entry kind: a normal project card is
+// `.card-container.filterDiv`, an Automa bonus card is `.mb-face`. Both scoped
+// to the viewer's own card so a stray board `.mb-face` is never measured.
+const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card .card-container.filterDiv, .card-zoom-stage .card-zoom-card .mb-face';
+const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card .card-container.filterDiv, .card-zoom-preload .card-zoom-card .mb-face';
+const CARD_EL_SELECTOR = '.card-container.filterDiv, .mb-face';
 
 type Refs = {
   dialog: HTMLDialogElement;
@@ -205,7 +211,7 @@ export default defineComponent({
   },
   props: {
     card: {
-      type: Object as () => CardModel,
+      type: Object as () => ZoomCard,
       required: true,
     },
     actionUsed: {
@@ -228,7 +234,7 @@ export default defineComponent({
      * for a pure single-card preview.
      */
     cards: {
-      type: Array as () => ReadonlyArray<CardModel> | undefined,
+      type: Array as () => ReadonlyArray<ZoomCard> | undefined,
       default: undefined,
     },
     /*
@@ -259,7 +265,7 @@ export default defineComponent({
     typedRefs(): Refs {
       return this.$refs as unknown as Refs;
     },
-    navList(): ReadonlyArray<CardModel> {
+    navList(): ReadonlyArray<ZoomCard> {
       return this.cards ?? [];
     },
     navEnabled(): boolean {
@@ -271,7 +277,7 @@ export default defineComponent({
     // The card currently on screen. In nav mode it's the list entry at
     // currentIndex; otherwise the single `card` prop. Falls back to `card`
     // defensively if the index is ever transiently out of range.
-    activeCard(): CardModel {
+    activeCard(): ZoomCard {
       if (this.navEnabled) {
         const c = this.navList[this.currentIndex];
         if (c !== undefined) {
@@ -286,8 +292,8 @@ export default defineComponent({
     canNext(): boolean {
       return this.navEnabled && this.currentIndex < this.navList.length - 1;
     },
-    preloadCards(): ReadonlyArray<CardModel> {
-      const out: Array<CardModel> = [];
+    preloadCards(): ReadonlyArray<ZoomCard> {
+      const out: Array<ZoomCard> = [];
       for (const name of this.preloadNames) {
         const c = this.navList.find((card) => card.name === name);
         if (c !== undefined) {
@@ -317,7 +323,7 @@ export default defineComponent({
      * (a removal shifted the next card into place) play the calmer "consume"
      * swap and re-sync the parent + fit.
      */
-    cards(next: ReadonlyArray<CardModel> | undefined, prev: ReadonlyArray<CardModel> | undefined) {
+    cards(next: ReadonlyArray<ZoomCard> | undefined, prev: ReadonlyArray<ZoomCard> | undefined) {
       if (next === undefined || next.length === 0) {
         return;
       }
@@ -526,7 +532,9 @@ export default defineComponent({
         return;
       }
       const rendered = this.preloadCards; // same order as the DOM clones
-      const els = dialog.querySelectorAll('.card-zoom-preload .card-zoom-card .card-container.filterDiv');
+      // One matched element per clone (a project card's `.card-container` or a
+      // bonus card's `.mb-face`), so the index aligns with `rendered`.
+      const els = dialog.querySelectorAll(PRELOAD_CARD_SELECTOR);
       els.forEach((node, i) => {
         const model = rendered[i];
         if (model === undefined || naturalCardSizeCache.has(model.name)) {
@@ -585,8 +593,8 @@ export default defineComponent({
     fitCardToViewport(cardRoot?: HTMLElement): void {
       const dialog = this.typedRefs.dialog;
       const cardEl = (cardRoot !== undefined ?
-        cardRoot.querySelector('.card-container.filterDiv') :
-        dialog?.querySelector('.card-zoom-stage .card-zoom-card .card-container.filterDiv')) as HTMLElement | null;
+        cardRoot.querySelector(CARD_EL_SELECTOR) :
+        dialog?.querySelector(STAGE_CARD_SELECTOR)) as HTMLElement | null;
       if (cardEl === null || cardEl === undefined) {
         return;
       }

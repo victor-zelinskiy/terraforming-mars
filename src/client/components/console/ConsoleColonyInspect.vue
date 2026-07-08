@@ -100,19 +100,27 @@
               <span class="con-coltile__fleet-ship colonies-fleet" :class="'colonies-fleet-' + colony.visitor" aria-hidden="true"></span>
               <span>{{ visitorLine }}</span>
             </div>
-            <div class="con-colinspect__verdict" :class="tradeable ? 'con-colinspect__verdict--ok' : 'con-colinspect__verdict--no'">
-              <template v-if="tradeable">
-                <span class="con-coltile__status-dot" aria-hidden="true"></span>
-                <span>{{ $t('Trade available') }}</span>
-              </template>
-              <template v-else>
-                <span aria-hidden="true">✕</span>
-                <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
-              </template>
+            <!-- The trade verdict + payment table belong to the interactive
+                 (section) dossier; a READ-ONLY journal dossier is pure history
+                 (description / track / bonuses / owners / fleet) — no verdict. -->
+            <template v-if="!readonly">
+              <div class="con-colinspect__verdict" :class="tradeable ? 'con-colinspect__verdict--ok' : 'con-colinspect__verdict--no'">
+                <template v-if="tradeable">
+                  <span class="con-coltile__status-dot" aria-hidden="true"></span>
+                  <span>{{ $t('Trade available') }}</span>
+                </template>
+                <template v-else>
+                  <span aria-hidden="true">✕</span>
+                  <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
+                </template>
+              </div>
+            </template>
+            <div v-else class="con-colinspect__fleet-line con-colinspect__fleet-line--muted">
+              {{ colony.visitor === undefined ? $t('No trade fleet here') : '' }}
             </div>
             <!-- EVERY payment path, affordable AND not — a strict grid table
                  ([icon | label | current → resulting / reason]). -->
-            <div v-if="paymentRows.length > 0" class="con-colinspect__paytable">
+            <div v-if="!readonly && paymentRows.length > 0" class="con-colinspect__paytable">
               <div v-for="(row, i) in paymentRows" :key="i"
                    class="con-colinspect__payrow"
                    :class="{'con-colinspect__payrow--off': !row.available}">
@@ -124,8 +132,9 @@
             </div>
           </div>
 
-          <!-- Card-resource targets — the shared server preview's truth. -->
-          <div v-if="targetRows.length > 0 || lostCount > 0" class="con-colinspect__block">
+          <!-- Card-resource targets — the shared server preview's truth
+               (interactive dossier only; the journal is history, not planning). -->
+          <div v-if="!readonly && (targetRows.length > 0 || lostCount > 0)" class="con-colinspect__block">
             <div class="con-colinspect__section-title">{{ $t('Where the resources go') }}</div>
             <div v-for="(row, i) in targetRows" :key="'t' + i" class="con-colinspect__target">
               <span class="con-colinspect__target-role">{{ $t(row.roleLabel) }}</span>
@@ -190,6 +199,9 @@ export default defineComponent({
     playerId: {type: String, default: ''},
     tradeOffset: {type: Number, default: 0},
     tradeable: {type: Boolean, default: false},
+    /** READ-ONLY dossier (opened from the journal): history only — no trade
+     *  verdict / payment table / target planning. */
+    readonly: {type: Boolean, default: false},
     blockReason: {type: String, default: ''},
     paymentOptions: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     disabledPayments: {type: Array as PropType<ReadonlyArray<DisabledOptionModel>>, default: () => []},

@@ -7,6 +7,7 @@ import {
   BOT_TURN_PRIORITY,
   BOT_TURN_SUMMARY_CAP,
   BOT_TURN_TTL,
+  botReviewHasAdjacentTurn,
   buildBotTurnNotification,
   botTurnNotificationId,
   globalParamChips,
@@ -15,9 +16,12 @@ import {
   openBotTurnReviewByCorrelation,
   presentFreshBotTurns,
   setMarsBotPresentationMode,
+  stepBotTurnReview,
 } from '@/client/components/marsbot/marsBotPresentation';
 import {
+  adjacentArchivedTurn,
   archivedTurnByKey,
+  archivedTurnsInOrder,
   botReplayAvailableFor,
   recordBotTurnsFromView,
   resetMarsBotArchive,
@@ -244,6 +248,78 @@ describe('marsBotPresentation (notification-first turns)', () => {
       // The freed slot stays empty while the theater blocks delivery.
       expect(notificationState.transient).lengthOf(0);
       expect(notificationState.queue.map((n) => n.id)).deep.eq(['bot:red:1:2']);
+    });
+  });
+
+  describe('turn navigation (LB / RB across archived turns)', () => {
+    it('adjacentArchivedTurn / archivedTurnsInOrder walk turns in (generation, id) order', () => {
+      recordBotTurnsFromView(undefined, botView({turnHistory: [
+        turn(1, {generation: 1}), turn(2, {generation: 1}), turn(1, {generation: 2}),
+      ]}));
+      expect(archivedTurnsInOrder('red' as Color).map((e) => e.key)).deep.eq(['red:1:1', 'red:1:2', 'red:2:1']);
+      expect(adjacentArchivedTurn('red:1:2', 1)?.key).eq('red:2:1');
+      expect(adjacentArchivedTurn('red:1:2', -1)?.key).eq('red:1:1');
+      // Boundaries + an unknown anchor → undefined.
+      expect(adjacentArchivedTurn('red:1:1', -1)).is.undefined;
+      expect(adjacentArchivedTurn('red:2:1', 1)).is.undefined;
+      expect(adjacentArchivedTurn('red:9:9', 1)).is.undefined;
+    });
+
+    it('RB steps to the next turn, LB steps back — the review re-points to that turn', () => {
+      recordBotTurnsFromView(undefined, botView({turnHistory: [turn(1), turn(2), turn(3)]}));
+      openBotTurnReviewByKey('red:1:1');
+      expect(botTurnReviewState.key).eq('red:1:1');
+
+      expect(stepBotTurnReview(1)).eq('ok');
+      expect(botTurnReviewState.key).eq('red:1:2');
+      expect(stepBotTurnReview(1)).eq('ok');
+      expect(botTurnReviewState.key).eq('red:1:3');
+
+      expect(stepBotTurnReview(-1)).eq('ok');
+      expect(botTurnReviewState.key).eq('red:1:2');
+      // No stray boundary notice while navigation is valid.
+      expect(botTurnReviewState.edge).eq('');
+    });
+
+    it('a boundary flashes the review-local edge notice, never navigates', () => {
+      recordBotTurnsFromView(undefined, botView({turnHistory: [turn(1), turn(2)]}));
+      openBotTurnReviewByKey('red:1:2');
+
+      // At the last turn RB → "next turn not made yet".
+      expect(stepBotTurnReview(1)).eq('no-next');
+      expect(botTurnReviewState.key).eq('red:1:2'); // unchanged
+      expect(botTurnReviewState.edge).eq('no-next');
+      const firstNonce = botTurnReviewState.edgeNonce;
+
+      // A repeated press re-arms the toast (bumps the nonce so the surface
+      // replays its pop animation).
+      expect(stepBotTurnReview(1)).eq('no-next');
+      expect(botTurnReviewState.edgeNonce).eq(firstNonce + 1);
+
+      // Back to the first turn, then LB → "previous turn unavailable".
+      stepBotTurnReview(-1);
+      expect(botTurnReviewState.key).eq('red:1:1');
+      expect(stepBotTurnReview(-1)).eq('no-prev');
+      expect(botTurnReviewState.key).eq('red:1:1');
+      expect(botTurnReviewState.edge).eq('no-prev');
+    });
+
+    it('botReviewHasAdjacentTurn drives the desktop button enabled-state', () => {
+      recordBotTurnsFromView(undefined, botView({turnHistory: [turn(1), turn(2)]}));
+      // Closed review → no adjacency.
+      expect(botReviewHasAdjacentTurn(1)).eq(false);
+      openBotTurnReviewByKey('red:1:1');
+      expect(botReviewHasAdjacentTurn(-1)).eq(false); // first turn
+      expect(botReviewHasAdjacentTurn(1)).eq(true);
+      openBotTurnReviewByKey('red:1:2');
+      expect(botReviewHasAdjacentTurn(-1)).eq(true);
+      expect(botReviewHasAdjacentTurn(1)).eq(false); // last turn
+    });
+
+    it('a closed review swallows a step as a boundary (no throw)', () => {
+      expect(botTurnReviewState.open).eq(false);
+      expect(stepBotTurnReview(1)).eq('no-next');
+      expect(stepBotTurnReview(-1)).eq('no-prev');
     });
   });
 

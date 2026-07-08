@@ -195,9 +195,8 @@ import {LogMessageType} from '@/common/logs/LogMessageType';
 import {SpaceId} from '@/common/Types';
 import {standardProjectVisual, StandardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {HYDRO_PREVIEW} from '@/client/components/hydronetwork/hydroPreview';
-import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
+import {startBoardHighlightPulse, stopBoardHighlightPulse} from '@/client/components/journal/boardCellHighlight';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
-import {motionMs} from '@/client/components/motion/motionTokens';
 
 type GroupRenderNode = {
   kind: 'group';
@@ -225,9 +224,8 @@ type DataModel = {
   filterIndex: number,
   /** The open inspect card (standard project / action / hydro). */
   inspect: JournalInspect | undefined,
-  /** L3 «Показать» — the surface fades so the pulsing cell reads through. */
+  /** L3 «Показать» — the surface fades so the pulsing cells read through. */
   mapPeek: boolean,
-  peekTimer: number | undefined,
 };
 
 export default defineComponent({
@@ -236,7 +234,7 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
-  emits: ['close', 'notice'],
+  emits: ['close', 'notice', 'inspect-colony'],
   data(): DataModel {
     return {
       source: createJournalDataSource({
@@ -250,7 +248,6 @@ export default defineComponent({
       filterIndex: 0,
       inspect: undefined,
       mapPeek: false,
-      peekTimer: undefined,
     };
   },
   computed: {
@@ -346,7 +343,7 @@ export default defineComponent({
     focusedTargets(): JournalInspectTargets {
       const node = this.focusedNode;
       if (node === undefined) {
-        return {cards: [], standard: [], hydro: false, milestones: [], awards: [], spaces: []};
+        return {cards: [], standard: [], hydro: false, milestones: [], awards: [], colonies: [], spaces: []};
       }
       const messages = node.kind === 'group' ? [node.group.header, ...node.group.children] : [node.message];
       return journalInspectTargets(messages, this.classifyToken);
@@ -535,14 +532,13 @@ export default defineComponent({
         }
         return;
       }
-      // Any interaction during the map-highlight peek brings the journal
-      // back first (B included — the shell delegates it while peeking, so
-      // a peek-B can never accidentally CLOSE the journal).
+      // The «Показать» map-peek holds ALL the referenced cells lit until the
+      // player presses. The FIRST input just restores the journal (consumed —
+      // mirrors the bot-turn review); B here is a LOCAL back that never closes
+      // the journal (the shell delegates it while peeking).
       if (this.mapPeek) {
         this.cancelPeek();
-        if (intent.kind === 'press' && intent.button === 'back') {
-          return;
-        }
+        return;
       }
       if (this.filterOpen) {
         this.handleFilterIntent(intent);
@@ -694,6 +690,13 @@ export default defineComponent({
         }
       }
       const t = this.focusedTargets;
+      // A COLONY reference (e.g. "added a new colony: Luna") — the most
+      // specific target: open its read-only dossier (the shell hosts the
+      // ConsoleColonyInspect overlay; B closes it back to the journal).
+      if (t.colonies.length > 0) {
+        this.$emit('inspect-colony', t.colonies[0]);
+        return;
+      }
       if (t.cards.length > 0) {
         // Read-only context: no select / action bridge — A can't fire anything.
         openConsoleCardZoom(t.cards.map((name) => ({name} as CardModel)), 0);
@@ -722,32 +725,22 @@ export default defineComponent({
       this.$emit('notice', 'Nothing to inspect in this entry');
     },
     /**
-     * P29 — L3 = «Показать»: pulse the entry's board cell (the shared
-     * boardCellHighlight pipeline — the same premium pulse the desktop
-     * journal pin uses) while the journal PEEKS (fades) so the highlight
-     * reads through. Focus / scroll / filter are untouched; the peek ends
-     * on its own timer or on the next input.
+     * P29 — L3 = «Показать»: pulse ALL of the entry's board cells (the shared
+     * persistent-pulse pipeline — the same premium pulse the bot-turn review
+     * uses) while the journal PEEKS (fades) so the highlights read through. A
+     * bot turn that placed a city AND a greenery lights BOTH. Focus / scroll /
+     * filter are untouched; the peek holds until the player presses a button.
      */
     showFocusedOnMap(): void {
       const spaces = this.focusedTargets.spaces;
       if (spaces.length === 0) {
         return;
       }
-      highlightBoardSpace(spaces[0] as SpaceId);
+      startBoardHighlightPulse(spaces as ReadonlyArray<SpaceId>);
       this.mapPeek = true;
-      if (this.peekTimer !== undefined) {
-        window.clearTimeout(this.peekTimer);
-      }
-      this.peekTimer = window.setTimeout(() => {
-        this.mapPeek = false;
-        this.peekTimer = undefined;
-      }, motionMs(2100));
     },
     cancelPeek(): void {
-      if (this.peekTimer !== undefined) {
-        window.clearTimeout(this.peekTimer);
-        this.peekTimer = undefined;
-      }
+      stopBoardHighlightPulse();
       this.mapPeek = false;
     },
     openFilter(): void {
@@ -780,9 +773,7 @@ export default defineComponent({
     this.source.start();
   },
   beforeUnmount(): void {
-    if (this.peekTimer !== undefined) {
-      window.clearTimeout(this.peekTimer);
-    }
+    stopBoardHighlightPulse();
     this.source.dispose();
     resetConsoleJournalUi();
   },

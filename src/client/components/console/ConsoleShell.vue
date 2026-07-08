@@ -123,7 +123,8 @@
                              ref="journalPanel"
                              :playerView="playerView"
                              @close="closeJournal"
-                             @notice="showNotice($event)" />
+                             @notice="showNotice($event)"
+                             @inspect-colony="openJournalColonyInspect($event)" />
       </transition>
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           ref="handSection"
@@ -189,10 +190,11 @@
                             :viewerColor="thisPlayer.color"
                             :playerId="playerView.id"
                             :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
-                            :tradeable="tradeableColonyNames.includes(colonyInspectModel.name)"
-                            :blockReason="colonyTradeBlockReason"
-                            :paymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
-                            :disabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []" />
+                            :readonly="colonyInspectReadonly"
+                            :tradeable="colonyInspectTradeable"
+                            :blockReason="colonyInspectReadonly ? '' : colonyTradeBlockReason"
+                            :paymentOptions="colonyInspectReadonly || tradeColonyContext === undefined ? [] : tradeColonyContext.paymentOptions"
+                            :disabledPayments="colonyInspectReadonly || tradeColonyContext === undefined ? [] : tradeColonyContext.disabledPayments" />
     </transition>
 
     <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
@@ -484,8 +486,7 @@ import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.v
 import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
-import {closeBonusCardZoom, isBonusCardZoomOpen, openBonusCardZoom} from '@/client/components/marsbot/bonusCardZoomState';
-import {openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
+import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
@@ -529,6 +530,7 @@ import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradeP
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/Card.vue';
+import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -650,6 +652,8 @@ export default defineComponent({
       pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments'], preview?: ColonyTradePreviewModel} | undefined,
       /** X = «Осмотреть» — the read-only colony dossier overlay. */
       colonyInspectOpen: false,
+      /** A colony name opened READ-ONLY from the journal (X on a colony row). */
+      journalColonyInspect: undefined as ColonyName | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
       /** A task's nested space-type option being picked on the board. */
       taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
@@ -1113,12 +1117,33 @@ export default defineComponent({
       }
       return 'Unavailable right now';
     },
-    /** The colony the X = «Осмотреть» overlay shows (←/→ page while open). */
+    /** The colony the X = «Осмотреть» overlay shows. Two sources: the colonies
+     *  SECTION (←/→ pages the rail, A can trade) and the JOURNAL (a fixed
+     *  colony by name, read-only — only B closes). */
     colonyInspectModel(): ColonyModel | undefined {
+      if (this.journalColonyInspect !== undefined) {
+        return this.game.colonies.find((c) => c.name === this.journalColonyInspect);
+      }
       if (!this.colonyInspectOpen || this.consoleState.section !== 'colonies') {
         return undefined;
       }
       return this.coloniesForRail[this.consoleState.colonyIndex];
+    },
+    /** The inspect overlay is up (either source). */
+    colonyInspectActive(): boolean {
+      return this.journalColonyInspect !== undefined ||
+        (this.colonyInspectOpen && this.consoleState.section === 'colonies');
+    },
+    /** A journal-opened inspect is READ-ONLY (no trade bridge — only B closes). */
+    colonyInspectReadonly(): boolean {
+      return this.journalColonyInspect !== undefined;
+    },
+    /** A = trade from inspect is offered only for a live-tradeable colony
+     *  opened from the section (never the read-only journal dossier). */
+    colonyInspectTradeable(): boolean {
+      const model = this.colonyInspectModel;
+      return !this.colonyInspectReadonly && model !== undefined &&
+        this.tradeableColonyNames.includes(model.name);
     },
     pendingTradeColonyModel(): ColonyModel | undefined {
       const pending = this.pendingTradeColony;
@@ -1391,7 +1416,7 @@ export default defineComponent({
       if (this.pendingTradeColony !== undefined) {
         return 'Trade';
       }
-      if (this.colonyInspectOpen) {
+      if (this.colonyInspectActive) {
         return 'Colony';
       }
       if (this.maInspectItem !== undefined) {
@@ -1436,23 +1461,29 @@ export default defineComponent({
     reviewInspectable(): boolean {
       return this.botTurnReviewState.open && this.reviewCardNames.length > 0;
     },
-    /** The first placed tile — L3 = Показать на карте. */
-    reviewMapSpace(): SpaceId | undefined {
-      return this.botTurnReviewState.review?.primarySpaceId;
+    /** Every tile placed this turn — L3 = Показать на карте (ALL cells pulse). */
+    reviewMapSpaces(): ReadonlyArray<SpaceId> {
+      const out: Array<SpaceId> = [];
+      for (const tile of this.botTurnReviewState.review?.tiles ?? []) {
+        if (!out.includes(tile.spaceId)) {
+          out.push(tile.spaceId);
+        }
+      }
+      return out;
     },
     commands(): Array<ConsoleCommand> {
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
       // close. While the fullscreen viewer is up its OWN footer carries the
-      // contract; during a peek any button returns.
+      // contract; during a peek B returns to the review.
       if (this.botTurnReviewState.open && this.consoleCardZoom.card === undefined) {
         if (this.botTurnReviewState.peek) {
-          return [{control: 'confirm', label: 'Back to review'}];
+          return [{control: 'back', label: 'Back'}];
         }
         const cmds: Array<ConsoleCommand> = [];
         if (this.reviewInspectable) {
           cmds.push({control: 'secondary', label: 'Inspect card'});
         }
-        if (this.reviewMapSpace !== undefined) {
+        if (this.reviewMapSpaces.length > 0) {
           cmds.push({control: 'stickL', label: 'Show on map'});
         }
         cmds.push({control: 'back', label: 'Close'});
@@ -1556,11 +1587,17 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
-      if (this.colonyInspectOpen) {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'back', label: 'Close'},
-        ];
+      if (this.colonyInspectActive) {
+        const cmds: Array<ConsoleCommand> = [];
+        // Section source: ←/→ pages colonies + A trades a live-tradeable one.
+        if (this.journalColonyInspect === undefined) {
+          cmds.push({control: 'dpad', label: 'Navigate'});
+          if (this.colonyInspectTradeable) {
+            cmds.push({control: 'confirm', label: 'Trade'});
+          }
+        }
+        cmds.push({control: 'back', label: 'Close'});
+        return cmds;
       }
       if (this.maInspectItem !== undefined) {
         const cmds: Array<ConsoleCommand> = [];
@@ -1585,6 +1622,11 @@ export default defineComponent({
       if (this.journalPanelVisible) {
         // The journal's whole grammar, honest to the panel's live mirrors
         // (consoleJournalUi — the panel syncs, the bar never guesses).
+        // The «Показать» map-peek holds the referenced cells lit until the
+        // player presses — B restores the journal (matches the bot review).
+        if (consoleJournalUi.peekActive) {
+          return [{control: 'back', label: 'Back'}];
+        }
         if (consoleJournalUi.inspectOpen) {
           return [{control: 'back', label: 'Close'}];
         }
@@ -1792,7 +1834,7 @@ export default defineComponent({
     },
     zoomSelected(): boolean {
       const z = this.consoleCardZoom;
-      return z.select !== undefined && z.card !== undefined && z.select.isSelected(z.card.name);
+      return z.select !== undefined && z.card !== undefined && z.select.isSelected(z.card.name as CardName);
     },
     zoomSelectLabel(): string {
       return this.consoleCardZoom.select?.selectLabel ?? 'Select';
@@ -1806,7 +1848,9 @@ export default defineComponent({
       if (z.action === undefined || z.card === undefined) {
         return undefined;
       }
-      return z.action.labelFor(z.card.name);
+      // The action bridge is only ever attached to project-card lists, so the
+      // ZoomCard name is genuinely a CardName here (never a bonus id).
+      return z.action.labelFor(z.card.name as CardName);
     },
     /** The RECEIVE bridge A-verb (drawn-cards reveal), or undefined. */
     zoomReceiveLabel(): string | undefined {
@@ -1823,7 +1867,7 @@ export default defineComponent({
       if (z.action === undefined || z.card === undefined || this.zoomActionLabel !== undefined) {
         return [];
       }
-      return z.action.reasonsFor(z.card.name);
+      return z.action.reasonsFor(z.card.name as CardName);
     },
     /** P15: the deferred-chip return verb, by what is actually pending. */
     deferReturnLabel(): string {
@@ -1869,9 +1913,16 @@ export default defineComponent({
         resetConsoleColoniesUi();
       }
     },
+    // The journal closing for ANY reason (mandatory surface, game switch)
+    // takes its read-only colony dossier with it.
+    journalPanelVisible(visible: boolean) {
+      if (!visible && this.journalColonyInspect !== undefined) {
+        this.closeColonyInspect();
+      }
+    },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
-    'consoleCardZoom.card'(card: CardModel | undefined, prev: CardModel | undefined) {
+    'consoleCardZoom.card'(card: ZoomCard | undefined, prev: ZoomCard | undefined) {
       if (card !== undefined && prev === undefined) {
         void this.$nextTick(() => (this.$refs.cardZoom as {show?: () => void} | undefined)?.show?.());
       }
@@ -1983,17 +2034,11 @@ export default defineComponent({
       // inspects the played card, L3 shows the placed tile on the board, the
       // right stick scrolls; during a peek any press returns to the review.
       if (this.botTurnReviewState.open) {
-        // The fullscreen viewer opened via X owns the pad while it is up.
+        // The fullscreen viewer opened via X owns the pad while it is up. It now
+        // hosts BONUS cards too (the union CardZoomModal), so there is no
+        // separate bonus-inspect surface to close first.
         if (this.consoleCardZoom.card !== undefined) {
           return this.handleZoomIntent(intent);
-        }
-        // The bonus-card full-rules inspect (opened by X on a bonus turn): B
-        // closes IT first, everything else swallowed.
-        if (isBonusCardZoomOpen()) {
-          if (intent.kind === 'press' && intent.button === 'back') {
-            closeBonusCardZoom();
-          }
-          return true;
         }
         if (this.botTurnReviewState.peek) {
           if (intent.kind === 'press') {
@@ -2008,8 +2053,14 @@ export default defineComponent({
         if (intent.kind === 'press') {
           if (intent.button === 'secondary') {
             this.inspectReviewCard();
-          } else if (intent.button === 'stickL' && this.reviewMapSpace !== undefined) {
-            setBotReviewPeek(true, this.reviewMapSpace);
+          } else if (intent.button === 'bumperL') {
+            // LB → previous bot turn (edge notice at the first archived turn).
+            stepBotTurnReview(-1);
+          } else if (intent.button === 'bumperR') {
+            // RB → next bot turn (edge notice if the next turn is not made yet).
+            stepBotTurnReview(1);
+          } else if (intent.button === 'stickL' && this.reviewMapSpaces.length > 0) {
+            setBotReviewPeek(true, this.reviewMapSpaces);
           } else if (intent.button === 'back') {
             closeBotTurnReview();
           }
@@ -2103,6 +2154,12 @@ export default defineComponent({
       // card / map-peek is a LOCAL back (closes that layer, never the
       // journal); everything else is the panel's own grammar
       // (A / X / L3 / LB·RB / LT·RT / Y / d-pad — see ConsoleJournalPanel).
+      // A READ-ONLY colony dossier opened from the journal (X on a colony row)
+      // owns the pad ABOVE the journal — B/X closes it back to the journal.
+      if (this.journalColonyInspect !== undefined) {
+        this.handleColonyInspectIntent(intent);
+        return true;
+      }
       if (this.journalPanelVisible) {
         const journalLocalBack = consoleJournalUi.filterOpen || consoleJournalUi.inspectOpen || consoleJournalUi.peekActive;
         if (intent.kind === 'press' &&
@@ -2704,6 +2761,11 @@ export default defineComponent({
           closeConsoleLayers();
           this.consoleState.task.deferred = false;
           this.submit(colonyResponse(selected.name));
+          // The SelectColony pick is a ONE-SHOT action (Aridor's extra tile,
+          // a build target …). Leave the colonies screen so the player isn't
+          // stranded wondering whether another colony choice is expected — the
+          // server's next prompt (or the turn) drives what surfaces next.
+          this.consoleState.section = 'board';
           return;
         }
         if (this.placementActive) {
@@ -2804,6 +2866,11 @@ export default defineComponent({
     },
     closeJournal(): void {
       journalState.open = false;
+      // A read-only colony dossier only exists ON TOP of the journal — it must
+      // not outlive it (e.g. a mandatory surface closes the journal underneath).
+      if (this.journalColonyInspect !== undefined) {
+        this.closeColonyInspect();
+      }
     },
     // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
     toggleInspection(): void {
@@ -3131,7 +3198,8 @@ export default defineComponent({
       return true;
     },
     // ── colonies trade (mirrors the desktop contract byte-for-byte) ─────
-    /** X = «Осмотреть» — toggle the read-only colony dossier. */
+    /** X = «Осмотреть» from the colonies SECTION — toggle the dossier (A can
+     *  then trade). */
     toggleColonyInspect(): void {
       if (this.colonyInspectOpen) {
         this.colonyInspectOpen = false;
@@ -3144,23 +3212,47 @@ export default defineComponent({
       this.colonyInspectOpen = true;
       consoleColoniesUi.inspectOpen = true;
     },
-    /** The inspect overlay owns the pad: ←/→ page colonies, ↑/↓ scroll, B/X close. */
+    /** X on a JOURNAL colony row — open the READ-ONLY dossier over the journal. */
+    openJournalColonyInspect(name: ColonyName): void {
+      this.colonyInspectOpen = false;
+      this.journalColonyInspect = name;
+      consoleColoniesUi.inspectOpen = true;
+    },
+    /** Close whichever inspect source is open (section or journal). */
+    closeColonyInspect(): void {
+      this.colonyInspectOpen = false;
+      this.journalColonyInspect = undefined;
+      consoleColoniesUi.inspectOpen = false;
+    },
+    /** The inspect overlay owns the pad: ←/→ page colonies (section source
+     *  only), ↑/↓ scroll, A trades a live-tradeable colony (section), B/X close. */
     handleColonyInspectIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        if (intent.dir === 'left' || intent.dir === 'right') {
+        // ←/→ pages the rail ONLY for the section source (a journal dossier is
+        // pinned to its one colony).
+        if ((intent.dir === 'left' || intent.dir === 'right') && this.journalColonyInspect === undefined) {
           this.consoleState.colonyIndex = stepIndex(
             this.consoleState.colonyIndex, intent.dir === 'right' ? 1 : -1, this.coloniesForRail.length);
           return;
         }
-        const scroller = document.querySelector<HTMLElement>('.con-colinspect .con-colinspect__main');
-        scroller?.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
+        if (intent.dir === 'up' || intent.dir === 'down') {
+          const scroller = document.querySelector<HTMLElement>('.con-colinspect .con-colinspect__main');
+          scroller?.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
+        }
         return;
       }
       if (intent.kind !== 'press') {
         return;
       }
+      // A = trade this colony (section source, live-tradeable only) — close the
+      // dossier and open the composer. Read-only journal dossier: A does nothing.
+      if (intent.button === 'confirm' && this.colonyInspectTradeable) {
+        this.closeColonyInspect();
+        this.tryOpenColonyTrade();
+        return;
+      }
       if (intent.button === 'back' || intent.button === 'secondary') {
-        this.toggleColonyInspect();
+        this.closeColonyInspect();
       }
     },
     tryOpenColonyTrade(): void {
@@ -3405,7 +3497,7 @@ export default defineComponent({
       this.cancelPlacement();
     },
     // ── P13/P15: the fullscreen card viewer (module-state driven) ───────
-    onCardZoomNavigate(card: CardModel, pos: number): void {
+    onCardZoomNavigate(card: ZoomCard, pos: number): void {
       navigateConsoleCardZoom(card, pos);
     },
     onCardZoomClosed(): void {
@@ -3463,7 +3555,7 @@ export default defineComponent({
     zoomToggleSelect(): void {
       const z = this.consoleCardZoom;
       if (z.select !== undefined && z.card !== undefined) {
-        z.select.toggle(z.card.name);
+        z.select.toggle(z.card.name as CardName);
       }
     },
     /** The RECEIVE bridge A-verb — take the card at the viewer's index. The
@@ -3481,11 +3573,11 @@ export default defineComponent({
       const z = this.consoleCardZoom;
       const card = z.card;
       const action = z.action;
-      if (card === undefined || action === undefined || action.labelFor(card.name) === undefined) {
+      if (card === undefined || action === undefined || action.labelFor(card.name as CardName) === undefined) {
         return;
       }
       this.closeZoomViewer();
-      action.execute(card.name);
+      action.execute(card.name as CardName);
     },
     closeZoomViewer(): void {
       (this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined)?.close();
@@ -3542,20 +3634,33 @@ export default defineComponent({
      */
     inspectReviewCard(): boolean {
       const review = this.botTurnReviewState.review;
-      const card = review?.card;
-      if (review !== undefined && card?.kind === 'bonus') {
-        openBonusCardZoom(card.id, review.ctx);
-        return true;
-      }
-      // A project turn: page the played card(s) FIRST, then the SERVICE flips
-      // (tie-break / pick — themselves project cards) LAST, all via LB/RB. So X
-      // never lists a card the review doesn't mention, but the flips are still
-      // reachable by browsing to the end.
-      const names = [...this.reviewCardNames, ...(review?.technicalReveals ?? []).map((t) => t.name)];
-      if (names.length === 0) {
+      if (review === undefined) {
         return false;
       }
-      openConsoleCardZoom(names.map((name) => ({name} as CardModel)), 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
+      const card = review.card;
+      // Service flips (tie-break / pick — themselves project cards) always page
+      // LAST, so X opens the MAIN card first and the flips are reachable only by
+      // browsing to the end (lower priority, per the review's card-order rule).
+      const service: Array<ZoomCard> = (review.technicalReveals ?? []).map((t) => ({name: t.name} as CardModel));
+      if (card?.kind === 'bonus') {
+        // A BONUS turn is now part of the SAME pageable browser: the primary
+        // bonus card first, then any secondary bonus card (Corp Competition
+        // drew another), then the service flips — one LB/RB list, desktop parity.
+        const entries: Array<ZoomCard> = [bonusZoomEntry(card.id, review.ctx)];
+        if (card.secondaryCard !== undefined) {
+          entries.push(bonusZoomEntry(card.secondaryCard, review.ctx));
+        }
+        entries.push(...service);
+        openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
+        return true;
+      }
+      // A project turn: the played card(s) FIRST, then the service flips LAST.
+      const projects: Array<ZoomCard> = this.reviewCardNames.map((name) => ({name} as CardModel));
+      const entries = [...projects, ...service];
+      if (entries.length === 0) {
+        return false;
+      }
+      openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
       return true;
     },
     /** X in the hand section: read the focused card fullscreen. In SALE

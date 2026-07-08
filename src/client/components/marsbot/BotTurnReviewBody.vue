@@ -26,7 +26,7 @@
         </div>
       </template>
       <template v-else>
-        <button type="button" class="mbr__bonus-chip" @click="openBonusZoom(review.card.id)" :title="$t('Full rules')">
+        <button type="button" class="mbr__bonus-chip" @click="$emit('zoomBonus', review.card.id)" :title="$t('Full rules')">
           <span class="mbr__bonus-glyph" aria-hidden="true">◈</span>
           <span class="mbr__bonus-name">{{ $t(bonusName(review.card.id)) }}</span>
           <span class="mbr__bonus-zoom" aria-hidden="true">⤢</span>
@@ -43,7 +43,7 @@
           <!-- A chained fallback card presented as part of THIS flow. -->
           <div v-if="review.card.secondaryCard !== undefined" class="mbr__branch mbr__branch--chain">
             <span class="mbr__branch-label" v-i18n>Drew another card</span>
-            <button type="button" class="mbr__bonus-chip mbr__bonus-chip--sm" @click="openBonusZoom(review.card.secondaryCard)">
+            <button type="button" class="mbr__bonus-chip mbr__bonus-chip--sm" @click="$emit('zoomBonus', review.card.secondaryCard)">
               <span class="mbr__bonus-name">{{ $t(bonusName(review.card.secondaryCard)) }}</span>
               <span class="mbr__bonus-zoom" aria-hidden="true">⤢</span>
             </button>
@@ -101,7 +101,7 @@
             <div v-if="line.kind === 'secondary-card'" class="mbr__secondary">
               <div class="mbr__secondary-head">
                 <span class="mbr__secondary-kicker" v-i18n>Secondary card</span>
-                <button type="button" class="mbr__bonus-chip mbr__bonus-chip--sm" @click="openBonusZoom(line.id)">
+                <button type="button" class="mbr__bonus-chip mbr__bonus-chip--sm" @click="$emit('zoomBonus', line.id)">
                   <span class="mbr__bonus-name">{{ $t(bonusName(line.id)) }}</span>
                   <span class="mbr__bonus-zoom" aria-hidden="true">⤢</span>
                 </button>
@@ -140,7 +140,6 @@ import {BotReviewTechnicalReveal, BotTurnReview} from './botTurnReviewModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {participantDisplayName} from './marsBotDisplay';
 import {DIFFICULTY_LABEL} from './marsBotView';
-import {openBonusCardZoom} from './bonusCardZoomState';
 import BotReviewLineContent from './BotReviewLineContent.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import Tag from '@/client/components/Tag.vue';
@@ -154,6 +153,10 @@ const FATE_LABEL: Record<MarsBotBonusFate, string> = {
 export default defineComponent({
   name: 'BotTurnReviewBody',
   components: {BotReviewLineContent, JournalCardChip, Tag},
+  // `zoomBonus` hands a bonus-card id UP to the host, which opens it in the
+  // surface-appropriate fullscreen viewer (desktop → BonusCardZoomOverlay,
+  // console → the union CardZoomModal). The body itself never owns a viewer.
+  emits: ['peek', 'zoomBonus'],
   props: {
     review: {type: Object as PropType<BotTurnReview>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
@@ -176,9 +179,6 @@ export default defineComponent({
     bonusEssence(id: BonusCardId): string {
       const line = buildBonusCardView(id, this.review.ctx).lines[0];
       return line !== undefined ? translateTextWithParams(line.text, [...(line.params ?? [])]) : '';
-    },
-    openBonusZoom(id: BonusCardId): void {
-      openBonusCardZoom(id, this.review.ctx);
     },
     branchText(branch: {key: string, params?: ReadonlyArray<string>}): string {
       return translateTextWithParams(branch.key, [...(branch.params ?? [])]);

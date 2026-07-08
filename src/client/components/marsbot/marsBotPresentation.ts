@@ -30,7 +30,7 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
-import {openBotTurnReview} from './botTurnReviewState';
+import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
 import {
   beginBotStaging,
   botStagingPendingKeys,
@@ -40,6 +40,7 @@ import {
   updateBotStagingLatest,
 } from './marsBotStagedCommits';
 import {
+  adjacentArchivedTurn,
   ArchivedBotTurn,
   archivedTurnByCorrelation,
   archivedTurnByKey,
@@ -364,6 +365,37 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
 /** Journal path: open the review of the turn whose journal group is `correlationId`. */
 export function openBotTurnReviewByCorrelation(correlationId: number): boolean {
   return openBotTurnReviewByKey(archivedTurnByCorrelation(correlationId)?.key);
+}
+
+/**
+ * Is there an archived turn before (`dir === -1`) / after (`dir === 1`) the one
+ * the review currently shows? Drives the desktop prev/next buttons' enabled
+ * state (reactive-safe — reads the archive Map + the review's anchor key).
+ */
+export function botReviewHasAdjacentTurn(dir: -1 | 1): boolean {
+  return botTurnReviewState.open && adjacentArchivedTurn(botTurnReviewState.key, dir) !== undefined;
+}
+
+/**
+ * LB / RB (or the desktop ◀ / ▶ / `[` `]`) turn navigation: re-open the review
+ * on the adjacent archived turn. At a boundary NOTHING opens — it flashes the
+ * review-local edge notice ('no-prev' = no earlier turn, 'no-next' = the next
+ * turn has not been played yet) and returns which boundary was hit, so a caller
+ * can add its own feedback (e.g. a disabled-button tooltip). Read-only: it only
+ * swaps which archived script the review renders.
+ */
+export function stepBotTurnReview(dir: -1 | 1): 'ok' | 'no-prev' | 'no-next' {
+  const boundary = dir < 0 ? 'no-prev' : 'no-next';
+  if (!botTurnReviewState.open) {
+    return boundary;
+  }
+  const neighbor = adjacentArchivedTurn(botTurnReviewState.key, dir);
+  if (neighbor === undefined) {
+    flashBotReviewEdge(boundary);
+    return boundary;
+  }
+  openBotTurnReviewByKey(neighbor.key);
+  return 'ok';
 }
 
 // The DELIVERY hook — the heart of the staged visual timeline. The moment a

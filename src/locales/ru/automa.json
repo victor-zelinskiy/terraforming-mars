@@ -197,6 +197,10 @@
 
   "Turn review": "Разбор хода",
   "MarsBot turn review": "Разбор хода бота",
+  "Previous turn": "Предыдущий ход",
+  "Next turn": "Следующий ход",
+  "Previous turn unavailable": "Предыдущий ход недоступен",
+  "The next turn has not been played yet": "Следующий ход ещё не сделан",
   "Project card": "Карта проекта",
   "Only the card tags are played": "Играются только метки карты",
   "Track action": "Действие трека",

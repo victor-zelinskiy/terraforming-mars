@@ -8,7 +8,12 @@
     `v-if="cardInstance"` guards every dependent accessor, exactly as the old
     inline markup did inside CardZoomModal.
   -->
-  <div v-if="cardInstance"
+  <!-- Automa BONUS card entry — the same stage, rendered as its own card face. -->
+  <div v-if="bonusEntry !== undefined" class="card-zoom-card card-zoom-card--bonus">
+    <BonusCardFace :id="bonusEntry.bonus" :ctx="bonusEntry.ctx" large />
+  </div>
+
+  <div v-else-if="cardInstance"
        class="card-zoom-card"
        :class="{ 'card-zoom-card--selected': selected }">
     <div class="card-container filterDiv card-auto-tall" v-i18n>
@@ -21,7 +26,7 @@
           <CardCost :amount="cost" :newCost="reducedCost" />
           <CardTags :tags="tags" />
         </div>
-        <CardTitle :title="card.name" :type="cardType"/>
+        <CardTitle :title="cardModel.name" :type="cardType"/>
         <CardContent
             :metadata="cardMetadata"
             :isCorporation="isCorporationCard"
@@ -39,6 +44,8 @@
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
+import {ZoomCard, BonusZoomEntry, isBonusZoom} from './cardZoomTypes';
+import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {liveCardResources} from '@/client/components/card/liveCardResources';
 import {CardType} from '@/common/cards/CardType';
@@ -67,10 +74,11 @@ export default defineComponent({
     CardExpansion,
     CardResourceCounter,
     CardVictoryPoints,
+    BonusCardFace,
   },
   props: {
     card: {
-      type: Object as () => CardModel,
+      type: Object as () => ZoomCard,
       required: true,
     },
     /*
@@ -84,15 +92,25 @@ export default defineComponent({
     },
   },
   computed: {
+    /** An Automa bonus entry, or undefined for a normal project card. */
+    bonusEntry(): BonusZoomEntry | undefined {
+      return isBonusZoom(this.card) ? this.card : undefined;
+    },
+    /** The project card (only the project branch of the template reads this). */
+    cardModel(): CardModel {
+      return this.card as CardModel;
+    },
     // `cardInstance` returns undefined for unknown card names (e.g. custom cards
-    // not registered in the manifest). The template guards every dependent
-    // accessor with `v-if="cardInstance"`, so `card` (which throws on undefined)
-    // is only ever evaluated when the card is known.
+    // not registered in the manifest) AND for a bonus entry (its `name` is a
+    // BonusCardId, absent from the project manifest) — so the project branch
+    // (`v-else-if="cardInstance"`) never renders for a bonus. `getCard` tolerates
+    // the bonus id (returns undefined); `cardOrThrow` is only ever read from
+    // inside the project branch, so it never sees a bonus id.
     cardInstance(): ClientCard | undefined {
-      return getCard(this.card.name);
+      return getCard(this.cardModel.name);
     },
     cardOrThrow(): ClientCard {
-      return getCardOrThrow(this.card.name);
+      return getCardOrThrow(this.cardModel.name);
     },
     cardType(): CardType {
       return this.cardOrThrow.type;
@@ -123,10 +141,10 @@ export default defineComponent({
       return this.cardOrThrow.resourceType !== undefined;
     },
     hasResourceType(): boolean {
-      return this.card.isSelfReplicatingRobotsCard === true || this.cardOrThrow.resourceType !== undefined;
+      return this.cardModel.isSelfReplicatingRobotsCard === true || this.cardOrThrow.resourceType !== undefined;
     },
     resourceType(): CardResource {
-      if (this.card.isSelfReplicatingRobotsCard === true) {
+      if (this.cardModel.isSelfReplicatingRobotsCard === true) {
         return CardResource.RESOURCE_CUBE;
       }
       return this.cardOrThrow.resourceType ?? CardResource.RESOURCE_CUBE;
@@ -135,13 +153,13 @@ export default defineComponent({
       // For a played card shown by name only (e.g. journal fullscreen), fall
       // back to the global live count so the counter isn't a stale 0. A card
       // that carries its own value (incl. a real 0) keeps it.
-      return this.card.resources ?? liveCardResources(this.card.name) ?? 0;
+      return this.cardModel.resources ?? liveCardResources(this.cardModel.name) ?? 0;
     },
     tags(): Array<Tag> {
       const tags = [...this.cardOrThrow.tags || []];
       tags.forEach((tag, idx) => {
-        if (tag === Tag.CLONE && this.card.cloneTag !== undefined) {
-          tags[idx] = this.card.cloneTag;
+        if (tag === Tag.CLONE && this.cardModel.cloneTag !== undefined) {
+          tags[idx] = this.cardModel.cloneTag;
         }
       });
       if (this.cardType === CardType.EVENT) {
@@ -153,7 +171,7 @@ export default defineComponent({
       return this.isProjectCard ? this.cardOrThrow.cost : undefined;
     },
     reducedCost(): number | undefined {
-      return this.isProjectCard ? this.card.calculatedCost : undefined;
+      return this.isProjectCard ? this.cardModel.calculatedCost : undefined;
     },
     bottomPadding(): string {
       if (this.cardMetadata.victoryPoints !== undefined) {

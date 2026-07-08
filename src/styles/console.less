@@ -5289,6 +5289,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     border-radius: 10px;
     background: @con-glass;
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 -6px 24px rgba(0, 0, 0, 0.35);
+    /* The command bar is the SINGLE source of button truth — it must stay
+       readable ABOVE any task-host / inspect backdrop (z 11480 / 11500), so
+       a dimmed «A Подтвердить торговлю» / «A Торговать» can never hide. It
+       sits UNDER the stranded guard (11900) + the desktop fallback (12000),
+       which own the screen with their own affordances. */
+    position: relative;
+    z-index: 11700;
 
     &__context {
         font-size: 20px;
@@ -6014,15 +6021,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-overflow: ellipsis;
         max-width: 96px;
     }
-    /* Planet art — the manifest `.<Name>-background` supplies the image +
-       its planet-glow inset; re-framed as a small medallion. */
+    /* Planet art — the manifest `.<Name>-background` supplies the IMAGE, but
+       its legacy per-planet `background-size` / `background-position` (tuned
+       for the big 150–300px legacy tile) + the rectangular `inset` glow read
+       WRONG in a 40px round medallion (Europa showed a square rim). Force a
+       centred cover fill + a clean round rim (`!important` beats every legacy
+       per-planet override regardless of cascade order). */
     &__planet {
         flex: 0 0 auto;
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background-size: cover;
-        background-position: center;
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 1px fade(@con-text, 30%), 0 1px 4px rgba(0, 0, 0, 0.5) !important;
         opacity: 0.95;
         pointer-events: none;
     }
@@ -6127,6 +6139,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: 5px;
         zoom: 1.22;
+
+        /* The quantity is shown ONCE — the big mint `cell-num`; suppress the
+           glyph's own `×N` badge so "3 [×3]" never double-reads. */
+        .benefit-glyph__num { display: none; }
     }
     &__cell-num {
         font-size: 16px;
@@ -6192,8 +6208,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         width: 76px;
         height: 76px;
         border-radius: 50%;
-        background-size: cover;
-        background-position: center;
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 1px fade(@con-text, 25%), 0 2px 8px rgba(0, 0, 0, 0.5) !important;
         flex: 0 0 auto;
     }
     &__head-text { flex: 1; min-width: 0; }
@@ -6282,11 +6299,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-align: center;
         font-variant-numeric: tabular-nums;
     }
+    /* The reward glyph is CLAMPED inside the row: a fixed-height flex cell
+       (icons can be ~40px natural — the row is 42px) scaled down so the glyph
+       + its quantity badge never spill past the row's rounded border. */
     &__track-glyph {
         display: inline-flex;
         align-items: center;
         justify-content: flex-start;
-        zoom: 1.05;
+        height: 100%;
+        overflow: hidden;
+
+        .benefit-glyph { zoom: 0.78; }
+        /* The quantity is the dedicated `track-qty` column — hide the glyph's
+           own `×N` badge (no double-read + no vertical spill). */
+        .benefit-glyph__num { display: none; }
     }
     &__track-tag {
         justify-self: end;
@@ -6377,6 +6403,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: 10px;
         margin-bottom: 8px;
         font-size: 14px;
+
+        &--muted { color: @con-text-dim; font-size: 13px; }
     }
     &__verdict {
         display: flex;
@@ -6506,8 +6534,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         width: 56px;
         height: 56px;
         border-radius: 50%;
-        background-size: cover;
-        background-position: center;
+        background-size: cover !important;
+        background-position: center !important;
+        box-shadow: inset 0 0 0 1px fade(@con-text, 25%), 0 2px 8px rgba(0, 0, 0, 0.5) !important;
         flex: 0 0 auto;
     }
 

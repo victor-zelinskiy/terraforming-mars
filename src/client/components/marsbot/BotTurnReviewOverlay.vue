@@ -17,12 +17,31 @@
         <span class="mbr-overlay__tick mbr-overlay__tick--br" aria-hidden="true"></span>
         <header class="mbr-overlay__head">
           <span class="mbr-overlay__title" v-i18n>Turn review</span>
+          <!-- Turn navigation (desktop solution): ◀ previous / next ▶ across the
+               bot's archived turns. Disabled at a boundary, with a premium
+               tooltip on the (non-disabled) wrapper naming why — the desktop
+               analog of the console LB/RB edge toast. -->
+          <div class="mbr-overlay__nav">
+            <span class="mbr-overlay__nav-slot" :data-hint="hasPrev ? '' : $t('Previous turn unavailable')">
+              <button type="button" class="mbr-overlay__navbtn" :disabled="!hasPrev"
+                      :aria-label="$t('Previous turn')" @click="stepPrev">
+                <span aria-hidden="true">⟨</span>
+              </button>
+            </span>
+            <span class="mbr-overlay__nav-slot" :data-hint="hasNext ? '' : $t('The next turn has not been played yet')">
+              <button type="button" class="mbr-overlay__navbtn" :disabled="!hasNext"
+                      :aria-label="$t('Next turn')" @click="stepNext">
+                <span aria-hidden="true">⟩</span>
+              </button>
+            </span>
+          </div>
           <button type="button" class="mbr-overlay__close" :aria-label="$t('Close')" @click="close">
             <span aria-hidden="true">✕</span>
           </button>
         </header>
+        <BotReviewEdgeNotice />
         <div class="mbr-overlay__scroll">
-          <BotTurnReviewBody :review="state.review" :players="players" @peek="onPeek" />
+          <BotTurnReviewBody :review="state.review" :players="players" @peek="onPeek" @zoom-bonus="onZoomBonus" />
         </div>
       </div>
       <!-- Full-rules inspect for an Automa bonus card (X / click a bonus chip). -->
@@ -42,13 +61,17 @@
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
+import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from './botTurnReviewState';
+import {botReviewHasAdjacentTurn, stepBotTurnReview} from './marsBotPresentation';
+import {openBonusCardZoom} from './bonusCardZoomState';
 import BotTurnReviewBody from './BotTurnReviewBody.vue';
 import BonusCardZoomOverlay from './BonusCardZoomOverlay.vue';
+import BotReviewEdgeNotice from './BotReviewEdgeNotice.vue';
 
 export default defineComponent({
   name: 'BotTurnReviewOverlay',
-  components: {BotTurnReviewBody, BonusCardZoomOverlay},
+  components: {BotTurnReviewBody, BonusCardZoomOverlay, BotReviewEdgeNotice},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
   },
@@ -56,12 +79,30 @@ export default defineComponent({
     return {
       state: botTurnReviewState,
       onKey: (e: KeyboardEvent) => {
-        if (e.code === 'Escape' && botTurnReviewState.open) {
+        if (!botTurnReviewState.open) {
+          return;
+        }
+        if (e.code === 'Escape') {
           if (botTurnReviewState.peek) {
             setBotReviewPeek(false);
           } else {
             closeBotTurnReview();
           }
+          return;
+        }
+        // Desktop turn navigation: `[` previous / `]` next (the keyboard analog
+        // of the console LB/RB). A boundary flashes the edge notice via
+        // stepBotTurnReview. Never hijack typing in an input.
+        const t = e.target as HTMLElement | null;
+        if (t !== null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+          return;
+        }
+        if (e.key === '[') {
+          e.preventDefault();
+          stepBotTurnReview(-1);
+        } else if (e.key === ']') {
+          e.preventDefault();
+          stepBotTurnReview(1);
         }
       },
       // One-shot restore: while peeking, the very next pointer/key input brings
@@ -72,6 +113,14 @@ export default defineComponent({
         }
       },
     };
+  },
+  computed: {
+    hasPrev(): boolean {
+      return botReviewHasAdjacentTurn(-1);
+    },
+    hasNext(): boolean {
+      return botReviewHasAdjacentTurn(1);
+    },
   },
   watch: {
     'state.peek'(active: boolean) {
@@ -90,8 +139,23 @@ export default defineComponent({
     close(): void {
       closeBotTurnReview();
     },
+    stepPrev(): void {
+      stepBotTurnReview(-1);
+    },
+    stepNext(): void {
+      stepBotTurnReview(1);
+    },
     onPeek(spaceId: SpaceId): void {
-      setBotReviewPeek(true, spaceId);
+      setBotReviewPeek(true, [spaceId]);
+    },
+    // Desktop opens a bonus card's full rules in the dedicated (already
+    // card-zoom-styled) BonusCardZoomOverlay — a single-card inspect, matching
+    // the per-chip click model of the desktop review (project chips are
+    // JournalCardChip). The union CardZoomModal browser is the CONSOLE path.
+    onZoomBonus(id: BonusCardId): void {
+      if (this.state.review !== undefined) {
+        openBonusCardZoom(id, this.state.review.ctx);
+      }
     },
   },
   mounted() {

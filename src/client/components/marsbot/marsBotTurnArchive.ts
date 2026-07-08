@@ -110,6 +110,37 @@ export function archivedTurnByKey(key: string): ArchivedBotTurn | undefined {
   return archive.get(key);
 }
 
+/**
+ * Every archived turn in chronological order (generation, then per-generation
+ * turn id). Optionally scoped to ONE bot's colour (there is a single MarsBot
+ * today, but turn navigation stays within its own timeline). Reactive-safe:
+ * reads the reactive Map so callers' computeds re-track as turns accrue.
+ */
+export function archivedTurnsInOrder(botColor?: Color | ''): ReadonlyArray<ArchivedBotTurn> {
+  const all = [...archive.values()];
+  const scoped = botColor === undefined ? all : all.filter((e) => e.botColor === botColor);
+  return scoped.sort((a, b) => a.generation - b.generation || a.turn.id - b.turn.id);
+}
+
+/**
+ * The turn immediately before (`dir === -1`) or after (`dir === 1`) the one
+ * keyed `key`, within the SAME bot's timeline. `undefined` at a boundary (no
+ * earlier archived turn / the next turn has not been played yet) or when the
+ * anchor key is unknown.
+ */
+export function adjacentArchivedTurn(key: string, dir: -1 | 1): ArchivedBotTurn | undefined {
+  const cur = archive.get(key);
+  if (cur === undefined) {
+    return undefined;
+  }
+  const ordered = archivedTurnsInOrder(cur.botColor);
+  const idx = ordered.findIndex((e) => e.key === key);
+  if (idx < 0) {
+    return undefined;
+  }
+  return ordered[idx + dir];
+}
+
 /** The archived turn whose journal group is `correlationId`, if any. */
 export function archivedTurnByCorrelation(correlationId: number): ArchivedBotTurn | undefined {
   for (const entry of archive.values()) {

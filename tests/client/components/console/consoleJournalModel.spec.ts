@@ -36,6 +36,7 @@ describe('consoleJournalModel (P28)', () => {
   const space = (value: string): LogMessageData => ({type: LogMessageDataType.SPACE, value} as unknown as LogMessageData);
   const milestone = (value: string): LogMessageData => ({type: LogMessageDataType.MILESTONE, value} as unknown as LogMessageData);
   const award = (value: string): LogMessageData => ({type: LogMessageDataType.AWARD, value} as unknown as LogMessageData);
+  const colony = (value: string): LogMessageData => ({type: LogMessageDataType.COLONY, value} as unknown as LogMessageData);
 
   /** The manifest classifier stand-in for the inspect tests. */
   const classify = (name: CardName): JournalInspectKind => {
@@ -94,6 +95,17 @@ describe('consoleJournalModel (P28)', () => {
       ];
       const out = journalInspectTargets(messages, classify);
       expect(out.spaces).to.deep.eq(['34', '07']);
+      expect(out.cards).to.deep.eq([]);
+      expect(hasInspectTarget(out)).to.eq(true);
+    });
+
+    it('collects COLONY tokens (deduped) — "added a colony: Luna" is inspectable', () => {
+      const messages = [
+        msg([player('red'), colony('Luna')]),
+        msg([colony('Luna'), colony('Pluto')]), // dup Luna collapses
+      ];
+      const out = journalInspectTargets(messages, classify);
+      expect(out.colonies).to.deep.eq(['Luna', 'Pluto']);
       expect(out.cards).to.deep.eq([]);
       expect(hasInspectTarget(out)).to.eq(true);
     });

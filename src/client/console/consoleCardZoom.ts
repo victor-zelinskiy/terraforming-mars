@@ -18,8 +18,8 @@
  */
 
 import {reactive} from 'vue';
-import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {ZoomCard} from '@/client/components/card/cardZoomTypes';
 
 /** A SAFE selection bridge from the opening context (P15). */
 export type ConsoleZoomSelect = {
@@ -82,9 +82,13 @@ export type ConsoleZoomExtra = {
 };
 
 export const consoleCardZoom = reactive({
-  card: undefined as CardModel | undefined,
+  // A ZoomCard entry: a normal project `CardModel` OR an Automa bonus entry.
+  // The select/action/receive bridges below are CardName-based and only ever
+  // attached to project-card lists — a bonus list (the bot-turn review) passes
+  // none, so a BonusCardId `name` never reaches them.
+  card: undefined as ZoomCard | undefined,
   /** The visible list, in on-screen order — enables ←/→ browsing. */
-  cards: [] as ReadonlyArray<CardModel>,
+  cards: [] as ReadonlyArray<ZoomCard>,
   index: 0,
   /** Present ⇔ A may select/unselect from fullscreen (selection contexts only). */
   select: undefined as ConsoleZoomSelect | undefined,
@@ -97,7 +101,7 @@ export const consoleCardZoom = reactive({
 });
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
-export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction, extra?: ConsoleZoomExtra): void {
+export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction, extra?: ConsoleZoomExtra): void {
   if (cards.length === 0) {
     return;
   }
@@ -112,7 +116,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<CardModel>, index: numb
 }
 
 /** The viewer navigated — keep the module mirror in sync. */
-export function navigateConsoleCardZoom(card: CardModel, index: number): void {
+export function navigateConsoleCardZoom(card: ZoomCard, index: number): void {
   consoleCardZoom.card = card;
   consoleCardZoom.index = index;
 }
