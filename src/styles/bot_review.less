@@ -37,8 +37,10 @@
 
   &__card {
     position: relative;
-    width: min(1120px, 100vw - 48px);
-    max-height: min(90vh, 940px);
+    /* NOTE: lessc mis-evaluates `100vw - 48px` (its own min()/unit math turns
+       it into ~52vw) — use the codebase's `min(px, vw)` form, no subtraction. */
+    width: min(1120px, 94vw);
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
     background: linear-gradient(180deg, @mbr-bg-hi, @mbr-bg-lo);
@@ -126,7 +128,9 @@
   background: radial-gradient(120% 100% at 50% 20%, rgba(9, 20, 17, 0.97), rgba(3, 7, 6, 0.99));
 
   &__panel {
-    width: min(1500px, 100vw - 64px);
+    /* `min(px, vw)` form only — lessc breaks `100vw - Npx` (see the desktop
+       card note). The horizontal breathing room comes from the padding below. */
+    width: min(1500px, 96vw);
     display: flex;
     flex-direction: column;
     padding: 16px 30px 8px;
