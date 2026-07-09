@@ -128,7 +128,7 @@ import PlayerTags from '@/client/components/overview/PlayerTags.vue';
 import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
 import MarsBotPanel from '@/client/components/marsbot/MarsBotPanel.vue';
 import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
-import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
+import {actionLabelForPlayer, isBotActiveTurn} from '@/client/components/overview/playerLabels';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -245,11 +245,15 @@ export default defineComponent({
     // Outside the ACTION phase nobody "owns a turn" (research / draft / etc.
     // keep their own simultaneous-pick statuses), so no card is the turn owner.
     //
-    // MarsBot is covered by the SAME rule now: during its server-authoritative
-    // pending turn the bot IS the ACTION-phase active player, so its card owns
-    // the turn with the same player-colour accent a human turn owner gets — no
-    // client review/theater state involved.
+    // MarsBot owns the turn only during its GENUINE active turn (server-
+    // authoritative). It must NOT carry the turn-owner accent while it is
+    // waiting on a human to answer a prompt its card deferred (e.g. discard a
+    // card from a colony trade) — there the bot reads as «ожидает», so the
+    // accent has to match. Humans keep the plain activePlayer rule.
     isTurnOwnerFor(p: PublicPlayerModel): boolean {
+      if (p.isMarsBot === true) {
+        return isBotActiveTurn(this.playerView, p);
+      }
       return this.playerView.game.phase === Phase.ACTION && p.isActive;
     },
     // 0-indexed позиция игрока в seating-order — это и есть порядок

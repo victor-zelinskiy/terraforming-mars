@@ -98,6 +98,7 @@ import {DynamicArcConfig, arcFillFraction} from '@/client/components/board/arcSc
 import {pointAtAngle, arcPath} from '@/client/components/board/arcScaleGeometry';
 import {translateText} from '@/client/directives/i18n';
 import {ScaleTooltipContent, showScaleTooltip, showScaleTooltipAt, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
+import {consoleState} from '@/client/console/consoleRouter';
 
 const SVG_W = 600;
 const SVG_H = 600;
@@ -277,14 +278,32 @@ export default defineComponent({
     hideScaleTooltip();
   },
   methods: {
+    // In console-native mode the mouse is NOT the input; the console shows scale
+    // info in its own panel. Suppress the real-mouse overview tooltip there — on
+    // an Electron load a stray mouseenter fires under the stationary cursor and,
+    // with no subsequent mouse movement, no mouseleave ever follows, so the
+    // tooltip would hang forever (the R3 track-inspect flow drives the marker
+    // chips via synthetic events, not these handlers).
+    mouseTooltipsSuppressed(): boolean {
+      return consoleState.shellMounted;
+    },
     onRail(ev: MouseEvent): void {
+      if (this.mouseTooltipsSuppressed()) {
+        return;
+      }
       // Band/rail hover follows the cursor along the arc.
       showScaleTooltipAt(ev.clientX, ev.clientY, this.overviewContent);
     },
     onIdentity(ev: MouseEvent): void {
+      if (this.mouseTooltipsSuppressed()) {
+        return;
+      }
       showScaleTooltip(ev.currentTarget as HTMLElement, this.overviewContent);
     },
     onDigit(ev: MouseEvent, d: {label: string; current: boolean}): void {
+      if (this.mouseTooltipsSuppressed()) {
+        return;
+      }
       // Only the CURRENT digit is hoverable (pointer-events in arc_scale.less);
       // it is the literal current-value indicator. The kicker calls it out.
       const t = this.theme;

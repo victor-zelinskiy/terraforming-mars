@@ -36,13 +36,26 @@ describe('marsBot status label (server-authoritative active turn)', () => {
 
     expect(actionLabelForPlayer(v, bot)).to.eq('turn');
 
-    // Presented like a human's active turn (same active category + glow) but a
-    // DISTINCT cpu glyph and NO 1/2 counter (the bot plays one automa card per
-    // turn, so a counter would be a lie).
+    // Presented EXACTLY like a human's active turn — same active category + glow
+    // + the SAME pulsing dot (the bot feels like another player) — only WITHOUT
+    // the 1/2 counter (one automa card per turn, so a counter would be a lie).
     const p = presentPlayerStatus('turn', true);
     expect(p.category).to.eq('active');
-    expect(p.glyph).to.eq('cpu');
+    expect(p.glyph).to.eq('dot');
     expect(p.showCounter).to.be.false;
+  });
+
+  it('reads as WAITING while the bot is waiting on a human it prompted', () => {
+    // A bonus card the bot played deferred a FORCED choice (e.g. «сбросьте
+    // карту» from a colony trade) to the human. activePlayer stays the bot, but
+    // the human now has waitingFor — the bot has already acted and is waiting on
+    // that human, so it must NOT read as «действие».
+    const human = player({color: 'blue', isWaitingForInput: true});
+    const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true, isActive: true});
+    const v = view([human, bot]);
+    expect(actionLabelForPlayer(v, bot)).to.eq('waiting');
+    // The human answering the forced prompt reads as active (forcedaction, no counter).
+    expect(actionLabelForPlayer(v, human)).to.eq('forcedaction');
   });
 
   it('a human active turn keeps the dot glyph AND the 1/2 counter', () => {

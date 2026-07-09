@@ -74,7 +74,7 @@ describe('BotTurnScheduler', () => {
       connectedProvider: () => new Set(),
       gameProvider: () => Promise.resolve(game),
       resolveTurn: (g) => {
-        resolved++; g.automa!.lastTurn = {id: 1, generation: 1};
+        resolved++; g.automa!.lastTurn = {id: 1, generation: 1, steps: []};
       },
     });
     scheduler.onBotTurnDue(game);
@@ -119,7 +119,7 @@ describe('BotTurnScheduler', () => {
       connectedProvider: () => connected,
       gameProvider: () => Promise.resolve(game),
       resolveTurn: (g) => {
-        resolved++; g.automa!.lastTurn = {id: 7, generation: 2};
+        resolved++; g.automa!.lastTurn = {id: 7, generation: 2, steps: []};
       },
     });
     // Resolve turn 7 → registers it as unacked for the connected human.
@@ -153,7 +153,7 @@ describe('BotTurnScheduler', () => {
       connectedProvider: () => new Set([human.id]),
       gameProvider: () => Promise.resolve(game),
       resolveTurn: (g) => {
-        resolved++; g.automa!.lastTurn = {id: 3, generation: 1};
+        resolved++; g.automa!.lastTurn = {id: 3, generation: 1, steps: []};
       },
     });
     scheduler.onBotTurnDue(game);
@@ -179,7 +179,7 @@ describe('BotTurnScheduler', () => {
       connectedProvider: () => new Set(['spectator-x']),
       gameProvider: () => Promise.resolve(game),
       resolveTurn: (g) => {
-        resolved++; g.automa!.lastTurn = {id: 1, generation: 1};
+        resolved++; g.automa!.lastTurn = {id: 1, generation: 1, steps: []};
       },
     });
     scheduler.onBotTurnDue(game);

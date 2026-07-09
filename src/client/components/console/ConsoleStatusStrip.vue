@@ -128,11 +128,10 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 const MAX_ACTIONS_PER_ROUND = 2;
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
- *  CSS animates the active dot). Keyed off the presenter's GLYPH, not category,
- *  so MarsBot's active turn ('cpu') reads distinctly from a human's ('dot'). */
+ *  CSS animates the active dot via the --active class). MarsBot's active turn
+ *  uses the SAME 'dot' as a human, so the bot reads as just another player. */
 const GLYPH_CHARS: Record<StatusGlyph, string> = {
   dot: '●',
-  cpu: '⬡',
   check: '✓',
   clock: '◌',
   pause: '∥',

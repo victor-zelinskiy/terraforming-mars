@@ -41,9 +41,8 @@ export type StatusCategory =
  * you add one here.
  */
 export type StatusGlyph =
-  | 'dot'       // pulsing cyan dot — human active states
-  | 'cpu'       // chip/processor mark — MarsBot's active turn (distinct from a
-                // human's pulsing dot: honest "the automaton is acting")
+  | 'dot'       // pulsing cyan dot — active states (humans AND MarsBot: the bot
+                // reads like just another player at the table)
   | 'check'     // muted teal checkmark — ready
   | 'pause'     // two-bar pause — passed
   | 'clock'     // hollow clock-dot — waiting
@@ -171,17 +170,17 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
 
 /**
  * Resolve an {@link ActionLabel} to its presentation. `isMarsBot` tweaks the
- * ONE shared decision that differs for the bot: its active turn ('turn') is
- * shown with a distinct cpu glyph and NO 1/2 counter — the bot plays exactly
- * one automa card per turn, so an action counter would be a lie. Everything
- * else (category / glow / text) is identical to a human's, so the participant
- * rail reads consistently. Both desktop and console pass the flag, so the two
- * modes can never disagree.
+ * ONE shared decision that differs for the bot: its active turn ('turn') drops
+ * the 1/2 counter — the bot plays exactly one automa card per turn, so an
+ * action counter would be a lie. EVERYTHING ELSE is identical to a human's
+ * active turn (same active category + glow + the SAME pulsing dot), so the bot
+ * reads as just another player at the table. Both desktop and console pass the
+ * flag, so the two modes can never disagree.
  */
 export function presentPlayerStatus(label: ActionLabel, isMarsBot: boolean = false): StatusPresentation {
   const base = PRESENTATIONS[label];
   if (isMarsBot && label === 'turn') {
-    return {category: base.category, glyph: 'cpu', textKey: base.textKey, showCounter: false};
+    return {...base, showCounter: false};
   }
   return base;
 }

@@ -508,7 +508,7 @@ import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelect
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, QUICK_SLOT_GLYPH, StdProjectItem} from '@/client/console/consoleQuickModel';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
-import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
+import {scaleTooltipState, ScaleTooltipContent, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
@@ -4066,6 +4066,10 @@ export default defineComponent({
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
+    // Clear any scale-overview tooltip a stray real-mouse hover left showing
+    // before the shell reported its presence (mouse tooltips are suppressed in
+    // console mode from here on — see ArcScale.mouseTooltipsSuppressed).
+    hideScaleTooltip();
     startConsoleLeakDetector(() => this.playerView);
     // T6: the notification CTAs dispatch window events; PlayerHome's
     // listeners don't exist in console — the shell answers them instead.

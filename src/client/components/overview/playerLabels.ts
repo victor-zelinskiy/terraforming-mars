@@ -16,6 +16,31 @@ export function playerIndexInList(
 }
 
 /**
+ * True while MarsBot is genuinely taking its OWN (server-authoritative) turn:
+ * it is the ACTION-phase active player AND the server is NOT waiting on any
+ * OTHER player. The second clause is load-bearing: a bonus card the bot plays
+ * can defer a FORCED choice to a human (e.g. «сбросьте карту» from a colony
+ * trade) — the bot has already acted and is now waiting on that human, so it
+ * must read as «ожидает», NOT «действие». `activePlayer` stays pointed at the
+ * bot in that window (the deferred action didn't reassign it), which is why
+ * `isActive` alone is not enough. Shared by the status resolver AND the
+ * turn-owner accent so a chip and its card border can never disagree.
+ */
+export function isBotActiveTurn(
+  playerView: ViewModel,
+  player: PublicPlayerModel,
+): boolean {
+  if (player.isMarsBot !== true) {
+    return false;
+  }
+  if (playerView.game.phase !== Phase.ACTION || !player.isActive) {
+    return false;
+  }
+  return !playerView.players.some(
+    (p) => p.color !== player.color && p.isWaitingForInput === true);
+}
+
+/**
  * Returns the status label for `player` in the current game state.
  *
  * Source of truth for "is the server waiting on this player?" is
@@ -42,12 +67,13 @@ export function actionLabelForPlayer(
   // server-authoritative pending turn the bot IS the ACTION-phase active
   // player (BotTurnScheduler holds it active for a bounded window before it
   // resolves) — the honest "the bot is taking its turn" signal → 'turn'. The
-  // presenter renders a bot 'turn' with a cpu glyph and NO 1/2 counter (the
-  // bot plays exactly one automa card per turn, so a counter would be a lie).
-  // This is server-authoritative — it does NOT depend on any client review /
-  // theater state. Between its turns the bot falls through to the ordinary
-  // passed / simultaneous-'ready' / 'waiting' / 'none' resolution below.
-  if (player.isMarsBot === true && game.phase === Phase.ACTION && player.isActive) {
+  // presenter renders a bot 'turn' exactly like a human's (pulsing dot) minus
+  // the 1/2 counter (one automa card per turn). This is server-authoritative
+  // (no client review/theater state) AND excludes the case where the bot's
+  // turn deferred a forced choice to a human (isBotActiveTurn checks nobody
+  // else is being waited on) → then the bot correctly falls through to
+  // 'waiting'. Otherwise it falls through to passed / 'ready' / 'none'.
+  if (isBotActiveTurn(playerView, player)) {
     return 'turn';
   }
 
