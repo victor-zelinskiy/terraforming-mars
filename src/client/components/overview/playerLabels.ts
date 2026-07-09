@@ -2,9 +2,6 @@ import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {ActionLabel} from './ActionLabel';
-import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
-
-const SHOW_NEXT_LABEL_MIN = 2;
 
 export function playerIndexInList(
   color: PublicPlayerModel['color'],
@@ -40,17 +37,18 @@ export function actionLabelForPlayer(
 ): ActionLabel {
   const game = playerView.game;
 
-  // MarsBot's turn resolves synchronously on the server, so the model never
-  // shows it as active — while the player is reviewing the bot's turn, its
-  // status chip reads as a regular active turn (same category / glyph as a
-  // human's), keeping the participant rail in sync with what is on screen.
-  // (This is the ONE label decided by client presentation state — both the
-  // desktop rail and the console status strip route through here, so the two
-  // modes can't diverge.)
-  if (player.isMarsBot === true &&
-      botTurnReviewState.open &&
-      botTurnReviewState.botColor === player.color) {
-    return 'bottheater';
+  // MarsBot resolves its turn on the server and is NEVER given a `waitingFor`,
+  // so `isWaitingForInput` can't drive its status. Instead, during its
+  // server-authoritative pending turn the bot IS the ACTION-phase active
+  // player (BotTurnScheduler holds it active for a bounded window before it
+  // resolves) — the honest "the bot is taking its turn" signal → 'turn'. The
+  // presenter renders a bot 'turn' with a cpu glyph and NO 1/2 counter (the
+  // bot plays exactly one automa card per turn, so a counter would be a lie).
+  // This is server-authoritative — it does NOT depend on any client review /
+  // theater state. Between its turns the bot falls through to the ordinary
+  // passed / simultaneous-'ready' / 'waiting' / 'none' resolution below.
+  if (player.isMarsBot === true && game.phase === Phase.ACTION && player.isActive) {
+    return 'turn';
   }
 
   // Источник истины — `waitingFor` сервера: если сервер чего-то ждёт от
@@ -128,24 +126,6 @@ export function actionLabelForPlayer(
 
   if (game.passedPlayers.includes(player.color)) {
     return 'passed';
-  }
-
-  // "next" label is only meaningful during ACTION phase — show it on the
-  // player who's up immediately after the current actor (so multi-player
-  // games have a clear "you're on deck" hint).
-  if (game.phase === Phase.ACTION) {
-    const notPassedPlayers = playerView.players.filter(
-      (p) => !game.passedPlayers.includes(p.color),
-    );
-    const currentPlayerIndex = playerIndexInList(player.color, notPassedPlayers);
-    if (currentPlayerIndex !== -1 && playerView.players.length > SHOW_NEXT_LABEL_MIN) {
-      const prevPlayerIndex = currentPlayerIndex === 0 ?
-        notPassedPlayers.length - 1 :
-        currentPlayerIndex - 1;
-      if (isPlayerWaiting(notPassedPlayers[prevPlayerIndex], livePlayersWaitingFor)) {
-        return 'next';
-      }
-    }
   }
 
   // Simultaneous-pick фазы (initial draft / draft / research) — если сервер

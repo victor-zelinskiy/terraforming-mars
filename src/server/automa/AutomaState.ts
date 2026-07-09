@@ -44,6 +44,14 @@ export type SerializedAutomaState = {
   deltaPowerConsumed?: number;
   /** Delta Project: the last generation the once-per-generation resolution ran (absent = 0, old saves). */
   deltaResolvedGeneration?: number;
+  /**
+   * Server-authoritative bot-turn pacing: the bot has been made the ACTIVE
+   * player but its turn is NOT yet resolved (BotTurnScheduler will resolve it
+   * after a bounded idle). Serialized so a server restart mid-pending-turn can
+   * be detected on load and rescheduled — the game can never stay stuck on an
+   * active-but-unresolved bot turn. Absent/false ⇒ no pending turn (old saves).
+   */
+  pendingTurn?: boolean;
 };
 
 /**
@@ -90,6 +98,12 @@ export class AutomaState {
   public deltaPowerConsumed: number = 0;
   /** Delta Project: the last generation the once-per-generation resolution ran (mirrors hardClaimCheckedGeneration). */
   public deltaResolvedGeneration: number = 0;
+  /**
+   * The bot is the active player but has not resolved its turn yet (the
+   * server-authoritative pending window before BotTurnScheduler fires). See
+   * SerializedAutomaState.pendingTurn.
+   */
+  public pendingTurn: boolean = false;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -143,6 +157,9 @@ export class AutomaState {
       deltaPowerConsumed: this.deltaPowerConsumed,
       deltaResolvedGeneration: this.deltaResolvedGeneration,
     };
+    if (this.pendingTurn) {
+      result.pendingTurn = true;
+    }
     if (this.neuralInstanceSpaceId !== undefined) {
       result.neuralInstanceSpaceId = this.neuralInstanceSpaceId;
     }
@@ -189,6 +206,7 @@ export class AutomaState {
     state.turnHistory = d.turnHistory !== undefined ? [...d.turnHistory] : [];
     state.deltaPowerConsumed = d.deltaPowerConsumed ?? 0;
     state.deltaResolvedGeneration = d.deltaResolvedGeneration ?? 0;
+    state.pendingTurn = d.pendingTurn ?? false;
     return state;
   }
 }

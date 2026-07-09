@@ -11,7 +11,7 @@ import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {MarsBotTurn} from '@/common/automa/MarsBotTurn';
+import {MarsBotTurn, botTurnKey} from '@/common/automa/MarsBotTurn';
 import {MarsBotTrackModel} from '@/common/models/MarsBotModel';
 import {ViewModel} from '@/common/models/PlayerModel';
 
@@ -21,9 +21,11 @@ export function marsBotOfView(view: ViewModel | undefined): {color: Color, name:
   return bot !== undefined ? {color: bot.color, name: bot.name} : undefined;
 }
 
-/** The dedup/replay key of a turn (unique per game session). */
+/** The dedup/replay key of a turn (unique per game session). Delegates to the
+ * shared `botTurnKey` so the client dedup key and the server ack key are the
+ * SAME string. */
 export function turnDedupeKey(turn: MarsBotTurn, botColor: Color | ''): string {
-  return `${botColor}:${turn.generation}:${turn.id}`;
+  return botTurnKey(botColor, turn);
 }
 
 /**

@@ -3,7 +3,6 @@ import {Phase} from '@/common/Phase';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus} from '@/client/components/overview/playerStatusPresenter';
-import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 
 function player(overrides: Partial<PublicPlayerModel>): PublicPlayerModel {
   return {
@@ -15,48 +14,73 @@ function player(overrides: Partial<PublicPlayerModel>): PublicPlayerModel {
   } as PublicPlayerModel;
 }
 
-function view(players: ReadonlyArray<PublicPlayerModel>, passedPlayers: ReadonlyArray<string> = []): ViewModel {
+function view(
+  players: ReadonlyArray<PublicPlayerModel>,
+  phase: Phase = Phase.ACTION,
+  passedPlayers: ReadonlyArray<string> = [],
+): ViewModel {
   return {
     players,
-    game: {phase: Phase.ACTION, generation: 3, passedPlayers},
+    game: {phase, generation: 3, passedPlayers},
   } as unknown as ViewModel;
 }
 
-describe('marsBot status label (the theater IS the bot\'s active window)', () => {
-  afterEach(() => {
-    resetBotTurnReview();
-  });
-
-  it('shows the bot as actively taking its turn while the theater plays', () => {
-    const human = player({color: 'blue', isActive: true, isWaitingForInput: true});
-    const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true});
+describe('marsBot status label (server-authoritative active turn)', () => {
+  it('shows the bot as taking its turn while the server holds it ACTIVE', () => {
+    // The bot is the ACTION-phase active player during its bounded pending turn
+    // (BotTurnScheduler), so the model — not any client review/theater state —
+    // drives its status.
+    const human = player({color: 'blue'});
+    const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true, isActive: true});
     const v = view([human, bot]);
 
-    botTurnReviewState.open = true;
-    botTurnReviewState.botColor = 'red';
+    expect(actionLabelForPlayer(v, bot)).to.eq('turn');
 
-    expect(actionLabelForPlayer(v, bot)).to.eq('bottheater');
-    // Presented exactly like a human's active turn — same category and glyph,
-    // no 1/2 counter (one card per bot turn).
-    const presentation = presentPlayerStatus('bottheater');
-    expect(presentation.category).to.eq('active');
-    expect(presentation.glyph).to.eq('dot');
-    expect(presentation.showCounter).to.be.false;
-    // The human's own label is untouched by the bot override.
-    expect(actionLabelForPlayer(v, human)).to.eq('turn');
+    // Presented like a human's active turn (same active category + glow) but a
+    // DISTINCT cpu glyph and NO 1/2 counter (the bot plays one automa card per
+    // turn, so a counter would be a lie).
+    const p = presentPlayerStatus('turn', true);
+    expect(p.category).to.eq('active');
+    expect(p.glyph).to.eq('cpu');
+    expect(p.showCounter).to.be.false;
   });
 
-  it('falls back to the ordinary model-driven label outside the theater window', () => {
-    const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true});
-    expect(actionLabelForPlayer(view([player({color: 'blue'}), bot]), bot)).to.eq('waiting');
-    expect(actionLabelForPlayer(view([player({color: 'blue'}), bot], ['red']), bot)).to.eq('passed');
+  it('a human active turn keeps the dot glyph AND the 1/2 counter', () => {
+    const human = player({color: 'blue', isActive: true, isWaitingForInput: true});
+    expect(actionLabelForPlayer(view([human]), human)).to.eq('turn');
+    const p = presentPlayerStatus('turn', false);
+    expect(p.category).to.eq('active');
+    expect(p.glyph).to.eq('dot');
+    expect(p.showCounter).to.be.true;
   });
 
-  it('never marks a human with the bot-theater label', () => {
-    const human = player({color: 'blue'});
-    const bot = player({color: 'red', name: 'MarsBot', isMarsBot: true});
-    botTurnReviewState.open = true;
-    botTurnReviewState.botColor = 'red';
-    expect(actionLabelForPlayer(view([human, bot]), human)).to.not.eq('bottheater');
+  it('between its turns the bot reads waiting / passed / ready (no bot-only label)', () => {
+    const otherActive = player({color: 'blue', isActive: true, isWaitingForInput: true});
+    // Another player's turn (or forced action) → the bot is passively waiting.
+    expect(actionLabelForPlayer(
+      view([otherActive, player({color: 'red', name: 'MarsBot', isMarsBot: true})]),
+      player({color: 'red', name: 'MarsBot', isMarsBot: true})))
+      .to.eq('waiting');
+    // Bot passed for the generation (its action deck is empty).
+    expect(actionLabelForPlayer(
+      view([player({color: 'blue'}), player({color: 'red', name: 'MarsBot', isMarsBot: true})], Phase.ACTION, ['red']),
+      player({color: 'red', name: 'MarsBot', isMarsBot: true})))
+      .to.eq('passed');
+    // Simultaneous human setup/draft/research phase — the bot has nothing to do
+    // there, so it reads as "ready", never a fake drafting/researching status.
+    expect(actionLabelForPlayer(
+      view([player({color: 'blue'}), player({color: 'red', name: 'MarsBot', isMarsBot: true})], Phase.RESEARCH),
+      player({color: 'red', name: 'MarsBot', isMarsBot: true})))
+      .to.eq('ready');
+  });
+
+  it('never returns the removed "next" label, even in a 3-player ACTION game', () => {
+    const a = player({color: 'blue', isActive: true, isWaitingForInput: true});
+    const b = player({color: 'green'});
+    const c = player({color: 'yellow'});
+    const v = view([a, b, c]);
+    for (const p of [a, b, c]) {
+      expect(actionLabelForPlayer(v, p)).to.not.eq('next');
+    }
   });
 });

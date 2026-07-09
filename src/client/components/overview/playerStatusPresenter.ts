@@ -15,10 +15,9 @@ import {ActionLabel} from './ActionLabel';
  * modifier classes — see `.player-status-chip--<category>` in
  * `player_home.less`.
  *
- *  - `active`  — server is currently waiting on this player. Pulsing dot,
- *                cyan glow. Most attention-grabbing.
- *  - `next`    — pre-active "you're on deck" hint. Subtle cyan chevron.
- *                ACTION phase only.
+ *  - `active`  — server is currently waiting on this player (or, for MarsBot,
+ *                the server holds it as the active player during its bounded
+ *                pending turn). Pulsing dot, cyan glow. Most attention-grabbing.
  *  - `ready`   — simultaneous-pick phase: this player has already submitted
  *                their round and is waiting for the others. Positive,
  *                check-mark, muted teal.
@@ -31,7 +30,6 @@ import {ActionLabel} from './ActionLabel';
  */
 export type StatusCategory =
   | 'active'
-  | 'next'
   | 'ready'
   | 'waiting'
   | 'passed'
@@ -43,10 +41,11 @@ export type StatusCategory =
  * you add one here.
  */
 export type StatusGlyph =
-  | 'dot'       // pulsing cyan dot — active states
+  | 'dot'       // pulsing cyan dot — human active states
+  | 'cpu'       // chip/processor mark — MarsBot's active turn (distinct from a
+                // human's pulsing dot: honest "the automaton is acting")
   | 'check'     // muted teal checkmark — ready
   | 'pause'     // two-bar pause — passed
-  | 'chevron'   // forward chevron — next
   | 'clock'     // hollow clock-dot — waiting
   | 'none';
 
@@ -132,21 +131,6 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
     textKey: 'Delegate pick',
     showCounter: false,
   },
-  // MarsBot's turn as the theater replays it — the same premium active look
-  // as a human's turn (cyan dot + glow); no 1/2 counter (one card per turn).
-  'bottheater': {
-    category: 'active',
-    glyph: 'dot',
-    textKey: 'Bot turn',
-    showCounter: false,
-  },
-  // ─── intermediate ────────────────────────────────────────────────
-  'next': {
-    category: 'next',
-    glyph: 'chevron',
-    textKey: 'Up next',
-    showCounter: false,
-  },
   // ─── positive idle ───────────────────────────────────────────────
   'ready': {
     category: 'ready',
@@ -185,6 +169,19 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
   },
 };
 
-export function presentPlayerStatus(label: ActionLabel): StatusPresentation {
-  return PRESENTATIONS[label];
+/**
+ * Resolve an {@link ActionLabel} to its presentation. `isMarsBot` tweaks the
+ * ONE shared decision that differs for the bot: its active turn ('turn') is
+ * shown with a distinct cpu glyph and NO 1/2 counter — the bot plays exactly
+ * one automa card per turn, so an action counter would be a lie. Everything
+ * else (category / glow / text) is identical to a human's, so the participant
+ * rail reads consistently. Both desktop and console pass the flag, so the two
+ * modes can never disagree.
+ */
+export function presentPlayerStatus(label: ActionLabel, isMarsBot: boolean = false): StatusPresentation {
+  const base = PRESENTATIONS[label];
+  if (isMarsBot && label === 'turn') {
+    return {category: base.category, glyph: 'cpu', textKey: base.textKey, showCounter: false};
+  }
+  return base;
 }

@@ -145,6 +145,26 @@ export class RealtimeHub {
     return this.rooms.get(gameId)?.size ?? 0;
   }
 
+  /**
+   * The participant tokens currently subscribed to a game's realtime room.
+   * Used by bot-turn pacing to know WHICH clients are present (so it waits on
+   * their "seen the turn" ack, and never on a disconnected one). A participant
+   * with no live socket simply isn't in the set. Empty when nobody is connected
+   * (or realtime is disabled) — the caller then falls back to timer-only pacing.
+   */
+  public connectedParticipants(gameId: GameId): Set<string> {
+    const room = this.rooms.get(gameId);
+    const result = new Set<string>();
+    if (room !== undefined) {
+      for (const subscriber of room) {
+        if (subscriber.participantId !== undefined) {
+          result.add(subscriber.participantId);
+        }
+      }
+    }
+    return result;
+  }
+
   public getRoomCount(): number {
     return this.rooms.size;
   }

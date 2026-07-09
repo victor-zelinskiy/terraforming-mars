@@ -31,6 +31,7 @@ import {NotificationModel} from '@/client/components/notifications/notificationT
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
+import {ackBotTurn} from './botTurnAck';
 import {
   beginBotStaging,
   botStagingPendingKeys,
@@ -368,6 +369,10 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
   // last turn, so the buffered view (with the between-generation draft) never
   // committed → the game deadlocked.
   deliverBotTurnVisual(entry.key);
+  // Opening the review is one of the three "notification finished" signals —
+  // soft-ack it so the server needn't extend the next paced bot turn on this
+  // client (best-effort; never gates the turn).
+  ackBotTurn(entry.key);
   dismiss(botTurnNotificationId(entry.key));
   return true;
 }

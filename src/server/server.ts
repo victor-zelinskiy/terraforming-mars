@@ -22,6 +22,7 @@ import {SessionManager} from '@/server/server/auth/SessionManager';
 import {RealtimeServer} from '@/server/server/realtime/RealtimeServer';
 import {RealtimeHub} from '@/server/server/realtime/RealtimeHub';
 import {gameLoaderSubscriptionResolver} from '@/server/server/realtime/subscriptionResolver';
+import {BotTurnScheduler} from '@/server/automa/BotTurnScheduler';
 
 process.on('uncaughtException', (err: any) => {
   console.error('UNCAUGHT EXCEPTION', err);
@@ -89,6 +90,13 @@ async function start() {
   // REALTIME_ENABLED is set — gameplay is untouched.
   RealtimeHub.getInstance().configureResolver(gameLoaderSubscriptionResolver);
   RealtimeServer.getInstance().attach(server);
+
+  // Server-authoritative MarsBot turn pacing: the bot's turn resolves on a
+  // bounded, non-blocking server timer (players first see it become the active
+  // player, then it acts) instead of synchronously inside the human's request.
+  // OFF by default so tests resolve the bot inline; enabled for the running
+  // server here.
+  BotTurnScheduler.getInstance().enable();
 
   await timeAsync(Database.getInstance().initialize())
     .then((v) => {

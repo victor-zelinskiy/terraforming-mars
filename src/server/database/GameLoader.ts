@@ -147,6 +147,10 @@ export class GameLoader implements IGameLoader {
         const game = Game.deserialize(serializedGame);
         await this.add(game);
         console.log(`GameLoader loaded game ${gameId} into memory from database`);
+        // Restart / eviction recovery: if this game was loaded while a MarsBot
+        // turn was pending (its scheduler timer died with the previous process /
+        // eviction), re-arm the deferred resolve so it can never stay stuck.
+        this.recoverBotTurn(game);
         return game;
       } catch (e) {
         console.error('GameLoader:loadGame', e);
@@ -177,6 +181,28 @@ export class GameLoader implements IGameLoader {
     return game;
   }
 
+  // Bot-turn pacing hooks. Lazy-required so GameLoader keeps NO static edge to
+  // the automa turn resolver (avoids any module-init cycle) — both are
+  // singletons resolved at call time. Best-effort: pacing must never break
+  // loading / completion / deletion of a game.
+  private recoverBotTurn(game: IGame): void {
+    try {
+      const {BotTurnScheduler} = require('../automa/BotTurnScheduler');
+      BotTurnScheduler.getInstance().recoverIfNeeded(game);
+    } catch (err) {
+      console.error('bot-turn recovery failed', err);
+    }
+  }
+
+  private forgetBotTurn(gameId: GameId): void {
+    try {
+      const {BotTurnScheduler} = require('../automa/BotTurnScheduler');
+      BotTurnScheduler.getInstance().forget(gameId);
+    } catch {
+      // pacing cleanup is best-effort
+    }
+  }
+
   public mark(gameId: GameId) {
     this.cache.mark(gameId);
   }
@@ -193,6 +219,7 @@ export class GameLoader implements IGameLoader {
     // usually already observable via the phase-transition saves + the final
     // action, so this is a redundant certainty hook (empty-room no-op).
     this.notifyGameStateChanged(game);
+    this.forgetBotTurn(game.id);
     try {
       this.mark(game.id);
       await database.markFinished(game.id);
@@ -240,6 +267,7 @@ export class GameLoader implements IGameLoader {
   }
 
   public async deleteGame(gameId: GameId): Promise<void> {
+    this.forgetBotTurn(gameId);
     await this.cache.deleteGame(gameId);
     // Guard against a concurrent save re-creating the game we just deleted.
     if (!this.purgedGames.includes(gameId)) {

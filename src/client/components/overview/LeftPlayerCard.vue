@@ -318,7 +318,7 @@ export default defineComponent({
      * и получают совпадающую визуальную категорию + текст.
      */
     presentation(): StatusPresentation {
-      return presentPlayerStatus(this.actionLabel);
+      return presentPlayerStatus(this.actionLabel, this.player.isMarsBot === true);
     },
     cardClass(): string {
       // Per-colour class exposes the player's colour as `--lpc-accent` (see the

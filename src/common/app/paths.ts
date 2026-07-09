@@ -14,6 +14,10 @@ export const paths = {
   API_GAME_BOARD_CELL_PREVIEW: 'api/game/board-cell-preview',
   API_GAME_COLONY_TRADE_PREVIEW: 'api/game/colony-trade-preview',
   API_GAME_REMATCH: 'api/game/rematch',
+  // Soft client→server ack that a MarsBot-turn notification finished (closed /
+  // expired / opened its review). Only SHORTENS the bounded idle before the
+  // next paced bot turn — never authoritative. See BotTurnScheduler.
+  API_GAME_BOT_TURN_ACK: 'api/game/bot-turn-ack',
   API_GAMES: 'api/games',
   // Premium main-menu join flow: list a player's unfinished games by name, and
   // reconcile a seat's cube colour with the player's chosen identity colour.

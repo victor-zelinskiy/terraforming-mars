@@ -117,7 +117,7 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
+import {presentPlayerStatus, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
 import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -127,13 +127,15 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
 
-/** Category → the chip's compact text glyph (CSS animates the active dot). */
-const GLYPHS: Record<StatusPresentation['category'], string> = {
-  active: '●',
-  next: '›',
-  ready: '✓',
-  waiting: '◌',
-  passed: '∥',
+/** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
+ *  CSS animates the active dot). Keyed off the presenter's GLYPH, not category,
+ *  so MarsBot's active turn ('cpu') reads distinctly from a human's ('dot'). */
+const GLYPH_CHARS: Record<StatusGlyph, string> = {
+  dot: '●',
+  cpu: '⬡',
+  check: '✓',
+  clock: '◌',
+  pause: '∥',
   none: '',
 };
 
@@ -224,10 +226,10 @@ export default defineComponent({
       return participantDisplayName(p);
     },
     presentation(p: PublicPlayerModel): StatusPresentation {
-      return presentPlayerStatus(actionLabelForPlayer(this.playerView, p));
+      return presentPlayerStatus(actionLabelForPlayer(this.playerView, p), p.isMarsBot === true);
     },
     statusGlyph(p: PublicPlayerModel): string {
-      return GLYPHS[this.presentation(p).category];
+      return GLYPH_CHARS[this.presentation(p).glyph];
     },
     /** Mirrors LeftPlayerCard.actionIndex (incl. the solo-run modulo). */
     actionCounter(p: PublicPlayerModel): string {

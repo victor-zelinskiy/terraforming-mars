@@ -45,6 +45,17 @@ describe('Automa serialization', () => {
     expect(restored!.revealedCard).deep.eq(automa.revealedCard);
   });
 
+  it('round-trips the pending-turn marker (restart recovery)', () => {
+    const [game] = testAutomaGame();
+    game.automa!.pendingTurn = true;
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+    expect(restored.automa!.pendingTurn).is.true;
+    // Absent in an old save (no field) deserializes to false.
+    const serialized = game.serialize();
+    delete (serialized.automa as {pendingTurn?: boolean}).pendingTurn;
+    expect(Game.deserialize(structuredClone(serialized)).automa!.pendingTurn).is.false;
+  });
+
   it('restores the bot as the MarsBot player', () => {
     const [game, human] = testAutomaGame();
     const restored = Game.deserialize(structuredClone(game.serialize()));

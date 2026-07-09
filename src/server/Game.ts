@@ -1,6 +1,6 @@
 import * as constants from '../common/constants';
 import {getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
-import {AutomaController} from './automa/AutomaController';
+import {BotTurnScheduler} from './automa/BotTurnScheduler';
 import {failedAction as automaFailedAction} from './automa/AutomaFailedAction';
 import {AutomaGameEnd} from './automa/AutomaGameEnd';
 import {AutomaResearch} from './automa/AutomaResearch';
@@ -1378,7 +1378,12 @@ export class Game implements IGame, Logger {
         return;
       }
       // MarsBot never waits for input — its whole turn resolves server-side.
-      AutomaController.takeTurn(this);
+      // Server-authoritative pacing: when enabled (production), this marks the
+      // turn pending, broadcasts the "bot is active" state, and schedules a
+      // bounded, non-blocking deferred resolve; when disabled (tests) it
+      // resolves synchronously exactly as before. Either way the game loop is
+      // driven only by the server. See BotTurnScheduler.
+      BotTurnScheduler.getInstance().onBotTurnDue(this);
       return;
     }
     player.actionsTakenThisGame++;

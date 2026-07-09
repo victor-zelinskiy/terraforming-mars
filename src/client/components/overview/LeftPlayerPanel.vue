@@ -129,7 +129,6 @@ import LeftPlayerCard from '@/client/components/overview/LeftPlayerCard.vue';
 import MarsBotPanel from '@/client/components/marsbot/MarsBotPanel.vue';
 import AdditionalResourcesPanel from '@/client/components/additionalResources/AdditionalResourcesPanel.vue';
 import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
-import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {ActionLabel} from './ActionLabel';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -246,14 +245,11 @@ export default defineComponent({
     // Outside the ACTION phase nobody "owns a turn" (research / draft / etc.
     // keep their own simultaneous-pick statuses), so no card is the turn owner.
     //
-    // MarsBot exception: its turn resolves synchronously on the server, so the
-    // model never marks it active — the open «Разбор хода» review IS its turn
-    // for everyone at the table. While it is open, the bot's card owns the turn
-    // with the same player-colour accent a human turn owner gets.
+    // MarsBot is covered by the SAME rule now: during its server-authoritative
+    // pending turn the bot IS the ACTION-phase active player, so its card owns
+    // the turn with the same player-colour accent a human turn owner gets — no
+    // client review/theater state involved.
     isTurnOwnerFor(p: PublicPlayerModel): boolean {
-      if (p.isMarsBot === true && botTurnReviewState.open && botTurnReviewState.botColor === p.color) {
-        return true;
-      }
       return this.playerView.game.phase === Phase.ACTION && p.isActive;
     },
     // 0-indexed позиция игрока в seating-order — это и есть порядок

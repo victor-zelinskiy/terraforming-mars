@@ -207,6 +207,16 @@ export type MarsBotTurnVisual = {
   venusScaleLevel?: MarsBotParamChange;
 };
 
+/**
+ * The stable per-turn key shared by BOTH sides: the client uses it to dedup /
+ * archive turn notifications, the server uses it to pace the NEXT bot turn on
+ * a client "I've seen this turn" ack. ONE definition so the two can never
+ * drift. Unique per game session: `<botColor>:<generation>:<turn id>`.
+ */
+export function botTurnKey(botColor: string, turn: {generation: number, id: number}): string {
+  return `${botColor}:${turn.generation}:${turn.id}`;
+}
+
 export type MarsBotTurn = {
   /** Monotonic per-game turn number — the client's replay/dedup key. */
   id: number;

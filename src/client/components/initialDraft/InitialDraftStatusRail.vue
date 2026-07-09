@@ -153,7 +153,7 @@ export default defineComponent({
      */
     presentationFor(player: PublicPlayerModel): StatusPresentation {
       const label = actionLabelForPlayer(this.playerView, player, this.livePlayersWaitingFor);
-      return presentPlayerStatus(label);
+      return presentPlayerStatus(label, player.isMarsBot === true);
     },
     /*
      * Seating-order index (а не позиция в orderedPlayers) — так order

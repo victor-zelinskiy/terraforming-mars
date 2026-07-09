@@ -34,12 +34,14 @@ export type ActionLabel =
   | 'globalsupport'    // World Government Terraforming — picking which global
                        // parameter to bump as the "world government" (SOLAR phase).
   | 'delegate'         // Turmoil delegate placement / party choice prompt.
-  | 'bottheater'       // MarsBot's already-resolved turn is being replayed by
-                       // the client turn theater. The server never waits on the
-                       // bot (its turn resolves synchronously), so this is the
-                       // ONLY "active" window the other participants ever see
-                       // for it — presented exactly like a human's turn (active
-                       // category, pulsing dot), just without the 1/2 counter.
+                       //
+                       // NOTE: MarsBot's active turn ALSO resolves to 'turn' (it
+                       // is the server's ACTION-phase active player during its
+                       // bounded pending window — see playerLabels.ts). The
+                       // presenter renders a bot 'turn' with a distinct glyph and
+                       // NO 1/2 counter (the bot plays one automa card per turn).
+                       // The legacy client-only 'bottheater' label is GONE — the
+                       // bot's active status is now server-authoritative.
   | 'passed'           // Player has passed this generation; server is not
                        // waiting on them (Philares-style exceptions land in one
                        // of the active states because `isWaiting` is checked
@@ -49,8 +51,6 @@ export type ActionLabel =
                        // is waiting for the others to finish. Distinct from
                        // `waiting` because the visual category is positive
                        // ("done your part") rather than passive ("idle").
-  | 'next'             // ACTION phase: the player who will act immediately after
-                       // the currently-active one. Shown only in 3+ player games.
   | 'waiting'          // Generic idle — game is running, server not waiting on
                        // this player, no simultaneous-pick context to mark them
                        // as "ready". Player-facing "ОЖИДАЕТ".

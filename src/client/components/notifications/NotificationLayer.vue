@@ -111,6 +111,7 @@ import {PendingQueueSummary} from '@/client/components/presentation/presentation
 import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
+import {ackBotTurn, setBotAckViewer} from '@/client/components/marsbot/botTurnAck';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
 import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
 import {consoleModeState} from '@/client/console/consoleModeState';
@@ -211,6 +212,9 @@ export default defineComponent({
   },
   methods: {
     update(): void {
+      // Keep the bot-turn ack helper pointed at the current viewer (it POSTs the
+      // soft ack when a bot-turn notification finishes — see onDismiss).
+      setBotAckViewer(this.playerView.id);
       // Game over: the endgame experience owns the screen — silence everything.
       if (this.playerView.game.phase === Phase.END) {
         setTurn(undefined);
@@ -474,6 +478,14 @@ export default defineComponent({
       }
     },
     onDismiss(id: string): void {
+      // A finished bot-turn notification (manual close OR TTL expiry) is one of
+      // the three "notification finished" signals — soft-ack it so the server
+      // needn't extend the next paced bot turn on this client. Look the key up
+      // BEFORE dismiss removes the card. Best-effort; deduped; never gates.
+      const notification = notificationState.transient.find((n) => n.id === id);
+      if (notification?.botTurnKey !== undefined) {
+        ackBotTurn(notification.botTurnKey);
+      }
       dismiss(id);
     },
     onToggle(id: string): void {
