@@ -1,16 +1,17 @@
 <template>
   <!--
-    Premium trade-fleet TOKEN — a crisp two-tone rocket that replaces the
-    legacy raster `colony_ships.png` sprite across the console colonies
-    surfaces (tile berth, header fleet chips, the inspect dossier). One set
-    of paths; the player colour rides three inheritable CSS custom props set
-    by the `con-fleet-hue--<color>` class (console.less) — the same vars the
-    tile's planet-berth ring/dock read, so ship + ring never drift. `free`
-    lights the warm exhaust ("ready to launch"); a docked/spent fleet omits
-    it. Mirrors the BarButtonIcon philosophy (inline SVG, colour via CSS).
+    Premium trade-fleet TOKEN — a crisp two-tone SVG rocket that replaced the
+    legacy raster fleet sprite EVERYWHERE (console colonies surfaces + the
+    desktop colonies overlay / tiles / detail / card). One set of paths; the
+    player colour rides three inheritable CSS custom props set by the
+    `fleet-hue--<color>` class (styles/colony_fleet.less). The PRESENTATION
+    (size / placement / backing) is owned by each host context — this is only
+    the icon primitive. `free` lights the warm exhaust ("ready to launch");
+    a docked/spent fleet omits it. Mirrors the BarButtonIcon philosophy
+    (inline SVG, colour via CSS).
   -->
   <svg class="colony-fleet-icon"
-       :class="['con-fleet-hue--' + color, {'colony-fleet-icon--free': free}]"
+       :class="['fleet-hue--' + color, {'colony-fleet-icon--free': free}]"
        viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <!-- Hull + fins (one fill: --fleet-fill). -->
     <path class="cfi-hull"
@@ -31,8 +32,8 @@ import {Color} from '@/common/Color';
 /**
  * Stateless per-player fleet emblem. Pass `color` (the fleet owner's player
  * colour) and, optionally, `free` (the owner still has an untraded fleet →
- * show the exhaust). Colour is applied via the `con-fleet-hue--<color>`
- * class, so the component is self-contained anywhere.
+ * show the exhaust). Colour is applied via the `fleet-hue--<color>` class,
+ * so the component is self-contained anywhere.
  */
 export default defineComponent({
   name: 'ColonyFleetIcon',

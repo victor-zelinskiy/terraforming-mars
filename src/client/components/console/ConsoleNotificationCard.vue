@@ -140,12 +140,14 @@
       </span>
     </div>
 
-    <!-- The FLOW-HOLDING card (the AI turn) is the foreground item of the
-         beat — its pad contract is shown ON the card (the command bar echoes
-         it): X = expand into the turn details, B = close. Ordinary toasts
-         stay hint-less (they self-clear; B keeps meaning "back"). -->
-    <footer v-if="notification.holdsFlow === true" class="con-notif__actions" aria-hidden="true">
-      <span v-if="notification.botTurnKey !== undefined" class="con-notif__action">
+    <!-- Pad contract shown ON every card — a GLOBAL rule: ANY console
+         notification is dismissable with B, and the card advertises it
+         («B Закрыть»). The FLOW-HOLDING card (the AI turn) additionally owns
+         the beat and offers X = expand into the turn details; the command bar
+         echoes that contract only for it (an ordinary toast leaves the board
+         bar untouched — B just closes the toast). -->
+    <footer class="con-notif__actions" aria-hidden="true">
+      <span v-if="notification.holdsFlow === true && notification.botTurnKey !== undefined" class="con-notif__action">
         <GamepadGlyph control="secondary" />
         <span v-i18n>Watch turn</span>
       </span>
@@ -155,8 +157,8 @@
       </span>
     </footer>
 
-    <!-- Lifetime shrink → auto-dismiss (the console toast has no close
-         button — it is a transient, self-clearing information surface). -->
+    <!-- Lifetime shrink → auto-dismiss. The toast self-clears when it runs
+         out; the player can also close it early with B (the footer above). -->
     <span v-if="showProgress"
           class="con-notif__progress"
           :style="{animationDuration: notification.ttl + 'ms'}"

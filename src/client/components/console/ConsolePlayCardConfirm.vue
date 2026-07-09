@@ -99,7 +99,8 @@
               <!-- Derived result categories — the block is NEVER empty. A tag
                    row is "label: [inline chips]"; a VP row is "label: +N". -->
               <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
-                   :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind]">
+                   :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
+                            {'con-composer__rescat--event-tags': sec.eventTags}]">
                 <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
                 <span class="con-composer__rescat-text"
                 >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
@@ -107,6 +108,7 @@
                 <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
                   <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
                 </span>
+                <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
               </div>
 
               <!-- SILENT-LOSS warnings (verbatim desktop parity). -->
@@ -245,6 +247,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -478,6 +481,9 @@ export default defineComponent({
           hasAction: cardHasAction(this.cardName),
           hasEffect: cardHasPassiveEffect(this.cardName),
           victoryPoints: meta?.victoryPoints,
+          isEvent: meta?.type === CardType.EVENT,
+          // Odyssey makes an event's tags count like any other card's.
+          eventTagsCounted: this.thisPlayer.tableau.some((c) => c.name === CardName.ODYSSEY),
         },
         {hasImmediate: this.hasImmediateResult, hasFollowUp: this.followUpNotes.length > 0},
       );

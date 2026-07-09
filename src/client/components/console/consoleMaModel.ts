@@ -70,6 +70,9 @@ export type ConsoleMaBuildOptions = {
   maxSlots: number,
   /** The next claim/fund price (milestones: 8; awards: 8/14/20). */
   nextCost: number,
+  /** Resolve a claimant colour to its DISPLAY label (a MarsBot reads «Бот», not
+   *  the raw «MarsBot»). Optional — falls back to the raw model name. */
+  resolveName?: (color: Color) => string,
 };
 
 export function buildConsoleMaItems(
@@ -127,7 +130,8 @@ export function buildConsoleMaItems(
       cost: taken || slotsExhausted ? undefined : opts.nextCost,
       available,
       blocker,
-      takenBy: taken && m.color !== undefined ? {color: m.color, name: m.playerName ?? ''} : undefined,
+      takenBy: taken && m.color !== undefined ?
+        {color: m.color, name: (opts.resolveName?.(m.color) || m.playerName) ?? ''} : undefined,
       slotsExhausted,
     };
   });

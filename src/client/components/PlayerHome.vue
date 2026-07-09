@@ -35,6 +35,7 @@
             v-for="(slot, i) in claimedMilestoneSlots"
             :key="i"
             :milestone="slot"
+            :players="playerView.players"
             :claimedCount="claimedMilestonesCount" />
         </div>
         <MilestonesOverlay
@@ -3295,7 +3296,7 @@ export default defineComponent({
         return 'You already traded with this colony this generation';
       }
       const p = this.playerView.players.find((p) => p.color === visitor);
-      const name = p?.name ?? String(visitor);
+      const name = p !== undefined ? participantDisplayName(p) : String(visitor);
       return translateTextWithParams(
         'Trade fleet of ${0} is currently here',
         [name]);

@@ -522,25 +522,12 @@
     min-height: 22px;
 }
 
-/* Re-scale the legacy colony_ships.png sprite ship down so a row of
- * 1-3 ships fits cleanly in the panel without ballooning vertically. */
-.colonies-overlay__fleet-ship.colonies-fleet {
-    width: 28px;
-    height: 28px;
-    background-size: 224px 28px;
-    /* The base CSS positions sprites for the 70px height; recompute
-     * proportional offsets at the smaller scale. */
+/* The SVG fleet icon (ColonyFleetIcon) renders one-per-free-fleet in this
+ * row — a compact 24px so 1-3 read cleanly without ballooning vertically. */
+.colonies-overlay__fleets-ships .colony-fleet-icon {
+    width: 24px;
+    height: 24px;
 }
-
-/* Sprite offsets at 28px ship size (proportional to base 70px). */
-.colonies-overlay__fleet-ship.colonies-fleet-black  { background-position:    0       0; }
-.colonies-overlay__fleet-ship.colonies-fleet-yellow { background-position:  -28px      0; }
-.colonies-overlay__fleet-ship.colonies-fleet-green  { background-position:  -56px      0; }
-.colonies-overlay__fleet-ship.colonies-fleet-red    { background-position:  -82.8px    0; }
-.colonies-overlay__fleet-ship.colonies-fleet-blue   { background-position: -108.8px    0; }
-.colonies-overlay__fleet-ship.colonies-fleet-purple { background-position: -136.8px    0; }
-.colonies-overlay__fleet-ship.colonies-fleet-orange { background-position: -166.4px    0; }
-.colonies-overlay__fleet-ship.colonies-fleet-pink   { background-position: -196px      0; }
 
 .colonies-overlay__fleets-none {
     font-size: 11px;
@@ -689,25 +676,13 @@
     flex-shrink: 0;
 }
 
-.colony-tile__header-fleet-ship.colonies-fleet {
+/* The SVG fleet icon in the tile-header pill. A dark drop-shadow keeps the
+ * ship legible against the player-colour pill background. */
+.colony-tile__header-fleet .colony-fleet-icon {
     width: 18px;
     height: 18px;
-    background-size: 144px 18px !important;
-    flex-shrink: 0;
-    /* Drop-shadow makes the small sprite read against any player-colour
-     * background; the underlying colony_ships.png assumes a dark mat. */
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
 }
-
-/* Sprite offsets scaled for 18px ship size (proportional to base 70px). */
-.colony-tile__header-fleet-ship.colonies-fleet-black  { background-position:    0       0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-yellow { background-position:  -18px     0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-green  { background-position:  -36px     0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-red    { background-position:  -53.2px   0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-blue   { background-position:  -69.9px   0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-purple { background-position:  -87.9px   0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-orange { background-position: -106.9px   0 !important; }
-.colony-tile__header-fleet-ship.colonies-fleet-pink   { background-position: -125.9px   0 !important; }
 
 .colony-tile__header-fleet-label {
     flex-shrink: 0;
@@ -1692,21 +1667,10 @@
     gap: 8px;
 }
 
-.colony-detail__visitor-ship.colonies-fleet {
+.colony-detail__visitor-row .colony-fleet-icon {
     width: 28px;
     height: 28px;
-    background-size: 224px 28px !important;
-    flex-shrink: 0;
 }
-/* Sprite offsets at 28px ship size. */
-.colony-detail__visitor-ship.colonies-fleet-black  { background-position:    0      0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-yellow { background-position:  -28px    0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-green  { background-position:  -56px    0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-red    { background-position:  -82.8px  0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-blue   { background-position: -108.8px  0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-purple { background-position: -136.8px  0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-orange { background-position: -166.4px  0 !important; }
-.colony-detail__visitor-ship.colonies-fleet-pink   { background-position: -196px    0 !important; }
 
 .colony-detail__visitor-name {
     font-size: 14px;

@@ -178,7 +178,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
-import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {

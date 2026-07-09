@@ -23,7 +23,7 @@
            (replaces the old crude oversized sprite that crowded the planet;
            the owner is the ring/ship colour, named in the status line). -->
       <span class="con-coltile__planet-berth"
-            :class="colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'con-fleet-hue--' + colony.visitor] : []">
+            :class="colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'fleet-hue--' + colony.visitor] : []">
         <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
         <span v-if="colony.visitor !== undefined" class="con-coltile__dock" aria-hidden="true">
           <ColonyFleetIcon :color="colony.visitor" />
@@ -96,7 +96,7 @@ import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
-import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',

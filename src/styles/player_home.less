@@ -831,55 +831,27 @@ each(@players, {
     }
 }
 
+/* Spectator "free fleets" strip — each player's untraded fleets as a small
+   row of the shared SVG icons (ColonyFleetIcon), grouped per player. */
 .colonies-fleets-cont {
     position: absolute;
-    margin: -62px 0 0 160px;
+    margin: -46px 0 0 175px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .colony-fleet-icon {
+        width: 26px;
+        height: 26px;
+        margin: 0 1px;
+    }
 }
 
 .colonies-player-fleets {
-    height: 70px;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
     vertical-align: top;
-}
-
-.colonies-fleet {
-    background: url(./assets/colony_ships.png) no-repeat;
-    width: 70px;
-    height: 70px;
-    display: inline-block;
-    vertical-align: top;
-
-    &.colonies-fleet-black {
-        background-position: 0 0;
-    }
-
-    &.colonies-fleet-yellow {
-        background-position: -70px 0;
-    }
-
-    &.colonies-fleet-green {
-        background-position: -140px 0;
-    }
-
-    &.colonies-fleet-red {
-        background-position: -207px 0;
-    }
-
-    &.colonies-fleet-blue {
-        background-position: -272px 0;
-    }
-
-    &.colonies-fleet-purple {
-        background-position: -342px 0;
-    }
-
-    &.colonies-fleet-orange {
-        background-position: -416px 0;
-    }
-
-    &.colonies-fleet-pink {
-        background-position: -490px 0;
-    }
 }
 
 .player_home_block--underground-tokens {

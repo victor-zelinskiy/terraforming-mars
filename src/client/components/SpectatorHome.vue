@@ -46,7 +46,7 @@
       <dynamic-title title="Colonies" :color="spectator.color"/>
       <div class="colonies-fleets-cont">
         <div class="colonies-player-fleets" v-for="player in spectator.players" v-bind:key="player.color">
-            <div :class="'colonies-fleet colonies-fleet-'+ player.color" v-for="idx in range(Math.max(0, player.fleetSize - player.tradesThisGeneration))" v-bind:key="idx"></div>
+            <ColonyFleetIcon :color="player.color" v-for="idx in range(Math.max(0, player.fleetSize - player.tradesThisGeneration))" v-bind:key="idx" />
         </div>
       </div>
       <div class="player_home_colony_cont">
@@ -71,6 +71,7 @@ import {GameModel} from '@/common/models/GameModel';
 import {vueRoot} from '@/client/components/vueRoot';
 import {SpectatorModel} from '@/common/models/SpectatorModel';
 import Colony from '@/client/components/colonies/Colony.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import {useBoardAutoScale} from '@/client/utils/useBoardAutoScale';
@@ -105,6 +106,7 @@ export default defineComponent({
   },
   components: {
     Colony,
+    ColonyFleetIcon,
     DynamicTitle,
     GameBoardView,
     KeyboardShortcuts,

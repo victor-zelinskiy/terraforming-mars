@@ -255,6 +255,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DisabledOptionModel, OrOptionsModel, PlayerInputModel, SelectSpaceModel, SelectOptionModel, OptionMetadata} from '@/common/models/PlayerInputModel';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {InputResponse, OrOptionsResponse, SelectSpaceResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
@@ -506,7 +507,7 @@ export default defineComponent({
         return '';
       }
       const p = (this.playerView.players ?? []).find((pp) => pp.color === color);
-      return p?.name ?? '';
+      return p !== undefined ? participantDisplayName(p) : '';
     },
     disabledIconClass(d: DisabledOptionModel): string {
       return iconClassFor(d.metadata?.icon);
@@ -538,7 +539,7 @@ export default defineComponent({
         return '';
       }
       const p = this.playerView.players.find((pp) => pp.color === color);
-      return p?.name ?? '';
+      return p !== undefined ? participantDisplayName(p) : '';
     },
     // Resource/parameter icon key from metadata (e.g. 'plants', 'megacredits',
     // 'temperature'); '' when none.

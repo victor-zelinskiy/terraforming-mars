@@ -243,6 +243,7 @@ import {
 import {
   TradeStep,
   colonyOwnerCounts,
+  effectiveTradePosition,
   rewardAtPosition,
   tradeNotices,
   tradeOutcome,
@@ -496,13 +497,23 @@ export default defineComponent({
     rewardPosition(): number {
       const track = this.preview?.track;
       const chosen = this.captures['track'];
-      if (track === undefined) {
-        return Math.min(this.colony?.trackPosition ?? 0, 6);
-      }
+      // An explicit track-advance choice (a willAsk colony) always wins.
       if (typeof chosen === 'number') {
-        return Math.min(track.current + chosen, (this.metadata?.trade.quantity.length ?? 7) - 1);
+        const current = track?.current ?? this.colony?.trackPosition ?? 0;
+        return Math.min(current + chosen, (this.metadata?.trade.quantity.length ?? 7) - 1);
       }
-      return track.effective;
+      // Auto-advance: the server preview is authoritative once loaded. Until it
+      // arrives (it fetches in the background), compute the effective
+      // (offset-advanced) position CLIENT-side — the SAME calc the inspect uses
+      // — so the reward is correct IMMEDIATELY, never the un-advanced marker
+      // (the +1 offset would otherwise be dropped, showing a lower reward).
+      if (track !== undefined) {
+        return track.effective;
+      }
+      if (this.colony !== undefined && this.metadata !== undefined) {
+        return effectiveTradePosition(this.colony, this.metadata, this.thisPlayer?.colonyTradeOffset ?? 0);
+      }
+      return Math.min(this.colony?.trackPosition ?? 0, 6);
     },
     ownColonyCount(): number {
       if (this.colony === undefined || this.viewerColor === undefined) {

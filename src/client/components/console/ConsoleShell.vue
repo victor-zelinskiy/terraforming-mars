@@ -493,7 +493,7 @@ import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/component
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -746,6 +746,13 @@ export default defineComponent({
     /** The visible flow-holding notification (the compact AI-turn card), if any. */
     foregroundHoldingCard(): LiveNotification | undefined {
       return notificationState.transient.find((n) => n.holdsFlow === true);
+    },
+    /** The currently VISIBLE transient notification — the topmost (the feed is
+     *  serial, so at most one). GLOBAL rule: any console toast is dismissable
+     *  with B; the flow-holding AI-turn card additionally claims X / swallows A. */
+    topNotification(): LiveNotification | undefined {
+      const feed = notificationState.transient;
+      return feed.length > 0 ? feed[feed.length - 1] : undefined;
     },
     /** The pending-queue backlog (the banner-band chip). */
     pendingEvents(): PendingQueueSummary {
@@ -1383,6 +1390,8 @@ export default defineComponent({
         maxSlots: 3,
         // Free sponsorship (Vitor) costs 0 — the wallet then reads «Бесплатно».
         nextCost: kind === 'milestones' ? 8 : (this.awardFundingActive ? 0 : this.awardCostValue),
+        // Claimant label resolves the MarsBot seat to «Бот», never the raw name.
+        resolveName: (color) => displayNameForColor(this.playerView.players, color),
       });
     },
     /** The NEXT award funding price as a number (8/14/20). */
@@ -2239,24 +2248,26 @@ export default defineComponent({
       if (this.consoleCardZoom.card !== undefined) {
         return this.handleZoomIntent(intent);
       }
-      // PRESENTATION FLOW: a visible flow-holding notification (the compact
-      // AI-turn card) is the foreground item — B closes it, X opens the «Разбор
-      // хода» review. Deliberately CLAIMS only back/secondary/confirm (A is
-      // swallowed so nothing submits under the card); navigation and scrolling
-      // pass through, so the board stays inspectable. Ordinary corner toasts
-      // never capture the pad (B stays "back" for navigation).
-      const holdingCard = this.foregroundHoldingCard;
-      if (holdingCard !== undefined && this.consoleCardZoom.card === undefined) {
+      // PRESENTATION FLOW: ANY visible console notification is dismissable with
+      // B — a global rule (every toast advertises «B Закрыть» on the card). The
+      // FLOW-HOLDING card (the compact AI-turn card) additionally OWNS the beat:
+      // X opens the «Разбор хода» review and A is swallowed so nothing submits
+      // under it. An ordinary toast claims ONLY B — navigation / actions pass
+      // through to the surface beneath, so the board/section stays usable.
+      const topCard = this.topNotification;
+      if (topCard !== undefined && this.consoleCardZoom.card === undefined) {
         if (intent.kind === 'press' && intent.button === 'back') {
-          dismissNotification(holdingCard.id);
+          dismissNotification(topCard.id);
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'secondary' && holdingCard.botTurnKey !== undefined) {
-          openBotTurnReviewByKey(holdingCard.botTurnKey);
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'confirm') {
-          return true;
+        if (topCard.holdsFlow === true) {
+          if (intent.kind === 'press' && intent.button === 'secondary' && topCard.botTurnKey !== undefined) {
+            openBotTurnReviewByKey(topCard.botTurnKey);
+            return true;
+          }
+          if (intent.kind === 'press' && intent.button === 'confirm') {
+            return true;
+          }
         }
       }
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on

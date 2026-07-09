@@ -49,7 +49,7 @@
             </div>
           </div>
           <div v-if="!isSoloGame || game.isSoloModeWin" class="game-end-winer-announcement">
-              <span v-for="p in winners" :key="p.color"><span :class="'log-player ' + getEndGamePlayerRowColorClass(p.color)">{{ p.name }}</span></span> <span v-i18n>won!</span>
+              <span v-for="p in winners" :key="p.color"><span :class="'log-player ' + getEndGamePlayerRowColorClass(p.color)">{{ displayName(p) }}</span></span> <span v-i18n>won!</span>
           </div>
           <div class="game_end_victory_points">
               <h2><span v-i18n>Victory point breakdown after</span> {{game.generation}} <span v-i18n>generations</span></h2>
@@ -78,7 +78,7 @@
                   <tbody>
                       <tr v-for="p in playersInPlace" :key="p.color" :class="getEndGamePlayerRowColorClass(p.color)">
                           <td>
-                            <a :href="'player?id='+p.id+'&noredirect'">{{ p.name }}</a>
+                            <a :href="'player?id='+p.id+'&noredirect'">{{ displayName(p) }}</a>
                             <div class="column-corporation">
                               <div v-for="(corporationName, index) in getCorporationName(p)" :key="index" v-i18n>{{ corporationName }}</div>
                             </div>
@@ -221,6 +221,7 @@
 
 import {defineComponent} from 'vue';
 import * as constants from '@/common/constants';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
 import {setFaviconStatus} from '@/client/utils/favicon';
 import {getPreferences} from '@/client/utils/PreferencesManager';
@@ -432,6 +433,10 @@ export default defineComponent({
     }
   },
   methods: {
+    // Resolve the MarsBot seat to «Бот» (never the raw «MarsBot»).
+    displayName(p: {name: string, isMarsBot?: boolean}): string {
+      return participantDisplayName(p);
+    },
     getEndGamePlayerRowColorClass(color: Color): string {
       return playerColorClass(color, 'bg_transparent');
     },

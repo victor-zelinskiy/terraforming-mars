@@ -77,7 +77,7 @@ import {colonyGridLayout, colonyGridCols, ColonyGridLayout} from '@/client/conso
 import {freeTradeFleets} from '@/client/components/colonies/colonyTradePlan';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
-import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */

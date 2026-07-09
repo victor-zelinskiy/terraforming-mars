@@ -1,0 +1,34 @@
+/* ── Shared trade-fleet SVG icon (ColonyFleetIcon) ───────────────────── *
+ * The premium per-player rocket used by BOTH the console colonies surfaces
+ * AND the desktop colonies overlay / tiles / detail / card — it replaced the
+ * legacy raster fleet sprite everywhere. `fleet-hue--<color>` sets three
+ * INHERITABLE custom props (bright, legible on dark backgrounds), consumed
+ * by the icon paths (and, in the console tile, the planet-berth ring). This
+ * file is ONLY the icon primitive + palette; each host owns its own
+ * PRESENTATION (size / placement / backing). */
+.colony-fleet-icon {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    display: inline-block;
+    vertical-align: middle;
+    filter: drop-shadow(0 0 3px var(--fleet-glow, transparent));
+
+    .cfi-hull {
+        fill: var(--fleet-fill, #cfd8e0);
+        stroke: rgba(0, 0, 0, 0.42);
+        stroke-width: 0.6;
+        stroke-linejoin: round;
+    }
+    .cfi-accent { fill: var(--fleet-accent, #ffffff); }
+    .cfi-flame { fill: #ffce7a; opacity: 0; }
+    &--free .cfi-flame { opacity: 0.92; }
+}
+.fleet-hue--red    { --fleet-fill: #ff5a48; --fleet-accent: #ffd0c8; --fleet-glow: rgba(255, 90, 72, 0.55); }
+.fleet-hue--yellow { --fleet-fill: #ffe14d; --fleet-accent: #fff4b0; --fleet-glow: rgba(255, 225, 77, 0.5); }
+.fleet-hue--green  { --fleet-fill: #4fe06a; --fleet-accent: #d6ffdd; --fleet-glow: rgba(79, 224, 106, 0.55); }
+.fleet-hue--black  { --fleet-fill: #cfd8e0; --fleet-accent: #ffffff; --fleet-glow: rgba(207, 216, 224, 0.5); }
+.fleet-hue--blue   { --fleet-fill: #4d97ff; --fleet-accent: #cfe2ff; --fleet-glow: rgba(77, 151, 255, 0.55); }
+.fleet-hue--purple { --fleet-fill: #b45cff; --fleet-accent: #e6ccff; --fleet-glow: rgba(180, 92, 255, 0.55); }
+.fleet-hue--orange { --fleet-fill: #ff9a3d; --fleet-accent: #ffe0b8; --fleet-glow: rgba(255, 154, 61, 0.55); }
+.fleet-hue--pink   { --fleet-fill: #ff8fce; --fleet-accent: #ffd6ec; --fleet-glow: rgba(255, 143, 206, 0.5); }

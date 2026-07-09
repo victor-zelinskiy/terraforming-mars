@@ -5,7 +5,7 @@
 
     <!-- Show colony ship if somebody is visiting -->
     <div v-if="colony.visitor !== undefined" class="colony-spaceship">
-      <div :class="'colonies-fleet colonies-fleet-'+ colony.visitor"></div>
+      <ColonyFleetIcon :color="colony.visitor" />
     </div>
 
     <!-- show the large title on top -->
@@ -130,6 +130,7 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import ColonyRow from '@/client/components/colonies/ColonyRow.vue';
 import ColonyTradeRow from '@/client/components/colonies/ColonyTradeRow.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Resource} from '@/common/Resource';
@@ -150,6 +151,7 @@ export default defineComponent({
   components: {
     ColonyRow,
     ColonyTradeRow,
+    ColonyFleetIcon,
   },
   computed: {
     metadata(): ColonyMetadata {

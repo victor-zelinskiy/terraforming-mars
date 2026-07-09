@@ -48,6 +48,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -120,7 +121,7 @@ export default defineComponent({
       if (c === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === c)?.name ?? c;
+      return displayNameForColor(this.players, c);
     },
   },
   watch: {

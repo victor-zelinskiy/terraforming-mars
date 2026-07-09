@@ -22,7 +22,7 @@
           <div class="milestone-floating-tooltip-claimedby">
             <span v-i18n>claimed by</span>
             <player-cube :color="milestone.color" :size="14"></player-cube>
-            <span>{{ milestone.playerName }}</span>
+            <span>{{ claimantName }}</span>
           </div>
         </template>
         <div v-else class="milestone-floating-tooltip-status">{{ emptyStatusText }}</div>
@@ -34,9 +34,11 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MAX_MILESTONES} from '@/common/constants';
 import {getMilestone} from '@/client/MilestoneAwardManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type TooltipPos = {top: number; left: number};
@@ -60,6 +62,12 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    // Player list — resolves the claimant colour to its DISPLAY label (a
+    // MarsBot claimant reads «Бот», never the raw «MarsBot»).
+    players: {
+      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
+      default: () => [],
+    },
   },
   data(): {showTooltip: boolean; tooltipPos: TooltipPos} {
     return {
@@ -68,6 +76,14 @@ export default defineComponent({
     };
   },
   computed: {
+    // The claimant's DISPLAY label (a MarsBot reads «Бот»); falls back to the
+    // model's raw name if the colour isn't among the players.
+    claimantName(): string {
+      if (this.milestone?.color === undefined) {
+        return this.milestone?.playerName ?? '';
+      }
+      return displayNameForColor(this.players, this.milestone.color) || (this.milestone.playerName ?? '');
+    },
     assetName(): string {
       if (!this.milestone) {
         return '';

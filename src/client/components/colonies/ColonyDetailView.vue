@@ -170,8 +170,7 @@
                   :class="'player_bg_color_' + colony.visitor"></span>
             <div class="colony-detail__visitor-body">
               <div class="colony-detail__visitor-row">
-                <span class="colony-detail__visitor-ship colonies-fleet"
-                      :class="'colonies-fleet-' + colony.visitor"></span>
+                <ColonyFleetIcon :color="colony.visitor" />
                 <span class="colony-detail__visitor-name">{{ playerName(colony.visitor) }}</span>
               </div>
               <div class="colony-detail__visitor-tag" v-i18n>currently trading here</div>
@@ -235,10 +234,11 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText} from '@/client/directives/i18n';
 import BenefitGlyph from './BenefitGlyph.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 
 export default defineComponent({
   name: 'ColonyDetailView',
-  components: {BenefitGlyph},
+  components: {BenefitGlyph, ColonyFleetIcon},
   props: {
     colony: {
       type: Object as () => ColonyModel,

@@ -61,6 +61,7 @@
 <script lang="ts">
 import {defineComponent, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -118,7 +119,7 @@ export default defineComponent({
       if (a === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === a)?.name ?? a;
+      return displayNameForColor(this.players, a);
     },
     zoomCards(): ReadonlyArray<CardModel> {
       return (this.reveal?.cards ?? []).map((name) => ({name}));

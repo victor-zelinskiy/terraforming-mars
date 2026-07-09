@@ -138,12 +138,11 @@
                 <div v-for="p in playersWithFleets" :key="p.color"
                      class="colonies-overlay__fleets-row">
                   <span class="colonies-overlay__fleets-row-name"
-                        :class="'player-name-' + p.color">{{ p.name }}</span>
+                        :class="'player-name-' + p.color">{{ displayName(p) }}</span>
                   <div class="colonies-overlay__fleets-ships">
-                    <div v-for="i in freeFleetCount(p)"
-                         :key="i"
-                         :class="'colonies-fleet colonies-fleet-' + p.color"
-                         class="colonies-overlay__fleet-ship"></div>
+                    <ColonyFleetIcon v-for="i in freeFleetCount(p)"
+                                     :key="i"
+                                     :color="p.color" />
                     <div v-if="freeFleetCount(p) === 0" class="colonies-overlay__fleets-none" v-i18n>— none</div>
                   </div>
                 </div>
@@ -210,6 +209,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ColonyTile from './ColonyTile.vue';
 import ColonyDetailView from './ColonyDetailView.vue';
+import ColonyFleetIcon from './ColonyFleetIcon.vue';
 import {translateText} from '@/client/directives/i18n';
 
 export type ColoniesOverlayMode = 'trade' | 'build' | 'view';
@@ -226,7 +226,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'ColoniesOverlay',
-  components: {ColonyTile, ColonyDetailView},
+  components: {ColonyTile, ColonyDetailView, ColonyFleetIcon},
   props: {
     // Full list of colonies in this game — always rendered, even when
     // not selectable, per the product requirement "always show all
@@ -394,6 +394,10 @@ export default defineComponent({
     },
   },
   methods: {
+    // The fleet-row label resolves the MarsBot seat to «Бот», never the raw name.
+    displayName(p: PublicPlayerModel): string {
+      return participantDisplayName(p);
+    },
     freeFleetCount(p: PublicPlayerModel): number {
       // fleetSize is the total trade ships the player owns; subtracted
       // by tradesThisGeneration to give the count still available to send

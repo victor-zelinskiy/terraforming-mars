@@ -98,6 +98,28 @@ export const leakDetectorState = reactive({
   desktopSurfaces: [] as Array<string>,
 });
 
+/**
+ * A prompt must be detected unserved on THIS MANY CONSECUTIVE passes before the
+ * guard is actually shown — the guard is a DEV safety net for a GENUINELY stuck
+ * prompt, and a WORKING console case can momentarily have no serving surface
+ * during a hand-off (a drawn-cards reveal dismissing while the hand section
+ * mounts, a section switch, a modal swap). Those transitions resolve in well
+ * under one tick, so they never accumulate consecutive unserved passes; a truly
+ * stranded prompt stays unserved every pass and still surfaces (~1 extra tick
+ * later). The player must NEVER see the guard flash for a supported case.
+ */
+const STRANDED_CONFIRM_TICKS = 2;
+/** The prompt key we've been counting unserved passes for + the streak. */
+let unservedKey = '';
+let unservedStreak = 0;
+
+/** Reset the stranded state + the debounce streak (a served / absent prompt). */
+function clearStranded(): void {
+  leakDetectorState.stranded = undefined;
+  unservedKey = '';
+  unservedStreak = 0;
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -126,7 +148,7 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // 1. Stranded prompt.
   const wf = view?.waitingFor;
   if (view === undefined || wf === undefined) {
-    leakDetectorState.stranded = undefined;
+    clearStranded();
     return;
   }
   // The Government Support scale-focus choreography intentionally shows NO
@@ -134,7 +156,7 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // then the board scale animates while the next modal is held (`holding`).
   // Never a stranded prompt during either.
   if (govScaleFocusState.holding || govScaleFocusState.closing) {
-    leakDetectorState.stranded = undefined;
+    clearStranded();
     return;
   }
   const task: ConsoleTask | undefined = taskFor(view);
@@ -142,7 +164,7 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // kind must actually RENDER `.con-task-host` (checked below) — a host
   // that fails to mount is a stranded prompt, not a success.
   if (task !== undefined && SHELL_NATIVE_KINDS.has(task.kind)) {
-    leakDetectorState.stranded = undefined;
+    clearStranded();
     return;
   }
   const selectors = [...SERVING_SURFACES, ...(task !== undefined ? KIND_SURFACES[task.kind] ?? [] : [])];
@@ -151,6 +173,18 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     return el !== null && (el as HTMLElement).getClientRects().length > 0;
   });
   if (served) {
+    clearStranded();
+    return;
+  }
+  // Unserved — but a supported case can transiently have no surface mid-hand-off
+  // (reveal→hand section, section switch). DEBOUNCE: only show the guard once
+  // the SAME prompt has been unserved for several consecutive passes; a real
+  // transition resolves before the next pass, so its streak never builds up.
+  const key = `${wf.type}|${inputTitleText(wf.title) ?? ''}`;
+  unservedStreak = key === unservedKey ? unservedStreak + 1 : 1;
+  unservedKey = key;
+  if (unservedStreak < STRANDED_CONFIRM_TICKS) {
+    // Not yet confirmed — keep the guard hidden (clear any stale one) and wait.
     leakDetectorState.stranded = undefined;
     return;
   }
@@ -182,6 +216,6 @@ export function stopConsoleLeakDetector(): void {
     window.clearInterval(timer);
     timer = undefined;
   }
-  leakDetectorState.stranded = undefined;
+  clearStranded();
   leakDetectorState.desktopSurfaces = [];
 }

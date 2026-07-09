@@ -5922,39 +5922,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── Premium trade-fleet TOKEN + per-player hue vars ─────────────── *
- * The crisp SVG replacement (ColonyFleetIcon) for the legacy raster
- * `colony_ships.png` sprite across every console colonies surface. The
- * `con-fleet-hue--<color>` class sets three INHERITABLE custom props —
- * bright, dark-glass-legible (the raw @player_* hues are too dark) —
- * consumed by BOTH the icon paths AND the tile's planet-berth ring/dock,
- * so the ship and the ring can never drift out of sync. */
-.colony-fleet-icon {
-    width: 26px;
-    height: 26px;
-    flex: 0 0 auto;
-    display: inline-block;
-    vertical-align: middle;
-    filter: drop-shadow(0 0 3px var(--fleet-glow, transparent));
-
-    .cfi-hull {
-        fill: var(--fleet-fill, #cfd8e0);
-        stroke: rgba(0, 0, 0, 0.42);
-        stroke-width: 0.6;
-        stroke-linejoin: round;
-    }
-    .cfi-accent { fill: var(--fleet-accent, #ffffff); }
-    .cfi-flame { fill: #ffce7a; opacity: 0; }
-    &--free .cfi-flame { opacity: 0.92; }
-}
-.con-fleet-hue--red    { --fleet-fill: #ff5a48; --fleet-accent: #ffd0c8; --fleet-glow: rgba(255, 90, 72, 0.55); }
-.con-fleet-hue--yellow { --fleet-fill: #ffe14d; --fleet-accent: #fff4b0; --fleet-glow: rgba(255, 225, 77, 0.5); }
-.con-fleet-hue--green  { --fleet-fill: #4fe06a; --fleet-accent: #d6ffdd; --fleet-glow: rgba(79, 224, 106, 0.55); }
-.con-fleet-hue--black  { --fleet-fill: #cfd8e0; --fleet-accent: #ffffff; --fleet-glow: rgba(207, 216, 224, 0.5); }
-.con-fleet-hue--blue   { --fleet-fill: #4d97ff; --fleet-accent: #cfe2ff; --fleet-glow: rgba(77, 151, 255, 0.55); }
-.con-fleet-hue--purple { --fleet-fill: #b45cff; --fleet-accent: #e6ccff; --fleet-glow: rgba(180, 92, 255, 0.55); }
-.con-fleet-hue--orange { --fleet-fill: #ff9a3d; --fleet-accent: #ffe0b8; --fleet-glow: rgba(255, 154, 61, 0.55); }
-.con-fleet-hue--pink   { --fleet-fill: #ff8fce; --fleet-accent: #ffd6ec; --fleet-glow: rgba(255, 143, 206, 0.5); }
+/* The ColonyFleetIcon primitive + `fleet-hue--<color>` palette are shared
+   with the desktop surfaces now — defined in `colony_fleet.less`. The console
+   tile's planet-berth ring/dock read the same `--fleet-*` vars (set by the
+   `fleet-hue--<color>` class on the berth). Console-specific sizing only: */
 /* The inspect dossier gives the fleet a touch more presence than a chip. */
 .con-colinspect__fleet-line .colony-fleet-icon { width: 30px; height: 30px; }
 
@@ -6175,30 +6146,34 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             opacity: 1;
             box-shadow:
                 inset 0 0 0 1px fade(@con-text, 20%),
-                0 0 0 2.5px var(--fleet-fill),
-                0 0 13px var(--fleet-glow) !important;
+                0 0 0 2px var(--fleet-fill),
+                0 0 9px var(--fleet-glow) !important;
         }
     }
     &__dock {
         position: absolute;
-        left: -7px;
-        bottom: -7px;
-        width: 30px;
-        height: 30px;
+        left: -6px;
+        bottom: -6px;
+        width: 28px;
+        height: 28px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 50%;
-        background: @con-glass;
-        box-shadow:
-            0 0 0 2px var(--fleet-fill),
-            0 2px 6px rgba(0, 0, 0, 0.6),
-            0 0 11px var(--fleet-glow);
+        /* The crisp ship GROUNDED by a soft dark halo that fades to nothing —
+           reads on any planet, but never a hard "sticker" disc/rim slapped over
+           the medallion (that was the coarse-overlay look). No border/rim. */
+        background: radial-gradient(circle at 50% 52%,
+            rgba(3, 7, 13, 0.70) 0%,
+            rgba(3, 7, 13, 0.34) 46%,
+            transparent 66%);
 
         .colony-fleet-icon {
             width: 21px;
             height: 21px;
-            filter: none; /* the disc already carries the owner glow */
+            /* Crisp separation + a whisper of owner glow — no bright ring. */
+            filter:
+                drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85))
+                drop-shadow(0 0 4px var(--fleet-glow));
         }
     }
     /* Planet art — the manifest `.<Name>-background` supplies the IMAGE, but
@@ -9558,8 +9533,9 @@ html.console-mode .notifications-layer {
     }
     &__summary-line--more { color: @con-text-dim; font-size: 13px; }
 
-    /* ── The flow-holding card's pad contract (X Осмотреть · B Закрыть) —
-       shown ON the card; the command bar echoes it. ── */
+    /* ── The card's pad contract, shown ON every notification (B Закрыть is a
+       global rule; the flow-holding AI-turn card adds X Осмотреть). The command
+       bar echoes it only for the flow-holding card. ── */
     &__actions {
         display: flex;
         justify-content: flex-end;
@@ -10795,11 +10771,17 @@ html.console-mode {
     /* Derived result category rows — uniform height, glyph left, content inline.
        A tag row reads "label: [chips]" (NO right-floating icon); a VP row "label: +N". */
     &__rescat {
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
         min-height: 40px; padding: 7px 14px; border-radius: 9px; font-size: 16px;
         background: rgba(14, 24, 36, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
         &--vp { box-shadow: inset 0 0 0 1px fade(@con-mint, 34%); }
+        /* Event tags are NOT kept — a calmer, non-"gain" look + an amber hint. */
+        &--event-tags {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 24%);
+            .con-composer__rescat-glyph { color: fade(@con-amber, 82%); }
+            .con-composer__rescat-tag { opacity: 0.7; }
+        }
         &--penalty {
             box-shadow: inset 0 0 0 1px fade(@con-amber, 42%);
             .con-composer__rescat-glyph { color: fade(@con-amber, 92%); }
@@ -10815,6 +10797,12 @@ html.console-mode {
     &__rescat-text b { color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
     &__rescat-tags { display: inline-flex; align-items: center; gap: 6px; }
     &__rescat-tag { width: 26px; height: 26px; }
+    /* A muted one-line clarification (event tags: "not counted afterward"). */
+    &__rescat-note {
+        flex-basis: 100%; margin-left: 28px;
+        font-size: 12.5px; font-weight: 500; line-height: 1.25;
+        color: fade(@con-amber, 74%);
+    }
 
     /* ── Payment — an INFO panel (resource chips + было → стало), NOT a button. ── */
     &__pay {
@@ -11333,7 +11321,7 @@ html.con-profile-handheld {
         &__head { height: 52px; gap: 10px; }
         &__name { font-size: 17px; }
         &__planet { width: 48px; height: 48px; }
-        &__dock { width: 34px; height: 34px; .colony-fleet-icon { width: 23px; height: 23px; } }
+        &__dock { width: 32px; height: 32px; .colony-fleet-icon { width: 23px; height: 23px; } }
         &__build-slot { width: 37px; height: 33px; }
         &__mid { height: 34px; margin-top: 6px; gap: 12px; }
         &__rows { margin-top: 7px; gap: 8px; }

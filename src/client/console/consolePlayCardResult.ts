@@ -42,6 +42,12 @@ export type PlayResultSection = {
   penalty?: boolean;
   /** The printed tags this card adds (for the `tags` section chips). */
   tags?: ReadonlyArray<Tag>;
+  /** TRUE for an EVENT card's tags — they only fire "on-tag" triggers at play
+   *  time and are NOT kept (the card is discarded face-down). The row reads
+   *  differently and carries a `note`. */
+  eventTags?: boolean;
+  /** A muted one-line clarification under the row (i18n key). */
+  note?: string;
 };
 
 export type PlayCardResultMeta = {
@@ -51,6 +57,14 @@ export type PlayCardResultMeta = {
   /** The card draws at least one passive ongoing effect (`cardHasPassiveEffect`). */
   hasEffect: boolean;
   victoryPoints?: number | 'special' | CountableVictoryPoints;
+  /** The card is an EVENT (red). By the rules an event's tags are NOT added to
+   *  the persistent tag count — they only fire "on-tag" triggers at play time,
+   *  then the card is discarded face-down. So the result must NOT claim the
+   *  player permanently gains these tags. */
+  isEvent: boolean;
+  /** Event tags DO count while this is true (the Odyssey corporation makes an
+   *  event's tags count like any other). Defaults to false. */
+  eventTagsCounted?: boolean;
 };
 
 export type PlayResultContext = {
@@ -80,7 +94,14 @@ export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResu
     out.push(vp);
   }
   if (meta.tags.length > 0) {
-    out.push({kind: 'tags', text: 'Adds tags', tags: meta.tags});
+    // Non-event cards stay face-up: their tags are permanently added to the
+    // tableau (counted for milestones / awards / requirements / scoring).
+    // An event's tags are NOT kept — they only fire "on-tag" triggers at play
+    // time, so the row must read differently (unless Odyssey keeps them).
+    const tagsKept = !meta.isEvent || meta.eventTagsCounted === true;
+    out.push(tagsKept ?
+      {kind: 'tags', text: 'Adds tags', tags: meta.tags} :
+      {kind: 'tags', text: 'Event tags', tags: meta.tags, eventTags: true, note: 'Trigger on-tag effects only — not counted afterward'});
   }
 
   // Never leave the block blank: if there is no immediate effect, no honest

@@ -108,6 +108,7 @@
 
 import {defineComponent, nextTick} from 'vue';
 import * as constants from '@/common/constants';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
@@ -929,7 +930,7 @@ export default defineComponent({
     },
     playerName(color: Color) {
       const player = this.playerView.players.find((p) => p.color === color);
-      return player?.name ?? '';
+      return player !== undefined ? participantDisplayName(player) : '';
     },
   },
   mounted() {

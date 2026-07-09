@@ -1442,6 +1442,8 @@
     "Adds a permanent effect": "Добавляет постоянный эффект",
     "depends on conditions": "зависит от условий",
     "Adds tags": "Добавляет метки",
+    "Event tags": "Метки события",
+    "Trigger on-tag effects only — not counted afterward": "Срабатывают при розыгрыше, потом не учитываются",
     "The card effect will be applied after confirming": "Эффект карты будет применён после подтверждения",
     "Choose a variant first": "Сначала выберите вариант",
     "Make the required choices first": "Сначала сделайте нужный выбор",

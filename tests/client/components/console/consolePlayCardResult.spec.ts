@@ -12,7 +12,7 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
   const noImmediate: PlayResultContext = {hasImmediate: false, hasFollowUp: false};
 
   function meta(over: Partial<PlayCardResultMeta> = {}): PlayCardResultMeta {
-    return {tags: [], hasAction: false, hasEffect: false, victoryPoints: undefined, ...over};
+    return {tags: [], hasAction: false, hasEffect: false, victoryPoints: undefined, isEvent: false, ...over};
   }
 
   it('a blue action card (no immediate effect) surfaces the new action + its tags', () => {
@@ -20,6 +20,28 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(sections.map((s) => s.kind)).to.deep.equal(['action', 'tags']);
     expect(sections[1].tags).to.deep.equal([Tag.VENUS]);
     expect(isFallbackOnlyResult(sections, noImmediate)).to.be.false;
+  });
+
+  it('a NON-event card permanently adds its tags ("Adds tags", no note)', () => {
+    const tags = derivePlayResultSections(meta({tags: [Tag.EARTH]}), noImmediate).find((s) => s.kind === 'tags');
+    expect(tags?.text).to.equal('Adds tags');
+    expect(tags?.eventTags).to.not.equal(true);
+    expect(tags?.note).to.be.undefined;
+  });
+
+  it('an EVENT card does NOT claim to add tags — it reads "Event tags" with a not-counted note', () => {
+    const tags = derivePlayResultSections(meta({tags: [Tag.EARTH], isEvent: true}), noImmediate).find((s) => s.kind === 'tags');
+    expect(tags?.text).to.equal('Event tags');
+    expect(tags?.eventTags).to.equal(true);
+    expect(tags?.note).to.equal('Trigger on-tag effects only — not counted afterward');
+    // The tag icons are still shown (they DO fire on-tag triggers at play time).
+    expect(tags?.tags).to.deep.equal([Tag.EARTH]);
+  });
+
+  it('an EVENT card WITH Odyssey keeps its tags (reads "Adds tags")', () => {
+    const tags = derivePlayResultSections(meta({tags: [Tag.EARTH], isEvent: true, eventTagsCounted: true}), noImmediate).find((s) => s.kind === 'tags');
+    expect(tags?.text).to.equal('Adds tags');
+    expect(tags?.eventTags).to.not.equal(true);
   });
 
   it('a permanent-effect card surfaces the effect', () => {

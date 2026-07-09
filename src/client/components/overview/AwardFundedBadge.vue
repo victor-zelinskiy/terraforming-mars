@@ -27,7 +27,7 @@
           <div class="milestone-floating-tooltip-claimedby">
             <span v-i18n>funded by</span>
             <player-cube :color="award.color" :size="14"></player-cube>
-            <span>{{ award.playerName }}</span>
+            <span>{{ playerName(award.color) }}</span>
           </div>
           <!--
             Current race LEADER(S) — the player(s) who would score this award's
@@ -76,6 +76,7 @@ import {defineComponent, PropType} from 'vue';
 import {FundedAwardModel, AwardScore} from '@/common/models/FundedAwardModel';
 import {awardLeaders} from '@/common/models/awardDisplay';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {MAX_AWARDS} from '@/common/constants';
 import {getAward} from '@/client/MilestoneAwardManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -157,8 +158,8 @@ export default defineComponent({
     },
   },
   methods: {
-    playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+    playerName(color: Color | undefined): string {
+      return displayNameForColor(this.players, color);
     },
     // A player is "the leader" iff they're in the shared leader set (top score,
     // non-zero) — the same derivation the plaque cube + the leader line use.

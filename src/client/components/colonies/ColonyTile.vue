@@ -39,11 +39,10 @@
           (visitorName prop), so the player doesn't have to mentally map
           the colour back to a player.
         -->
-        <span v-if="hasVisitor" class="colony-tile__header-fleet"
+        <span v-if="visitor !== undefined" class="colony-tile__header-fleet"
               :class="'player_bg_color_' + visitor"
               :data-hint="visitorTooltip">
-          <span class="colony-tile__header-fleet-ship colonies-fleet"
-                :class="'colonies-fleet-' + visitor"></span>
+          <ColonyFleetIcon :color="visitor" />
           <span class="colony-tile__header-fleet-label" v-i18n>Fleet</span>
         </span>
       </header>
@@ -250,6 +249,7 @@ import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import BuildBenefit from './BuildBenefit.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 
 const SIMPLE_BUILD_TYPES: ReadonlySet<ColonyBenefit> = new Set([
   ColonyBenefit.GAIN_RESOURCES,
@@ -258,7 +258,7 @@ const SIMPLE_BUILD_TYPES: ReadonlySet<ColonyBenefit> = new Set([
 
 export default defineComponent({
   name: 'ColonyTile',
-  components: {BuildBenefit},
+  components: {BuildBenefit, ColonyFleetIcon},
   props: {
     colony: {
       type: Object as () => ColonyModel,

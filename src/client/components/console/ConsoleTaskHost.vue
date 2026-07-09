@@ -581,7 +581,7 @@ export default defineComponent({
           title,
           iconClass: meta?.icon !== undefined ? iconClassFor(meta.icon) + ' con-task__opt-res' : '',
           playerColor: player?.color,
-          playerName: playerModel?.name ?? '',
+          playerName: playerModel !== undefined ? participantDisplayName(playerModel) : '',
           preview,
           effects: meta?.effects ?? [],
           description,
