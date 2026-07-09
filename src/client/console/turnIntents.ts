@@ -68,24 +68,24 @@ export function findMilestoneOptionPath(wf: PlayerInputModel | undefined): Inner
 }
 
 /**
- * ⚠️ The fund-award OrOptions title is a MESSAGE (`'Fund an award (${0} M€)'`
- * with the cost baked in) and i18n REWRITES `Message.message` in place on
- * first render — after any surface renders the action menu, the English
- * title-prefix match silently dies (the console-only "award reads blocked
- * for no reason" bug). Mirror the desktop contract exactly
- * (PlayerHome.findAwardOptionPath): title-prefix first, then the
- * translation-proof STRUCTURE fallback — an OrOptions whose options are all
- * SelectOptions titled with bare award names (leaf titles are plain strings,
- * never mutated).
+ * Detect the fund-award OrOptions STRUCTURALLY — the node whose options are
+ * all SelectOptions titled with bare award names. Those leaf titles are plain
+ * strings the server sets verbatim (award NAMES), so they are
+ * language-independent — never rewritten by i18n.
+ *
+ * We deliberately do NOT match the wrapper's own title. The fund-award title
+ * is a MESSAGE (`'Fund an award (${0} M€)'` with the cost baked in) and i18n
+ * REWRITES `Message.message` in place on first render, so a title-prefix check
+ * silently died once any surface rendered the action menu (dead in every
+ * non-English locale). The structure is the single source of truth; the
+ * milestone OrOptions (all MILESTONE names) can't false-positive because
+ * `awardNames` only holds award names. `awardNames` is `game.awards`, always
+ * available at every call site.
  */
 export function findAwardOptionPath(
   wf: PlayerInputModel | undefined,
   awardNames: ReadonlyArray<string> = [],
 ): InnerOrMatch | undefined {
-  const byTitle = findInnerActionPath(wf, (t) => t !== undefined && t.toLowerCase().startsWith('fund an award'));
-  if (byTitle !== undefined) {
-    return byTitle;
-  }
   if (awardNames.length === 0) {
     return undefined;
   }
@@ -185,10 +185,10 @@ export function findConvertHeatOption(
 
 export type ConvertPlantsMatch = {path: ReadonlyArray<number>, spacePrompt: PlayerInputModel};
 
+/** The first SelectSpace nested in the action menu (only or/and are walked). */
 function findConvertPlantsInner(
   wf: PlayerInputModel | undefined,
   pathSoFar: ReadonlyArray<number>,
-  allowAnySpace: boolean,
 ): ConvertPlantsMatch | undefined {
   if (!wf) {
     return undefined;
@@ -197,16 +197,10 @@ function findConvertPlantsInner(
   if (options !== undefined) {
     for (let i = 0; i < options.length; i++) {
       const opt = options[i];
-      const t = inputTitleText(opt.title);
       if (opt.type === 'space') {
-        if (typeof t === 'string' && t.includes('plants into greenery')) {
-          return {path: [...pathSoFar, i], spacePrompt: opt};
-        }
-        if (allowAnySpace) {
-          return {path: [...pathSoFar, i], spacePrompt: opt};
-        }
+        return {path: [...pathSoFar, i], spacePrompt: opt};
       }
-      const deeper = findConvertPlantsInner(opt, [...pathSoFar, i], allowAnySpace);
+      const deeper = findConvertPlantsInner(opt, [...pathSoFar, i]);
       if (deeper) {
         return deeper;
       }
@@ -215,16 +209,19 @@ function findConvertPlantsInner(
   return undefined;
 }
 
-/** Two-pass (title, then any-space when the server flag confirms availability). */
+/**
+ * Detect the convert-plants greenery placement STRUCTURALLY: the server flag
+ * `canConvertPlants` says the action is available, and the ONLY SelectSpace
+ * nested in the action menu (we walk only or/and) is then that greenery
+ * placement. We deliberately do NOT match the space's title ('Convert N plants
+ * into greenery' is a `Message` i18n rewrites in place on render, so a title
+ * check silently died in every non-English locale).
+ */
 export function findConvertPlantsOption(
   wf: PlayerInputModel | undefined,
   canConvertPlants: boolean,
 ): ConvertPlantsMatch | undefined {
-  const byTitle = findConvertPlantsInner(wf, [], false);
-  if (byTitle) {
-    return byTitle;
-  }
-  return canConvertPlants ? findConvertPlantsInner(wf, [], true) : undefined;
+  return canConvertPlants ? findConvertPlantsInner(wf, []) : undefined;
 }
 
 export type ProjectCardMatch = {path: ReadonlyArray<number>, input: SelectProjectCardToPlayModel};

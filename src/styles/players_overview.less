@@ -227,6 +227,17 @@
                         line-height: 8px;
                         padding-top: 6px;
                         padding-bottom: 2px;
+                        /*
+                         * Uppercase the status label in CSS (mirrors the
+                         * premium chip / console strip). This keeps the i18n
+                         * VALUES in natural case — the presenter's textKeys
+                         * map to shared normal-case translations ("Действие" /
+                         * "Готов" / …) that must not bake in display casing.
+                         * Previously the labels only looked uppercase because
+                         * the (now-removed) "Player status *" ru values were
+                         * hand-uppercased.
+                         */
+                        text-transform: uppercase;
                     }
                     .player-status-timer {
                         font-size: 18px;

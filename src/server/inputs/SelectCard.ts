@@ -26,6 +26,11 @@ export type Options = {
   showOwner: boolean,
   /** Default is false. If true, show a "Select All" / "Deselect All" toggle button. */
   showSelectAll: boolean,
+  /** Default is false. When true, this is a PAYING (research buy) selection: the
+   *  client shows the per-card cost badge / total / M€ affordability + «КУПИТЬ»
+   *  label. A structural flag so the client never has to sniff the (translatable,
+   *  render-mutated) prompt title for the word "buy". */
+  buyMode: boolean,
 }
 export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T>> {
   public config: Options;
@@ -46,6 +51,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       played: config?.played ?? true,
       showOwner: config?.showOwner ?? false,
       showSelectAll: config?.showSelectAll ?? false,
+      buyMode: config?.buyMode ?? false,
     };
     this.buttonLabel = buttonLabel;
   }
@@ -70,6 +76,9 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       showSelectAll: this.config.showSelectAll === true,
       optional: this.optional,
     };
+    if (this.config.buyMode === true) {
+      model.buyMode = true;
+    }
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {
       model.disabledCards = cardsToModel(player, disabled.map((d) => d.card), {

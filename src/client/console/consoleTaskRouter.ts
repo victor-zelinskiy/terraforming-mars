@@ -194,7 +194,6 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     if (wf.optional === true) {
       return {kind: 'draftWait'};
     }
-    const title = inputTitleText(wf.title) ?? '';
     const buttonLabel = wf.buttonLabel ?? '';
     // Every candidate already in hand (incl. Self-Replicating Robots hosts) =>
     // a "pick from your hand" prompt (discard / reveal / keep / place) => the
@@ -205,7 +204,9 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     if (buttonLabel === 'Keep') {
       return {kind: 'cardSelect', mode: 'draft'};
     }
-    if (title.includes('to buy')) {
+    // Structural buy marker (ChooseCards) — NOT a `title.includes('buy')` sniff,
+    // which broke once i18n rewrote the translatable title in place.
+    if (wf.buyMode === true) {
       return {kind: 'cardSelect', mode: 'buy'};
     }
     return {kind: 'cardSelect', mode: 'target'};

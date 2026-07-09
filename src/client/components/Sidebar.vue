@@ -47,7 +47,7 @@
     <div v-if="finalGenerationActive"
          class="planet-final-gen"
          :aria-label="$t('Final generation')">
-      <span v-i18n>Sidebar final generation label</span>
+      <span v-i18n>Final</span>
     </div>
 
     <div v-if="gameOptions.expansions.turmoil"

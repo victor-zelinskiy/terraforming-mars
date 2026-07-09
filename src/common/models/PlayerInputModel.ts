@@ -257,6 +257,12 @@ export type SelectCardModel = BaseInputModel & {
   // `cards` so the server never validates/accepts them. The premium picker
   // merges them for display behind an All/Available/Unavailable filter.
   disabledCards?: ReadonlyArray<CardModel>;
+  // STRUCTURAL "buy mode" marker (set by ChooseCards when the player is PAYING
+  // per card — the research buy flow). The client keys the cost badge / total /
+  // M€ check / «КУПИТЬ» label off this, NOT off the prompt title. The title is
+  // a translatable `Message` that i18n rewrites in place on render, so a
+  // `title.includes('buy')` check silently broke in every non-English locale.
+  buyMode?: boolean;
 }
 
 export type SelectColonyModel = BaseInputModel & {

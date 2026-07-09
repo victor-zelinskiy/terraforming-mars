@@ -63,7 +63,9 @@ describe('turnIntents', () => {
     const ms = findMilestoneOptionPath(wf);
     expect(ms?.path).to.deep.eq([2]);
     expect(ms?.options).to.have.length(2);
-    expect(findAwardOptionPath(wf)?.path).to.deep.eq([3]);
+    // Award detection is STRUCTURAL now (award-name options), never the
+    // translatable wrapper title — so the caller passes the game's award names.
+    expect(findAwardOptionPath(wf, ['Landlord', 'Banker', 'Scientist'])?.path).to.deep.eq([3]);
   });
 
   it('finds awards after i18n MUTATED the fund title (structure fallback)', () => {
@@ -76,7 +78,7 @@ describe('turnIntents', () => {
       option('Pass for this generation'),
       or('Спонсировать награду (14 М€)', [option('Landlord'), option('Banker')]),
     ]) as PlayerInputModel;
-    expect(findAwardOptionPath(mutated)).to.eq(undefined); // title-only: dead
+    expect(findAwardOptionPath(mutated)).to.eq(undefined); // no award names → structure can't run
     const found = findAwardOptionPath(mutated, ['Landlord', 'Banker', 'Scientist']);
     expect(found?.path).to.deep.eq([1]);
     expect(found?.options).to.have.length(2);
@@ -89,7 +91,7 @@ describe('turnIntents', () => {
 
   it('finds convert heat / plants / sell patents / pass / end turn', () => {
     expect(findConvertHeatOption(wf)?.path).to.deep.eq([4]);
-    expect(findConvertPlantsOption(wf, false)?.path).to.deep.eq([5]);
+    expect(findConvertPlantsOption(wf, true)?.path).to.deep.eq([5]);
     expect(findSellPatentsAction(wf)?.path).to.deep.eq([6]);
     expect(findPassPath(wf)).to.deep.eq([7]);
     expect(findEndTurnPath(wf)).to.deep.eq([8]);
@@ -101,7 +103,10 @@ describe('turnIntents', () => {
     expect(findMilestoneOptionPath(wrapped)?.path).to.deep.eq([1, 2]);
   });
 
-  it('convert plants falls back to any-space ONLY with the server flag', () => {
+  it('convert plants detects the menu SelectSpace STRUCTURALLY, gated by the server flag (title-agnostic)', () => {
+    // Title is irrelevant now (a Message i18n mutates in place); detection is
+    // the menu's SelectSpace, gated by canConvertPlants. So a differently-titled
+    // space is still found WITH the flag, and nothing is found without it.
     const noTitle = or('menu', [{type: 'space', title: 'Weird placement'}]) as PlayerInputModel;
     expect(findConvertPlantsOption(noTitle, false)).to.eq(undefined);
     expect(findConvertPlantsOption(noTitle, true)?.path).to.deep.eq([0]);

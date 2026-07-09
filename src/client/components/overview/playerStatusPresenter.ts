@@ -55,7 +55,14 @@ export interface StatusPresentation {
   category: StatusCategory;
   /** Drives which SVG/visual the `PlayerStatusGlyph` component renders. */
   glyph: StatusGlyph;
-  /** English i18n key — translated via `v-i18n`. Empty string for `none`. */
+  /**
+   * The status label as NATURAL ENGLISH display text, doubling as the i18n
+   * key (the i18n system keys translations by their English source string —
+   * `lang === 'en'` renders the key verbatim). So this MUST read as the
+   * final English UI label ("Action", "Waiting", …) — NEVER a namespaced key
+   * like "Player status action" (which rendered literally as "PLAYER STATUS
+   * ACTION" in English and every locale missing the key). Empty for `none`.
+   */
   textKey: string;
   /**
    * Whether to render the `1/2` / `2/2` step counter chip next to the
@@ -70,7 +77,7 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
   'turn': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status action',
+    textKey: 'Action',
     showCounter: true,
   },
   // Вынужденная/триггерная реакция — выглядит так же premium-active, как
@@ -80,49 +87,49 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
   'forcedaction': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status action',
+    textKey: 'Action',
     showCounter: false,
   },
   'researching': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status research buy',
+    textKey: 'Buying cards',
     showCounter: false,
   },
   'drafting': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status draft pick',
+    textKey: 'Drafting',
     showCounter: false,
   },
   'initialdrafting': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status initial pick',
+    textKey: 'Initial pick',
     showCounter: false,
   },
   'preludes': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status playing prelude',
+    textKey: 'Prelude phase',
     showCounter: false,
   },
   'ceos': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status playing ceo',
+    textKey: 'CEO phase',
     showCounter: false,
   },
   'globalsupport': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status global support',
+    textKey: 'Global support',
     showCounter: false,
   },
   'delegate': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status delegate pick',
+    textKey: 'Delegate pick',
     showCounter: false,
   },
   // MarsBot's turn as the theater replays it — the same premium active look
@@ -130,28 +137,28 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
   'bottheater': {
     category: 'active',
     glyph: 'dot',
-    textKey: 'Player status bot turn',
+    textKey: 'Bot turn',
     showCounter: false,
   },
   // ─── intermediate ────────────────────────────────────────────────
   'next': {
     category: 'next',
     glyph: 'chevron',
-    textKey: 'Player status next',
+    textKey: 'Up next',
     showCounter: false,
   },
   // ─── positive idle ───────────────────────────────────────────────
   'ready': {
     category: 'ready',
     glyph: 'check',
-    textKey: 'Player status ready',
+    textKey: 'Done',
     showCounter: false,
   },
   // ─── neutral idle ────────────────────────────────────────────────
   'waiting': {
     category: 'waiting',
     glyph: 'clock',
-    textKey: 'Player status waiting',
+    textKey: 'Waiting',
     showCounter: false,
   },
   // ─── pass ────────────────────────────────────────────────────────
@@ -160,7 +167,7 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
   'passed': {
     category: 'passed',
     glyph: 'pause',
-    textKey: 'Player status passed',
+    textKey: 'passed',
     showCounter: false,
   },
   // ─── nothing to show ─────────────────────────────────────────────

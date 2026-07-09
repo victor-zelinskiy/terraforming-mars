@@ -2744,7 +2744,6 @@ export default defineComponent({
     findConvertPlantsPathAndPrompt(
       wf: PlayerInputModel | undefined,
       pathSoFar: ReadonlyArray<number> = [],
-      allowAnySpace = false,
     ): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
       if (!wf) {
         return undefined;
@@ -2753,16 +2752,10 @@ export default defineComponent({
         const options = (wf as OrOptionsModel).options;
         for (let i = 0; i < options.length; i++) {
           const opt = options[i];
-          const t = inputTitleText(opt.title);
           if (opt.type === 'space') {
-            if (typeof t === 'string' && t.includes('plants into greenery')) {
-              return {path: [...pathSoFar, i], spacePrompt: opt};
-            }
-            if (allowAnySpace) {
-              return {path: [...pathSoFar, i], spacePrompt: opt};
-            }
+            return {path: [...pathSoFar, i], spacePrompt: opt};
           }
-          const deeper = this.findConvertPlantsPathAndPrompt(opt, [...pathSoFar, i], allowAnySpace);
+          const deeper = this.findConvertPlantsPathAndPrompt(opt, [...pathSoFar, i]);
           if (deeper) {
             return deeper;
           }
@@ -2795,17 +2788,15 @@ export default defineComponent({
       return undefined;
     },
     findConvertPlantsOption(wf: PlayerInputModel | undefined): {path: ReadonlyArray<number>; spacePrompt: PlayerInputModel} | undefined {
-      // First pass: title match. Second pass (only if the server says the
-      // action is available): accept any SelectSpace prompt in the action
-      // menu — guards against title text drift.
-      const byTitle = this.findConvertPlantsPathAndPrompt(wf);
-      if (byTitle) {
-        return byTitle;
+      // Structural: gated by the server `canConvertPlants` flag; the only
+      // SelectSpace nested in the action menu (we walk only or/and) is then the
+      // convert-plants greenery placement. We deliberately do NOT match the
+      // space title ('Convert N plants into greenery' is a Message i18n rewrites
+      // in place on render, so a title check dies in non-English locales).
+      if (this.thisPlayer.canConvertPlants !== true) {
+        return undefined;
       }
-      if (this.thisPlayer.canConvertPlants === true) {
-        return this.findConvertPlantsPathAndPrompt(wf, [], true);
-      }
-      return undefined;
+      return this.findConvertPlantsPathAndPrompt(wf);
     },
     // Recursively walks the waitingFor tree looking for the standard-
     // projects SelectStandardProjectToPlay (type 'projectCard') option.
@@ -3425,17 +3416,13 @@ export default defineComponent({
       return undefined;
     },
     findAwardOptionPath(wf: PlayerInputModel | undefined) {
-      // Primary: title-prefix match. The server sets the title to
-      // `'Fund an award (${0} M€)'` with the current cost baked in.
-      const byTitle = this.findInnerActionPath(wf, (t) =>
-        t !== undefined && t.toLowerCase().startsWith('fund an award'));
-      if (byTitle) {
-        return byTitle;
-      }
-      // Fallback: structure-based — find an OrOptions whose options are all
-      // SelectOptions whose titles are valid award names. Catches cases
-      // where the title shape differs from what we expected (server-side
-      // refactor, expansion-specific wrapper, etc.).
+      // Detect the fund-award OrOptions STRUCTURALLY — the node whose options
+      // are all SelectOptions titled with valid award names (plain strings the
+      // server sets verbatim, language-independent). We deliberately do NOT
+      // match the wrapper title (`'Fund an award (${0} M€)'`): it is a Message
+      // i18n rewrites in place on render, so a title check silently died in
+      // every non-English locale. The milestone OrOptions (all MILESTONE names)
+      // can't false-positive — `awardNames` only holds award names.
       const awardNames = new Set<string>(this.game.awards.map((a) => a.name));
       return this.findAwardOptionPathByStructure(wf, awardNames);
     },

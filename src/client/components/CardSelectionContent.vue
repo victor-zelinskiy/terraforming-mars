@@ -347,18 +347,17 @@ export default defineComponent({
   },
   computed: {
     /*
-     * "Buy mode" heuristic. The cleanest signal is the server's
-     * prompt text — `Draft.ts` builds "Select [a card | two cards] to
-     * keep and pass the rest to ${player}" for the draft phase, and
-     * `ChooseCards.ts` builds "Select [up to ${0} ]card(s) to buy"
-     * for research. Anything containing "buy" is research; the
-     * remaining `min: 0, max > 1` cases (rare — discard prompts etc.)
-     * fall back to draft-style UI without a cost badge.
+     * "Buy mode" = the research/buy flow, where the player PAYS per card
+     * (cost badge + total + M€ affordability + «КУПИТЬ»). Read STRUCTURALLY
+     * from the server marker `SelectCardModel.buyMode` (set by
+     * `ChooseCards.ts`) — NOT from the prompt title. The title is a
+     * translatable `Message` that i18n rewrites in place on render, so the
+     * old `title.includes('buy')` sniff silently reported `false` in every
+     * non-English locale (dropping the buy UI). Draft is detected via
+     * `isDraftPhase` (game.phase); every other SelectCard is target mode.
      */
     isBuyMode(): boolean {
-      const t = this.playerinput.title;
-      const text = typeof t === 'string' ? t : (t?.message ?? '');
-      return text.toLowerCase().includes('buy');
+      return this.playerinput.buyMode === true;
     },
     isSingleSelect(): boolean {
       return this.playerinput.min === 1 && this.playerinput.max === 1;

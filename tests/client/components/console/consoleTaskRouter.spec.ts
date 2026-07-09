@@ -38,7 +38,7 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '7 payment', wf: {type: 'payment', title: 'Pay'}, expect: {kind: 'payment'}},
   {row: '10 draft pick', wf: {type: 'card', title: 'Select a card to keep', buttonLabel: 'Keep', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'draft'}},
   {row: '10b draft re-pick (optional → waiting, never re-pick UI)', wf: {type: 'card', title: 'You can change your selection…', optional: true, buttonLabel: 'Select', cards: [{name: 'Birds'}]}, expect: {kind: 'draftWait'}},
-  {row: '11 research buy', wf: {type: 'card', title: 'Select cards to buy or none to skip', buttonLabel: 'Buy', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'buy'}},
+  {row: '11 research buy', wf: {type: 'card', title: 'Select cards to buy or none to skip', buttonLabel: 'Buy', buyMode: true, cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'buy'}},
   {row: '12 hand select (discard) → hand section, not the card browser', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds', 'Zeppelins'], expect: {kind: 'handSelect'}},
   {row: '12b hand select incl. a Self-Replicating Robots host', wf: {type: 'card', title: 'Select a card to place', buttonLabel: 'Select', cards: [{name: 'Birds'}]}, hand: ['Zeppelins'], srr: ['Birds'], expect: {kind: 'handSelect'}},
   {row: '13 nested target pick', wf: {type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, expect: {kind: 'cardSelect', mode: 'target'}},

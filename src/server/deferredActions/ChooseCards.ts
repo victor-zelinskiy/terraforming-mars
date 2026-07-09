@@ -59,7 +59,14 @@ export class ChooseCards extends DeferredAction {
     const min = options.paying ? 0 : options.keepMax;
 
     const button = max === 0 ? 'Ok' : (options.paying ? 'Buy' : 'Select');
-    return new SelectCard(msg, button, cards, {max, min, played: !options.paying})
+    // `buyMode` is the STRUCTURAL "this is a paying research buy" signal the
+    // client reads (cost badge / total / M€ check / «КУПИТЬ»), replacing the old
+    // `title.includes('buy')` sniff that broke once i18n rewrote the title.
+    // Matches the previous title exactly: a "…to buy" title is built only when
+    // paying AND at least one card is affordable (max === 0 → "You cannot afford
+    // any cards", no buy UI).
+    const buyMode = options.paying === true && max > 0;
+    return new SelectCard(msg, button, cards, {max, min, played: !options.paying, buyMode})
       .andThen((selected) => {
         if (selected.length > max) {
           throw new Error('Selected too many cards');
