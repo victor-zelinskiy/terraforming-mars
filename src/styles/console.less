@@ -2956,6 +2956,16 @@ html.console-mode {
             filter: none;
             box-shadow: 0 0 0 3px fade(@con-amber, 82%), 0 0 20px fade(@con-amber, 36%);
         }
+        /* SELECT mode (discard / reveal / place): a picked card gets the cyan
+           select frame + ✓ band; a non-candidate is dimmed (its «why not»
+           reason rides the compact chip + the info panel). */
+        &--select-picked > .card-container {
+            filter: none;
+            box-shadow: 0 0 0 3px fade(@con-cyan, 84%), 0 0 20px fade(@con-cyan, 40%);
+        }
+        &--select-disabled > .card-container {
+            filter: grayscale(0.5) brightness(0.64);
+        }
         .con-cards__pickband { zoom: 1.15; }
     }
     /* Compact blocker chip on an unavailable card (short reason — the full
@@ -3031,6 +3041,10 @@ html.console-mode {
         &--sale {
             border-left-color: fade(@con-amber, 72%);
             box-shadow: inset 0 0 0 1px fade(@con-amber, 22%);
+        }
+        &--select {
+            border-left-color: fade(@con-cyan, 72%);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%), inset 3px 0 16px -9px fade(@con-cyan, 60%);
         }
     }
     /* The filtered "Показано X из Y" — a compact, absolutely-positioned chip on
@@ -3175,6 +3189,45 @@ html.console-mode {
         font-weight: 700;
         min-width: 12px;
         text-align: center;
+    }
+
+    /* SELECT mode — the "suitable only" toggle chip (LT flips it). ON = cyan
+       (candidates only); OFF ("all cards") = calm neutral. Sits where the tag
+       filters would; it's the single always-visible source of truth. */
+    &__selectfilter {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 13px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 16%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 78%), 0 0 14px fade(@con-cyan, 22%);
+        color: @con-text;
+        white-space: nowrap;
+
+        &--all {
+            background: rgba(14, 22, 33, 0.5);
+            box-shadow: inset 0 0 0 1px rgba(120, 150, 185, 0.24);
+            color: @con-text-dim;
+        }
+    }
+    &__selectfilter-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: @con-cyan;
+        box-shadow: 0 0 8px fade(@con-cyan, 60%);
+    }
+    &__selectfilter--all &__selectfilter-dot {
+        background: rgba(150, 175, 205, 0.5);
+        box-shadow: none;
+    }
+    &__selectfilter-label {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
     }
 
     /* ── empty state (filter matched nothing / hand empty) — centred in the
@@ -5911,10 +5964,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     min-width: 0;
     display: flex;
     flex-direction: column;
-    /* The count-aware tile size (the layout classes below re-tune width; the
-       HEIGHT is FIXED so the grid never floats with content). */
-    --con-coltile-w: 384px;
-    --con-coltile-h: 192px;
+    /* Base tile DESIGN size. The JS fit engine (ConsoleColoniesSection.fit)
+       measures the free area and sets `--coltile-scale` (a `zoom` on the tile)
+       so the tiles GROW to fill the space for the count layout — every glyph
+       (planet, docked fleet, fonts) scales uniformly. It also caps the grid
+       width so the intended column count holds. */
+    --coltile-base-w: 366px;
+    --coltile-base-h: 220px;
+    --coltile-scale: 1;
 
     /* ── Header strip: title + EVERY player's fleet summary (one slim row,
        never a floating banner over the grid). ─────────────────────── */
@@ -6037,28 +6094,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__slot { position: relative; }
 
-    /* Count-aware premium layouts (Steam-Deck-first): 1–3 = one centred
-       row, 4 = 2×2, 5 = 3+2, 6 = 3×2. The width cap folds the wrap into
-       the intended rows — no per-tile math. */
-    &--solo { --con-coltile-w: 460px; }
-    &--duo { --con-coltile-w: 430px; }
-    &--trio { --con-coltile-w: 396px; }
-    &--four {
-        --con-coltile-w: 430px;
-        .con-colonies__grid { max-width: calc(2 * var(--con-coltile-w) + 18px + 2 * 18px); }
-    }
-    &--five .con-colonies__grid,
-    &--six .con-colonies__grid {
-        max-width: calc(3 * var(--con-coltile-w) + 2 * 18px + 2 * 18px);
-    }
-    /* The rare add-a-tile CATALOG (>6 candidates): compact tiles, top-anchored
-       — visibly a list/catalog mode, not the in-game premium board. */
-    &--catalog {
-        --con-coltile-w: 296px;
-        .con-colonies__grid {
-            margin: 0 auto;
-            align-content: flex-start;
-        }
+    /* Count-aware layouts drive only the COLUMN count (consoleColoniesModel
+       `colonyGridCols`): 1–3 = one row, 4 = 2×2, 5 = 3+2, 6 = 3×2. The fit
+       engine sizes the tiles to fill and sets the grid `max-width` (inline) so
+       the intended columns hold — no per-layout width caps here anymore. */
+    &--catalog .con-colonies__grid {
+        margin: 0 auto;
+        align-content: flex-start;
     }
 }
 
@@ -6068,11 +6110,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
  * tile taller than its neighbours). The tile is a flex column of fixed-height
  * zones; the status row is pinned to the bottom (`margin-top: auto`), and
  * every glyph zone clips its content so a natural-size icon can't distend it.
- * `--con-coltile-h` is the single knob (re-tuned per layout / profile). */
+ * `--coltile-base-w/h` is the design size; `--coltile-scale` (a fit-set zoom)
+ * grows the whole tile uniformly to fill the space. */
 .con-coltile {
     position: relative;
-    width: var(--con-coltile-w, 384px);
-    height: var(--con-coltile-h, 190px);
+    /* Fixed base design size; the fit engine's `--coltile-scale` (a zoom) grows
+       the WHOLE tile — box + every glyph — to fill the space. `flex: 0 0 auto`
+       so the tile is exactly its (zoomed) size and the grid's fit-set max-width
+       folds the wrap into the intended columns. */
+    width: var(--coltile-base-w, 366px);
+    height: var(--coltile-base-h, 220px);
+    flex: 0 0 auto;
+    zoom: var(--coltile-scale, 1);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -6097,8 +6146,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex: 0 0 auto;
         display: flex;
         align-items: center;
-        gap: 10px;
-        height: 42px;
+        gap: 12px;
+        height: 58px;
     }
     &__name {
         flex: 1;
@@ -6132,23 +6181,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__dock {
         position: absolute;
-        left: -5px;
-        bottom: -5px;
-        width: 19px;
-        height: 19px;
+        left: -6px;
+        bottom: -6px;
+        width: 26px;
+        height: 26px;
         display: flex;
         align-items: center;
         justify-content: center;
         border-radius: 50%;
         background: @con-glass;
         box-shadow:
-            0 0 0 1.5px var(--fleet-fill),
+            0 0 0 2px var(--fleet-fill),
             0 2px 6px rgba(0, 0, 0, 0.6),
-            0 0 8px var(--fleet-glow);
+            0 0 10px var(--fleet-glow);
 
         .colony-fleet-icon {
-            width: 13px;
-            height: 13px;
+            width: 17px;
+            height: 17px;
             filter: none; /* the disc already carries the owner glow */
         }
     }
@@ -6160,8 +6209,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        per-planet override regardless of cascade order). */
     &__planet {
         flex: 0 0 auto;
-        width: 40px;
-        height: 40px;
+        width: 54px;
+        height: 54px;
         border-radius: 50%;
         background-size: cover !important;
         background-position: center !important;
@@ -8089,6 +8138,13 @@ html.con-scale-focus-venus .arc-scale--venus {
         background: linear-gradient(180deg, fade(@con-amber, 28%), fade(@con-amber, 14%)), @con-glass;
         box-shadow: inset 0 0 0 1.5px fade(@con-amber, 90%), 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 16px fade(@con-amber, 20%);
         color: #ffe9c4;
+    }
+    /* SELECT mode (mandatory hand pick): the picked-card ✓ band in cyan — the
+       canonical "selected" accent (distinct from the mint play / amber sale). */
+    &__pickband--select {
+        background: linear-gradient(180deg, fade(@con-cyan, 30%), fade(@con-cyan, 14%)), @con-glass;
+        box-shadow: inset 0 0 0 1.5px fade(@con-cyan, 92%), 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 16px fade(@con-cyan, 22%);
+        color: #d6f3ff;
     }
     &__reason {
         position: absolute;
@@ -11256,14 +11312,10 @@ html.con-profile-handheld {
      *   ≈ 610 → two ~250px tile rows + gap fit WITHOUT clipping (and the
      *   scroller's `margin: auto` contract keeps row 1 reachable if not). */
     .con-colonies {
-        --con-coltile-w: 348px;
-        --con-coltile-h: 182px;
+        /* Smaller base — the fit engine scales UP to fill on a bigger display. */
+        --coltile-base-w: 336px;
+        --coltile-base-h: 206px;
 
-        &--solo { --con-coltile-w: 430px; }
-        &--duo { --con-coltile-w: 410px; }
-        &--trio { --con-coltile-w: 360px; }
-        &--four { --con-coltile-w: 400px; }
-        &--catalog { --con-coltile-w: 262px; }
         &__head { min-height: 40px; padding: 4px 14px 2px; }
         &__kicker { font-size: 15px; }
         &__fleetchip { font-size: 12px; padding: 3px 10px 3px 7px; }
@@ -11278,10 +11330,10 @@ html.con-profile-handheld {
     .con-coltile {
         padding: 8px 12px 8px;
 
-        &__head { height: 38px; gap: 8px; }
+        &__head { height: 52px; gap: 10px; }
         &__name { font-size: 17px; }
-        &__planet { width: 36px; height: 36px; }
-        &__dock { width: 17px; height: 17px; .colony-fleet-icon { width: 12px; height: 12px; } }
+        &__planet { width: 48px; height: 48px; }
+        &__dock { width: 23px; height: 23px; .colony-fleet-icon { width: 15px; height: 15px; } }
         &__build-slot { width: 37px; height: 33px; }
         &__mid { height: 34px; margin-top: 6px; gap: 12px; }
         &__rows { margin-top: 7px; gap: 8px; }

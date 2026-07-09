@@ -41,6 +41,8 @@
     "Condition": "Условие",
     "Tag filter": "Фильтр",
     "Reset filter": "Сбросить фильтр",
+    "Only suitable": "Только подходящие",
+    "All cards": "Все карты",
     "Select all": "Выбрать все",
     "Unselect all": "Снять все",
     "Shown ${0} of ${1}": "Показано ${0} из ${1}",

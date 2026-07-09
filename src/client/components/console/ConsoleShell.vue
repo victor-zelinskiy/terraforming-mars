@@ -133,6 +133,7 @@
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected"
+                          :select="handSelectProps"
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter" />
@@ -468,7 +469,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -510,7 +511,7 @@ import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel
 import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
-import ConsoleHandSection, {ConsoleHandEntry} from '@/client/components/console/ConsoleHandSection.vue';
+import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -536,7 +537,7 @@ import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeCons
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
-import {cancelResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
+import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
@@ -1026,7 +1027,104 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         return this.handEntriesAll;
       }
+      // MANDATORY hand SELECT (discard / reveal / place): the tag filter is
+      // replaced by the "suitable only" filter. When on (default) a NARROWED
+      // (conditional) prompt shows only the candidate cards; toggling it off
+      // reveals the whole hand for context (non-candidates stay non-pickable).
+      if (this.handSelectTaskActive) {
+        if (this.consoleState.select.suitableOnly && this.handSelectFiltered) {
+          const sel = new Set(this.handSelectSelectableNames);
+          return this.handEntriesAll.filter((e) => sel.has(e.card.name));
+        }
+        return this.handEntriesAll;
+      }
       return filterHandByTag(this.handEntriesAll, this.consoleState.handTagFilter);
+    },
+    // ── mandatory hand SELECT (server `handSelect` task) ──────────────────
+    /** The active mandatory hand-select prompt (all candidates in hand), or
+     *  undefined. Derived from the shell-section task + the raw waitingFor. */
+    handSelectModel(): SelectCardModel | undefined {
+      if (this.shellTask?.kind !== 'handSelect') {
+        return undefined;
+      }
+      const wf = this.playerView.waitingFor;
+      return wf?.type === 'card' ? (wf as SelectCardModel) : undefined;
+    },
+    /** True while the hand section is serving a mandatory hand-select. */
+    handSelectTaskActive(): boolean {
+      return this.handSelectModel !== undefined;
+    },
+    /** The candidate (pickable) card names of the current hand-select. */
+    handSelectSelectableNames(): ReadonlyArray<string> {
+      return this.handSelectModel?.cards.map((c) => c.name) ?? [];
+    },
+    /** The prompt is a CONDITIONAL subset of the hand (there ARE non-pickable
+     *  hand cards) — only then is the "suitable only" filter meaningful. */
+    handSelectFiltered(): boolean {
+      const model = this.handSelectModel;
+      return model !== undefined && model.cards.length < this.handEntriesAll.length;
+    },
+    /** min===max===1 → A submits the focused card in one press (no toggle). */
+    handSelectSingle(): boolean {
+      const model = this.handSelectModel;
+      return model !== undefined && model.min === 1 && model.max === 1;
+    },
+    /** Per-card reason (pre-translated) for a NON-selectable hand card: the
+     *  server's `disabledReason` when supplied, else an honest generic line. */
+    handSelectReasons(): Record<string, string> {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return {};
+      }
+      const out: Record<string, string> = {};
+      const selectable = new Set(model.cards.map((c) => c.name));
+      for (const d of model.disabledCards ?? []) {
+        out[d.name] = d.disabledReason !== undefined ?
+          (typeof d.disabledReason === 'string' ? translateText(d.disabledReason) : translateMessage(d.disabledReason)) :
+          translateText('This card cannot be chosen here');
+      }
+      // Every OTHER hand card the prompt didn't offer gets the honest generic
+      // "doesn't meet the condition" line (the server didn't expose the rule).
+      for (const e of this.handEntriesAll) {
+        if (!selectable.has(e.card.name) && out[e.card.name] === undefined) {
+          out[e.card.name] = translateText('This card cannot be chosen here');
+        }
+      }
+      return out;
+    },
+    /** The bundled select-mode state handed to the hand section (undefined when
+     *  not in a hand-select). */
+    handSelectProps(): ConsoleHandSelectMode | undefined {
+      if (!this.handSelectTaskActive) {
+        return undefined;
+      }
+      return {
+        active: true,
+        selectable: this.handSelectSelectableNames,
+        // Spread so the computed re-runs (and hands the section a fresh prop)
+        // on every pick mutation — the section re-renders the pick bands.
+        selected: [...this.consoleState.select.selected],
+        reasons: this.handSelectReasons,
+        single: this.handSelectSingle,
+        filtered: this.handSelectFiltered,
+        suitableOnly: this.consoleState.select.suitableOnly,
+      };
+    },
+    /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
+     *  hand section is the surface, so the right stick may scroll the grid. */
+    handShellServed(): boolean {
+      const t = this.shellTask;
+      return t?.kind === 'handSelect' ||
+        (t?.kind === 'projectCard' && t.mode === 'playFromHand');
+    },
+    /** The current multi-select picks satisfy the prompt bounds → RT confirms. */
+    handSelectPicksValid(): boolean {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return false;
+      }
+      const n = this.consoleState.select.selected.length;
+      return n >= model.min && n <= model.max;
     },
     // The tag-filter options for the panel (All + tags present in the hand).
     handTagFilterOptions(): Array<ConsoleTagFilterOption> {
@@ -1054,7 +1152,10 @@ export default defineComponent({
       return this.consoleState.section === 'hand' &&
         this.pendingPlayCard === undefined &&
         this.hostTask === undefined &&
-        this.shellTask === undefined &&
+        // A hand-served shell task (play-from-hand / mandatory hand-select)
+        // keeps the grid scrollable; any OTHER shell task means the hand is
+        // not the focus surface.
+        (this.shellTask === undefined || this.handShellServed) &&
         this.startTask === undefined &&
         this.consoleRevealMode === undefined;
     },
@@ -1739,6 +1840,27 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
+      // MANDATORY hand SELECT — the pick verbs (no tag filter; the "suitable
+      // only" toggle takes LT), submit on A (single) / RT (multi), B minimizes.
+      if (this.handSelectTaskActive && this.consoleState.section === 'hand') {
+        const focusName = this.handEntries[this.consoleState.handIndex]?.card.name;
+        const canPick = focusName !== undefined && this.handSelectSelectableNames.includes(focusName);
+        const verb = this.handSelectModel?.buttonLabel || 'Select';
+        const n = this.consoleState.select.selected.length;
+        const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate'}];
+        if (this.handSelectSingle) {
+          cmds.push({control: 'confirm', label: verb, enabled: canPick});
+        } else {
+          cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
+          cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
+        }
+        cmds.push({control: 'secondary', label: 'Inspect'});
+        if (this.handSelectFiltered) {
+          cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
+        }
+        cmds.push({control: 'back', label: 'Minimize'});
+        return cmds;
+      }
       if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
         const cmds: Array<ConsoleCommand> = [
@@ -1886,6 +2008,9 @@ export default defineComponent({
         return this.startTask.kind === 'initialDraft' ? 'Return to selection' : 'Resume start setup';
       }
       const t = this.hostTask ?? this.shellTask;
+      if (t?.kind === 'handSelect') {
+        return 'Return to selection';
+      }
       if (t !== undefined && t.kind === 'cardSelect') {
         return t.mode === 'draft' ? 'Return to the draft' : 'Return to selection';
       }
@@ -2006,6 +2131,12 @@ export default defineComponent({
           this.pendingClientPayment = undefined;
           // Same for the native play confirm (its playAction path moved on).
           this.pendingPlayCard = undefined;
+          // A NEW prompt resets the mandatory hand-SELECT picks + filter (they
+          // survive a defer→resume of the SAME prompt, but never leak across
+          // prompts). Cleared here rather than in closeConsoleLayers so the
+          // defer→resume path keeps a multi-select's accumulated picks.
+          this.consoleState.select.selected = [];
+          this.consoleState.select.suitableOnly = true;
           // The card-action center is a VOLUNTARY surface — if the top prompt
           // moved off the action menu (a sub-prompt / another player's turn),
           // close it so its dedicated surface can't overlap another one. It
@@ -2651,6 +2782,12 @@ export default defineComponent({
         if (this.consoleState.section === 'hand') {
           if (this.consoleState.sale.active) {
             this.confirmSale();
+          } else if (this.handSelectTaskActive) {
+            // Multi-select: RT confirms the picked set (a single-card pick
+            // submits directly on A, so RT is inert there).
+            if (!this.handSelectSingle) {
+              this.confirmHandSelect();
+            }
           } else {
             this.cycleHandFilter(1);
           }
@@ -2658,9 +2795,12 @@ export default defineComponent({
         return true;
       case 'triggerL':
         // P27: LT = the basic-actions QUICK SELECTOR (board home only). In the
-        // hand (non-sale) LT cycles the tag filter to the PREVIOUS tag.
+        // hand: SELECT mode toggles the "suitable only" filter; otherwise LT
+        // cycles the tag filter to the PREVIOUS tag.
         if (onBoard) {
           this.openQuick('basics');
+        } else if (this.consoleState.section === 'hand' && this.handSelectTaskActive) {
+          this.toggleSuitableOnly();
         } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
           this.cycleHandFilter(-1);
         }
@@ -2688,7 +2828,7 @@ export default defineComponent({
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
         } else if (onBoard) {
           this.toggleScaleInspect();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
           this.resetHandFilter();
         }
         return true;
@@ -2793,6 +2933,12 @@ export default defineComponent({
       // Sale mode: A toggles the pick (shared with the fullscreen viewer).
       if (this.consoleState.sale.active) {
         this.toggleSalePick(entry.card.name);
+        return;
+      }
+      // MANDATORY hand SELECT: A submits the focused card (single) or toggles
+      // the pick (multi). A non-candidate card explains WHY it can't be picked.
+      if (this.handSelectTaskActive) {
+        this.handSelectPress(entry.card.name);
         return;
       }
       if (!entry.playable) {
@@ -3432,6 +3578,16 @@ export default defineComponent({
         this.consoleState.colonyIndex = first !== -1 ? first : 0;
         return;
       }
+      if (task.kind === 'handSelect') {
+        // MANDATORY pick from hand (discard / reveal / place): open the hand
+        // carousel in select mode + land on the first PICKABLE card so A means
+        // something at once. Picks/filter are reset by the prompt-change watcher.
+        this.consoleState.section = 'hand';
+        const selectable = new Set(this.handSelectSelectableNames);
+        const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
+        this.consoleState.handIndex = idx !== -1 ? idx : 0;
+        return;
+      }
       if (task.kind === 'projectCard') {
         if (task.mode === 'playFromHand') {
           this.consoleState.section = 'hand';
@@ -3691,6 +3847,33 @@ export default defineComponent({
         });
         return;
       }
+      // MANDATORY hand SELECT: fullscreen A submits the single-pick / toggles a
+      // multi-pick; a non-candidate card surfaces its «why not» reason (single)
+      // or is inert (multi — the reason is on the grid card / verdict bar).
+      if (this.handSelectTaskActive) {
+        const verb = this.handSelectModel?.buttonLabel || 'Select';
+        const selectable = (name: CardName) => this.handSelectSelectableNames.includes(name);
+        if (this.handSelectSingle) {
+          openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, undefined, {
+            labelFor: (name: CardName) => (selectable(name) ? verb : undefined),
+            reasonsFor: (name: CardName) => {
+              const r = this.handSelectReasons[name];
+              return !selectable(name) && r !== undefined && r !== '' ? [r] : [];
+            },
+            execute: (name: CardName) => this.submitHandSelect([name]),
+          });
+        } else {
+          openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
+            isSelected: (name: CardName) => this.consoleState.select.selected.includes(name),
+            toggle: (name: CardName) => {
+              if (selectable(name)) {
+                this.toggleHandSelectPick(name);
+              }
+            },
+          });
+        }
+        return;
+      }
       openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, undefined, {
         labelFor: (name: CardName) => {
           const entry = this.handEntries.find((e) => e.card.name === name);
@@ -3762,6 +3945,76 @@ export default defineComponent({
         return;
       }
       this.consoleState.sale.selected = this.saleAllSelected ? [] : [...names];
+    },
+    // ── mandatory hand SELECT (server `handSelect` task) ──────────────────
+    /** A on a hand card in select mode: submit (single-pick) / toggle (multi),
+     *  or explain WHY a non-candidate card can't be chosen (never a mute A). */
+    handSelectPress(name: string): void {
+      if (this.handSelectModel === undefined) {
+        return;
+      }
+      if (!this.handSelectSelectableNames.includes(name)) {
+        const reason = this.handSelectReasons[name];
+        this.showNotice(reason !== undefined && reason !== '' ? reason : translateText('This card cannot be chosen here'));
+        return;
+      }
+      if (this.handSelectSingle) {
+        // Single-card pick: A submits it in one press (no toggle-then-confirm).
+        this.submitHandSelect([name]);
+        return;
+      }
+      this.toggleHandSelectPick(name);
+    },
+    /** Multi-select toggle (respects `max` — a full set ignores a new pick). */
+    toggleHandSelectPick(name: string): void {
+      const picked = this.consoleState.select.selected;
+      const at = picked.indexOf(name);
+      if (at !== -1) {
+        picked.splice(at, 1);
+        return;
+      }
+      if (picked.length >= (this.handSelectModel?.max ?? 1)) {
+        return;
+      }
+      picked.push(name);
+    },
+    /** RT / confirm: submit the accumulated multi-select picks (bounds-checked). */
+    confirmHandSelect(): void {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return;
+      }
+      const picked = this.consoleState.select.selected;
+      if (picked.length < model.min || picked.length > model.max) {
+        return;
+      }
+      this.submitHandSelect([...picked]);
+    },
+    /** Submit the mandatory hand-select answer. The TOP-LEVEL SelectCard takes
+     *  the BARE {type:'card', cards} (no OR wrapping) — byte-identical to the
+     *  desktop hand-select overlay's `onHandSelect`. */
+    submitHandSelect(cards: ReadonlyArray<string>): void {
+      closeConsoleLayers();
+      this.consoleState.select.selected = [];
+      this.consoleState.select.suitableOnly = true;
+      this.consoleState.section = 'board';
+      this.submit(cardsResponse(cards as ReadonlyArray<CardName>));
+    },
+    /** LT: flip the "suitable only" filter (candidates-only ↔ the whole hand).
+     *  Keeps the focus on the same card when it survives, else the first one. */
+    toggleSuitableOnly(): void {
+      if (!this.handSelectFiltered) {
+        return;
+      }
+      const focused = this.handEntries[this.consoleState.handIndex]?.card.name;
+      this.consoleState.select.suitableOnly = !this.consoleState.select.suitableOnly;
+      void this.$nextTick(() => {
+        const list = this.handEntries;
+        const at = focused !== undefined ? list.findIndex((e) => e.card.name === focused) : -1;
+        this.consoleState.handIndex = at >= 0 ? at : 0;
+        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        hand?.ensureSelectedVisible();
+      });
     },
     // ── transport ────────────────────────────────────────────────────────
     submit(response: unknown): void {

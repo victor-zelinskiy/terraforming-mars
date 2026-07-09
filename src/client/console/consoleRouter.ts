@@ -56,6 +56,16 @@ export const consoleState = reactive({
   confirm: undefined as ConsoleConfirmKind | undefined,
   /** Sell-patents mode of the hand carousel (A toggles, X confirms). */
   sale: {active: false, selected: [] as Array<string>},
+  /**
+   * MANDATORY hand-card SELECT mode (server `handSelect` task — discard /
+   * reveal / keep / place from the player's own hand). `active` is DERIVED
+   * from the task in the shell (not stored); this only holds the transient
+   * picks + the "suitable only" filter toggle. A single-card pick submits
+   * immediately on A; a multi-card pick toggles here and RT confirms.
+   * `suitableOnly` (default on) hides non-candidate hand cards for a narrowed
+   * (conditional) prompt — LT toggles it, showing the whole hand for context.
+   */
+  select: {selected: [] as Array<string>, suitableOnly: true},
   /** True while a fallback (iteration-1) surface owns input — command bar switches its hints. */
   fallbackActive: false,
   /** WHICH fallback scope owns input (lifecycle-aware command-bar naming). */
@@ -66,7 +76,14 @@ export const consoleState = reactive({
   task: {deferred: false},
 });
 
-/** Reset transient layers (quick selectors / sheets / confirm / sale) — e.g. on submit. */
+/**
+ * Reset transient layers (quick selectors / sheets / confirm / sale) — e.g. on
+ * submit / when opening a shell-task surface. NOTE: the mandatory hand-SELECT
+ * picks (`select`) are deliberately NOT cleared here — they are server-prompt
+ * scoped and must survive a defer→resume (this fn runs inside
+ * `openShellTaskSurface`), so they are reset only on a prompt-identity change
+ * (the shell's `playerView` watcher) and after a submit.
+ */
 export function closeConsoleLayers(): void {
   consoleState.quick = undefined;
   consoleState.sheet = undefined;

@@ -1,5 +1,5 @@
 <template>
-  <div class="con-colonies" :class="'con-colonies--' + layout">
+  <div class="con-colonies" :class="'con-colonies--' + layout" :style="{'--coltile-scale': String(tileScale)}">
     <!-- Header strip: what this screen is + EVERY player's trade fleets.
          One slim row — never a floating banner over the grid. -->
     <header class="con-colonies__head">
@@ -34,8 +34,8 @@
     <!-- The premium tile grid. The scroller + `margin: auto` wrapper is the
          anti-clip contract: content centres when it fits and scrolls FROM THE
          TOP when it doesn't (align/justify centring would clip the first row). -->
-    <div class="con-colonies__scroll">
-      <div class="con-colonies__grid" ref="grid">
+    <div class="con-colonies__scroll" ref="scroll">
+      <div class="con-colonies__grid" ref="grid" :style="gridStyle">
         <div v-for="(colony, i) in colonies"
              :key="colony.name"
              class="con-colonies__slot"
@@ -73,7 +73,7 @@ import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {colonyGridLayout, ColonyGridLayout} from '@/client/console/consoleColoniesModel';
+import {colonyGridLayout, colonyGridCols, ColonyGridLayout} from '@/client/console/consoleColoniesModel';
 import {freeTradeFleets} from '@/client/components/colonies/colonyTradePlan';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
@@ -92,6 +92,15 @@ export type ConsoleColonyPick = {
 
 type FleetChip = {color: Color, name: string, free: number, total: number, me: boolean};
 
+/** The tile-fit bounds: how far the base tile may shrink / grow to fill space. */
+const MIN_TILE_SCALE = 0.72;
+const MAX_TILE_SCALE = 1.8;
+// Grid gaps + padding — MUST match `.con-colonies__grid` in console.less.
+const COL_GAP = 18;
+const ROW_GAP = 16;
+const GRID_PAD_X = 36; // 18 each side
+const GRID_PAD_Y = 26; // 10 top + 16 bottom
+
 export default defineComponent({
   name: 'ConsoleColoniesSection',
   components: {ConsoleColonyTile, ColonyFleetIcon},
@@ -108,9 +117,24 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     tradeOffset: {type: Number, default: 0},
   },
+  data() {
+    return {
+      /** The fit-set zoom on every tile (grows them to fill the space). */
+      tileScale: 1,
+      /** The fit-set grid max-width so the layout's column count holds. */
+      gridMaxW: 0,
+      fitRaf: undefined as number | undefined,
+      resizeObs: undefined as ResizeObserver | undefined,
+    };
+  },
   computed: {
     layout(): ColonyGridLayout {
       return colonyGridLayout(this.colonies.length, this.pick !== undefined);
+    },
+    gridStyle(): Record<string, string> {
+      // Catalog (>6) wraps freely; every other layout caps the width so the
+      // intended column count holds around the fitted tiles.
+      return this.gridMaxW > 0 && this.layout !== 'catalog' ? {maxWidth: this.gridMaxW + 'px'} : {};
     },
     /** Every player's fleet situation, the viewer first. */
     fleetChips(): Array<FleetChip> {
@@ -128,8 +152,54 @@ export default defineComponent({
     index() {
       void this.$nextTick(() => this.scrollSelectedIntoView());
     },
+    layout() {
+      this.scheduleFit();
+    },
+    colonies() {
+      this.scheduleFit();
+    },
   },
   methods: {
+    /**
+     * Size the tiles to FILL the free area for the count layout: the largest
+     * uniform scale at which `cols × rows` base-size tiles (+ gaps + padding)
+     * fit the scroll box, clamped to sane bounds. Applied as a `zoom` on every
+     * tile (so the planet / docked fleet / fonts all grow together) plus a grid
+     * max-width so the intended columns hold. Pure measure → no-op under JSDOM
+     * (rects are 0), so the CSS base size is the graceful fallback.
+     */
+    fit(): void {
+      const scroll = this.$refs.scroll as HTMLElement | undefined;
+      const root = this.$el as HTMLElement | undefined;
+      const count = this.colonies.length;
+      if (scroll === undefined || root === undefined || count === 0) {
+        return;
+      }
+      const availW = scroll.clientWidth;
+      const availH = scroll.clientHeight;
+      if (availW <= 0 || availH <= 0) {
+        return; // not laid out yet / JSDOM
+      }
+      const cs = getComputedStyle(root);
+      const baseW = parseFloat(cs.getPropertyValue('--coltile-base-w')) || 366;
+      const baseH = parseFloat(cs.getPropertyValue('--coltile-base-h')) || 220;
+      const cols = Math.min(Math.max(1, colonyGridCols(this.layout, count)), count);
+      const rows = Math.max(1, Math.ceil(count / cols));
+      const scaleW = (availW - GRID_PAD_X - (cols - 1) * COL_GAP) / (cols * baseW);
+      const scaleH = (availH - GRID_PAD_Y - (rows - 1) * ROW_GAP) / (rows * baseH);
+      const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
+      this.tileScale = Math.round(scale * 1000) / 1000;
+      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP + GRID_PAD_X);
+    },
+    scheduleFit(): void {
+      if (this.fitRaf !== undefined || typeof window === 'undefined') {
+        return;
+      }
+      this.fitRaf = window.requestAnimationFrame(() => {
+        this.fitRaf = undefined;
+        this.fit();
+      });
+    },
     isPickable(name: string): boolean {
       return this.pick !== undefined && this.pick.selectable.includes(name);
     },
@@ -178,6 +248,24 @@ export default defineComponent({
   },
   mounted() {
     this.scrollSelectedIntoView();
+    this.fit();
+    const scroll = this.$refs.scroll as HTMLElement | undefined;
+    if (typeof ResizeObserver !== 'undefined' && scroll !== undefined) {
+      this.resizeObs = new ResizeObserver(() => this.scheduleFit());
+      this.resizeObs.observe(scroll);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.scheduleFit);
+    }
+  },
+  beforeUnmount() {
+    this.resizeObs?.disconnect();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.scheduleFit);
+      if (this.fitRaf !== undefined) {
+        window.cancelAnimationFrame(this.fitRaf);
+      }
+    }
   },
 });
 </script>

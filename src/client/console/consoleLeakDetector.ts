@@ -53,6 +53,9 @@ const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // '.con-composer--play' = the native play-card pre-select composer, which
   // serves the projectCard prompt on top of the hand while it is open.
   projectCard: ['.con-hand', '.con-sheet', '.con-composer--play'],
+  // A MANDATORY hand pick (discard / reveal / place) is served by the hand
+  // section in select mode — the same `.con-hand` root as play-from-hand.
+  handSelect: ['.con-hand'],
   colony: ['.con-colonies'],
   // FREE award funding (Vitor) is served by the premium awards MA screen.
   awardFunding: ['.con-ma'],

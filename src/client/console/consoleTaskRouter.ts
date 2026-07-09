@@ -19,7 +19,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {inputTitleText} from '@/client/console/turnIntents';
 
-export type CardSelectMode = 'draft' | 'buy' | 'select' | 'target';
+export type CardSelectMode = 'draft' | 'buy' | 'target';
 
 export type ConsoleTask =
   /** The per-turn action menu — natively handled by the Turn verbs. */
@@ -41,6 +41,16 @@ export type ConsoleTask =
    *  (mirrors the desktop DraftFlowOverlay suppression). */
   | {kind: 'draftWait'}
   | {kind: 'cardSelect', mode: CardSelectMode}
+  /**
+   * MANDATORY "pick from your OWN hand" (discard / reveal / keep / copy /
+   * place onto Self-Replicating Robots): every candidate is already in the
+   * player's hand, so it is served by the HAND SECTION in select mode — the
+   * console twin of the desktop КАРТЫ В РУКЕ select overlay — NOT the generic
+   * card browser. The player picks on the real hand carousel; a narrowed
+   * (conditional) prompt opens with a "suitable only" filter and a single-card
+   * pick submits on one A press (no toggle-then-confirm). A shell-section kind.
+   */
+  | {kind: 'handSelect'}
   | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject'}
   | {kind: 'colony'}
   | {kind: 'composite'}
@@ -61,7 +71,7 @@ export type TaskKind = ConsoleTask['kind'];
 export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
-  'cardSelect', 'payment', 'draftWait',
+  'cardSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'awardFunding',
   'initialDraft', 'startSequence',
 ]);
@@ -72,12 +82,13 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
 /**
  * Kinds served by SHELL SECTIONS (not the task host): the play-from-hand /
  * standard-project prompts ride the hand carousel & the standard-projects
- * sheet; a colony pick rides the colonies rail in pick mode; FREE award
- * funding (Vitor) rides the premium awards MA screen in free-sponsorship
- * mode. The shell auto-opens the surface; navigating away DEFERS the task
- * (amber chip).
+ * sheet; a MANDATORY hand pick (`handSelect` — discard / reveal / place)
+ * rides the hand carousel in select mode; a colony pick rides the colonies
+ * rail in pick mode; FREE award funding (Vitor) rides the premium awards MA
+ * screen in free-sponsorship mode. The shell auto-opens the surface;
+ * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'colony', 'awardFunding']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'awardFunding']);
 
 /**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`
@@ -185,8 +196,11 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     }
     const title = inputTitleText(wf.title) ?? '';
     const buttonLabel = wf.buttonLabel ?? '';
+    // Every candidate already in hand (incl. Self-Replicating Robots hosts) =>
+    // a "pick from your hand" prompt (discard / reveal / keep / place) => the
+    // hand section's select mode, NOT the generic card browser.
     if (isHandSubset(view, wf.cards)) {
-      return {kind: 'cardSelect', mode: 'select'};
+      return {kind: 'handSelect'};
     }
     if (buttonLabel === 'Keep') {
       return {kind: 'cardSelect', mode: 'draft'};
@@ -239,8 +253,8 @@ export function isNativelyHandled(task: ConsoleTask | undefined): boolean {
  * Leaf options (`option`) and board picks (`space` — routed through the
  * shell's headless SelectSpace) are served as before. The shell
  * suppresses the desktop modal EXACTLY when this returns a task (no dead
- * ends, ever). SHELL_SECTION_KINDS (projectCard / colony) are native too
- * but served by shell SECTIONS, not this host.
+ * ends, ever). SHELL_SECTION_KINDS (projectCard / handSelect / colony /
+ * awardFunding) are native too but served by shell SECTIONS, not this host.
  */
 export function taskServedByHost(view: PlayerViewModel): ConsoleTask | undefined {
   const task = taskFor(view);

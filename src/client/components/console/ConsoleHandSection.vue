@@ -6,7 +6,7 @@
       <div class="con-hand__head-left">
         <span class="con-hand__title" v-i18n>Cards in hand</span>
         <span v-if="countText !== ''" class="con-hand__count">{{ countText }}</span>
-        <span v-if="playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
+        <span v-if="!selectActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
       </div>
       <!-- Tag filter (LT/RT cycle, R3 reset — advertised in the footer). The
            active chip is the always-visible source of truth for the filter. -->
@@ -19,6 +19,16 @@
           <span v-else class="con-hand__filter-icon" :class="'tag-' + opt.value" aria-hidden="true"></span>
           <span class="con-hand__filter-count">{{ opt.count }}</span>
         </div>
+      </div>
+      <!-- SELECT mode: the "suitable only" filter chip (LT toggles). Shown only
+           for a CONDITIONAL prompt where some hand cards can't be picked; a
+           plain "pick any card" prompt (e.g. discard 1) has no non-candidates,
+           so no filter is offered. -->
+      <div v-if="selectActive && select !== undefined && select.filtered"
+           class="con-hand__selectfilter"
+           :class="{'con-hand__selectfilter--all': !select.suitableOnly}">
+        <span class="con-hand__selectfilter-dot" aria-hidden="true"></span>
+        <span class="con-hand__selectfilter-label">{{ $t(select.suitableOnly ? 'Only suitable' : 'All cards') }}</span>
       </div>
     </div>
 
@@ -40,16 +50,21 @@
                  class="con-hand__slot"
                  :class="{
                    'con-hand__slot--selected': row * plan.cols + ci === index,
-                   'con-hand__slot--playable': !saleActive && entry.playable,
-                   'con-hand__slot--unplayable': !saleActive && !entry.playable,
+                   'con-hand__slot--playable': !saleActive && !selectActive && entry.playable,
+                   'con-hand__slot--unplayable': !saleActive && !selectActive && !entry.playable,
                    'con-hand__slot--sale-picked': saleActive && isSaleSelected(entry.card.name),
+                   'con-hand__slot--select-picked': selectActive && isSelectPicked(entry.card.name),
+                   'con-hand__slot--select-disabled': selectActive && !isSelectable(entry.card.name),
                  }">
               <Card :card="entry.card" :key="entry.card.name" lightweight />
               <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
-              <!-- Sale pick band, else a COMPACT blocker chip on an
-                   unavailable card (the full reason is in the panel below). -->
+              <!-- State band: sale pick / select pick (✓), a "can't select"
+                   marker on a non-candidate, else a COMPACT play blocker chip
+                   (the full reason is in the info panel below). -->
               <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
-              <span v-else-if="!saleActive && !entry.playable && chipLabel(entry)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(entry) || '') }}</span>
+              <span v-else-if="selectActive && isSelectPicked(entry.card.name)" class="con-cards__pickband con-cards__pickband--select" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+              <span v-else-if="selectActive && !isSelectable(entry.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
+              <span v-else-if="!saleActive && !selectActive && !entry.playable && chipLabel(entry)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(entry) || '') }}</span>
             </div>
           </div>
           <div class="con-hand__spacer" :style="{height: bottomSpacerPx + 'px'}" aria-hidden="true"></div>
@@ -73,12 +88,23 @@
     <div v-if="selected !== undefined"
          class="con-cards__verdictbar con-hand__verdictbar"
          :class="{
-           'con-hand__verdictbar--ok': !saleActive && selectedPlayable,
-           'con-hand__verdictbar--blocked': !saleActive && !selectedPlayable,
+           'con-hand__verdictbar--ok': !saleActive && !selectActive && selectedPlayable,
+           'con-hand__verdictbar--blocked': !saleActive && !selectActive && !selectedPlayable,
            'con-hand__verdictbar--sale': saleActive,
+           'con-hand__verdictbar--select': selectActive,
          }">
       <span class="con-cards__verdict-name">{{ $t(selected.name) }}</span>
-      <template v-if="saleActive">
+      <template v-if="selectActive">
+        <!-- Picked / pickable / blocked — with the concrete «why not» reason
+             for a non-candidate card (the fork's always-explain rule). -->
+        <span v-if="isSelectPicked(selected.name)" class="con-cards__verdict con-cards__verdict--picked"><span aria-hidden="true">✓</span> {{ $t('Card selected') }}</span>
+        <span v-else-if="isSelectable(selected.name)" class="con-cards__verdict con-cards__verdict--ok">{{ $t('Not selected') }}</span>
+        <template v-else>
+          <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unavailable') }}</span>
+          <span v-if="focusedSelectReason !== ''" class="con-hand__reason con-hand__reason--bar con-hand__reason--rule">{{ focusedSelectReason }}</span>
+        </template>
+      </template>
+      <template v-else-if="saleActive">
         <span class="con-cards__verdict" :class="isSaleSelected(selected.name) ? 'con-cards__verdict--picked' : ''">{{ $t(isSaleSelected(selected.name) ? 'Card selected' : 'Not selected') }}</span>
       </template>
       <template v-else-if="selectedPlayable">
@@ -135,6 +161,30 @@ export type ConsoleHandEntry = {
   robot: boolean,
 };
 
+/**
+ * MANDATORY hand-SELECT mode (server `handSelect` task — discard / reveal /
+ * keep / place a card FROM the player's own hand), handed down by the shell.
+ * Present ⇔ the section is a picker rather than the normal play/browse hand.
+ * The shell owns the accumulation + submit; the section only renders the pick
+ * states + the "suitable only" filter chip (LT toggles it in the shell).
+ */
+export type ConsoleHandSelectMode = {
+  active: true,
+  /** Names the player may pick (the prompt's candidate cards). */
+  selectable: ReadonlyArray<string>,
+  /** Currently picked names (multi-select accumulation). */
+  selected: ReadonlyArray<string>,
+  /** Pre-translated per-card reason for a NON-selectable card. */
+  reasons: Record<string, string>,
+  /** min===max===1 → A submits directly (no toggle-then-confirm). */
+  single: boolean,
+  /** The prompt is a CONDITIONAL subset of the hand (there ARE non-pickable
+   *  cards) → the "suitable only" toggle is meaningful. */
+  filtered: boolean,
+  /** The "suitable only" filter is ON (only candidate cards shown). */
+  suitableOnly: boolean,
+};
+
 /** Rows kept mounted above/below the viewport so a fast page never blanks. */
 const OVERSCAN = 2;
 /** Top/bottom content inset (px): a card's cost badge + focus glow poke ABOVE
@@ -160,6 +210,9 @@ export default defineComponent({
     /** Sell-patents mode: A toggles picks, RT confirms (shell owns the flow). */
     saleActive: {type: Boolean, default: false},
     saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
+     *  the section is the normal play/browse hand. */
+    select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
     /** The turn/phase reason (i18n key) for a card that is rules-OK but not
      *  playable right now (opponent's turn / mid-action). Set by the shell. */
     softReason: {type: String, default: 'Not your turn to take any actions'},
@@ -194,13 +247,23 @@ export default defineComponent({
     /** The selected card is blocked only by the window (no server rules-reason),
      *  so the panel shows the soft turn/phase reason instead of a bare block. */
     softBlocked(): boolean {
-      return !this.saleActive && this.selected !== undefined && !this.selectedPlayable && this.reasons.length === 0;
+      return !this.saleActive && !this.selectActive && this.selected !== undefined && !this.selectedPlayable && this.reasons.length === 0;
+    },
+    // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
+    selectActive(): boolean {
+      return this.select?.active === true;
+    },
+    /** The focused card's per-card «why not» reason (non-selectable only). */
+    focusedSelectReason(): string {
+      const name = this.selected?.name;
+      return name !== undefined ? this.selectReason(name) : '';
     },
     // ── header / filter panel ─────────────────────────────────────────────
     showFilters(): boolean {
       // Only worth a filter panel when there's a real tag beyond "All", and
-      // never in sale mode (the whole hand is shown for selling).
-      return !this.saleActive && this.tagFilters.length > 1;
+      // never in sale / select mode (sale shows the whole hand; select uses the
+      // "suitable only" toggle, not tag filters).
+      return !this.saleActive && !this.selectActive && this.tagFilters.length > 1;
     },
     totalCount(): number {
       return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
@@ -220,7 +283,17 @@ export default defineComponent({
      *  sale mode, where the whole hand is shown), in the bottom info bar (never
      *  the header, so the header height can't jump). */
     filteredCountText(): string {
-      return !this.saleActive && this.activeTag !== 'all' ?
+      if (this.saleActive) {
+        return '';
+      }
+      // Select mode: "Показано X из Y" only while the "suitable only" filter is
+      // hiding non-candidate cards.
+      if (this.selectActive) {
+        return this.select?.filtered === true && this.select.suitableOnly ?
+          translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]) :
+          '';
+      }
+      return this.activeTag !== 'all' ?
         translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]) :
         '';
     },
@@ -310,6 +383,18 @@ export default defineComponent({
     },
     isSaleSelected(name: string): boolean {
       return this.saleSelected.includes(name);
+    },
+    /** Select mode: is this card a candidate the player may pick? */
+    isSelectable(name: string): boolean {
+      return this.select?.selectable.includes(name) ?? false;
+    },
+    /** Select mode: is this card currently picked? */
+    isSelectPicked(name: string): boolean {
+      return this.select?.selected.includes(name) ?? false;
+    },
+    /** Select mode: the pre-translated «why not» reason for a non-candidate. */
+    selectReason(name: string): string {
+      return this.select?.reasons[name] ?? '';
     },
     /** "Требуется X · Сейчас: Y°C" — shared formatter (unit included). */
     reasonLine(r: UnplayableReason): string {

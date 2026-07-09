@@ -3,16 +3,16 @@ import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, SHELL_SECTIO
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
-function view(wf: any, hand: Array<string> = []): PlayerViewModel {
+function view(wf: any, hand: Array<string> = [], srr: Array<string> = []): PlayerViewModel {
   return {
     waitingFor: wf,
     cardsInHand: hand.map((name) => ({name})),
-    thisPlayer: {selfReplicatingRobotsCards: []},
+    thisPlayer: {selfReplicatingRobotsCards: srr.map((name) => ({name}))},
   } as unknown as PlayerViewModel;
 }
 
-function kindOf(wf: any, hand: Array<string> = []): ConsoleTask | undefined {
-  return taskFor(view(wf, hand));
+function kindOf(wf: any, hand: Array<string> = [], srr: Array<string> = []): ConsoleTask | undefined {
+  return taskFor(view(wf, hand, srr));
 }
 
 /**
@@ -22,7 +22,7 @@ function kindOf(wf: any, hand: Array<string> = []): ConsoleTask | undefined {
  * kind natively, add it to NATIVE_KINDS and update EXPECTED_RED below
  * (the shrinking list is the progress metric).
  */
-const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, expect: Partial<ConsoleTask>}> = [
+const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<string>, expect: Partial<ConsoleTask>}> = [
   {row: '1 action menu', wf: {type: 'or', title: 'Take your first action', options: []}, expect: {kind: 'actionMenu'}},
   {row: '1b action menu (next)', wf: {type: 'or', title: 'Take your next action', options: []}, expect: {kind: 'actionMenu'}},
   {row: '2 card-driven or (contextual)', wf: {type: 'or', title: 'Select how to use your science tag', options: [], choiceContext: {source: {kind: 'card'}}}, expect: {kind: 'choice', flavor: 'contextual'}},
@@ -39,7 +39,8 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, expect: Parti
   {row: '10 draft pick', wf: {type: 'card', title: 'Select a card to keep', buttonLabel: 'Keep', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'draft'}},
   {row: '10b draft re-pick (optional → waiting, never re-pick UI)', wf: {type: 'card', title: 'You can change your selection…', optional: true, buttonLabel: 'Select', cards: [{name: 'Birds'}]}, expect: {kind: 'draftWait'}},
   {row: '11 research buy', wf: {type: 'card', title: 'Select cards to buy or none to skip', buttonLabel: 'Buy', cards: [{name: 'Birds'}]}, expect: {kind: 'cardSelect', mode: 'buy'}},
-  {row: '12 hand select (discard)', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds', 'Zeppelins'], expect: {kind: 'cardSelect', mode: 'select'}},
+  {row: '12 hand select (discard) → hand section, not the card browser', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds', 'Zeppelins'], expect: {kind: 'handSelect'}},
+  {row: '12b hand select incl. a Self-Replicating Robots host', wf: {type: 'card', title: 'Select a card to place', buttonLabel: 'Select', cards: [{name: 'Birds'}]}, hand: ['Zeppelins'], srr: ['Birds'], expect: {kind: 'handSelect'}},
   {row: '13 nested target pick', wf: {type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, expect: {kind: 'cardSelect', mode: 'target'}},
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
@@ -69,7 +70,8 @@ const ALL_INPUT_TYPES = [
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
 const EXPECTED_RED: ReadonlyArray<TaskKind> = [
   // T1: choice / player / amount / resource / distribute are native.
-  // T2: cardSelect (draft / buy / select / target) is native.
+  // T2: cardSelect (draft / buy / target) is native; a hand-subset pick is
+  //     the shell-section `handSelect` (the hand carousel in select mode).
   // T3: payment (native lanes) + projectCard (hand / std-project sections).
   // T4: colony (colonies rail pick mode).
   // T5: initialDraft (the start-scene wizard) + startSequence (the ceremony).
@@ -83,7 +85,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
 
   for (const f of FIXTURES) {
     it(`row ${f.row}`, () => {
-      const task = kindOf(f.wf, f.hand ?? []);
+      const task = kindOf(f.wf, f.hand ?? [], f.srr ?? []);
       expect(task, f.row).to.not.eq(undefined);
       for (const [k, v] of Object.entries(f.expect)) {
         expect((task as Record<string, unknown>)[k], `${f.row} · ${k}`).to.eq(v);
@@ -150,8 +152,22 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'colony' || kind === 'awardFunding').to.eq(true);
+      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'awardFunding').to.eq(true);
     }
+  });
+
+  it('a MANDATORY hand pick is a shell-section task (hand section), NOT host-served', () => {
+    // Every candidate already in hand → handSelect (the hand carousel serves
+    // it in select mode); the generic card browser must NOT claim it.
+    const discard = view({type: 'card', title: 'Select 1 card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, ['Birds', 'Zeppelins']);
+    expect(taskFor(discard)?.kind).to.eq('handSelect');
+    expect(taskServedByHost(discard), 'handSelect is served by the hand SECTION, not the task host').to.eq(undefined);
+    expect(SHELL_SECTION_KINDS.has('handSelect')).to.eq(true);
+    // A NON-hand card target (copy a played card / add a resource) stays a
+    // generic host-served cardSelect — only IN-HAND candidates route to select.
+    const target = view({type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, []);
+    expect(taskFor(target)?.kind).to.eq('cardSelect');
+    expect(taskServedByHost(target)?.kind).to.eq('cardSelect');
   });
 
   it('a start-game MARKER outranks the raw input type (structural rule)', () => {
@@ -162,7 +178,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
   it('RED LIST (the CTS work queue) matches the declared phase state', () => {
     const red = new Set<TaskKind>();
     for (const f of FIXTURES) {
-      const task = kindOf(f.wf, f.hand ?? []);
+      const task = kindOf(f.wf, f.hand ?? [], f.srr ?? []);
       if (task !== undefined && !isNativelyHandled(task)) {
         red.add(task.kind);
       }
