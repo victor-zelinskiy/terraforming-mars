@@ -3,13 +3,15 @@
 {
     // Compiler options are mostly for the sub-configurations
     "compilerOptions": {
-        // ES2019 support is pretty broad for Browsers, except for Function.prototype.toString, which is just not
-        // likely to be a problem
-        // ES2020 is very well supported in modern browsers.
-        // ES 2021 has a couple of features not supported in Opera, but they're WeakRef and Promise.any.
-        // It is safe to assume those features won't be run on a browser.
-        // "lib": ["dom", "es2021"],
-        "lib": ["dom", "es2021"],
+        // FORK: lib raised to ES2023 (upstream keeps es2021 for old-browser caution).
+        // This fork's actual runtimes are Node 22 (server/tests), Electron 43 and
+        // current Chromium (the premium CSS already requires :has() — Chrome 105+),
+        // where every ES2022/ES2023 lib API (.at, Object.hasOwn, findLast, toSorted)
+        // is long supported. `lib` only widens the TYPE surface — tsc never
+        // polyfills lib methods, so the EMIT is unchanged. `target` deliberately
+        // stays es2021: raising it flips useDefineForClassFields (class-field
+        // semantics) for zero benefit here.
+        "lib": ["dom", "es2023"],
         "incremental": true,
         "module": "commonjs",
         "strict": true,
