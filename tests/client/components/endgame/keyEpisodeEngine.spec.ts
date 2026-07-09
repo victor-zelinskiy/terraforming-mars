@@ -21,10 +21,11 @@ function profile(color: Color, primary?: StrategyDetection, secondary: Array<Str
 function pl(color: Color, name: string, total: number, opts: {
   primary?: StrategyDetection; secondary?: Array<StrategyDetection>;
   awards?: Array<MA>; vpByGeneration?: Array<number>; megacredits?: number; mcProd?: number;
-  penalties?: number; board?: number;
+  penalties?: number; board?: number; rawName?: string;
 } = {}): EndgamePlayerScore {
   return {
     color, name, total, isWinner: false, place: 1, megacredits: opts.megacredits ?? 0, corporations: [],
+    ...(opts.rawName !== undefined ? {rawName: opts.rawName} : {}),
     vpByGeneration: opts.vpByGeneration ?? [], topCards: [],
     penaltyCards: opts.penalties !== undefined ? [{cardName: 'P', victoryPoint: -opts.penalties, kind: 'penalty'}] : [],
     parametersTotal: 0, globalSteps: {},
@@ -86,6 +87,20 @@ describe('keyEpisodeEngine (rework Iteration 15)', () => {
     ], {margin: 3});
     const award = buildKeyEpisodes(c).find((e) => e.dedupeKey === 'award');
     expect(award!.role).to.eq('turning_point');
+  });
+
+  // A MarsBot funder: the server award token is the RAW «MarsBot», but the
+  // player carries the localized display «Бот». The episode must MATCH by the
+  // raw name (so it fires) and DISPLAY «Бот» (never «MarsBot»).
+  it('a MarsBot award funder is matched by the raw name and shown as «Бот»', () => {
+    const c = ctx([
+      pl('red', 'Nastya', 84, {primary: det('cityGreenery', 20), awards: [{messageArgs: ['1st', 'Banker', 'MarsBot'], victoryPoint: 5}]}),
+      pl('blue', 'Бот', 81, {rawName: 'MarsBot', awards: [{messageArgs: ['2nd', 'Banker', 'MarsBot'], victoryPoint: 0}]}),
+    ], {margin: 3});
+    const award = buildKeyEpisodes(c).find((e) => e.dedupeKey === 'award');
+    expect(award, 'the award episode fires for a bot funder').to.not.be.undefined;
+    expect(award!.params?.[0]).to.deep.include({v: 'Бот'});
+    expect(JSON.stringify(award!.params)).to.not.include('MarsBot');
   });
 
   // §6 / §17 — the award appears ONCE (no duplicate phrasing).

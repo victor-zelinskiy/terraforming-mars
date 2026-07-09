@@ -5930,8 +5930,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
  * consumed by BOTH the icon paths AND the tile's planet-berth ring/dock,
  * so the ship and the ring can never drift out of sync. */
 .colony-fleet-icon {
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     flex: 0 0 auto;
     display: inline-block;
     vertical-align: middle;
@@ -5956,7 +5956,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 .con-fleet-hue--orange { --fleet-fill: #ff9a3d; --fleet-accent: #ffe0b8; --fleet-glow: rgba(255, 154, 61, 0.55); }
 .con-fleet-hue--pink   { --fleet-fill: #ff8fce; --fleet-accent: #ffd6ec; --fleet-glow: rgba(255, 143, 206, 0.5); }
 /* The inspect dossier gives the fleet a touch more presence than a chip. */
-.con-colinspect__fleet-line .colony-fleet-icon { width: 25px; height: 25px; }
+.con-colinspect__fleet-line .colony-fleet-icon { width: 30px; height: 30px; }
 
 /* ── Console Colonies screen ─────────────────────────────────────── */
 .con-colonies {
@@ -6045,8 +6045,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: 3px;
     }
     &__fleetpip {
-        width: 7px;
-        height: 12px;
+        width: 8px;
+        height: 14px;
         border-radius: 3px;
         background: rgba(255, 255, 255, 0.08);
         box-shadow: inset 0 0 0 1px fade(@con-text, 22%);
@@ -6175,16 +6175,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             opacity: 1;
             box-shadow:
                 inset 0 0 0 1px fade(@con-text, 20%),
-                0 0 0 2px var(--fleet-fill),
-                0 0 11px var(--fleet-glow) !important;
+                0 0 0 2.5px var(--fleet-fill),
+                0 0 13px var(--fleet-glow) !important;
         }
     }
     &__dock {
         position: absolute;
-        left: -6px;
-        bottom: -6px;
-        width: 26px;
-        height: 26px;
+        left: -7px;
+        bottom: -7px;
+        width: 30px;
+        height: 30px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -6193,11 +6193,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow:
             0 0 0 2px var(--fleet-fill),
             0 2px 6px rgba(0, 0, 0, 0.6),
-            0 0 10px var(--fleet-glow);
+            0 0 11px var(--fleet-glow);
 
         .colony-fleet-icon {
-            width: 17px;
-            height: 17px;
+            width: 21px;
+            height: 21px;
             filter: none; /* the disc already carries the owner glow */
         }
     }
@@ -11321,8 +11321,8 @@ html.con-profile-handheld {
         &__fleetchip { font-size: 12px; padding: 3px 10px 3px 7px; }
         &__fleetchip-count { font-size: 14px; }
         &__fleetchip-name { max-width: 96px; }
-        &__fleetchip .colony-fleet-icon { width: 20px; height: 20px; }
-        &__fleetpip { width: 6px; height: 11px; }
+        &__fleetchip .colony-fleet-icon { width: 26px; height: 26px; }
+        &__fleetpip { width: 8px; height: 15px; }
         &__grid { gap: 14px 16px; padding: 8px 16px 12px; }
     }
     /* Compact FIXED zones (the height/margin structure is the same as the base
@@ -11333,7 +11333,7 @@ html.con-profile-handheld {
         &__head { height: 52px; gap: 10px; }
         &__name { font-size: 17px; }
         &__planet { width: 48px; height: 48px; }
-        &__dock { width: 23px; height: 23px; .colony-fleet-icon { width: 15px; height: 15px; } }
+        &__dock { width: 34px; height: 34px; .colony-fleet-icon { width: 23px; height: 23px; } }
         &__build-slot { width: 37px; height: 33px; }
         &__mid { height: 34px; margin-top: 6px; gap: 12px; }
         &__rows { margin-top: 7px; gap: 8px; }

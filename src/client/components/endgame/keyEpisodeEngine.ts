@@ -106,9 +106,6 @@ const playerP = (name: string, color: Color | undefined): InsightParam =>
 const stratP = (ctx: InsightContext, color: Color, archetype: StrategyArchetype): InsightParam =>
   ({t: 'i18n', v: strategyLabel(archetype), term: {kind: 'strategy', detail: buildStrategyTermDetail(ctx.players, color, archetype)}});
 const scoreP = (v: number | string): InsightParam => ({t: 'raw', v: String(v), term: {kind: 'score', accent: true}});
-function colorOfName(ctx: InsightContext, name: string): Color | undefined {
-  return ctx.players.find((p) => p.name === name)?.color;
-}
 const vpChip = (n: number): EvidenceChip => ({t: 'raw', v: `+${n}`, label: 'VP', tone: 'good'});
 const labelChip = (k: string, tone: EvidenceChip['tone'] = 'neutral'): EvidenceChip => ({t: 'i18n', v: k, tone});
 const valChip = (v: string, label: string, tone: EvidenceChip['tone'] = 'metric'): EvidenceChip => ({t: 'raw', v, label, tone});
@@ -315,7 +312,7 @@ const episodeTurningPoint: Gen = (ctx) => {
 // tempo episode only once the server attributes the burst to a source.
 
 // 6) Award sponsor-lost — IMPACT-AWARE (twist when small vs the margin, decisive when it covers it).
-function awardSponsorLost(ctx: InsightContext): {funder: string; winner: Color; winnerName: string; award: string; points: number; generation?: number} | undefined {
+function awardSponsorLost(ctx: InsightContext): {funder: string; funderColor: Color; winner: Color; winnerName: string; award: string; points: number; generation?: number} | undefined {
   const byAward = new Map<string, {funder?: string; entries: Array<{color: Color; name: string; place: string; points: number}>}>();
   for (const p of ctx.players) {
     for (const d of p.breakdown.detailsAwards) {
@@ -335,10 +332,12 @@ function awardSponsorLost(ctx: InsightContext): {funder: string; winner: Color; 
     if (first === undefined || first.points === 0 || info.funder === undefined) {
       continue;
     }
-    const funder = ctx.players.find((p) => p.name === info.funder);
+    // Match the RAW funder token against the RAW name, but return the RESOLVED
+    // display name + colour so the episode reads «Бот», never «MarsBot».
+    const funder = ctx.players.find((p) => (p.rawName ?? p.name) === info.funder);
     if (funder !== undefined && funder.color !== first.color) {
       const gen = factsByType(ctx, 'awardFunding').find((f) => f.id === `award:${award}`)?.generation;
-      return {funder: info.funder, winner: first.color, winnerName: first.name, award, points: first.points, generation: gen};
+      return {funder: funder.name, funderColor: funder.color, winner: first.color, winnerName: first.name, award, points: first.points, generation: gen};
     }
   }
   return undefined;
@@ -355,7 +354,7 @@ const episodeAward: Gen = (ctx) => {
     id: 'episode.award', role, phase: 'scoring', generation: a.generation, order: orderOf('scoring', a.generation),
     color: a.winner, badge: 'Award backfired',
     textKey: 'The award went to the wrong player: ${0} funded ${1}, but ${2} took the points for it.',
-    params: [playerP(a.funder, colorOfName(ctx, a.funder)), key(a.award), playerP(a.winnerName, a.winner)],
+    params: [playerP(a.funder, a.funderColor), key(a.award), playerP(a.winnerName, a.winner)],
     evidenceChips: [labelChip(a.award), vpChip(a.points)],
     impact, confidence: 'high', relatedPlayers: [a.winner], dedupeKey: 'award',
     coveredClusters: ['awardRace'],

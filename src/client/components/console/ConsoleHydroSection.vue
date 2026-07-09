@@ -308,9 +308,7 @@
       <ConsoleHydroConfirm v-if="ui.confirmOpen"
                            ref="confirm"
                            :model="model"
-                           :rewardChoice="rewardChoice"
                            :rewardView="rewardView"
-                           @choice="onChoice"
                            @confirm="onModalConfirm"
                            @cancel="ui.confirmOpen = false" />
     </transition>

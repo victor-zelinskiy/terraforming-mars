@@ -621,7 +621,9 @@ const CORP_RULE_OVERRIDES: Partial<Record<CardName, CorporationRuleOverride>> = 
   [CardName.VITOR]: {
     achievements: (ctx, color) => {
       const p = playerOf(ctx, color);
-      const funded = (p?.breakdown.detailsAwards ?? []).some((d) => (d.messageArgs ?? [])[2] === p?.name);
+      // The funder token is the RAW server name — match the raw name, not the
+      // localized display «Бот».
+      const funded = (p?.breakdown.detailsAwards ?? []).some((d) => (d.messageArgs ?? [])[2] === (p?.rawName ?? p?.name));
       const mca = categoryVp(ctx, color, 'mca');
       return funded && mca >= 8 ? [ach('vitorAwards', mca >= 14 ? 'gold' : 'silver', [chipN(mca, 'good', 'VP')], 'Funded the awards that paid off')] : [];
     },

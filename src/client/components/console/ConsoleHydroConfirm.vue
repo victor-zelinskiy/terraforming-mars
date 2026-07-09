@@ -33,25 +33,9 @@
           <span class="con-hydroconfirm__beforeafter">{{ model.availableEnergy }} <span aria-hidden="true">→</span> <b>{{ model.availableEnergy - model.selectedSpend }}</b></span>
         </div>
 
-        <!-- ── Bonus choice (pos 1/2) — still switchable HERE ───────── -->
-        <template v-if="model.targetNeedsChoice && stage !== undefined">
-          <div class="con-start__section-title con-hydroconfirm__bonus-head">
-            <span>{{ $t('Bonus') }}</span>
-            <span class="con-hydroconfirm__bonus-keys" aria-hidden="true">
-              <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
-              <span>{{ $t('Switch bonus') }}</span>
-            </span>
-          </div>
-          <div v-for="(opt, idx) in stage.rewardOptions" :key="idx"
-               class="con-task__option con-hydroconfirm__bonus"
-               :class="{'con-task__option--focused': idx === rewardChoice}"
-               @click="$emit('choice', idx)">
-            <div class="con-task__option-main">
-              <HydroReward :chips="opt" />
-              <span v-if="idx === rewardChoice" class="con-hydroconfirm__tick" aria-hidden="true">✓</span>
-            </div>
-          </div>
-        </template>
+        <!-- The bonus (pos 1/2) is chosen on the plan screen — this modal is a
+             read-only «before → after» beat. B goes back to change it. The
+             chosen bonus is already reflected in the gains below. -->
 
         <!-- ── Result: what the player actually gets ────────────────── -->
         <div class="con-start__section-title">{{ $t('You will gain') }}</div>
@@ -114,7 +98,6 @@
       <!-- ── Footer: the command contract ──────────────────────────── -->
       <footer class="con-task__foot" aria-hidden="true">
         <span class="con-task__foot-item"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
-        <span v-if="model.targetNeedsChoice" class="con-task__foot-item"><GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" /><span>{{ $t('Bonus') }}</span></span>
         <span class="con-task__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Back') }}</span></span>
       </footer>
     </div>
@@ -130,15 +113,17 @@
  *
  *  - the route (stage identity, position, steps);
  *  - the exact energy cost as a before → after readout;
- *  - the chosen bonus (pos 1/2 — LB/RB still switch it here) and the
- *    computed "you will gain" deltas from the SAME pure buildRewardView
- *    the desktop overlay uses;
+ *  - the computed "you will gain" deltas from the SAME pure buildRewardView
+ *    the desktop overlay uses (the bonus for pos 1/2 is chosen on the plan
+ *    screen — here it is FIXED, already baked into these deltas; B goes back
+ *    to change it);
  *  - the pre-picked card (pos 7/9), follow-up flows, skipped-reward and
  *    jump-over warnings.
  *
  * The modal appears even when the reward is fixed / single — it IS the
- * premium "what exactly happens" beat. A = confirm (emits up; the shell
- * submits the byte-identical batch), B = back (nothing committed).
+ * premium "what exactly happens" beat, with no way to alter the choice. A =
+ * confirm (emits up; the shell submits the byte-identical batch), B = back
+ * (nothing committed).
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -155,10 +140,9 @@ export default defineComponent({
   components: {GamepadGlyph, HydroReward},
   props: {
     model: {type: Object as PropType<HydroModel>, required: true},
-    rewardChoice: {type: Number as PropType<number | undefined>, default: undefined},
     rewardView: {type: Object as PropType<HydroRewardView>, required: true},
   },
-  emits: ['confirm', 'cancel', 'choice'],
+  emits: ['confirm', 'cancel'],
   computed: {
     stage(): HydroStage | undefined {
       return this.model.targetStage;
@@ -192,22 +176,9 @@ export default defineComponent({
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
-    cycleChoice(step: 1 | -1): void {
-      const options = this.stage?.rewardOptions.length ?? 0;
-      if (options <= 1) {
-        return;
-      }
-      const cur = this.rewardChoice ?? -1;
-      this.$emit('choice', ((cur + step) % options + options) % options);
-    },
-    /** The shell/section routes every intent here while the modal is open. */
+    /** The shell/section routes every intent here while the modal is open.
+     *  The bonus is fixed on this screen — only A (confirm) / B (back) act. */
     handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.cycleChoice(intent.dir === 'down' ? 1 : -1);
-        }
-        return;
-      }
       if (intent.kind !== 'press') {
         return;
       }
@@ -215,12 +186,6 @@ export default defineComponent({
     },
     onPress(button: SemanticButton): void {
       switch (button) {
-      case 'bumperL':
-        this.cycleChoice(-1);
-        return;
-      case 'bumperR':
-        this.cycleChoice(1);
-        return;
       case 'confirm':
         if (this.model.canConfirm) {
           this.$emit('confirm');

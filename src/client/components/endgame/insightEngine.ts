@@ -1794,7 +1794,9 @@ const analyzeAwardRace: Analyzer = (ctx) => {
     if (bestSwing === undefined || swing > bestSwing.swing) {
       bestSwing = {award, winner: first.player, swing};
     }
-    const funder = info.funder !== undefined ? ctx.players.find((p) => p.name === info.funder) : undefined;
+    // Match the RAW server funder token (messageArgs) against the RAW name — the
+    // display `name` may be localized (a MarsBot funder is «Бот», not «MarsBot»).
+    const funder = info.funder !== undefined ? ctx.players.find((p) => (p.rawName ?? p.name) === info.funder) : undefined;
     if (funder !== undefined && funder.color !== first.player.color && sponsorLost === undefined) {
       sponsorLost = {award, funder, winner: first.player, points: first.points};
     }

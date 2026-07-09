@@ -53,7 +53,15 @@ export type ProductionProfile = {megacredits: number; steel: number; titanium: n
 
 export type EndgamePlayerInput = {
   color: Color;
+  /** DISPLAY name (the MarsBot seat is already «Бот» — resolved by the adapter). */
   name: string;
+  /**
+   * The RAW server name (the MarsBot seat stays «MarsBot»). Needed to match the
+   * server's award-funder log tokens (`detailsAwards.messageArgs[2]` is the raw
+   * name) back to a player, since `name` is the localized display label.
+   * Optional — defaults to `name` (correct for humans, where raw === display).
+   */
+  rawName?: string;
   corporations: ReadonlyArray<string>;
   megacredits: number;
   breakdown: VictoryPointsBreakdown;
@@ -119,6 +127,8 @@ export type EndgameTopCard = {
 export type EndgamePlayerScore = {
   color: Color;
   name: string;
+  /** The RAW server name (matches award-funder log tokens); defaults to `name`. */
+  rawName?: string;
   corporations: ReadonlyArray<string>;
   place: number; // 1-based, ties share the lower place number
   isWinner: boolean;
@@ -392,6 +402,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
     return {
       color: p.color,
       name: p.name,
+      ...(p.rawName !== undefined ? {rawName: p.rawName} : {}),
       corporations: p.corporations,
       place: i + 1,
       isWinner,

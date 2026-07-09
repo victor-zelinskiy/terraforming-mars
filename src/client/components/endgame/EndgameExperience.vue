@@ -94,9 +94,12 @@ export default defineComponent({
         .filter((p) => p.victoryPointsBreakdown !== undefined)
         .map((p) => ({
           color: p.color,
-          // The Automa seat localizes («ИИ») — the whole endgame stack
+          // The Automa seat localizes («Бот») — the whole endgame stack
           // (hero, reveal lanes, narrative) inherits the display name here.
           name: participantDisplayName(p),
+          // The RAW server name is kept so the narrative can match the server's
+          // award-funder log tokens (which use the raw name) back to a player.
+          rawName: p.name,
           corporations: this.corporationsOf(p),
           megacredits: p.megacredits,
           breakdown: p.victoryPointsBreakdown,

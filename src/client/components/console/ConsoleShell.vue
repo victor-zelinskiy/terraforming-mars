@@ -1898,12 +1898,12 @@ export default defineComponent({
         // The console-native Hydronetwork grammar (full rework). The bar is
         // honest: enabled flags come from the section's live-model mirrors.
         if (consoleHydroUi.confirmOpen) {
-          const cmds: Array<ConsoleCommand> = [{control: 'confirm', label: 'Confirm'}];
-          if (consoleHydroUi.bonusChoice) {
-            cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Bonus'});
-          }
-          cmds.push({control: 'back', label: 'Back'});
-          return cmds;
+          // The bonus is chosen on the plan screen; the confirm modal is a
+          // read-only «before → after» beat — B goes back to change it.
+          return [
+            {control: 'confirm', label: 'Confirm'},
+            {control: 'back', label: 'Back'},
+          ];
         }
         if (consoleHydroUi.helpOpen) {
           return [{control: 'back', label: 'Close'}];
