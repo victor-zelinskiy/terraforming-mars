@@ -214,7 +214,7 @@ describe('colonyTradePreview', () => {
 
     // First prompt: the own colony bonus (add 1 microbe).
     const bonusPick = cast(player.getWaitingFor(), SelectCard);
-    bonusPick.process({type: 'card', cards: [CardName.TARDIGRADES]}, player);
+    bonusPick.process({type: 'card', cards: [CardName.TARDIGRADES]});
     runAllActions(game);
 
     // Second prompt: the trade reward (add 3 microbes).

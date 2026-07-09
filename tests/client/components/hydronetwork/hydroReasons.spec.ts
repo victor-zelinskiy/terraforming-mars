@@ -42,7 +42,7 @@ function fullPreview(energy: number, overrides: Partial<DeltaTrackPreviewModel> 
 }
 
 function viewer(overrides: Partial<HydroPlayerPos> = {}): HydroPlayerPos {
-  return {color: 'red', name: 'Red', position: 0, isViewer: true, stops: [], ...overrides};
+  return {color: 'red', name: 'Red', position: 0, isViewer: true, isMarsBot: false, stops: [], ...overrides};
 }
 
 function modelInput(overrides: Partial<HydroModelInput> = {}): HydroModelInput {

@@ -12,6 +12,8 @@ function baseState(): PremiumCreateGameState {
     selectedExpansions[e.id] = true;
   }
   return {
+    gameMode: 'multiplayer',
+    botDifficulty: 'normal',
     players: [
       {slot: 0, name: 'Victor', color: 'green', trBoost: 0, isCreator: true},
       {slot: 1, name: 'Nastya', color: 'pink', trBoost: 0, isCreator: false},

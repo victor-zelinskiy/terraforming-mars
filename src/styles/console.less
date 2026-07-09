@@ -6128,9 +6128,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         &--occupied { box-shadow: inset 0 0 0 1.5px fade(@con-cyan, 55%); }
 
-        /* Tiles (ocean / venus / hazard) render larger than a 32px resource
-           icon — scale them down to sit cleanly inside the 42×38 slot. */
-        .benefit-glyph__tile { transform: scale(0.58); }
+        /* A TILE glyph (ocean / venus / hazard) can't be tamed with `scale()`:
+           the base `.tile` (cards.less) is 40×46 with a FIXED `background-size:
+           40px 46px` + 5–10px margins, so scaling still leaves the margin
+           offset + the non-`contain` background that distorted the ocean into
+           thin "shards". Mirror the WORKING desktop `.colony-tile__build-tile`
+           fix instead — explicit small dimensions, a MATCHING background-size,
+           zero margin — so the tile renders clean + centred in the slot. */
+        .benefit-glyph__tile {
+            transform: none;
+            width: 26px;
+            height: 28px;
+            background-size: 26px 28px;
+            background-repeat: no-repeat;
+            background-position: center;
+            margin: 0;
+        }
         .benefit-glyph__production { transform: scale(0.6); }
     }
     &__cube {

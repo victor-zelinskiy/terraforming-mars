@@ -1,7 +1,6 @@
 import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
-import {TileType} from '../../src/common/TileType';
 import {IGame} from '../../src/server/IGame';
 import {IColony} from '../../src/server/colonies/IColony';
 import {AutomaColonies} from '../../src/server/automa/AutomaColonies';

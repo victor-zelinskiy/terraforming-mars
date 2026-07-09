@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
-import {IGame} from '../../src/server/IGame';
 import {Counter} from '../../src/server/behavior/Counter';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
@@ -26,7 +25,7 @@ function optionTitles(input: OrOptions): Array<string> {
 describe('Automa targeting — the human turn vs MarsBot', () => {
   describe('remove: the M€ supply as the matching resource type', () => {
     it('RemoveAnyPlants offers MarsBot and removes from its M€ supply', () => {
-      const [game, human, bot] = testAutomaGame();
+      const [/* game */, human, bot] = testAutomaGame();
       bot.megaCredits = 7;
       const options = cast(new RemoveAnyPlants(human, 5).execute(), OrOptions);
       const botOption = options.options[0];

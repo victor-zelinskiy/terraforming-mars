@@ -72,7 +72,7 @@ describe('AutomaScoring', () => {
   });
 
   it('the bot\'s full breakdown carries the automa parts and they feed the total', () => {
-    const [game, /* human */, bot] = testAutomaGame();
+    const [/* game */, /* human */, bot] = testAutomaGame();
     bot.megaCredits = 16; // Gen 1 → rate 8 → 2 VP.
     const breakdown = bot.getVictoryPoints();
     expect(breakdown.automa).is.not.undefined;

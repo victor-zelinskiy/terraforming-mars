@@ -6,7 +6,6 @@ import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
 import {TestPlayer} from '../TestPlayer';
 import {fakeCard, runAllActions} from '../TestingUtils';
-import {AutomaController} from '../../src/server/automa/AutomaController';
 import {AutomaDeltaProject, MAX_BOT_DELTA_ROWS} from '../../src/server/automa/AutomaDeltaProject';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
