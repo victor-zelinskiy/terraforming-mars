@@ -516,6 +516,19 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
     out.push(adjacencyVpFact('score-commercial', recipientFor(player, ownerColor), cities,
       'Commercial District scores for adjacent cities', 'Scores +1 VP per adjacent city at game end.', 'No adjacent cities yet.'));
   }
+  // Neural Instance (MarsBot's Local Neural Instance): +1 VP per adjacent space
+  // NOT occupied by the human — i.e. empty or holding a MarsBot tile — at game
+  // end (mirrors AutomaScoring). Its placement rule forbids reserved neighbors,
+  // so the empty/bot-tile reading is total.
+  if (tt === TileType.NEURAL_INSTANCE && ownerColor !== undefined) {
+    const unoccupied = board.getAdjacentSpaces(space)
+      .filter((adj) => adj.tile === undefined || adj.player?.color === ownerColor)
+      .length;
+    out.push(adjacencyVpFact('score-neural-instance', recipientFor(player, ownerColor), unoccupied,
+      'Neural Instance scores for unoccupied neighbors',
+      'Scores +1 VP for MarsBot per adjacent space you do not occupy (empty or a MarsBot tile) at game end.',
+      'No qualifying adjacent spaces yet.'));
+  }
   return out;
 }
 
