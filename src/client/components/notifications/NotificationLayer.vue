@@ -62,6 +62,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {paths} from '@/common/app/paths';
+import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -235,7 +236,7 @@ export default defineComponent({
       // (which made the old transition-tracking show "your turn" only every other
       // turn).
       const waitingFor = this.playerView.waitingFor;
-      const isFirstAction = waitingFor?.type === 'or' && this.titleText(waitingFor) === 'Take your first action';
+      const isFirstAction = waitingFor?.type === 'or' && this.titleText(waitingFor) === ACTION_MENU_FIRST_TITLE;
       const freshTurn = isFirstAction && !this.isLonePlayer();
       if (notificationState.settings.showTurn) {
         let turnModel = buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn});

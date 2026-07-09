@@ -23,6 +23,7 @@ import {
   MarsBotAttack,
   MarsBotBonusFate,
   MarsBotImpactChange,
+  MarsBotLogRole,
   MarsBotStepCause,
   MarsBotTurn,
   MarsBotTurnStep,
@@ -159,23 +160,21 @@ function paramsOfVisual(turn: MarsBotTurn): Array<BotReviewParam> {
   return out;
 }
 
-/**
- * Internal automa bookkeeping that adds noise, not information, to the review:
- * the random tie-break / colony-pick FLIPS, and the "placed tile at <space>"
- * lines (the tile + its «показать» affordance live in the board block, so the
- * chain never repeats the button).
- */
-const NOISE_LOG_TEMPLATES: ReadonlySet<string> = new Set([
-  '${0} flipped ${1} (cost ${2}) to break a placement tie',
-  '${0} flipped ${1} (cost ${2}) to pick a colony tile',
-]);
+/** A random card FLIP (placement tie-break / colony pick) — automa bookkeeping. */
+function isNoiseFlipRole(role: MarsBotLogRole | undefined): boolean {
+  return role === 'tie-flip' || role === 'colony-pick-flip';
+}
 
-function isNoiseLog(message: LogMessage): boolean {
-  if (NOISE_LOG_TEMPLATES.has(message.message)) {
-    return true;
-  }
-  // A placement-location line — deduped against the board block's tile + show.
-  return message.data.some((d) => d.type === LogMessageDataType.SPACE);
+/**
+ * Log lines that add noise, not information, to the review: the random
+ * tie-break / colony-pick FLIPS (by their server-stamped `role`) and the
+ * "placed tile at <space>" lines (the tile + its «показать» affordance live in
+ * the board block, so the chain never repeats the button). Read STRUCTURALLY —
+ * from the role + the SPACE data token — never by matching the (translatable,
+ * i18n-mutated) message template.
+ */
+function isNoiseLog(role: MarsBotLogRole | undefined, message: LogMessage): boolean {
+  return isNoiseFlipRole(role) || message.data.some((d) => d.type === LogMessageDataType.SPACE);
 }
 
 /** A track's capsule = ALL its tags (single icon, or a group for a composite track). */
@@ -227,14 +226,13 @@ function trackMovementLine(source: BotTurnReviewSource, step: Extract<MarsBotTur
   };
 }
 
-/** Is this log line "the bot lost N of a resource" (the trade-fee deduct)? */
-function isBotResourceLoss(message: LogMessage | undefined, botColor: Color | ''): boolean {
-  // The English template is a stable constant (`StockBase.logUnitDelta`);
-  // matching it — not the localized string — is robust across locales.
-  if (message === undefined || message.message !== '${0} lost ${1} ${2}') {
+/** Is this log line "the bot lost N of a resource" (the trade-fee deduct)? Read
+ *  from the server-stamped `role` + the PLAYER token — never the message text. */
+function isBotResourceLoss(step: Extract<MarsBotTurnStep, {kind: 'log'}>, botColor: Color | ''): boolean {
+  if (step.role !== 'resource-loss') {
     return false;
   }
-  const player = message.data.find((d) => d.type === LogMessageDataType.PLAYER);
+  const player = step.message.data.find((d) => d.type === LogMessageDataType.PLAYER);
   return player !== undefined && player.value === botColor;
 }
 
@@ -379,7 +377,7 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'log': {
-      if (isNoiseLog(step.message)) {
+      if (isNoiseLog(step.role, step.message)) {
         break;
       }
       if (isSecondaryStep(step)) {
@@ -387,7 +385,7 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
         break;
       }
       const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
-      const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step.message, source.botColor);
+      const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step, source.botColor);
       chain.lines.push({
         kind: 'log',
         depth: logDepthOf(chain),
@@ -457,11 +455,11 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       break;
     }
     case 'log': {
-      if (isNoiseLog(step.message)) {
+      if (isNoiseLog(step.role, step.message)) {
         break;
       }
       const chain = current ?? ensureLoose();
-      const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step.message, source.botColor);
+      const cost = chain.cause.kind === 'trade' && isBotResourceLoss(step, source.botColor);
       chain.lines.push({
         kind: 'log',
         depth: nextDepth(chain, false),
@@ -502,8 +500,10 @@ function buildVerdict(turn: MarsBotTurn, card: BotReviewCard | undefined, tiles:
   if (tiles.length > 0) {
     return {key: tileVerdictKey(tiles[0].tileType), params: []};
   }
-  // Milestone / award (from the server's own log templates).
-  const claimedMilestone = turn.steps.some((s) => 'message' in s && s.message?.message === '${0} claimed ${1} milestone');
+  // Milestone claim — detected STRUCTURALLY by the MILESTONE data token (the
+  // claim log carries `b.milestone(...)`), never the translatable template.
+  const claimedMilestone = turn.steps.some((s) =>
+    'message' in s && s.message?.data.some((d) => d.type === LogMessageDataType.MILESTONE) === true);
   if (claimedMilestone) {
     return {key: 'Claimed a milestone', params: []};
   }
@@ -614,10 +614,11 @@ function buildCardReferences(turn: MarsBotTurn, card: BotReviewCard | undefined)
       continue;
     }
     const cardTok = message.data.find((d) => d.type === LogMessageDataType.CARD);
-    if (NOISE_LOG_TEMPLATES.has(message.message)) {
+    const role = step.kind === 'log' ? step.role : undefined;
+    if (isNoiseFlipRole(role)) {
       // A random flip — never played; kept out of the inspect browser.
       if (cardTok !== undefined) {
-        technicalReveals.push({name: cardTok.value as CardName, reason: message.message.includes('tie') ? 'tiebreak' : 'pick'});
+        technicalReveals.push({name: cardTok.value as CardName, reason: role === 'tie-flip' ? 'tiebreak' : 'pick'});
       }
       continue;
     }

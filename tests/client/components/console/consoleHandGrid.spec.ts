@@ -127,11 +127,23 @@ describe('consoleHandGrid', () => {
       expect(shortBlockerLabel([reason('rule', 'Card is unavailable')])).to.eq('Condition');
     });
 
-    it('names the specific global parameter from the english message', () => {
+    it('names the specific global parameter from the english message (legacy fallback)', () => {
       expect(shortBlockerLabel([reason('globalParameter', 'Requires ${0}°C')])).to.eq('Temperature');
       expect(shortBlockerLabel([reason('globalParameter', 'Requires Venus ${0}%')])).to.eq('Venus');
       expect(shortBlockerLabel([reason('globalParameter', 'Requires ${0} ocean(s)')])).to.eq('Oceans');
       expect(shortBlockerLabel([reason('globalParameter', 'Requires ${0}% oxygen')])).to.eq('Oxygen');
+    });
+
+    it('names the global parameter STRUCTURALLY from the server field (locale-independent)', () => {
+      // The structural field wins over the message text — so a LOCALISED message
+      // (no English "Venus" / "ocean" / "oxygen" word) still yields the right
+      // label. This is the whole point: never sniff the translatable message.
+      const gp = (globalParameter: NonNullable<UnplayableReason['globalParameter']>): UnplayableReason =>
+        ({type: 'globalParameter', message: 'локализованный текст без ключевого слова', globalParameter});
+      expect(shortBlockerLabel([gp('temperature')])).to.eq('Temperature');
+      expect(shortBlockerLabel([gp('venus')])).to.eq('Venus');
+      expect(shortBlockerLabel([gp('oceans')])).to.eq('Oceans');
+      expect(shortBlockerLabel([gp('oxygen')])).to.eq('Oxygen');
     });
 
     it('uses the PRIMARY (first) reason for the chip', () => {

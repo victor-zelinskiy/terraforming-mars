@@ -46,6 +46,12 @@ export interface UnplayableReason {
   tag?: Tag;
   /** When set, the popover renders this resource's icon next to the text. */
   resource?: Resource;
+  /**
+   * For `type: 'globalParameter'` — WHICH parameter, structurally (so a client
+   * compact label doesn't have to sniff the translatable `message` text for
+   * "Venus" / "ocean" / "oxygen", which vanishes in non-English locales).
+   */
+  globalParameter?: 'temperature' | 'oxygen' | 'oceans' | 'venus';
   /** The player's current value, shown as a muted "now: N" badge. */
   current?: number;
 }

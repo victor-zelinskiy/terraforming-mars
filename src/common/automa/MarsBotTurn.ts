@@ -61,6 +61,19 @@ export type MarsBotStepCause =
   | {kind: 'failed'}
   | {kind: 'delta'};
 
+/**
+ * The SEMANTIC role of a public log line captured during the turn — stamped by
+ * the server (AutomaTurnLog) from the EMITTING template, so the client review
+ * classifies logs from DATA, never by re-matching the message template on the
+ * client (a translatable string i18n may rewrite in place):
+ *  - `tie-flip` / `colony-pick-flip` — a random card FLIP for a placement tie /
+ *    a colony pick (internal bookkeeping the review filters out, and tells apart
+ *    from a genuine reveal);
+ *  - `resource-loss` — a "${0} lost ${1} ${2}" stock deduction (labelled the
+ *    "Trade cost" when it is the bot's own loss inside a colony-trade chain).
+ */
+export type MarsBotLogRole = 'tie-flip' | 'colony-pick-flip' | 'resource-loss';
+
 /** What became of a bonus card THIS turn (Phase B — resolved, not the printed rule). */
 export type MarsBotBonusFate = 'discarded' | 'destroyed' | 'recurring';
 
@@ -160,8 +173,9 @@ export type MarsBotTurnStep =
    * outcome, so the theater never leaves "did I lose anything?" unanswered.
    */
   | {kind: 'attack', attack: MarsBotAttack, message?: LogMessage, cause?: MarsBotStepCause}
-  /** Any other public log line emitted during the turn, in order. */
-  | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause}
+  /** Any other public log line emitted during the turn, in order. `role` is the
+   *  server-stamped semantic (flip noise / a resource loss) the review reads. */
+  | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause, role?: MarsBotLogRole}
   /**
    * The turn's NET effect on one participant — every stock/production/TR
    * value that changed, as explicit before → after pairs. Appended at the end

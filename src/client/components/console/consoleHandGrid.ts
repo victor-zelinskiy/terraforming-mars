@@ -227,7 +227,9 @@ export function shortBlockerLabel(reasons: ReadonlyArray<UnplayableReason>): str
   case 'resource':
     return 'Resource';
   case 'globalParameter':
-    return globalParameterLabel(r.message);
+    // Structural parameter from the server (language-independent). The
+    // message-word probe is a fallback only for older data predating the field.
+    return globalParameterLabelOf(r.globalParameter) ?? globalParameterLabel(r.message);
   case 'turn':
   case 'phase':
     return 'Wait';
@@ -239,7 +241,18 @@ export function shortBlockerLabel(reasons: ReadonlyArray<UnplayableReason>): str
   }
 }
 
-/** The specific parameter for a global-parameter block (English message probe). */
+/** The compact label for a structural global-parameter reason field. */
+function globalParameterLabelOf(param: UnplayableReason['globalParameter']): string | undefined {
+  switch (param) {
+  case 'temperature': return 'Temperature';
+  case 'venus': return 'Venus';
+  case 'oceans': return 'Oceans';
+  case 'oxygen': return 'Oxygen';
+  default: return undefined;
+  }
+}
+
+/** Legacy fallback: name the parameter by probing the English message text. */
 function globalParameterLabel(message: string): string {
   if (message.includes('°C')) {
     return 'Temperature';

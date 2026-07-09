@@ -32,6 +32,7 @@ import {cardsToModel, coloniesToModel} from './ModelUtils';
 import {runId} from '../utils/server-ids';
 import {toName} from '../../common/utils/utils';
 import {MAX_AWARDS, MAX_MILESTONES, MAX_TEMPERATURE} from '../../common/constants';
+import {isActionMenuTitle} from '../../common/inputs/actionMenuTitles';
 import {Message} from '../../common/logs/Message';
 import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -74,8 +75,7 @@ function isInActionSelectionPhase(input: PlayerInput | undefined): boolean {
   if (!input) {
     return false;
   }
-  const title = titleText(input.title);
-  return title === 'Take your first action' || title === 'Take your next action';
+  return isActionMenuTitle(titleText(input.title));
 }
 
 /**

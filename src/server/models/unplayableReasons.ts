@@ -69,13 +69,13 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
   const current = req instanceof InequalityRequirement ? req.getScore(player, card) : undefined;
   switch (req.type) {
   case RequirementType.OXYGEN:
-    return {type: 'globalParameter', message: max ? 'Requires ${0}% oxygen or less' : 'Requires ${0}% oxygen', params: [String(required)], current};
+    return {type: 'globalParameter', globalParameter: 'oxygen', message: max ? 'Requires ${0}% oxygen or less' : 'Requires ${0}% oxygen', params: [String(required)], current};
   case RequirementType.TEMPERATURE:
-    return {type: 'globalParameter', message: max ? 'Requires ${0}°C or colder' : 'Requires ${0}°C', params: [String(required)], current};
+    return {type: 'globalParameter', globalParameter: 'temperature', message: max ? 'Requires ${0}°C or colder' : 'Requires ${0}°C', params: [String(required)], current};
   case RequirementType.VENUS:
-    return {type: 'globalParameter', message: max ? 'Requires Venus ${0}% or less' : 'Requires Venus ${0}%', params: [String(required)], current};
+    return {type: 'globalParameter', globalParameter: 'venus', message: max ? 'Requires Venus ${0}% or less' : 'Requires Venus ${0}%', params: [String(required)], current};
   case RequirementType.OCEANS:
-    return {type: 'globalParameter', message: max ? 'Requires ${0} ocean(s) or fewer' : 'Requires ${0} ocean(s)', params: [String(required)], current};
+    return {type: 'globalParameter', globalParameter: 'oceans', message: max ? 'Requires ${0} ocean(s) or fewer' : 'Requires ${0} ocean(s)', params: [String(required)], current};
   case RequirementType.TR:
     return {type: 'tr', message: max ? 'Requires a terraform rating of ${0} or less' : 'Requires a terraform rating of ${0}', params: [String(required)], current};
   case RequirementType.TAG:

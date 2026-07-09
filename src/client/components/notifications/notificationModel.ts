@@ -5,6 +5,7 @@ import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {GameEvent, JournalActionCategory} from '@/common/events/GameEvent';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
@@ -22,15 +23,11 @@ import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope,
  * the UI or guessed from text.
  */
 
-// ── Action-menu titles ──────────────────────────────────────────────────────
-// Mirrors WaitingFor.vue's ACTION_MENU_TITLES (the ONE inline `or` that is NOT a
-// mandatory sub-prompt). Kept in sync deliberately: when the action menu is the
-// prompt it's the viewer's TURN; any other prompt is an ACTION REQUIRED. These
-// are stable English template strings (never localised in waitingFor).
-const ACTION_MENU_TITLES: ReadonlySet<string> = new Set([
-  'Take your first action',
-  'Take your next action',
-]);
+// The action-menu titles come from the ONE shared source of truth
+// (`@/common/inputs/actionMenuTitles`) — the ONE inline `or` that is NOT a
+// mandatory sub-prompt: when the action menu is the prompt it's the viewer's
+// TURN; any other prompt is ACTION REQUIRED. Plain strings, never localised in
+// waitingFor, so matching them is language-independent.
 
 const UNIT_RANK = new Map<string, number>([
   ['tr', 0],

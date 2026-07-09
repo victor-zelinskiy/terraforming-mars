@@ -855,6 +855,7 @@ import {CardResource} from '@/common/CardResource';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
 import {Payment} from '@/common/inputs/Payment';
+import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {CardName} from '@/common/cards/CardName';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ClaimedMilestoneModel} from '@/common/models/ClaimedMilestoneModel';
@@ -2173,7 +2174,7 @@ export default defineComponent({
       // card or sub-prompt is still resolving. Trade isn't an option
       // until the current prompt completes.
       const title = inputTitleText(wf.title);
-      if (title !== 'Take your first action' && title !== 'Take your next action') {
+      if (!isActionMenuTitle(title)) {
         return 'Another action is in progress';
       }
       // Action menu is up but trade isn't on offer. Server-side gate is

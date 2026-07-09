@@ -18,6 +18,7 @@
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {inputTitleText} from '@/client/console/turnIntents';
+import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 
 export type CardSelectMode = 'draft' | 'buy' | 'target';
 
@@ -99,7 +100,6 @@ export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['pr
  */
 export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDraft', 'startSequence']);
 
-const ACTION_MENU_TITLES: ReadonlyArray<string> = ['Take your first action', 'Take your next action'];
 const WGT_TITLE = 'Select action for World Government Terraforming';
 
 /**
@@ -148,7 +148,7 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
 
   case 'or': {
     const title = inputTitleText(wf.title) ?? '';
-    if (ACTION_MENU_TITLES.includes(title)) {
+    if (isActionMenuTitle(title)) {
       return {kind: 'actionMenu'};
     }
     if (wf.awardFundingPrompt?.free === true) {

@@ -4,7 +4,7 @@ import {Resource} from '../../common/Resource';
 import {TileType} from '../../common/TileType';
 import {SpaceId} from '../../common/Types';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
-import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
+import {MarsBotBonusFate, MarsBotBonusResolution, MarsBotImpactChange, MarsBotLogRole, MarsBotParamChange, MarsBotStepCause, MarsBotTurn, MarsBotTurnStep, MarsBotTurnTile, MarsBotTurnVisual} from '../../common/automa/MarsBotTurn';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 
@@ -147,6 +147,26 @@ function diffOf(before: PlayerSnapshot, player: IPlayer): Array<MarsBotImpactCha
 }
 
 /**
+ * Classify a captured public log line by its template, so the client review
+ * reads a STRUCTURAL `role` instead of re-matching the message text (which i18n
+ * can rewrite in place). Runs on the SERVER, which never localises — the
+ * template is the stable message identity here. Only the lines the review must
+ * recognise are tagged; everything else stays an untagged `log` step.
+ */
+function logRoleOf(message: LogMessage): MarsBotLogRole | undefined {
+  switch (message.message) {
+  case '${0} flipped ${1} (cost ${2}) to break a placement tie':
+    return 'tie-flip';
+  case '${0} flipped ${1} (cost ${2}) to pick a colony tile':
+    return 'colony-pick-flip';
+  case '${0} lost ${1} ${2}':
+    return 'resource-loss';
+  default:
+    return undefined;
+  }
+}
+
+/**
  * Records the typed script of a MarsBot turn (see `MarsBotTurn` in common) —
  * the data feed of the client "turn theater".
  *
@@ -253,10 +273,17 @@ export class AutomaTurnLog {
     }
   }
 
-  /** Push flushed public log lines as `{kind:'log'}` steps, stamped with the live cause. */
+  /** Push flushed public log lines as `{kind:'log'}` steps, stamped with the
+   *  live cause + the semantic `role` the client review classifies from. */
   private static pushLogs(recording: MarsBotTurnRecording, messages: ReadonlyArray<LogMessage>): void {
     for (const message of messages) {
-      recording.steps.push({kind: 'log', message, ...(recording.currentCause !== undefined ? {cause: recording.currentCause} : {})});
+      const role = logRoleOf(message);
+      recording.steps.push({
+        kind: 'log',
+        message,
+        ...(recording.currentCause !== undefined ? {cause: recording.currentCause} : {}),
+        ...(role !== undefined ? {role} : {}),
+      });
     }
   }
 

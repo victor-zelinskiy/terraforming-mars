@@ -115,6 +115,7 @@ import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeServi
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {playerColorClass} from '@/common/utils/utils';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {getPreferences} from '@/client/utils/PreferencesManager';
@@ -188,15 +189,11 @@ const WGT_TITLE = 'Select action for World Government Terraforming';
  */
 const WGT_MARKER_HOLD_MS = 1100;
 
-// Titles of the regular per-turn action menu (`Player.getActions()` in
-// Player.ts). This is the ONE top-level `OrOptions` that must NOT pop as a
-// modal — it's driven by the fork's dedicated action buttons (and renders
-// inline in the hidden legacy overlay as a fallback). Every OTHER top-level
+// The regular per-turn action menu (`Player.getActions()`) titles are the ONE
+// shared source of truth (`@/common/inputs/actionMenuTitles`) — this is the ONE
+// top-level `OrOptions` that must NOT pop as a modal (it's driven by the fork's
+// dedicated action buttons + the inline legacy fallback). Every OTHER top-level
 // `or` is a card-play / forced-event sub-prompt and belongs in the modal.
-const ACTION_MENU_TITLES: ReadonlySet<string> = new Set([
-  'Take your first action',
-  'Take your next action',
-]);
 
 // PlayerInput types that ALWAYS render in the modal when they are the
 // top-level prompt. These can only ever be mandatory sub-decisions (a card

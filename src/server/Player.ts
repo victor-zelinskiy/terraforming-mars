@@ -1,6 +1,7 @@
 import * as constants from '../common/constants';
 import {PlayerId} from '../common/Types';
 import {MILESTONE_COST, REDS_RULING_POLICY_COST} from '../common/constants';
+import {ACTION_MENU_FIRST_TITLE, ACTION_MENU_NEXT_TITLE} from '../common/inputs/actionMenuTitles';
 import {cardsFromJSON, ceosFromJSON, corporationCardsFromJSON, newCorporationCard, preludesFromJSON} from './createCard';
 import {CardName} from '../common/cards/CardName';
 import {CardType} from '../common/cards/CardType';
@@ -1979,7 +1980,7 @@ export class Player implements IPlayer {
 
   public /* for testing */ getActions() {
     const action = new OrOptions()
-      .setTitle(this.actionsTakenThisRound === 0 ? 'Take your first action' : 'Take your next action')
+      .setTitle(this.actionsTakenThisRound === 0 ? ACTION_MENU_FIRST_TITLE : ACTION_MENU_NEXT_TITLE)
       .setButtonLabel('Take action');
 
     const claimableMilestones = this.claimableMilestones();

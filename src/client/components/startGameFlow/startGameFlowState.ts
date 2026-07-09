@@ -17,18 +17,15 @@ import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel, OrOptionsModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
+import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
 
-// The per-turn action menu. Its OrOptions TITLE (unlike the corp OPTION titles)
-// is NOT mutated in place by i18n — the fork's inline action UI relies on this
-// exact match to keep the menu out of the modal, and it works — so matching it
-// here is safe. Used only to tell the action menu apart from a focused
-// sub-action (both are 'or') when deciding whether to collapse to the pill.
-const ACTION_MENU_TITLES: ReadonlySet<string> = new Set([
-  'Take your first action',
-  'Take your next action',
-]);
+// The per-turn action menu titles are the ONE shared source of truth
+// (`@/common/inputs/actionMenuTitles`). Its OrOptions TITLE (unlike the corp
+// OPTION titles) is a plain string NOT mutated in place by i18n, so matching it
+// is safe — used only to tell the action menu apart from a focused sub-action
+// (both are 'or') when deciding whether to collapse to the pill.
 
 function titleText(t: string | Message | undefined): string {
   if (t === undefined) {

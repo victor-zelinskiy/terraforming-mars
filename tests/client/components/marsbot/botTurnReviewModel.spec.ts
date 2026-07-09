@@ -119,7 +119,7 @@ describe('botTurnReviewModel', () => {
   it('6. Shipping Lines trade → trade chain + the M€ deduct is tagged as a trade cost (never a bare loss)', () => {
     const r = buildBotTurnReview(src([
       {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B19_SHIPPING_LINES}, message: log('${0} revealed a bonus card')},
-      {kind: 'log', message: log('${0} lost ${1} ${2}', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.STRING, value: '1'}, {type: LogMessageDataType.STRING, value: 'M€'}] as never)},
+      {kind: 'log', role: 'resource-loss', message: log('${0} lost ${1} ${2}', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.STRING, value: '1'}, {type: LogMessageDataType.STRING, value: 'M€'}] as never)},
       {kind: 'log', message: log('${0} trades with ${1}')},
       {kind: 'log', message: log('${0} gained ${1} resource(s) in its ${2} storage area')},
     ]));
@@ -165,7 +165,7 @@ describe('botTurnReviewModel', () => {
   it('10. milestone claim → its own verdict (from the server log template)', () => {
     const r = buildBotTurnReview(src([
       {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B04_OVERACHIEVEMENT}, message: log('${0} revealed a bonus card')},
-      {kind: 'log', message: log('${0} claimed ${1} milestone')},
+      {kind: 'log', message: log('${0} claimed ${1} milestone', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.MILESTONE, value: 'Terraformer'}] as never)},
     ]));
     expect(r.verdict.key).eq('Claimed a milestone');
   });
@@ -214,7 +214,7 @@ describe('botTurnReviewModel', () => {
   it('B4. colony cause → a trade chain with the fee tagged as a trade cost', () => {
     const r = buildBotTurnReview(src([
       {kind: 'reveal', card: {kind: 'bonus', id: BonusCardId.B19_SHIPPING_LINES}, message: log('${0} revealed a bonus card'), resolution: {fate: 'discarded'}},
-      {kind: 'log', message: log('${0} lost ${1} ${2}', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.STRING, value: '1'}, {type: LogMessageDataType.STRING, value: 'M€'}] as never), cause: {kind: 'colony'}},
+      {kind: 'log', role: 'resource-loss', message: log('${0} lost ${1} ${2}', [{type: LogMessageDataType.PLAYER, value: 'red'}, {type: LogMessageDataType.STRING, value: '1'}, {type: LogMessageDataType.STRING, value: 'M€'}] as never), cause: {kind: 'colony'}},
       {kind: 'log', message: log('${0} trades with ${1}'), cause: {kind: 'colony'}},
     ]));
     expect(r.card?.kind === 'bonus' && r.card.fate).eq('discarded');
@@ -275,7 +275,7 @@ describe('botTurnReviewModel', () => {
       {kind: 'reveal', card: {kind: 'project', name: CardName.BIRDS}},
       {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0, cause: {kind: 'tag', index: 0}},
       {kind: 'advance', trackIndex: 0, from: 3, to: 4, action: 'city', cause: {kind: 'tag', index: 0}},
-      {kind: 'log', message: log('${0} flipped ${1} (cost ${2}) to break a placement tie', [
+      {kind: 'log', role: 'tie-flip', message: log('${0} flipped ${1} (cost ${2}) to break a placement tie', [
         {type: LogMessageDataType.PLAYER, value: 'red'},
         {type: LogMessageDataType.CARD, value: CardName.GENE_REPAIR},
         {type: LogMessageDataType.STRING, value: '13'},
