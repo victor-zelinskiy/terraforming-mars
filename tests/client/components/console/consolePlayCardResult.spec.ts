@@ -35,9 +35,17 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(vp?.variable).to.not.equal(true);
   });
 
-  it('a negative-VP card keeps the sign', () => {
-    const sections = derivePlayResultSections(meta({victoryPoints: -1}), noImmediate);
-    expect(sections.find((s) => s.kind === 'vp')?.detail).to.equal('-1');
+  it('a negative-VP card is a PENALTY (not "Victory points"), signed', () => {
+    const vp = derivePlayResultSections(meta({victoryPoints: -2}), noImmediate).find((s) => s.kind === 'vp');
+    expect(vp?.text).to.equal('Penalty');
+    expect(vp?.penalty).to.equal(true);
+    expect(vp?.detail).to.equal('-2');
+  });
+
+  it('a positive-VP card is NOT flagged as a penalty', () => {
+    const vp = derivePlayResultSections(meta({victoryPoints: 2}), noImmediate).find((s) => s.kind === 'vp');
+    expect(vp?.text).to.equal('Victory points');
+    expect(vp?.penalty).to.not.equal(true);
   });
 
   it('a conditional/resource VP card is marked variable (no fake amount)', () => {

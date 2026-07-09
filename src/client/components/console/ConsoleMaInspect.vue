@@ -156,6 +156,7 @@ import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
 import {buildMaInspect, MaInspectView, MaInspectPlayer} from '@/client/components/console/consoleMaInspectModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 export default defineComponent({
   name: 'ConsoleMaInspect',
@@ -165,8 +166,13 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<MaInspectPlayer>>, required: true},
   },
   computed: {
+    // Resolve every participant label through the ONE display-name helper so a
+    // MarsBot reads «Бот» in the standings, never a raw «MarsBot».
+    displayPlayers(): ReadonlyArray<MaInspectPlayer> {
+      return this.players.map((p) => ({...p, name: participantDisplayName(p)}));
+    },
     view(): MaInspectView {
-      return buildMaInspect(this.item, this.players);
+      return buildMaInspect(this.item, this.displayPlayers);
     },
     headlineTone(): string {
       return this.view.summary.tone;

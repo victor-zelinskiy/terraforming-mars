@@ -185,6 +185,7 @@ import {Log} from '@/common/logs/Log';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
@@ -228,14 +229,14 @@ export default defineComponent({
       if (a === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === a)?.name ?? a;
+      return displayNameForColor(this.players, a);
     },
     attackerName(): string {
       const a = this.notification.negative?.attacker;
       if (a === undefined) {
         return '';
       }
-      return this.players.find((p) => p.color === a)?.name ?? a;
+      return displayNameForColor(this.players, a);
     },
     scopeLabel(): string {
       return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';

@@ -170,6 +170,7 @@
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {CardType} from '@/common/cards/CardType';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -293,7 +294,7 @@ export default defineComponent({
     filterLabel(): string {
       if (this.filter.kind === 'player') {
         const color = this.filter.color;
-        return this.players.find((p) => p.color === color)?.name ?? color;
+        return displayNameForColor(this.players, color);
       }
       return this.$t(this.filter.kind === 'opponents' ? 'Opponents only' : 'All');
     },

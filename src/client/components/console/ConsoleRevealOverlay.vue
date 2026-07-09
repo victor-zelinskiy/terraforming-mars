@@ -149,6 +149,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ColonyTile from '@/client/components/colonies/ColonyTile.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -268,7 +269,7 @@ export default defineComponent({
         return undefined;
       }
       const p = this.playerView.players.find((pp) => pp.color === color);
-      return {color, name: p?.name ?? color};
+      return {color, name: p !== undefined ? participantDisplayName(p) : color};
     },
     viewerOriginLabel(): string {
       return this.viewerReveal?.origin === 'hand' ? 'from hand' : 'from deck';

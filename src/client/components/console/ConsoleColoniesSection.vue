@@ -16,9 +16,17 @@
                 'con-colonies__fleetchip--me': chip.me,
                 'con-colonies__fleetchip--none': chip.free === 0,
               }">
-          <span class="con-colonies__fleetchip-ship colonies-fleet" :class="'colonies-fleet-' + chip.color" aria-hidden="true"></span>
+          <ColonyFleetIcon :color="chip.color" :free="chip.free > 0" />
           <span class="con-colonies__fleetchip-name">{{ chip.name }}</span>
-          <b class="con-colonies__fleetchip-count">{{ chip.free }}/{{ chip.total }}</b>
+          <!-- Free/total as a premium pip strip (≤5 fleets — the whole in-game
+               range); a bigger fleet falls back to a compact numeric so the
+               chip never sprawls. Filled = a free (untraded) fleet. -->
+          <span v-if="chip.total <= 5" class="con-colonies__fleetpips" :aria-label="chip.free + '/' + chip.total">
+            <i v-for="n in chip.total" :key="n"
+               class="con-colonies__fleetpip"
+               :class="{'con-colonies__fleetpip--free': n <= chip.free}"></i>
+          </span>
+          <b v-else class="con-colonies__fleetchip-count">{{ chip.free }}/{{ chip.total }}</b>
         </span>
       </div>
     </header>
@@ -33,8 +41,6 @@
              class="con-colonies__slot"
              :ref="i === index ? 'selectedSlot' : undefined">
           <ConsoleColonyTile :colony="colony"
-                             :players="players"
-                             :viewerColor="viewerColor"
                              :tradeOffset="tradeOffset"
                              :focused="i === index"
                              :status="tileStatus(colony)" />
@@ -71,7 +77,8 @@ import {colonyGridLayout, ColonyGridLayout} from '@/client/console/consoleColoni
 import {freeTradeFleets} from '@/client/components/colonies/colonyTradePlan';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
-import {translateText} from '@/client/directives/i18n';
+import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */
 export type ConsoleColonyPick = {
@@ -87,7 +94,7 @@ type FleetChip = {color: Color, name: string, free: number, total: number, me: b
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleColonyTile},
+  components: {ConsoleColonyTile, ColonyFleetIcon},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -130,6 +137,16 @@ export default defineComponent({
       const reason = this.pick?.reasons[name];
       return reason !== undefined && reason !== '' ? reason : translateText('Unavailable right now');
     },
+    /** The parked-fleet status, naming the owner (self / named opponent). */
+    visitorStatusText(visitor: Color): string {
+      if (visitor === this.viewerColor) {
+        return translateText('Your trade fleet is currently here');
+      }
+      const player = this.players.find((p) => p.color === visitor);
+      return player !== undefined ?
+        translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]) :
+        translateText('Fleet already here');
+    },
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
       if (this.pick !== undefined) {
         if (this.isPickable(colony.name)) {
@@ -144,7 +161,7 @@ export default defineComponent({
         return {kind: 'ok', text: translateText('Trade available')};
       }
       if (colony.visitor !== undefined) {
-        return {kind: 'blocked', text: translateText('Fleet already here')};
+        return {kind: 'blocked', text: this.visitorStatusText(colony.visitor)};
       }
       // No open trade window (not my turn / no fleets): the tiles stay calm —
       // the shared reason lives in the greyed fleet chip and the A-press notice.

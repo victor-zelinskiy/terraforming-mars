@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   automaDisplayName,
   automaDisplayNameWithDifficulty,
+  displayNameForColor,
   participantDisplayName,
 } from '@/client/components/marsbot/marsBotDisplay';
 
@@ -27,5 +28,17 @@ describe('marsBotDisplay — the participant display-name resolver', () => {
   it('the compact difficulty label joins with the bullet', () => {
     expect(automaDisplayNameWithDifficulty('normal')).eq(`${automaDisplayName()} • Normal`);
     expect(automaDisplayNameWithDifficulty('brutal')).eq(`${automaDisplayName()} • Brutal`);
+  });
+
+  it('displayNameForColor resolves a colour to the participant label (bot → the i18n key, never «MarsBot»)', () => {
+    const players = [
+      {color: 'red', name: 'Victor'},
+      {color: 'blue', name: 'MarsBot', isMarsBot: true},
+    ];
+    expect(displayNameForColor(players, 'red')).eq('Victor');
+    expect(displayNameForColor(players, 'blue')).eq(automaDisplayName());
+    // An unknown colour falls back to the colour string; undefined → ''.
+    expect(displayNameForColor(players, 'green')).eq('green');
+    expect(displayNameForColor(players, undefined)).eq('');
   });
 });

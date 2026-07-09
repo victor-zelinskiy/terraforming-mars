@@ -206,6 +206,7 @@ import {defineComponent} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import ColonyTile from './ColonyTile.vue';
 import ColonyDetailView from './ColonyDetailView.vue';
@@ -462,7 +463,7 @@ export default defineComponent({
         return '';
       }
       const p = this.players.find((p) => p.color === colony.visitor);
-      return p?.name ?? '';
+      return p !== undefined ? participantDisplayName(p) : '';
     },
     onBackdropClick(): void {
       // Defensive: when minimized, CSS already makes the backdrop

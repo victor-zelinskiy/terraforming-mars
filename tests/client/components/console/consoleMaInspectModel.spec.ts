@@ -94,7 +94,8 @@ describe('consoleMaInspectModel', () => {
         players(R, B));
       expect(v.mode).to.eq('award-standings');
       expect(v.taken).to.eq(true);
-      expect(v.owner).to.deep.eq({color: B, name: 'Bob'});
+      // Owner name is resolved from the players array by colour (players(B) = 'blue').
+      expect(v.owner).to.deep.eq({color: B, name: 'blue'});
       expect(v.rows).to.have.length(2);
     });
   });
@@ -169,8 +170,10 @@ describe('consoleMaInspectModel', () => {
         players(R, B));
       expect(v.mode).to.eq('milestone-claimed');
       expect(v.rows).to.have.length(0);
-      expect(v.owner).to.deep.eq({color: B, name: 'Bob'});
-      expect(v.summary).to.deep.eq({tone: 'claimed-other', name: 'Bob', color: B});
+      // The owner name is resolved from the (caller display-mapped) players by
+      // COLOUR, so a MarsBot claimant reads «Бот»; here players(B) is 'blue'.
+      expect(v.owner).to.deep.eq({color: B, name: 'blue'});
+      expect(v.summary).to.deep.eq({tone: 'claimed-other', name: 'blue', color: B});
     });
 
     it('claimed-you tone when the viewer owns it', () => {

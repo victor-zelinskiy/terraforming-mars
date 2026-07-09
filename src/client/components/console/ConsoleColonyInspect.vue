@@ -98,7 +98,7 @@
           <div class="con-colinspect__block">
             <div class="con-colinspect__section-title">{{ $t('Trading') }}</div>
             <div v-if="colony.visitor !== undefined" class="con-colinspect__fleet-line">
-              <span class="con-coltile__fleet-ship colonies-fleet" :class="'colonies-fleet-' + colony.visitor" aria-hidden="true"></span>
+              <ColonyFleetIcon :color="colony.visitor" />
               <span>{{ visitorLine }}</span>
             </div>
             <!-- The trade verdict + payment table belong to the interactive
@@ -178,6 +178,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -191,7 +192,7 @@ type TargetRow = {roleLabel: string, iconClass: string, amount: number, cards: R
 
 export default defineComponent({
   name: 'ConsoleColonyInspect',
-  components: {BenefitGlyph},
+  components: {BenefitGlyph, ColonyFleetIcon},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},

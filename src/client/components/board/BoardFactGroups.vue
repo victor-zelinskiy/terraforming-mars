@@ -14,6 +14,7 @@
 import {defineComponent, PropType} from 'vue';
 import {BoardFact, BoardFactGroup, groupFactsByRecipient} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
 
@@ -51,7 +52,7 @@ export default defineComponent({
       return undefined;
     },
     playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+      return displayNameForColor(this.players, color);
     },
     groupLabel(group: BoardFactGroup): string {
       const r = group.recipient;

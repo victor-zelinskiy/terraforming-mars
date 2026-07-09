@@ -102,6 +102,7 @@ import {boardInfoState} from '@/client/components/board/boardInfoState';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {BoardCellInfo, BoardCellStatus, BoardFact} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
@@ -187,7 +188,7 @@ export default defineComponent({
       if (color === undefined) {
         return undefined;
       }
-      return this.cfg.players.find((p) => p.color === color)?.name ?? color;
+      return displayNameForColor(this.cfg.players, color);
     },
     tileName(): string | undefined {
       // Name a SPECIAL / composite tile (Capital, New Holland, volcanoes, …) or a
@@ -274,7 +275,7 @@ export default defineComponent({
   },
   methods: {
     playerName(color: Color): string {
-      return this.cfg.players.find((p) => p.color === color)?.name ?? color;
+      return displayNameForColor(this.cfg.players, color);
     },
     statusLabel(status: string): string {
       switch (status) {

@@ -69,6 +69,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {SpaceId} from '@/common/Types';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
@@ -106,7 +107,7 @@ export default defineComponent({
   },
   methods: {
     playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+      return displayNameForColor(this.players, color);
     },
     iconClass(icon: string): string {
       return iconClassFor(icon);

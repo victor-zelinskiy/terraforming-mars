@@ -5869,6 +5869,42 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
+/* ── Premium trade-fleet TOKEN + per-player hue vars ─────────────── *
+ * The crisp SVG replacement (ColonyFleetIcon) for the legacy raster
+ * `colony_ships.png` sprite across every console colonies surface. The
+ * `con-fleet-hue--<color>` class sets three INHERITABLE custom props —
+ * bright, dark-glass-legible (the raw @player_* hues are too dark) —
+ * consumed by BOTH the icon paths AND the tile's planet-berth ring/dock,
+ * so the ship and the ring can never drift out of sync. */
+.colony-fleet-icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    display: inline-block;
+    vertical-align: middle;
+    filter: drop-shadow(0 0 3px var(--fleet-glow, transparent));
+
+    .cfi-hull {
+        fill: var(--fleet-fill, #cfd8e0);
+        stroke: rgba(0, 0, 0, 0.42);
+        stroke-width: 0.6;
+        stroke-linejoin: round;
+    }
+    .cfi-accent { fill: var(--fleet-accent, #ffffff); }
+    .cfi-flame { fill: #ffce7a; opacity: 0; }
+    &--free .cfi-flame { opacity: 0.92; }
+}
+.con-fleet-hue--red    { --fleet-fill: #ff5a48; --fleet-accent: #ffd0c8; --fleet-glow: rgba(255, 90, 72, 0.55); }
+.con-fleet-hue--yellow { --fleet-fill: #ffe14d; --fleet-accent: #fff4b0; --fleet-glow: rgba(255, 225, 77, 0.5); }
+.con-fleet-hue--green  { --fleet-fill: #4fe06a; --fleet-accent: #d6ffdd; --fleet-glow: rgba(79, 224, 106, 0.55); }
+.con-fleet-hue--black  { --fleet-fill: #cfd8e0; --fleet-accent: #ffffff; --fleet-glow: rgba(207, 216, 224, 0.5); }
+.con-fleet-hue--blue   { --fleet-fill: #4d97ff; --fleet-accent: #cfe2ff; --fleet-glow: rgba(77, 151, 255, 0.55); }
+.con-fleet-hue--purple { --fleet-fill: #b45cff; --fleet-accent: #e6ccff; --fleet-glow: rgba(180, 92, 255, 0.55); }
+.con-fleet-hue--orange { --fleet-fill: #ff9a3d; --fleet-accent: #ffe0b8; --fleet-glow: rgba(255, 154, 61, 0.55); }
+.con-fleet-hue--pink   { --fleet-fill: #ff8fce; --fleet-accent: #ffd6ec; --fleet-glow: rgba(255, 143, 206, 0.5); }
+/* The inspect dossier gives the fleet a touch more presence than a chip. */
+.con-colinspect__fleet-line .colony-fleet-icon { width: 25px; height: 25px; }
+
 /* ── Console Colonies screen ─────────────────────────────────────── */
 .con-colonies {
     flex: 1;
@@ -5942,9 +5978,27 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         }
         &--none {
             .con-colonies__fleetchip-count { color: @con-amber; }
+            .con-colonies__fleetpip { box-shadow: inset 0 0 0 1px fade(@con-amber, 45%); }
         }
     }
-    &__fleetchip-ship { transform: scale(0.95); }
+    /* Free/total as a segmented pip strip — filled = a free (untraded) fleet. */
+    &__fleetpips {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+    &__fleetpip {
+        width: 7px;
+        height: 12px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 0 0 1px fade(@con-text, 22%);
+
+        &--free {
+            background: @con-mint;
+            box-shadow: 0 0 7px fade(@con-mint, 65%);
+        }
+    }
     &__fleetchip-name {
         font-weight: 700;
         letter-spacing: 0.4px;
@@ -6058,27 +6112,45 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    /* The parked trade fleet — colour ship + owner, ON the tile. */
-    &__fleet {
-        flex: 0 1 auto;
-        min-width: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 3px 10px 3px 7px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.45);
-        box-shadow: inset 0 0 0 1px fade(@con-text, 30%);
-        white-space: nowrap;
+    /* Planet medallion + its DOCKED trade fleet (replaces the old inline sprite
+       badge that crowded the planet). The berth is the positioning context;
+       when occupied it carries the owner-hue vars so the planet's ring and the
+       dock disc glow in the owner's colour — a clean "ship docked at this
+       colony", never a coarse overlaid sprite. */
+    &__planet-berth {
+        flex: 0 0 auto;
+        position: relative;
+        display: flex;
+
+        &--occupied .con-coltile__planet {
+            opacity: 1;
+            box-shadow:
+                inset 0 0 0 1px fade(@con-text, 20%),
+                0 0 0 2px var(--fleet-fill),
+                0 0 11px var(--fleet-glow) !important;
+        }
     }
-    &__fleet-ship { transform: scale(0.9); }
-    &__fleet-name {
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 96px;
+    &__dock {
+        position: absolute;
+        left: -5px;
+        bottom: -5px;
+        width: 19px;
+        height: 19px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: @con-glass;
+        box-shadow:
+            0 0 0 1.5px var(--fleet-fill),
+            0 2px 6px rgba(0, 0, 0, 0.6),
+            0 0 8px var(--fleet-glow);
+
+        .colony-fleet-icon {
+            width: 13px;
+            height: 13px;
+            filter: none; /* the disc already carries the owner glow */
+        }
     }
     /* Planet art — the manifest `.<Name>-background` supplies the IMAGE, but
        its legacy per-planet `background-size` / `background-position` (tuned
@@ -10672,6 +10744,11 @@ html.console-mode {
         background: rgba(14, 24, 36, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
         &--vp { box-shadow: inset 0 0 0 1px fade(@con-mint, 34%); }
+        &--penalty {
+            box-shadow: inset 0 0 0 1px fade(@con-amber, 42%);
+            .con-composer__rescat-glyph { color: fade(@con-amber, 92%); }
+            .con-composer__rescat-text b { color: #ffb0a6; }
+        }
         &--fallback { color: @con-text-dim; }
     }
     &__rescat-glyph {
@@ -11192,6 +11269,8 @@ html.con-profile-handheld {
         &__fleetchip { font-size: 12px; padding: 3px 10px 3px 7px; }
         &__fleetchip-count { font-size: 14px; }
         &__fleetchip-name { max-width: 96px; }
+        &__fleetchip .colony-fleet-icon { width: 20px; height: 20px; }
+        &__fleetpip { width: 6px; height: 11px; }
         &__grid { gap: 14px 16px; padding: 8px 16px 12px; }
     }
     /* Compact FIXED zones (the height/margin structure is the same as the base
@@ -11202,6 +11281,7 @@ html.con-profile-handheld {
         &__head { height: 38px; gap: 8px; }
         &__name { font-size: 17px; }
         &__planet { width: 36px; height: 36px; }
+        &__dock { width: 17px; height: 17px; .colony-fleet-icon { width: 12px; height: 12px; } }
         &__build-slot { width: 37px; height: 33px; }
         &__mid { height: 34px; margin-top: 6px; gap: 12px; }
         &__rows { margin-top: 7px; gap: 8px; }

@@ -38,6 +38,8 @@ export type PlayResultSection = {
   /** A VP whose exact endgame value can't be known in the preview (conditional /
    *  per-resource) — the component shows "depends on conditions" instead of a number. */
   variable?: boolean;
+  /** A NEGATIVE fixed VP — shown as a "Penalty: -N VP" line, not "Victory points". */
+  penalty?: boolean;
   /** The printed tags this card adds (for the `tags` section chips). */
   tags?: ReadonlyArray<Tag>;
 };
@@ -95,11 +97,15 @@ function victoryPointSection(vp: PlayCardResultMeta['victoryPoints']): PlayResul
   }
   // Compact label — the player knows card VP are scored at game end, so the row
   // reads "Victory points: +1" (the "at game end" detail lives in fullscreen).
+  // A NEGATIVE fixed VP is a downside — shown as "Penalty: -N VP", not "Victory points".
   if (typeof vp === 'number') {
     if (vp === 0) {
       return undefined;
     }
-    return {kind: 'vp', text: 'Victory points', detail: vp > 0 ? `+${vp}` : `${vp}`};
+    if (vp < 0) {
+      return {kind: 'vp', text: 'Penalty', detail: `${vp}`, penalty: true};
+    }
+    return {kind: 'vp', text: 'Victory points', detail: `+${vp}`};
   }
   // 'special' or a CountableVictoryPoints (per-resource / per-tag / conditional)
   // — the exact endgame value can't be known now, so state it honestly.

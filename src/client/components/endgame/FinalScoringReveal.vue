@@ -272,6 +272,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
@@ -460,7 +461,8 @@ export default defineComponent({
   },
   methods: {
     nameOf(color: Color): string {
-      return this.reveal.players.find((p) => p.color === color)?.name ?? '';
+      const p = this.reveal.players.find((pp) => pp.color === color);
+      return p !== undefined ? participantDisplayName(p) : '';
     },
     displayedTotal(color: Color): number {
       return Math.round(this.displayed[color] ?? 0);

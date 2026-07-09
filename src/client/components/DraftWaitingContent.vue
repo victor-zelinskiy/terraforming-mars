@@ -31,6 +31,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {translateText} from '@/client/directives/i18n';
 
@@ -67,7 +68,10 @@ export default defineComponent({
       const me = this.playerView.thisPlayer.color;
       const names = this.waitingOnPlayers
         .filter((color: Color) => color !== me)
-        .map((color: Color) => this.playerView.players.find((p) => p.color === color)?.name)
+        .map((color: Color) => {
+          const p = this.playerView.players.find((pp) => pp.color === color);
+          return p !== undefined ? participantDisplayName(p) : undefined;
+        })
         .filter((n): n is string => typeof n === 'string' && n.length > 0);
       return names.join(', ');
     },

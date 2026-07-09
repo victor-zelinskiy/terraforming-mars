@@ -18,12 +18,17 @@
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
       <span class="con-coltile__name">{{ $t(colony.name) }}</span>
-      <!-- The parked trade fleet — colour ship + owner, ON the tile. -->
-      <span v-if="fleet !== undefined" class="con-coltile__fleet">
-        <span class="con-coltile__fleet-ship colonies-fleet" :class="'colonies-fleet-' + fleet.color" aria-hidden="true"></span>
-        <span class="con-coltile__fleet-name" :class="'con-coltile__fleet-name--' + fleet.color">{{ fleet.label }}</span>
+      <!-- Planet medallion + the parked trade fleet DOCKED at its corner:
+           an owner-hue ring on the planet + a crisp ship token in the berth
+           (replaces the old crude oversized sprite that crowded the planet;
+           the owner is the ring/ship colour, named in the status line). -->
+      <span class="con-coltile__planet-berth"
+            :class="colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'con-fleet-hue--' + colony.visitor] : []">
+        <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
+        <span v-if="colony.visitor !== undefined" class="con-coltile__dock" aria-hidden="true">
+          <ColonyFleetIcon :color="colony.visitor" />
+        </span>
       </span>
-      <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
     </header>
 
     <!-- Build slots (owner cubes) + the live 7-cell track in ONE band. -->
@@ -88,13 +93,10 @@
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
-import {Color} from '@/common/Color';
-import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateText} from '@/client/directives/i18n';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ColonyFleetIcon from '@/client/components/console/ColonyFleetIcon.vue';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',
@@ -105,11 +107,9 @@ type TrackCell = {index: number, marker: boolean, effective: boolean, passed: bo
 
 export default defineComponent({
   name: 'ConsoleColonyTile',
-  components: {BenefitGlyph},
+  components: {BenefitGlyph, ColonyFleetIcon},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     /** The viewer's standing trade offset (Trading Colony etc.). */
     tradeOffset: {type: Number, default: 0},
     focused: {type: Boolean, default: false},
@@ -172,17 +172,6 @@ export default defineComponent({
     },
     trackPositionDisplay(): string {
       return `${Math.min(this.colony.trackPosition, this.trackMax) + 1}/${this.trackMax + 1}`;
-    },
-    fleet(): {color: Color, label: string} | undefined {
-      const visitor = this.colony.visitor;
-      if (visitor === undefined) {
-        return undefined;
-      }
-      if (visitor === this.viewerColor) {
-        return {color: visitor, label: translateText('Your fleet')};
-      }
-      const player = this.players.find((p) => p.color === visitor);
-      return {color: visitor, label: player !== undefined ? participantDisplayName(player) : translateText('Fleet')};
     },
   },
 });

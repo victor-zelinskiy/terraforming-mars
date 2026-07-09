@@ -212,6 +212,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
@@ -523,7 +524,7 @@ export default defineComponent({
       const out: Array<{color: Color, name: string, count: number}> = [];
       counts.forEach((count, color) => {
         const p = this.players.find((pp) => pp.color === color);
-        out.push({color, name: p?.name ?? String(color), count});
+        out.push({color, name: p !== undefined ? participantDisplayName(p) : String(color), count});
       });
       return out;
     },

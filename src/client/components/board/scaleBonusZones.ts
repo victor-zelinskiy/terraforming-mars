@@ -33,6 +33,7 @@
  */
 
 import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {placeArcMarker, spreadValues, MarkerSide} from '@/client/components/board/arcScaleGeometry';
 
 export type BonusZoneTier = 'regular' | 'final';
@@ -213,7 +214,7 @@ export function resolveScaleBonusClaim(
   return {
     state: 'claimed',
     claimColor: CLAIM_COLOR_HEX[claim] ?? '',
-    claimedBy: players.find((p) => p.color === claim)?.name ?? '',
+    claimedBy: displayNameForColor(players, claim),
   };
 }
 

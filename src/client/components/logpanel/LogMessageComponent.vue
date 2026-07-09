@@ -50,6 +50,7 @@
 
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {LogMessage} from '@/common/logs/LogMessage';
@@ -139,7 +140,7 @@ export default defineComponent({
     },
     getPlayerName(color: Color) {
       const player = this.viewModel.players.find((player) => player.color === color);
-      return player?.name ?? color;
+      return player !== undefined ? participantDisplayName(player) : color;
     },
     resourceIconClass(value: string): string {
       return logResourceIconClass(value);

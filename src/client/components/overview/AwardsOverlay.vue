@@ -64,7 +64,7 @@
           <div v-if="a.playerName" class="award-row-fundedby">
             <span v-i18n>funded by</span>
             <player-cube :color="a.color" :size="14"></player-cube>
-            <span>{{ a.playerName }}</span>
+            <span>{{ playerName(a.color) }}</span>
           </div>
         </div>
 
@@ -113,6 +113,7 @@ import {AWARD_COSTS, MAX_AWARDS} from '@/common/constants';
 import {getAward} from '@/client/MilestoneAwardManifest';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 
 type TooltipPos = {top: number; left: number};
 
@@ -253,8 +254,8 @@ export default defineComponent({
     assetName(name: AwardName): string {
       return name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
     },
-    playerName(color: Color): string {
-      return this.players.find((p) => p.color === color)?.name ?? color;
+    playerName(color: Color | undefined): string {
+      return displayNameForColor(this.players, color);
     },
     /**
      * Conceptually fundable: the award itself is still up for grabs AND

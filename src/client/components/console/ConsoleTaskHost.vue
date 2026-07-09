@@ -354,6 +354,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
+import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 /** A render-ready target-impact row: a resource/M€ stock change (iconClass), or
  *  a MarsBot production hit shown as its track's Tag + step count. */
@@ -643,7 +644,7 @@ export default defineComponent({
             raw = [{icon: model.icon, from: current, to: current - model.amount, scope}];
           }
         }
-        return {color, name: p?.name ?? color, corp, changes: raw.map((r) => this.toTargetRow(r))};
+        return {color, name: p !== undefined ? participantDisplayName(p) : color, corp, changes: raw.map((r) => this.toTargetRow(r))};
       });
     },
     disabledPlayerEntries(): Array<{color: Color, name: string, reason: string}> {
@@ -653,7 +654,7 @@ export default defineComponent({
       const model = this.wf as PlayerInputModel & {type: 'player', disabledPlayers?: ReadonlyArray<{color: Color, reason?: string | Message}>};
       return (model.disabledPlayers ?? []).map((d) => ({
         color: d.color,
-        name: this.playerView.players.find((p) => p.color === d.color)?.name ?? d.color,
+        name: displayNameForColor(this.playerView.players, d.color),
         reason: textOf(d.reason),
       }));
     },

@@ -198,6 +198,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -591,7 +592,7 @@ export default defineComponent({
     },
     playerName(color: string): string {
       const p = this.playerView.players.find((pl) => pl.color === color);
-      return p?.name ?? color;
+      return p !== undefined ? participantDisplayName(p) : color;
     },
     choiceTitle(c: ComposerChoice): string {
       const t = textOf(c.input.title);

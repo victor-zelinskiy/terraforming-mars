@@ -98,8 +98,9 @@
 
               <!-- Derived result categories — the block is NEVER empty. A tag
                    row is "label: [inline chips]"; a VP row is "label: +N". -->
-              <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat" :class="'con-composer__rescat--' + sec.kind">
-                <span class="con-composer__rescat-glyph" aria-hidden="true">{{ rescatGlyph(sec.kind) }}</span>
+              <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
+                   :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind]">
+                <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
                 <span class="con-composer__rescat-text"
                 >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
                 ><template v-else-if="sec.kind === 'tags'">:</template></span>
@@ -237,6 +238,8 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
+import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -510,7 +513,9 @@ export default defineComponent({
       }
       for (const s of b.steps) {
         if (s.kind === 'boardPlacement') {
-          out.push(translateText('Choose a location on the board'));
+          // A colony build is a SelectColony (off-Mars), NOT a board-space pick —
+          // the placementType tells them apart.
+          out.push(translateText(s.placementType === 'colony' ? 'Choose where to build a colony' : 'Choose a location on the board'));
         } else if (s.kind === 'tabbedTargets') {
           out.push(translateText('Choose a target'));
         } else if (s.kind === 'note' && s.noteKind !== 'warning') {
@@ -704,7 +709,14 @@ export default defineComponent({
       }
     },
     vpDetail(sec: PlayResultSection): string {
-      return sec.variable === true ? translateText('depends on conditions') : (sec.detail ?? '');
+      if (sec.variable === true) {
+        return translateText('depends on conditions');
+      }
+      // A penalty spells the unit out — "-2 ПО" — so the negative reads clearly.
+      if (sec.penalty === true) {
+        return `${sec.detail ?? ''} ${translateText('VP')}`;
+      }
+      return sec.detail ?? '';
     },
     fetchPreview(): void {
       const cardName = this.cardName;
@@ -911,7 +923,7 @@ export default defineComponent({
       return `${from} → ${Math.max(0, from + c.amount)}`;
     },
     playerName(color: string): string {
-      return this.playerView.players.find((pl) => pl.color === color)?.name ?? color;
+      return displayNameForColor(this.playerView.players, color as Color);
     },
     branchTitle(b: ActionPreviewBranch): string {
       const t = textOf(b.title);

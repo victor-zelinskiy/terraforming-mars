@@ -230,6 +230,7 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {translateText} from '@/client/directives/i18n';
@@ -304,8 +305,7 @@ export default defineComponent({
   },
   methods: {
     playerName(color: Color): string {
-      const p = this.players.find((p) => p.color === color);
-      return p?.name ?? String(color);
+      return displayNameForColor(this.players, color);
     },
     // Build a benefit object for a single trade-track cell at position
     // `idx` — same shape as the build/colony metadata, but with the

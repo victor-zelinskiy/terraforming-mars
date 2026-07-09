@@ -29,7 +29,9 @@ import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
 
 export type MaInspectMode = 'award-standings' | 'milestone-race' | 'milestone-condition' | 'milestone-claimed';
 
-export type MaInspectPlayer = {color: Color, name: string};
+// `name` is the already-RESOLVED display label (the caller maps it through
+// participantDisplayName so a MarsBot reads «Бот», never a raw «MarsBot»).
+export type MaInspectPlayer = {color: Color, name: string, isMarsBot?: boolean};
 
 export type MaInspectRow = {
   color: Color,
@@ -140,6 +142,9 @@ export function buildMaInspect(
   // Rows are built from the AUTHORITATIVE player list (so a player with no
   // score still appears in the race). Standings/progress sort by score; a
   // condition list sorts the players who already MEET it to the top.
+  // The rows/owner carry the caller-resolved display names; resolve the owner
+  // («claimed by …») the SAME way — by colour — so a MarsBot claimant reads «Бот».
+  const nameOf = (c: Color): string => players.find((p) => p.color === c)?.name ?? '';
   const base = players.map((p) => {
     const s = scoreOf(p.color);
     return {color: p.color, name: p.name, score: s?.score ?? 0, claimable: s?.claimable === true, viewer: p.color === item.myColor};
@@ -168,7 +173,8 @@ export function buildMaInspect(
   }));
 
   const viewer = rows.find((r) => r.viewer);
-  const summary = buildSummary(mode, item, viewer, topScore, leaderCount, threshold);
+  const ownerName = item.takenBy !== undefined ? (nameOf(item.takenBy.color) || item.takenBy.name) : '';
+  const summary = buildSummary(mode, item, viewer, topScore, leaderCount, threshold, ownerName);
 
   return {
     mode,
@@ -178,7 +184,7 @@ export function buildMaInspect(
     description: item.description,
     threshold,
     rows: mode === 'milestone-claimed' ? [] : rows,
-    owner: item.takenBy,
+    owner: item.takenBy !== undefined ? {color: item.takenBy.color, name: ownerName} : undefined,
     taken,
     playersCount: players.length,
     vpFirst: 5,
@@ -194,12 +200,13 @@ function buildSummary(
   topScore: number,
   leaderCount: number,
   threshold: number | undefined,
+  ownerName: string,
 ): MaInspectSummary {
   if (mode === 'milestone-claimed') {
     if (item.takenBy !== undefined && item.takenBy.color === item.myColor) {
       return {tone: 'claimed-you'};
     }
-    return {tone: 'claimed-other', name: item.takenBy?.name ?? '', color: item.takenBy?.color ?? item.myColor};
+    return {tone: 'claimed-other', name: ownerName, color: item.takenBy?.color ?? item.myColor};
   }
   if (mode === 'milestone-condition') {
     return viewer?.canClaim === true ? {tone: 'condition-met'} : {tone: 'condition-unmet'};

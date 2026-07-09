@@ -19,6 +19,7 @@
  */
 
 import {AresData, HazardConstraint} from '@/common/ares/AresData';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {OXYGEN_ARC, TEMPERATURE_ARC, DynamicArcConfig} from '@/client/components/board/arcScaleConfigs';
 import {placeArcMarker} from '@/client/components/board/arcScaleGeometry';
 import {GlobalParameterThresholdMarker} from '@/client/components/board/oceanThresholdMarkers';
@@ -136,7 +137,7 @@ export function resolveScaleEventState(
       chipState: 'claimed',
       claimColor: CLAIM_COLOR_HEX[marker.claimedByColor] ?? '',
       claimKey: marker.id,
-      claimedByName: players.find((p) => p.color === marker.claimedByColor)?.name ?? '',
+      claimedByName: displayNameForColor(players, marker.claimedByColor),
     };
   }
   // Fired but with no personal payout (every hazard event) → neutral resolved.

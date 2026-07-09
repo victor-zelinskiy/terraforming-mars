@@ -11,6 +11,7 @@
  * `player.name` for a visible bot label.
  */
 import {DifficultyLevel} from '@/common/automa/AutomaTypes';
+import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 import {DIFFICULTY_LABEL} from './marsBotView';
 
@@ -31,4 +32,18 @@ export function automaDisplayNameWithDifficulty(difficulty: DifficultyLevel): st
  */
 export function participantDisplayName(participant: {name: string, isMarsBot?: boolean}): string {
   return participant.isMarsBot === true ? automaDisplayName() : participant.name;
+}
+
+/**
+ * Resolve a colour to its visible participant label via {@link participantDisplayName}
+ * — THE replacement for the scattered `players.find(...)?.name ?? color`
+ * antipattern (which leaked a raw «MarsBot» into standings / popovers / pickers).
+ * Falls back to the colour string when the colour isn't among `players`.
+ */
+export function displayNameForColor(players: ReadonlyArray<{color: string, name: string, isMarsBot?: boolean}>, color: Color | string | undefined): string {
+  if (color === undefined) {
+    return '';
+  }
+  const player = players.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : color;
 }
