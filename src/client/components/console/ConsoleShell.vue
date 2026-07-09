@@ -512,6 +512,7 @@ import {scaleTooltipState, ScaleTooltipContent} from '@/client/components/board/
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
+import {deriveHandSelect, handSelectPicksValid, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -1054,59 +1055,53 @@ export default defineComponent({
     handSelectTaskActive(): boolean {
       return this.handSelectModel !== undefined;
     },
+    /** PURE derivation of the select facts (pickable set / single-vs-multi /
+     *  conditional-subset / per-card «why not» reasons) — the i18n of a
+     *  disabledReason is injected so the derivation module stays locale-free. */
+    handSelectDerived(): HandSelectDerivation | undefined {
+      const model = this.handSelectModel;
+      if (model === undefined) {
+        return undefined;
+      }
+      const handNames = this.handEntriesAll.map((e) => e.card.name);
+      const translateReason = (r: string | Message | undefined): string =>
+        r === undefined ? translateText('This card cannot be chosen here') :
+          (typeof r === 'string' ? translateText(r) : translateMessage(r));
+      return deriveHandSelect(model, handNames, translateReason);
+    },
     /** The candidate (pickable) card names of the current hand-select. */
     handSelectSelectableNames(): ReadonlyArray<string> {
-      return this.handSelectModel?.cards.map((c) => c.name) ?? [];
+      return this.handSelectDerived?.selectable ?? [];
     },
     /** The prompt is a CONDITIONAL subset of the hand (there ARE non-pickable
      *  hand cards) — only then is the "suitable only" filter meaningful. */
     handSelectFiltered(): boolean {
-      const model = this.handSelectModel;
-      return model !== undefined && model.cards.length < this.handEntriesAll.length;
+      return this.handSelectDerived?.filtered ?? false;
     },
     /** min===max===1 → A submits the focused card in one press (no toggle). */
     handSelectSingle(): boolean {
-      const model = this.handSelectModel;
-      return model !== undefined && model.min === 1 && model.max === 1;
+      return this.handSelectDerived?.single ?? false;
     },
-    /** Per-card reason (pre-translated) for a NON-selectable hand card: the
-     *  server's `disabledReason` when supplied, else an honest generic line. */
+    /** Per-card reason (pre-translated) for a NON-selectable hand card. */
     handSelectReasons(): Record<string, string> {
-      const model = this.handSelectModel;
-      if (model === undefined) {
-        return {};
-      }
-      const out: Record<string, string> = {};
-      const selectable = new Set(model.cards.map((c) => c.name));
-      for (const d of model.disabledCards ?? []) {
-        out[d.name] = d.disabledReason !== undefined ?
-          (typeof d.disabledReason === 'string' ? translateText(d.disabledReason) : translateMessage(d.disabledReason)) :
-          translateText('This card cannot be chosen here');
-      }
-      // Every OTHER hand card the prompt didn't offer gets the honest generic
-      // "doesn't meet the condition" line (the server didn't expose the rule).
-      for (const e of this.handEntriesAll) {
-        if (!selectable.has(e.card.name) && out[e.card.name] === undefined) {
-          out[e.card.name] = translateText('This card cannot be chosen here');
-        }
-      }
-      return out;
+      return this.handSelectDerived?.reasons ?? {};
     },
     /** The bundled select-mode state handed to the hand section (undefined when
      *  not in a hand-select). */
     handSelectProps(): ConsoleHandSelectMode | undefined {
-      if (!this.handSelectTaskActive) {
+      const d = this.handSelectDerived;
+      if (d === undefined) {
         return undefined;
       }
       return {
         active: true,
-        selectable: this.handSelectSelectableNames,
+        selectable: d.selectable,
         // Spread so the computed re-runs (and hands the section a fresh prop)
         // on every pick mutation — the section re-renders the pick bands.
         selected: [...this.consoleState.select.selected],
-        reasons: this.handSelectReasons,
-        single: this.handSelectSingle,
-        filtered: this.handSelectFiltered,
+        reasons: d.reasons,
+        single: d.single,
+        filtered: d.filtered,
         suitableOnly: this.consoleState.select.suitableOnly,
       };
     },
@@ -1120,11 +1115,7 @@ export default defineComponent({
     /** The current multi-select picks satisfy the prompt bounds → RT confirms. */
     handSelectPicksValid(): boolean {
       const model = this.handSelectModel;
-      if (model === undefined) {
-        return false;
-      }
-      const n = this.consoleState.select.selected.length;
-      return n >= model.min && n <= model.max;
+      return model !== undefined && handSelectPicksValid(model, this.consoleState.select.selected.length);
     },
     // The tag-filter options for the panel (All + tags present in the hand).
     handTagFilterOptions(): Array<ConsoleTagFilterOption> {

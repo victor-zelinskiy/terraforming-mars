@@ -9,6 +9,8 @@ import {AutomaConflict, automaConflicts} from '@/common/automa/automaCompatibili
 import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName';
 import {defaultCreateGameModel} from '@/client/components/create/defaultCreateGameModel';
 import {PREMIUM_EXPANSIONS, PremiumRuleId} from './createGameMeta';
+import {CreateGameSettingsStorage} from '@/client/components/create/CreateGameSettingsStorage';
+import {JSONObject, JSONValue} from '@/common/Types';
 
 export const TR_BOOST_MIN = 0;
 export const TR_BOOST_MAX = 10;
@@ -411,4 +413,129 @@ export function firstBlocker(): string {
     return automaBlockerText(conflicts[0].key);
   }
   return '';
+}
+
+// ── Persistence — remember the last created party ───────────────────────────
+// The most recent setup is stored so the create screen re-opens where the
+// player left off. Only `config` is persisted (the transient wrapper fields —
+// info / creating / error / mapPickerOpen — are session-only). There is no seed
+// or clonedGameId in the premium config: the seed is generated fresh inside
+// `buildCreateGamePayloadFromPremiumState`, so every restored setup still rolls
+// a new board/deck layout. A restore is defensively merged onto a fresh default
+// (`sanitizePremiumState`) so a partial / stale / corrupt blob can never break
+// the form. Backend defaults to localStorage (persists across Electron restarts
+// under the app:// origin's userData partition); tests inject a fake Storage.
+
+const settingsStorage = new CreateGameSettingsStorage();
+
+const DIFFICULTY_LEVELS: ReadonlyArray<DifficultyLevel> = ['easy', 'normal', 'hard', 'brutal'];
+const BOARD_NAMES: ReadonlySet<string> = new Set(Object.values(BoardName));
+
+function asRecord(value: JSONValue | undefined): JSONObject | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JSONObject : undefined;
+}
+
+function sanitizeSlot(raw: JSONValue | undefined, index: number, fallbackColor: Color): PremiumPlayerSlot {
+  const rec = asRecord(raw);
+  const name = typeof rec?.name === 'string' ? rec.name : '';
+  const color = typeof rec?.color === 'string' && (PLAYER_COLORS as ReadonlyArray<string>).includes(rec.color) ?
+    rec.color as Color :
+    fallbackColor;
+  const trBoost = typeof rec?.trBoost === 'number' ? clamp(rec.trBoost, TR_BOOST_MIN, TR_BOOST_MAX) : 0;
+  return {slot: index, name, color, trBoost, isCreator: index === 0};
+}
+
+function sanitizePlayers(raw: JSONValue | undefined, gameMode: GameMode): Array<PremiumPlayerSlot> {
+  const base = defaultPremiumState().players;
+  const min = gameMode === 'marsbot' ? 1 : PLAYER_COUNT_MIN;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return gameMode === 'marsbot' ? base.slice(0, 1) : base;
+  }
+  const count = clamp(raw.length, min, PLAYER_COUNT_MAX);
+  const players: Array<PremiumPlayerSlot> = [];
+  for (let i = 0; i < count; i++) {
+    players.push(sanitizeSlot(raw[i], i, freeColor(players.map((p) => p.color), i)));
+  }
+  // Guarantee unique colours (a corrupt blob could repeat one) so the form's
+  // colour-swap logic never sees a duplicate it can't resolve.
+  const used = new Set<Color>();
+  for (const p of players) {
+    if (used.has(p.color)) {
+      p.color = freeColor([...used], p.slot);
+    }
+    used.add(p.color);
+  }
+  return players;
+}
+
+function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
+  const base = defaultPremiumState();
+  const gameMode: GameMode = saved.gameMode === 'marsbot' ? 'marsbot' : 'multiplayer';
+  const botDifficulty = DIFFICULTY_LEVELS.includes(saved.botDifficulty as DifficultyLevel) ?
+    saved.botDifficulty as DifficultyLevel :
+    base.botDifficulty;
+
+  const selectedExpansions = {...base.selectedExpansions};
+  const savedExpansions = asRecord(saved.selectedExpansions);
+  if (savedExpansions !== undefined) {
+    for (const e of PREMIUM_EXPANSIONS) {
+      if (typeof savedExpansions[e.id] === 'boolean') {
+        selectedExpansions[e.id] = savedExpansions[e.id] as boolean;
+      }
+    }
+  }
+
+  const mapMode: MapMode = saved.mapMode === 'specific' ? 'specific' : 'random-all';
+  const mapId = typeof saved.mapId === 'string' && BOARD_NAMES.has(saved.mapId) ?
+    saved.mapId as BoardName :
+    base.mapId;
+
+  const rules = {...base.rules};
+  const savedRules = asRecord(saved.rules);
+  if (savedRules !== undefined) {
+    for (const key of Object.keys(base.rules) as Array<keyof PremiumRules>) {
+      if (typeof savedRules[key] === 'boolean') {
+        rules[key] = savedRules[key] as boolean;
+      }
+    }
+  }
+
+  return {
+    gameMode,
+    botDifficulty,
+    players: sanitizePlayers(saved.players, gameMode),
+    selectedExpansions,
+    mapMode,
+    mapId,
+    rules,
+  };
+}
+
+/** Remember the current premium setup (config only) for the next visit. */
+export function saveCreateGameState(storage: CreateGameSettingsStorage = settingsStorage): void {
+  storage.saveSettings(createGameState.config as unknown as JSONObject);
+}
+
+/**
+ * Restore the last saved premium setup into the reactive state, defensively
+ * merged onto a fresh default so a partial / stale / corrupt blob can never
+ * corrupt the form. Returns true when a saved setup was found and applied.
+ */
+export function restoreCreateGameState(storage: CreateGameSettingsStorage = settingsStorage): boolean {
+  const saved = storage.loadSettings();
+  if (saved === undefined) {
+    return false;
+  }
+  createGameState.config = sanitizePremiumState(saved);
+  createGameState.info = {kind: 'default'};
+  createGameState.creating = false;
+  createGameState.error = '';
+  createGameState.mapPickerOpen = false;
+  multiplayerSnapshot = undefined;
+  return true;
+}
+
+/** Forget the saved premium setup (used by "Reset"). */
+export function clearSavedCreateGameState(storage: CreateGameSettingsStorage = settingsStorage): void {
+  storage.clearSettings();
 }

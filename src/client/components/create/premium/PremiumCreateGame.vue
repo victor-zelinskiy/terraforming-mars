@@ -69,6 +69,17 @@
       </div>
     </div>
 
+    <transition name="pc-restore">
+      <div v-if="settingsRestored" class="pc-restore-notice" role="status">
+        <span class="pc-restore-notice__dot" aria-hidden="true"></span>
+        <span class="pc-restore-notice__text" v-i18n>Restored your last settings</span>
+        <button type="button" class="pc-restore-notice__reset" @click="onReset"><span v-i18n>Reset</span></button>
+        <button type="button" class="pc-restore-notice__close" :aria-label="dismissLabel" @click="dismissRestoreNotice">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    </transition>
+
     <map-picker-overlay v-if="mapPickerOpen" />
 
     <premium-identity-modal
@@ -103,8 +114,14 @@ import MapPickerOverlay from '@/client/components/create/premium/MapPickerOverla
 import PartyBriefing from '@/client/components/create/premium/PartyBriefing.vue';
 import CreateInfoPanel from '@/client/components/create/premium/CreateInfoPanel.vue';
 import BriefingActions from '@/client/components/create/premium/BriefingActions.vue';
-import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame} from './createGameState';
+import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame,
+  saveCreateGameState, restoreCreateGameState, clearSavedCreateGameState} from './createGameState';
 import {buildCreateGamePayloadFromPremiumState} from './buildCreateGamePayload';
+import {$t} from '@/client/directives/i18n';
+
+// How long the calm "restored your last settings" notice lingers before it
+// fades on its own (ms). Player interaction (Reset / dismiss) clears it sooner.
+const RESTORE_NOTICE_MS = 7000;
 
 type SimplePlayer = {id: string, color: Color};
 
@@ -126,7 +143,12 @@ export default defineComponent({
     BriefingActions,
   },
   data() {
-    return {modalOpen: false};
+    return {
+      modalOpen: false,
+      // The calm "restored your last settings" notice (non-blocking, auto-fading).
+      settingsRestored: false,
+      restoreNoticeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    };
   },
   computed: {
     playerCount: {
@@ -149,17 +171,32 @@ export default defineComponent({
     initialColor(): Color {
       return identityState.identity?.cubeColor ?? createGameState.config.players[0]?.color ?? DEFAULT_IDENTITY_COLOR;
     },
+    dismissLabel(): string {
+      return $t('Dismiss');
+    },
   },
   mounted() {
     setDocumentTitle('Create new game');
     ensureIdentityLoaded();
-    resetCreateGameState();
+    // Restore the last created setup; fall back to a fresh default when there
+    // is nothing saved (or a corrupt blob). The creator seat always reflects the
+    // current launcher identity, restored or not.
+    const restored = restoreCreateGameState();
+    if (!restored) {
+      resetCreateGameState();
+    }
     const id = identityState.identity;
     if (id !== undefined) {
       applyCreatorIdentity(id.displayName, id.cubeColor);
     } else {
       this.modalOpen = true;
     }
+    if (restored) {
+      this.markSettingsRestored();
+    }
+  },
+  beforeUnmount() {
+    this.clearRestoreNoticeTimer();
   },
   methods: {
     editIdentity(): void {
@@ -174,10 +211,30 @@ export default defineComponent({
       this.modalOpen = false;
     },
     onReset(): void {
+      clearSavedCreateGameState();
       resetCreateGameState();
       const id = identityState.identity;
       if (id !== undefined) {
         applyCreatorIdentity(id.displayName, id.cubeColor);
+      }
+      this.dismissRestoreNotice();
+    },
+    markSettingsRestored(): void {
+      this.settingsRestored = true;
+      this.clearRestoreNoticeTimer();
+      this.restoreNoticeTimer = setTimeout(() => {
+        this.settingsRestored = false;
+        this.restoreNoticeTimer = undefined;
+      }, RESTORE_NOTICE_MS);
+    },
+    dismissRestoreNotice(): void {
+      this.settingsRestored = false;
+      this.clearRestoreNoticeTimer();
+    },
+    clearRestoreNoticeTimer(): void {
+      if (this.restoreNoticeTimer !== undefined) {
+        clearTimeout(this.restoreNoticeTimer);
+        this.restoreNoticeTimer = undefined;
       }
     },
     onBack(): void {
@@ -195,6 +252,8 @@ export default defineComponent({
       const creatorColor = createGameState.config.players[0].color;
       try {
         const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
+        // Remember this setup so the create screen re-opens with it next time.
+        saveCreateGameState();
         const res = await fetch(apiUrl(paths.API_CREATEGAME), {
           method: 'POST',
           body: JSON.stringify(payload),

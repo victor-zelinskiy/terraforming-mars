@@ -705,13 +705,98 @@
     .map-picker__grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+// ── Restored-settings notice (calm, non-blocking) ───────────────────────────
+// A slim glass chip that fades in top-centre when the last setup is restored on
+// open. Fixed-position so it never reflows the command deck; auto-fades after a
+// few seconds (or on Reset / dismiss). "Сбросить" reuses the form's Reset path.
+.pc-restore-notice {
+    position: fixed;
+    top: 74px;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    width: fit-content;
+    max-width: calc(100vw - 32px);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 10px;
+    .pcg-glass();
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.28), 0 12px 34px rgba(0, 0, 0, 0.5);
+    font-family: Prototype, Ubuntu, sans-serif;
+    pointer-events: auto;
+}
+.pc-restore-notice__dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: @pcg-ice-bright;
+    box-shadow: 0 0 8px rgba(127, 200, 240, 0.8);
+    animation: pc-restore-pulse 2.2s ease-in-out infinite;
+}
+.pc-restore-notice__text {
+    font-size: 12.5px;
+    letter-spacing: 0.3px;
+    color: @pcg-text;
+    white-space: nowrap;
+}
+.pc-restore-notice__reset {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    background: rgba(127, 200, 240, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(127, 200, 240, 0.32);
+    color: @pcg-ice-bright;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    &:hover {
+        background: rgba(127, 200, 240, 0.18);
+        box-shadow: inset 0 0 0 1px rgba(174, 224, 255, 0.55);
+        color: @pcg-text;
+    }
+}
+.pc-restore-notice__close {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    background: transparent;
+    color: @pcg-text-dim;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 5px;
+    transition: color 0.2s ease, background 0.2s ease;
+    &:hover {
+        color: @pcg-text;
+        background: rgba(127, 200, 240, 0.12);
+    }
+}
+@keyframes pc-restore-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1); }
+}
+.pc-restore-enter-active { transition: opacity 0.32s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
+.pc-restore-leave-active { transition: opacity 0.24s ease, transform 0.24s ease; }
+.pc-restore-enter-from { opacity: 0; transform: translateY(-10px); }
+.pc-restore-leave-to { opacity: 0; transform: translateY(-8px); }
+
 // ── Reduced motion ──────────────────────────────────────────────────────────
 @media (prefers-reduced-motion: reduce) {
     .pc-selector__chip, .exp-card, .map-picker__card, .rule-toggle, .tr-gauge__node-dot,
     .rule-toggle__knob, .slot-cp__trigger, .slot-cp__opt,
     .info-fade-enter-active, .info-fade-leave-active,
     .briefing-chip-enter-active, .briefing-chip-leave-active,
+    .pc-restore-enter-active, .pc-restore-leave-active,
     .party-slot-enter-active, .party-slot-leave-active, .party-slot-move { transition: none; }
+    .pc-restore-notice__dot { animation: none; }
     .pc-selector__chip:hover, .exp-card:hover, .map-picker__card:hover, .rule-toggle:hover { transform: none; }
     .briefing__spinner { animation-duration: 1.4s; }
     .map-picker__backdrop, .map-picker__panel { animation: none; }

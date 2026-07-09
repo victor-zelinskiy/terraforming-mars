@@ -33,6 +33,7 @@
     "Could not create the game. Please try again.": "Не удалось создать партию. Попробуйте ещё раз.",
     "Back": "Назад",
     "Reset": "Сбросить",
+    "Restored your last settings": "Восстановлены прошлые настройки",
     "Enabled": "Включено",
     "Disabled": "Выключено",
     "Hover or focus any option to see what it does, then create the game.": "Наведите курсор на любой параметр, чтобы увидеть описание, затем создайте партию.",
