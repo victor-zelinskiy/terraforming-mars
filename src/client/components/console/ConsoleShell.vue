@@ -83,7 +83,8 @@
          never reflows) but hides its paint — the journal REPLACES it, the
          panel can't bleed through the journal surface. -->
     <div class="con-main" :class="{'con-main--journal': journalPanelVisible}">
-      <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId" />
+      <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId"
+                            :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -685,6 +686,16 @@ export default defineComponent({
     myTurn(): boolean {
       return hasTurn(this.playerView);
     },
+    /** The server offers convert-plants RIGHT NOW — drives BOTH the resource-
+     *  cell highlight and the LT quick menu. Server-authoritative (mirrors the
+     *  desktop convert availability), so it's live only on the viewer's turn. */
+    convertPlantsReady(): boolean {
+      return findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) !== undefined;
+    },
+    /** The server offers convert-heat RIGHT NOW (same contract as above). */
+    convertHeatReady(): boolean {
+      return findConvertHeatOption(this.playerView.waitingFor) !== undefined;
+    },
     playAction() {
       return findPlayProjectCardAction(this.playerView.waitingFor);
     },
@@ -1196,8 +1207,8 @@ export default defineComponent({
           stdAvailable: this.standardProjectsAction !== undefined,
           endTurnAvailable: findEndTurnPath(wf) !== undefined,
           passAvailable: findPassPath(wf) !== undefined,
-          convertPlantsAvailable: findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true) !== undefined,
-          convertHeatAvailable: findConvertHeatOption(wf) !== undefined,
+          convertPlantsAvailable: this.convertPlantsReady,
+          convertHeatAvailable: this.convertHeatReady,
           plantsNeeded: this.thisPlayer.plantsNeededForGreenery,
           heatNeeded: this.thisPlayer.heatNeededForTemperature,
         });

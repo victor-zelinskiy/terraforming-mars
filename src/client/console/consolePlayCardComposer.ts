@@ -33,7 +33,7 @@ import {Payment} from '@/common/inputs/Payment';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {SpendableResource} from '@/common/inputs/Spendable';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
-import type {PaymentLane} from '@/client/console/paymentPlan';
+import {autoMegacredits, laneCap, paymentCovers, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
 
 export type PlayCardBatchArgs = {
   /**
@@ -123,44 +123,108 @@ export function computePrimaryAction(ctx: {
   return {kind: 'ready'};
 }
 
-// ── Payment resource chips (unified with the result chips: было → стало) ─────
+// ── Payment view-model (unified chips + inline quick-adjust eligibility) ─────
 
 const STANDARD_PAY_UNITS: ReadonlySet<string> =
   new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
 
+/** One payment chip = an `ActionEffect` (icon + spent + было → стало) + the
+ *  quick-adjust metadata the UI needs, all derived from the payment logic. */
+export type PaymentResourceChip = {
+  /** The visual — the SAME chip the result uses (rendered by ActionEffectChip). */
+  effect: ActionEffect;
+  /** The M€ lane — auto-balances to the remainder (badge «авто»). */
+  isAutoBalanced: boolean;
+  /** The single quick-adjust alt resource — LB/RB pills live on this chip. */
+  isAdjustable: boolean;
+  /** LB is live (the alt resource can go down AND M€ still covers the remainder). */
+  canDecrease: boolean;
+  /** RB is live (the alt resource can go up within its cap). */
+  canIncrease: boolean;
+};
+
 /**
- * The payment mix as `ActionEffect` COST chips (icon + spent amount + a
- * `current → resulting` stock readout for standard resources) — the SAME chip
- * the result uses, so payment reads "[M€] −8  19 → 11" / "[Steel] −2  2 → 0"
- * instead of a bare "8 M€ + 2 Сталь" text. A special payment resource (paid off
- * a card — microbes / floaters / …) has no single stock field, so it shows just
- * the signed amount. Only resources actually spent (> 0) get a chip.
+ * The whole payment as a view-model so the UI never re-derives the rules: the
+ * chip list, whether a detailed editor exists (`configurable` → LT), and —
+ * the point of this iteration — whether the simple inline LB/RB quick-adjust
+ * applies (`quickAdjustEligible`: EXACTLY one non-M€ lane, with M€ auto-covering
+ * the remainder). All amounts / caps / coverage come from `paymentPlan`.
  */
-export function paymentChips(args: {
+export type PlayPaymentView = {
+  totalCost: number;
+  chips: ReadonlyArray<PaymentResourceChip>;
+  /** Any non-M€ lane → the detailed payment editor (LT) is available. */
+  configurable: boolean;
+  /** Exactly one non-M€ lane → inline LB/RB quick-adjust on the MAIN screen. */
+  quickAdjustEligible: boolean;
+  quickAdjustUnit: SpendableResource | undefined;
+  paymentValid: boolean;
+  /** M€-equivalent shortfall (0 when valid). */
+  deficit: number;
+};
+
+function payChipEffect(unit: string, spent: number, stock: Partial<Record<string, number>>): ActionEffect {
+  const cur = STANDARD_PAY_UNITS.has(unit) ? stock[unit] : undefined;
+  if (cur !== undefined) {
+    return {direction: 'cost', icon: unit, amount: spent, current: cur, resulting: Math.max(0, cur - spent)};
+  }
+  return {direction: 'cost', icon: unit, amount: spent};
+}
+
+export function buildPaymentView(args: {
+  cost: number,
   lanes: ReadonlyArray<PaymentLane>,
   counts: Partial<Record<SpendableResource, number>>,
-  /** The auto-computed M€ portion of the payment. */
-  mcSpent: number,
+  mcAvailable: number,
   /** Current stock per unit (megacredits/steel/titanium/plants/energy/heat). */
   stock: Partial<Record<string, number>>,
-}): Array<ActionEffect> {
-  const out: Array<ActionEffect> = [];
-  const push = (unit: string, spent: number): void => {
-    if (spent <= 0) {
-      return;
-    }
-    const cur = args.stock[unit];
-    if (STANDARD_PAY_UNITS.has(unit) && cur !== undefined) {
-      out.push({direction: 'cost', icon: unit, amount: spent, current: cur, resulting: Math.max(0, cur - spent)});
-    } else {
-      out.push({direction: 'cost', icon: unit, amount: spent});
-    }
+}): PlayPaymentView {
+  const {cost, lanes, counts, mcAvailable, stock} = args;
+  const mcSpent = autoMegacredits(cost, lanes, counts, mcAvailable);
+  const paymentValid = paymentCovers(cost, lanes, counts, mcAvailable);
+  const configurable = lanes.length > 0;
+  // The 90% case: exactly ONE alt resource, M€ auto-fills the rest.
+  const quickAdjustEligible = lanes.length === 1;
+  const quickLane = quickAdjustEligible ? lanes[0] : undefined;
+
+  const mcChip: PaymentResourceChip = {
+    effect: payChipEffect('megacredits', mcSpent, stock),
+    isAutoBalanced: true, isAdjustable: false, canDecrease: false, canIncrease: false,
   };
-  push('megacredits', args.mcSpent);
-  for (const lane of args.lanes) {
-    push(lane.unit, args.counts[lane.unit] ?? 0);
+  const laneChip = (lane: PaymentLane): PaymentResourceChip => {
+    const n = counts[lane.unit] ?? 0;
+    const adjustable = quickLane !== undefined && lane.unit === quickLane.unit;
+    const cap = laneCap(cost, lane);
+    return {
+      effect: payChipEffect(lane.unit, n, stock),
+      isAutoBalanced: false,
+      isAdjustable: adjustable,
+      // Up = more alt (less M€), bounded by the anti-overpay cap.
+      canIncrease: adjustable && n < cap,
+      // Down = less alt — only if M€ can still cover the (larger) remainder.
+      canDecrease: adjustable && n > 0 && (cost - (n - 1) * lane.rate) <= mcAvailable,
+    };
+  };
+
+  // Layout: quick-adjust → the adjustable alt FIRST (LB/RB read on top), then M€.
+  // Else → M€ first (when spent), then each spent lane. A 0-spend non-adjustable
+  // lane is noise and omitted; the adjustable lane is ALWAYS shown (its pills live there).
+  let chips: Array<PaymentResourceChip>;
+  if (quickAdjustEligible) {
+    chips = mcSpent > 0 ? [laneChip(lanes[0]), mcChip] : [laneChip(lanes[0])];
+  } else if (lanes.length === 0) {
+    chips = [mcChip];
+  } else {
+    chips = mcSpent > 0 ? [mcChip] : [];
+    for (const lane of lanes) {
+      if ((counts[lane.unit] ?? 0) > 0) {
+        chips.push(laneChip(lane));
+      }
+    }
   }
-  return out;
+
+  const deficit = Math.max(0, cost - paymentTotal(cost, lanes, counts, mcAvailable));
+  return {totalCost: cost, chips, configurable, quickAdjustEligible, quickAdjustUnit: quickLane?.unit, paymentValid, deficit};
 }
 
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
@@ -185,14 +249,21 @@ export type PlayFootContext = {
   /** The A-button verb + enabled, decided by the component from the primary state. */
   primaryLabel: string;
   primaryEnabled: boolean;
+  /**
+   * When set, the INLINE quick-adjust owns LB/RB in review (the simple one-alt-
+   * resource payment) — split LB/RB hints with per-side enabled so a dead button
+   * never appears. Absent when a focused stepper owns LB/RB, or there's no
+   * quick-adjust (complex / auto payment).
+   */
+  quickAdjust?: {canDecrease: boolean, canIncrease: boolean};
 };
 
 /**
  * The footer is fully CONTEXTUAL: LB/RB (−1/+1) and RT (MAX) appear ONLY where a
- * value can actually be dialed — a focused amount stepper or inside the payment
- * lanes. LT «Configure payment» appears ONLY when the payment is configurable
- * (never for pure-AUTO M€). A is the ONE smart primary action (verb from the
- * primary state). No dead LB/RB/RT/LT ever appears — unit-tested, not eyeballed.
+ * value can actually be dialed — a focused amount stepper, the inline payment
+ * quick-adjust, or inside the payment lanes. LT «Configure payment» appears ONLY
+ * when the payment is configurable (never for pure-AUTO M€). A is the ONE smart
+ * primary action. No dead LB/RB/RT/LT ever appears — unit-tested, not eyeballed.
  */
 export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   if (ctx.sub === 'payment') {
@@ -220,6 +291,10 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'}, {control: 'triggerR', label: 'MAX'});
   } else if (ctx.focusedKind === 'spendHeat') {
     hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
+  } else if (ctx.quickAdjust !== undefined) {
+    // Inline payment quick-adjust — split so each side reflects its own limit.
+    hints.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});
+    hints.push({control: 'bumperR', label: '+1', enabled: ctx.quickAdjust.canIncrease});
   }
   hints.push({control: 'confirm', label: ctx.primaryLabel, enabled: ctx.primaryEnabled});
   if (ctx.configurablePayment) {

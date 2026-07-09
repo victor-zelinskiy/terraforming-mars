@@ -19,6 +19,10 @@
 @con-mint: #58d6a6;
 @con-amber: #f2c14e;
 @con-red: #e0564d;
+/* Convert-ready accents for the resource rail (plants = green, heat = warm
+   orange — mirrors the desktop convert-icon rims). */
+@con-plants: #8fd45f;
+@con-heat-warm: #f0975a;
 @con-glass: rgba(8, 14, 22, 0.92);
 @con-glass-soft: rgba(10, 17, 26, 0.78);
 @con-text: #e8f1fb;
@@ -672,6 +676,48 @@
             box-shadow: inset 0 0 0 1px rgba(255, 170, 170, 0.35), 0 2px 5px rgba(0, 0, 0, 0.45);
             color: #ffd6d6;
         }
+    }
+
+    /* ── ДОП. РЕСУРСЫ — compact card-resource continuation of the table ──
+       A tight secondary tier directly under the six main rows: icon + a
+       reserved 2-digit count only (no production column). It mirrors the main
+       row's LEFT structure ([icon][value]) so it reads as the same table
+       dynamically expanding, but at a compact, slightly-dimmer secondary
+       weight. Grows the fixed-width rail downward only — the board never loses
+       width. `margin-top:-4px` tucks it against the main rows (parent gap is
+       12px) so the two read as one continuous table. */
+    &__extra {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: -4px;
+    }
+    &__extra-cell {
+        position: relative; /* delta-chip (misc variant) anchor */
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(16, 26, 38, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.12);
+    }
+    &__extra-icon {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    }
+    &__extra-value {
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        /* Reserve exactly a 2-digit slot — card resources never reach 3 digits. */
+        min-width: 26px;
     }
 
     &__tags {
@@ -8971,6 +9017,67 @@ html.console-mode {
     border-radius: 8px;
 }
 
+/* ── T1: convert-ready highlight on the plants / heat rail cell ──
+   The console has no icon→button affordance like the desktop (conversion is
+   run from the LT quick menu), but when the server offers the conversion the
+   cell still lights up with a subtle accent rim + breathing glow so the
+   player sees the option is live. Purely informational; the row is not a
+   button. Later than `&__row` in source, same single-class specificity, so it
+   wins the box-shadow. */
+.con-res__row--convertible-plants {
+    box-shadow: inset 0 0 0 1px fade(@con-plants, 60%), 0 0 12px fade(@con-plants, 20%);
+    animation: con-convert-glow-plants calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+    .con-res__icon {
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 5px fade(@con-plants, 55%));
+    }
+}
+.con-res__row--convertible-heat {
+    box-shadow: inset 0 0 0 1px fade(@con-heat-warm, 62%), 0 0 12px fade(@con-heat-warm, 22%);
+    animation: con-convert-glow-heat calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+    .con-res__icon {
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 5px fade(@con-heat-warm, 60%));
+    }
+}
+@keyframes con-convert-glow-plants {
+    0%, 100% { box-shadow: inset 0 0 0 1px fade(@con-plants, 55%), 0 0 10px fade(@con-plants, 16%); }
+    50%      { box-shadow: inset 0 0 0 1px fade(@con-plants, 90%), 0 0 16px fade(@con-plants, 32%); }
+}
+@keyframes con-convert-glow-heat {
+    0%, 100% { box-shadow: inset 0 0 0 1px fade(@con-heat-warm, 55%), 0 0 10px fade(@con-heat-warm, 18%); }
+    50%      { box-shadow: inset 0 0 0 1px fade(@con-heat-warm, 92%), 0 0 16px fade(@con-heat-warm, 34%); }
+}
+
+/* ── T2: ДОП. РЕСУРСЫ cells slide in as new card-resource types unlock. ── */
+.con-extra-enter-active {
+    transition: opacity calc(340ms * var(--motion-scale, 1)) ease,
+                transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.con-extra-leave-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease,
+                transform calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-extra-enter-from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.96);
+}
+.con-extra-leave-to {
+    opacity: 0;
+    transform: scale(0.96);
+}
+.con-extra-move {
+    transition: transform calc(280ms * var(--motion-scale, 1)) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-res__row--convertible-plants,
+    .con-res__row--convertible-heat { animation: none; }
+    .con-extra-enter-active,
+    .con-extra-leave-active,
+    .con-extra-move { transition: none; }
+}
+
 /* ── T7: the ACTING player's chip carries the turn accent — the console-
    native equivalent of the desktop handoff beam / status chips (that layer
    anchors to desktop panel geometry and no-ops gracefully in console). ── */
@@ -10580,14 +10687,31 @@ html.console-mode {
         margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
         font-size: 14px; color: fade(@con-cyan, 88%);
     }
-    &__pay-auto {
-        margin-left: auto; font-size: 13px; letter-spacing: 0.6px; text-transform: uppercase;
-        padding: 2px 10px; border-radius: 999px;
+    /* One chip PER ROW so the LB/RB pills read on the alt resource + M€ «авто»
+       sits under it — the unified auto / quick-adjust / complex layout. */
+    &__pay-rows { display: flex; flex-direction: column; gap: 6px; }
+    &__pay-row {
+        position: relative; display: flex; align-items: center; gap: 10px;
+        .action-effect-chip { font-size: 16px; padding: 5px 12px 5px 7px; }
+        .action-effect-chip__icon { width: 24px; height: 24px; }
+    }
+    &__pay-badge {
+        font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+        padding: 2px 9px; border-radius: 999px;
         background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 1px rgba(140, 170, 200, 0.2); color: @con-text-dim;
     }
-    &__pay-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-    &__pay-chips .action-effect-chip { font-size: 16px; padding: 5px 12px 5px 7px; }
-    &__pay-chips .action-effect-chip__icon { width: 24px; height: 24px; }
+    &__pay-pills { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; }
+    &__pay-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 9px 2px 6px; border-radius: 999px; font-size: 14px; font-weight: 700;
+        color: #cfe6ff; background: rgba(18, 34, 50, 0.7); box-shadow: inset 0 0 0 1px fade(@con-cyan, 42%);
+        &--off { opacity: 0.32; filter: saturate(0.4); }
+    }
+    /* One-shot pulse on the adjustable chip when LB/RB fires (re-keyed nonce). */
+    &__pay-flash {
+        position: absolute; inset: -3px -6px; border-radius: 12px; pointer-events: none;
+        animation: con-pay-flash calc(360ms * var(--motion-scale, 1)) ease-out 1;
+    }
     &__pay-free { font-size: 17px; font-weight: 700; color: @con-text; }
     &__pay-short {
         display: flex; align-items: center; gap: 6px; font-size: 15px; color: #ffb0a6;
@@ -10609,6 +10733,14 @@ html.console-mode {
     &__cta--off &__cta-label { color: #ffe6b0; }
 }
 
+@keyframes con-pay-flash {
+    0% { box-shadow: inset 0 0 0 2px fade(@con-cyan, 70%), 0 0 16px fade(@con-cyan, 34%); }
+    100% { box-shadow: inset 0 0 0 2px fade(@con-cyan, 0%), 0 0 16px fade(@con-cyan, 0%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-composer__pay-flash { animation: none; }
+}
+
 /* Handheld (Steam Deck) — tighter composer chrome. */
 html.con-profile-handheld .con-composer {
     .con-composer__panel { width: min(760px, 96vw); padding: 14px 16px 10px; gap: 8px; }
@@ -10620,6 +10752,7 @@ html.con-profile-handheld .con-composer {
     .con-composer__opt-name { font-size: 15px; }
     .con-composer__variant-title { font-size: 16px; }
     .con-composer__cta-label { font-size: 17px; }
+    .con-composer__pay-pill { font-size: 13px; }
     .con-composer__foot-item { font-size: 13px; }
 }
 

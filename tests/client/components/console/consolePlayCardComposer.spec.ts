@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
-  computePrimaryAction, paymentChips,
+  computePrimaryAction, buildPaymentView,
 } from '@/client/console/consolePlayCardComposer';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
@@ -186,6 +186,27 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
   it('no navigable rows → no Navigate hint', () => {
     expect(labels(playComposerFootHints(ctx({hasRows: false})))).to.not.include('Navigate');
   });
+
+  it('inline quick-adjust shows SPLIT LB/RB with per-side enabled (+ keeps LT)', () => {
+    const hints = playComposerFootHints(ctx({
+      configurablePayment: true,
+      quickAdjust: {canDecrease: true, canIncrease: false},
+    }));
+    const lb = hints.find((h) => h.control === 'bumperL');
+    const rb = hints.find((h) => h.control === 'bumperR');
+    expect(lb).to.deep.include({label: '−1', enabled: true});
+    expect(rb).to.deep.include({label: '+1', enabled: false});
+    // LT (detailed editor) stays available alongside quick-adjust; A is still primary.
+    expect(controls(hints)).to.include('triggerL');
+    expect(hints.find((h) => h.control === 'confirm')?.label).to.equal('Play now');
+  });
+
+  it('a focused amount stepper OWNS LB/RB — quick-adjust does NOT also add them', () => {
+    const hints = playComposerFootHints(ctx({focusedKind: 'amount', quickAdjust: {canDecrease: true, canIncrease: true}}));
+    // The combined stepper LB/RB (control2) is present; no split −1/+1 pair from quick-adjust.
+    expect(hints.filter((h) => h.control === 'bumperL')).to.have.length(1);
+    expect(labels(hints)).to.include('MAX');
+  });
 });
 
 describe('consolePlayCardComposer.computePrimaryAction', () => {
@@ -211,33 +232,55 @@ describe('consolePlayCardComposer.computePrimaryAction', () => {
   });
 });
 
-describe('consolePlayCardComposer.paymentChips', () => {
-  const stock = {megacredits: 19, steel: 2, titanium: 4, plants: 0, energy: 0, heat: 0};
-  const steelLane: PaymentLane = {unit: 'steel', rate: 2, available: 2, reserved: false};
+describe('consolePlayCardComposer.buildPaymentView', () => {
+  const stock = {megacredits: 65, steel: 5, titanium: 4, plants: 0, energy: 0, heat: 0};
+  const steelLane: PaymentLane = {unit: 'steel', rate: 2, available: 5, reserved: false};
   const titaniumLane: PaymentLane = {unit: 'titanium', rate: 3, available: 4, reserved: false};
 
-  it('M€ + steel → two cost chips with было → стало', () => {
-    const chips = paymentChips({lanes: [steelLane], counts: {steel: 2}, mcSpent: 8, stock});
-    expect(chips).to.deep.equal([
-      {direction: 'cost', icon: 'megacredits', amount: 8, current: 19, resulting: 11},
-      {direction: 'cost', icon: 'steel', amount: 2, current: 2, resulting: 0},
-    ]);
+  it('pure M€ → NOT quick-adjustable, NOT configurable, one auto M€ chip', () => {
+    const v = buildPaymentView({cost: 11, lanes: [], counts: {}, mcAvailable: 65, stock});
+    expect(v.quickAdjustEligible).to.be.false;
+    expect(v.configurable).to.be.false;
+    expect(v.chips).to.have.length(1);
+    expect(v.chips[0]).to.deep.include({isAutoBalanced: true, isAdjustable: false});
+    expect(v.chips[0].effect).to.deep.include({icon: 'megacredits', amount: 11, current: 65, resulting: 54});
   });
 
-  it('pure M€ → a single M€ chip', () => {
-    const chips = paymentChips({lanes: [], counts: {}, mcSpent: 12, stock: {megacredits: 29}});
-    expect(chips).to.deep.equal([{direction: 'cost', icon: 'megacredits', amount: 12, current: 29, resulting: 17}]);
+  it('ONE alt lane (steel) → quick-adjustable; alt chip FIRST with LB/RB metadata, then auto M€', () => {
+    // cost 11, 5 steel @ rate 2 = 10, +1 M€.
+    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65, stock});
+    expect(v.quickAdjustEligible).to.be.true;
+    expect(v.quickAdjustUnit).to.equal('steel');
+    expect(v.configurable).to.be.true;
+    expect(v.chips.map((c) => c.effect.icon)).to.deep.equal(['steel', 'megacredits']);
+    const steelChip = v.chips[0];
+    expect(steelChip).to.deep.include({isAdjustable: true});
+    expect(steelChip.effect).to.deep.include({amount: 5, current: 5, resulting: 0});
+    expect(steelChip.canIncrease).to.be.false; // already at max steel (5, cap = ceil(11/2)=6 but only 5 owned)
+    expect(steelChip.canDecrease).to.be.true; // M€ (65) easily covers a bigger remainder
+    expect(v.chips[1]).to.deep.include({isAutoBalanced: true});
   });
 
-  it('titanium spend shows its own delta; a 0-spend lane is omitted', () => {
-    const chips = paymentChips({lanes: [steelLane, titaniumLane], counts: {steel: 0, titanium: 1}, mcSpent: 5, stock});
-    expect(chips.map((c) => c.icon)).to.deep.equal(['megacredits', 'titanium']);
-    expect(chips[1]).to.deep.include({amount: 1, current: 4, resulting: 3});
+  it('quick-adjust canDecrease is FALSE when M€ cannot cover the larger remainder', () => {
+    // cost 11, 5 steel used, but only 0 M€ on hand → dropping steel would leave 2 M€ uncovered.
+    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0, stock: {steel: 5}});
+    expect(v.chips[0].canDecrease).to.be.false;
+    expect(v.paymentValid).to.be.false; // 5*2=10 < 11, no M€ to top up
+    expect(v.deficit).to.equal(1);
   });
 
-  it('a special (non-standard) payment resource shows a signed amount, no delta', () => {
+  it('TWO alt lanes → NOT quick-adjustable (complex): M€ first, then each spent lane, no adjust metadata', () => {
+    const v = buildPaymentView({cost: 21, lanes: [steelLane, titaniumLane], counts: {steel: 2, titanium: 1}, mcAvailable: 30, stock: {megacredits: 30, steel: 3, titanium: 2}});
+    expect(v.quickAdjustEligible).to.be.false;
+    expect(v.configurable).to.be.true;
+    expect(v.chips.every((c) => !c.isAdjustable)).to.be.true;
+    expect(v.chips.map((c) => c.effect.icon)).to.deep.equal(['megacredits', 'steel', 'titanium']);
+  });
+
+  it('a special (non-standard) alt resource shows a signed amount, no before → after', () => {
     const microbeLane: PaymentLane = {unit: 'microbes', rate: 1, available: 3, reserved: false};
-    const chips = paymentChips({lanes: [microbeLane], counts: {microbes: 3}, mcSpent: 0, stock: {}});
-    expect(chips).to.deep.equal([{direction: 'cost', icon: 'microbes', amount: 3}]);
+    const v = buildPaymentView({cost: 3, lanes: [microbeLane], counts: {microbes: 3}, mcAvailable: 10, stock: {megacredits: 10}});
+    expect(v.chips[0].effect).to.deep.equal({direction: 'cost', icon: 'microbes', amount: 3});
+    expect(v.chips[0].effect.current).to.be.undefined;
   });
 });

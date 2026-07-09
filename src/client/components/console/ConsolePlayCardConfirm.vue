@@ -155,23 +155,33 @@
               </div>
 
               <!-- PAYMENT — an INFO panel (resource chips + было → стало), NOT a
-                   button. LT opens the lanes; a pure-AUTO M€ payment shows «авто». -->
+                   button. One unified layout for auto / quick-adjust / complex:
+                   the SINGLE-alt case gets inline LB/RB pills on its chip; M€ is
+                   badged «авто»; LT opens the full editor when configurable. -->
               <div class="con-composer__pay">
                 <div class="con-composer__pay-head">
                   <span class="con-composer__pay-title">{{ $t('Payment') }}</span>
                   <span class="con-composer__pay-cost">{{ $t('Cost') }}: <b>{{ cost }}</b></span>
-                  <span v-if="payLanes.length > 0" class="con-composer__pay-lt">
+                  <span v-if="paymentView.configurable" class="con-composer__pay-lt">
                     <GamepadGlyph control="triggerL" /><span>{{ $t('Configure payment') }}</span>
                   </span>
-                  <span v-else class="con-composer__pay-auto">{{ $t('auto') }}</span>
                 </div>
-                <div class="con-composer__pay-chips">
-                  <ActionEffectChip v-for="(eff, k) in paymentChipsView" :key="k" :effect="eff" />
-                  <span v-if="paymentChipsView.length === 0" class="con-composer__pay-free">{{ cost === 0 ? $t('Free') : (cost + ' M€') }}</span>
+                <div class="con-composer__pay-rows">
+                  <div v-for="(chip, k) in paymentView.chips" :key="k"
+                       class="con-composer__pay-row" :class="{'con-composer__pay-row--adjustable': chip.isAdjustable}">
+                    <ActionEffectChip :effect="chip.effect" />
+                    <span v-if="chip.isAutoBalanced" class="con-composer__pay-badge">{{ $t('auto') }}</span>
+                    <span v-if="chip.isAdjustable" class="con-composer__pay-pills">
+                      <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canDecrease}"><GamepadGlyph control="bumperL" /><span>−1</span></span>
+                      <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canIncrease}"><GamepadGlyph control="bumperR" /><span>+1</span></span>
+                    </span>
+                    <span v-if="chip.isAdjustable" :key="'flash' + payFlashNonce" class="con-composer__pay-flash" aria-hidden="true"></span>
+                  </div>
+                  <span v-if="paymentView.chips.length === 0" class="con-composer__pay-free">{{ cost === 0 ? $t('Free') : (cost + ' M€') }}</span>
                 </div>
                 <div v-if="!paymentReady" class="con-composer__pay-short">
-                  <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="paymentDeficit > 0">:
-                    <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ paymentDeficit }}</template>
+                  <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="paymentView.deficit > 0">:
+                    <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ paymentView.deficit }}</template>
                 </div>
               </div>
 
@@ -217,11 +227,13 @@
  * permanent effect → VP → tags → honest fallback).
  *
  * Control grammar (hints ONLY in the bottom bar): ↑↓ = navigate variants +
- * step picks (moving onto a variant SELECTS it) · ←→ / LB/RB = adjust a focused
- * amount · RT = MAX · A = the ONE smart primary action (plays when ready, else
- * leads to the first unresolved choice) · LT = configure the payment mix · X =
- * inspect the card fullscreen · B = cancel (client-side, nothing committed).
- * The primary action is `computePrimaryAction`, NOT raw DOM focus.
+ * step picks (moving onto a variant SELECTS it) · ←→ = adjust a focused amount ·
+ * LB/RB = a focused amount stepper, ELSE the inline payment quick-adjust (the
+ * simple one-alt-resource case — M€ auto-rebalances) · RT = MAX · A = the ONE
+ * smart primary action (plays when ready, else leads to the first unresolved
+ * choice) · LT = open the full payment editor · X = inspect the card fullscreen ·
+ * B = cancel. Primary action = `computePrimaryAction`; payment = `buildPaymentView`
+ * (all rules there — the component never re-derives payment math).
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
@@ -252,7 +264,7 @@ import {
 } from '@/client/console/consoleActionComposer';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
-  computePrimaryAction, PrimaryActionState, paymentChips,
+  computePrimaryAction, PrimaryActionState, buildPaymentView, PlayPaymentView,
 } from '@/client/console/consolePlayCardComposer';
 import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
@@ -327,6 +339,8 @@ export default defineComponent({
       focusIdx: 0,
       sub: undefined as SubState | undefined,
       submitting: false,
+      /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
+      payFlashNonce: 0,
     };
   },
   computed: {
@@ -367,19 +381,21 @@ export default defineComponent({
     paymentReady(): boolean {
       return paymentCovers(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
     },
-    /** The payment mix as unified resource chips (icon + −spent + было → стало). */
-    paymentChipsView(): ReadonlyArray<ActionEffect> {
+    /** The full payment view-model — chips + inline quick-adjust eligibility.
+     *  The UI renders + calls actions; ALL rules stay in `buildPaymentView`. */
+    paymentView(): PlayPaymentView {
       const p = this.thisPlayer as unknown as Record<string, number>;
-      return paymentChips({
+      return buildPaymentView({
+        cost: this.cost,
         lanes: this.payLanes,
         counts: this.payCounts,
-        mcSpent: this.payAutoMc,
+        mcAvailable: this.megacreditsOnHand,
         stock: {megacredits: p.megacredits, steel: p.steel, titanium: p.titanium, plants: p.plants, energy: p.energy, heat: p.heat},
       });
     },
-    /** M€-equivalent shortfall when the current mix can't cover the cost. */
-    paymentDeficit(): number {
-      return Math.max(0, this.cost - this.payTotal);
+    /** The single adjustable chip (quick-adjust), when eligible. */
+    quickAdjustChip() {
+      return this.paymentView.chips.find((c) => c.isAdjustable);
     },
     // ── branches / choices ──────────────────────────────────────────────
     branches(): ReadonlyArray<ActionPreviewBranch> {
@@ -585,15 +601,22 @@ export default defineComponent({
       return {label: 'Play now', enabled: false};
     },
     footHints(): Array<FootHint> {
+      // A focused amount/spend-heat stepper OWNS LB/RB; otherwise the inline
+      // payment quick-adjust does (when eligible).
+      const focusedStepper = this.focusedKind === 'amount' || this.focusedKind === 'spendHeat';
+      const chip = this.quickAdjustChip;
+      const quickAdjust = (!focusedStepper && this.paymentView.quickAdjustEligible && chip !== undefined) ?
+        {canDecrease: chip.canDecrease, canIncrease: chip.canIncrease} : undefined;
       return playComposerFootHints({
         sub: this.sub === undefined ? 'none' : this.sub.kind,
         subIsCardList: this.subChoice?.input.type === 'card',
         hasRows: this.rows.length > 0,
         focusedKind: this.focusedKind,
-        configurablePayment: this.payLanes.length > 0,
+        configurablePayment: this.paymentView.configurable,
         paymentReady: this.paymentReady,
         primaryLabel: this.primaryFooter.label,
         primaryEnabled: this.primaryFooter.enabled,
+        quickAdjust,
       });
     },
     // ── sub-state derived views ─────────────────────────────────────────
@@ -996,10 +1019,14 @@ export default defineComponent({
       case 'bumperL':
       case 'bumperR': {
         const step = button === 'bumperL' ? -1 : 1;
+        // A focused amount/spend-heat stepper takes priority; otherwise LB/RB do
+        // the global inline payment quick-adjust (no focus on payment needed).
         if (row?.kind === 'step' && row.choice.kind === 'amount') {
           this.setAmount(row.choice, this.amountFor(row.choice.id) + step);
         } else if (row?.kind === 'step' && row.choice.kind === 'spendHeat') {
           this.adjustFloaters(row.choice, step);
+        } else {
+          this.adjustQuickPayment(step);
         }
         return;
       }
@@ -1134,6 +1161,21 @@ export default defineComponent({
       const cap = laneCap(this.cost, lane);
       const cur = this.payCount(lane.unit);
       this.payCounts = {...this.payCounts, [lane.unit]: toMax ? cap : Math.min(cap, Math.max(0, cur + step))};
+    },
+    /** The inline quick-adjust (main screen, no payment sub): LB (-1) / RB (+1)
+     *  on the SINGLE alt resource; M€ auto-rebalances. Guarded by the view-model's
+     *  canDecrease/canIncrease so a dead press is a no-op (never an invalid mix). */
+    adjustQuickPayment(step: number): void {
+      const view = this.paymentView;
+      const chip = view.chips.find((c) => c.isAdjustable);
+      if (!view.quickAdjustEligible || chip === undefined) {
+        return;
+      }
+      if ((step > 0 && !chip.canIncrease) || (step < 0 && !chip.canDecrease)) {
+        return;
+      }
+      this.adjustLane(0, step);
+      this.payFlashNonce += 1;
     },
     submit(): void {
       const b = this.selectedBranch;
