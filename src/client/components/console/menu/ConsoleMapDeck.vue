@@ -70,8 +70,10 @@ export default defineComponent({
       return automaBlockerText('board');
     },
     stripStyle(): Record<string, string> {
+      // The strip's left edge is pinned at the viewport centre (CSS left:50%);
+      // shift it left by the cursor card's centre so that card lands centred.
       const offset = (this.cursor + 0.5) * CARD_SLOT_PX;
-      return {transform: `translateX(calc(50% - ${offset}px))`};
+      return {transform: `translateX(-${offset}px)`};
     },
   },
   methods: {

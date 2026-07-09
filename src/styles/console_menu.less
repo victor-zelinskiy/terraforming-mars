@@ -781,10 +781,21 @@
     gap: 14px;
 }
 .cm-maps__viewport {
+    position: relative;
     overflow: hidden;
-    padding: 12px 0;
+    /* Tall enough to hold the (scaled 1.05) card — the strip is absolute, so
+       it no longer contributes height. */
+    height: 288px;
 }
 .cm-maps__strip {
+    /* Centred on the VIEWPORT: left edge at 50%, then shifted LEFT by the
+       cursor card's centre (JS `translateX(-Npx)`), so the cursored card
+       always sits under the viewport centre. A translateX *percentage* would
+       be self-relative (the strip is `max-content` ≈ all cards wide) and
+       would fling the strip off-screen — hence the pixel offset. */
+    position: absolute;
+    top: 12px;
+    left: 50%;
     display: flex;
     gap: 16px;
     width: max-content;
