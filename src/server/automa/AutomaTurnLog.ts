@@ -214,14 +214,14 @@ export class AutomaTurnLog {
     const fresh = AutomaTurnLog.takeFreshLogs(game);
     if (opts?.consumeLog === true && fresh.length > 0) {
       const own = fresh.pop();
-      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'attack')) {
+      if (own !== undefined && (step.kind === 'reveal' || step.kind === 'failed' || step.kind === 'pass' || step.kind === 'attack' || step.kind === 'hazard')) {
         step.message = own;
       }
     }
     AutomaTurnLog.pushLogs(recording, fresh);
-    // Attribute the typed step to the live cause (tag / advance / attack / log
-    // carry `cause`; a step that already set its own keeps it).
-    if ((step.kind === 'tag' || step.kind === 'advance' || step.kind === 'attack' || step.kind === 'log') &&
+    // Attribute the typed step to the live cause (tag / advance / attack / log /
+    // hazard carry `cause`; a step that already set its own keeps it).
+    if ((step.kind === 'tag' || step.kind === 'advance' || step.kind === 'attack' || step.kind === 'log' || step.kind === 'hazard') &&
         step.cause === undefined && recording.currentCause !== undefined) {
       step.cause = recording.currentCause;
     }

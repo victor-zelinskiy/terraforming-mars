@@ -2,6 +2,7 @@ import {Board} from '../boards/Board';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import {AutomaAres} from './AutomaAres';
 import {failedAction} from './AutomaFailedAction';
 import {marsBotOf} from './AutomaUtil';
 
@@ -59,7 +60,10 @@ export class AutomaTilePlacer {
     }
     let tied = keepMax(candidates, (space) => AutomaTilePlacer.adjacentOceans(game, space));
     if (tied.length > 1) {
-      tied = keepMax(tied, (space) => space.bonus.length);
+      // Ares house rule: an adjacency-bonus unit the bot would earn is worth
+      // exactly 1 M€ — the same as a covered printed icon — so both count
+      // here. `adjacencyBonusUnits` is 0 without Ares (identical behavior).
+      tied = keepMax(tied, (space) => space.bonus.length + AutomaAres.adjacencyBonusUnits(game, space));
     }
     if (tied.length === 1) {
       return tied[0];
@@ -91,13 +95,19 @@ export class AutomaTilePlacer {
    */
   public static placeGreenery(game: IGame): void {
     const bot = marsBotOf(game);
-    const available = game.board.getAvailableSpacesForGreenery(bot);
+    // Ares: the bot never places ON a hazard (cleanup is a human economic
+    // decision — see AutomaAres); identity without Ares.
+    const available = AutomaAres.withoutHazardSpaces(game, game.board.getAvailableSpacesForGreenery(bot));
     if (available.length === 0) {
       failedAction(game, 'no-tile-space');
       return;
     }
     let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentCitiesOf(game, space, bot));
     candidates = keepMin(candidates, (space) => AutomaTilePlacer.adjacentOpponentCities(game, space, bot));
+    // Ares: strong hazard avoidance — after the printed strategy above, before
+    // the generic tiebreakers, so a hazard-adjacent space survives only when it
+    // strictly wins on the greenery's own placement criteria.
+    candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
     game.addGreenery(bot, space);
   }
@@ -109,17 +119,26 @@ export class AutomaTilePlacer {
    */
   public static placeCity(game: IGame): void {
     const bot = marsBotOf(game);
-    const available = game.board.getAvailableSpacesForCity(bot);
+    // Ares: never ON a hazard; identity without Ares (see placeGreenery).
+    const available = AutomaAres.withoutHazardSpaces(game, game.board.getAvailableSpacesForCity(bot));
     if (available.length === 0) {
       failedAction(game, 'no-tile-space');
       return;
     }
-    const candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentGreeneries(game, space));
+    let candidates = keepMax(available, (space) => AutomaTilePlacer.adjacentGreeneries(game, space));
+    // Ares: strong hazard avoidance after the printed city strategy.
+    candidates = [...AutomaAres.preferAwayFromHazards(game, candidates)];
     const space = AutomaTilePlacer.breakTie(game, candidates);
     game.addCity(bot, space);
   }
 
-  /** "MarsBot places an ocean tile on any ocean-reserved space." */
+  /**
+   * "MarsBot places an ocean tile on any ocean-reserved space."
+   * Ares deliberately changes NOTHING here: ocean tiles are exempt from hazard
+   * adjacency (see Game.addTile's `subjectToHazardAdjacency`) and hazards never
+   * occupy ocean-reserved spaces, so there is neither a cost to avoid nor a
+   * consequence to apply.
+   */
   public static placeOcean(game: IGame): void {
     if (!game.canAddOcean()) {
       failedAction(game, 'oceans-complete');

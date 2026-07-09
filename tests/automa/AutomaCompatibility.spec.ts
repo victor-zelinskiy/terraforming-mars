@@ -9,7 +9,6 @@ function cleanInput(): AutomaCompatibilityInput {
     prelude2: false,
     promo: false,
     community: false,
-    ares: false,
     moon: false,
     pathfinders: false,
     ceo: false,
@@ -42,15 +41,15 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     const conflicts = automaConflicts({
       ...cleanInput(),
       promo: true,
-      ares: true,
+      moon: true,
       shuffleMapOption: true,
       randomMA: true,
     });
     expect(conflicts.map((c) => c.key)).deep.eq(
-      ['expansion:promo', 'expansion:ares', 'rule:randomMilestonesAwards', 'rule:randomBoardTiles']);
-    expect(conflictFor(conflicts, 'expansion:ares')?.reason).eq('Ares');
+      ['expansion:promo', 'expansion:moon', 'rule:randomMilestonesAwards', 'rule:randomBoardTiles']);
+    expect(conflictFor(conflicts, 'expansion:moon')?.reason).eq('The Moon');
     expect(conflictFor(conflicts, 'expansion:promo')?.reason).eq('promo cards in the POC');
-    expect(conflictFor(conflicts, 'expansion:moon')).is.undefined;
+    expect(conflictFor(conflicts, 'expansion:turmoil')).is.undefined;
   });
 
   it('keeps the exact server reject wording for the first conflict', () => {

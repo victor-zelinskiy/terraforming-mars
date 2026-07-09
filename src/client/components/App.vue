@@ -35,7 +35,19 @@
       </dialog>
     </section>
     <div class="main-container">
-      <premium-main-menu v-if="screen === 'main-menu'"></premium-main-menu>
+      <!--
+        CONSOLE MODE (pre-game): the main menu + create-game screens have
+        console-native shells — state-based pad navigation, own command bar,
+        no DOM-focus dependence. Same routing/screen ids, same shared create
+        state, so toggling the mode (hold Menu) swaps the shell in place.
+      -->
+      <console-main-menu
+        v-if="screen === 'main-menu' && consoleModeState.enabled"
+      ></console-main-menu>
+      <premium-main-menu v-else-if="screen === 'main-menu'"></premium-main-menu>
+      <console-create-game
+        v-else-if="screen === 'premium-create-game' && consoleModeState.enabled"
+      ></console-create-game>
       <premium-create-game
         v-else-if="screen === 'premium-create-game'"
       ></premium-create-game>
@@ -340,6 +352,10 @@ const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "star
 // StartScreen lives on at '/legacy'. Async so its background/assets only load
 // when the menu is actually shown.
 const PremiumMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "main-menu" */ '@/client/components/mainMenu/PremiumMainMenu.vue'));
+// Console-native pre-game shells (state-based pad navigation, no DOM focus) —
+// mounted INSTEAD of the premium desktop screens while console mode is on.
+const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMainMenu.vue'));
+const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
 // Premium "Mission Control" create-game screen — opened from the premium menu.
 const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "premium-create-game" */ '@/client/components/create/premium/PremiumCreateGame.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
@@ -504,6 +520,8 @@ export default defineComponent({
   components: {
     'premium-main-menu': PremiumMainMenu,
     'premium-create-game': PremiumCreateGame,
+    'console-main-menu': ConsoleMainMenu,
+    'console-create-game': ConsoleCreateGame,
     'start-screen': StartScreen,
     'create-game-form': CreateGameForm,
     'load-game-form': LoadGameForm,

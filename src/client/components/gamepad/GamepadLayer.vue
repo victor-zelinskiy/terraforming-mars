@@ -3,8 +3,10 @@
     <GamepadFocusRing />
     <!-- The iteration-1 hint bar serves desktop gamepad mode AND the console
          lifecycle screens where the ConsoleShell command bar isn't mounted
-         (main menu / create / join / lobby — fallback-engine-driven). -->
-    <GamepadHintBar v-if="!consoleModeState.enabled || !consoleState.shellMounted" />
+         (join / lobby — fallback-engine-driven). The console-native pre-game
+         screens (main menu / create) render their OWN command bar and
+         suppress it via menuPadState. -->
+    <GamepadHintBar v-if="(!consoleModeState.enabled || !consoleState.shellMounted) && menuPadState.mountedCount === 0" />
     <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
 
     <!-- The console SYSTEM overlay (Menu button): Controls / Exit to menu. -->
@@ -83,6 +85,7 @@ import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/c
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
+import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 
 const FOCUS_TICK_MS = 400;
@@ -138,6 +141,7 @@ export default defineComponent({
       consoleModeState,
       consoleLayoutState,
       consoleState,
+      menuPadState,
       leakDetectorState,
       systemMenuOpen: false,
       systemMenuIndex: 0,

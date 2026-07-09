@@ -19,7 +19,6 @@ export type AutomaConflictKey =
   | 'expansion:prelude2'
   | 'expansion:promo'
   | 'expansion:community'
-  | 'expansion:ares'
   | 'expansion:moon'
   | 'expansion:pathfinders'
   | 'expansion:ceo'
@@ -50,7 +49,6 @@ export type AutomaCompatibilityInput = {
   prelude2: boolean;
   promo: boolean;
   community: boolean;
-  ares: boolean;
   moon: boolean;
   pathfinders: boolean;
   ceo: boolean;
@@ -88,7 +86,13 @@ const RULES: ReadonlyArray<Rule> = [
   {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},
   {key: 'expansion:promo', test: (o) => o.promo, reason: () => 'promo cards in the POC'},
   {key: 'expansion:community', test: (o) => o.community, reason: () => 'community cards'},
-  {key: 'expansion:ares', test: (o) => o.ares, reason: () => 'Ares'},
+  // NOTE: ARES is NOT a conflict — MarsBot plays it via house rules (mirrors the
+  // alt-Venus-board / Delta Project precedents): Ares neighborhood bonuses pay
+  // the bot 1 M€ per bonus unit (the printed-icon conversion), the bot AVOIDS
+  // placing next to hazards (a strong scoring preference, never a legality
+  // change), and a placement that still ends up next to a hazard regresses ONE
+  // random tag track (its production-cost equivalent). See AutomaAres.ts +
+  // the isMarsBot branches in AresHandler.
   {key: 'expansion:moon', test: (o) => o.moon, reason: () => 'The Moon'},
   {key: 'expansion:pathfinders', test: (o) => o.pathfinders, reason: () => 'Pathfinders'},
   {key: 'expansion:ceo', test: (o) => o.ceo, reason: () => 'CEOs'},

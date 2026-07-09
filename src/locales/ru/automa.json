@@ -36,7 +36,6 @@
   "${0} took a Failed Action (it does not meet any milestone's criteria) and gained ${1} M€": "${0} выполняет проваленное действие (не выполняет условий ни одного достижения) и получает ${1} M€",
   "${0} took a Failed Action (three awards have already been funded) and gained ${1} M€": "${0} выполняет проваленное действие (три награды уже учреждены) и получает ${1} M€",
   "${0} took a Failed Action (it is not ahead on any award) and gained ${1} M€": "${0} выполняет проваленное действие (не лидирует ни в одной награде) и получает ${1} M€",
-
   "MarsBot": "Бот",
   "Game mode": "Режим партии",
   "Multiplayer": "Мультиплеер",
@@ -57,7 +56,6 @@
   "MarsBot supports the Tharsis map with Corporate Era, Prelude, Venus Next, Colonies and Hydronetworks. Conflicting options are highlighted below.": "Бот поддерживает карту Фарсида с дополнениями «Корпоративная эра», «Прелюдия», «Венера», «Колонии» и «Гидросеть». Конфликтующие опции подсвечены ниже.",
   "MarsBot plays on the Tharsis map only for now": "Бот пока играет только на карте Фарсида",
   "MarsBot does not support Promos yet": "Бот пока не поддерживает промокарты",
-  "MarsBot does not support Ares yet": "Бот пока не поддерживает «Арес»",
   "MarsBot uses the printed milestones and awards": "Бот использует печатные достижения и награды",
   "Once per generation, at the start of its first turn, MarsBot advances up to 4 rows on the Hydronetwork, consuming one Power increment of its Energy tracker per row.": "Раз в поколение, в начале своего первого хода, бот продвигается по Гидросети — до 4 рядов, тратя по одному делению своего трека Энергии за ряд.",
   "A row opens only once the matching tag's tracker has progressed, and consumed Power never returns — reducing MarsBot's energy production also drains its Hydronetwork budget.": "Ряд открывается, только когда трек соответствующей метки продвинут, а потраченная энергия не возвращается — снижение производства энергии бота истощает и его бюджет Гидросети.",
@@ -65,7 +63,6 @@
   "MarsBot needs the printed board layout": "Бот требует печатную раскладку поля",
   "MarsBot does not support the alternative Venus board": "Бот не поддерживает альтернативный планшет Венеры",
   "This option is not supported with MarsBot yet": "Эта опция пока недоступна с ботом",
-
   "M€ supply": "Запас M€",
   "Action deck": "Колода действий",
   "Bonus deck": "Колода бонусов",
@@ -88,18 +85,15 @@
   "Raise the temperature 2 steps": "Поднять температуру на 2 шага",
   "Gain 2 floaters": "Получить 2 аэростата",
   "Gain 1 floater": "Получить 1 аэростат",
-
   "MarsBot has no production — its economy is the M€ supply": "У бота нет производства — его экономика равна запасу M€",
   "Decks": "Колоды",
   "Face-down deck contents are hidden": "Содержимое закрытых колод скрыто",
   "Bonus cards": "Бонусные карты",
   "No cards played yet": "Карты ещё не разыграны",
   "The cube marks the current position; ✕ marks regressed spaces whose action will not trigger again": "Куб отмечает текущую позицию; ✕ — клетки отступления, действие которых больше не сработает",
-
   "Bot turn": "Ходит",
   "MarsBot finished its turn": "Бот завершил ход",
   "Watch turn": "Осмотреть ход",
-
   "Recurring": "Постоянные",
   "Discard pile": "Сброс",
   "Destroyed cards": "Уничтожено",
@@ -112,7 +106,6 @@
   "Every 5 resources here exchange into a tracker step": "Каждые 5 ресурсов здесь обмениваются на шаг трека",
   "Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out": "Разыгранные бонусные карты лежат здесь и замешиваются обратно, когда колода бонусов закончится",
   "Destroyed cards are removed from the game permanently — they are never reshuffled": "Уничтоженные карты убраны из игры навсегда — они не замешиваются обратно",
-
   "To the discard": "В сброс",
   "Destroyed on success": "Уничтожается при успехе",
   "Destroyed": "Уничтожается",
@@ -127,7 +120,6 @@
   "Destroyed after resolving — it never returns": "Уничтожается после розыгрыша — больше не вернётся",
   "Returns to the action deck every generation": "Возвращается в колоду действий каждое поколение",
   "Destroyed if the city was placed; building a colony discards it": "Уничтожается, если город размещён; постройка колонии отправляет её в сброс",
-
   "MarsBot's opponent loses up to ${0} plants": "Соперник бота теряет до ${0} растений",
   "MarsBot gains ${0} M€": "Бот получает ${0} M€",
   "MarsBot gains 1 floater": "Бот получает 1 аэростат",
@@ -156,7 +148,6 @@
   "MarsBot trades with the colony whose tracker is furthest along": "Бот торгует с колонией, чей трекер продвинут дальше всех",
   "Joins the deck once MarsBot unlocks its second trade fleet": "Входит в колоду, когда бот открывает второй торговый флот",
   "Joins the deck from generation 2": "Входит в колоду со 2-го поколения",
-
   "How MarsBot plays": "Как играет бот",
   "Its turn in one sentence": "Его ход в одном предложении",
   "On its turn MarsBot flips the top card of its action deck: a PROJECT card advances one tracker per printed tag, left to right; a BONUS card resolves its own special effect.": "В свой ход бот вскрывает верхнюю карту колоды действий: карта ПРОЕКТА продвигает по одному треку за каждую напечатанную метку слева направо; БОНУСНАЯ карта разыгрывает собственный особый эффект.",
@@ -195,7 +186,6 @@
   "Nothing to lose": "Терять нечего",
   "Chooses what to lose": "Выбирает, что потерять",
   "MarsBot turn": "Ход бота",
-
   "Turn review": "Разбор хода",
   "MarsBot turn review": "Разбор хода бота",
   "Previous turn": "Предыдущий ход",
@@ -251,7 +241,6 @@
   "Card fate": "Судьба карты",
   "Destroyed this turn": "Уничтожена в этом ходу",
   "Returns to the deck": "Возвращается в колоду",
-
   "MarsBot scoring": "Подсчёт бота",
   "M€ converted to VP": "M€, обменянные на ПО",
   "Neural Instance": "Нейроинстанция",
@@ -259,7 +248,6 @@
   "Track actions": "Действия треков",
   "MarsBot's M€ conversion, Neural Instance and played-card VP": "Обмен M€ бота, Нейроинстанция и ПО за разыгранные карты",
   "Won on the clock — the final generation was reached": "Победа по времени — достигнуто финальное поколение",
-
   "Meteor Shower": "Метеоритный дождь",
   "You lose up to 5 plants. If it removed 3 or more (or your plants were protected), the card is destroyed.": "Вы теряете до 5 растений. Если убрано 3 и более (или ваши растения были защищены), карта уничтожается.",
   "Invasive Species": "Инвазивные виды",
@@ -313,5 +301,9 @@
   "Gray Eminence": "Серый кардинал",
   "Interface Hyperlink": "Интерфейсная гиперссылка",
   "Government Subsidy": "Государственная субсидия",
-  "Investors": "Инвесторы"
+  "Investors": "Инвесторы",
+  "${0} gained ${1} M€ for the Ares adjacency bonus": "${0} получает ${1} M€ за бонус соседства",
+  "${0} placed next to an Ares hazard — its ${1} track regressed from ${2} to ${3}": "${0} размещается рядом с опасной зоной — его трек (${1}) отступает с ${2} до ${3}",
+  "${0} placed next to an Ares hazard, but its tracks are all at the start": "${0} размещается рядом с опасной зоной, но все его треки в начале — откатывать нечего",
+  "Ares hazard": "Опасная зона"
 }

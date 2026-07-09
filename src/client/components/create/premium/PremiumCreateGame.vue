@@ -94,9 +94,6 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {paths} from '@/common/app/paths';
-import {navigateWithCurtain} from '@/client/console/loadingScreenState';
-import {apiUrl} from '@/client/utils/runtimeConfig';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChip.vue';
@@ -115,15 +112,13 @@ import PartyBriefing from '@/client/components/create/premium/PartyBriefing.vue'
 import CreateInfoPanel from '@/client/components/create/premium/CreateInfoPanel.vue';
 import BriefingActions from '@/client/components/create/premium/BriefingActions.vue';
 import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame,
-  saveCreateGameState, restoreCreateGameState, clearSavedCreateGameState} from './createGameState';
-import {buildCreateGamePayloadFromPremiumState} from './buildCreateGamePayload';
+  restoreCreateGameState, clearSavedCreateGameState} from './createGameState';
+import {submitPremiumCreateGame} from './submitCreateGame';
 import {$t} from '@/client/directives/i18n';
 
 // How long the calm "restored your last settings" notice lingers before it
 // fades on its own (ms). Player interaction (Reset / dismiss) clears it sooner.
 const RESTORE_NOTICE_MS = 7000;
-
-type SimplePlayer = {id: string, color: Color};
 
 export default defineComponent({
   name: 'PremiumCreateGame',
@@ -243,38 +238,7 @@ export default defineComponent({
     },
     onCreate(): void {
       if (canCreateGame()) {
-        void this.doCreate();
-      }
-    },
-    async doCreate(): Promise<void> {
-      createGameState.error = '';
-      createGameState.creating = true;
-      const creatorColor = createGameState.config.players[0].color;
-      try {
-        const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
-        // Remember this setup so the create screen re-opens with it next time.
-        saveCreateGameState();
-        const res = await fetch(apiUrl(paths.API_CREATEGAME), {
-          method: 'POST',
-          body: JSON.stringify(payload),
-          headers: {'Content-Type': 'application/json'},
-        });
-        const text = await res.text();
-        let json: {players?: Array<SimplePlayer>} | undefined;
-        try {
-          json = JSON.parse(text);
-        } catch {
-          json = undefined;
-        }
-        if (!res.ok || json === undefined || !Array.isArray(json.players) || json.players.length === 0) {
-          throw new Error('create-failed');
-        }
-        const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
-        // Deliberate reload at the game boundary — covered by the curtain (P10).
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(creator.id), 'expedition');
-      } catch {
-        createGameState.creating = false;
-        createGameState.error = 'Could not create the game. Please try again.';
+        void submitPremiumCreateGame();
       }
     },
   },

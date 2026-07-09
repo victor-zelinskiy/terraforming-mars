@@ -29,5 +29,13 @@
     "Created yesterday": "Создана вчера",
     "Created ${0} d ago": "Создана ${0} дн назад",
     "Promo": "Промо",
-    "Delta Project": "Проект «Дельта»"
+    "Delta Project": "Проект «Дельта»",
+
+    "Main menu": "Главное меню",
+    "My games": "Мои партии",
+    "Enter game": "Войти в партию",
+    "Continue or join your unfinished games": "Продолжить или присоединиться к незавершённым партиям",
+    "Several players share your name here": "Здесь несколько игроков с вашим именем",
+    "No seat with your name": "Нет места с вашим именем",
+    "Your name and cube colour prefill every party you create or join.": "Имя и цвет кубика подставляются в каждую партию, которую вы создаёте или к которой присоединяетесь."
 }

@@ -170,7 +170,7 @@ let multiplayerSnapshot: {
  *
  * MarsBot mode keeps exactly ONE human seat (the creator — the bot itself is
  * seated by the server) and applies the POC PRESET: the fork's default lineup
- * includes modules the Automa doesn't cover yet (Promo / Ares,
+ * includes modules the Automa doesn't cover yet (Promo,
  * random M&A, shuffled tiles, random board), so entering the mode starts from
  * the clean supported set instead of a wall of conflict highlights. Options
  * the USER toggles afterwards are never silently reverted — they highlight as
@@ -249,6 +249,24 @@ export function setPlayerCount(count: number): void {
   });
 }
 
+/**
+ * Remove a specific slot (console roster flow). The creator (slot 0) is never
+ * removable and the list never shrinks below the mode's minimum seats — both
+ * guarded here so a stray call can't produce an invalid party.
+ */
+export function removePlayerSlot(index: number): void {
+  const config = createGameState.config;
+  const min = config.gameMode === 'marsbot' ? 1 : PLAYER_COUNT_MIN;
+  if (index <= 0 || index >= config.players.length || config.players.length <= min) {
+    return;
+  }
+  config.players.splice(index, 1);
+  config.players.forEach((p, i) => {
+    p.slot = i;
+    p.isCreator = i === 0;
+  });
+}
+
 export function setSlotName(index: number, name: string): void {
   const slot = createGameState.config.players[index];
   if (slot !== undefined) {
@@ -309,7 +327,6 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     prelude2: on('prelude2'),
     promo: on('promo'),
     community: on('community'),
-    ares: on('ares'),
     moon: on('moon'),
     pathfinders: on('pathfinders'),
     ceo: on('ceo'),
@@ -340,7 +357,6 @@ export function stateAutomaConflictKeys(): ReadonlySet<string> {
 const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'board': 'MarsBot plays on the Tharsis map only for now',
   'expansion:promo': 'MarsBot does not support Promos yet',
-  'expansion:ares': 'MarsBot does not support Ares yet',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };

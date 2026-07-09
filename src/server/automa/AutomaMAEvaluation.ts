@@ -33,9 +33,11 @@ export class AutomaMAEvaluation {
       // "Unchanged" milestones (Terraformer — incl. the fork's Terraformer29
       // threshold variant — Mayor, Gardener) evaluate the bot exactly like a
       // player: its TR and its tiles are real, so the milestone's own canClaim
-      // is the honest source. A card-based milestone that cannot appear here
-      // (validateOptions pins the board set) reads the bot's empty tableau and
-      // is honestly "not met".
+      // is the honest source. The Ares additions ride this too: Networker
+      // reads aresData.milestoneResults (the bot is tallied there like any
+      // player), Purifier honestly stays 0 (the bot never covers оь). A
+      // card-based milestone that cannot appear here (validateOptions pins the
+      // board set) reads the bot's empty tableau and is honestly "not met".
       return milestone.canClaim(bot);
     }
   }
@@ -84,8 +86,10 @@ export class AutomaMAEvaluation {
       break;
     }
     default:
-      // Tile-based awards evaluate the bot's real board presence; anything else
-      // cannot appear (validateOptions pins the Tharsis set).
+      // Tile-based awards evaluate the bot's real board presence — incl. the
+      // Ares pair: Rugged counts its REAL tiles next to hazards, Entrepreneur
+      // honestly reads 0 (the bot never owns adjacency-bonus tiles); anything
+      // else cannot appear (validateOptions pins the board set).
       score = award.getScore(bot);
       break;
     }

@@ -214,6 +214,12 @@ export abstract class Board {
       }
     }
     if (additionalCosts.production > 0) {
+      // MarsBot has no production — its hazard-adjacency cost is the random
+      // tag-track regression house rule (AutomaAres), never a production
+      // payment, so the affordability math must not hide spaces from it.
+      if (player.isMarsBot) {
+        return true;
+      }
       // +5 because megacredits goes to -5
       const availableProduction = sum(Units.values(player.production)) + 5;
       return availableProduction > additionalCosts.production;

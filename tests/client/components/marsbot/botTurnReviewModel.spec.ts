@@ -305,4 +305,39 @@ describe('botTurnReviewModel', () => {
     // No separate top-level chain for the secondary card.
     expect(r.chains.filter((c) => c.cause.kind === 'bonus')).lengthOf(1);
   });
+
+  it('C5. Ares hazard step → cost-badged reason line + a regress-aware track line, in the placing tag\'s chain', () => {
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0, cause: {kind: 'tag', index: 0}},
+      {kind: 'advance', trackIndex: 0, from: 3, to: 4, action: 'city', cause: {kind: 'tag', index: 0}},
+      {kind: 'hazard', trackIndex: 1, from: 3, to: 2, message: log('${0} placed next to an Ares hazard — its ${1} track regressed from ${2} to ${3}'), cause: {kind: 'tag', index: 0}},
+    ]));
+    // Both lines live in the SAME chain as the placement that caused them.
+    const lines = r.chains[0].lines;
+    const reason = lines.find((l) => l.kind === 'log' && l.labelKey === 'Ares hazard');
+    expect(reason).is.not.undefined;
+    expect(reason?.kind === 'log' && reason.tone).eq('cost');
+    const regress = lines.find((l) => l.kind === 'track' && l.from === 3 && l.to === 2);
+    expect(regress).is.not.undefined;
+    if (regress?.kind === 'track') {
+      expect(regress.capsule).deep.eq([Tag.SCIENCE, Tag.JOVIAN]);
+      // The regress-aware mini-scale: FROM where it was, TO where it landed.
+      expect(regress.cells.find((c) => c.index === 3)?.state).eq('from');
+      expect(regress.cells.find((c) => c.index === 2)?.state).eq('to');
+    }
+  });
+
+  it('C6. Ares hazard step with NO regress (all tracks at 0) → only the reason line; order-fallback works too', () => {
+    const hazard: MarsBotTurnStep = {kind: 'hazard', message: log('${0} placed next to an Ares hazard, but its tracks are all at the start')};
+    // Phase-A order fallback (no cause markers anywhere).
+    const r = buildBotTurnReview(src([
+      {kind: 'reveal', card: {kind: 'project', name: CardName.GENE_REPAIR}},
+      {kind: 'tag', tag: Tag.BUILDING, trackIndex: 0},
+      hazard,
+    ]));
+    const chain = r.chains[0];
+    expect(chain.lines.some((l) => l.kind === 'log' && l.labelKey === 'Ares hazard' && l.tone === 'cost')).is.true;
+    expect(chain.lines.some((l) => l.kind === 'track')).is.false;
+  });
 });

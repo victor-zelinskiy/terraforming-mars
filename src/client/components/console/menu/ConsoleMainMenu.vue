@@ -1,0 +1,358 @@
+<template>
+  <div class="cm-menu" :class="{'cm-menu--dimmed': overlay !== undefined}">
+    <div class="cm-menu__bg" aria-hidden="true"></div>
+    <div class="cm-menu__vignette" aria-hidden="true"></div>
+
+    <header class="cm-menu__head">
+      <div class="cm-menu__brand">
+        <span class="cm-menu__brand-terra">TERRAFORMING</span>
+        <span class="cm-menu__brand-mars">MARS</span>
+        <span class="cm-menu__brand-badge">PREMIUM EDITION</span>
+      </div>
+      <button type="button" class="cm-identity" @click="openProfile">
+        <span class="cm-identity__cube" :class="identityCubeClass" aria-hidden="true"></span>
+        <span class="cm-identity__text">
+          <span class="cm-identity__kicker">{{ $t('Player') }}</span>
+          <span class="cm-identity__name">{{ identityName !== '' ? identityName : $t('Set your name') }}</span>
+        </span>
+      </button>
+    </header>
+
+    <nav class="cm-menu__items" :aria-label="$t('Main menu')">
+      <button
+        v-for="(item, i) in items"
+        :key="item.id"
+        type="button"
+        class="cm-item"
+        :class="{
+          'cm-item--cursor': i === cursor,
+          'cm-item--primary': item.id === 'continue' || (item.id === 'create' && continueItem === undefined),
+        }"
+        @click="activateAt(i)"
+        @mousemove="cursor = i"
+      >
+        <span class="cm-item__glyph" aria-hidden="true">{{ item.glyph }}</span>
+        <span class="cm-item__text">
+          <span class="cm-item__label">{{ $t(item.labelKey) }}</span>
+          <span v-if="item.subText !== ''" class="cm-item__sub">{{ item.subText }}</span>
+        </span>
+        <span v-if="item.badge > 0" class="cm-item__badge">{{ item.badge }}</span>
+        <span class="cm-item__hint" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+      </button>
+    </nav>
+
+    <!-- ── My games (continue / join) ──────────────────────────────────── -->
+    <div v-if="overlay === 'games'" class="cm-overlay" role="dialog" :aria-label="$t('My games')">
+      <div class="cm-overlay__card cm-overlay__card--wide">
+        <div class="cm-overlay__title">{{ $t('My games') }}</div>
+        <div v-if="joinGamesState.loading && !joinGamesState.loadedOnce" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
+        <div v-else-if="joinGamesState.error" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
+        <div v-else-if="games.length === 0" class="cm-gamelist__empty">{{ $t('You have no unfinished games yet.') }}</div>
+        <div v-else class="cm-gamelist">
+          <button
+            v-for="(g, i) in games"
+            :key="g.id"
+            type="button"
+            class="cm-game"
+            :class="{'cm-game--cursor': i === gamesCursor, 'cm-game--disabled': !joinable(g)}"
+            @click="enterGameAt(i)"
+            @mousemove="gamesCursor = i"
+          >
+            <span class="cm-game__main">
+              <span class="cm-game__name">{{ g.name }}</span>
+              <span class="cm-game__meta">
+                <span>{{ $t('Generation') }} {{ g.generation }}</span>
+                <span class="cm-game__dot" aria-hidden="true">·</span>
+                <span>{{ boardLabel(g) }}</span>
+              </span>
+            </span>
+            <span class="cm-game__players">
+              <span v-for="p in g.players" :key="p.color" class="cm-game__cube" :class="'player_bg_color_' + p.color" :title="p.name"></span>
+            </span>
+            <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
+            <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Profile editor ──────────────────────────────────────────────── -->
+    <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" />
+
+    <!-- ── Quit confirm ────────────────────────────────────────────────── -->
+    <div v-if="overlay === 'quit'" class="cm-overlay" role="dialog" :aria-label="$t('Exit the game?')">
+      <div class="cm-overlay__card">
+        <div class="cm-overlay__title">{{ $t('Exit the game?') }}</div>
+        <div class="cm-overlay__body">{{ $t('The application will close.') }}</div>
+        <div class="cm-confirm__pad">
+          <button type="button" class="cm-confirm__btn cm-confirm__btn--danger" @click="onQuitConfirm">
+            <GamepadGlyph control="confirm" /><span>{{ $t('Exit') }}</span>
+          </button>
+          <button type="button" class="cm-confirm__btn" @click="closeOverlay">
+            <GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ConsoleCommandBar :context="commandContext" :commands="commands" />
+  </div>
+</template>
+
+<script lang="ts">
+/**
+ * CONSOLE-NATIVE MAIN MENU — the pre-game "big plates" screen (Steam Deck /
+ * TV posture). Navigation is pure screen state (cursor over the items),
+ * driven by semantic pad intents through consoleMenuPad — DOM focus never
+ * drives it; mouse clicks work as a fallback (click = activate).
+ *
+ * Items: CONTINUE (the most recent unfinished game with the player's seat —
+ * one press back into the party), NEW GAME (the console create flow),
+ * MY GAMES (the full joinable list), PROFILE (name + cube colour), EXIT
+ * (Electron only). The command bar at the bottom is the single source of
+ * button truth; Menu/system stays global (GamepadLayer).
+ */
+import {defineComponent} from 'vue';
+import {paths} from '@/common/app/paths';
+import {vueRoot} from '@/client/components/vueRoot';
+import {setDocumentTitle} from '@/client/utils/documentTitle';
+import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {installMenuPad, menuPadState} from '@/client/console/menu/consoleMenuPad';
+import {stepIndex} from '@/client/console/consoleRouter';
+import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
+import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
+import {joinGamesState, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
+import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
+import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import {$t} from '@/client/directives/i18n';
+
+type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'quit';
+type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
+type MenuOverlay = 'games' | 'profile' | 'quit' | undefined;
+
+export default defineComponent({
+  name: 'ConsoleMainMenu',
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleProfileEditor},
+  data() {
+    return {
+      identityState,
+      joinGamesState,
+      cursor: 0,
+      gamesCursor: 0,
+      overlay: undefined as MenuOverlay,
+      offPad: undefined as (() => void) | undefined,
+    };
+  },
+  computed: {
+    identityName(): string {
+      return this.identityState.identity?.displayName ?? '';
+    },
+    identityCubeClass(): string {
+      const color = this.identityState.identity?.cubeColor;
+      return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
+    },
+    games(): ReadonlyArray<JoinableGameSummary> {
+      return this.joinGamesState.games;
+    },
+    continueItem(): JoinableGameSummary | undefined {
+      const mine = this.games.filter((g) => g.you !== undefined);
+      if (mine.length === 0) {
+        return undefined;
+      }
+      return [...mine].sort((a, b) => b.createdTimeMs - a.createdTimeMs)[0];
+    },
+    items(): ReadonlyArray<MenuItem> {
+      const items: Array<MenuItem> = [];
+      const cont = this.continueItem;
+      if (cont !== undefined) {
+        const turn = this.yourTurn(cont) ? ` · ${$t('Your turn')}` : '';
+        items.push({
+          id: 'continue',
+          labelKey: 'Continue',
+          subText: `${cont.name} · ${$t('Generation')} ${cont.generation}${turn}`,
+          glyph: '▶',
+          badge: 0,
+        });
+      }
+      items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
+      items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
+      items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
+      if (supportsNativeQuit()) {
+        items.push({id: 'quit', labelKey: 'Exit', subText: '', glyph: '⏻', badge: 0});
+      }
+      return items;
+    },
+    commandContext(): string {
+      if (this.overlay === 'games') {
+        return 'My games';
+      }
+      if (this.overlay === 'profile') {
+        return 'Player profile';
+      }
+      if (this.overlay === 'quit') {
+        return 'Exit the game?';
+      }
+      return 'Main menu';
+    },
+    commands(): ReadonlyArray<ConsoleCommand> {
+      if (this.overlay === 'games') {
+        const g = this.games[this.gamesCursor];
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Enter game', enabled: g !== undefined && this.joinable(g), highlight: g !== undefined && this.yourTurn(g)},
+          {control: 'back', label: 'Back'},
+        ];
+      }
+      if (this.overlay === 'profile') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Change'},
+          {control: 'back', label: 'Done'},
+        ];
+      }
+      if (this.overlay === 'quit') {
+        return [
+          {control: 'confirm', label: 'Exit'},
+          {control: 'back', label: 'Cancel'},
+        ];
+      }
+      return [
+        {control: 'dpad', label: 'Navigate'},
+        {control: 'confirm', label: 'Select'},
+        {control: 'menu', label: 'System'},
+      ];
+    },
+  },
+  mounted() {
+    setDocumentTitle('Terraforming Mars');
+    ensureIdentityLoaded();
+    this.offPad = installMenuPad((intent) => this.onIntent(intent));
+    const name = this.identityName;
+    if (name !== '') {
+      void loadJoinableGames(name, {silent: true});
+      startJoinPolling();
+    }
+  },
+  beforeUnmount() {
+    this.offPad?.();
+    stopJoinPolling();
+  },
+  methods: {
+    onIntent(intent: GamepadIntent): boolean {
+      // The profile editor hosts the text-entry fallback — route to it.
+      if (this.overlay === 'profile') {
+        const profile = this.$refs.profile as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        if (profile?.handleIntent?.(intent) === true) {
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'back') {
+          this.closeOverlay();
+        }
+        return true;
+      }
+      if (this.overlay === 'games') {
+        if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+          this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'confirm') {
+          this.enterGameAt(this.gamesCursor);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'back') {
+          this.closeOverlay();
+          return true;
+        }
+        return true;
+      }
+      if (this.overlay === 'quit') {
+        if (intent.kind === 'press' && intent.button === 'confirm') {
+          this.onQuitConfirm();
+        } else if (intent.kind === 'press' && intent.button === 'back') {
+          this.closeOverlay();
+        }
+        return true;
+      }
+      // Root list.
+      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+        this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.items.length);
+        return true;
+      }
+      if (intent.kind === 'press' && intent.button === 'confirm') {
+        this.activateAt(this.cursor);
+        return true;
+      }
+      // Swallow the rest — nothing below this screen should react.
+      return true;
+    },
+    activateAt(i: number): void {
+      this.cursor = i;
+      const item = this.items[i];
+      if (item === undefined) {
+        return;
+      }
+      switch (item.id) {
+      case 'continue': {
+        const cont = this.continueItem;
+        if (cont?.you !== undefined) {
+          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'expedition');
+        }
+        break;
+      }
+      case 'create':
+        vueRoot(this).navigateInApp(paths.NEW_GAME_PREMIUM);
+        break;
+      case 'games':
+        this.overlay = 'games';
+        this.gamesCursor = 0;
+        if (this.identityName !== '') {
+          void loadJoinableGames(this.identityName);
+        }
+        break;
+      case 'profile':
+        this.openProfile();
+        break;
+      case 'quit':
+        this.overlay = 'quit';
+        break;
+      }
+    },
+    openProfile(): void {
+      this.overlay = 'profile';
+    },
+    closeOverlay(): void {
+      this.overlay = undefined;
+      menuPadState.textEntry = false;
+      // The profile may have just set the identity — refresh the games list.
+      const name = this.identityName;
+      if (name !== '') {
+        void loadJoinableGames(name, {silent: true});
+      }
+    },
+    joinable(g: JoinableGameSummary): boolean {
+      return g.you !== undefined;
+    },
+    yourTurn(g: JoinableGameSummary): boolean {
+      return g.you !== undefined && g.activePlayer === g.you.color;
+    },
+    boardLabel(g: JoinableGameSummary): string {
+      return $t(mapLabelKey(g.boardName));
+    },
+    enterGameAt(i: number): void {
+      this.gamesCursor = i;
+      const g = this.games[i];
+      if (g?.you !== undefined) {
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(g.you.id), 'expedition');
+      }
+    },
+    onQuitConfirm(): void {
+      this.overlay = undefined;
+      quitApp();
+    },
+  },
+});
+</script>

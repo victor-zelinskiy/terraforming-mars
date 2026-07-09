@@ -169,7 +169,10 @@ function headlineOf(entry: ArchivedBotTurn): LogMessage | undefined {
 function summaryLinesOf(entry: ArchivedBotTurn, headline: LogMessage | undefined): {lines: Array<LogMessage>, overflow: number} {
   const all: Array<LogMessage> = [];
   for (const step of entry.turn.steps) {
-    if (step.kind !== 'log' && step.kind !== 'attack' && step.kind !== 'failed' && step.kind !== 'pass') {
+    // 'hazard' is in: the Ares-hazard consequence must be visible on the
+    // compact card too, not only inside the inspect (the player must never
+    // miss WHY a bot track regressed).
+    if (step.kind !== 'log' && step.kind !== 'attack' && step.kind !== 'failed' && step.kind !== 'pass' && step.kind !== 'hazard') {
       continue;
     }
     const message = step.message;

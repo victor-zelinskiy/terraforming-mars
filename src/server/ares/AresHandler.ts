@@ -14,6 +14,7 @@ import {MultiSet} from 'mnemonist';
 import {Phase} from '../../common/Phase';
 import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {SelectProductionToLoseDeferred} from '../deferredActions/SelectProductionToLoseDeferred';
+import {AutomaAres} from '../automa/AutomaAres';
 import {AresHazards} from './AresHazards';
 import {CrashlandingBonus} from '../pathfinders/CrashlandingBonus';
 import {Board} from '../boards/Board';
@@ -84,6 +85,43 @@ export class AresHandler {
       adjacentBonuses.forEach((bonus) => bonuses.add(bonus));
     }
 
+    // MarsBot house rule (mirrors the printed-icon conversion of
+    // Game.grantPlacementBonuses): the bot gains 1 M€ per adjacency-bonus unit
+    // instead of the actual resources — it has no use for plants/energy/cards
+    // and must never be prompted for a card target. The tile OWNER's income
+    // below is untouched.
+    if (player.isMarsBot) {
+      const units = bonuses.size;
+      if (units > 0) {
+        player.stock.add(Resource.MEGACREDITS, units, {log: false});
+        player.game.log('${0} gained ${1} M€ for the Ares adjacency bonus', (b) =>
+          b.player(player).number(units));
+      }
+    } else {
+      AresHandler.grantAdjacencyBonuses(player, bonuses, addResourceToCard);
+      const bonusText = Array.from(bonuses.multiplicities())
+        .map(([bonus, count]) => `${count} ${SpaceBonus.toString(bonus)}`)
+        .join(', ');
+      const tileText = adjacentSpace.tile !== undefined ? tileTypeToString[adjacentSpace.tile.tileType] : 'no tile';
+      player.game.log('${0} gains ${1} for placing next to ${2}', (b) => b.player(player).string(bonusText).string(tileText));
+    }
+
+    if (giveAresTileOwnerBonus) {
+      let ownerBonus = 1;
+      if (adjacentPlayer.tableau.has(CardName.MARKETING_EXPERTS)) {
+        ownerBonus = 2;
+      }
+
+      const tileText = adjacentSpace.tile !== undefined ? tileTypeToString[adjacentSpace.tile.tileType] : 'no tile';
+      adjacentPlayer.stock.add(Resource.MEGACREDITS, ownerBonus, {log: false});
+      player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string(tileText));
+    }
+  }
+
+  private static grantAdjacencyBonuses(
+    player: IPlayer,
+    bonuses: MultiSet<SpaceBonus>,
+    addResourceToCard: (player: IPlayer, resourceType: CardResource, resourceAsText: string) => void): void {
     for (const [bonus, qty] of bonuses.multiplicities()) {
       for (let idx = 0; idx < qty; idx++) {
         switch (bonus) {
@@ -111,22 +149,6 @@ export class AresHandler {
           break;
         }
       }
-    }
-
-    const bonusText = Array.from(bonuses.multiplicities())
-      .map(([bonus, count]) => `${count} ${SpaceBonus.toString(bonus)}`)
-      .join(', ');
-    const tileText = adjacentSpace.tile !== undefined ? tileTypeToString[adjacentSpace.tile.tileType] : 'no tile';
-    player.game.log('${0} gains ${1} for placing next to ${2}', (b) => b.player(player).string(bonusText).string(tileText));
-
-    if (giveAresTileOwnerBonus) {
-      let ownerBonus = 1;
-      if (adjacentPlayer.tableau.has(CardName.MARKETING_EXPERTS)) {
-        ownerBonus = 2;
-      }
-
-      adjacentPlayer.stock.add(Resource.MEGACREDITS, ownerBonus, {log: false});
-      player.game.log('${0} gains ${1} M€ for a tile placed next to ${2}', (b) => b.player(adjacentPlayer).number(ownerBonus).string(tileText));
     }
   }
 
@@ -201,7 +223,11 @@ export class AresHandler {
             player.production.energy +
             player.production.heat;
 
-    if (availableProductionUnits >= cost.production && player.canAfford({cost: cost.megacredits, tr: {tr: cost.tr}})) {
+    // MarsBot has no production — its hazard-adjacency cost is the random
+    // tag-track regression house rule (see AutomaAres), so the production
+    // affordability math never gates the bot. The M€ costs stay real.
+    const productionPayable = player.isMarsBot || availableProductionUnits >= cost.production;
+    if (productionPayable && player.canAfford({cost: cost.megacredits, tr: {tr: cost.tr}})) {
       return cost;
     }
     const messages = [];
@@ -219,6 +245,22 @@ export class AresHandler {
 
   public static payAdjacencyAndHazardCosts(player: IPlayer, space: Space, subjectToHazardAdjacency: boolean) {
     const cost = this.assertCanPay(player, space, subjectToHazardAdjacency);
+
+    // MarsBot never answers prompts — its costs resolve immediately: the M€
+    // adjacency cost is a direct deduction (bot M€ = its open supply; canAfford
+    // above guaranteed it), and the hazard-adjacency production cost becomes
+    // the house-rule consequence — ONE random tag track regresses one step per
+    // placement (see AutomaAres.applyHazardConsequence).
+    if (player.isMarsBot) {
+      if (cost.megacredits > 0) {
+        player.game.log('${0} placing a tile here costs ${1} M€', (b) => b.player(player).number(cost.megacredits));
+        player.stock.deduct(Resource.MEGACREDITS, cost.megacredits, {log: false});
+      }
+      if (cost.production > 0) {
+        AutomaAres.applyHazardConsequence(player.game);
+      }
+      return;
+    }
 
     if (cost.production > 0) {
       // TODO(kberg): don't send interrupt if total is available.

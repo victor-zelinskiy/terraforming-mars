@@ -181,7 +181,9 @@ describe('AutomaSetup', () => {
       ['Prelude 2', {prelude2Expansion: true}],
       ['promo cards', {promoCardsOption: true}],
       ['community cards', {communityCardsOption: true}],
-      ['Ares', {aresExtension: true}],
+      // NOTE: ARES is SUPPORTED (house rules: neighborhood bonuses → 1 M€ per
+      // unit, hazard avoidance + the random-track consequence) — covered
+      // positively below + in AutomaAres.spec.ts.
       ['The Moon', {moonExpansion: true}],
       ['Pathfinders', {pathfindersExpansion: true}],
       ['CEOs', {ceoExtension: true}],
@@ -205,6 +207,16 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts Ares (house rules: adjacency bonuses as M€, hazard avoidance + track consequence)', () => {
+    const [game] = testAutomaGame({aresExtension: true, aresHazards: true});
+    expect(game.gameOptions.aresExtension).is.true;
+    expect(game.automa).is.not.undefined;
+    expect(game.aresData).is.not.undefined;
+    // The bot is a real player — it MUST be in the Ares milestone tallies.
+    const bot = game.players.find((p) => p.isMarsBot);
+    expect(game.aresData!.milestoneResults.some((e) => e.id === bot!.id)).is.true;
   });
 
   it('accepts the alternate Venus board (bonus spaces resolve as fixed bot gains)', () => {

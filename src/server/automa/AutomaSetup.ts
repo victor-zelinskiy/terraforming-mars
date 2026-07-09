@@ -20,7 +20,6 @@ export class AutomaSetup {
       prelude2: gameOptions.prelude2Expansion,
       promo: gameOptions.promoCardsOption,
       community: gameOptions.communityCardsOption,
-      ares: gameOptions.aresExtension,
       moon: gameOptions.moonExpansion,
       pathfinders: gameOptions.pathfindersExpansion,
       ceo: gameOptions.ceoExtension,

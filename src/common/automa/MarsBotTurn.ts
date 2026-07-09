@@ -173,6 +173,15 @@ export type MarsBotTurnStep =
    * outcome, so the theater never leaves "did I lose anything?" unanswered.
    */
   | {kind: 'attack', attack: MarsBotAttack, message?: LogMessage, cause?: MarsBotStepCause}
+  /**
+   * Ares house rule: the tile the bot just placed sits next to a hazard —
+   * ONE random tag track regressed one step (the bot's equivalent of the
+   * printed production cost; the regression marker guarantees the crossed
+   * bonus never fires a second time on re-advance). `trackIndex`/`from`/`to`
+   * are absent when every track was already at the start (nothing to
+   * regress). `message` is the consumed public log line of the consequence.
+   */
+  | {kind: 'hazard', trackIndex?: number, from?: number, to?: number, message?: LogMessage, cause?: MarsBotStepCause}
   /** Any other public log line emitted during the turn, in order. `role` is the
    *  server-stamped semantic (flip noise / a resource loss) the review reads. */
   | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause, role?: MarsBotLogRole}

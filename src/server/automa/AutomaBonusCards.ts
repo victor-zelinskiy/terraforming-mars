@@ -15,6 +15,7 @@ import {ICard} from '../cards/ICard';
 import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
+import {AutomaAres} from './AutomaAres';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResearch} from './AutomaResearch';
@@ -265,12 +266,16 @@ function tryCitySurroundedByTwo(game: IGame): boolean {
   const bot = marsBotOf(game);
   const surrounded = (space: Space): number =>
     game.board.getAdjacentSpaces(space).filter((adj) => Board.isGreenerySpace(adj) || Board.isOceanSpace(adj)).length;
-  const candidates = game.board.getAvailableSpacesForCity(bot).filter((space) => surrounded(space) >= 2);
+  // Ares: never ON a hazard + strong hazard avoidance after the card's own
+  // criterion (identity without Ares) — mirrors AutomaTilePlacer.placeCity.
+  const candidates = AutomaAres.withoutHazardSpaces(game, game.board.getAvailableSpacesForCity(bot))
+    .filter((space) => surrounded(space) >= 2);
   if (candidates.length === 0) {
     return false;
   }
   const most = Math.max(...candidates.map(surrounded));
-  const space = AutomaTilePlacer.breakTie(game, candidates.filter((s) => surrounded(s) === most));
+  const space = AutomaTilePlacer.breakTie(game,
+    AutomaAres.preferAwayFromHazards(game, candidates.filter((s) => surrounded(s) === most)));
   game.addCity(bot, space);
   return true;
 }
@@ -396,7 +401,9 @@ function localNeuralInstance(game: IGame): BonusCardOutcome {
   const isReserved = (space: Space): boolean =>
     space.spaceType === SpaceType.OCEAN || space.id === board.noctisCitySpaceId;
 
-  const candidates = board.getAvailableSpacesOnLand(bot).filter((space) => {
+  // Ares: hazard-cover spaces excluded (the neighbors are already required to
+  // be EMPTY, so hazard adjacency is impossible here). Identity without Ares.
+  const candidates = AutomaAres.withoutHazardSpaces(game, board.getAvailableSpacesOnLand(bot)).filter((space) => {
     const adjacent = board.getAdjacentSpaces(space);
     return adjacent.length === 6 && // Not an edge space.
       !isReserved(space) &&

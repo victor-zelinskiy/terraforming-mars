@@ -199,15 +199,21 @@ function buildMiniScale(source: BotTurnReviewSource, trackIndex: number, from: n
   if (t === undefined) {
     return [];
   }
-  const end = Math.min(t.maxPosition, to + 3);
-  let start = Math.max(0, from - 1);
+  // Direction-agnostic: an advance reads from < to, the Ares-hazard REGRESS
+  // reads from > to — both mark where the marker WAS ('from') and where it
+  // LANDED ('to'), with the crossed cells as 'mid'.
+  const lo = Math.min(from, to);
+  const hi = Math.max(from, to);
+  const end = Math.min(t.maxPosition, hi + 3);
+  let start = Math.max(0, lo - 1);
   if (end - start + 1 > MINISCALE_MAX) {
     start = Math.max(0, end - MINISCALE_MAX + 1);
   }
   const cells: Array<BotReviewScaleCell> = [];
   for (let i = start; i <= end; i++) {
     const action = t.layout[i] ?? undefined;
-    const state: BotReviewScaleCell['state'] = i < from ? 'past' : i === from ? 'from' : i < to ? 'mid' : i === to ? 'to' : 'future';
+    const state: BotReviewScaleCell['state'] =
+      i === from ? 'from' : i === to ? 'to' : (i > lo && i < hi) ? 'mid' : i < lo ? 'past' : 'future';
     cells.push({index: i, ...(action !== undefined ? {action} : {}), state});
   }
   return cells;
@@ -224,6 +230,31 @@ function trackMovementLine(source: BotTurnReviewSource, step: Extract<MarsBotTur
     ...(step.action !== undefined ? {action: step.action} : {}),
     cells: buildMiniScale(source, step.trackIndex, step.from, step.to),
   };
+}
+
+/**
+ * The Ares-hazard consequence step → review lines: the reason line (the
+ * consumed log, badged as a cost — «Опасность Ареса») + the regressed track's
+ * own movement line (capsule + from → to + regress-aware mini-scale) when a
+ * track actually regressed. Shared by BOTH chain builders so the cause-driven
+ * and the order-driven reviews can never diverge.
+ */
+function hazardConsequenceLines(source: BotTurnReviewSource, step: Extract<MarsBotTurnStep, {kind: 'hazard'}>, depth: number): Array<BotReviewLine> {
+  const lines: Array<BotReviewLine> = [];
+  if (step.message !== undefined) {
+    lines.push({kind: 'log', depth, message: step.message, tone: 'cost', labelKey: 'Ares hazard'});
+  }
+  if (step.trackIndex !== undefined && step.from !== undefined && step.to !== undefined) {
+    lines.push({
+      kind: 'track',
+      depth,
+      capsule: trackCapsule(source, step.trackIndex),
+      from: step.from,
+      to: step.to,
+      cells: buildMiniScale(source, step.trackIndex, step.from, step.to),
+    });
+  }
+  return lines;
 }
 
 /** Is this log line "the bot lost N of a resource" (the trade-fee deduct)? Read
@@ -376,6 +407,11 @@ function buildChainsByCause(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
       chain.lines.push({kind: 'attack', depth: logDepthOf(chain), attack: step.attack});
       break;
     }
+    case 'hazard': {
+      const chain = step.cause !== undefined ? ensureChain(step.cause) : ensureChain({kind: 'bonus'});
+      chain.lines.push(...hazardConsequenceLines(source, step, logDepthOf(chain)));
+      break;
+    }
     case 'log': {
       if (isNoiseLog(step.role, step.message)) {
         break;
@@ -452,6 +488,11 @@ function buildChainsByOrder(steps: ReadonlyArray<MarsBotTurnStep>, source: BotTu
     case 'attack': {
       const chain = current ?? ensureLoose();
       chain.lines.push({kind: 'attack', depth: nextDepth(chain, false), attack: step.attack});
+      break;
+    }
+    case 'hazard': {
+      const chain = current ?? ensureLoose();
+      chain.lines.push(...hazardConsequenceLines(source, step, nextDepth(chain, false)));
       break;
     }
     case 'log': {
