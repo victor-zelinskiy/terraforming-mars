@@ -32,6 +32,12 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   'dialog[open]',
   '.start-game-flow',
   '.draw-reveal',
+  // The CONSOLE-native reveal overlay (drawn cards / deck-check result / another
+  // player's reveal). While it is up it OWNS the foreground — any pending prompt
+  // is legitimately held BEHIND it (e.g. the Pluto draw+discard: the reveal
+  // shows the drawn card, then the hand section serves the discard). The console
+  // reveal is `.con-reveal` (the desktop `.draw-reveal` above is a separate DOM).
+  '.con-reveal',
   '.colonies-overlay',
   '.initial-draft-pills', // the initial-draft pipeline's own chrome
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)

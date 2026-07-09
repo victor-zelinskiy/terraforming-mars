@@ -735,6 +735,14 @@ export default defineComponent({
     presentationHeld(): boolean {
       return isMandatoryPromptsHeld();
     },
+    /** A blocking foreground presentation is up: the console reveal overlay
+     *  (drawn cards / result / viewer) OR a mandatory hold (bot-turn holding
+     *  card / theater). While busy, a pending shell-section prompt is held
+     *  BEHIND it and its section is NOT auto-opened; a watcher opens the
+     *  serving surface the moment this clears (else it'd be a stranded prompt). */
+    consoleForegroundBusy(): boolean {
+      return this.consoleRevealMode !== undefined || this.presentationHeld;
+    },
     /** The visible flow-holding notification (the compact AI-turn card), if any. */
     foregroundHoldingCard(): LiveNotification | undefined {
       return notificationState.transient.find((n) => n.holdsFlow === true);
@@ -2045,6 +2053,22 @@ export default defineComponent({
     journalPanelVisible(visible: boolean) {
       if (!visible && this.journalColonyInspect !== undefined) {
         this.closeColonyInspect();
+      }
+    },
+    // A shell-section prompt (hand-select discard/reveal / colony / play-from-
+    // hand / award) can arrive BEHIND a blocking foreground presentation (the
+    // Pluto draw+discard shows the drawn-cards reveal first; a bot-turn holding
+    // card / theater can also be up). While busy, the prompt-change watcher's
+    // section-open is skipped (`shellTask` is held). When the LAST such
+    // presentation clears, open the serving surface so the still-pending prompt
+    // isn't left with NO surface (the stranded guard). Respects an explicit
+    // defer (the player chose to inspect the board).
+    consoleForegroundBusy(busy: boolean, wasBusy: boolean): void {
+      if (wasBusy && !busy && !this.consoleState.task.deferred) {
+        const task = taskFor(this.playerView);
+        if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
+          this.openShellTaskSurface(task);
+        }
       }
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
