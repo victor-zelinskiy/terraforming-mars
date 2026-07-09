@@ -194,7 +194,8 @@ describe('AutomaSetup', () => {
       ['two corps', {twoCorpsVariant: true}],
       ['solar phase / WGT', {solarPhaseOption: true}],
       ['Venus completion requirement', {requiresVenusTrackCompletion: true}],
-      ['alt Venus board', {altVenusBoard: true}],
+      // NOTE: the ALTERNATE Venus board is SUPPORTED (its bonus spaces resolve
+      // as fixed bot gains) — covered positively below + in AutomaResolver.spec.ts.
       ['shuffled map', {shuffleMapOption: true}],
       ['banned cards', {bannedCards: ['Birds']}],
       ['a non-Tharsis board', {boardName: BoardName.HELLAS}],
@@ -204,6 +205,12 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts the alternate Venus board (bonus spaces resolve as fixed bot gains)', () => {
+    const [game] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+    expect(game.gameOptions.altVenusBoard).is.true;
+    expect(game.automa).is.not.undefined;
   });
 
   it('rejects an automa game with two human players', () => {

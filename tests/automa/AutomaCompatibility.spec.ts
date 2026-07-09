@@ -21,7 +21,6 @@ function cleanInput(): AutomaCompatibilityInput {
     escapeVelocity: false,
     solarPhaseOption: false,
     requiresVenusTrackCompletion: false,
-    altVenusBoard: false,
     shuffleMapOption: false,
     customLists: false,
   };

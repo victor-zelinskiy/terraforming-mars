@@ -1,5 +1,6 @@
 import * as constants from '../common/constants';
 import {getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
+import {AutomaController} from './automa/AutomaController';
 import {BotTurnScheduler} from './automa/BotTurnScheduler';
 import {failedAction as automaFailedAction} from './automa/AutomaFailedAction';
 import {AutomaGameEnd} from './automa/AutomaGameEnd';
@@ -1392,6 +1393,36 @@ export class Game implements IGame, Logger {
     player.takeAction();
   }
 
+  /**
+   * Reload recovery for a game deserialized while MarsBot is the ACTION-phase
+   * active player. `IPlayer.takeAction()` is the human input flow and must never
+   * run for the bot, so the deserializer routes here:
+   *
+   *  - a still-PENDING turn (BotTurnScheduler had made the bot active, but the
+   *    bounded resolve timer died with the restart that dropped this game from
+   *    memory) is resolved NOW — from scratch, so any forced human sub-prompt
+   *    the turn raises is re-created correctly (nothing is lost) — instead of
+   *    the game staying stuck on an unresolved bot turn;
+   *  - a turn that had already resolved but was blocked on a deferred HUMAN
+   *    sub-prompt its card raised (e.g. «сбросьте карту» from a colony trade) is
+   *    ADVANCED past. Deferred actions are NOT serialized (`deferredActions: []`)
+   *    so that prompt is lost on reload; re-resolving would double-play the
+   *    already-played card, so the safe recovery is to move the game on rather
+   *    than freeze. The lone cost is that one deferred prompt is skipped.
+   */
+  private resolveBotTurnOnLoad(): void {
+    const automa = this.automa;
+    if (automa === undefined) {
+      return;
+    }
+    if (automa.pendingTurn) {
+      automa.pendingTurn = false;
+      AutomaController.takeTurn(this);
+    } else {
+      this.playerIsFinishedTakingActions();
+    }
+  }
+
   // Record who took a global-parameter scale bonus the first time its threshold
   // is crossed. The colour is the player's, or 'neutral' when it's passed during
   // World Government terraforming (SOLAR phase) and reaches no one. Logs the
@@ -1506,7 +1537,22 @@ export class Game implements IGame, Logger {
         const grantWildResource = this.venusScaleLevel + (steps * 2) >= constants.MAX_VENUS_SCALE;
         // The second half of this expression removes any increases earler than 16-to-18.
         if (grantWildResource || standardResourcesGranted > 0) {
-          this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource));
+          if (player.isMarsBot) {
+            // MarsBot never answers prompts, so the alt-track bonus resolves
+            // immediately as fixed gains (house rule, mirroring the -24/-20
+            // heat-production conversion in increaseTemperature): 1 M€ per
+            // crossed bonus space, and the 30% wild resource becomes 1 floater
+            // in the bot's storage area.
+            if (standardResourcesGranted > 0) {
+              player.stock.add(Resource.MEGACREDITS, standardResourcesGranted, {log: true});
+            }
+            if (grantWildResource && this.automa !== undefined) {
+              this.automa.floaters += 1;
+              this.log('${0} gained ${1} ${2}', (b) => b.player(player).number(1).cardResource(CardResource.FLOATER));
+            }
+          } else {
+            this.defer(new GrantVenusAltTrackBonusDeferred(player, standardResourcesGranted, grantWildResource));
+          }
         }
       }
       for (const card of player.playedCards) {
@@ -2175,6 +2221,12 @@ export class Game implements IGame, Logger {
       }
     } else if (game.phase === Phase.END) {
       // There's nowhere that we need to go for end game.
+    } else if (game.activePlayer.isMarsBot) {
+      // ACTION phase, but the active player is MarsBot. `takeAction()` is the
+      // HUMAN input flow — never valid for the bot: it would hang a dead action
+      // menu on the bot (which nothing can submit) AND that stray waitingFor
+      // would defeat BotTurnScheduler recovery. Re-drive the bot instead.
+      game.resolveBotTurnOnLoad();
     } else {
       // We should be in ACTION phase, let's prompt the active player for actions
       game.activePlayer.takeAction(/* saveBeforeTakingAction */ false);

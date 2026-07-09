@@ -4,6 +4,8 @@ import {IGame} from '../../src/server/IGame';
 import {CardName} from '../../src/common/cards/CardName';
 import {botTurnKey} from '../../src/common/automa/MarsBotTurn';
 import {BotTurnScheduler, BOT_TURN_MAX_EXTENSIONS} from '../../src/server/automa/BotTurnScheduler';
+import {Game} from '../../src/server/Game';
+import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 import {testAutomaGame} from './AutomaTestGame';
 
 type FakePlayer = {id: string, color: string, isMarsBot: boolean, wf: unknown, getWaitingFor: () => unknown};
@@ -253,5 +255,54 @@ describe('BotTurnScheduler', () => {
     expect(game.generation).to.eq(2);
     expect(game.phase).to.eq('research');
     expect(automa.pendingTurn).to.be.false;
+  });
+
+  // Reload / restart recovery: Game.deserialize must NOT run the human
+  // takeAction() flow for a bot active player (it would hang a dead action menu
+  // on the bot and freeze the game). scheduler stays DISABLED here, so the
+  // deserializer's resolution runs synchronously + deterministically.
+
+  it('reload: a game saved with a PENDING bot turn resolves it on load (never stuck)', () => {
+    const [game, human] = testAutomaGame();
+    game.playerIsFinishedWithResearchPhase(human);
+    // gen 2+ so deserialize takes the ACTION branch (gen 1 routes to initial
+    // research — the bot has no corporation, so the gen-1 special case fires).
+    game.generation = 2;
+    game.phase = 'action' as typeof game.phase;
+    game.automa!.actionDeck = [{kind: 'project', name: CardName.GENE_REPAIR}];
+    // Simulate the persisted "bot turn pending" state (what onBotTurnDue saves
+    // in production) + the human already passed so the bot chains to gen end.
+    game.playerHasPassed(human);
+    game.activePlayer = marsBotOf(game);
+    game.automa!.pendingTurn = true;
+
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+
+    // Resolved on load — the bot carries NO dead action menu, played its card,
+    // and the generation moved on.
+    expect(marsBotOf(restored).getWaitingFor()).is.undefined;
+    expect(restored.automa!.playedPile).to.contain(CardName.GENE_REPAIR);
+    expect(restored.automa!.pendingTurn).is.false;
+    expect(restored.generation).to.eq(3);
+  });
+
+  it('reload: a bot active with its turn already resolved (deferred prompt lost) advances, not stuck', () => {
+    const [game, human] = testAutomaGame();
+    game.playerIsFinishedWithResearchPhase(human);
+    game.generation = 2;
+    game.phase = 'action' as typeof game.phase;
+    game.automa!.actionDeck = []; // no more bot cards
+    game.playerHasPassed(human);
+    // "Turn resolved but blocked on a lost deferred human prompt": the bot is
+    // active, but there is NO pending turn to resolve.
+    game.activePlayer = marsBotOf(game);
+    game.automa!.pendingTurn = false;
+
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+
+    // Not frozen: advanced past the bot (empty deck → pass → production → gen 3),
+    // and the bot carries no dead action menu.
+    expect(marsBotOf(restored).getWaitingFor()).is.undefined;
+    expect(restored.generation).to.eq(3);
   });
 });

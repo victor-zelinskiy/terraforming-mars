@@ -31,7 +31,6 @@ export type AutomaConflictKey =
   | 'variant:escapeVelocity'
   | 'variant:solarPhase'
   | 'variant:venusCompletion'
-  | 'rule:alternativeVenusBoard'
   | 'rule:randomBoardTiles'
   | 'variant:customLists';
 
@@ -65,7 +64,6 @@ export type AutomaCompatibilityInput = {
   escapeVelocity: boolean;
   solarPhaseOption: boolean;
   requiresVenusTrackCompletion: boolean;
-  altVenusBoard: boolean;
   shuffleMapOption: boolean;
   /** True when any custom corporation/colony/prelude/CEO/banned/included list is set. */
   customLists: boolean;
@@ -112,7 +110,10 @@ const RULES: ReadonlyArray<Rule> = [
   // Government Intervention bonus card (Adding Expansions p.3) — never both.
   {key: 'variant:solarPhase', test: (o) => o.solarPhaseOption, reason: () => 'the Solar Phase / WGT option (Government Intervention covers it)'},
   {key: 'variant:venusCompletion', test: (o) => o.requiresVenusTrackCompletion, reason: () => 'the "Venus must be completed" variant'},
-  {key: 'rule:alternativeVenusBoard', test: (o) => o.altVenusBoard, reason: () => 'the alternate Venus board'},
+  // NOTE: the ALTERNATE Venus board is NOT a conflict — MarsBot never answers
+  // prompts, so its alt-track bonus resolves as fixed gains (house rule):
+  // 1 M€ per crossed bonus space, +1 floater for the 30% wild resource.
+  // See the isMarsBot branch in Game.increaseVenusScaleLevel.
   {key: 'rule:randomBoardTiles', test: (o) => o.shuffleMapOption, reason: () => 'the shuffled map (MarsBot tile placement uses the printed board)'},
   {key: 'variant:customLists', test: (o) => o.customLists, reason: () => 'custom card/colony lists in the POC'},
 ];

@@ -250,6 +250,24 @@ describe('BoardInformationEngine', () => {
     expect(info.status.countsAs).to.deep.eq([]);
   });
 
+  it('Neural Instance (MarsBot) hover explains its unoccupied-neighbour scoring', () => {
+    const land = emptyLand((s) => game.board.getAdjacentSpaces(s).length === 6);
+    land.tile = {tileType: TileType.NEURAL_INSTANCE, card: undefined};
+    land.player = player2; // placed by the bot
+    const expected = game.board.getAdjacentSpaces(land)
+      .filter((adj) => adj.tile === undefined || adj.player?.color === player2.color).length;
+
+    const info = boardCellInfo(player, land);
+    expect(info.status.special).to.be.true;
+    expect(info.status.tileLabel).to.eq('Neural Instance');
+    const nf = info.facts.find((f) => f.id === 'score-neural-instance');
+    expect(nf, 'neural-instance scoring fact').to.not.be.undefined;
+    expect(nf!.category).to.eq('future-scoring');
+    expect(nf!.vp).to.deep.eq({from: 0, to: expected});
+    // Scores for the bot (an opponent from the viewer's seat), not the viewer.
+    expect(nf!.recipient.kind).to.not.eq('current-player');
+  });
+
   it('a SPECIAL CITY (Capital) never degrades to "City" — name + own ocean scoring', () => {
     const land = emptyLand((s) => game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined));
     const ocean = game.board.getAdjacentSpaces(land).find((a) => a.spaceType === SpaceType.OCEAN && a.tile === undefined)!;

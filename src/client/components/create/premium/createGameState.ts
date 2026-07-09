@@ -208,8 +208,6 @@ export function setGameMode(mode: GameMode): void {
         config.rules.randomMilestonesAwards = false;
       } else if (conflict.key === 'rule:randomBoardTiles') {
         config.rules.randomBoardTiles = false;
-      } else if (conflict.key === 'rule:alternativeVenusBoard') {
-        config.rules.alternativeVenusBoard = false;
       }
     }
   } else {
@@ -325,7 +323,6 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     // the MarsBot payload always sends the solar phase off.
     solarPhaseOption: false,
     requiresVenusTrackCompletion: false,
-    altVenusBoard: on('venus') && config.rules.alternativeVenusBoard,
     shuffleMapOption: config.rules.randomBoardTiles,
     customLists: false,
   });
@@ -346,7 +343,6 @@ const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'expansion:ares': 'MarsBot does not support Ares yet',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
-  'rule:alternativeVenusBoard': 'MarsBot does not support the alternative Venus board',
 };
 
 export function automaBlockerText(key: string): string {

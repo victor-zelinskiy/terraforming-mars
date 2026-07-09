@@ -187,6 +187,54 @@ describe('AutomaResolver', () => {
       AutomaResolver.performTrackAction(game, 'venus', ENERGY);
       expect(bot.megaCredits).eq(0);
     });
+
+    describe('alternate Venus board (house rule: fixed gains, never a prompt)', () => {
+      it('a crossed bonus space grants 1 M€', () => {
+        const [game, /* human */, bot] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+        setVenusScaleLevel(game, 16);
+        AutomaResolver.performTrackAction(game, 'venus', ENERGY);
+        expect(game.getVenusScaleLevel()).eq(18);
+        expect(bot.megaCredits).eq(1);
+        expect(game.automa!.floaters).eq(0);
+        expect(game.deferredActions.length).eq(0); // No GainResources prompt for the bot.
+      });
+
+      it('below 18% there is no bonus space — nothing gained', () => {
+        const [game, /* human */, bot] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+        setVenusScaleLevel(game, 10);
+        AutomaResolver.performTrackAction(game, 'venus', ENERGY);
+        expect(game.getVenusScaleLevel()).eq(12);
+        expect(bot.megaCredits).eq(0);
+        expect(game.deferredActions.length).eq(0);
+      });
+
+      it('the 30% double bonus grants 1 M€ and 1 floater', () => {
+        const [game, /* human */, bot] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+        setVenusScaleLevel(game, 28);
+        AutomaResolver.performTrackAction(game, 'venus', ENERGY);
+        expect(game.getVenusScaleLevel()).eq(30);
+        expect(bot.megaCredits).eq(1);
+        expect(game.automa!.floaters).eq(1);
+        expect(game.deferredActions.length).eq(0);
+      });
+
+      it('a multi-step raise grants 1 M€ per crossed bonus space (+ the wild floater at 30%)', () => {
+        const [game, /* human */, bot] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+        setVenusScaleLevel(game, 24);
+        game.increaseVenusScaleLevel(bot, 3); // 24 → 30: crosses 26, 28 and 30.
+        expect(game.getVenusScaleLevel()).eq(30);
+        expect(bot.megaCredits).eq(3);
+        expect(game.automa!.floaters).eq(1);
+        expect(game.deferredActions.length).eq(0);
+      });
+
+      it('the human keeps the normal resource-choice prompt', () => {
+        const [game, human] = testAutomaGame({venusNextExtension: true, altVenusBoard: true});
+        setVenusScaleLevel(game, 16);
+        game.increaseVenusScaleLevel(human, 1);
+        expect(game.deferredActions.length).eq(1); // The GrantVenusAltTrackBonusDeferred prompt.
+      });
+    });
   });
 
   it('floater / floater2 actions add to the single floater pool', () => {

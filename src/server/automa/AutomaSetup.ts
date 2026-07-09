@@ -32,7 +32,6 @@ export class AutomaSetup {
       escapeVelocity: gameOptions.escapeVelocity !== undefined,
       solarPhaseOption: gameOptions.solarPhaseOption,
       requiresVenusTrackCompletion: gameOptions.requiresVenusTrackCompletion,
-      altVenusBoard: gameOptions.altVenusBoard,
       shuffleMapOption: gameOptions.shuffleMapOption,
       customLists: gameOptions.customCorporationsList.length > 0 ||
         gameOptions.customColoniesList.length > 0 ||

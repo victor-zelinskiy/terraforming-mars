@@ -129,6 +129,22 @@ describe('BoardInformationEngine — Ares', () => {
     expect(owner!.delta?.amount).to.eq(1);
   });
 
+  it('hovering an Ares resource tile surfaces EVERY neighbour bonus incl. card resources (Biofertilizer microbe / Ocean Sanctuary animal)', () => {
+    [game, player, player2] = testGame(2, {aresExtension: true});
+    const src = emptyLand();
+    src.tile = {tileType: TileType.BIOFERTILIZER_FACILITY, card: undefined};
+    src.player = player2;
+    // Card-resource bonuses (microbe/animal) must NOT be silently dropped alongside plants.
+    src.adjacency = {bonus: [SpaceBonus.PLANT, SpaceBonus.MICROBE, SpaceBonus.ANIMAL]};
+
+    const icons = boardCellInfo(player, src).facts
+      .filter((f) => f.category === 'ares-adjacency-bonus')
+      .map((f) => f.delta?.icon);
+    expect(icons).to.include('plants');
+    expect(icons).to.include('microbe');
+    expect(icons).to.include('animal');
+  });
+
   it('hovering a cost-only adjacency tile (Nuclear Zone) warns about the placement cost, no owner bonus', () => {
     [game, player, player2] = testGame(2, {aresExtension: true});
     const nz = emptyLand();
