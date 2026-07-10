@@ -1,9 +1,12 @@
 import {expect} from 'chai';
 import {resolveUserKeyboardLayouts} from '@/client/components/console/menu/consoleKeyboardLayouts';
 
-/** Override navigator.languages (jsdom exposes it read-only). */
+/** Override navigator.languages + navigator.language (jsdom exposes them read-only). */
 function setLanguages(langs: ReadonlyArray<string>): void {
   Object.defineProperty(navigator, 'languages', {value: [...langs], configurable: true});
+  // navigatorLangs() falls back to `navigator.language` when the list is empty —
+  // stub it too so the fork's ru jsdom locale can't leak into the assertions.
+  Object.defineProperty(navigator, 'language', {value: langs[0] ?? '', configurable: true});
 }
 
 describe('resolveUserKeyboardLayouts', () => {
