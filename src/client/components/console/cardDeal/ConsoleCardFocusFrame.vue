@@ -48,6 +48,7 @@ import {defineComponent} from 'vue';
 import {Motion} from 'motion-v';
 import {createFrameGate} from '@/client/components/motion/motionTokens';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 
 const TICK = 22; // tick box (px) — matches the card chrome scale
 const PAD = 7; // breathing room between the card edge and the frame
@@ -128,6 +129,12 @@ export default defineComponent({
   methods: {
     resolveTarget(): HTMLElement | null {
       if (!this.active) {
+        return null;
+      }
+      // The fullscreen inspector owns the ideological focus while open —
+      // the background frame goes quiet (read fresh every measure tick,
+      // so no watcher plumbing is needed).
+      if (consoleCardZoom.card !== undefined) {
         return null;
       }
       if (this.target !== null) {

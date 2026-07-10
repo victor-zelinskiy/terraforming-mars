@@ -297,6 +297,25 @@ Premium-хореография консольного fullscreen-осмотра.
   байт-в-байт прежний.
 - Полёт едет на stage-РОДИТЕЛЕ (GSAP), слайд — на card-РЕБЁНКЕ (WAAPI) —
   вложенные трансформы, конфликтов нет даже одновременно.
+- **HANDOFF-закрытие («Разыграть» из fullscreen)**: когда A-действие зума
+  ОТКРЫВАЕТ поверхность с этой же картой (play-confirm композер), карта НЕ
+  возвращается на стол — `ConsoleZoomAction.handoffTarget(name)` возвращает
+  селектор карточного слота новой поверхности, и последовательность такая:
+  `execute()` СРАЗУ (композер монтируется ПОД top-layer диалогом) → rAF-поллинг
+  ждёт маунт слота + стабильный rect (2 кадра, бюджет 45) → hold переезжает на
+  слот композера (стол честно восстанавливается за двумя бекдропами — розыгрыш
+  ещё не подтверждён) → полёт fullscreen→слот (`power3.inOut` 340ms) → на
+  касании hold снимается (карта композера проявляется ПОД стейджем) → crossfade
+  стейджа 130ms → dialog.close(). Слот помечается `data-zoom-handoff="…"`
+  (`.con-composer__playcard`). Недождавшийся/нестабильный слот → dive-fallback.
+  Ввод проглатывается весь полёт (`zoomClosing`-гейт в handleZoomIntent — ни
+  листания улетающей карты, ни двойного execute).
+- **Фокус под открытым зумом ГАСНЕТ (идеологический фокус — на fullscreen):**
+  shell держит `body.con-zoom-open` (add на open-вотчере, remove в `@close` +
+  beforeUnmount), CSS гасит слот-ring'и/glow (`--focused`/`--selected`) и
+  «A …»-чипы; transform-lift слота НАМЕРЕННО остаётся (полёты меряют rect —
+  сброс scale сдвинул бы точку посадки). Скользящая focus-рамка гасит себя
+  сама (ConsoleCardFocusFrame читает `consoleCardZoom.card` в measure-тике).
 - Zombie-safe: один module-ctx, kill на каждом open/close, `releaseZoomMotion`
   в `@close` (любой путь закрытия, вкл. нативный Esc), safety-таймеры на
   open-settle и close-resolve. Reduced-motion → короткие fades ≤160ms.

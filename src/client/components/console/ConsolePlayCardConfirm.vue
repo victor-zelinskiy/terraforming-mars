@@ -18,7 +18,9 @@
 
       <!-- ── Two columns: card · composer ──────────────────────────── -->
       <div class="con-composer__playmain">
-        <div class="con-composer__playcard">
+        <!-- data-zoom-handoff: the fullscreen inspector's «Разыграть» flies
+             the card INTO this slot (consoleZoomMotion.playZoomHandoff). -->
+        <div class="con-composer__playcard" data-zoom-handoff="play-card">
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
 

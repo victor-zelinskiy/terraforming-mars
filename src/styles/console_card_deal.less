@@ -232,6 +232,27 @@ dialog.con-zoom {
     to { opacity: 1; }
 }
 
+/* While the fullscreen inspector is open the IDEOLOGICAL focus is on the
+   viewer — the background focus chrome goes quiet: slot focus rings/glow
+   and the «A …» action chips fade out (their existing transitions carry
+   the fade). The focus LIFT (transform) deliberately stays — the open /
+   close flights measure the slot rect, and dropping the scale mid-zoom
+   would land the returning card on a shifted target. The gliding focus
+   frame hides itself in JS (ConsoleCardFocusFrame reads the zoom state). */
+body.con-zoom-open {
+    .con-cards__slot--focused,
+    .con-start__corp--focused,
+    .con-start__prelude--focused {
+        box-shadow: none;
+    }
+    .con-hand__slot--selected > .card-container {
+        box-shadow: none;
+    }
+    .con-start__slot-a {
+        opacity: 0;
+    }
+}
+
 /* ── Reduced motion: short/static premium variants, never broken ─────── */
 @media (prefers-reduced-motion: reduce) {
     .con-cards__pickband { animation: none; }

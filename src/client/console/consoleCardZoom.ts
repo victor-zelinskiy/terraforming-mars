@@ -47,6 +47,15 @@ export type ConsoleZoomAction = {
   reasonsFor: (name: CardName) => ReadonlyArray<string>,
   /** Hand off to the existing flow (called AFTER the viewer closes). */
   execute: (name: CardName) => void,
+  /**
+   * Present when `execute` OPENS a surface that shows this very card (the
+   * play-confirm composer): return a CSS selector of that surface's card
+   * slot. The fullscreen card then FLIES INTO the new modal (execute fires
+   * FIRST, the modal mounts UNDER the top-layer dialog, the card lands in
+   * its slot, the viewer closes) instead of returning to the table — see
+   * consoleZoomMotion.playZoomHandoff. Undefined → the normal close flight.
+   */
+  handoffTarget?: (name: CardName) => string | undefined,
 };
 
 /**

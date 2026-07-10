@@ -35,7 +35,7 @@ import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 const HOLD_CLASS = 'con-zoom-hold';
 
 type ZoomMotionCtx = {
-  tween?: gsap.core.Tween,
+  tween?: gsap.core.Tween | gsap.core.Timeline,
   heldSlot?: HTMLElement,
   origin?: ZoomOrigin,
   closing: boolean,
@@ -227,6 +227,104 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
       ease: 'power3.inOut',
       onComplete: done,
     });
+  });
+}
+
+/**
+ * HANDOFF choreography — «разыграть из fullscreen»: the action's surface
+ * (the play-confirm composer) opens FIRST, mounting UNDER the top-layer
+ * dialog; the fullscreen card then flies INTO that surface's card slot and
+ * the viewer closes on landing. Resolves when the dialog may close.
+ *
+ * Sequencing: an rAF poll waits for the target slot to mount AND for its
+ * rect to be stable across two consecutive frames (fonts/layout settle),
+ * bounded by a frame budget — an unresolvable target degrades to the
+ * inspector dive, never a stuck dialog. The target slot is HELD empty for
+ * the flight (the table slot the card lifted from is released — the hand
+ * behind both backdrops honestly shows the card again, since playing is
+ * not committed until the composer confirms); on touchdown the hold lifts
+ * (the modal's own card appears UNDER the stage) and the stage cross-fades
+ * out — a seamless materialization, mirroring the deal handoff.
+ */
+export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: () => HTMLElement | null): Promise<void> {
+  if (ctx.closing) {
+    return Promise.resolve();
+  }
+  ctx.closing = true;
+  killTween();
+  const stage = dialog !== undefined ? stageEl(dialog) : null;
+  if (stage === null || typeof requestAnimationFrame !== 'function') {
+    return Promise.resolve();
+  }
+  const reduced = consoleReducedMotionActive();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        ctx.tween = undefined;
+        resolve();
+      }
+    };
+    const safety = window.setTimeout(finish, motionMs(340) + 1500);
+    const done = () => {
+      window.clearTimeout(safety);
+      finish();
+    };
+    const dive = () => {
+      ctx.tween = gsap.to(stage, {autoAlpha: 0, y: 18, scale: 0.92, transformOrigin: '50% 60%', duration: motionMs(200) / 1000, ease: 'power2.in', onComplete: done});
+    };
+    if (reduced) {
+      ctx.tween = gsap.to(stage, {autoAlpha: 0, duration: motionMs(120) / 1000, ease: 'power1.in', onComplete: done});
+      return;
+    }
+    // Wait for the composer's card slot: mounted + rect stable (2 frames).
+    let tries = 0;
+    let lastSig = '';
+    const poll = () => {
+      if (settled) {
+        return;
+      }
+      tries++;
+      const slot = resolveTarget();
+      const cardEl = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+      const rect = usableRect(cardEl);
+      const sig = rect !== undefined ? `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)}` : '';
+      if (rect === undefined || sig !== lastSig) {
+        lastSig = sig;
+        if (tries < 45) {
+          requestAnimationFrame(poll);
+        } else {
+          dive(); // the surface never produced a stable slot — honest exit
+        }
+        return;
+      }
+      const target = stage.getBoundingClientRect();
+      if (target.width < 10 || cardEl === null) {
+        dive();
+        return;
+      }
+      // The card leaves the table world for the modal world: hold the
+      // MODAL slot (releasing the table slot underneath the backdrops).
+      holdSlot(cardEl);
+      const scale = rect.width / target.width;
+      const tl = gsap.timeline({onComplete: done});
+      tl.to(stage, {
+        x: rect.left - target.left,
+        y: rect.top - target.top,
+        scale,
+        rotation: 0,
+        transformOrigin: 'top left',
+        duration: motionMs(340) / 1000,
+        ease: 'power3.inOut',
+      });
+      // Touchdown: reveal the modal's own card UNDER the stage, then
+      // cross-fade the stage out — one continuous materialization.
+      tl.call(() => holdSlot(null));
+      tl.to(stage, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
+      ctx.tween = tl;
+    };
+    requestAnimationFrame(poll);
   });
 }
 

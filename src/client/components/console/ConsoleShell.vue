@@ -538,7 +538,7 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/Card.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {playZoomOpen, playZoomClose, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
+import {playZoomOpen, playZoomClose, playZoomHandoff, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
@@ -2107,6 +2107,10 @@ export default defineComponent({
       if (card !== undefined && prev === undefined) {
         this.zoomFlight = true;
         this.zoomClosing = false;
+        // The ideological focus moves to the fullscreen inspector: the
+        // background focus chrome (slot rings, «A …» chips, the gliding
+        // frame) goes quiet while the viewer is open.
+        document.body.classList.add('con-zoom-open');
         void this.$nextTick(() => {
           const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
           zoom?.show?.();
@@ -3743,10 +3747,16 @@ export default defineComponent({
       releaseZoomMotion();
       this.zoomFlight = false;
       this.zoomClosing = false;
+      document.body.classList.remove('con-zoom-open');
       closeConsoleCardZoom();
     },
     /** P15: the controller drives the viewer natively while it is open. */
     handleZoomIntent(intent: GamepadIntent): boolean {
+      // A close/handoff flight is in progress: the card is mid-air — swallow
+      // everything (no browsing a departing card, no double execute).
+      if (this.zoomClosing) {
+        return true;
+      }
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
       if (intent.kind === 'nav') {
         if (intent.dir === 'left') {
@@ -3808,14 +3818,29 @@ export default defineComponent({
         r.takeAt(this.consoleCardZoom.index);
       }
     },
-    /** P17: the viewer's A hands the card to the context action (e.g. the
-     *  play-confirm flow) — the viewer closes FIRST (flight included), so
-     *  the exact source context restores underneath the follow-up surface. */
+    /** P17: the viewer's A hands the card to the context action. Two paths:
+     *  - HANDOFF (the action opens a surface showing this card, e.g. the
+     *    play-confirm composer): execute FIRST — the composer mounts UNDER
+     *    the top-layer dialog — then the fullscreen card FLIES INTO the
+     *    composer's card slot and the viewer closes on landing. The card
+     *    visibly travels fullscreen → modal, never "back to the table".
+     *  - default: the viewer closes first (flight included), so the exact
+     *    source context restores underneath the follow-up surface. */
     zoomExecuteAction(): void {
       const z = this.consoleCardZoom;
       const card = z.card;
       const action = z.action;
       if (card === undefined || action === undefined || action.labelFor(card.name as CardName) === undefined) {
+        return;
+      }
+      const handoffSel = action.handoffTarget?.(card.name as CardName);
+      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      if (handoffSel !== undefined && zoom !== undefined) {
+        action.execute(card.name as CardName);
+        this.zoomFlight = true;
+        this.zoomClosing = true;
+        void playZoomHandoff(zoom.$el as HTMLElement | undefined, () => document.querySelector<HTMLElement>(handoffSel))
+          .then(() => zoom.close());
         return;
       }
       void this.closeZoomViewer().then(() => action.execute(card.name as CardName));
@@ -3985,6 +4010,9 @@ export default defineComponent({
         },
         reasonsFor: (name: CardName) => this.handUnplayableReasons(name),
         execute: (name: CardName) => this.openPlayCard(name),
+        // «Разыграть» opens the play-confirm composer, which shows THIS card
+        // — the fullscreen card flies INTO its slot there, not back to the hand.
+        handoffTarget: () => '.con-composer--play [data-zoom-handoff="play-card"]',
       }, {origin});
     },
     /** Translated «why not» lines for a hand card (mirrors the hand
@@ -4164,6 +4192,8 @@ export default defineComponent({
     this.consoleState.shellMounted = false;
     stopConsoleLeakDetector();
     resetGovScaleFocus();
+    releaseZoomMotion();
+    document.body.classList.remove('con-zoom-open');
     window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
     window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
   },
