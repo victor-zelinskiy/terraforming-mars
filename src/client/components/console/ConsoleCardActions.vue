@@ -739,7 +739,8 @@ export default defineComponent({
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === tile.cardName);
       if (card !== undefined) {
-        openConsoleCardZoom([card], 0, undefined, undefined, {contextLabel: 'Card actions'});
+        // Opened from the action GRAPHIC (no card tile on screen) → TEXTUAL.
+        openConsoleCardZoom([card], 0, undefined, undefined, {contextLabel: 'Card actions', origin: {kind: 'textual'}});
       }
     },
     // ── composer events ─────────────────────────────────────────────────

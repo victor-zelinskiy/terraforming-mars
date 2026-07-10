@@ -10744,7 +10744,19 @@ html.console-mode {
         &--chosen&--focused { box-shadow: inset 0 0 0 2px @con-mint, 0 0 18px fade(@con-mint, 28%); }
     }
     &__opt-dot { width: 13px; height: 13px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
-    &__opt-name { font-size: 18px; font-weight: 700; }
+    &__opt-name { font-size: 18px; font-weight: 700; flex: 1; min-width: 0; }
+    /* A tabbed-target category badge (Virus: animals vs plants). */
+    &__opt-tab {
+        flex: 0 0 auto; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+        padding: 2px 9px; border-radius: 6px;
+        &--animal { color: #ffce92; background: rgba(90, 60, 20, 0.5); }
+        &--plant { color: #8ff0c4; background: rgba(20, 60, 44, 0.5); }
+    }
+    /* The premium metadata chip of an OrOptions option (steal/gain preview). */
+    &__opt-chip .action-effect-chip { font-size: 15px; padding: 4px 10px 4px 6px; }
+    &__opt-chip .action-effect-chip__icon { width: 22px; height: 22px; }
+    /* Nested-input indicator (an option that opens a target sub-pick). */
+    &__opt-chevron { flex: 0 0 auto; font-size: 20px; font-weight: 800; color: fade(@con-cyan, 70%); }
     &__opt-res {
         display: inline-flex; align-items: center; gap: 5px;
         font-size: 15px; font-weight: 700; color: #bfe6ff;

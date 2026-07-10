@@ -1,3 +1,52 @@
+# Console PLAY-card composer — desktop parity (iteration 3)
+
+**Тот же класс проблемы, теперь в РОЗЫГРЫШЕ карт** (скриншот «Наёмные налётчики»:
+голое «Эффект карты будет применён после подтверждения» без pre-select). Desktop
+уже пре-собирает on-play выборы в `HandCardPaymentContent.vue`; console
+(`ConsolePlayCardConfirm.vue` + чистый `consoleOrChoice.ts`) теперь зеркалит это.
+Что починено:
+
+1. **`or`-опции с metadata → premium OPTION-КАРТОЧКИ** (не голый title). Каждая
+   опция HiredRaiders/Sabotage/AirRaid показывает `OptionMetadata` чипами
+   (иконка ресурса + `current→resulting` + цвет-точка игрока + tradeoff) —
+   `buildOrItems` синтезирует чип из `effects`/`player`/`global`/`resource`
+   (зеркало desktop `ModernOptionPicker`). Скриншотный fallback был follow-state:
+   `buildOptions` вернул `undefined` (нет валидных целей) — теперь при наличии
+   целей рендерится premium список.
+2. **NESTED-input опция (`SelectPlayer` прямо в OrOptions — CometForVenus) →
+   sub-pick**, ответ вкладывается: `{type:'or', index, response:<nested player>}`
+   (`orItemResponse`). Раньше такая опция была немой строкой.
+3. **`tabbedTargets` (Virus «убрать ≤2 животных ИЛИ ≤5 растений») → две вкладки**
+   (`buildTabbedTargets`): животные-карты (impact из счётчика карты, вкладка
+   amber) + растения-игроки (impact `current→resulting`, вкладка mint), каждая
+   цель несёт свой byte-identical top-level `{type:'or', index, response}`.
+4. **`disabledOptions` → серые non-selectable строки** с причиной (защищён /
+   пусто) — как desktop.
+5. **`mergeCardSteps` / `dedupeFromSteps` (AstraMechanica, Cyberia Systems) →
+   честный follow-up** (`multiCardBranch` computed): не пре-собираем (desktop тоже
+   отправляет их board-pick'ом), но НЕ роняем — идут native follow-up'ом.
+
+Payload-инвариант (byte-parity, `buildPlayCardBatch` ≡ desktop
+`submitPlayCardBatch`): `[play, ...preSteps, <branch slot>, ...stepResponses]`, где
+step-ответ tabbedTargets/or — top-level `{type:'or', …}`.
+
+Гарантии полноты покрытия:
+
+- **`tests/models/consolePlayPreviewCoverage.spec.ts`** — итерирует КАЖДУЮ in-scope
+  карту с хуком `cardPlayPreview`, классифицирует каждый step (`inline` /
+  `followup` / `gap`) и ПАДАЕТ на любом `gap` (форма, которую console не может
+  пре-собрать). Результат: 0 gaps.
+- **`tests/client/components/console/consoleOrChoice.spec.ts`** (5) — чистые
+  `buildOrItems` (leaf+metadata / nested / disabled), `orItemResponse` (leaf vs
+  nested), `buildTabbedTargets` (animal+plant с byte-identical ответами).
+- **`consoleActionComposer.spec.ts`** (+2) — captured `tabbedTargets`-ответ в
+  порядке шагов + `tabbedStepsOf`.
+
+Честная граница: board/colony placement on-play (напр. карты с плиткой) —
+follow-up на ОБЕИХ платформах (документированное approved-исключение).
+
+---
+
 # Console Blue Card Action Center — desktop parity matrix (iteration 2b)
 
 **Итер.2b фиксы (после провала подачи веток):** (1) ветки многовариантного действия

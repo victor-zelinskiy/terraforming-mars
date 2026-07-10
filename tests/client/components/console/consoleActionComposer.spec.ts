@@ -13,7 +13,9 @@ import {
   spendHeatValid,
   orderedPreResponses,
   orderedStepResponses,
+  tabbedStepsOf,
 } from '@/client/console/consoleActionComposer';
+import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
 function preview(branches: ActionPreview['branches'], preSteps?: ActionPreview['preSteps']): ActionPreview {
   return {card: 'X' as CardName, isCorporation: false, kind: 'bespoke', branches, preSteps};
@@ -188,6 +190,29 @@ describe('consoleActionComposer', () => {
       ]});
       const out = orderedStepResponses(b, {0: {a: 1}, 2: {b: 2}});
       expect(out).to.deep.eq([{a: 1}, {b: 2}]);
+    });
+
+    it('a captured tabbedTargets response is emitted in steps order (Virus)', () => {
+      const tabbed = {kind: 'tabbedTargets', animal: undefined, plant: undefined} as unknown as TabbedTargetsStep;
+      const b = branch({steps: [
+        {kind: 'note', noteKind: 'generic'},
+        tabbed,
+      ]});
+      // The tabbed target picked its top-level or-response (index 1).
+      const out = orderedStepResponses(b, {1: {type: 'or', index: 1, response: {type: 'option'}}});
+      expect(out).to.deep.eq([{type: 'or', index: 1, response: {type: 'option'}}]);
+    });
+
+    it('tabbedStepsOf extracts the tabbed steps with their original index', () => {
+      const tabbed = {kind: 'tabbedTargets'} as unknown as TabbedTargetsStep;
+      const b = branch({steps: [
+        {kind: 'input', input: AMOUNT_INPUT},
+        tabbed,
+      ]});
+      const out = tabbedStepsOf(b);
+      expect(out).to.have.length(1);
+      expect(out[0].index).to.eq(1);
+      expect(out[0].step).to.eq(tabbed);
     });
 
     it('pre responses keep preSteps order', () => {

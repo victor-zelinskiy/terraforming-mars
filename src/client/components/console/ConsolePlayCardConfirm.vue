@@ -28,8 +28,9 @@
           <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading">{{ $t('Loading') }}…</div>
 
-            <!-- ── SUB-STATE: a list pick (card / player / or). ──────── -->
-            <template v-else-if="sub !== undefined && sub.kind === 'list'">
+            <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
+                 chips / nested-input target / tabbed target). ─────────── -->
+            <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed')">
               <div class="con-composer__sub-title">{{ subTitle }}</div>
               <div v-for="(item, i) in listItems" :key="item.key"
                    class="con-composer__opt"
@@ -39,8 +40,12 @@
                      'con-composer__opt--chosen': item.chosen,
                    }"
                    :ref="sub.index === i ? 'focusedEl' : undefined">
+                <span v-if="item.tab !== undefined" class="con-composer__opt-tab" :class="'con-composer__opt-tab--' + item.tab">{{ $t(item.tab === 'animal' ? 'Animals' : 'Plants') }}</span>
                 <span v-if="item.color !== undefined" class="con-composer__opt-dot" :class="'player_bg_color_' + item.color" aria-hidden="true"></span>
                 <span class="con-composer__opt-name">{{ item.label }}</span>
+                <span v-if="item.orItem !== undefined && item.orItem.nested !== undefined" class="con-composer__opt-chevron" aria-hidden="true">›</span>
+                <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
+                <span v-if="item.impact" class="con-composer__opt-impact">{{ item.impact }}</span>
                 <span v-if="item.meta !== ''" class="con-composer__opt-meta">{{ item.meta }}</span>
                 <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
                 <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
@@ -134,13 +139,21 @@
                 <span aria-hidden="true">›</span><span>{{ n }}</span>
               </div>
 
-              <!-- DECISIONS: the pre-collected step rows. -->
-              <div v-if="stepRows.length > 0" class="con-composer__sub-title con-composer__sub-title--spaced">{{ $t('Choose before playing') }}</div>
-              <div v-for="row in stepRows" :key="row.id"
+              <!-- DECISIONS: the pre-collected step + tabbed-target rows. -->
+              <div v-if="decisionRows.length > 0" class="con-composer__sub-title con-composer__sub-title--spaced">{{ $t('Choose before playing') }}</div>
+              <div v-for="row in decisionRows" :key="row.id"
                    class="con-composer__row"
-                   :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': stepMissing(row.choice)}"
+                   :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': rowMissing(row)}"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
-                <template v-if="row.choice.kind === 'amount'">
+                <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
+                <template v-if="row.kind === 'tabbed'">
+                  <div class="con-composer__row-label">{{ $t('Choose a target') }}</div>
+                  <div class="con-composer__row-value">
+                    <span v-if="tabbedChosenLabel(row.stepIndex) !== ''">{{ tabbedChosenLabel(row.stepIndex) }}</span>
+                    <span v-else class="con-composer__row-empty">{{ $t('Choose a target') }}…</span>
+                  </div>
+                </template>
+                <template v-else-if="row.choice.kind === 'amount'">
                   <div class="con-composer__row-label">{{ choiceTitle(row.choice) }}</div>
                   <div class="con-composer__stepper">
                     <i v-if="amountIcon(row.choice)" class="con-composer__stepper-icon" :class="iconClass(amountIcon(row.choice))" aria-hidden="true"></i>
@@ -288,8 +301,10 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
-  orderedPreResponses, orderedStepResponses,
+  orderedPreResponses, orderedStepResponses, tabbedStepsOf,
 } from '@/client/console/consoleActionComposer';
+import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem} from '@/client/console/consoleOrChoice';
+import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, buildPaymentView, PlayPaymentView,
@@ -308,11 +323,27 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
  */
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
-  | {i: number, id: string, kind: 'step', choice: ComposerChoice};
+  | {i: number, id: string, kind: 'step', choice: ComposerChoice}
+  | {i: number, id: string, kind: 'tabbed', stepIndex: number};
 
-type SubState = {kind: 'list', choiceId: string, index: number} | {kind: 'payment', index: number};
+type SubState =
+  | {kind: 'list', choiceId: string, index: number}
+  | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
+  | {kind: 'tabbed', stepIndex: number, index: number}
+  | {kind: 'payment', index: number};
 
-type ListItem = {key: string, label: string, meta: string, disabled: boolean, reason: string, chosen: boolean, color?: string, card?: CardModel};
+type ListItem = {
+  key: string, label: string, meta: string, disabled: boolean, reason: string, chosen: boolean,
+  color?: string, card?: CardModel,
+  /** Premium metadata chips (an OrOptions option's steal/gain preview). */
+  chips?: ReadonlyArray<ActionEffect>,
+  /** `current → resulting` impact (a card / player / tabbed target). */
+  impact?: string,
+  /** Tab badge for a tabbed target ('animal' | 'plant'). */
+  tab?: string,
+  /** The whole or-item, when this row is an OrOptions option (leaf or nested). */
+  orItem?: ConsoleOrItem,
+};
 
 /**
  * The implicit "just play it" branch used when the preview has NO branches (a
@@ -458,11 +489,25 @@ export default defineComponent({
     allChoices(): ReadonlyArray<ComposerChoice> {
       return [...preChoices(this.preview), ...branchChoices(this.selectedBranch)];
     },
+    /** A MULTI-CARD branch (Astra Mechanica `mergeCardSteps` / Cyberia Systems
+     *  `dedupeFromSteps`) needs merge/dedup assembly the console composer doesn't
+     *  do — its card steps ride the post-submit follow-up (a safe, documented
+     *  exception) rather than diverging the batch. */
+    multiCardBranch(): boolean {
+      const b = this.selectedBranch;
+      return b !== undefined && (b.mergeCardSteps !== undefined ||
+        b.steps.some((s) => s.kind === 'input' && s.dedupeFromSteps !== undefined));
+    },
     stepChoices(): ReadonlyArray<ComposerChoice> {
-      return this.allChoices.filter(isPreCollectable);
+      return this.allChoices.filter((c) => {
+        if (this.multiCardBranch && c.input.type === 'card') {
+          return false;
+        }
+        return isPreCollectable(c);
+      });
     },
     followUpChoices(): ReadonlyArray<ComposerChoice> {
-      return this.allChoices.filter((c) => !isPreCollectable(c));
+      return this.allChoices.filter((c) => !this.stepChoices.includes(c));
     },
     rows(): ReadonlyArray<PlayRow> {
       const out: Array<PlayRow> = [];
@@ -472,13 +517,17 @@ export default defineComponent({
       for (const c of this.stepChoices) {
         out.push({i: 0, id: 'step#' + c.id, kind: 'step', choice: c});
       }
+      for (const t of this.tabbedSteps) {
+        out.push({i: 0, id: 'tabbed#' + t.index, kind: 'tabbed', stepIndex: t.index});
+      }
       return out.map((r, i) => ({...r, i}));
     },
     variantRows(): ReadonlyArray<PlayRow & {kind: 'variant'}> {
       return this.rows.filter((r): r is PlayRow & {kind: 'variant'} => r.kind === 'variant');
     },
-    stepRows(): ReadonlyArray<PlayRow & {kind: 'step'}> {
-      return this.rows.filter((r): r is PlayRow & {kind: 'step'} => r.kind === 'step');
+    /** The pre-collectable decision rows (step picks + tabbed-target picks). */
+    decisionRows(): ReadonlyArray<PlayRow & {kind: 'step' | 'tabbed'}> {
+      return this.rows.filter((r): r is PlayRow & {kind: 'step' | 'tabbed'} => r.kind === 'step' || r.kind === 'tabbed');
     },
     focusedRow(): PlayRow | undefined {
       return this.focusIdx >= 0 ? this.rows[this.focusIdx] : undefined;
@@ -487,7 +536,7 @@ export default defineComponent({
     primaryActionState(): PrimaryActionState {
       const b = this.selectedBranch;
       const branchSelectable = b !== undefined && b.available;
-      const firstMissing = this.rows.findIndex((r) => r.kind === 'step' && this.stepMissing(r.choice));
+      const firstMissing = this.rows.findIndex((r) => this.rowMissing(r));
       return computePrimaryAction({
         branchSelectable,
         paymentReady: this.paymentReady,
@@ -544,11 +593,10 @@ export default defineComponent({
           // A colony build is a SelectColony (off-Mars), NOT a board-space pick —
           // the placementType tells them apart.
           out.push(translateText(s.placementType === 'colony' ? 'Choose where to build a colony' : 'Choose a location on the board'));
-        } else if (s.kind === 'tabbedTargets') {
-          out.push(translateText('Choose a target'));
         } else if (s.kind === 'note' && s.noteKind !== 'warning') {
           out.push(s.text !== undefined ? textOf(s.text) : translateText('Choose a target'));
         }
+        // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
       }
       for (const c of this.followUpChoices) {
         const t = textOf(c.input.title);
@@ -572,12 +620,19 @@ export default defineComponent({
         return false;
       }
       return b.steps.every((step, i) => {
+        // A tabbedTargets step (Virus) is pre-collected — require its capture.
+        if (step.kind === 'tabbedTargets') {
+          return this.captured[i] !== undefined;
+        }
         if (step.kind !== 'input') {
           return true;
         }
-        // A multi-select card / repeat-action step is a post-submit follow-up —
-        // not captured here (mirrors isPreCollectable).
+        // A multi-select card / repeat-action step, and a merge/dedupe multi-card
+        // branch's card steps, are post-submit follow-ups — not captured here.
         if (step.repeatAction === true || (step.input.type === 'card' && (step.input as SelectCardModel).max > 1)) {
+          return true;
+        }
+        if (this.multiCardBranch && step.input.type === 'card') {
           return true;
         }
         return this.captured[i] !== undefined;
@@ -641,8 +696,9 @@ export default defineComponent({
       const quickAdjust = (!focusedStepper && this.paymentView.quickAdjustEligible && chip !== undefined) ?
         {canDecrease: chip.canDecrease, canIncrease: chip.canIncrease} : undefined;
       return playComposerFootHints({
-        sub: this.sub === undefined ? 'none' : this.sub.kind,
-        subIsCardList: this.subChoice?.input.type === 'card',
+        // Every list-like sub (list / orNested / tabbed) shares the pick contract.
+        sub: this.sub === undefined ? 'none' : (this.sub.kind === 'payment' ? 'payment' : 'list'),
+        subIsCardList: this.subChoice?.input.type === 'card' || this.sub?.kind === 'orNested' || this.sub?.kind === 'tabbed',
         hasRows: this.rows.length > 0,
         focusedKind: this.focusedKind,
         configurablePayment: this.paymentView.configurable,
@@ -654,16 +710,46 @@ export default defineComponent({
     },
     // ── sub-state derived views ─────────────────────────────────────────
     subChoice(): ComposerChoice | undefined {
-      if (this.sub === undefined || this.sub.kind !== 'list') {
+      if (this.sub === undefined || (this.sub.kind !== 'list' && this.sub.kind !== 'orNested')) {
         return undefined;
       }
       return this.stepChoices.find((c) => c.id === (this.sub as {choiceId: string}).choiceId);
     },
     subTitle(): string {
+      if (this.sub?.kind === 'tabbed') {
+        return translateText('Choose a target');
+      }
+      if (this.sub?.kind === 'orNested') {
+        return textOf(this.sub.item.label);
+      }
       const c = this.subChoice;
       return c !== undefined ? this.choiceTitle(c) : '';
     },
+    /** The pre-collectable tabbedTargets steps (Virus) of the selected branch. */
+    tabbedSteps(): Array<{index: number, step: TabbedTargetsStep}> {
+      return tabbedStepsOf(this.selectedBranch);
+    },
     listItems(): ReadonlyArray<ListItem> {
+      const sub = this.sub;
+      if (sub === undefined) {
+        return [];
+      }
+      // TABBED targets (Virus: remove ≤2 animals OR ≤5 plants) — a flat list.
+      if (sub.kind === 'tabbed') {
+        const ts = this.tabbedSteps.find((t) => t.index === sub.stepIndex);
+        if (ts === undefined) {
+          return [];
+        }
+        const chosenKey = this.picks['tabbed#' + sub.stepIndex];
+        return buildTabbedTargets(ts.step).map((t): ListItem => ({
+          key: t.key, label: translateText(t.label), meta: '', disabled: t.disabled,
+          reason: textOf(t.reason), chosen: chosenKey === t.key, color: t.playerColor, impact: t.impact, tab: t.tab,
+        }));
+      }
+      // NESTED-input or option (Comet for Venus's SelectPlayer sitting in the or).
+      if (sub.kind === 'orNested') {
+        return this.nestedItems(sub.item);
+      }
       const c = this.subChoice;
       if (c === undefined) {
         return [];
@@ -679,6 +765,7 @@ export default defineComponent({
           reason: card.isDisabled === true ? textOf(card.disabledReason) : '',
           chosen: chosenName === card.name,
           card,
+          impact: (c.amount !== undefined && card.isDisabled !== true) ? `${card.resources ?? 0} → ${Math.max(0, (card.resources ?? 0) + c.amount)}` : undefined,
         }));
         for (const card of model.disabledCards ?? []) {
           items.push({key: 'd' + card.name, label: translateText(card.name), meta: '', disabled: true, reason: textOf(card.disabledReason), chosen: false, card});
@@ -686,22 +773,14 @@ export default defineComponent({
         return items;
       }
       if (c.input.type === 'player') {
-        const model = c.input as SelectPlayerModel;
-        const chosen = this.picks[c.id];
-        const items: Array<ListItem> = model.players.map((color): ListItem => ({
-          key: color, label: this.playerName(color), meta: '', disabled: false, reason: '', chosen: chosen === color, color,
-        }));
-        for (const d of model.disabledPlayers ?? []) {
-          items.push({key: 'd' + d.color, label: this.playerName(d.color), meta: '', disabled: true, reason: textOf(d.reason), chosen: false, color: d.color});
-        }
-        return items;
+        return this.playerItems(c.input as SelectPlayerModel, this.picks[c.id]);
       }
+      // PREMIUM or list — each option's metadata chips + player + nested indicator.
       if (c.input.type === 'or') {
-        const model = c.input as OrOptionsModel;
         const chosen = this.picks[c.id];
-        return model.options.map((opt, i): ListItem => ({
-          key: 'o' + i, label: textOf(opt.title), meta: '',
-          disabled: opt.type !== 'option', reason: opt.type !== 'option' ? translateText('Unavailable right now') : '', chosen: chosen === String(i),
+        return buildOrItems(c.input as OrOptionsModel).map((it): ListItem => ({
+          key: it.key, label: textOf(it.label), meta: '', disabled: it.disabled, reason: textOf(it.reason),
+          chosen: chosen === String(it.optionIndex), color: it.playerColor, chips: it.chips, orItem: it,
         }));
       }
       return [];
@@ -802,8 +881,67 @@ export default defineComponent({
       if (rows.length === 0) {
         return -1;
       }
-      const missing = rows.findIndex((r) => r.kind === 'step' && this.stepMissing(r.choice));
+      const missing = rows.findIndex((r) => this.rowMissing(r));
       return missing >= 0 ? missing : 0;
+    },
+    /** Whether a decision row is still unresolved (a variant is auto-selected). */
+    rowMissing(row: PlayRow): boolean {
+      if (row.kind === 'step') {
+        return this.stepMissing(row.choice);
+      }
+      if (row.kind === 'tabbed') {
+        return this.captured[row.stepIndex] === undefined;
+      }
+      return false;
+    },
+    /** The chosen tabbed-target's label (Virus) for the row, or '' when none. */
+    tabbedChosenLabel(stepIndex: number): string {
+      const ts = this.tabbedSteps.find((t) => t.index === stepIndex);
+      const key = this.picks['tabbed#' + stepIndex];
+      if (ts === undefined || key === undefined) {
+        return '';
+      }
+      const target = buildTabbedTargets(ts.step).find((t) => t.key === key);
+      return target !== undefined ? translateText(target.label) : '';
+    },
+    /** Premium player rows (with a per-target `current → resulting` impact). */
+    playerItems(model: SelectPlayerModel, chosen: string | undefined): Array<ListItem> {
+      const items: Array<ListItem> = model.players.map((color): ListItem => ({
+        key: color, label: this.playerName(color), meta: '', disabled: false, reason: '', chosen: chosen === color, color,
+        impact: this.playerImpact(model, color),
+      }));
+      for (const d of model.disabledPlayers ?? []) {
+        items.push({key: 'd' + d.color, label: this.playerName(d.color), meta: '', disabled: true, reason: textOf(d.reason), chosen: false, color: d.color});
+      }
+      return items;
+    },
+    playerImpact(model: SelectPlayerModel, color: string): string | undefined {
+      if (model.icon === undefined || model.amount === undefined) {
+        return undefined;
+      }
+      const pm = this.playerView.players.find((p) => p.color === color) as unknown as Record<string, number> | undefined;
+      const field = model.scope === 'production' ? model.icon + 'Production' : model.icon;
+      const cur = pm?.[field];
+      return cur !== undefined ? `${cur} → ${Math.max(0, cur - model.amount)}` : undefined;
+    },
+    /** Candidate rows of a NESTED-input or option (Comet for Venus's SelectPlayer). */
+    nestedItems(item: ConsoleOrItem): Array<ListItem> {
+      const nested = item.nested;
+      if (nested === undefined) {
+        return [];
+      }
+      if (nested.type === 'player') {
+        return this.playerItems(nested as SelectPlayerModel, undefined);
+      }
+      if (nested.type === 'card') {
+        const model = nested as SelectCardModel;
+        return model.cards.map((card): ListItem => ({
+          key: card.name, label: translateText(card.name),
+          meta: card.resources !== undefined && card.resources > 0 ? `${card.resources}` : '',
+          disabled: card.isDisabled === true, reason: card.isDisabled === true ? textOf(card.disabledReason) : '', chosen: false, card,
+        }));
+      }
+      return [];
     },
     seedChoiceDefaults(): void {
       for (const c of this.stepChoices) {
@@ -1050,7 +1188,15 @@ export default defineComponent({
         return;
       case 'inspect':
         if (this.card !== undefined) {
-          openConsoleCardZoom([this.card], 0);
+          // "One physical card": the composer's mini card PHYSICALLY lifts
+          // into fullscreen and returns into the SAME slot on close (its
+          // slot is held empty meanwhile — the card is never in two places).
+          openConsoleCardZoom([this.card], 0, undefined, undefined, {
+            origin: {
+              kind: 'physical',
+              resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
+            },
+          });
         }
         return;
       case 'back':
@@ -1096,12 +1242,10 @@ export default defineComponent({
         const row = this.focusedRow;
         // Focused ON an unresolved pick → open it right here; else jump to the
         // first unresolved one and open it.
-        const target = (row?.kind === 'step' && this.stepMissing(row.choice)) ? row : this.rows[st.rowIndex];
-        if (target !== undefined && target.kind === 'step') {
+        const target = (row !== undefined && this.rowMissing(row)) ? row : this.rows[st.rowIndex];
+        if (target !== undefined) {
           this.focusIdx = target.i;
-          if (target.choice.kind === 'card' || target.choice.kind === 'player' || target.choice.kind === 'or') {
-            this.sub = {kind: 'list', choiceId: target.choice.id, index: 0};
-          }
+          this.openRow(target);
           this.scrollFocused();
         }
         return;
@@ -1110,6 +1254,15 @@ export default defineComponent({
         this.sub = {kind: 'payment', index: 0};
       }
       // blocked-requirement: nothing to do — the CTA + status show the reason.
+    },
+    /** Open the pick surface a decision row needs (a list / tabbed picker). An
+     *  amount / spend-heat row adjusts inline, so opening it is a no-op. */
+    openRow(row: PlayRow): void {
+      if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
+        this.sub = {kind: 'list', choiceId: row.choice.id, index: 0};
+      } else if (row.kind === 'tabbed') {
+        this.sub = {kind: 'tabbed', stepIndex: row.stepIndex, index: 0};
+      }
     },
     // SUB state (pick list / payment lanes): A(primary) pick/close, X(inspect)
     // zoom the list card, B back, LB/RB(prev/nextSection) adjust lane, RT max.
@@ -1129,7 +1282,7 @@ export default defineComponent({
         this.pickListItem(sub.index);
         return;
       case 'inspect':
-        if (sub.kind === 'list') {
+        if (sub.kind !== 'payment') {
           this.inspectListItem(sub.index);
         }
         return;
@@ -1168,11 +1321,46 @@ export default defineComponent({
       this.seedChoiceDefaults();
     },
     pickListItem(index: number): void {
-      const c = this.subChoice;
+      const sub = this.sub;
       const item = this.listItems[index];
-      if (c === undefined || item === undefined || item.disabled) {
+      if (sub === undefined || item === undefined || item.disabled) {
         return;
       }
+      // TABBED target (Virus) — captures the top-level or-response into its step.
+      if (sub.kind === 'tabbed') {
+        const ts = this.tabbedSteps.find((t) => t.index === sub.stepIndex);
+        const target = ts !== undefined ? buildTabbedTargets(ts.step).find((t) => t.key === item.key) : undefined;
+        if (target === undefined) {
+          return;
+        }
+        this.picks['tabbed#' + sub.stepIndex] = target.key;
+        this.captured[sub.stepIndex] = target.response;
+        this.sub = undefined;
+        this.focusIdx = this.firstActionableIndex();
+        return;
+      }
+      const c = this.subChoice;
+      if (c === undefined) {
+        return;
+      }
+      // NESTED-input or option target (Comet for Venus) → nest the response.
+      if (sub.kind === 'orNested') {
+        const nested = sub.item.nested;
+        let nestedResp: unknown;
+        if (nested?.type === 'player' && item.color !== undefined) {
+          nestedResp = {type: 'player', player: item.color};
+        } else if (nested?.type === 'card' && item.card !== undefined) {
+          nestedResp = {type: 'card', cards: [item.card.name]};
+        } else {
+          return;
+        }
+        this.picks[c.id] = String(sub.item.optionIndex);
+        this.captureFor(c, orItemResponse(sub.item, nestedResp));
+        this.sub = undefined;
+        this.focusIdx = this.firstActionableIndex();
+        return;
+      }
+      // sub.kind === 'list'
       if (c.input.type === 'card' && item.card !== undefined) {
         this.picks[c.id] = item.card.name;
         this.captureFor(c, {type: 'card', cards: [item.card.name]});
@@ -1180,9 +1368,19 @@ export default defineComponent({
         this.picks[c.id] = item.color;
         this.captureFor(c, {type: 'player', player: item.color});
       } else if (c.input.type === 'or') {
-        const optIdx = Number(item.key.slice(1));
-        this.picks[c.id] = String(optIdx);
-        this.captureFor(c, {type: 'or', index: optIdx, response: {type: 'option'}});
+        const it = item.orItem;
+        if (it === undefined) {
+          return;
+        }
+        // A NESTED-input option opens its own target sub-pick (don't submit yet).
+        if (it.nested !== undefined) {
+          this.sub = {kind: 'orNested', choiceId: c.id, item: it, index: 0};
+          return;
+        }
+        this.picks[c.id] = String(it.optionIndex);
+        this.captureFor(c, orItemResponse(it));
+      } else {
+        return;
       }
       this.sub = undefined;
       this.focusIdx = this.firstActionableIndex();
@@ -1193,7 +1391,9 @@ export default defineComponent({
         return;
       }
       const cards = this.listItems.filter((it) => it.card !== undefined).map((it) => it.card as CardModel);
-      openConsoleCardZoom(cards, Math.max(0, cards.findIndex((cd) => cd.name === item.card?.name)));
+      // The target options render as TEXT rows (not card tiles), so the
+      // fullscreen is a TEXTUAL inspector — no fake lift out of a text line.
+      openConsoleCardZoom(cards, Math.max(0, cards.findIndex((cd) => cd.name === item.card?.name)), undefined, undefined, {origin: {kind: 'textual'}});
     },
     adjustLane(idx: number, step: number, toMax = false): void {
       const lane = this.payLanes[idx];

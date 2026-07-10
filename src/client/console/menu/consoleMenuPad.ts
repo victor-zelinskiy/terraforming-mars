@@ -26,7 +26,6 @@
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {registerConsoleIntentHandler} from '@/client/console/consoleRouter';
-import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
 
 export type MenuPadHandler = (intent: GamepadIntent) => boolean;
 
@@ -49,13 +48,11 @@ export function menuPadMounted(): boolean {
  * Keyboard arrives through the global consoleKeyBridge — same stream.
  */
 export function installMenuPad(handler: MenuPadHandler): () => void {
-  // YIELD to an App-level BLOCKING desktop-update gate: while it covers the
-  // screen, return false so GamepadLayer falls through to the DOM focus engine
-  // (which scopes to `.desktop-update--cover`, driving the update buttons) —
-  // otherwise the pre-game handler would eat A and fire a menu item (Continue)
-  // behind the overlay. A non-blocking update pill never yields.
-  const gated: MenuPadHandler = (intent) => (desktopUpdateBlocking() ? false : handler(intent));
-  const offIntent = registerConsoleIntentHandler(gated);
+  // The App-level BLOCKING desktop-update gate is enforced upstream in the two
+  // input ROUTERS (GamepadLayer + consoleKeyBridge), which never even reach
+  // this handler while the update overlay covers the screen — so the pre-game
+  // screen can't fire a menu item (Continue) behind the mandatory gate.
+  const offIntent = registerConsoleIntentHandler(handler);
   menuPadState.mountedCount++;
   let released = false;
   return () => {

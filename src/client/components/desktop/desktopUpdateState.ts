@@ -126,11 +126,24 @@ export function updateOverlayBlocking(mode: DesktopUpdateMode): boolean {
 }
 
 /**
- * True while the full-cover desktop-update gate owns the screen. The
- * console-native pre-game screens read this and YIELD pad input to it (their
- * own intent handler would otherwise eat A and fire a menu item behind the
- * blocking overlay — the "A applies the update AND triggers Continue" bug).
+ * True while the full-cover desktop-update gate owns the screen. The two
+ * console input ROUTERS (GamepadLayer + consoleKeyBridge) read this and route
+ * input EXCLUSIVELY to the overlay — never to the pre-game screen behind it
+ * (which would otherwise fire a menu item like Continue: the "A applies the
+ * update AND triggers Continue" bug). A non-blocking pill never gates.
  */
 export function desktopUpdateBlocking(): boolean {
   return isDesktop() && updateOverlayBlocking(desktopUpdateState.mode);
+}
+
+/**
+ * Click the primary action of the blocking update overlay — the keyboard gate
+ * (Steam Input can emulate Enter on the Deck). The gamepad gate goes through
+ * the focus engine (ring + click); this is the direct keyboard equivalent.
+ */
+export function clickDesktopUpdatePrimary(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  document.querySelector<HTMLElement>('.desktop-update--cover .desktop-update__btn--primary')?.click();
 }

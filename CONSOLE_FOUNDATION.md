@@ -376,6 +376,23 @@ Premium-хореография консольного fullscreen-осмотра.
 `CardZoomModal.vue` (opt-in `consoleMotion` prop), стили в
 `console_card_deal.less` (`.con-zoom-hold`, `--flight`, `--closing`, backdrop).
 
+**ГЛОБАЛЬНОЕ ПРАВИЛО «одна физическая карта»:** ВЕЗДЕ, где console-native
+показывает мини-карту и её можно открыть на fullscreen, вызов
+`openConsoleCardZoom` ОБЯЗАН передавать `origin`: `physical` если на экране есть
+видимый card-тайл, из которого «поднимается» карта (её слот держится пустым
+`con-zoom-hold` пока карта в fullscreen — не может быть в двух местах),
+`textual` если открыто из текст-чипа/имени/графики без card-тайла (честный
+inspector-вход, без фальшивого лифта). НИКОГДА не оставлять дефолтный `none`
+там, где на экране есть мини-карта. Текущее покрытие:
+- **physical**: рука (ConsoleShell hand), StartScene (wizard/summary/ceremony —
+  `data-zoom-slot`), TaskHost (draft/buy strip), RevealOverlay (drawn/viewer/
+  result/source), **ConsolePlayCardConfirm мини-карта** (`.con-composer__playcard`
+  — resolve прямой, одна карта; лифт из композера + возврат в него на close).
+- **textual**: журнал, обзор хода бота (ConsoleBotTurnReview + shell MarsBot
+  turn), drafted-viewers (shell + TaskHost — открыто из count-чипа), blue-action
+  композеры (ConsoleActionComposer/ConsoleCardActions — из графики действия),
+  PlayCardConfirm под-выбор целей (текст-строки опций).
+
 **Три source-режима** (`ZoomOrigin.kind`):
 - `physical` — открыто из видимого card tile. FLIP-лифт: РЕАЛЬНЫЙ стейдж
   (`.card-zoom-stage`) стартует transform'ом из rect слота и раскрывается в

@@ -30,6 +30,7 @@ import {useEventListener} from '@vueuse/core';
 import {keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
+import {clickDesktopUpdatePrimary, desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
 
 /** A real editable element owns the physical keyboard. */
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -46,6 +47,19 @@ function onKeydown(e: KeyboardEvent): void {
   }
   const intent = keyboardConsoleIntent(e.code, e.repeat);
   if (intent === undefined) {
+    return;
+  }
+  // MANDATORY UPDATE GATE: while the full-cover update overlay owns the screen
+  // (Steam Input can emulate Enter on the Deck), the confirm key applies the
+  // update; every other key is SWALLOWED so a native key press can never reach
+  // a menu button behind the overlay (the "Continue fires under the update"
+  // bug). Never dispatch to the console/menu handler here.
+  if (desktopUpdateBlocking()) {
+    if (intent.kind === 'press' && intent.button === 'confirm') {
+      clickDesktopUpdatePrimary();
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
     return;
   }
   if (dispatchConsoleIntent(intent)) {

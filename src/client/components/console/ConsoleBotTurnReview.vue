@@ -98,7 +98,8 @@ export default defineComponent({
     // ONE fullscreen card surface. Single entry: this specific bonus card.
     onZoomBonus(id: BonusCardId): void {
       if (this.state.review !== undefined) {
-        openConsoleCardZoom([bonusZoomEntry(id, this.state.review.ctx)], 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
+        // Opened from a bonus chip in the turn review (no card tile) → TEXTUAL.
+        openConsoleCardZoom([bonusZoomEntry(id, this.state.review.ctx)], 0, undefined, undefined, {contextLabel: 'MarsBot turn', origin: {kind: 'textual'}});
       }
     },
   },

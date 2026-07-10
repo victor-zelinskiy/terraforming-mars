@@ -1134,7 +1134,8 @@ export default defineComponent({
       }
       const cards = this.listItems.filter((it) => it.card !== undefined).map((it) => it.card as CardModel);
       const at = cards.findIndex((cd) => cd.name === item.card?.name);
-      openConsoleCardZoom(cards, Math.max(0, at), undefined, undefined, {contextLabel: 'Card actions'});
+      // Target options are TEXT rows, not card tiles → TEXTUAL inspector.
+      openConsoleCardZoom(cards, Math.max(0, at), undefined, undefined, {contextLabel: 'Card actions', origin: {kind: 'textual'}});
     },
     submit(): void {
       const branch = this.selectedBranch;

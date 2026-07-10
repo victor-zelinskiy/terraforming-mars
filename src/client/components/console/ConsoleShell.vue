@@ -2435,7 +2435,8 @@ export default defineComponent({
       // inspectable, Info Mode is handled above). X opens the read-only
       // drafted-cards viewer; every other button falls through to the board.
       if (this.draftWaitActive && action === 'inspect' && this.draftedCards.length > 0) {
-        openConsoleCardZoom([...this.draftedCards], 0);
+        // Opened from the count chip (no card tiles on screen) → TEXTUAL.
+        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
         return true;
       }
       // CTS T6: a reveal overlay owns input while visible (drawn cards
@@ -4051,7 +4052,8 @@ export default defineComponent({
           entries.push(bonusZoomEntry(card.secondaryCard, review.ctx));
         }
         entries.push(...service);
-        openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
+        // Bot-turn review — opened from log chips, no card tiles → TEXTUAL.
+        openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn', origin: {kind: 'textual'}});
         return true;
       }
       // A project turn: the played card(s) FIRST, then the service flips LAST.
@@ -4060,7 +4062,7 @@ export default defineComponent({
       if (entries.length === 0) {
         return false;
       }
-      openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
+      openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn', origin: {kind: 'textual'}});
       return true;
     },
     /** PHYSICAL zoom origin for the hand grid: the fullscreen card lifts out

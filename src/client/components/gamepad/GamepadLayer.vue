@@ -87,6 +87,7 @@ import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
+import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 import {installConsoleKeyBridge, uninstallConsoleKeyBridge} from '@/client/console/composables/consoleKeyBridge';
 import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/client/console/composables/consoleOverflowGuard';
@@ -243,6 +244,17 @@ export default defineComponent({
           `${intent.kind}:${intent.button}` :
           intent.kind === 'nav' ? `nav:${intent.dir}${intent.repeat ? ' (r)' : ''}` : 'scroll';
         this.intentLog = [line, ...this.intentLog].slice(0, 5);
+      }
+      // MANDATORY UPDATE GATE (highest priority): while the full-cover desktop
+      // update overlay owns the screen, route input STRAIGHT to the DOM focus
+      // engine — its `desktopUpdate` scope is rooted at `.desktop-update--cover`,
+      // so it drives ONLY the update buttons. This bypasses the console shell /
+      // pre-game dispatch entirely, so A can never leak through to a menu item
+      // (Continue) behind the overlay. `onPress('confirm')` ensures focus on the
+      // update button before clicking, so a single A applies the update.
+      if (desktopUpdateBlocking()) {
+        handleGamepadIntent(intent);
+        return;
       }
       // Menu = short press → the SYSTEM overlay (console) / legend (desktop);
       // HOLD (≥650ms) → toggle console ↔ desktop shell.

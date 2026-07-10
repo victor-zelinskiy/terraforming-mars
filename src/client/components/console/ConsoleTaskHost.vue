@@ -1144,10 +1144,11 @@ export default defineComponent({
       }, undefined, {origin});
     },
     /** Read-only browse of the already-drafted cards (LB/RB page, B closes) —
-     *  no select/action bridge, so it can never re-submit a drafted card. */
+     *  no select/action bridge, so it can never re-submit a drafted card.
+     *  Opened from the count chip (no card tiles on screen) → TEXTUAL. */
     openDraftedViewer(): void {
       if (this.draftedCards.length > 0) {
-        openConsoleCardZoom([...this.draftedCards], 0);
+        openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
       }
     },
     /**

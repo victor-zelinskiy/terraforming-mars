@@ -35,6 +35,7 @@ import {
   ActionPreview,
   ActionPreviewBranch,
   ActionPreviewStep,
+  TabbedTargetsStep,
 } from '@/common/models/ActionPreviewModel';
 import {
   AndOptionsModel,
@@ -225,15 +226,27 @@ export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
   return responses;
 }
 
-/** Collect captured step responses in steps order (input steps only). */
+/** Collect captured step responses in steps order (input + tabbedTargets steps —
+ *  the pre-collectable ones; a tabbedTargets response is a top-level or-response). */
 export function orderedStepResponses(
   branch: ActionPreviewBranch,
   steps: Readonly<Record<number, unknown>>,
 ): Array<unknown> {
   const out: Array<unknown> = [];
   branch.steps.forEach((step, i) => {
-    if (step.kind === 'input' && steps[i] !== undefined) {
+    if ((step.kind === 'input' || step.kind === 'tabbedTargets') && steps[i] !== undefined) {
       out.push(steps[i]);
+    }
+  });
+  return out;
+}
+
+/** The pre-collectable `tabbedTargets` steps of a branch, with their step index. */
+export function tabbedStepsOf(branch: ActionPreviewBranch | undefined): Array<{index: number, step: TabbedTargetsStep}> {
+  const out: Array<{index: number, step: TabbedTargetsStep}> = [];
+  (branch?.steps ?? []).forEach((step, i) => {
+    if (step.kind === 'tabbedTargets') {
+      out.push({index: i, step});
     }
   });
   return out;
