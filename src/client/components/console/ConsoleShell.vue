@@ -538,6 +538,7 @@ import {runCardTransfer, runCardDepart} from '@/client/console/cardDeal/cardExit
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
+import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
@@ -1716,12 +1717,13 @@ export default defineComponent({
         ];
       }
       if (this.pendingPlayCard !== undefined) {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'secondary', label: 'Play now'},
-          {control: 'back', label: 'Cancel'},
-        ];
+        // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
+        // resolved choice / X inspects / LB·RB only where a value dials / LT
+        // only when the payment is configurable) — the bar mirrors them
+        // verbatim, so it can never diverge from what the buttons actually do.
+        return consolePlayCardUi.commands.length > 0 ?
+          [...consolePlayCardUi.commands] :
+          [{control: 'confirm', label: 'Play now'}, {control: 'back', label: 'Cancel'}];
       }
       if (this.pendingTradeColony !== undefined) {
         // The composer mirrors its live state (consoleColoniesUi) — the bar

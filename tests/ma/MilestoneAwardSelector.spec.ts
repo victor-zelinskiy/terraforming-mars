@@ -144,8 +144,10 @@ describe('MilestoneAwardSelector', () => {
       'randomMA': RandomMAOptionType.NONE,
       'venusNextExtension': true,
     });
-    expect(mas.milestones).to.have.length(8);
-    expect(mas.awards).to.have.length(8);
+    // vize1215 fork: Ares MAs are no longer force-added with randomMA === NONE, so the count
+    // is 5 board + 1 Venus = 6 (Networker/Purifier / Entrepreneur/Rugged only via random pool).
+    expect(mas.milestones).to.have.length(6);
+    expect(mas.awards).to.have.length(6);
   });
 
   it('Do not select Constructor when Colonies is not selected', () => {

@@ -261,6 +261,8 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
+import {Color} from '@/common/Color';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
@@ -605,7 +607,8 @@ export default defineComponent({
       return c && g;
     },
     playerName(color: string): string {
-      return this.playerView.players.find((pl) => pl.color === color)?.name ?? color;
+      // The Automa seat localizes to «Бот»; never leak the raw «MarsBot» name.
+      return displayNameForColor(this.playerView.players, color as Color);
     },
     choiceTitle(c: ComposerChoice): string {
       const t = textOf(c.input.title);

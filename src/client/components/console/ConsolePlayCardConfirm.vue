@@ -221,24 +221,24 @@
                 </div>
               </div>
 
-              <!-- The single big CTA — a STATUS strip driven by the primary action
-                   (A plays / leads to the choice / shows the blocker). Not focusable. -->
-              <div class="con-composer__cta" :class="{'con-composer__cta--off': !ctaReady}">
+              <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
+                   glyph, so what A does is never ambiguous: A plays ONLY when this
+                   row is focused (a pick row's A opens/changes that pick instead). -->
+              <div class="con-composer__cta"
+                   :class="{
+                     'con-composer__cta--off': !ctaReady,
+                     'con-composer__cta--ready': ctaReady,
+                     'con-composer__cta--focused': ctaFocused,
+                   }"
+                   :ref="ctaFocused ? 'focusedEl' : undefined">
+                <GamepadGlyph control="confirm" class="con-composer__cta-glyph" />
                 <span class="con-composer__cta-label">{{ $t(ctaLabel) }}</span>
               </div>
             </template>
           </ConsoleScrollArea>
-
-          <!-- ── The ONE bottom command bar ──────────────────────────── -->
-          <footer class="con-composer__foot" aria-hidden="true">
-            <span v-for="(hint, i) in footHints" :key="i"
-                  class="con-composer__foot-item"
-                  :class="{'con-composer__foot-item--off': hint.enabled === false}">
-              <GamepadGlyph :control="hint.control" />
-              <GamepadGlyph v-if="hint.control2 !== undefined" :control="hint.control2" />
-              <span>{{ $t(hint.label) }}</span>
-            </span>
-          </footer>
+          <!-- No inline footer: the CONTEXTUAL controls are published to the
+               shell's ONE bottom command bar (consolePlayCardUi) — hints live
+               only there. -->
         </div>
       </div>
     </div>
@@ -263,13 +263,17 @@
  * permanent effect → VP → tags → honest fallback).
  *
  * Control grammar (hints ONLY in the bottom bar): ↑↓ = navigate variants +
- * step picks (moving onto a variant SELECTS it) · ←→ = adjust a focused amount ·
- * LB/RB = a focused amount stepper, ELSE the inline payment quick-adjust (the
- * simple one-alt-resource case — M€ auto-rebalances) · RT = MAX · A = the ONE
- * smart primary action (plays when ready, else leads to the first unresolved
- * choice) · LT = open the full payment editor · X = inspect the card fullscreen ·
- * B = cancel. Primary action = `computePrimaryAction`; payment = `buildPaymentView`
- * (all rules there — the component never re-derives payment math).
+ * step picks + the terminal «Разыграть» CTA (moving onto a variant SELECTS it) ·
+ * ←→ = adjust a focused amount · LB/RB = a focused amount stepper, ELSE the
+ * inline payment quick-adjust (the simple one-alt-resource case — M€
+ * auto-rebalances) · RT = MAX · **A acts on the FOCUSED row** — it PLAYS only on
+ * the explicit CTA row (which draws the Ⓐ glyph), opens/re-opens a pick on a
+ * card/player/or/tabbed row, advances toward the CTA on a variant/stepper — so A
+ * can never be mistaken for "change" and silently play · LT = open the full
+ * payment editor · X = inspect the card fullscreen · B = cancel · Y is NOT bound
+ * (globally reserved for the information panel). CTA state = `computePrimaryAction`;
+ * payment = `buildPaymentView` (all rules there — the component never re-derives
+ * payment math).
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
@@ -313,6 +317,7 @@ import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, paymentTotal, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
+import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 
 /**
@@ -324,7 +329,11 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
   | {i: number, id: string, kind: 'step', choice: ComposerChoice}
-  | {i: number, id: string, kind: 'tabbed', stepIndex: number};
+  | {i: number, id: string, kind: 'tabbed', stepIndex: number}
+  // The explicit «Разыграть» call-to-action — a FOCUSABLE terminal row, so A
+  // plays ONLY when the player is on it (never from a pick row). It draws the Ⓐ
+  // glyph, so what A does is always unambiguous.
+  | {i: number, id: string, kind: 'cta'};
 
 type SubState =
   | {kind: 'list', choiceId: string, index: number}
@@ -520,7 +529,15 @@ export default defineComponent({
       for (const t of this.tabbedSteps) {
         out.push({i: 0, id: 'tabbed#' + t.index, kind: 'tabbed', stepIndex: t.index});
       }
+      // The terminal «Разыграть» CTA is always the last focusable row.
+      out.push({i: 0, id: 'cta', kind: 'cta'});
       return out.map((r, i) => ({...r, i}));
+    },
+    ctaIndex(): number {
+      return this.rows.findIndex((r) => r.kind === 'cta');
+    },
+    ctaFocused(): boolean {
+      return this.focusedRow?.kind === 'cta';
     },
     variantRows(): ReadonlyArray<PlayRow & {kind: 'variant'}> {
       return this.rows.filter((r): r is PlayRow & {kind: 'variant'} => r.kind === 'variant');
@@ -676,17 +693,47 @@ export default defineComponent({
       }
       return 'pick';
     },
-    /** The A-button verb, from the primary state: "Play now" when ready, "Select"
-     *  while it leads the player to an unresolved choice, disabled when blocked. */
+    /**
+     * The A-button verb for the FOCUSED row — A always acts on the focused row,
+     * so its verb is honest about what will happen: «Разыграть» ONLY on the CTA
+     * (and only when ready), «Изменить»/«Выбрать» on a pick, «Далее» on a
+     * variant/stepper (advance toward the CTA). This is why A can never be
+     * mistaken for "change" and silently play the card.
+     */
     primaryFooter(): {label: string, enabled: boolean} {
-      const st = this.primaryActionState;
-      if (st.kind === 'ready') {
-        return {label: 'Play now', enabled: true};
+      const row = this.focusedRow;
+      if (row?.kind === 'cta') {
+        const st = this.primaryActionState;
+        if (st.kind === 'ready') {
+          return {label: 'Play now', enabled: true};
+        }
+        if (st.kind === 'blocked-payment') {
+          return {label: 'Configure payment', enabled: true};
+        }
+        if (st.kind === 'need-preselect') {
+          return {label: 'Choose an option', enabled: true};
+        }
+        // blocked-requirement (unplayable) — nothing A can do; the CTA shows why.
+        return {label: 'Play now', enabled: false};
       }
-      if (st.kind === 'need-preselect') {
-        return {label: 'Select', enabled: true};
+      if (row !== undefined && this.focusedOpensPicker) {
+        return {label: this.rowMissing(row) ? 'Select' : 'Change', enabled: true};
       }
-      return {label: 'Play now', enabled: false};
+      // A variant / amount / spend-heat row: A proceeds toward the play CTA.
+      return {label: 'Next', enabled: true};
+    },
+    /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
+     *  A = «Выбрать»/«Изменить» there, never «Разыграть». */
+    focusedOpensPicker(): boolean {
+      const row = this.focusedRow;
+      if (row === undefined) {
+        return false;
+      }
+      if (row.kind === 'tabbed') {
+        return true;
+      }
+      return row.kind === 'step' &&
+        (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or');
     },
     footHints(): Array<FootHint> {
       // A focused amount/spend-heat stepper OWNS LB/RB; otherwise the inline
@@ -699,7 +746,8 @@ export default defineComponent({
         // Every list-like sub (list / orNested / tabbed) shares the pick contract.
         sub: this.sub === undefined ? 'none' : (this.sub.kind === 'payment' ? 'payment' : 'list'),
         subIsCardList: this.subChoice?.input.type === 'card' || this.sub?.kind === 'orNested' || this.sub?.kind === 'tabbed',
-        hasRows: this.rows.length > 0,
+        // More than the lone CTA row → there's something to navigate between.
+        hasRows: this.rows.length > 1,
         focusedKind: this.focusedKind,
         configurablePayment: this.paymentView.configurable,
         paymentReady: this.paymentReady,
@@ -801,6 +849,18 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    // Publish the CONTEXTUAL footer controls to the shell's ONE bottom command
+    // bar (hints live only there — never inline). Replaces the old hard-coded,
+    // diverged command list in the shell.
+    footHints: {
+      immediate: true,
+      handler(hints: Array<FootHint>) {
+        setConsolePlayCardCommands(hints);
+      },
+    },
+  },
+  beforeUnmount() {
+    resetConsolePlayCardUi();
   },
   methods: {
     iconClass(icon: string | undefined): string {
@@ -874,15 +934,12 @@ export default defineComponent({
         console.warn(`[console play] no computable preview for ${this.cardName} — showing fallback result`);
       }
     },
-    /** The row to focus on open: the first UNRESOLVED step, else the first row
-     *  (a variant), else none (a no-choice card — A just plays). */
+    /** The row to focus on open / after a pick: the first UNRESOLVED choice,
+     *  else the «Разыграть» CTA (so a ready card lands the player on the explicit
+     *  play button showing Ⓐ — never on a pick row where A might read as "play"). */
     firstActionableIndex(): number {
-      const rows = this.rows;
-      if (rows.length === 0) {
-        return -1;
-      }
-      const missing = rows.findIndex((r) => this.rowMissing(r));
-      return missing >= 0 ? missing : 0;
+      const missing = this.rows.findIndex((r) => this.rowMissing(r));
+      return missing >= 0 ? missing : this.ctaIndex;
     },
     /** Whether a decision row is still unresolved (a variant is auto-selected). */
     rowMissing(row: PlayRow): boolean {
@@ -1226,34 +1283,46 @@ export default defineComponent({
       }
     },
     /**
-     * The A button — the ONE smart primary action, derived from
-     * `primaryActionState`, NOT raw DOM focus. When READY, A PLAYS regardless of
-     * where focus is (so a no-choice / all-resolved card plays with one press).
-     * When a choice is still needed, A LEADS the player to it: it opens the
-     * focused unresolved pick, else jumps to the first unresolved one.
+     * The A button ALWAYS acts on the FOCUSED row (never a focus-independent
+     * "smart play") — so what A does is exactly what the focused row + the
+     * bottom bar say:
+     *  - the «Разыграть» CTA → PLAY (when ready), else lead to the first
+     *    unresolved choice;
+     *  - a card/player/or/tabbed pick → open/re-open its picker (change);
+     *  - a variant / amount / spend-heat row → advance toward the CTA.
+     * A can therefore never be mistaken for "change" and silently play.
      */
     primaryAction(): void {
-      const st = this.primaryActionState;
-      if (st.kind === 'ready') {
-        this.submit();
+      const row = this.focusedRow;
+      if (row === undefined) {
         return;
       }
-      if (st.kind === 'need-preselect') {
-        const row = this.focusedRow;
-        // Focused ON an unresolved pick → open it right here; else jump to the
-        // first unresolved one and open it.
-        const target = (row !== undefined && this.rowMissing(row)) ? row : this.rows[st.rowIndex];
-        if (target !== undefined) {
-          this.focusIdx = target.i;
-          this.openRow(target);
-          this.scrollFocused();
+      if (row.kind === 'cta') {
+        if (this.ctaReady) {
+          this.submit();
+          return;
         }
+        // Payment shortfall → open the payment lanes (the actionable fix).
+        if (this.primaryActionState.kind === 'blocked-payment' && this.payLanes.length > 0) {
+          this.sub = {kind: 'payment', index: 0};
+          return;
+        }
+        // Otherwise lead the player to the first unresolved choice (+ open it).
+        this.focusIdx = this.firstActionableIndex();
+        const target = this.focusedRow;
+        if (target !== undefined && target.kind !== 'cta') {
+          this.openRow(target);
+        }
+        this.scrollFocused();
         return;
       }
-      if (st.kind === 'blocked-payment' && this.payLanes.length > 0) {
-        this.sub = {kind: 'payment', index: 0};
+      if (this.focusedOpensPicker) {
+        this.openRow(row);
+        return;
       }
-      // blocked-requirement: nothing to do — the CTA + status show the reason.
+      // A variant / amount / spend-heat row → proceed toward the play CTA.
+      this.focusIdx = this.firstActionableIndex();
+      this.scrollFocused();
     },
     /** Open the pick surface a decision row needs (a list / tabbed picker). An
      *  amount / spend-heat row adjusts inline, so opening it is a no-op. */

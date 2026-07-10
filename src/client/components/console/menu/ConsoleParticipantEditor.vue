@@ -25,23 +25,11 @@
         >
           <span class="cm-field__label">{{ $t(field.labelKey) }}</span>
 
-          <!-- Name -->
+          <!-- Name — edited through the on-screen keyboard (never the device kb). -->
           <template v-if="field.id === 'name'">
-            <span v-if="!entering" class="cm-field__value">
+            <span class="cm-field__value">
               <span :class="{'cm-field__missing': currentName === ''}">{{ currentName !== '' ? currentName : $t('Name not set') }}</span>
               <span class="cm-field__hint" aria-hidden="true"><GamepadGlyph control="confirm" />{{ $t('Change') }}</span>
-            </span>
-            <span v-else class="cm-field__value cm-field__value--entry">
-              <input
-                ref="nameInput"
-                v-model="entryDraft"
-                class="cm-field__input"
-                type="text"
-                maxlength="32"
-                :placeholder="$t('Enter a player name')"
-                @keydown.enter.prevent="commitNameEntry"
-                @keydown.esc.prevent="cancelNameEntry"
-              />
             </span>
           </template>
 
@@ -98,6 +86,17 @@
         <span class="cm-overlay__foot-hint"><GamepadGlyph control="back" />{{ $t('Close') }}</span>
       </div>
     </div>
+
+    <ConsoleVirtualKeyboard
+      v-if="entering"
+      ref="vkeyboard"
+      :initial="entryDraft"
+      :title="'Player name'"
+      :issue="nameIssue"
+      @update="entryDraft = $event"
+      @commit="commitNameEntry"
+      @cancel="cancelNameEntry"
+    />
   </div>
 </template>
 
@@ -127,10 +126,11 @@ import {createGameState, setSlotColor, setSlotName} from '@/client/components/cr
 import {botDifficultyMeta} from '@/client/components/create/premium/createGameMeta';
 import {validatePlayerName} from '@/common/utils/playerName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsoleVirtualKeyboard},
   props: {
     target: {type: Object as PropType<EditorTarget>, required: true},
     cursor: {type: Number, required: true},
@@ -185,15 +185,9 @@ export default defineComponent({
     /** Screen-root routed intents. Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
       if (this.entering) {
-        if (consoleActionOf(intent) === 'primary') {
-          this.commitNameEntry();
-          return true;
-        }
-        if (consoleActionOf(intent) === 'back') {
-          this.cancelNameEntry();
-          return true;
-        }
-        return true; // The input owns the rest while entering.
+        // The on-screen keyboard owns every intent while name entry is active.
+        const vk = this.$refs.vkeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        return vk?.handleIntent?.(intent) ?? true;
       }
       const field = this.fields[this.cursor];
       if (intent.kind === 'nav') {
@@ -243,17 +237,18 @@ export default defineComponent({
       if (this.target.kind !== 'human') {
         return;
       }
-      this.entering = true;
       this.entryDraft = this.currentName;
       this.nameIssue = '';
+      // Silence the console key bridge so a physical key can't drive menu nav
+      // behind the on-screen keyboard (the keyboard owns physical input too).
       menuPadState.textEntry = true;
-      void this.$nextTick(() => (this.$refs.nameInput as HTMLInputElement | undefined)?.focus());
+      this.entering = true;
     },
-    commitNameEntry(): void {
+    commitNameEntry(value: string): void {
       if (this.target.kind !== 'human') {
         return;
       }
-      const validation = validatePlayerName(this.entryDraft);
+      const validation = validatePlayerName(value);
       if (!validation.ok) {
         this.nameIssue = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
         return;

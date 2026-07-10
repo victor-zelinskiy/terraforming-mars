@@ -1,3 +1,55 @@
+# Console composers — polish pass (iteration 4): re-select · command bar · bot name · colour dot
+
+Three defects across the PLAY + ACTION composers, all fixed:
+
+1. **Re-select a chosen variant/option (A must never be mistaken for play).**
+   The PLAY composer's A was a focus-INDEPENDENT smart primary (plays when
+   ready) — so on a resolved pick you couldn't re-open it (A played), and worse,
+   the player couldn't tell whether A would change or play. Fix: **A now acts on
+   the FOCUSED row**, and there is an explicit, focusable **«Разыграть» CTA row
+   drawing the Ⓐ glyph** (strong ready/focused states) — A plays ONLY when the
+   cursor is on that CTA. On a card/player/or/tabbed pick A opens/re-opens the
+   picker («Выбрать»/«Изменить»); on a variant/amount/heat row A advances toward
+   the CTA («Далее»). After a pick, focus auto-lands on the CTA (so a ready card
+   shows «Ⓐ Разыграть»), and ↑ back to a pick shows «Ⓐ Изменить» — the bottom bar
+   always names the focused row's A verb, so A can never silently play when the
+   player meant to change. **Y is NOT used** — it is globally reserved for the
+   information panel (a spec guard asserts `playComposerFootHints` never emits a
+   `inspect`/Y control). The ACTION composer already had the honest model (A =
+   act on focused / open pick, X = Confirm) — unchanged. Unified CONCEPT:
+   *committing (play/confirm) is a control DISTINCT from A-on-a-pick, and what A
+   does is always exactly what the focused row + the bar say.*
+
+2. **Bottom command bar was wrong (X «Разыграть» + static LB/RB in pure-auto).**
+   The shell's `commands()` for `pendingPlayCard` was a HARD-CODED, diverged list
+   (`{control:'secondary'→X, label:'Play now'}` — but A plays, X inspects — and a
+   fixed LB −1 / RB +1 even with no alt-resource payment). Fix: the composer
+   PUBLISHES its live, contextual `playComposerFootHints` to a reactive store
+   (`consolePlayCardUi`, mirroring `consoleColoniesUi`); the shell reads them
+   verbatim → the bar can't lie. The composer's now-redundant INLINE footer was
+   removed (hints live only in the ONE bottom bar — the colonies contract).
+
+3. **Bot name leaked as «MarsBot» + missing target colour dot.** (a) The Automa
+   seat rendered its canonical `MarsBot` in every prompt/log/notification: a
+   PLAYER data token resolved via the raw name map. Fixed at THE one place a
+   PLAYER token becomes text — `translateMessage` (`i18n.ts`) localizes a bot
+   colour through the `'MarsBot'` key («Бот»); global, covers both composers +
+   journal + notifications. Also the ACTION composer's `playerName` now routes
+   through `displayNameForColor` (it read raw `.name`). (b) The colour dot didn't
+   show: `.con-composer__opt-dot` set `background: currentColor`, overriding the
+   `player_bg_color_*` class → the dot painted the row's text colour (unreadable),
+   and some steal previews carried the chip metadata WITHOUT `player.color`.
+   Fixed: the dot relies on `player_bg_color_*` (neutral ring + glow), and
+   `buildOrItems` derives the target colour from the option TITLE's PLAYER token
+   when metadata omits it (robust for every "… from ${player}" option).
+
+Tests: `consoleOrChoice.spec.ts` (+2: title-token colour fallback + metadata
+precedence), `consolePlayCardComposer.spec.ts` (+2: Y «Change» present when a
+resolved pick is focused / absent otherwise). Gates: vue-tsc + `tsc --build
+tests` + eslint + make:css + webpack — all green; `i18n.spec` unaffected.
+
+---
+
 # Console PLAY-card composer — desktop parity (iteration 3)
 
 **Тот же класс проблемы, теперь в РОЗЫГРЫШЕ карт** (скриншот «Наёмные налётчики»:

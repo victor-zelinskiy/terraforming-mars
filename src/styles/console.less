@@ -10743,7 +10743,14 @@ html.console-mode {
         &--chosen { box-shadow: inset 0 0 0 1px fade(@con-mint, 55%); }
         &--chosen&--focused { box-shadow: inset 0 0 0 2px @con-mint, 0 0 18px fade(@con-mint, 28%); }
     }
-    &__opt-dot { width: 13px; height: 13px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    /* The target-player colour dot — the colour comes from the applied
+       `player_bg_color_*` class, so it must NOT set its own `background`
+       (a `background: currentColor` shorthand overrode the player colour and
+       painted every dot the row's text colour). Neutral ring + soft glow. */
+    &__opt-dot {
+        flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 8px rgba(0, 0, 0, 0.5);
+    }
     &__opt-name { font-size: 18px; font-weight: 700; flex: 1; min-width: 0; }
     /* A tabbed-target category badge (Virus: animals vs plants). */
     &__opt-tab {
@@ -10988,19 +10995,39 @@ html.console-mode {
         &-icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     }
 
-    /* The single big CTA — a STATUS strip driven by the primary action (not focusable). */
+    /* The explicit «Разыграть» CTA — a FOCUSABLE row with the Ⓐ glyph. A plays
+       ONLY when this row is focused, so the glyph + the strong focus state make
+       "A plays" unmistakable (a pick row's A opens/changes that pick instead). */
     &__cta {
-        display: flex; align-items: center; gap: 14px;
-        margin-top: 2px; padding: 13px 18px; border-radius: 12px;
-        background: fade(@con-mint, 14%);
-        box-shadow: inset 0 0 0 1px fade(@con-mint, 55%), 0 0 18px fade(@con-mint, 12%);
-        &--off {
-            background: rgba(20, 28, 38, 0.7);
-            box-shadow: inset 0 0 0 1px fade(@con-amber, 40%);
+        display: flex; align-items: center; gap: 12px;
+        margin-top: 6px; padding: 14px 18px; border-radius: 12px;
+        background: rgba(20, 28, 38, 0.62);
+        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.2);
+        transition: box-shadow 140ms ease, background 140ms ease;
+        /* ready but not focused — mint-tinted, inviting the play. */
+        &--ready {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 45%);
+        }
+        /* focused (the cursor is on it) — a strong ring so A = play reads loud. */
+        &--focused {
+            box-shadow: inset 0 0 0 2px @con-cyan, 0 0 22px fade(@con-cyan, 30%);
+            background: rgba(20, 34, 50, 0.72);
+        }
+        &--ready&--focused {
+            box-shadow: inset 0 0 0 2px @con-mint, 0 0 26px fade(@con-mint, 36%);
+            background: fade(@con-mint, 18%);
         }
     }
-    &__cta-label { font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: @con-mint; }
-    &__cta--off &__cta-label { color: #ffe6b0; }
+    /* The Ⓐ glyph reads brighter when the play is actually ready. */
+    &__cta-glyph { flex: 0 0 auto; opacity: 0.85; }
+    &__cta--ready &__cta-glyph { opacity: 1; }
+    &__cta-label { font-size: 20px; font-weight: 800; letter-spacing: 0.4px; color: #cfe0f0; }
+    &__cta--ready &__cta-label { color: @con-mint; }
+    &__cta--off&__cta--focused &__cta-label { color: #ffe6b0; }
+    @media (prefers-reduced-motion: reduce) {
+        &__cta { transition: none; }
+    }
 }
 
 @keyframes con-pay-flash {

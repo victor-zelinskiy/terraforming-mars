@@ -5,24 +5,12 @@
       <div class="cm-overlay__body cm-overlay__body--dim">{{ $t('Your name and cube colour prefill every party you create or join.') }}</div>
 
       <div class="cm-fields">
-        <!-- Name -->
+        <!-- Name — edited through the on-screen keyboard (never the device kb). -->
         <div class="cm-field" :class="{'cm-field--cursor': cursor === 0}" @mousemove="cursor = 0" @click="cursor = 0; startNameEntry()">
           <span class="cm-field__label">{{ $t('Player name') }}</span>
-          <span v-if="!entering" class="cm-field__value">
+          <span class="cm-field__value">
             <span :class="{'cm-field__missing': draftName === ''}">{{ draftName !== '' ? draftName : $t('Set your name') }}</span>
             <span class="cm-field__hint" aria-hidden="true"><GamepadGlyph control="confirm" />{{ $t('Change') }}</span>
-          </span>
-          <span v-else class="cm-field__value cm-field__value--entry">
-            <input
-              ref="nameInput"
-              v-model="entryDraft"
-              class="cm-field__input"
-              type="text"
-              maxlength="32"
-              :placeholder="$t('Enter a player name')"
-              @keydown.enter.prevent="commitNameEntry"
-              @keydown.esc.prevent="cancelNameEntry"
-            />
           </span>
         </div>
         <div v-if="nameIssue !== ''" class="cm-field__issue">{{ $t(nameIssue) }}</div>
@@ -48,6 +36,17 @@
         <span class="cm-overlay__foot-hint"><GamepadGlyph control="back" />{{ $t('Close') }}</span>
       </div>
     </div>
+
+    <ConsoleVirtualKeyboard
+      v-if="entering"
+      ref="vkeyboard"
+      :initial="entryDraft"
+      :title="'Player name'"
+      :issue="nameIssue"
+      @update="entryDraft = $event"
+      @commit="commitNameEntry"
+      @cancel="cancelNameEntry"
+    />
   </div>
 </template>
 
@@ -55,10 +54,10 @@
 /**
  * Console-native PROFILE editor (name + cube colour) — the pre-game identity
  * without the desktop DOM-focus modal. Two fields under a screen-state
- * cursor; the NAME field is the sanctioned text-entry fallback: A opens the
- * input (menuPadState.textEntry arms — the physical keyboard belongs to the
- * input), Enter/A commits, Esc/B cancels. Colour cycles with ◄ ► (or A).
- * Every valid change persists immediately via setIdentity — B just closes.
+ * cursor; the NAME field opens the premium on-screen keyboard
+ * (ConsoleVirtualKeyboard) — the console flow never falls back to the device
+ * keyboard. Colour cycles with ◄ ► (or A). Every valid change persists
+ * immediately via setIdentity — B just closes.
  *
  * The host routes pad intents here via `handleIntent` (public method).
  */
@@ -71,10 +70,11 @@ import {identityState, setIdentity} from '@/client/components/mainMenu/identity/
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
 import {validatePlayerName} from '@/common/utils/playerName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 
 export default defineComponent({
   name: 'ConsoleProfileEditor',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsoleVirtualKeyboard},
   emits: ['close'],
   data() {
     return {
@@ -98,15 +98,9 @@ export default defineComponent({
     /** Host-routed pad intents. Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
       if (this.entering) {
-        if (consoleActionOf(intent) === 'primary') {
-          this.commitNameEntry();
-          return true;
-        }
-        if (consoleActionOf(intent) === 'back') {
-          this.cancelNameEntry();
-          return true;
-        }
-        return true; // The input owns everything else while entering.
+        // The on-screen keyboard owns every intent while name entry is active.
+        const vk = this.$refs.vkeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        return vk?.handleIntent?.(intent) ?? true;
       }
       if (intent.kind === 'nav') {
         if (intent.dir === 'up' || intent.dir === 'down') {
@@ -130,14 +124,14 @@ export default defineComponent({
       return false; // B falls through to the host (close).
     },
     startNameEntry(): void {
-      this.entering = true;
       this.entryDraft = this.draftName;
       this.nameIssue = '';
+      // Silence the console key bridge — the on-screen keyboard owns input.
       menuPadState.textEntry = true;
-      void this.$nextTick(() => (this.$refs.nameInput as HTMLInputElement | undefined)?.focus());
+      this.entering = true;
     },
-    commitNameEntry(): void {
-      const validation = validatePlayerName(this.entryDraft);
+    commitNameEntry(value: string): void {
+      const validation = validatePlayerName(value);
       if (!validation.ok) {
         this.nameIssue = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
         return;

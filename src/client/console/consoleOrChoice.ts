@@ -18,6 +18,7 @@
 
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {OptionMetadata, OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
@@ -44,6 +45,24 @@ export type ConsoleOrItem = {
    *  chosen value nests into the branch's `{type:'or', index, response:<nested>}`. */
   nested?: PlayerInputModel;
 };
+
+/**
+ * The target player's COLOUR of an option, so a player-target row (steal /
+ * attack) shows a colour dot the player can read at a glance — even before the
+ * name. Prefer the explicit `metadata.player.color`; else fall back to the
+ * option TITLE's PLAYER data token (its `value` IS the seat colour), which
+ * covers every "… from ${player}" option whose metadata omits the colour.
+ */
+function playerColorOf(title: string | Message, meta: OptionMetadata | undefined): Color | undefined {
+  if (meta?.player?.color !== undefined) {
+    return meta.player.color;
+  }
+  if (typeof title === 'string') {
+    return undefined;
+  }
+  const token = title.data?.find((d) => d?.type === LogMessageDataType.PLAYER);
+  return token !== undefined ? (token.value as Color) : undefined;
+}
 
 /** Build a chip from an option's metadata (mirrors the desktop chip logic). */
 function chipsFromMetadata(m: OptionMetadata | undefined): Array<ActionEffect> {
@@ -95,7 +114,7 @@ export function buildOrItems(model: OrOptionsModel): Array<ConsoleOrItem> {
       disabled: false,
       reason: '',
       chips: chipsFromMetadata(meta),
-      playerColor: meta?.player?.color,
+      playerColor: playerColorOf(opt.title, meta),
       description: meta?.description,
       tradeoff: meta?.tradeoff,
       nested: leaf ? undefined : opt,
@@ -110,7 +129,7 @@ export function buildOrItems(model: OrOptionsModel): Array<ConsoleOrItem> {
       disabled: true,
       reason: d.reason ?? '',
       chips: chipsFromMetadata(d.metadata),
-      playerColor: d.metadata?.player?.color,
+      playerColor: playerColorOf(d.title, d.metadata),
     });
   }
   return out;

@@ -19,21 +19,34 @@ type Context = {
   // `translateText` can recognise a name and return it VERBATIM without warning —
   // never translating a person's name.
   playerNames: Set<string>;
+  // Colours of Automa (MarsBot) seats. The bot stays canonical `MarsBot`
+  // server-side (name/ids/events/saves), but EVERY user-facing label localizes
+  // through the 'MarsBot' key («Бот» in ru). A PLAYER data token renders a
+  // seat's name — so without this the bot's raw «MarsBot» leaked into every
+  // rendered prompt / log / notification (the localized display helpers only
+  // covered the direct-name render paths). We localize the bot here, at THE one
+  // place a PLAYER token becomes text.
+  marsBotColors: Set<Color>;
 }
 
 const context: Context = {
   playerView: undefined,
   players: new Map(),
   playerNames: new Set(),
+  marsBotColors: new Set(),
 };
 
 export function setTranslationContext(playerView: PlayerViewModel) {
   context.playerView = playerView;
   context.players.clear();
   context.playerNames.clear();
+  context.marsBotColors.clear();
   for (const player of playerView.players) {
     context.players.set(player.color, player.name);
     context.playerNames.add(player.name);
+    if (player.isMarsBot === true) {
+      context.marsBotColors.add(player.color);
+    }
   }
 }
 
@@ -45,6 +58,12 @@ export function translateMessage(message: Message): string {
     }
     switch (datum.type) {
     case LogMessageDataType.PLAYER:
+      // The Automa seat localizes through the 'MarsBot' key («Бот»); humans
+      // keep their real name. `datum.value` is the seat COLOUR (see the
+      // `players` Map: colour → name).
+      if (context.marsBotColors.has(datum.value as Color)) {
+        return translateText('MarsBot');
+      }
       return context.players.get(datum.value) ?? datum.value;
     case LogMessageDataType.TILE_TYPE:
       return tileTypeToString[datum.value];

@@ -122,9 +122,10 @@ export function chooseMilestonesAndAwards(gameOptions: GameOptions, context: MAS
     if (gameOptions.venusNextExtension) {
       push(milestoneManifest.expansions['venus'], awardManifest.expansions['venus']);
     }
-    if (gameOptions.aresExtension) {
-      push(milestoneManifest.expansions['ares'], awardManifest.expansions['ares']);
-    }
+    // vize1215 fork: the Ares milestones/awards (Networker, Purifier / Entrepreneur, Rugged)
+    // are deliberately NOT force-added to every Ares game. They only enter play through the
+    // "Random milestones and awards" pool (they're compatibility-filtered into the random
+    // candidates when Ares is enabled). With randomMA === NONE they stay out.
     if (gameOptions.moonExpansion) {
       // One MA will reward moon tags, the other will reward moon tiles.
       if (Math.random() > 0.5) {

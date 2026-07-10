@@ -216,5 +216,10 @@
     "Heat sources": "Источники тепла",
     "Floaters (2 heat each)": "Аэростаты (по 2 тепла)",
     "Section": "Раздел",
-    "Toggle": "Переключить"
+    "Toggle": "Переключить",
+    "On-screen keyboard": "Экранная клавиатура",
+    "Type a key": "Ввести",
+    "Backspace": "Стереть",
+    "Input language": "Язык ввода",
+    "Space bar": "Пробел"
 }

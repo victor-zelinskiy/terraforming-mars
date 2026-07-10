@@ -2,8 +2,9 @@ import {expect} from 'chai';
 import {buildOrItems, orItemResponse, buildTabbedTargets} from '@/client/console/consoleOrChoice';
 import {OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 
-function leaf(title: string, metadata?: unknown) {
+function leaf(title: unknown, metadata?: unknown) {
   return {type: 'option', title, metadata} as unknown;
 }
 
@@ -20,6 +21,28 @@ describe('consoleOrChoice — premium or items', () => {
     expect(items[0].nested).to.eq(undefined);
     expect(items[0].chips).to.have.length(1);
     expect(items[0].chips[0]).to.include({direction: 'cost', icon: 'steel', amount: 2, current: 5, resulting: 3});
+  });
+
+  it('derives the target colour from the option TITLE player token when metadata omits it', () => {
+    // The chip metadata carries icon+amount (so the "3 → 1" preview renders) but
+    // NO player.color — the colour dot must still resolve from the title's PLAYER
+    // token so the target colour reads at a glance (the console bug: no dot).
+    const title = {message: 'Steal 2 steel from ${0}', data: [{type: LogMessageDataType.PLAYER, value: 'red'}]};
+    const model = {
+      type: 'or',
+      options: [leaf(title, {kind: 'steal', icon: 'steel', amount: 2})],
+    } as unknown as OrOptionsModel;
+    const items = buildOrItems(model);
+    expect(items[0].playerColor).to.eq('red');
+  });
+
+  it('prefers the explicit metadata colour over the title token', () => {
+    const title = {message: 'Steal from ${0}', data: [{type: LogMessageDataType.PLAYER, value: 'red'}]};
+    const model = {
+      type: 'or',
+      options: [leaf(title, {kind: 'steal', icon: 'steel', amount: 2, player: {color: 'blue'}})],
+    } as unknown as OrOptionsModel;
+    expect(buildOrItems(model)[0].playerColor).to.eq('blue');
   });
 
   it('marks a NESTED-input option (a SelectPlayer sitting in the or) as nested', () => {

@@ -250,7 +250,13 @@ export type PlayFootContext = {
   /** The card accepts a NON-M€ payment mix — LT opens the payment lanes. */
   configurablePayment: boolean;
   paymentReady: boolean;
-  /** The A-button verb + enabled, decided by the component from the primary state. */
+  /**
+   * The A-button verb + enabled for the FOCUSED row (the component decides it):
+   * «Разыграть» on the play CTA, «Изменить»/«Выбрать» on a pick, «Далее» on a
+   * variant/stepper. A always acts on the FOCUSED row — it only plays when the
+   * player is on the explicit CTA — so A can never be mistaken for "change" and
+   * silently play instead.
+   */
   primaryLabel: string;
   primaryEnabled: boolean;
   /**
@@ -300,6 +306,9 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     hints.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});
     hints.push({control: 'bumperR', label: '+1', enabled: ctx.quickAdjust.canIncrease});
   }
+  // A acts on the FOCUSED row (its verb is `primaryLabel`); it plays ONLY on the
+  // explicit CTA row. Y is deliberately NOT used here — it is globally reserved
+  // for the information panel.
   hints.push({control: 'confirm', label: ctx.primaryLabel, enabled: ctx.primaryEnabled});
   if (ctx.configurablePayment) {
     hints.push({control: 'triggerL', label: 'Configure payment'});

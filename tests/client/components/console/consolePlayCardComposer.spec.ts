@@ -207,6 +207,25 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(hints.filter((h) => h.control === 'bumperL')).to.have.length(1);
     expect(labels(hints)).to.include('MAX');
   });
+
+  it('A shows the FOCUSED row verb (primaryLabel) — «Разыграть» only where passed', () => {
+    // A always acts on the focused row: play on the CTA, change on a pick, next
+    // on a variant — the component decides the verb, the bar renders it.
+    expect(playComposerFootHints(ctx({primaryLabel: 'Play now'})).find((h) => h.control === 'confirm')?.label).to.equal('Play now');
+    expect(playComposerFootHints(ctx({focusedKind: 'pick', primaryLabel: 'Change'})).find((h) => h.control === 'confirm')?.label).to.equal('Change');
+    expect(playComposerFootHints(ctx({focusedKind: 'variant', primaryLabel: 'Next'})).find((h) => h.control === 'confirm')?.label).to.equal('Next');
+  });
+
+  it('NEVER emits a Y (inspect) control — Y is globally reserved for the info panel', () => {
+    const scenarios = [
+      ctx({}), ctx({sub: 'list', subIsCardList: true}), ctx({sub: 'payment'}),
+      ctx({focusedKind: 'amount'}), ctx({focusedKind: 'pick', primaryLabel: 'Change'}),
+      ctx({configurablePayment: true}), ctx({quickAdjust: {canDecrease: true, canIncrease: true}}),
+    ];
+    for (const s of scenarios) {
+      expect(controls(playComposerFootHints(s)), 'no Y control').to.not.include('inspect');
+    }
+  });
 });
 
 describe('consolePlayCardComposer.computePrimaryAction', () => {
