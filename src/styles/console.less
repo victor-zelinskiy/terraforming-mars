@@ -6101,8 +6101,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__fleetchip {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        padding: 4px 12px 4px 8px;
+        gap: 9px;
+        padding: 4px 12px 4px 12px;
         border-radius: 999px;
         background: @con-glass;
         box-shadow: inset 0 0 0 1px fade(@con-text, 20%);
@@ -6114,27 +6114,42 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         }
         &--none {
             .con-colonies__fleetchip-count { color: @con-amber; }
-            .con-colonies__fleetpip { box-shadow: inset 0 0 0 1px fade(@con-amber, 45%); }
         }
     }
-    /* Free/total as a segmented pip strip — filled = a free (untraded) fleet. */
-    &__fleetpips {
+    /* The fleet DOCK — one launch pad per fleet (a physical berth strip). */
+    &__fleetdock {
         display: inline-flex;
+        align-items: flex-end;
+        gap: 5px;
+    }
+    /* One berth: the always-laid-out ship slot ABOVE its pad. Fixed size, so
+       a launched (hidden) ship never collapses the slot — no reflow, no gap. */
+    &__fleetberth {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 3px;
-    }
-    &__fleetpip {
-        width: 8px;
-        height: 14px;
-        border-radius: 3px;
-        background: rgba(255, 255, 255, 0.08);
-        box-shadow: inset 0 0 0 1px fade(@con-text, 22%);
+        justify-content: flex-end;
 
-        &--free {
-            background: @con-mint;
-            box-shadow: 0 0 7px fade(@con-mint, 65%);
-        }
+        &--empty { opacity: 0.9; } /* the pad stays; only the ship is gone */
     }
+    /* The ship perches on the pad; the slot itself is the stable launch rect. */
+    &__fleetship {
+        position: absolute;
+        left: 50%;
+        top: -2px;
+        transform: translateX(-50%);
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .colony-fleet-icon { width: 22px; height: 22px; }
+    }
+    &__fleetdock .colony-fleet-pad { width: 30px; height: 14px; }
     &__fleetchip-name {
         font-weight: 700;
         letter-spacing: 0.4px;
@@ -6146,10 +6161,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .con-colonies__fleetchip--me & { color: @con-text; }
     }
     &__fleetchip-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         font-size: 15px;
         font-weight: 800;
         color: @con-mint;
         font-variant-numeric: tabular-nums;
+
+        .colony-fleet-icon { width: 22px; height: 22px; }
     }
 
     /* ── The tile grid. Anti-clip contract: the SCROLLER owns overflow and
@@ -11560,11 +11580,13 @@ html.con-profile-handheld {
 
         &__head { min-height: 40px; padding: 4px 14px 2px; }
         &__kicker { font-size: 15px; }
-        &__fleetchip { font-size: 12px; padding: 3px 10px 3px 7px; }
+        &__fleetchip { font-size: 12px; padding: 3px 11px; gap: 8px; }
         &__fleetchip-count { font-size: 14px; }
         &__fleetchip-name { max-width: 96px; }
-        &__fleetchip .colony-fleet-icon { width: 26px; height: 26px; }
-        &__fleetpip { width: 8px; height: 15px; }
+        /* Handheld: a notch smaller dock so a 3-4 fleet chip never sprawls. */
+        &__fleetberth { width: 27px; height: 27px; }
+        &__fleetship { width: 20px; height: 20px; .colony-fleet-icon { width: 20px; height: 20px; } }
+        &__fleetdock .colony-fleet-pad { width: 27px; height: 13px; }
         &__grid { gap: 14px 16px; padding: 8px 16px 12px; }
     }
     /* Compact FIXED zones (the height/margin structure is the same as the base

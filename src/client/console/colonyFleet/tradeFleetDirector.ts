@@ -61,6 +61,10 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   const from = centre(args.from);
   const to = centre(args.to);
   const ctrl = launchArcControl(from, to);
+  // The launch now starts from the TOP fleet dock, so the arc's "up" bow can
+  // push the apex above the viewport — clamp it on-screen so the ship never
+  // clips out the top on its climb (the layer is `overflow: clip`).
+  ctrl.y = Math.max(ctrl.y, 16);
 
   let docked = false;
   let killed = false;

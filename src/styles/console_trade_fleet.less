@@ -52,46 +52,35 @@
             transform calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
         pointer-events: none;
     }
-    /* The launch emblem lifts off as the ship proxy takes over. */
-    .con-trade__fleet-launch {
-        animation: con-fleet-liftoff calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 0.1) forwards;
-    }
-}
-@keyframes con-fleet-liftoff {
-    from { transform: translateY(0) scale(1); opacity: 1; }
-    60% { opacity: 0.85; }
-    to { transform: translateY(-24px) scale(1.12); opacity: 0; }
 }
 
-/* ── The composer's fleet launch emblem (the ship the launch lifts off) ─
-   Sits in the trade header beside the target planet — the viewer's fleet,
-   "charged and ready". `data-fleet-launch` is the flight's start anchor. */
-.con-trade__fleet-launch {
-    position: relative;
-    flex: 0 0 auto;
-    width: 46px;
-    height: 46px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    .colony-fleet-icon {
-        width: 40px;
-        height: 40px;
-    }
-    /* A soft launch-pad ring under the charged ship. */
+/* ── Header LAUNCH pad — the fleet lifts off its OWN berth ─────────────
+   The launching ship's slot in the top fleet dock (`data-fleet-launch`).
+   Its ship is v-if-hidden the instant the flight arms (the proxy carries
+   it); a soft owner-hue launch flash marks the departure point, and the
+   empty pad stays put (no reflow — the fixed berth slot never collapses). */
+.con-colonies__fleetship[data-fleet-launch] {
     &::after {
         content: '';
         position: absolute;
         left: 50%;
-        bottom: 2px;
-        width: 30px;
-        height: 6px;
+        bottom: -3px;
+        width: 22px;
+        height: 7px;
         transform: translateX(-50%);
         border-radius: 50%;
-        background: radial-gradient(ellipse at center, var(--fleet-glow, fade(@con-cyan, 40%)) 0%, transparent 70%);
-        opacity: 0.7;
+        background: radial-gradient(ellipse at center, var(--fleet-glow, fade(@con-cyan, 45%)) 0%, transparent 72%);
+        opacity: 0;
+        pointer-events: none;
     }
+}
+/* The launch flash pulses only while the ship is departing this berth. */
+.con-colonies__fleetdock.con-fleet-launching .con-colonies__fleetship[data-fleet-launch]::after {
+    animation: con-fleet-pad-flash calc(520ms * var(--motion-scale, 1)) ease-out;
+}
+@keyframes con-fleet-pad-flash {
+    0% { opacity: 0.9; transform: translateX(-50%) scaleX(0.7); }
+    100% { opacity: 0; transform: translateX(-50%) scaleX(1.3); }
 }
 
 /* ── Berth DOCK acknowledgment — the colony receives its fleet ─────────
@@ -120,7 +109,7 @@
 @media (prefers-reduced-motion: reduce) {
     .con-trade--launching .con-trade__frame,
     .con-trade--launching .con-task-host__backdrop { transition-duration: 1ms; }
-    .con-trade--launching .con-trade__fleet-launch { animation-duration: 1ms; }
+    .con-colonies__fleetdock.con-fleet-launching .con-colonies__fleetship[data-fleet-launch]::after { animation: none; }
     .con-coltile__planet-berth--docking .con-coltile__planet,
     .con-coltile--just-docked .con-coltile__dock { animation: none; }
 }

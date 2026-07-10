@@ -94,6 +94,40 @@
     .colony-fleet-icon--flight .cfi-thrust { animation: none; opacity: 0.9; }
 }
 
+/* ── Trade-fleet LAUNCH PAD (ColonyFleetPad) — the berth a fleet sits on ─
+   A dark docking cradle; `--occupied` lights the owner-hue deck + lights,
+   an empty pad stays dim (its slot never collapses → no reflow when a
+   fleet launches). Colour via the same `fleet-hue--<color>` props. */
+.colony-fleet-pad {
+    width: 34px;
+    height: 16px;
+    flex: 0 0 auto;
+    display: block;
+    overflow: visible;
+
+    .cfp-base {
+        fill: rgba(10, 18, 28, 0.85);
+        stroke: rgba(255, 255, 255, 0.14);
+        stroke-width: 0.6;
+    }
+    .cfp-deck {
+        fill: rgba(28, 40, 54, 0.95);
+        stroke: rgba(255, 255, 255, 0.16);
+        stroke-width: 0.5;
+    }
+    .cfp-strut { stroke: rgba(255, 255, 255, 0.14); stroke-width: 0.8; fill: none; }
+    .cfp-light { fill: rgba(180, 200, 220, 0.35); }
+
+    &--occupied {
+        .cfp-deck {
+            fill: var(--fleet-fill, #3a4a5c);
+            filter: brightness(0.5) saturate(0.9);
+            stroke: var(--fleet-accent, rgba(255, 255, 255, 0.3));
+        }
+        .cfp-light { fill: var(--fleet-accent, #fff); filter: drop-shadow(0 0 2px var(--fleet-glow)); }
+    }
+}
+
 .fleet-hue--red    { --fleet-fill: #ff5a48; --fleet-accent: #ffd0c8; --fleet-glow: rgba(255, 90, 72, 0.55); }
 .fleet-hue--yellow { --fleet-fill: #ffe14d; --fleet-accent: #fff4b0; --fleet-glow: rgba(255, 225, 77, 0.5); }
 .fleet-hue--green  { --fleet-fill: #4fe06a; --fleet-accent: #d6ffdd; --fleet-glow: rgba(79, 224, 106, 0.55); }

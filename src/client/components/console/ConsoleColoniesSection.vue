@@ -7,8 +7,12 @@
         <span class="con-colonies__kicker">{{ $t(pick !== undefined ? 'Colony selection' : 'Colonies') }}</span>
         <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.buttonLabel) }}</span>
       </div>
-      <!-- Fleet summary for ALL players (viewer first): free / total. The
-           opponents' fleet situation is strategic info, not a footnote. -->
+      <!-- Fleet DOCK for ALL players (viewer first): every fleet is a physical
+           SVG ship on its OWN launch pad. A free fleet berths (ship on the
+           pad); an out/spent fleet leaves its pad EMPTY (the slot never
+           collapses → no reflow, no gap). The viewer's launching fleet lifts
+           off its OWN pad (`data-fleet-launch`) toward the colony. A very
+           large fleet (>6, never in-game) degrades to a compact numeric. -->
       <div class="con-colonies__fleetbar" :aria-label="$t('Free trade fleets')">
         <span v-for="chip in fleetChips" :key="chip.color"
               class="con-colonies__fleetchip"
@@ -16,17 +20,26 @@
                 'con-colonies__fleetchip--me': chip.me,
                 'con-colonies__fleetchip--none': chip.free === 0,
               }">
-          <ColonyFleetIcon :color="chip.color" :free="chip.free > 0" />
           <span class="con-colonies__fleetchip-name">{{ chip.name }}</span>
-          <!-- Free/total as a premium pip strip (≤5 fleets — the whole in-game
-               range); a bigger fleet falls back to a compact numeric so the
-               chip never sprawls. Filled = a free (untraded) fleet. -->
-          <span v-if="chip.total <= 5" class="con-colonies__fleetpips" :aria-label="chip.free + '/' + chip.total">
-            <i v-for="n in chip.total" :key="n"
-               class="con-colonies__fleetpip"
-               :class="{'con-colonies__fleetpip--free': n <= chip.free}"></i>
+          <span v-if="chip.total <= 6" class="con-colonies__fleetdock"
+                :class="['fleet-hue--' + chip.color, {'con-fleet-launching': tradeFleetState.active && chip.me}]"
+                :aria-label="chip.free + '/' + chip.total">
+            <span v-for="n in chip.total" :key="n"
+                  class="con-colonies__fleetberth"
+                  :class="{'con-colonies__fleetberth--empty': n > chip.free}">
+              <!-- The ship SLOT is always laid out (even when its ship is
+                   hidden mid-launch) so it stays a stable launch anchor. -->
+              <span class="con-colonies__fleetship"
+                    :data-fleet-launch="isLaunchAnchor(chip, n) ? '' : undefined">
+                <ColonyFleetIcon v-if="n <= chip.free && !isLaunchingSlot(chip, n)"
+                                 :color="chip.color" :free="true" />
+              </span>
+              <ColonyFleetPad :color="chip.color" :occupied="n <= chip.free" />
+            </span>
           </span>
-          <b v-else class="con-colonies__fleetchip-count">{{ chip.free }}/{{ chip.total }}</b>
+          <b v-else class="con-colonies__fleetchip-count">
+            <ColonyFleetIcon :color="chip.color" :free="chip.free > 0" />{{ chip.free }}/{{ chip.total }}
+          </b>
         </span>
       </div>
     </header>
@@ -80,6 +93,8 @@ import {freeTradeFleets} from '@/client/components/colonies/colonyTradePlan';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
+import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */
@@ -105,7 +120,7 @@ const GRID_PAD_Y = 26; // 10 top + 16 bottom
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleColonyTile, ColonyFleetIcon},
+  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -123,6 +138,8 @@ export default defineComponent({
   },
   data() {
     return {
+      /** The trade-launch controller — drives the launching-ship hide. */
+      tradeFleetState,
       /** The fit-set zoom on every tile (grows them to fill the space). */
       tileScale: 1,
       /** The fit-set grid max-width so the layout's column count holds. */
@@ -205,6 +222,25 @@ export default defineComponent({
         this.fitRaf = undefined;
         this.fit();
       });
+    },
+    /**
+     * The viewer's LAUNCH berth — the last currently-free fleet slot (its ship
+     * is what lifts off). `data-fleet-launch` marks its (always-laid-out) ship
+     * slot so the flight proxy has a stable start rect even while the ship is
+     * hidden mid-launch. Only the viewer's own fleet launches from here.
+     */
+    isLaunchAnchor(chip: FleetChip, n: number): boolean {
+      return chip.me && chip.free > 0 && n === chip.free;
+    },
+    /**
+     * The berth whose ship is CURRENTLY lifting off (hide it — the flight
+     * proxy carries it). During the flight the server view is gated, so
+     * `chip.free` is unchanged and `n === chip.free` is still the launch slot;
+     * once the trade commits the slot is genuinely empty (no reflow — the
+     * fixed `total` pads stay). Same slot as the launch anchor.
+     */
+    isLaunchingSlot(chip: FleetChip, n: number): boolean {
+      return this.tradeFleetState.active && this.isLaunchAnchor(chip, n);
     },
     isPickable(name: string): boolean {
       return this.pick !== undefined && this.pick.selectable.includes(name);

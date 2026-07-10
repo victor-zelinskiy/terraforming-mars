@@ -12,13 +12,9 @@
           </div>
           <div class="con-task__title">{{ $t(colonyName) }}</div>
         </div>
-        <!-- The viewer's fleet, charged and ready — the LAUNCH anchor of the
-             send-to-planet cinematic (`data-fleet-launch`). The flight proxy
-             lifts off exactly here when the trade is confirmed. -->
-        <span v-if="viewerColor !== undefined" class="con-trade__fleet-launch"
-              :class="'fleet-hue--' + viewerColor" data-fleet-launch>
-          <ColonyFleetIcon :color="viewerColor" mode="hero" :state="launching ? 'launch' : 'armed'" />
-        </span>
+        <!-- The launch cinematic lifts the ship off the player's OWN fleet pad
+             in the top HEADER dock (behind this dissolving composer), not from
+             here — so the fleet visibly departs its home berth. -->
         <div class="con-trade__planet" :class="planetClass" aria-hidden="true"></div>
       </header>
 
@@ -261,7 +257,6 @@ import {
 } from '@/client/components/colonies/colonyTradePlan';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 
 function textOf(v: string | Message | undefined): string {
@@ -300,7 +295,7 @@ const LANE_LABEL: Partial<Record<SpendableResource, string>> = {
 
 export default defineComponent({
   name: 'ConsoleColonyTradeConfirm',
-  components: {BenefitGlyph, ConsoleScrollArea, ColonyFleetIcon},
+  components: {BenefitGlyph, ConsoleScrollArea},
   props: {
     colony: {type: Object as PropType<ColonyModel | undefined>, default: undefined},
     colonyName: {type: String as PropType<ColonyName>, required: true},
