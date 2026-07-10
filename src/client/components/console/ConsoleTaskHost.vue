@@ -1480,7 +1480,15 @@ export default defineComponent({
         this.picks = [name];
         this.onConfirm();
       };
-      if (this.submitting || !this.confirmReady) {
+      // `this.picks` is still EMPTY here, so the live `confirmReady`
+      // (= cardPicksValid, which needs picks.length ≥ cardMin) is false for
+      // every min-1 prompt — it CANNOT gate this pick. Compute the would-be
+      // validity of committing exactly [name] instead. Without this the
+      // guard always fell through to the instant commit and the hero beat
+      // (and the whole draft-tray transfer) never played — the modal just
+      // swapped out with all cards, no flight.
+      const wouldBeValid = this.cardMin <= 1 && this.cardMax >= 1 && this.cardBuyAffordable;
+      if (this.submitting || !wouldBeValid) {
         commit(); // onConfirm self-guards
         return;
       }

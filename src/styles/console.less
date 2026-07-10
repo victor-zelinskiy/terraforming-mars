@@ -428,6 +428,14 @@
             box-shadow: inset 0 0 0 1px fade(@con-mint, 60%), 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 34px fade(@con-mint, 14%);
         }
     }
+    /* The table owns the screen (pick beat / rise): the tray pops ABOVE the
+       dissolving task modal (11480) so the landed card is CRISP — below the
+       flying exit proxy (11640) that lands onto it, and the command bar
+       (11700). Drops back to the resting z (64, under the next modal) when
+       the beat ends (tableView=false). */
+    &--table {
+        z-index: 11500;
+    }
     /* The table owns the screen (pick beat / rise) — the tray is the focal
        object: a slightly stronger rim, no layout change. */
     &--table &__pile {
