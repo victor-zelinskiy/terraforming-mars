@@ -124,3 +124,13 @@ export function updateOverlayBlocking(mode: DesktopUpdateMode): boolean {
     mode === 'error'
   );
 }
+
+/**
+ * True while the full-cover desktop-update gate owns the screen. The
+ * console-native pre-game screens read this and YIELD pad input to it (their
+ * own intent handler would otherwise eat A and fire a menu item behind the
+ * blocking overlay — the "A applies the update AND triggers Continue" bug).
+ */
+export function desktopUpdateBlocking(): boolean {
+  return isDesktop() && updateOverlayBlocking(desktopUpdateState.mode);
+}
