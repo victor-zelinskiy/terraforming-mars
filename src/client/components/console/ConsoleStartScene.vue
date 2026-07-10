@@ -83,6 +83,7 @@
               <div v-for="(card, i) in stepEntries" :key="card.name + '#' + i"
                    class="con-cards__slot con-start__deal"
                    :style="dealDelay(i)"
+                   :data-zoom-slot="card.name"
                    :class="{
                      'con-cards__slot--focused': focusIdx === i,
                      'con-cards__slot--picked': isPickedHere(card.name),
@@ -139,7 +140,7 @@
               <div v-if="state.corp !== undefined" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('Corporation') }}</div>
                 <div class="con-start__minirow">
-                  <div class="con-start__mini con-start__mini--id con-start__deal">
+                  <div class="con-start__mini con-start__mini--id con-start__deal" :data-zoom-slot="state.corp">
                     <Card :card="{name: state.corp}" :key="state.corp" lightweight />
                   </div>
                 </div>
@@ -147,7 +148,7 @@
               <div v-if="state.preludes.length > 0" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('Preludes') }}</div>
                 <div class="con-start__minirow">
-                  <div v-for="name in state.preludes" :key="name" class="con-start__mini con-start__mini--id con-start__deal">
+                  <div v-for="name in state.preludes" :key="name" class="con-start__mini con-start__mini--id con-start__deal" :data-zoom-slot="name">
                     <Card :card="{name}" :key="name" lightweight />
                   </div>
                 </div>
@@ -155,14 +156,14 @@
               <div v-if="state.ceo !== undefined" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('CEO') }}</div>
                 <div class="con-start__minirow">
-                  <div class="con-start__mini con-start__mini--id"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
+                  <div class="con-start__mini con-start__mini--id" :data-zoom-slot="state.ceo"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
                 </div>
               </div>
             </div>
             <div class="con-start__summary-block">
               <div class="con-start__section-title">{{ $t('Projects') }} · {{ state.projects.length }}</div>
               <div v-if="state.projects.length > 0" class="con-start__minirow con-start__minirow--wrap">
-                <div v-for="(name, i) in state.projects" :key="name" class="con-start__mini con-start__deal" :style="dealDelay(i)">
+                <div v-for="(name, i) in state.projects" :key="name" class="con-start__mini con-start__deal" :style="dealDelay(i)" :data-zoom-slot="name">
                   <Card :card="{name}" :key="name" lightweight />
                 </div>
               </div>
@@ -199,6 +200,7 @@
             <div class="con-start__section-title">{{ $t('Corporation') }}</div>
             <div v-for="corp in corps" :key="corp.name"
                  class="con-start__corp"
+                 :data-zoom-slot="corp.name"
                  :class="{
                    'con-start__corp--focused': isFocused('corp', corp.name),
                    'con-start__corp--ready': corp.status === 'ready',
@@ -227,6 +229,7 @@
                 <div v-for="(card, i) in candidateCards" :key="card.name + '#' + i"
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(i)"
+                     :data-zoom-slot="card.name"
                      :class="{
                        'con-cards__slot--focused': isFocused('candidate', card.name),
                        'con-cards__slot--disabled': card.isDisabled === true,
@@ -254,6 +257,7 @@
                 <div v-for="(entry, i) in preludeRail" :key="entry.name"
                      class="con-start__prelude con-start__deal"
                      :style="dealDelay(i)"
+                     :data-zoom-slot="entry.name"
                      :class="{
                        'con-start__prelude--focused': isFocused('prelude', entry.name),
                        'con-start__prelude--played': entry.status === 'played',
@@ -355,7 +359,7 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
@@ -815,6 +819,19 @@ export default defineComponent({
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
+    /** PHYSICAL zoom origin: the fullscreen card lifts out of (and returns
+     *  into) the `data-zoom-slot` tile for the browsed card; the underlying
+     *  focus follows LB/RB so closing lands on the last-viewed card. */
+    zoomOriginFor(names: ReadonlyArray<CardName>, follow: boolean) {
+      return slotZoomOrigin(
+        () => this.$el as HTMLElement,
+        (i) => names[i] ?? '',
+        follow ? (i) => {
+          this.focusIdx = i;
+          void this.$nextTick(() => this.scrollFocusedIntoView());
+        } : undefined,
+      );
+    },
     /** P13/P15: X fullscreen for the focused card (wizard AND ceremony).
      *  Wizard steps pass the SELECT context (A toggles the pick without
      *  leaving the viewer); the SUMMARY browses read-only; the CEREMONY passes
@@ -824,6 +841,7 @@ export default defineComponent({
     zoomFocused(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep !== undefined && this.stepEntries.length > 0) {
+          const origin = this.zoomOriginFor(this.stepEntries.map((c) => c.name), true);
           // Single-pick step: A in the viewer SELECTS the focused card and
           // advances (parity with the strip's A-commit + the between-generation
           // draft's fullscreen Select). Multi-pick steps keep the toggle context.
@@ -832,18 +850,21 @@ export default defineComponent({
               labelFor: () => 'Select',
               reasonsFor: () => [],
               execute: (name) => this.commitSinglePickByName(name),
-            });
+            }, {origin});
             return;
           }
           openConsoleCardZoom(this.stepEntries, this.focusIdx, {
             isSelected: (name) => this.isPickedHere(name),
             toggle: (name) => this.togglePickByName(name),
-          });
+          }, undefined, {origin});
           return;
         }
-        // The summary: X reviews the WHOLE chosen setup fullscreen.
+        // The summary: X reviews the WHOLE chosen setup fullscreen (the mini
+        // tiles carry data-zoom-slot too, so the lift/return stays physical).
         if (this.currentStep === undefined && this.summaryCards.length > 0) {
-          openConsoleCardZoom(this.summaryCards, 0);
+          openConsoleCardZoom(this.summaryCards, 0, undefined, undefined, {
+            origin: this.zoomOriginFor(this.summaryCards.map((c) => c.name), false),
+          });
         }
         return;
       }
@@ -858,13 +879,17 @@ export default defineComponent({
         execute: (name: CardName) => this.actByName(name),
       };
       if (item.kind === 'candidate') {
-        openConsoleCardZoom(this.candidateCards, this.candidateCards.findIndex((c) => c.name === item.name), undefined, action);
+        openConsoleCardZoom(this.candidateCards, this.candidateCards.findIndex((c) => c.name === item.name), undefined, action, {
+          origin: this.zoomOriginFor(this.candidateCards.map((c) => c.name), true),
+        });
         return;
       }
       // Corps / preludes: browse the whole actionable set by name; A plays a
       // prelude (corp rows stay read-only via the undefined label).
       const cards = items.map((f) => ({name: f.name}) as CardModel);
-      openConsoleCardZoom(cards, this.focusIdx, undefined, action);
+      openConsoleCardZoom(cards, this.focusIdx, undefined, action, {
+        origin: this.zoomOriginFor(cards.map((c) => c.name), true),
+      });
     },
     /** Grid row jump - measured from the DOM, robust to flex-wrap. */
     moveFocusRow(step: 1 | -1): void {

@@ -198,6 +198,7 @@
                        cards de-emphasize at the pick max. -->
                   <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
                        class="con-cards__slot"
+                       :data-zoom-slot="entry.card.name"
                        :class="{
                          'con-cards__slot--focused': focusIdx === i,
                          'con-cards__slot--picked': isPicked(entry.card.name),
@@ -391,7 +392,7 @@ import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
@@ -1105,12 +1106,22 @@ export default defineComponent({
     },
     /** P13/P15: X opens the focused card fullscreen (reused viewer). The
      *  select context lets A toggle the pick from fullscreen — disabled
-     *  candidates stay readable but never pickable (toggle no-ops). */
+     *  candidates stay readable but never pickable (toggle no-ops).
+     *  PHYSICAL origin: the fullscreen card lifts out of / returns into the
+     *  strip slot of the BROWSED card; the strip focus follows LB/RB. */
     zoomFocusedCard(): void {
       if (this.cardEntries.length === 0) {
         return;
       }
       const cards = this.cardEntries.map((e) => e.card);
+      const origin = slotZoomOrigin(
+        () => this.$refs.cardStrip as HTMLElement | undefined,
+        (i) => cards[i]?.name ?? '',
+        (i) => {
+          this.focusIdx = i;
+          void this.$nextTick(() => this.scrollFocusedIntoView());
+        },
+      );
       if (this.singlePick) {
         // PICK phase: A in the viewer COMMITS the card (the ACTION bridge —
         // executes AFTER the viewer closes, never a toggle) — parity with the
@@ -1122,14 +1133,14 @@ export default defineComponent({
             return e !== undefined && e.disabled && e.reason !== '' ? [e.reason] : [];
           },
           execute: (name) => this.commitSingleCard(name),
-        });
+        }, {origin});
         return;
       }
       // BUY / multi: A toggles the pick and the viewer STAYS open to browse.
       openConsoleCardZoom(cards, this.focusIdx, {
         isSelected: (name) => this.isPicked(name),
         toggle: (name) => this.toggleCardPickByName(name),
-      });
+      }, undefined, {origin});
     },
     /** Read-only browse of the already-drafted cards (LB/RB page, B closes) —
      *  no select/action bridge, so it can never re-submit a drafted card. */

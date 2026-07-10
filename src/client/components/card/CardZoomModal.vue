@@ -247,6 +247,20 @@ export default defineComponent({
       type: Number as () => number | undefined,
       default: undefined,
     },
+    /*
+     * CONSOLE-NATIVE browsing feel (opt-in; the console shell passes true).
+     * Two changes, both scoped to this flag so desktop stays byte-identical:
+     *  - INTERRUPTIBLE navigation: rapid LB/RB never waits for the previous
+     *    slide — the in-flight animation is cancelled and the next starts
+     *    immediately (a held bumper pages at input rate, not animation rate);
+     *  - PHYSICAL slide keyframes: the incoming card sweeps in with a slight
+     *    arc (rotation around a low pivot) + settle ease — "the next card
+     *    from the stack in hand", not a web-carousel strafe.
+     */
+    consoleMotion: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['close', 'navigate', 'update:index'],
   data() {
@@ -254,9 +268,13 @@ export default defineComponent({
       currentIndex: 0,
       slideDir: '' as SlideDir,
       // True while a slide is mid-flight — blocks rapid arrow/key re-entry so
-      // transitions never pile up and the index never races.
+      // transitions never pile up and the index never races. (In consoleMotion
+      // mode this no longer BLOCKS — the in-flight slide is cancelled instead.)
       animating: false,
       animTimer: undefined as number | undefined,
+      // The in-flight WAAPI slide (consoleMotion: cancelled on interrupt so
+      // rapid LB/RB restarts cleanly instead of piling up).
+      slideAnim: undefined as Animation | undefined,
       // Names of the cards rendered off-screen for preload (neighbours).
       preloadNames: [] as ReadonlyArray<string>,
     };
@@ -412,7 +430,9 @@ export default defineComponent({
      * races. Holding an arrow simply paces at the animation rate.
      */
     go(delta: number) {
-      if (!this.navEnabled || this.animating) {
+      // consoleMotion: never block on an in-flight slide — cancel + restart
+      // (runSlide handles the cancel). Desktop keeps the classic guard.
+      if (!this.navEnabled || (this.animating && !this.consoleMotion)) {
         return;
       }
       const target = this.currentIndex + delta;
@@ -476,24 +496,41 @@ export default defineComponent({
         this.refreshPreload();
         return;
       }
+      // consoleMotion interrupt: a rapid re-step cancels the in-flight slide
+      // (the element snaps to identity for one frame, immediately covered by
+      // the new slide's from-state) — no pile-up, no stuck intermediate state.
+      this.slideAnim?.cancel();
+      this.slideAnim = undefined;
       const reduced = prefersReducedMotion();
       let from: Record<string, string>;
+      let easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+      let duration = reduced ? 120 : ANIM_MS;
       if (reduced || dir === '') {
         from = {opacity: '0'};
       } else if (dir === 'consume') {
         // A card left the set (drawn-cards take): the next one settles in with
         // a gentle scale-up rather than a lateral slide.
         from = {opacity: '0', transform: 'scale(0.92)'};
+      } else if (this.consoleMotion) {
+        // Physical page-turn: the next card sweeps in from the browse side
+        // with a slight arc (rotation around a low pivot set in CSS —
+        // `.con-zoom .card-zoom-card { transform-origin: 50% 120% }`) and a
+        // damped settle — "the next card from the stack", direction obvious.
+        const sign = dir === 'next' ? 1 : -1;
+        from = {opacity: '0.1', transform: `translateX(${sign * 96}px) rotate(${sign * 3.2}deg) scale(0.94)`};
+        easing = 'cubic-bezier(0.34, 1.26, 0.44, 1)';
+        duration = 210;
       } else {
         const dx = dir === 'next' ? '38px' : '-38px';
         from = {opacity: '0', transform: `translateX(${dx}) scale(0.96)`};
       }
-      const to = {opacity: '1', transform: 'translateX(0) scale(1)'};
-      const anim = host.animate([from, to], {
-        duration: reduced ? 120 : ANIM_MS,
-        easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
-      });
+      const to = {opacity: '1', transform: 'translateX(0) rotate(0deg) scale(1)'};
+      const anim = host.animate([from, to], {duration, easing});
+      this.slideAnim = anim;
       anim.onfinish = () => {
+        if (this.slideAnim === anim) {
+          this.slideAnim = undefined;
+        }
         this.releaseAnimGuard();
         // Warm the next neighbours' art + prime the fit cache while idle.
         this.refreshPreload();

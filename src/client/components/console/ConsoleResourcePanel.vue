@@ -1,59 +1,74 @@
 <template>
-  <aside class="con-res" :aria-label="$t('Resources')">
-    <div class="con-res__rows">
-      <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
-           transition overlay measures these rects, so the premium
-           end-of-generation animation plays in console mode too. -->
-      <div v-for="row in rows" :key="row.key" class="con-res__row"
-           :class="[
-             'con-res__row--' + row.key,
-             conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '',
-             convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
-           ]"
-           :data-conversion-cell="conversionAnchor(row.key)">
-        <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
-           :data-conversion-icon="conversionAnchor(row.key)"></i>
-        <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
-             as the desktop PlayerResource, so every stock/production change
-             fires the premium ±N chip in console too (and the energy→heat
-             baseline seeding keeps working — same scope + key). The value
-             binding stays CANONICAL (row.value), never the conversion
-             override — the chip logic must track real game state. -->
-        <span class="con-res__stockwrap">
-          <span class="con-res__value">{{ displayValue(row) }}</span>
+  <div class="con-res-host">
+    <aside class="con-res" :aria-label="$t('Resources')">
+      <div class="con-res__rows">
+        <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
+             transition overlay measures these rects, so the premium
+             end-of-generation animation plays in console mode too. -->
+        <div v-for="row in rows" :key="row.key" class="con-res__row"
+             :class="[
+               'con-res__row--' + row.key,
+               conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '',
+               convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
+             ]"
+             :data-conversion-cell="conversionAnchor(row.key)">
+          <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
+             :data-conversion-icon="conversionAnchor(row.key)"></i>
+          <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
+               as the desktop PlayerResource, so every stock/production change
+               fires the premium ±N chip in console too (and the energy→heat
+               baseline seeding keeps working — same scope + key). The value
+               binding stays CANONICAL (row.value), never the conversion
+               override — the chip logic must track real game state. -->
+          <span class="con-res__stockwrap">
+            <span class="con-res__value">{{ displayValue(row) }}</span>
+            <AnimatedMetricValue
+              v-if="epoch !== ''"
+              :value="row.value"
+              :metricKey="row.key + '.stock'"
+              :scopeKey="player.color"
+              :epoch="epoch"
+              variant="resource-stock" />
+          </span>
+          <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
+            {{ row.production >= 0 ? '+' + row.production : row.production }}
+          </span>
           <AnimatedMetricValue
             v-if="epoch !== ''"
-            :value="row.value"
-            :metricKey="row.key + '.stock'"
+            :value="row.production"
+            :metricKey="row.key + '.production'"
             :scopeKey="player.color"
             :epoch="epoch"
-            variant="resource-stock" />
-        </span>
-        <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
-          {{ row.production >= 0 ? '+' + row.production : row.production }}
-        </span>
-        <AnimatedMetricValue
-          v-if="epoch !== ''"
-          :value="row.production"
-          :metricKey="row.key + '.production'"
-          :scopeKey="player.color"
-          :epoch="epoch"
-          variant="resource-production" />
+            variant="resource-production" />
+        </div>
       </div>
-    </div>
 
-    <!-- ДОП. РЕСУРСЫ — card-accumulated resources (microbes, floaters,
-         animals, …). A COMPACT continuation of the resource table: only the
-         icon + a reserved 2-digit count (card resources never reach 3 digits),
-         in first-appearance order. Shares the EXACT desktop data source
-         (`additionalResourceGroups`) + delta-chip metric keys, so console and
-         desktop can't diverge. It grows the FIXED-width left rail DOWNWARD
-         only — the board is the flex sibling, so its width (and scale) is
-         never touched. Rendered only once a card resource is unlocked. -->
-    <transition-group v-if="extraGroups.length > 0" tag="div" class="con-res__extra" name="con-extra">
-      <div v-for="g in extraGroups" :key="g.resource" class="con-res__extra-cell">
-        <i class="card-resource con-res__extra-icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
-        <span class="con-res__extra-value">{{ g.total }}</span>
+      <div v-if="tagEntries.length > 0" class="con-res__tags">
+        <div class="con-res__tags-title">{{ $t('Tags') }}</div>
+        <div class="con-res__tags-grid">
+          <tag-count v-for="t in tagEntries"
+                     :key="t.tag"
+                     :tag="t.tag"
+                     :count="t.count"
+                     size="big"
+                     type="secondary" />
+        </div>
+      </div>
+    </aside>
+
+    <!-- ДОП. РЕСУРСЫ satellite — an absolute column just RIGHT of the rail,
+         each cell rendered at the SAME Y as a main resource row (shared
+         `--cr-*` metrics), so it reads as the resource table naturally growing
+         new elements sideways. Out of flow ⇒ it NEVER changes the rail width /
+         board scale; it paints OVER the board and is covered by every
+         full-screen overlay. Shown only in board view so it never floats over
+         the hand / colonies. Same desktop data source (`additionalResourceGroups`)
+         + delta-chip keys, first-appearance order, only once a card resource is
+         unlocked. -->
+    <transition-group v-if="boardVisible && extraGroups.length > 0" tag="div" class="con-res-aux" name="con-extra">
+      <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell">
+        <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
+        <span class="con-res-aux__value">{{ g.total }}</span>
         <AnimatedMetricValue
           v-if="epoch !== ''"
           :value="g.total"
@@ -63,19 +78,7 @@
           variant="misc" />
       </div>
     </transition-group>
-
-    <div v-if="tagEntries.length > 0" class="con-res__tags">
-      <div class="con-res__tags-title">{{ $t('Tags') }}</div>
-      <div class="con-res__tags-grid">
-        <tag-count v-for="t in tagEntries"
-                   :key="t.tag"
-                   :tag="t.tag"
-                   :count="t.count"
-                   size="big"
-                   type="secondary" />
-      </div>
-    </div>
-  </aside>
+  </div>
 </template>
 
 <script lang="ts">
@@ -121,6 +124,12 @@ export default defineComponent({
     convertPlants: {type: Boolean, default: false},
     /** As above, for "convert heat into temperature". */
     convertHeat: {type: Boolean, default: false},
+    /**
+     * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
+     * over the board area, so it only renders here — never floating over the
+     * hand / colonies / other section content.
+     */
+    boardVisible: {type: Boolean, default: false},
   },
   computed: {
     rows(): Array<ResourceRow> {

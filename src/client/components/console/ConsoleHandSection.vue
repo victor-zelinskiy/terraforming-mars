@@ -48,6 +48,7 @@
             <div v-for="(entry, ci) in rowEntries(row)"
                  :key="entry.card.name"
                  class="con-hand__slot"
+                 :data-zoom-slot="entry.card.name"
                  :class="{
                    'con-hand__slot--selected': row * plan.cols + ci === index,
                    'con-hand__slot--playable': !saleActive && !selectActive && entry.playable,

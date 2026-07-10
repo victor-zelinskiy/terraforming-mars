@@ -616,14 +616,32 @@
     position: relative;
 }
 
-/* ── Resource + tag panel (left rail — never hide the key numbers) ── */
+/* ── Resource + tag panel (left rail — never hide the key numbers) ──
+   The rail and its right-hand ДОП.РЕСУРСЫ satellite share ONE set of row
+   metrics (`--cr-*` on the host) so each card-resource cell renders at the
+   EXACT same Y as the main resource row across from it — the console analog
+   of the desktop `--lp-res-*` contract. */
+.con-res-host {
+    /* Alignment tokens — consumed by BOTH the main rows AND the aux cells so
+       the two columns can't drift. Overridden once, on the handheld profile. */
+    --cr-pad: 12px;       /* panel padding → first-row / aux top offset */
+    --cr-icon: 32px;      /* resource icon box (drives row + aux cell height) */
+    --cr-row-py: 6px;     /* row vertical padding */
+    --cr-rgap: 8px;       /* gap between rows / aux cells */
+
+    position: relative;   /* the absolute aux column anchors to this box */
+    flex-shrink: 0;       /* keep the rail's footprint — the board never reflows */
+    display: flex;        /* lay out the panel; the aux is out of flow (absolute) */
+    min-height: 0;
+}
 .con-res {
     flex-shrink: 0;
     width: 182px;
+    align-self: stretch;  /* fill the host (stretched to con-main height) */
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 12px 12px;
+    padding: var(--cr-pad);
     border-radius: 12px;
     background: @con-glass-soft;
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 22%), 0 8px 26px rgba(0, 0, 0, 0.35);
@@ -632,21 +650,21 @@
     &__rows {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: var(--cr-rgap);
     }
     &__row {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 6px 10px;
+        padding: var(--cr-row-py) 10px;
         border-radius: 8px;
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
     }
     &__icon {
         display: inline-block;
-        width: 32px;
-        height: 32px;
+        width: var(--cr-icon);
+        height: var(--cr-icon);
         flex-shrink: 0;
         background-repeat: no-repeat;
         background-position: center;
@@ -679,48 +697,6 @@
         }
     }
 
-    /* ── ДОП. РЕСУРСЫ — compact card-resource continuation of the table ──
-       A tight secondary tier directly under the six main rows: icon + a
-       reserved 2-digit count only (no production column). It mirrors the main
-       row's LEFT structure ([icon][value]) so it reads as the same table
-       dynamically expanding, but at a compact, slightly-dimmer secondary
-       weight. Grows the fixed-width rail downward only — the board never loses
-       width. `margin-top:-4px` tucks it against the main rows (parent gap is
-       12px) so the two read as one continuous table. */
-    &__extra {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        margin-top: -4px;
-    }
-    &__extra-cell {
-        position: relative; /* delta-chip (misc variant) anchor */
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 4px 10px;
-        border-radius: 8px;
-        background: rgba(16, 26, 38, 0.45);
-        box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.12);
-    }
-    &__extra-icon {
-        display: inline-block;
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain !important;
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-    }
-    &__extra-value {
-        font-size: 19px;
-        font-weight: 700;
-        letter-spacing: 0.4px;
-        /* Reserve exactly a 2-digit slot — card resources never reach 3 digits. */
-        min-width: 26px;
-    }
-
     &__tags {
         border-top: 1px solid fade(@con-cyan, 20%);
         padding-top: 12px;
@@ -738,6 +714,60 @@
         gap: 8px 10px;
         /* The shared TagCount holders read small on TV — scale the cluster. */
         zoom: 1.2;
+    }
+}
+
+/* ── ДОП. РЕСУРСЫ — card-accumulated resources (microbes, floaters, animals …).
+   An absolute SATELLITE column just RIGHT of the rail — NOT under the main
+   rows: card resources are icon + a 2-digit count only, so stacking them in
+   the 3-digit main column (with production chips) is wrong, and a tall list
+   would push the tags off-screen. Instead each cell renders at the SAME Y as a
+   main resource row (shared `--cr-*` metrics), so it reads as the table
+   naturally growing new elements sideways. Out of flow ⇒ it NEVER changes the
+   rail width / board scale; it paints OVER the board and is covered by every
+   full-screen overlay (z below the 11k+ console overlays). First-appearance
+   order; shown only in board view so it never floats over the hand/colonies. */
+.con-res-aux {
+    position: absolute;
+    top: var(--cr-pad);
+    left: calc(100% + 8px);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: var(--cr-rgap);
+    pointer-events: none; /* purely informational — never eats board clicks */
+
+    &__cell {
+        position: relative; /* delta-chip (misc variant) anchor */
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        /* Same box height as a main row (icon + 2×vpad) ⇒ row-for-row alignment. */
+        height: calc(var(--cr-icon) + 2 * var(--cr-row-py));
+        padding: 0 10px;
+        border-radius: 8px;
+        /* A touch more opaque than a row so the count reads over the Mars texture. */
+        background: rgba(12, 19, 29, 0.9);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 30%), 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+    &__icon {
+        display: inline-block;
+        width: var(--cr-icon);
+        height: var(--cr-icon);
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    }
+    &__value {
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        /* Reserve exactly a 2-digit slot — card resources never reach 3 digits. */
+        min-width: 24px;
+        text-align: right;
+        color: @con-text;
     }
 }
 
@@ -11130,19 +11160,25 @@ html.con-profile-handheld {
     .con-info__stat-line { font-size: 14px; }
 
     /* ── 5 · left resource / tags rail ───────────────────────────── */
+    /* Shrink the shared alignment tokens once — the main rows AND the aux
+       card-resource column both follow, staying row-for-row aligned. */
+    .con-res-host {
+        --cr-pad: 8px;
+        --cr-icon: 22px;
+        --cr-row-py: 4px;
+        --cr-rgap: 5px;
+    }
     .con-res {
         width: 146px;
-        padding: 8px;
         gap: 8px;
 
-        &__rows { gap: 5px; }
-        &__row { gap: 7px; padding: 4px 7px; }
-        &__icon { width: 22px; height: 22px; }
+        &__row { gap: 7px; padding: var(--cr-row-py) 7px; }
         &__value { font-size: 17px; }
         &__prod { font-size: 12px; }
         &__tags-title { font-size: 11px; }
         &__tags-grid { zoom: 0.82; }
     }
+    .con-res-aux__value { font-size: 15px; min-width: 20px; }
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
     .con-quick__cross { gap: 10px 12px; }

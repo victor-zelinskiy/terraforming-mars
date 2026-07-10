@@ -84,7 +84,8 @@
          panel can't bleed through the journal surface. -->
     <div class="con-main" :class="{'con-main--journal': journalPanelVisible}">
       <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId"
-                            :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady" />
+                            :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady"
+                            :boardVisible="consoleState.section === 'board'" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -338,10 +339,12 @@
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
                    ref="cardZoom"
                    class="con-zoom"
+                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
                    :selected="zoomSelected"
+                   :consoleMotion="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <template #actions>
@@ -534,7 +537,8 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/Card.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {playZoomOpen, playZoomClose, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
@@ -653,6 +657,10 @@ export default defineComponent({
     return {
       consoleState,
       consoleCardZoom,
+      /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
+      zoomFlight: false,
+      /** Backdrop fade-out while the close flight plays. */
+      zoomClosing: false,
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
@@ -2091,9 +2099,21 @@ export default defineComponent({
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
+    // The open CHOREOGRAPHY (consoleZoomMotion): the chrome is held hidden
+    // (`--flight`, set BEFORE show so it never flashes) while the card
+    // physically lifts out of its source slot / rises from depth; the
+    // settle callback releases the chrome fade-in.
     'consoleCardZoom.card'(card: ZoomCard | undefined, prev: ZoomCard | undefined) {
       if (card !== undefined && prev === undefined) {
-        void this.$nextTick(() => (this.$refs.cardZoom as {show?: () => void} | undefined)?.show?.());
+        this.zoomFlight = true;
+        this.zoomClosing = false;
+        void this.$nextTick(() => {
+          const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+          zoom?.show?.();
+          playZoomOpen(zoom?.$el as HTMLElement | undefined, this.consoleCardZoom.index, this.consoleCardZoom.origin, () => {
+            this.zoomFlight = false;
+          });
+        });
       }
     },
     // Server-driven placement pulls the player to the board (§10: a
@@ -3711,8 +3731,18 @@ export default defineComponent({
     // ── P13/P15: the fullscreen card viewer (module-state driven) ───────
     onCardZoomNavigate(card: ZoomCard, pos: number): void {
       navigateConsoleCardZoom(card, pos);
+      // The card "in hand" changed: the table hold moves to ITS slot, and
+      // the host keeps the underlying focus in lockstep (so closing lands
+      // the cursor on the card the player looked at LAST).
+      retargetZoomHold(pos);
+      this.consoleCardZoom.origin.onBrowse?.(pos);
     },
     onCardZoomClosed(): void {
+      // Any close path (choreographed B, native Esc, backdrop tap): restore
+      // every held slot + kill the flight, then clear the module state.
+      releaseZoomMotion();
+      this.zoomFlight = false;
+      this.zoomClosing = false;
       closeConsoleCardZoom();
     },
     /** P15: the controller drives the viewer natively while it is open. */
@@ -3758,7 +3788,7 @@ export default defineComponent({
       }
       case 'inspect': // X closes too — the same key that opened it
       case 'back':
-        this.closeZoomViewer();
+        void this.closeZoomViewer();
         return true;
       default:
         return true; // the viewer owns ALL input while open
@@ -3779,8 +3809,8 @@ export default defineComponent({
       }
     },
     /** P17: the viewer's A hands the card to the context action (e.g. the
-     *  play-confirm flow) — the viewer closes FIRST, so the exact source
-     *  context restores underneath the follow-up surface. */
+     *  play-confirm flow) — the viewer closes FIRST (flight included), so
+     *  the exact source context restores underneath the follow-up surface. */
     zoomExecuteAction(): void {
       const z = this.consoleCardZoom;
       const card = z.card;
@@ -3788,11 +3818,24 @@ export default defineComponent({
       if (card === undefined || action === undefined || action.labelFor(card.name as CardName) === undefined) {
         return;
       }
-      this.closeZoomViewer();
-      action.execute(card.name as CardName);
+      void this.closeZoomViewer().then(() => action.execute(card.name as CardName));
     },
-    closeZoomViewer(): void {
-      (this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined)?.close();
+    /**
+     * Choreographed close: the chrome hides, the card flies back into the
+     * CURRENT card's slot (physical origin) or dives away (textual/none),
+     * THEN the dialog actually closes. Re-entrant safe (playZoomClose
+     * resolves immediately while a close is already in flight; dialog.close
+     * self-guards on `open`).
+     */
+    async closeZoomViewer(): Promise<void> {
+      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      if (zoom === undefined) {
+        return;
+      }
+      this.zoomFlight = true;
+      this.zoomClosing = true;
+      await playZoomClose(zoom.$el as HTMLElement | undefined, this.consoleCardZoom.index);
+      zoom.close();
     },
     /** P17: right-stick scroll for the ACTIVE console scroll container —
      *  the journal peek while open, else the topmost visible scrollable
@@ -3875,6 +3918,21 @@ export default defineComponent({
       openConsoleCardZoom(entries, 0, undefined, undefined, {contextLabel: 'MarsBot turn'});
       return true;
     },
+    /** PHYSICAL zoom origin for the hand grid: the fullscreen card lifts out
+     *  of the `data-zoom-slot` tile; browsing LB/RB moves `handIndex`, whose
+     *  section watcher scrolls the slot into view — so the close flight
+     *  always has a live slot to land in (a still-virtualized slot falls
+     *  back to the inspector dive gracefully). */
+    handZoomOrigin() {
+      const names = this.handEntries.map((e) => e.card.name);
+      return slotZoomOrigin(
+        () => document.querySelector<HTMLElement>('.con-hand'),
+        (i) => names[i] ?? '',
+        (i) => {
+          this.consoleState.handIndex = i;
+        },
+      );
+    },
     /** X in the hand section: read the focused card fullscreen. In SALE
      *  mode the viewer's A toggles the pick (a pure selection flip — the
      *  sale submit stays on the section's Y). In PLAY mode (P17 desktop
@@ -3885,11 +3943,12 @@ export default defineComponent({
       if (this.handEntries.length === 0) {
         return;
       }
+      const origin = this.handZoomOrigin();
       if (this.consoleState.sale.active) {
         openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
           isSelected: (name: CardName) => this.consoleState.sale.selected.includes(name),
           toggle: (name: CardName) => this.toggleSalePick(name),
-        });
+        }, undefined, {origin});
         return;
       }
       // MANDATORY hand SELECT: fullscreen A submits the single-pick / toggles a
@@ -3906,7 +3965,7 @@ export default defineComponent({
               return !selectable(name) && r !== undefined && r !== '' ? [r] : [];
             },
             execute: (name: CardName) => this.submitHandSelect([name]),
-          });
+          }, {origin});
         } else {
           openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
             isSelected: (name: CardName) => this.consoleState.select.selected.includes(name),
@@ -3915,7 +3974,7 @@ export default defineComponent({
                 this.toggleHandSelectPick(name);
               }
             },
-          });
+          }, undefined, {origin});
         }
         return;
       }
@@ -3926,7 +3985,7 @@ export default defineComponent({
         },
         reasonsFor: (name: CardName) => this.handUnplayableReasons(name),
         execute: (name: CardName) => this.openPlayCard(name),
-      });
+      }, {origin});
     },
     /** Translated «why not» lines for a hand card (mirrors the hand
      *  section's info panel — same server-structured reasons, same shared

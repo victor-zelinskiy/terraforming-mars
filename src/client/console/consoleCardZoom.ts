@@ -69,6 +69,65 @@ export type ConsoleZoomReceive = {
   takeAll?: () => void,
 };
 
+/**
+ * WHERE the fullscreen opened from — drives the open/close choreography
+ * (consoleZoomMotion.ts). Three documented modes:
+ *
+ *  physical — opened from a VISIBLE card tile under focus. The viewer card
+ *      physically lifts OUT of that slot and, on close, returns INTO the
+ *      slot of the card currently on screen (`resolve(index)` — re-queried
+ *      live, so browsing then closing lands on the RIGHT slot). A null /
+ *      zero-rect resolve gracefully falls back to the textual entrance.
+ *  textual — opened from a name chip / link / summary (journal, bot turn,
+ *      composer source) where no card tile exists. A premium "inspector"
+ *      rise-from-depth entrance; close is the mirrored dive — never a fake
+ *      collapse into a nonexistent slot.
+ *  none — no source semantics at all (defensive default; same visuals as
+ *      textual).
+ */
+export type ZoomOrigin = {
+  kind: 'physical' | 'textual' | 'none',
+  /** The live slot element for the card at `index` in the zoom list. */
+  resolve?: (index: number) => HTMLElement | null,
+  /**
+   * Keep the UNDERLYING focus in lockstep while the player browses LB/RB —
+   * the host moves its own cursor (and scrolls it into view), so closing
+   * lands the focus on the card the player looked at LAST, and the close
+   * flight has a visible slot to return into.
+   */
+  onBrowse?: (index: number) => void,
+};
+
+/**
+ * Build a physical origin for hosts whose card slots carry a
+ * `data-zoom-slot` attribute. `keyOf(i)` derives the slot key for the
+ * zoom-list index (usually the card name; append `#i` when the list can
+ * contain duplicates). Resolution is LIVE and scoped to the host root.
+ */
+export function slotZoomOrigin(
+  getRoot: () => HTMLElement | null | undefined,
+  keyOf: (index: number) => string,
+  onBrowse?: (index: number) => void,
+): ZoomOrigin {
+  return {
+    kind: 'physical',
+    resolve: (index: number) => {
+      const root = getRoot();
+      if (root === null || root === undefined || typeof root.querySelector !== 'function') {
+        return null;
+      }
+      const key = keyOf(index);
+      if (key === '') {
+        return null;
+      }
+      // CSS.escape guards card names with quotes/odd glyphs.
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"');
+      return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc}"]`);
+    },
+    onBrowse,
+  };
+}
+
 /** Optional extras attached at open time (receive bridge + a caption). */
 export type ConsoleZoomExtra = {
   /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
@@ -79,6 +138,8 @@ export type ConsoleZoomExtra = {
    * being decided. Marks a read-only context: A never acts on it.
    */
   contextLabel?: string,
+  /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
+  origin?: ZoomOrigin,
 };
 
 export const consoleCardZoom = reactive({
@@ -98,6 +159,8 @@ export const consoleCardZoom = reactive({
   receive: undefined as ConsoleZoomReceive | undefined,
   /** A read-only caption (i18n key) — e.g. the «Источник добора карт» viewer. */
   contextLabel: undefined as string | undefined,
+  /** Open/close choreography source (see ZoomOrigin). */
+  origin: {kind: 'none'} as ZoomOrigin,
 });
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
@@ -113,6 +176,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.action = action;
   consoleCardZoom.receive = extra?.receive;
   consoleCardZoom.contextLabel = extra?.contextLabel;
+  consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
 }
 
 /** The viewer navigated — keep the module mirror in sync. */
@@ -129,4 +193,5 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.action = undefined;
   consoleCardZoom.receive = undefined;
   consoleCardZoom.contextLabel = undefined;
+  consoleCardZoom.origin = {kind: 'none'};
 }

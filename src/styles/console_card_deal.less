@@ -183,10 +183,62 @@
 .con-verdict-swap-enter-from { opacity: 0; transform: translateY(5px); }
 .con-verdict-swap-leave-to { opacity: 0; }
 
+/* ── Fullscreen inspector choreography (consoleZoomMotion.ts) ─────────
+   The console CardZoomModal instance: a physical-origin open lifts the
+   REAL stage out of the source slot (GSAP FLIP on `.card-zoom-stage`);
+   the slot of the card "in the player's hands" is HELD empty; the dialog
+   chrome appears only after the card lands. */
+
+/* The table slot whose card is currently in the fullscreen inspector.
+   Same cascade trick as .con-deal-hold: !important beats animations. */
+.con-zoom-hold {
+    opacity: 0 !important;
+}
+
+dialog.con-zoom {
+    /* Physical page-turn pivot for the LB/RB browse slide (see
+       CardZoomModal.runSlide, consoleMotion keyframes): rotation around a
+       LOW pivot sweeps the incoming card along a hand-held arc. */
+    .card-zoom-stage .card-zoom-card {
+        transform-origin: 50% 120%;
+    }
+
+    /* The chrome (counter / actions panel) fades in only after the open
+       flight lands — never competes with the card mid-flight. */
+    .card-zoom-topbar,
+    .card-zoom-actions {
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &.con-zoom--flight {
+        .card-zoom-topbar,
+        .card-zoom-actions {
+            opacity: 0;
+            pointer-events: none;
+        }
+    }
+
+    /* Backdrop: calm fade-in on open; fades OUT under the close flight so
+       the table the card returns to is already visible on landing. */
+    &[open]::backdrop {
+        animation: con-zoom-backdrop-in calc(260ms * var(--motion-scale, 1)) ease both;
+    }
+    &.con-zoom--closing::backdrop {
+        opacity: 0;
+        transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+    }
+}
+@keyframes con-zoom-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 /* ── Reduced motion: short/static premium variants, never broken ─────── */
 @media (prefers-reduced-motion: reduce) {
     .con-cards__pickband { animation: none; }
     .con-verdict-swap-enter-active,
     .con-verdict-swap-leave-active { transition: none; }
     .con-focus-frame__tick { filter: none; }
+    dialog.con-zoom[open]::backdrop { animation: none; }
+    dialog.con-zoom .card-zoom-topbar,
+    dialog.con-zoom .card-zoom-actions { transition: none; }
 }

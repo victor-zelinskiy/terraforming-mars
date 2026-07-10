@@ -710,7 +710,10 @@ export default defineComponent({
       }
       if (t.cards.length > 0) {
         // Read-only context: no select / action bridge — A can't fire anything.
-        openConsoleCardZoom(t.cards.map((name) => ({name} as CardModel)), 0);
+        // TEXTUAL origin: opened from a journal name chip (no card tile on
+        // screen) → the inspector rise-from-depth entrance, never a fake
+        // lift out of a nonexistent slot.
+        openConsoleCardZoom(t.cards.map((name) => ({name} as CardModel)), 0, undefined, undefined, {origin: {kind: 'textual'}});
         return;
       }
       if (t.standard.length > 0) {

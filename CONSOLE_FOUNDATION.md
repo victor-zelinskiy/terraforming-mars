@@ -256,6 +256,58 @@ Premium-подача раздачи/выбора карт (стартовые к
   template и 4 строки хост-паттерна выше. Новую хореографию строить В director-
   модуле, не в компоненте.
 
+## §11. Fullscreen card inspector (открытие/листание/закрытие карт)
+
+Premium-хореография консольного fullscreen-осмотра. Файлы: `consoleCardZoom.ts`
+(`ZoomOrigin` + `slotZoomOrigin`), `consoleZoomMotion.ts` (GSAP director:
+`playZoomOpen`/`playZoomClose`/`retargetZoomHold`/`releaseZoomMotion`),
+`CardZoomModal.vue` (opt-in `consoleMotion` prop), стили в
+`console_card_deal.less` (`.con-zoom-hold`, `--flight`, `--closing`, backdrop).
+
+**Три source-режима** (`ZoomOrigin.kind`):
+- `physical` — открыто из видимого card tile. FLIP-лифт: РЕАЛЬНЫЙ стейдж
+  (`.card-zoom-stage`) стартует transform'ом из rect слота и раскрывается в
+  identity — та же карта, тот же контент, никакой подмены. Слот карты «в
+  руках» держится пустым (`.con-zoom-hold`, ретаргет на каждый browse).
+  Закрытие — обратный полёт в слот ТЕКУЩЕЙ карты (`resolve(index)` —
+  живой re-query). Невидимый/несуществующий слот → graceful dive-fallback.
+- `textual` — открыто из чипа/ссылки/имени (журнал, обзор хода бота):
+  честный «инспекторный» вход — подъём из глубины (scale+fade), закрытие —
+  погружение. НИКОГДА не фальшивый коллапс в несуществующий слот.
+- `none` — дефолт без семантики источника (визуально = textual). Явная
+  маркировка `textual` опциональна (сегодня поведение идентично) — маркер
+  на будущее + документация намерения в коде.
+
+**Контракты:**
+- Подключение physical-хоста: слоты получают `:data-zoom-slot="<key>"`
+  (обычно имя карты; `name#i` при возможных дубликатах), вызов
+  `openConsoleCardZoom(..., {origin: slotZoomOrigin(getRoot, keyOf, onBrowse)})`.
+  `onBrowse(i)` двигает НИЖЕЛЕЖАЩИЙ фокус хоста синхронно с LB/RB — после
+  закрытия курсор стоит на последней просмотренной карте, а close-полёту
+  есть куда приземляться (виртуализированная рука доскролливает через свой
+  index-watcher). Резолв scoped к root хоста — наложенные поверхности не
+  крадут слоты друг друга.
+- Хром модалки (счётчик/панель действий) скрыт классом `--flight` и
+  проявляется ТОЛЬКО после приземления карты; бекдроп фейдится на открытии
+  и гаснет ПОД close-полётом (стол уже виден при посадке).
+- LB/RB листание (`consoleMotion` в CardZoomModal): ПРЕРЫВАЕМОЕ (rapid
+  press = cancel+restart, никакого залипания на длительности анимации) +
+  физический page-turn (сдвиг + дуга rotZ вокруг нижнего пивота
+  `transform-origin: 50% 120%` + settle-ease). Desktop без пропа —
+  байт-в-байт прежний.
+- Полёт едет на stage-РОДИТЕЛЕ (GSAP), слайд — на card-РЕБЁНКЕ (WAAPI) —
+  вложенные трансформы, конфликтов нет даже одновременно.
+- Zombie-safe: один module-ctx, kill на каждом open/close, `releaseZoomMotion`
+  в `@close` (любой путь закрытия, вкл. нативный Esc), safety-таймеры на
+  open-settle и close-resolve. Reduced-motion → короткие fades ≤160ms.
+- Покрытие physical: ConsoleStartScene (wizard/summary/ceremony),
+  ConsoleTaskHost (draft/buy), рука (shell `zoomHandCard` + `.con-hand`),
+  ConsoleRevealOverlay (drawn/viewer/result/source). Textual/none: журнал
+  (маркирован), обзор бота, композеры, action-центр — rise-вход
+  автоматически. Известная деградация: закрытие МЫШЬЮ по бекдропу /
+  нативный Esc на десктоп-пути минует хореографию (мгновенный close) —
+  консольные B/X идут через `closeZoomViewer` с полётом.
+
 ## §8. Ручной чеклист (прогонять при миграции экранов)
 
 Viewports: Steam Deck 1280×800 (`?consoleProfile=handheld`), 1280×720, desktop

@@ -39,7 +39,8 @@
         <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
           <!-- INFO PARITY: the SOURCE renders as the REAL premium element,
                inspectable on L3 when it is a card. -->
-          <aside v-if="drawnSource !== undefined" class="con-reveal__source">
+          <aside v-if="drawnSource !== undefined" class="con-reveal__source"
+                 :data-zoom-slot="drawnSource.type === 'card' ? 'src:' + drawnSource.cardName : undefined">
             <div class="con-start__section-title">{{ $t('Source') }}</div>
             <Card v-if="drawnSource.type === 'card'" :card="{name: drawnSource.cardName}" :key="drawnSource.cardName" lightweight />
             <div v-else-if="drawnSource.type === 'colony' && drawnSourceColony !== undefined" class="con-reveal__source-colony">
@@ -57,6 +58,7 @@
               <div v-for="(entry, i) in drawnUntaken" :key="entry.card.name + '#' + entry.index"
                    class="con-cards__slot con-start__deal"
                    :style="dealDelay(i)"
+                   :data-zoom-slot="entry.card.name + '#' + entry.index"
                    :class="{'con-cards__slot--focused': focusIdx === i}"
                    :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                 <Card :card="entry.card" :key="entry.card.name" lightweight />
@@ -83,6 +85,7 @@
           </div>
           <div class="con-reveal__main">
             <div class="con-reveal__revealed"
+                 :data-zoom-slot="'revealed:' + lastReveal.revealed.name"
                  :class="lastReveal.conditionMet ? 'con-reveal__revealed--met' : 'con-reveal__revealed--miss'">
               <Card :card="lastReveal.revealed" :key="lastReveal.revealed.name" />
             </div>
@@ -102,6 +105,7 @@
               <div v-for="(name, i) in viewerReveal.cards" :key="name + '#' + i"
                    class="con-cards__slot con-start__deal"
                    :style="dealDelay(i)"
+                   :data-zoom-slot="name + '#' + i"
                    :class="{'con-cards__slot--focused': focusIdx === i}"
                    :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                 <Card :card="{name}" :key="name" lightweight />
@@ -175,7 +179,7 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
@@ -439,11 +443,29 @@ export default defineComponent({
         return;
       }
     },
+    /** PHYSICAL zoom origin over this overlay's `data-zoom-slot` tiles; the
+     *  strip focus follows the fullscreen browse (drawn duplicates are keyed
+     *  `name#i`, so two copies of one card resolve to distinct slots). */
+    zoomOriginFor(keyOf: (i: number) => string, follow: boolean) {
+      return slotZoomOrigin(
+        () => this.$el as HTMLElement,
+        keyOf,
+        follow ? (i) => {
+          this.focusIdx = i;
+          void this.$nextTick(() => {
+            const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+            const el = Array.isArray(slot) ? slot[0] : slot;
+            el?.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+          });
+        } : undefined,
+      );
+    },
     /** P13: X fullscreen for the focused card — with the RECEIVE bridge so A
      *  takes the card / RT takes all WITHOUT leaving the viewer (until the
      *  last card, which closes it). The take logic is SHARED with the modal. */
     zoomFocused(): void {
-      const list = this.drawnUntaken.map((e) => e.card);
+      const entries = this.drawnUntaken;
+      const list = entries.map((e) => e.card);
       if (list.length === 0) {
         return;
       }
@@ -454,9 +476,14 @@ export default defineComponent({
           takeAllLabel: list.length > 1 ? 'Take all cards' : undefined,
           takeAll: list.length > 1 ? () => this.takeAllFromZoom() : undefined,
         },
+        origin: this.zoomOriginFor((i) => {
+          const e = this.drawnUntaken[i];
+          return e !== undefined ? `${e.card.name}#${e.index}` : '';
+        }, true),
       });
     },
-    /** L3: inspect the DRAW SOURCE card fullscreen, captioned as the source. */
+    /** L3: inspect the DRAW SOURCE card fullscreen, captioned as the source.
+     *  The source tile is on screen → a physical lift (no browse to follow). */
     zoomSource(): void {
       const s = this.drawnSource;
       if (s === undefined || s.type !== 'card') {
@@ -464,17 +491,23 @@ export default defineComponent({
       }
       openConsoleCardZoom([{name: s.cardName} as CardModel], 0, undefined, undefined, {
         contextLabel: 'Source of drawn cards',
+        origin: this.zoomOriginFor(() => `src:${s.cardName}`, false),
       });
     },
     zoomRevealed(): void {
-      if (this.lastReveal !== undefined) {
-        openConsoleCardZoom([this.lastReveal.revealed], 0);
+      const r = this.lastReveal;
+      if (r !== undefined) {
+        openConsoleCardZoom([r.revealed], 0, undefined, undefined, {
+          origin: this.zoomOriginFor(() => `revealed:${r.revealed.name}`, false),
+        });
       }
     },
     zoomViewerCard(): void {
       const names = this.viewerReveal?.cards ?? [];
       if (names.length > 0) {
-        openConsoleCardZoom(names.map((name) => ({name}) as CardModel), this.focusIdx);
+        openConsoleCardZoom(names.map((name) => ({name}) as CardModel), this.focusIdx, undefined, undefined, {
+          origin: this.zoomOriginFor((i) => `${names[i]}#${i}`, true),
+        });
       }
     },
     /** A: take the focused card (last one closes + releases + acks). */
