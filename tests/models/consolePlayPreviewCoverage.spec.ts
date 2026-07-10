@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {ICard} from '../../src/server/cards/ICard';
+import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {GameModule} from '../../src/common/cards/GameModule';
 import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
@@ -105,7 +106,7 @@ describe('console play-preview coverage', () => {
           }
           let preview;
           try {
-            preview = cardPlayPreview(player, card);
+            preview = cardPlayPreview(player, card as ICard & IProjectCard);
           } catch {
             continue;
           }
