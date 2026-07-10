@@ -270,11 +270,16 @@
 }
 
 /* ── Game list (My games) ────────────────────────────────────────── */
+/* FOUNDATION PILOT: scrolling lives in the ConsoleScrollArea wrapper
+ * (.cm-gamelist-scroll) — the list itself only lays rows out. */
+.cm-gamelist-scroll {
+    flex: 1;
+    min-height: 0;
+}
 .cm-gamelist {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    overflow-y: auto;
     min-height: 0;
     padding-right: 4px;
 }
@@ -568,9 +573,9 @@
     flex-direction: column;
     gap: 8px;
     padding: 4px 2px;
-    /* Every deck is designed to FIT 1280×800 without scrolling; this is the
-       safety valve for extreme viewports, never the intended behaviour. */
-    overflow-y: auto;
+    /* Every deck is designed to FIT 1280×800 without scrolling; the
+       extreme-viewport safety valve is the ConsoleScrollArea host
+       (.cm-create__deck in ConsoleCreateGame) — never this element. */
 }
 .cm-row {
     display: flex;
@@ -899,10 +904,14 @@
     text-transform: uppercase;
     color: @cm-gold;
 }
+/* FOUNDATION PILOT: __scroll is a ConsoleScrollArea host; the column layout
+ * lives on __body (its content wrapper, via content-class + fill — the
+ * bottom-pinned status block keeps its margin-top:auto behaviour). */
 .cm-launch__scroll {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+}
+.cm-launch__body {
     display: flex;
     flex-direction: column;
     gap: 12px;

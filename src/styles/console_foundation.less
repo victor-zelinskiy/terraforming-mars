@@ -1,0 +1,158 @@
+/*
+ * CONSOLE NATIVE FOUNDATION — the overflow & scroll policy layer
+ * (CONSOLE_FOUNDATION.md §3). Rules here are STRUCTURAL, not cosmetic:
+ * they make browser-native scrollbars impossible while a console-native
+ * surface owns the viewport, and they define the shared primitives every
+ * new console screen builds on (ConsoleScrollArea, motion clip pattern).
+ *
+ * `html.console-native` is toggled by consoleNativeSurface.ts (refcounted —
+ * ConsoleShell / console main menu / console create game). It is DELIBERATELY
+ * narrower than `html.console-mode`: console mode also boosts legacy desktop
+ * lifecycle pages (join / lobby) that still scroll the window — those keep
+ * the P14 chrome-hiding behaviour (console.less) until they are migrated.
+ */
+
+/* ── §3.1 Page-level scroll is structurally OFF ─────────────────────
+ * Any content that does not fit must live inside a ConsoleScrollArea —
+ * a page-level scrollbar (vertical OR horizontal) in console-native is a
+ * layout bug (the dev overflow guard names the offender). */
+html.console-native {
+    width: 100%;
+    height: 100%;
+    overflow: hidden !important;
+    /* No bounce / pull-to-refresh / scroll chaining on the root. */
+    overscroll-behavior: none;
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden !important;
+        overscroll-behavior: none;
+    }
+
+    /* The Vue mount root + the App shell wrapper: clip, never scroll.
+     * min-width 0 keeps flex/grid descendants from propagating intrinsic
+     * widths past the viewport (the classic horizontal-overflow source). */
+    #app,
+    .main-container {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+}
+
+/* ── §3.2 Overflow-safe animation pattern ───────────────────────────
+ * Animated console content moves an INNER layer (transform/opacity only)
+ * inside an OUTER clip wrapper — transform overshoot can never poke past
+ * the panel and summon a scrollbar / trip the overflow guard:
+ *
+ *   <div class="con-motion-clip">
+ *     <div class="con-motion-layer">…animated content…</div>
+ *   </div>
+ *
+ * Never animate width/height/top/left/margin/padding for entrances, and
+ * never `transition: all` in console-native code (both are banned by
+ * CONSOLE_FOUNDATION.md §7 — они создают layout-трэш и временный overflow). */
+.con-motion-clip {
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+}
+.con-motion-layer {
+    will-change: transform, opacity;
+}
+
+/* ── §3.3 ConsoleScrollArea — THE controlled scroll primitive ─────── */
+.con-scroll-area {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    /* The outer box clips; only the inner viewport scrolls. */
+    overflow: hidden;
+
+    &__viewport {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: clip;
+        /* Scrolling works (wheel / pad / ensureVisible) — chrome never shows
+         * (P17). The custom rail below is the visible affordance. */
+        scrollbar-width: none;
+        &::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            display: none;
+        }
+        /* A nested scroll never chains into the (locked) page. */
+        overscroll-behavior: contain;
+    }
+    &--x &__viewport {
+        overflow-x: auto;
+        overflow-y: clip;
+    }
+
+    &__content {
+        min-width: 0;
+        min-height: 0;
+        width: 100%;
+    }
+    /* `fill`: content stretches to the viewport height (a flex column, so a
+     * single flex-1 child fills it too) — bottom-pinned blocks
+     * (`margin-top: auto`) and vertically-centred layouts keep working when
+     * the content is SHORTER than the viewport. */
+    &--fill &__content {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* The premium progress rail — only rendered while overflowing. */
+    &__rail {
+        position: absolute;
+        top: 6px;
+        bottom: 6px;
+        right: 1px;
+        width: 3px;
+        border-radius: 2px;
+        background: fade(@con-cyan, 10%);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &--overflowing &__rail {
+        opacity: 1;
+    }
+    &--x &__rail {
+        top: auto;
+        left: 6px;
+        right: 6px;
+        bottom: 1px;
+        width: auto;
+        height: 3px;
+    }
+    &__thumb {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        border-radius: 2px;
+        background: fade(@con-cyan, 45%);
+        box-shadow: 0 0 6px fade(@con-cyan, 25%);
+    }
+    &--x &__thumb {
+        top: 0;
+        left: auto;
+        width: auto;
+        height: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-scroll-area__rail {
+        transition: none;
+    }
+}

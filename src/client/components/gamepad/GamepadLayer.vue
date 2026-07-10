@@ -87,6 +87,8 @@ import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} f
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
+import {installConsoleKeyBridge, uninstallConsoleKeyBridge} from '@/client/console/composables/consoleKeyBridge';
+import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/client/console/composables/consoleOverflowGuard';
 
 const FOCUS_TICK_MS = 400;
 /** Holding Menu this long toggles console ↔ desktop mode. */
@@ -190,11 +192,19 @@ export default defineComponent({
     },
     // Console-mode presentation class — owned HERE (the layer lives on every
     // lifecycle screen), so menu/create/lobby get the console styling too.
+    // The console KEY BRIDGE (foundation layer) rides the same switch: while
+    // console mode is on, EVERY console surface — pre-game and in-game —
+    // gets the one keyboard fallback through dispatchConsoleIntent.
     'consoleModeState.enabled': {
       immediate: true,
       handler(on: boolean) {
         if (typeof document !== 'undefined') {
           document.documentElement.classList.toggle('console-mode', on);
+        }
+        if (on) {
+          installConsoleKeyBridge();
+        } else {
+          uninstallConsoleKeyBridge();
         }
       },
     },
@@ -385,6 +395,9 @@ export default defineComponent({
   mounted() {
     installGamepadCore();
     installConsoleLayoutProfile();
+    // Dev-only "no page scrollbars in console-native" diagnostics —
+    // self-gates on consoleNativeActive() + build mode (inert in prod).
+    installConsoleOverflowGuard();
     this.offIntent = onGamepadIntent((intent) => this.onIntent(intent));
     this.offMode = onInputModeChange((mode) => this.onModeChange(mode));
     if (this.gamepadActive) {
@@ -413,6 +426,8 @@ export default defineComponent({
     }
     clearGamepadFocus();
     uninstallGamepadCore();
+    uninstallConsoleKeyBridge();
+    uninstallConsoleOverflowGuard();
   },
 });
 </script>

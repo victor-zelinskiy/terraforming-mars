@@ -1,15 +1,18 @@
 import {IProjectCard} from '../IProjectCard';
+import {IActionCard} from '../ICard';
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardResource} from '../../../common/CardResource';
+import {Resource} from '../../../common/Resource';
 import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Payment} from '../../../common/inputs/Payment';
 import * as actionReason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
-export class JovianLanterns extends Card implements IProjectCard {
+export class JovianLanterns extends Card implements IProjectCard, IActionCard {
   constructor() {
     super({
       cost: 20,
@@ -49,6 +52,15 @@ export class JovianLanterns extends Card implements IProjectCard {
   }
   public actionUnavailableReason() {
     return actionReason.notEnoughTitanium();
+  }
+
+  // A FIXED self-target (2 floaters onto THIS card) — no pick, so the whole
+  // action is a computable spend → gain, shown premium (never a bare confirm).
+  public actionPreview(player: IPlayer) {
+    return actionPreviews.singleBranch(this, player, [], [
+      actionPreviews.stockCost(player, Resource.TITANIUM, 1),
+      actionPreviews.cardGain(this, 2),
+    ], {unavailableReason: actionReason.notEnoughTitanium()});
   }
 
   public action(player: IPlayer) {

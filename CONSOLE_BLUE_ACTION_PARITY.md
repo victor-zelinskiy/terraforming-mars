@@ -1,3 +1,19 @@
+# Console Blue Card Action Center — desktop parity matrix (iteration 2b)
+
+**Итер.2b фиксы (после провала подачи веток):** (1) ветки многовариантного действия
+(Robinson Industries и др.) рендерятся как premium OPTION-КАРТОЧКИ с per-branch
+чипами `current→resulting` — точное зеркало desktop-radiogroup, а НЕ голый текст за
+«review-рядом» (`.con-composer__branch` инлайн; тест `composerRender.spec.ts`).
+(2) premium под-списки card/player/or (иконки ресурсов + impact `N→N+k` + причины).
+(3) серверные additive-хуки убрали 2 «bare confirm» dynamic-карты (JovianLanterns,
+BioengineeringEnclosure) и невидимый gain (PowerInfrastructure `result`) — улучшает
+desktop И console. (4) СТРОГИЙ coverage-страж `actionPreviewCoverage.spec.ts` («no
+mute branch»): каждая in-scope action-карта с ресурсами/тегами обязана дать premium
+контент (чипы / step / optionInput / reveal / осмысленный title), иначе тест падает
+со списком карт. Аудит: все 60+ in-scope action-карт зелёные.
+
+---
+
 # Console Blue Card Action Center — desktop parity matrix (iteration 2)
 
 Контракт: **desktop и console native могут отличаться layout'ом, но не игровым

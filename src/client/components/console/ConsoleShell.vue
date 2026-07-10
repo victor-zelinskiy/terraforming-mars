@@ -555,6 +555,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {
   ConvertPlantsMatch,
   findAwardOptionPath,
@@ -639,6 +640,13 @@ export default defineComponent({
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  },
+  setup() {
+    // Foundation (CONSOLE_FOUNDATION.md): the in-game shell is a
+    // console-native SURFACE — page-level scroll is locked for its lifetime
+    // (html.console-native + body scroll lock); anything that overflows must
+    // live inside a ConsoleScrollArea, never scroll the page.
+    useConsoleNativeSurface();
   },
   data() {
     return {

@@ -26,7 +26,10 @@
     </header>
 
     <div class="cm-create__main">
-      <div class="cm-create__deck">
+      <!-- fill: decks keep their full-height layout (flex:1 deckbody,
+           vertically-centred map deck) when content is shorter than the
+           viewport; scrolling engages only on the extreme-viewport valve. -->
+      <ConsoleScrollArea ref="deckScroll" class="cm-create__deck" :fill="true">
         <ConsoleCrewDeck
           v-if="ui.deck === 'crew'"
           :rows="crew"
@@ -59,7 +62,7 @@
           @hover="setCursor('map', $event)"
           @activate="activateMap($event)"
         />
-      </div>
+      </ConsoleScrollArea>
       <ConsoleLaunchPanel @launch="onLaunchPressed" />
     </div>
 
@@ -127,6 +130,8 @@ import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
+import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {
   CREATE_DECKS,
   CreateDeckId,
@@ -185,6 +190,7 @@ export default defineComponent({
   name: 'ConsoleCreateGame',
   components: {
     ConsoleCommandBar,
+    ConsoleScrollArea,
     GamepadGlyph,
     ConsoleCrewDeck,
     ConsoleRulesDeck,
@@ -194,6 +200,10 @@ export default defineComponent({
     ConsoleParticipantEditor,
     ConsoleTypePicker,
     ConsoleLaunchConfirm,
+  },
+  setup() {
+    // Foundation: page-level overflow lock while this screen owns the viewport.
+    useConsoleNativeSurface();
   },
   data() {
     return {
@@ -425,6 +435,7 @@ export default defineComponent({
         const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck));
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
+          this.keepDeckCursorVisible();
         } else if (intent.dir === 'left' || intent.dir === 'right') {
           // Vertical decks: ◄ ► also walks the section ring (console settings idiom).
           this.setDeck(cycleCreateDeck(deck, intent.dir === 'right' ? 1 : -1));
@@ -464,6 +475,16 @@ export default defineComponent({
     setDeck(deck: CreateDeckId): void {
       this.ui.deck = deck;
       clampCreateCursors();
+      this.keepDeckCursorVisible();
+    },
+    /** Keep the cursored deck row inside the ConsoleScrollArea viewport
+     * (decks are designed to FIT 1280×800 — this matters only on the
+     * extreme-viewport safety-valve path). */
+    keepDeckCursorVisible(): void {
+      void this.$nextTick(() => {
+        const scroll = this.$refs.deckScroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        scroll?.ensureVisible?.(this.$el.querySelector('.cm-row--cursor, .cm-map--cursor'));
+      });
     },
     setCursor(deck: CreateDeckId, i: number): void {
       this.ui.cursor[deck] = i;

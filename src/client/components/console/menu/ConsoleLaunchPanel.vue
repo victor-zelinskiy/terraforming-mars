@@ -5,7 +5,7 @@
 
     <h2 class="cm-launch__title">{{ $t('Launch briefing') }}</h2>
 
-    <div class="cm-launch__scroll">
+    <ConsoleScrollArea class="cm-launch__scroll" :fill="true" content-class="cm-launch__body">
       <!-- Crew summary -->
       <div class="cm-launch__block">
         <div class="cm-launch__label">{{ $t('Crew') }} <span class="cm-launch__count">{{ participantCount }}</span></div>
@@ -71,7 +71,7 @@
           <span class="cm-launch__restored-hint"><GamepadGlyph control="view" />{{ $t('Reset') }}</span>
         </div>
       </div>
-    </div>
+    </ConsoleScrollArea>
 
     <button type="button" class="cm-launch__cta" :class="{'cm-launch__cta--ready': ready}" @click="$emit('launch')">
       <GamepadGlyph control="secondary" />
@@ -109,12 +109,13 @@ import {
 } from '@/client/components/create/premium/createGameMeta';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
 
 export default defineComponent({
   name: 'ConsoleLaunchPanel',
-  components: {PremiumMapFingerprint, GamepadGlyph},
+  components: {ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
   emits: ['launch'],
   computed: {
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {

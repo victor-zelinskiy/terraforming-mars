@@ -39,7 +39,11 @@ export class PowerInfrastructure extends Card implements IActionCard, IProjectCa
   // choice — the energy→M€ conversion is 1:1, shown via the stepper.
   public actionPreview(player: IPlayer) {
     return actionPreviews.singleBranch(this, player, [
-      actionPreviews.amountStep('Select amount of energy to spend', 'Spend energy', 1, player.energy, {icon: Resource.ENERGY}),
+      // The 1:1 energy → M€ conversion shown live in the stepper (spend X energy
+      // → gain X M€), so the GAIN is never invisible.
+      actionPreviews.amountStep('Select amount of energy to spend', 'Spend energy', 1, player.energy, {
+        icon: Resource.ENERGY, result: {icon: 'megacredits', perUnit: 1},
+      }),
     ]);
   }
   public action(player: IPlayer) {

@@ -10,6 +10,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {IPlayer} from '../../IPlayer';
 import {LogHelper} from '../../LogHelper';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import * as actionPreviews from '../actionPreviews';
 
 export class BioengineeringEnclosure extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -57,6 +58,20 @@ export class BioengineeringEnclosure extends Card implements IProjectCard, IActi
       return {type: 'target', message: 'No other card to receive an animal'};
     }
     return undefined;
+  }
+
+  // Remove 1 animal from THIS card (cost chip) → add 1 to ANOTHER card, chosen in
+  // the confirm modal / composer (never a bare confirm). Mirrors action()'s
+  // SelectCardDeferred over `availableCards`.
+  public actionPreview(player: IPlayer) {
+    const available = this.canAct(player);
+    return actionPreviews.singleBranch(this, player, available ? [
+      actionPreviews.selectCardStep(player, 'Select card to add 1 animal', 'Add animal', this.availableCards(player), {
+        amount: 1,
+      }),
+    ] : [], [
+      actionPreviews.cardCost(this, 1),
+    ], {unavailableReason: this.actionUnavailableReason(player)});
   }
 
   public action(player: IPlayer) {

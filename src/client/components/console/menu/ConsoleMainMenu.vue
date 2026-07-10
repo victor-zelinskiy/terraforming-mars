@@ -48,7 +48,8 @@
         <div v-if="joinGamesState.loading && !joinGamesState.loadedOnce" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
         <div v-else-if="joinGamesState.error" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
         <div v-else-if="games.length === 0" class="cm-gamelist__empty">{{ $t('You have no unfinished games yet.') }}</div>
-        <div v-else class="cm-gamelist">
+        <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
+          <div class="cm-gamelist">
           <button
             v-for="(g, i) in games"
             :key="g.id"
@@ -72,7 +73,8 @@
             <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
             <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
           </button>
-        </div>
+          </div>
+        </ConsoleScrollArea>
       </div>
     </div>
 
@@ -111,6 +113,13 @@
  * MY GAMES (the full joinable list), PROFILE (name + cube colour), EXIT
  * (Electron only). The command bar at the bottom is the single source of
  * button truth; Menu/system stays global (GamepadLayer).
+ *
+ * FOUNDATION PILOT (CONSOLE_FOUNDATION.md): a console-native SURFACE — it
+ * acquires the page-level overflow lock (html.console-native, body scroll
+ * lock) for its lifetime; the games list scrolls inside a ConsoleScrollArea
+ * (never the page) and keeps the cursored row visible via ensureVisible;
+ * intent handling resolves SEMANTIC actions (consoleActionOf) instead of
+ * pattern-matching raw buttons.
  */
 import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
@@ -120,6 +129,9 @@ import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad, menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {stepIndex} from '@/client/console/consoleRouter';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
@@ -136,7 +148,11 @@ type MenuOverlay = 'games' | 'profile' | 'quit' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, GamepadGlyph, ConsoleProfileEditor},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor},
+  setup() {
+    // Foundation: page-level overflow lock while this screen owns the viewport.
+    useConsoleNativeSurface();
+  },
   data() {
     return {
       identityState,
@@ -243,13 +259,16 @@ export default defineComponent({
   },
   methods: {
     onIntent(intent: GamepadIntent): boolean {
+      // Foundation: raw press intents resolve to SEMANTIC console actions —
+      // screens compare actions ('primary'/'back'), never button names.
+      const action = consoleActionOf(intent);
       // The profile editor hosts the text-entry fallback — route to it.
       if (this.overlay === 'profile') {
         const profile = this.$refs.profile as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (profile?.handleIntent?.(intent) === true) {
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'back') {
+        if (action === 'back') {
           this.closeOverlay();
         }
         return true;
@@ -257,22 +276,23 @@ export default defineComponent({
       if (this.overlay === 'games') {
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
           this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
+          this.keepGamesCursorVisible();
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.enterGameAt(this.gamesCursor);
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'back') {
+        if (action === 'back') {
           this.closeOverlay();
           return true;
         }
         return true;
       }
       if (this.overlay === 'quit') {
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.onQuitConfirm();
-        } else if (intent.kind === 'press' && intent.button === 'back') {
+        } else if (action === 'back') {
           this.closeOverlay();
         }
         return true;
@@ -282,12 +302,19 @@ export default defineComponent({
         this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.items.length);
         return true;
       }
-      if (intent.kind === 'press' && intent.button === 'confirm') {
+      if (action === 'primary') {
         this.activateAt(this.cursor);
         return true;
       }
       // Swallow the rest — nothing below this screen should react.
       return true;
+    },
+    /** Keep the cursored games row inside the ConsoleScrollArea viewport. */
+    keepGamesCursorVisible(): void {
+      void this.$nextTick(() => {
+        const scroll = this.$refs.gamesScroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        scroll?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
+      });
     },
     activateAt(i: number): void {
       this.cursor = i;
