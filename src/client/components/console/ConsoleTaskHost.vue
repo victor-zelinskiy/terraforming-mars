@@ -201,19 +201,25 @@
                   <!-- P15: no per-card cost overlay (the buy math lives in
                        the pickline), strong «✓ SELECTED» band, unpicked
                        cards de-emphasize at the pick max. -->
+                  <!-- During a draft pick BEAT the chosen card flies to the
+                       tray as a proxy — its slot must show NOTHING (holdSource
+                       hides the card image, but the slot's OWN --focused /
+                       --picked outline and the «✓ Выбрана» band live on the
+                       slot, not the card, so they'd linger in the empty slot).
+                       `trayPickBeat` suppresses that chrome + the band. -->
                   <div v-for="(entry, i) in cardEntries" :key="entry.card.name + '#' + i"
                        class="con-cards__slot"
                        :data-zoom-slot="entry.card.name"
                        :class="{
-                         'con-cards__slot--focused': focusIdx === i,
-                         'con-cards__slot--picked': isPicked(entry.card.name),
+                         'con-cards__slot--focused': focusIdx === i && !trayPickBeat,
+                         'con-cards__slot--picked': isPicked(entry.card.name) && !trayPickBeat,
                          'con-cards__slot--disabled': entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
                          'con-deal-hold': deal.isHeld(entry.card.name + '#' + i),
                        }"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="entry.card" :key="entry.card.name" lightweight />
-                    <span v-if="isPicked(entry.card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+                    <span v-if="isPicked(entry.card.name) && !trayPickBeat" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                     <!-- P18: disabled candidates wear the state badge + the
                          concrete reason line (glance + detail). -->
                     <span v-else-if="entry.disabled" class="con-cards__pickband con-cards__pickband--disabled" aria-hidden="true">{{ $t('Unavailable') }}</span>
