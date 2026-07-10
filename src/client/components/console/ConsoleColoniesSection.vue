@@ -164,7 +164,7 @@ export default defineComponent({
       const chips: Array<FleetChip> = this.players.map((player) => ({
         color: player.color,
         name: participantDisplayName(player),
-        free: freeTradeFleets(player),
+        free: this.freeFleetsFor(player),
         total: player.fleetSize,
         me: player.color === this.viewerColor,
       }));
@@ -241,6 +241,19 @@ export default defineComponent({
      */
     isLaunchingSlot(chip: FleetChip, n: number): boolean {
       return this.tradeFleetState.active && this.isLaunchAnchor(chip, n);
+    },
+    /**
+     * How many of a player's fleets are truly FREE (in their supply, not
+     * deployed). A fleet PHYSICALLY parked on a colony (its `visitor`) is OUT —
+     * even when `usedTradeFleets` doesn't reflect it: the Automa sets colony
+     * visitors DIRECTLY (AutomaColonies) without touching usedTradeFleets, so
+     * `freeTradeFleets` alone showed a deployed bot fleet as a free ship (the
+     * board's fleet-on-colony AND a home platform — the double-count bug). Take
+     * the MORE restrictive of "used-trade-fleets" and "physically-deployed".
+     */
+    freeFleetsFor(player: PublicPlayerModel): number {
+      const deployed = this.colonies.filter((c) => c.visitor === player.color).length;
+      return Math.min(freeTradeFleets(player), Math.max(0, player.fleetSize - deployed));
     },
     isPickable(name: string): boolean {
       return this.pick !== undefined && this.pick.selectable.includes(name);
