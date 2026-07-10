@@ -368,6 +368,58 @@ shell `stagedHandCard = pendingPlayCard ?? returningPlayCard ?? departingPlayCar
 композером: `body.con-play-modal-open` (те же правила, что `con-zoom-open`) +
 FocusFrame читает класс в measure-тике.
 
+**§10c. DRAFT TRAY + RESEARCH RISE (премиум-отбор карт в драфте).**
+Файлы: `consoleDraftTray.ts` (реактивный мозг: pending/held/scene-снапшот,
+биты, arm/skip/recovery) + `ConsoleDraftTray.vue` (лоток top-centre, слоты
+`data-tray-slot`, Vue-managed hold) + `cardRiseDirector.ts` (GSAP-сцена
+rise) + `runDraftPickToTray` в cardExitDirector + `riseTimings` в
+cardDealModel (PURE, unit-tested) + стили `.con-drafttray` /
+`.con-task-host--table-beat` в console.less.
+
+**Лоток = ОДНО физическое «место отобранных карт» на весь драфт** (жив всю
+фазу DRAFTING/INITIALDRAFTING, top-centre НА СТОЛЕ, z 64 — ПОД задачным
+модалом): во время браузинга приглушён под backdrop'ом; в draftWait несёт
+баннер ожидания (класс `.con-draftwait` СОХРАНЁН на баннере — это
+serving-surface леак-детектора; caption'ы монтируются ПОД пайлом — вставка
+не сдвигает слот под летящей프록си); из него стартует rise-сцена.
+
+- **PICK BEAT (обычный выбор)**: `commitSingleCard`/`confirmCardSetWithExit`
+  при `isDraftPick` → `runDraftPickBeat({picks, commit})`: реджекты тумблят
+  CSS-discard'ом, `tableView=true` → хост-хром РАСТВОРЯЕТСЯ
+  (`--table-beat`: frame opacity 0 !important — important бьёт con-rise по
+  каскаду, backdrop 0.28), герой (exit-layer, hero-rim) лифт+бит →
+  сжимающаяся дуга В СЛОТ ЛОТКА (stableSlotRect double-probe; пульс пайла
+  на посадке; слот-hold released → 160ms fade = handoff). Submit НА onLift
+  — флоу никогда не ждёт анимацию. Ответ сервера буферится битом:
+  `whenPickBeatDone()` гейтит запуск СЛЕДУЮЩЕЙ раздачи (prepareDeal), т.е.
+  следующий выбор появляется только после посадки. Нет ответа после
+  посадки → честный «Обработка выбора…» + 6s-safety → `recoverDraftBeat`
+  (recoverNonce: хост un-reject'ит слоты, снимает hold'ы, re-arm submit).
+- **RESEARCH RISE (последний пик → покупка)**: `observeDraftTransition`
+  (шелловский pre-flush watcher playerView) ловит переход
+  DRAFTING→RESEARCH с `buyMode`-промптом и АРМИТ сцену: `sceneCards` =
+  замороженный снапшот (сервер ЧИСТИТ draftedCards в runResearchPhase —
+  лоток рендерит снапшот), arrivals = diff (авто-переданная последняя
+  карта; ЛЕТЯЩИЙ hero считается «на столе», его hold НЕ перетирается —
+  union). Buy-фрейм монтируется скрытым (`tableView`), deal запускается в
+  rise-режиме (`DealLaunchArgs.rise` → `runCardRiseTimeline`): ARRIVAL
+  (дек → слот лотка, back→face флип, handoff до пульса) → SET BEAT
+  («Набор собран», пульс, hold) → LIFT-OFF (прокси над пайлом, лоток
+  пустеет тем же вдохом) → FLIGHTS в слоты research-ряда (растут к row-
+  масштабу, слева направо) → FRAME (onFrameReveal → tableView=false →
+  хром+backdrop материализуются ВОКРУГ карт) → HANDOFF (прокси
+  растворяются в реальные интерактивные). Любой инпут = skip (deal-гейт);
+  restore/defer → deal-memory консюмит сцену без реплея; отсутствие
+  живого лотка → честный deck-deal fallback.
+- **Гейты**: ввод в бит проглатывается ХОСТОМ (первая строка handleIntent)
+  И ШЕЛЛОМ (хост мог unmount'нуться под draftWait-ответом); футер/командбар
+  на время битов — только [A Пропустить]; focus-frame/verdict гаснут.
+- Reduced motion: никаких полётов — commit/reveal мгновенно, сцена не
+  армится (deck-deal reduced-reveal несёт смену фазы).
+- Расширение: новая «зона-приёмник» карт = зарегистрируй slot-resolver
+  (`registerTraySlotResolver`-паттерн) и переиспользуй `runDraftPickToTray`
+  / rise-каркас; НЕ строй новый полёт в компоненте.
+
 ## §11. Fullscreen card inspector (открытие/листание/закрытие карт)
 
 Premium-хореография консольного fullscreen-осмотра. Файлы: `consoleCardZoom.ts`

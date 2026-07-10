@@ -30,8 +30,30 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {consoleReducedMotionActive, REDUCED_MOTION_CAP_MS} from '@/client/console/composables/useConsoleReducedMotion';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
-import {dealTimings, REDUCED_REVEAL_STEP_MS} from '@/client/console/cardDeal/cardDealModel';
+import {dealTimings, REDUCED_REVEAL_STEP_MS, riseTimings} from '@/client/console/cardDeal/cardDealModel';
 import {DealHandle, DealTargetRect, runCardDealTimeline} from '@/client/console/cardDeal/cardDealDirector';
+import {runCardRiseTimeline} from '@/client/console/cardDeal/cardRiseDirector';
+
+/**
+ * The RESEARCH-RISE variant (the draft→research transition): instead of
+ * dealing from the deck, the proxies RISE from the drafted tray's slot
+ * rects into the strip slots — the pile physically becomes the research
+ * row. Same lifecycle, same skip/hold contract as the deck deal.
+ */
+export type RiseLaunchExtras = {
+  /** Tray slot rects per card (same order as slotCards). */
+  sources: ReadonlyArray<DealTargetRect>,
+  /** Indices of cards that ARRIVE first (deck → tray, flipping). */
+  arrivals: ReadonlyArray<number>,
+  /** An arrival landed on the tray (reveal its tray slot + pulse). */
+  onArrivalLanded: (index: number) => void,
+  /** The full set is on the tray — the «НАБОР СОБРАН» beat. */
+  onSetComplete: () => void,
+  /** Proxies stand over the pile — the tray empties underneath. */
+  onLiftOff: () => void,
+  /** The frame materialization beat (host releases the table view). */
+  onFrameReveal: () => void,
+};
 
 export type DealLaunchArgs = {
   /** The real card elements (`.card-container`) in card order. */
@@ -40,6 +62,8 @@ export type DealLaunchArgs = {
   proxies: ReadonlyArray<HTMLElement>,
   /** Deck stack element from the layer. */
   deck: HTMLElement | null,
+  /** When present, run the RESEARCH RISE instead of the deck deal. */
+  rise?: RiseLaunchExtras,
 };
 
 /** Measure retry budget: layout / fit-zoom may need a few frames to settle. */
@@ -156,19 +180,40 @@ export function createCardDealSequence() {
       probeSig = '';
       const layerH = window.innerHeight;
       const layerW = window.innerWidth;
+      const onReveal = (i: number) => {
+        const k = keys[i];
+        if (k !== undefined) {
+          state.revealed.add(k);
+        }
+      };
+      // The dealer sits bottom-centre, above the command bar band.
+      const deckAnchor = {x: layerW / 2, y: layerH - 200};
+      const rise = args.rise;
+      if (rise !== undefined && rise.sources.length === targets.length) {
+        handle = runCardRiseTimeline({
+          proxies,
+          targets,
+          sources: rise.sources,
+          arrivals: rise.arrivals,
+          deck,
+          deckAnchor,
+          timings: riseTimings(keys.length),
+          onArrivalLanded: rise.onArrivalLanded,
+          onSetComplete: rise.onSetComplete,
+          onLiftOff: rise.onLiftOff,
+          onFrameReveal: rise.onFrameReveal,
+          onReveal,
+          onDone: finish,
+        });
+        return;
+      }
       handle = runCardDealTimeline({
         proxies,
         targets,
         deck,
-        // The dealer sits bottom-centre, above the command bar band.
-        deckAnchor: {x: layerW / 2, y: layerH - 200},
+        deckAnchor,
         timings: dealTimings(keys.length),
-        onReveal: (i) => {
-          const k = keys[i];
-          if (k !== undefined) {
-            state.revealed.add(k);
-          }
-        },
+        onReveal,
         onDone: finish,
       });
     },

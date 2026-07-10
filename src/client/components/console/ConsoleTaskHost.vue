@@ -1,5 +1,10 @@
 <template>
-  <div class="con-task-host" role="dialog" :aria-label="titleText">
+  <!-- --table-beat: the TABLE owns the screen (draft pick landing / the
+       research rise) — the modal chrome dissolves so the drafted tray and
+       the flying cards are seen; releasing it IS the frame materialization
+       around the fresh content (consoleDraftTray.ts owns the flag). -->
+  <div class="con-task-host" role="dialog" :aria-label="titleText"
+       :class="{'con-task-host--table-beat': trayTableBeat}">
     <div class="con-task-host__backdrop" aria-hidden="true"></div>
 
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
@@ -222,7 +227,7 @@
                 <!-- Hidden while the deal cinematic runs (never promise a
                      selection that isn't interactive yet); the focused
                      card's context swaps smoothly on d-pad moves. -->
-                <div v-if="focusedCardEntry !== undefined && !deal.state.active" class="con-cards__verdictbar">
+                <div v-if="focusedCardEntry !== undefined && !deal.state.active && !trayPickBeat" class="con-cards__verdictbar">
                   <transition name="con-verdict-swap" mode="out-in">
                     <div class="con-cards__verdict-inner" :key="focusedCardEntry.card.name">
                       <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
@@ -318,7 +323,7 @@
     <!-- The gliding selection frame (motion-v springs) — outside the keyed
          frame so it survives prompt swaps and glides across them.
          Self-resolving: finds the focused card inside this host itself. -->
-    <ConsoleCardFocusFrame :active="!deal.state.active"
+    <ConsoleCardFocusFrame :active="!deal.state.active && !trayPickBeat"
                            selector=".con-cards__slot--focused > .card-container" />
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
@@ -393,8 +398,14 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
-import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
+import {applyDiscardExit, ExitSource, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
+import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
+import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
+import {
+  beginRiseScene, draftPickBeatActive, draftTrayState, finishRiseScene, resolveTraySlot,
+  riseArrivalLanded, riseFrameReveal, riseLiftOff, riseSceneEngaged, riseSetComplete,
+  runDraftPickBeat, skipDraftPickBeat, whenPickBeatDone,
+} from '@/client/console/cardDeal/consoleDraftTray';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
@@ -493,6 +504,8 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
+      /** The draft-tray brain (pick beats / research rise) — module state. */
+      draftTrayState,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
        *  never scrolls on focus). Observers run it on resize; NEVER per focus.
        *  VueUse stop-handles (auto-managed; no raw addEventListener). */
@@ -907,9 +920,9 @@ export default defineComponent({
       }
     },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
-      // While the deal cinematic runs, selection is NOT interactive yet —
-      // the bar advertises only the skip (any button skips).
-      if (this.deal.state.active) {
+      // While the deal cinematic / a draft beat runs, selection is NOT
+      // interactive yet — the bar advertises only the skip (any button skips).
+      if (this.deal.state.active || this.trayPickBeat) {
         return [{control: 'confirm', label: 'Skip'}];
       }
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
@@ -977,6 +990,14 @@ export default defineComponent({
       default: return 0;
       }
     },
+    /** The table owns the screen (pick landing / rise) — chrome dissolved. */
+    trayTableBeat(): boolean {
+      return this.draftTrayState.tableView;
+    },
+    /** A hero pick flight is live — input skips it, chrome stays quiet. */
+    trayPickBeat(): boolean {
+      return this.draftTrayState.pickActive || this.draftTrayState.processing;
+    },
   },
   watch: {
     resetKey: {
@@ -999,6 +1020,32 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    /** The draft-beat safety recovered a stalled/failed pick submit: bring
+     *  the round back — un-reject the tumbled slots, release the pick-beat
+     *  source hold, re-arm submission (the transport's alert explains). */
+    'draftTrayState.recoverNonce'() {
+      this.submitting = false;
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined || strip === null || typeof strip.querySelectorAll !== 'function') {
+        return;
+      }
+      for (const el of Array.from(strip.querySelectorAll<HTMLElement>('.con-exit-reject'))) {
+        el.classList.remove('con-exit-reject');
+        el.style.removeProperty('animation-delay');
+      }
+      // The pick-beat holds the source .card-container via classList (the
+      // deal's own holds live on the SLOT via a Vue :class — untouched).
+      for (const el of Array.from(strip.querySelectorAll<HTMLElement>('.card-container.con-deal-hold'))) {
+        el.classList.remove('con-deal-hold');
+      }
+    },
+    /** The deal finished (or was skipped BEFORE launch) while the rise scene
+     *  was engaged — finalize the handoff so the tray never lingers. */
+    'deal.state.active'(active: boolean) {
+      if (!active && riseSceneEngaged()) {
+        finishRiseScene();
+      }
+    },
     /** Card count or grid↔row transition changes the fit (never per focus). */
     focusCount() {
       void this.$nextTick(() => this.fitCardStrip());
@@ -1020,6 +1067,11 @@ export default defineComponent({
       window.clearTimeout(this.dealLaunchTimer);
     }
     this.deal.dispose();
+    // An engaged rise scene can't outlive its frame — hand the tray off
+    // (the watcher may not flush during teardown).
+    if (riseSceneEngaged()) {
+      finishRiseScene();
+    }
   },
   methods: {
     // Render-ready row for a server-computed target change (resource/M€ stock, or
@@ -1052,6 +1104,12 @@ export default defineComponent({
     },
     /** The shell routes every intent here while the host is active. */
     handleIntent(intent: GamepadIntent): void {
+      // Any input mid-PICK-BEAT (the hero flying into the tray) skips it —
+      // the press is consumed, nothing can act on the dissolving round.
+      if (draftPickBeatActive()) {
+        skipDraftPickBeat();
+        return;
+      }
       // Any input mid-deal SKIPS the cinematic (and is consumed) — no press
       // can act on cards that aren't interactive yet.
       if (this.deal.state.active) {
@@ -1086,10 +1144,16 @@ export default defineComponent({
       if (this.deal.prepare(dealKey, names, keys)) {
         // Launch after the con-task-swap frame transition (160ms) settles +
         // fitCardStrip has sized the row — the measured rects are final.
+        // A still-landing draft pick (the hero flying into the tray) is
+        // AWAITED first: consequences never precede their explanation.
         this.dealLaunchTimer = window.setTimeout(() => {
           this.dealLaunchTimer = undefined;
-          requestAnimationFrame(() => this.launchDeal());
+          void whenPickBeatDone().then(() => requestAnimationFrame(() => this.launchDeal()));
         }, motionMs(260));
+      } else if (riseSceneEngaged() && this.isBuyMode) {
+        // The buy set was already dealt once (defer/restore path) — never
+        // replay the scene; the tray hands off instantly.
+        finishRiseScene();
       }
     },
     launchDeal(): void {
@@ -1100,10 +1164,58 @@ export default defineComponent({
       const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
       if (strip === undefined || strip === null || layer === undefined) {
         this.deal.dispose();
+        if (riseSceneEngaged()) {
+          finishRiseScene();
+        }
         return;
       }
       const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
-      this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
+      this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl(), rise: this.riseExtras()});
+    },
+    /**
+     * THE RESEARCH RISE (the flagship draft→research transition): when the
+     * buy prompt arrives with the just-drafted pile still on the tray, the
+     * deal launches in RISE mode — proxies start on the TRAY slots (the
+     * auto-passed last card first ARRIVES from the deck, flipping), the
+     * completed set pulses, then the whole pile flies into the research
+     * row and the modal frame materializes around it. A missing/degenerate
+     * tray (edge) falls back to the honest deck deal.
+     */
+    riseExtras(): RiseLaunchExtras | undefined {
+      if (!riseSceneEngaged() || !this.isBuyMode || this.activeTask.kind !== 'cardSelect') {
+        return undefined;
+      }
+      const cards = this.deal.state.cards;
+      const sources: Array<DealTargetRect> = [];
+      const arrivals: Array<number> = [];
+      for (let i = 0; i < cards.length; i++) {
+        const name = cards[i];
+        const slot = resolveTraySlot(name);
+        const card = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+        const r = card !== null ? card.getBoundingClientRect() : undefined;
+        if (r === undefined || r.width < 10 || r.height < 10) {
+          finishRiseScene(); // no believable tray — the deck deal carries it
+          return undefined;
+        }
+        sources.push({left: r.left, top: r.top, width: r.width, height: r.height});
+        if (this.draftTrayState.sceneArrivals.includes(name)) {
+          arrivals.push(i);
+        }
+      }
+      beginRiseScene();
+      return {
+        sources,
+        arrivals,
+        onArrivalLanded: (i) => {
+          const name = cards[i];
+          if (name !== undefined) {
+            riseArrivalLanded(name);
+          }
+        },
+        onSetComplete: riseSetComplete,
+        onLiftOff: riseLiftOff,
+        onFrameReveal: riseFrameReveal,
+      };
     },
     /** P13/P15: X opens the focused card fullscreen (reused viewer). The
      *  select context lets A toggle the pick from fullscreen — disabled
@@ -1368,11 +1480,6 @@ export default defineComponent({
         this.picks = [name];
         this.onConfirm();
       };
-      // DRAFT HERO PICK: the chosen card lifts with the hero rim and departs
-      // to the player; the rejected cards drift to the discard side (cheap
-      // CSS on the real slots — subdued, never competing). Submit fires the
-      // frame the proxy stands ready (onLift) — the game flow is never
-      // delayed behind the cinematic. Fast-paced by design (draft repeats).
       if (this.submitting || !this.confirmReady) {
         commit(); // onConfirm self-guards
         return;
@@ -1387,12 +1494,25 @@ export default defineComponent({
         (Array.from(strip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
       // The hero beat reads FIRST; the rejects start tumbling under it.
       applyDiscardExit(rejects, {delayMs: 150});
+      // THE DRAFT PICK BEAT (consoleDraftTray.ts): the chosen card is a HERO
+      // that physically joins the drafted tray — the modal chrome dissolves
+      // under it (`tableView`), the card lands ON the pile, and only then
+      // does the next round / waiting state take the screen. Submit fires
+      // at onLift — the game flow is never delayed behind the cinematic.
+      if (this.isDraftPick) {
+        runDraftPickBeat({picks: [{name, el: slot}], commit});
+        return;
+      }
+      // Non-draft single pick (choose a target): the classic hero departure
+      // to the player zone — there is no tray to land on.
       void runHeroPick({name, el: slot}, commit);
     },
     /** BUY / multi commit (RT) — the PURCHASE cinematic: the kept cards
      *  gather into a stack (one confirmation pulse) and go to the player;
      *  the unbought cards drift to the discard side. Zero picks → just the
-     *  calm discard (no hero objects). Submit fires at onLift. */
+     *  calm discard (no hero objects). A MULTI-KEEP DRAFT (Luna Project
+     *  Office / Mars Maths round 1) instead lands its heroes on the drafted
+     *  tray — the same physical place every pick joins. Submit at onLift. */
     confirmCardSetWithExit(): void {
       if (this.activeTask.kind !== 'cardSelect' || this.singlePick || this.submitting || !this.confirmReady) {
         this.onConfirm(); // self-guarding fallback (also the 'not ready' path)
@@ -1404,12 +1524,17 @@ export default defineComponent({
         commit();
         return;
       }
-      const sources = this.picks
+      const sources: Array<ExitSource> = this.picks
         .map((name) => ({name, el: this.exitSlotFor(name)}))
         .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
       const chosen = new Set(sources.map((s) => s.el));
       const rejects = (Array.from(strip.children) as Array<HTMLElement>)
         .filter((el) => !chosen.has(el) && !el.classList.contains('con-deal-hold'));
+      if (this.isDraftPick && sources.length > 0) {
+        applyDiscardExit(rejects, {delayMs: 150});
+        runDraftPickBeat({picks: sources, commit});
+        return;
+      }
       applyDiscardExit(rejects);
       if (sources.length === 0) {
         commit(); // 0 bought: the calm discard alone

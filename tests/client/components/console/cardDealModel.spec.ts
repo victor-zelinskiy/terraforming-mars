@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
   CARD_NATURAL_W, DECK_SCALE, dealTimings, dealTotalMs, flightPlan, HANDOFF_AT, REVEAL_AT,
+  riseFlightDelayMs, riseTimings, riseTotalMs,
 } from '@/client/console/cardDeal/cardDealModel';
 import {resetCardDealMemory, shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 
@@ -40,6 +41,33 @@ describe('cardDealModel', () => {
   it('geometry constants mirror the card frame', () => {
     expect(CARD_NATURAL_W).to.eq(300);
     expect(DECK_SCALE).to.be.within(0.2, 0.6);
+  });
+});
+
+describe('cardDealModel — the research rise', () => {
+  it('keeps the flagship scene rich but bounded (~2s standard draft)', () => {
+    // 4 drafted cards, 1 auto-passed arrival — the standard generation draft.
+    const t = riseTimings(4);
+    expect(riseTotalMs(4, 1, t)).to.be.within(1600, 2600);
+    // No arrivals (already reconciled) → strictly shorter.
+    expect(riseTotalMs(4, 0, t)).to.be.lessThan(riseTotalMs(4, 1, t));
+    expect(riseTotalMs(0, 0, t)).to.eq(0);
+  });
+
+  it('tightens for wide sets (Luna Project Office / initial piles)', () => {
+    const narrow = riseTimings(4);
+    const wide = riseTimings(8);
+    expect(wide.flightMs).to.be.lessThan(narrow.flightMs);
+    expect(wide.flightStaggerMs).to.be.lessThan(narrow.flightStaggerMs);
+  });
+
+  it('flights launch strictly after their own lift settles, left to right', () => {
+    const t = riseTimings(4);
+    for (let i = 0; i < 4; i++) {
+      const liftEnd = i * t.liftStaggerMs + t.liftMs;
+      expect(riseFlightDelayMs(i, t)).to.be.at.least(liftEnd);
+    }
+    expect(riseFlightDelayMs(1, t) - riseFlightDelayMs(0, t)).to.eq(t.flightStaggerMs);
   });
 });
 

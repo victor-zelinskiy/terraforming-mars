@@ -1,4 +1,7 @@
 <template>
+  <!-- Teleported to <body> so it escapes the host editor's stacking context
+       (.cm-overlay, z 11500) and covers EVERYTHING, including the command bar. -->
+  <Teleport to="body">
   <div class="cm-vk-overlay" role="dialog" :aria-label="$t('On-screen keyboard')">
     <div class="cm-vk-panel">
       <span class="cm-vk-panel__corner cm-vk-panel__corner--tl" aria-hidden="true"></span>
@@ -30,6 +33,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script lang="ts">
@@ -102,27 +106,9 @@ export default defineComponent({
     },
   },
   mounted() {
-    const el = this.$refs.kb as HTMLDivElement;
-    this.keyboard = markRaw(new Keyboard(el, {
-      layout: this.buildLayout(),
-      layoutName: this.layoutName,
-      display: this.displayMap(),
-      mergeDisplay: true,
-      maxLength: this.maxLength,
-      theme: 'hg-theme-default cm-vk',
-      buttonTheme: [
-        {class: 'cm-vk__key--fn', buttons: '{bksp} {shift} {lang} {space}'},
-        {class: 'cm-vk__key--done', buttons: '{done}'},
-        {class: 'cm-vk__key--wide', buttons: '{space}'},
-      ],
-      onChange: (input: string) => this.onChange(input),
-      onKeyPress: (button: string) => this.onKeyPress(button),
-    }));
-    this.keyboard.setInput(this.value);
-    void this.$nextTick(() => {
-      this.recollect();
-      this.moveTo(1, 0);
-    });
+    // The mount lives inside a Teleport; the ref is populated by mount time,
+    // but guard defensively so a timing miss retries instead of crashing.
+    void this.$nextTick(() => this.initKeyboard());
     window.addEventListener('keydown', this.onPhysicalKey, {capture: true});
   },
   beforeUnmount() {
@@ -131,6 +117,33 @@ export default defineComponent({
     this.keyboard = undefined;
   },
   methods: {
+    initKeyboard(): void {
+      const el = this.$refs.kb as HTMLDivElement | undefined;
+      if (el === undefined) {
+        void this.$nextTick(() => this.initKeyboard());
+        return;
+      }
+      this.keyboard = markRaw(new Keyboard(el, {
+        layout: this.buildLayout(),
+        layoutName: this.layoutName,
+        display: this.displayMap(),
+        mergeDisplay: true,
+        maxLength: this.maxLength,
+        theme: 'hg-theme-default cm-vk',
+        buttonTheme: [
+          {class: 'cm-vk__key--fn', buttons: '{bksp} {shift} {lang} {space}'},
+          {class: 'cm-vk__key--done', buttons: '{done}'},
+          {class: 'cm-vk__key--wide', buttons: '{space}'},
+        ],
+        onChange: (input: string) => this.onChange(input),
+        onKeyPress: (button: string) => this.onKeyPress(button),
+      }));
+      this.keyboard.setInput(this.value);
+      void this.$nextTick(() => {
+        this.recollect();
+        this.moveTo(1, 0);
+      });
+    },
     /** Build the simple-keyboard layout object from the user's resolved layouts. */
     buildLayout(): Record<string, Array<string>> {
       // The {lang} key is only meaningful when >1 layout is offered.

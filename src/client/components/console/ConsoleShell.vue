@@ -33,35 +33,17 @@
       <span class="con-banner__count">+{{ pendingEvents.count }}</span>
     </div>
 
-    <!-- OPTIONAL draft re-pick: the fork does NOT surface re-picking (desktop
-         parity). A calm, non-blocking waiting banner tells the player their
-         pick is locked while the other players choose; the board stays fully
-         inspectable underneath (pointer-events: none). WaitingFor's headless
-         poll transitions to the next round automatically. -->
-    <div v-if="draftWaitActive" class="con-draftwait" role="status">
-      <div class="con-draftwait__main">
-        <span class="con-draftwait__pulse" aria-hidden="true"></span>
-        <span class="con-draftwait__text">
-          <span class="con-draftwait__title">{{ $t('Waiting for draft cards') }}</span>
-          <span class="con-draftwait__sub">{{ $t('Your pick is locked — waiting for the other players.') }}</span>
-        </span>
-      </div>
-      <!-- The desktop-style DRAFTED CARDS stack, adapted to the console glass
-           language. X opens the read-only fullscreen browser (LB/RB paging). -->
-      <div v-if="draftedCards.length > 0" class="con-draftwait__pile">
-        <div class="con-draftwait__pile-head">
-          <span class="con-draftwait__pile-label">{{ $t('DRAFTED CARDS') }}</span>
-          <span class="con-draftwait__pile-count">{{ draftedCards.length }}</span>
-        </div>
-        <div class="con-draftwait__pile-stack">
-          <div v-for="(card, idx) in draftedCards" :key="card.name + '-' + idx"
-               class="con-draftwait__pile-slot" :style="{zIndex: idx + 1}">
-            <Card :card="card" lightweight />
-          </div>
-        </div>
-        <div class="con-draftwait__pile-hint"><GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span></div>
-      </div>
-    </div>
+    <!-- THE DRAFT TRAY — the ONE persistent "selected cards area" of the
+         draft (top-centre, ON the table, under the task modal): picked
+         cards fly hero-style into it, the calm draftWait banner lives on
+         it (the fork does NOT surface the server's optional re-pick), and
+         the draft→research rise scene launches from it. Non-blocking; the
+         board stays inspectable underneath. -->
+    <transition name="con-layer">
+      <ConsoleDraftTray v-if="draftTrayMounted"
+                        :playerView="playerView"
+                        :waiting="draftWaitActive" />
+    </transition>
 
     <!-- Terraforming complete — the one-shot console-native cinematic event
          (pointer-events: none, bounded lifetime; the persistent state lives
@@ -534,7 +516,12 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
+import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer, runCardDepart} from '@/client/console/cardDeal/cardExitDirector';
+import {
+  draftPickBeatActive, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
+} from '@/client/console/cardDeal/consoleDraftTray';
+import {Phase} from '@/common/Phase';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
@@ -643,6 +630,7 @@ export default defineComponent({
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
     ConsoleCardExitLayer,
+    ConsoleDraftTray,
     ConsoleColonyTradeConfirm,
     ConsoleColonyInspect,
     CardZoomModal,
@@ -852,6 +840,14 @@ export default defineComponent({
      *  players" banner instead of offering to change the pick (desktop parity). */
     draftWaitActive(): boolean {
       return taskFor(this.playerView)?.kind === 'draftWait';
+    },
+    /** The persistent draft tray lives through the WHOLE draft (picks +
+     *  waits) and stays for the research-rise handoff; it renders empty-
+     *  invisible before the first pick and leaves once the draft resolves. */
+    draftTrayMounted(): boolean {
+      const phase = this.playerView.game.phase;
+      return phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING ||
+        this.draftWaitActive || draftPickBeatActive() || riseSceneEngaged();
     },
     /** Cards already drafted this round (server-managed; cleared at endRound) —
      *  drawn as the desktop-style stack beside the draftWait banner. */
@@ -1672,6 +1668,11 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
+      // A draft beat (hero landing / the research rise) owns the moment —
+      // the bar advertises only the skip (any button skips).
+      if (draftPickBeatActive() || riseSceneEngaged()) {
+        return [{control: 'confirm', label: 'Skip'}];
+      }
       if (this.draftWaitActive) {
         // Nothing to decide — the board stays inspectable while others pick.
         const cmds: Array<ConsoleCommand> = [];
@@ -2179,7 +2180,11 @@ export default defineComponent({
     // changed), clamp transient indices to the fresh lists.
     playerView: {
       immediate: true,
-      handler() {
+      handler(newView: PlayerViewModel, oldView: PlayerViewModel | undefined) {
+        // Draft tray: mark a live pick beat answered, reconcile optimistic
+        // state, and ARM the research-rise scene on the draft→buy
+        // transition (pre-flush — the buy frame mounts already knowing).
+        observeDraftTransition(oldView, newView);
         // Government Support scale-focus gate: if the last action was a WGT
         // parameter raise, HOLD the next modal for a beat so the board scale
         // glide (+ top-HUD delta chip) is seen in one focused place. Snap to
@@ -2431,6 +2436,15 @@ export default defineComponent({
       if (action === 'fullscreen' &&
           this.consoleState.confirm === undefined && !this.consoleCardActionsUi.confirmOpen) {
         this.toggleInfoMode();
+        return true;
+      }
+      // DRAFT PICK BEAT (the hero flying into the tray): the host may have
+      // already unmounted under it (the response was draftWait) — swallow
+      // everything, a press skips to the final state. Bounded (<1s).
+      if (draftPickBeatActive()) {
+        if (intent.kind === 'press') {
+          skipDraftPickBeat();
+        }
         return true;
       }
       // Draft re-pick WAITING: the pad is otherwise idle (the board stays

@@ -97,3 +97,70 @@ export const DECK_SCALE = 0.36;
 
 /** Reduced-motion fallback: short staggered reveal (no proxies, no flight). */
 export const REDUCED_REVEAL_STEP_MS = 30;
+
+/* ── The RESEARCH RISE — the draft→research phase transition scene ──────
+ * The drafted pile physically becomes the research row: the auto-passed
+ * last card(s) ARRIVE into the tray (deck → tray slot, flipping), the
+ * completed set pulses once, then the whole pile LIFTS OFF and each card
+ * flies into its research-row slot; the modal frame materializes AROUND
+ * the landed cards, and only then do the proxies dissolve into the real
+ * interactive cards. Pure numbers here — the director resolves through
+ * motionMs(); reduced motion never reaches it (sequence short-circuits).
+ */
+export type RiseTimings = {
+  /** One arriving card's deck → tray-slot flight (back→face flip). */
+  arrivalFlightMs: number,
+  /** Stagger between several arrivals (rare — usually exactly one). */
+  arrivalStaggerMs: number,
+  /** Settle beat after the last arrival lands, before the pulse. */
+  arrivalSettleMs: number,
+  /** The «set complete» pulse of the whole pile. */
+  pulseMs: number,
+  /** Readable hold after the pulse — the player registers the full set. */
+  setHoldMs: number,
+  /** Group lift-off: the pile comes off the table (staggered). */
+  liftMs: number,
+  liftStaggerMs: number,
+  /** One card's flight tray → research-row slot (grows to row scale). */
+  flightMs: number,
+  flightStaggerMs: number,
+  /** Frame/backdrop materialization around the landed row. */
+  frameMs: number,
+  /** Proxy → real card crossfade after the frame is up. */
+  handoffMs: number,
+};
+
+/** Confident pacing; a wide set (Luna Project Office 5+ buys) tightens. */
+export function riseTimings(cardCount: number): RiseTimings {
+  const wide = cardCount > 6;
+  return {
+    arrivalFlightMs: 420,
+    arrivalStaggerMs: 90,
+    arrivalSettleMs: 100,
+    pulseMs: 220,
+    setHoldMs: 200,
+    liftMs: 160,
+    liftStaggerMs: 40,
+    flightMs: wide ? 380 : 430,
+    flightStaggerMs: wide ? 55 : 75,
+    frameMs: 240,
+    handoffMs: 130,
+  };
+}
+
+/** Launch offset of card i's tray→row flight, from the lift-off start. */
+export function riseFlightDelayMs(index: number, t: RiseTimings): number {
+  return t.liftMs + index * t.flightStaggerMs;
+}
+
+/** Total BASE duration of the rise scene (safety-timeout budget). */
+export function riseTotalMs(cardCount: number, arrivals: number, t: RiseTimings): number {
+  if (cardCount <= 0) {
+    return 0;
+  }
+  const arrival = arrivals > 0 ?
+    t.arrivalFlightMs + (arrivals - 1) * t.arrivalStaggerMs + t.arrivalSettleMs : 0;
+  const set = t.pulseMs + t.setHoldMs;
+  const flights = riseFlightDelayMs(cardCount - 1, t) + t.flightMs;
+  return arrival + set + flights + t.frameMs + t.handoffMs;
+}

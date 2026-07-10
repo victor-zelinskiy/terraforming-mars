@@ -302,4 +302,11 @@ body.con-play-modal-open {
     dialog.con-zoom[open]::backdrop { animation: none; }
     dialog.con-zoom .card-zoom-topbar,
     dialog.con-zoom .card-zoom-actions { transition: none; }
+    /* Draft tray + table beat: instant states (the directors already
+       short-circuit; the CSS side must not linger either). */
+    .con-drafttray__pile { animation-duration: 1ms; }
+    .con-drafttray__pile--pulse { animation: none; }
+    .con-drafttray__slot { transition-duration: 1ms; }
+    .con-task-host__backdrop,
+    .con-task { transition-duration: 1ms; }
 }

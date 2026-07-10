@@ -241,6 +241,171 @@ export async function runHeroPick(source: ExitSource, onLift: () => void): Promi
   cleanup(spawned);
 }
 
+export type DraftPickHandle = {
+  /** Jump to the final state (all landings revealed, onDone fired). */
+  skip: () => void,
+};
+
+export type DraftPickToTrayArgs = {
+  /** The chosen card(s) with their live strip slots (multi-keep drafts). */
+  picks: ReadonlyArray<ExitSource>,
+  /** The tray landing slot for a card (polled until mounted + stable). */
+  resolveSlot: (name: CardName) => HTMLElement | null,
+  /** Fires ONCE, the frame the first proxy stands ready (host submits). */
+  onLift: () => void,
+  /** A card touched down — the host reveals its tray slot (once per card). */
+  onLanded: (name: CardName) => void,
+  /** The whole beat is over (fires exactly once, on every path). */
+  onDone: () => void,
+};
+
+/** One stable-rect probe of a tray slot (the transfer-language poll). */
+function stableSlotRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
+  return new Promise((done) => {
+    let tries = 0;
+    let lastSig = '';
+    const poll = () => {
+      tries++;
+      const slot = resolve();
+      const card = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+      const r = card !== null ? card.getBoundingClientRect() : undefined;
+      const ok = r !== undefined && usable(r);
+      const sig = ok ? `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}` : '';
+      if (ok && sig === lastSig) {
+        done(r);
+        return;
+      }
+      lastSig = sig;
+      if (tries < 45) {
+        requestAnimationFrame(poll);
+      } else {
+        done(undefined);
+      }
+    };
+    requestAnimationFrame(poll);
+  });
+}
+
+function tween(el: HTMLElement, vars: gsap.TweenVars): Promise<void> {
+  return new Promise((done) => gsap.to(el, {...vars, onComplete: done}));
+}
+
+/**
+ * THE DRAFT PICK BEAT — the chosen card is a HERO that physically joins
+ * the player's drafted pile: lift + readable rim beat over the strip, then
+ * a shrinking arc INTO the tray slot (held empty until touchdown — the
+ * real mini-card materializes exactly under the proxy). Multi-keep drafts
+ * stagger their heroes; the rejected cards are the host's cheap CSS
+ * discard, sequenced under the hero. Submit fires at onLift — the game
+ * flow is never delayed behind the cinematic.
+ */
+export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
+  let skipped = false;
+  let doneFired = false;
+  const landed = new Set<CardName>();
+  let spawnedAll: Array<Spawned> = [];
+
+  const land = (name: CardName) => {
+    if (!landed.has(name)) {
+      landed.add(name);
+      args.onLanded(name);
+    }
+  };
+  const finish = () => {
+    if (doneFired) {
+      return;
+    }
+    doneFired = true;
+    args.picks.forEach((p) => land(p.name));
+    cleanup(spawnedAll);
+    args.onDone();
+  };
+
+  if (consoleReducedMotionActive()) {
+    args.onLift();
+    finish();
+    return {skip: () => finish()};
+  }
+
+  const totalBudget = motionMs(150 + 110 + 440 + 160) + 900 + motionMs(90) * args.picks.length + 1200;
+  const safety = setTimeout(finish, totalBudget);
+
+  const run = async () => {
+    spawnedAll = await spawnProxies(args.picks, true);
+    args.onLift();
+    if (spawnedAll.length === 0 || skipped) {
+      clearTimeout(safety);
+      finish();
+      return;
+    }
+    // The strip slot empties the frame its hero lifts (no double-vision) —
+    // the round is over for these cards; the frame swap replaces the set.
+    for (const p of args.picks) {
+      const card = p.el.querySelector<HTMLElement>('.card-container') ?? p.el;
+      card.classList.add(HOLD_CLASS);
+    }
+    await Promise.all(spawnedAll.map(async (s, i) => {
+      const name = args.picks[i]?.name;
+      if (name === undefined) {
+        return;
+      }
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, motionMs(90) * i));
+      }
+      if (skipped) {
+        return;
+      }
+      // The hero beat: off the table, rim glowing — "this one".
+      await tween(s.el, {y: s.rect.top - 22, scale: `*=1.06`, rotation: -1.6, duration: motionMs(150) / 1000, ease: 'power2.out'});
+      if (skipped) {
+        return;
+      }
+      // The readable hold rides the slot poll (the tray renders the held
+      // slot in the same flush — the rect is usually ready immediately).
+      const [rect] = await Promise.all([
+        stableSlotRect(() => args.resolveSlot(name)),
+        new Promise((r) => setTimeout(r, motionMs(110))),
+      ]);
+      if (skipped) {
+        return;
+      }
+      if (rect === undefined) {
+        // No believable tray slot — reveal honestly + a quiet dive out.
+        land(name);
+        await tween(s.el, {y: '+=26', scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
+        return;
+      }
+      // The arc into the pile: lateral ease + a soft vertical launch, the
+      // card SHRINKS to pile scale and settles with a slight overshoot.
+      const scale = rect.width / CARD_NATURAL_W;
+      const flight = motionMs(440) / 1000;
+      const tl = gsap.timeline();
+      tl.to(s.el, {x: rect.left, duration: flight, ease: 'power1.inOut'}, 0);
+      tl.to(s.el, {y: rect.top, duration: flight, ease: 'power2.inOut'}, 0);
+      tl.to(s.el, {scale, duration: flight, ease: 'back.out(1.1)'}, 0);
+      tl.to(s.el, {rotation: 0, duration: flight * 0.7, ease: 'power2.out'}, 0);
+      await new Promise((r) => tl.eventCallback('onComplete', () => r(undefined)).play());
+      if (skipped) {
+        return;
+      }
+      land(name); // the real mini-card materializes under the proxy
+      await tween(s.el, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
+    }));
+    clearTimeout(safety);
+    finish();
+  };
+  void run();
+
+  return {
+    skip: () => {
+      skipped = true;
+      clearTimeout(safety);
+      spawnedAll.forEach((s) => gsap.killTweensOf(s.el));
+      finish();
+    },
+  };
+}
+
 /**
  * The subdued DISCARD of non-chosen cards — a cheap CSS animation on the
  * REAL slots (class + per-slot delay), never proxies: they drift toward

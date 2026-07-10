@@ -375,22 +375,140 @@
     50% { opacity: 0.35; }
 }
 
-/* ── Draft re-pick suppression: the calm "waiting for others" banner ───
-   The fork does NOT surface the server's optional re-pick; this two-line
-   glass panel (top-centre, below the status strip) tells the player their
-   pick is locked while the rest of the table chooses. pointer-events: none
-   so the board stays fully inspectable underneath. */
-.con-draftwait {
+/* ── THE DRAFT TRAY — the persistent "selected cards area" of the draft ─
+   ONE physical place (top-centre, below the status strip, ON THE TABLE):
+   dimmed beneath the task modal while the player browses, revealed at the
+   pick beat (the modal chrome dissolves — con-task-host--table-beat) so
+   the chosen card is SEEN landing into it, fully visible during the wait,
+   and the launch pad of the draft→research rise scene. pointer-events:
+   none — the board stays inspectable, the pad grammar lives elsewhere. */
+.con-drafttray {
     position: absolute;
     top: calc(1.2vh + 58px);
     left: 50%;
     transform: translateX(-50%);
-    z-index: 62;
+    z-index: 64;
     pointer-events: none;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    font-family: @con-font;
+
+    &__processing {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 22px;
+        border-radius: 12px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 14px 40px rgba(0, 0, 0, 0.5);
+        font-size: 17px;
+        color: @con-text;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    &__pile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px 14px;
+        border-radius: 12px;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 40%), 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 30px fade(@con-cyan, 8%);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+
+        /* One-shot landing / set-complete acknowledgement. */
+        &--pulse {
+            animation: con-tray-pulse calc(240ms * var(--motion-scale, 1)) ease;
+        }
+        /* The completed set (the rise scene's «НАБОР СОБРАН» beat). */
+        &--complete {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 60%), 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 34px fade(@con-mint, 14%);
+        }
+    }
+    /* The table owns the screen (pick beat / rise) — the tray is the focal
+       object: a slightly stronger rim, no layout change. */
+    &--table &__pile {
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 65%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 38px fade(@con-cyan, 16%);
+    }
+    &--table &__pile--complete {
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 40px fade(@con-mint, 20%);
+    }
+
+    &__head {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    &__label {
+        font-size: 14px;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__pile--complete &__label {
+        color: @con-mint;
+    }
+    &__count {
+        min-width: 24px;
+        padding: 1px 9px;
+        border-radius: 999px;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
+        color: @con-text;
+        font-size: 15px;
+        font-weight: 800;
+        text-align: center;
+    }
+    /* Overlapping fan — reads as a neat stack, compact in height; X opens
+       the full read-only browser (wait state). */
+    &__stack {
+        display: flex;
+        align-items: flex-start;
+        padding-left: 22px; /* offset for the negative-margin overlap */
+    }
+    &__slot {
+        margin-left: -22px;
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+        /* The deal-language handoff: releasing .con-deal-hold rides THIS
+           fade — the landed card materializes under its proxy. */
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+
+        &:first-child { margin-left: 0; }
+        > .card-container { margin: 0; zoom: 0.32; }
+    }
+    /* Big piles (initial draft iterations) overlap tighter — bounded width. */
+    &__stack--dense {
+        padding-left: 46px;
+        .con-drafttray__slot { margin-left: -46px; }
+        .con-drafttray__slot:first-child { margin-left: 0; }
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: @con-text-dim;
+    }
+}
+@keyframes con-tray-pulse {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.035); }
+    100% { transform: scale(1); }
+}
+
+/* ── Draft re-pick suppression: the calm "waiting for others" banner ───
+   Lives INSIDE the draft tray now (one physical place with the pile);
+   keeps its own root class — it is the draftWait serving surface the
+   leak detector checks. */
+.con-draftwait {
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
     padding: 14px 26px 16px;
     border-radius: 12px;
     background: @con-glass;
@@ -398,11 +516,6 @@
     font-family: @con-font;
     animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
-    &__main {
-        display: inline-flex;
-        align-items: center;
-        gap: 14px;
-    }
     &__pulse {
         flex-shrink: 0;
         width: 12px;
@@ -426,61 +539,6 @@
     }
     &__sub {
         font-size: 16px;
-        color: @con-text-dim;
-    }
-
-    /* ── DRAFTED CARDS stack (desktop pile → console glass) ─────────── */
-    &__pile {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        padding-top: 10px;
-        border-top: 1px solid fade(@con-cyan, 20%);
-    }
-    &__pile-head {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-    }
-    &__pile-label {
-        font-size: 14px;
-        letter-spacing: 1.6px;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__pile-count {
-        min-width: 24px;
-        padding: 1px 9px;
-        border-radius: 999px;
-        background: fade(@con-cyan, 14%);
-        box-shadow: inset 0 0 0 1px fade(@con-cyan, 50%);
-        color: @con-text;
-        font-size: 15px;
-        font-weight: 800;
-        text-align: center;
-    }
-    /* Overlapping fan — reads as a neat stack, compact in height; X opens the
-       full read-only browser to inspect each card. */
-    &__pile-stack {
-        display: flex;
-        align-items: flex-start;
-        padding-left: 22px; /* offset for the negative-margin overlap */
-    }
-    &__pile-slot {
-        margin-left: -22px;
-        border-radius: 8px;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
-        transition: transform calc(160ms * var(--motion-scale, 1)) ease;
-
-        &:first-child { margin-left: 0; }
-        > .card-container { margin: 0; zoom: 0.32; }
-    }
-    &__pile-hint {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 14px;
         color: @con-text-dim;
     }
 }
@@ -7143,6 +7201,24 @@ html.console-mode {
         position: absolute;
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    }
+
+    /* THE TABLE BEAT (draft pick / research rise — consoleDraftTray.ts):
+       the modal layer DISSOLVES so the table underneath — the drafted
+       tray, the landing card, the rising pile — owns the screen; releasing
+       the class IS the frame materialization around the fresh content.
+       `!important` beats the con-rise entry animation by cascade (the same
+       trick as .con-deal-hold), so a frame mounted mid-beat can never
+       flash before its cards arrive. Opacity/transform only — no layout. */
+    &--table-beat {
+        .con-task-host__backdrop {
+            opacity: 0.28; /* a light veil keeps the tray focal, board readable */
+        }
+        .con-task {
+            opacity: 0 !important;
+            pointer-events: none;
+        }
     }
 }
 
@@ -7159,6 +7235,7 @@ html.console-mode {
     font-family: @con-font;
     color: @con-text;
     animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
 
     &__head { margin-bottom: 14px; }
     &__kicker {
