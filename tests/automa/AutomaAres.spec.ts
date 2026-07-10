@@ -10,6 +10,10 @@ import {AutomaMAEvaluation} from '../../src/server/automa/AutomaMAEvaluation';
 import {AutomaResolver} from '../../src/server/automa/AutomaResolver';
 import {AutomaTilePlacer} from '../../src/server/automa/AutomaTilePlacer';
 import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
+import {Networker} from '../../src/server/milestones/Networker';
+import {Purifier} from '../../src/server/milestones/Purifier';
+import {Entrepreneur} from '../../src/server/awards/Entrepreneur';
+import {Rugged} from '../../src/server/awards/Rugged';
 import {testAutomaGame} from './AutomaTestGame';
 
 // Tharsis track indexes (THARSIS_MARSBOT_BOARD order).
@@ -261,8 +265,13 @@ describe('AutomaAres', () => {
     expect(game.deferredActions.length).eq(0);
   });
 
-  it('Ares milestones & awards join the set and the bot evaluates them honestly', () => {
+  it('the bot evaluates Ares milestones & awards honestly when they are in play', () => {
     const [game] = aresGame();
+    // vize1215 fork: Ares MAs are no longer force-added to every Ares game — they only enter
+    // through the "Random milestones and awards" pool. Inject them here (as a random draw would)
+    // to verify the bot's evaluation stays honest for the Ares-specific milestones/awards.
+    game.milestones = [...game.milestones, new Networker(), new Purifier()];
+    game.awards = [...game.awards, new Entrepreneur(), new Rugged()];
     expect(game.milestones.map((m) => m.name)).to.include.members(['Networker', 'Purifier']);
     expect(game.awards.map((a) => a.name)).to.include.members(['Entrepreneur', 'Rugged']);
     for (const milestone of game.milestones) {
