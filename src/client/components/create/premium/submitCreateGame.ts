@@ -2,6 +2,7 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {Color} from '@/common/Color';
+import {recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {createGameState, saveCreateGameState} from './createGameState';
 import {buildCreateGamePayloadFromPremiumState} from './buildCreateGamePayload';
 
@@ -31,7 +32,7 @@ export async function submitPremiumCreateGame(): Promise<boolean> {
       headers: {'Content-Type': 'application/json'},
     });
     const text = await res.text();
-    let json: {players?: Array<SimplePlayer>} | undefined;
+    let json: {id?: string, players?: Array<SimplePlayer>} | undefined;
     try {
       json = JSON.parse(text);
     } catch {
@@ -41,6 +42,10 @@ export async function submitPremiumCreateGame(): Promise<boolean> {
       throw new Error('create-failed');
     }
     const creator = json.players.find((p) => p.color === creatorColor) ?? json.players[0];
+    // Creating IS entering — stamp it so the menu's CONTINUE resumes here.
+    if (typeof json.id === 'string') {
+      recordLastGameEntered(json.id);
+    }
     // Deliberate reload at the game boundary — covered by the curtain (P10).
     navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(creator.id), 'expedition');
     return true;

@@ -81,6 +81,9 @@
     <!-- ── Profile editor ──────────────────────────────────────────────── -->
     <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" />
 
+    <!-- ── Language picker (Y) ─────────────────────────────────────────── -->
+    <ConsoleLanguagePicker v-if="overlay === 'language'" ref="language" @close="closeOverlay" />
+
     <!-- ── Quit confirm ────────────────────────────────────────────────── -->
     <div v-if="overlay === 'quit'" class="cm-overlay" role="dialog" :aria-label="$t('Exit the game?')">
       <div class="cm-overlay__card">
@@ -96,6 +99,14 @@
         </div>
       </div>
     </div>
+
+    <footer class="cm-menu__foot">
+      <span class="cm-menu__foot-lang"><GamepadGlyph control="inspect" />{{ $t('Language') }}: {{ currentLangCode }}</span>
+      <span v-if="version !== ''" class="cm-menu__foot-version">
+        <span class="cm-menu__foot-version-tag">{{ $t('version') }}</span>
+        <span class="cm-menu__foot-version-value">{{ version }}</span>
+      </span>
+    </footer>
 
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
   </div>
@@ -135,20 +146,25 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
+import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {joinGamesState, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
+import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import {getPreferences} from '@/client/utils/PreferencesManager';
+import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import raw_settings from '@/genfiles/settings.json';
 import {$t} from '@/client/directives/i18n';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'quit' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'language' | 'quit' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleLanguagePicker},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -161,6 +177,7 @@ export default defineComponent({
       gamesCursor: 0,
       overlay: undefined as MenuOverlay,
       offPad: undefined as (() => void) | undefined,
+      desktopVersion: '',
     };
   },
   computed: {
@@ -179,7 +196,23 @@ export default defineComponent({
       if (mine.length === 0) {
         return undefined;
       }
-      return [...mine].sort((a, b) => b.createdTimeMs - a.createdTimeMs)[0];
+      // Prefer the game the player LAST ENTERED (recorded on every game-enter),
+      // not the newest-created — otherwise a game they created but abandoned
+      // would out-rank the party they actually last sat down at. Fall back to
+      // newest-created when the recorded game is finished / no longer joinable.
+      const lastId = lastGameEntered();
+      const last = lastId !== '' ? mine.find((g) => g.id === lastId) : undefined;
+      return last ?? [...mine].sort((a, b) => b.createdTimeMs - a.createdTimeMs)[0];
+    },
+    version(): string {
+      if (this.desktopVersion !== '') {
+        return this.desktopVersion;
+      }
+      const settingsVersion = (raw_settings as {version?: string}).version;
+      return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
+    },
+    currentLangCode(): string {
+      return String(getPreferences().lang ?? 'ru').toUpperCase();
     },
     items(): ReadonlyArray<MenuItem> {
       const items: Array<MenuItem> = [];
@@ -236,10 +269,20 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
+      if (this.overlay === 'language') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Close'},
+        ];
+      }
+      // No «System» here (fix): the system overlay is an IN-GAME affordance
+      // (view controls / return to menu); at the menu there is nowhere to
+      // return to. Y opens the language picker instead.
       return [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: 'Select'},
-        {control: 'menu', label: 'System'},
+        {control: 'inspect', label: 'Language'},
       ];
     },
   },
@@ -251,6 +294,13 @@ export default defineComponent({
     if (name !== '') {
       void loadJoinableGames(name, {silent: true});
       startJoinPolling();
+    }
+    // Version readout (desktop shell prefers the baked app version; web uses settings.json).
+    const bridge = desktopBridge();
+    if (bridge !== undefined) {
+      void bridge.getVersion().then((v) => {
+        this.desktopVersion = typeof v === 'string' ? v : '';
+      }).catch(() => undefined);
     }
   },
   beforeUnmount() {
@@ -272,6 +322,10 @@ export default defineComponent({
           this.closeOverlay();
         }
         return true;
+      }
+      if (this.overlay === 'language') {
+        const picker = this.$refs.language as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        return picker?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'games') {
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
@@ -306,6 +360,11 @@ export default defineComponent({
         this.activateAt(this.cursor);
         return true;
       }
+      // Y (physical inspect button) opens the language picker.
+      if (intent.kind === 'press' && intent.button === 'inspect') {
+        this.overlay = 'language';
+        return true;
+      }
       // Swallow the rest — nothing below this screen should react.
       return true;
     },
@@ -326,6 +385,7 @@ export default defineComponent({
       case 'continue': {
         const cont = this.continueItem;
         if (cont?.you !== undefined) {
+          recordLastGameEntered(cont.id);
           navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'expedition');
         }
         break;
@@ -373,6 +433,7 @@ export default defineComponent({
       this.gamesCursor = i;
       const g = this.games[i];
       if (g?.you !== undefined) {
+        recordLastGameEntered(g.id);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(g.you.id), 'expedition');
       }
     },

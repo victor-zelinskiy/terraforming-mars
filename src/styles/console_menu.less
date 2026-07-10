@@ -195,6 +195,84 @@
     transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
 }
 
+/* ── Main-menu footer (language hint + version) ──────────────────── */
+.cm-menu__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 8px 2px;
+    color: @con-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.6px;
+}
+.cm-menu__foot-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.cm-menu__foot-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.cm-menu__foot-version-tag {
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.7;
+}
+.cm-menu__foot-version-value {
+    color: fade(@con-cyan, 80%);
+}
+
+/* ── Language picker ─────────────────────────────────────────────── */
+.cm-langlist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.cm-lang {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 54px;
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(12, 20, 30, 0.85);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 18%);
+    color: @con-text;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &--cursor { box-shadow: inset 0 0 0 2px fade(@con-cyan, 85%), 0 0 16px fade(@con-cyan, 22%); }
+    &--current { box-shadow: inset 0 0 0 1px fade(@cm-gold, 55%); }
+    &--current&--cursor { box-shadow: inset 0 0 0 2px fade(@cm-gold, 85%), 0 0 16px fade(@cm-gold, 26%); }
+}
+.cm-lang__code {
+    width: 44px;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: fade(@con-cyan, 90%);
+    .cm-lang--current & { color: @cm-gold; }
+}
+.cm-lang__name {
+    flex: 1;
+    font-size: 18px;
+    letter-spacing: 0.4px;
+}
+.cm-lang__current-tag {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: fade(@cm-gold, 14%);
+    box-shadow: inset 0 0 0 1px fade(@cm-gold, 55%);
+    color: @cm-gold;
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+}
+
 /* ── Overlays (shared) ───────────────────────────────────────────── */
 .cm-overlay {
     position: fixed;

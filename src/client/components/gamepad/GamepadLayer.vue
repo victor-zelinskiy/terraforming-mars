@@ -254,7 +254,13 @@ export default defineComponent({
         } else if (this.legendOpen) {
           this.legendOpen = false;
         } else if (this.consoleModeState.enabled) {
-          this.systemMenuOpen ? this.closeSystemMenu() : this.openSystemMenu();
+          // The SYSTEM overlay (view controls / return to menu) is an IN-GAME
+          // affordance — at the lifecycle screens (menu / create / lobby)
+          // there is nowhere to "return to", so a short Menu press does
+          // nothing there (hold-to-toggle-mode above still applies).
+          if (this.screen === 'player-home') {
+            this.systemMenuOpen ? this.closeSystemMenu() : this.openSystemMenu();
+          }
         } else {
           this.legendOpen = true;
         }
