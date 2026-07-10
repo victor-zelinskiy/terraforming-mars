@@ -49,6 +49,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {reducedMotionActive} from '@/client/utils/reducedMotion';
 
 type AccentName = 'temperature' | 'oxygen' | 'venus' | 'oceans';
 
@@ -608,10 +609,7 @@ export default defineComponent({
       }, motionMs(SETTLE_DURATION_MS));
     },
     prefersReducedMotion(): boolean {
-      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-        return false;
-      }
-      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return reducedMotionActive();
     },
     onResize(): void {
       this.snapshotAnchors();

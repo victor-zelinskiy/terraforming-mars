@@ -43,22 +43,8 @@ import {ParticipantId} from '@/common/Types';
 import {Color} from '@/common/Color';
 import {playerSymbol} from '@/client/utils/playerSymbol';
 import {gameDocumentTitle} from '../utils/documentTitle';
+import {refAutoReset, useClipboard} from '@vueuse/core';
 
-// taken from https://stackoverflow.com/a/46215202/83336
-// The solution to copying to the clipboard in this case is
-// 1. create a dummy input
-// 2. add the copied text as a value
-// 3. select the input
-// 4. execute document.execCommand('copy') which does the clipboard thing
-// 5. remove the dummy input
-function copyToClipboard(text: string): void {
-  const input = document.createElement('input');
-  input.setAttribute('value', text);
-  document.body.appendChild(input);
-  input.select();
-  document.execCommand('copy');
-  document.body.removeChild(input);
-}
 const DEFAULT_COPIED_PLAYER_ID = '-1';
 
 export default defineComponent({
@@ -74,11 +60,14 @@ export default defineComponent({
     'game-setup-detail': GameSetupDetail,
     PurgeWarning,
   },
-  data() {
-    return {
-      // Variable to keep the state for the current copied player id. Used to display message of which button and which player playable link is currently in the clipboard
-      urlCopiedPlayerId: DEFAULT_COPIED_PLAYER_ID,
-    };
+  setup() {
+    // VueUse clipboard (navigator.clipboard with the execCommand legacy fallback
+    // for older browsers) + a self-resetting "which player id is copied" flag
+    // that returns to the default 3s after the last copy (was a leaking
+    // setInterval + a hand-rolled execCommand dance).
+    const {copy: clipboardCopy} = useClipboard({legacy: true});
+    const urlCopiedPlayerId = refAutoReset(DEFAULT_COPIED_PLAYER_ID, 3000);
+    return {clipboardCopy, urlCopiedPlayerId};
   },
   methods: {
     getGameId(): string {
@@ -97,9 +86,6 @@ export default defineComponent({
         return 'n/a';
       }
     },
-    setCopiedIdToDefault() {
-      this.urlCopiedPlayerId = DEFAULT_COPIED_PLAYER_ID;
-    },
     getPlayerCubeColorClass(color: Color): string {
       return playerColorClass(color, 'bg');
     },
@@ -115,8 +101,8 @@ export default defineComponent({
       }
       // Get current location path without game?id=xxxxxxx
       const path = window.location.href.replace(/game\?id=.*/, '');
-      copyToClipboard(path + this.getHref(playerId));
-      this.urlCopiedPlayerId = playerId;
+      void this.clipboardCopy(path + this.getHref(playerId));
+      this.urlCopiedPlayerId = playerId; // refAutoReset returns it to default after 3s
     },
     isPlayerUrlCopied(playerId: string): boolean {
       return playerId === this.urlCopiedPlayerId;
@@ -126,8 +112,6 @@ export default defineComponent({
     },
   },
   mounted() {
-    // Reset the copied player id after 3 seconds to hide the "copied" message
-    setInterval(this.setCopiedIdToDefault, 3000);
     document.title = gameDocumentTitle(this.game);
   },
 });

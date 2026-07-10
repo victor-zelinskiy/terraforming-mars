@@ -148,6 +148,7 @@ import PlacementBanner from '@/client/components/PlacementBanner.vue';
 import {setModalPickerActive} from '@/client/components/placementLockState';
 import {makeDraggable, DraggableController, DraggablePosition} from '@/client/components/draggable';
 import {acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
+import {notificationBus} from '@/client/components/notifications/notificationBus';
 
 // Injection key for the picker-mode setter exposed by the modal to its
 // descendants. A nested OrOptions whose selected option is a board-picker
@@ -395,12 +396,12 @@ export default defineComponent({
     // The premium notification system's "Go to action" CTA fires this when a
     // mandatory prompt is pending but minimized — restore the modal so the
     // player can act. No-op when already expanded.
-    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    (this as unknown as {__notifOff: () => void}).__notifOff = notificationBus.goToAction.on(this.onNotificationGoToAction);
   },
   beforeUnmount() {
     this.releaseLease?.();
     this.releaseLease = undefined;
-    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    (this as unknown as {__notifOff?: () => void}).__notifOff?.();
     document.documentElement.classList.remove('mandatory-input-modal-open');
     document.body.classList.remove('mandatory-input-modal-open');
     if (this.enterTimer !== undefined) {

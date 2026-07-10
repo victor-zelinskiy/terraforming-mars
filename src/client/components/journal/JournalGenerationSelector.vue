@@ -1,5 +1,5 @@
 <template>
-  <div class="journal-genselect" :class="{'journal-genselect--open': open}">
+  <div ref="root" class="journal-genselect" :class="{'journal-genselect--open': open}">
     <button
       ref="trigger"
       type="button"
@@ -52,7 +52,8 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, nextTick} from 'vue';
+import {defineComponent, nextTick, ref} from 'vue';
+import {onClickOutside} from '@vueuse/core';
 
 /**
  * Modern, fully custom generation dropdown for the journal header.
@@ -63,7 +64,6 @@ import {defineComponent, nextTick} from 'vue';
  * current generation sits at the top.
  */
 type DataModel = {
-  open: boolean;
   activeIndex: number;
 };
 
@@ -81,9 +81,18 @@ export default defineComponent({
     },
   },
   emits: ['select'],
+  setup() {
+    // VueUse outside-click: closes the dropdown when the pointer lands outside
+    // its root (was a manual capture-phase document mousedown listener).
+    const root = ref<HTMLElement>();
+    const open = ref(false);
+    onClickOutside(root, () => {
+      open.value = false;
+    });
+    return {root, open};
+  },
   data(): DataModel {
     return {
-      open: false,
       activeIndex: 0,
     };
   },
@@ -144,20 +153,6 @@ export default defineComponent({
       }
       nextTick(() => (this.$refs.trigger as HTMLElement | undefined)?.focus());
     },
-    onOutsidePointer(e: MouseEvent): void {
-      if (!this.open) {
-        return;
-      }
-      if (!(this.$el as HTMLElement).contains(e.target as Node)) {
-        this.open = false;
-      }
-    },
-  },
-  mounted(): void {
-    document.addEventListener('mousedown', this.onOutsidePointer, true);
-  },
-  beforeUnmount(): void {
-    document.removeEventListener('mousedown', this.onOutsidePointer, true);
   },
 });
 </script>

@@ -20,11 +20,19 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   без отдельного решения.
 - **Разрешено напрямую в любом коде:** `useEventListener`, `useResizeObserver`,
   `useDebounceFn`, `useThrottleFn`, `useElementBounding`, `tryOnScopeDispose`,
-  `createGlobalState`.
+  `createGlobalState`, `onClickOutside`, `useClipboard`, `useScroll`,
+  `useIntervalFn` / `useTimeoutFn`, `refAutoReset`, `watchDebounced` /
+  `watchThrottled`. Приняты после аудита фактических hand-rolled паттернов
+  (2026-07-10) — см. «Принятые в форк» ниже.
 - **Только через adapter (не звать напрямую из компонентов):**
   - `useScrollLock` → `consoleNativeSurface.ts` (page-lock — единая политика, не
     per-component);
-  - `usePreferredReducedMotion` → `useConsoleReducedMotion.ts`;
+  - `usePreferredReducedMotion` → `src/client/utils/reducedMotion.ts` (ОДИН
+    реактивный источник fork-wide; `changeFeedbackManager.prefersReducedMotion` и
+    console `useConsoleReducedMotion` теперь ДЕЛЕГИРУЮТ туда — не свой matchMedia);
+  - `useEventBus` → `src/client/components/notifications/notificationBus.ts`
+    (типизированная замена `tm-notification-*` window-CustomEvents; ключи в одном
+    модуле, `.on()` авто-cleanup);
   - `useMediaQuery` / `useWindowSize` → `useConsoleViewport.ts`;
   - `useMagicKeys` / `onKeyStroke` — **не используем вовсе**: консоли нужен
     `e.code`-маппинг с управляемым `preventDefault`/`stopImmediatePropagation` и единой
@@ -198,6 +206,51 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   DOM-focus based); Rive — НЕ добавлен (для текущих задач не нужен).
 - Своё сильнее generic: `gamepadPollModel`/`gamepadCore` (НЕ `useGamepad`),
   `consoleActionModel` keyboard-map (НЕ `useMagicKeys`) — не заменять.
+
+### Принятые в форк (аудит 2026-07-10 — реестр сайтов)
+
+Забраны после аудита РЕАЛЬНЫХ hand-rolled паттернов (не по каталогу фич). Всё из
+`@vueuse/core` (установлен), tree-shakeable — новых пакетов ноль.
+- **`useClipboard`** — GameHome (убран ручной `execCommand('copy')`-танец +
+  leaking `setInterval` через `refAutoReset`), EndgameResultsOverlay (убран
+  `setTimeout` + navigator.clipboard-ветвление), BugReportDialog (+legacy-fallback).
+- **`onClickOutside`** — 4 dropdown/popover: JournalFilterSelector,
+  JournalGenerationSelector, HandCardsFilters (`.hand-sort`), InitialDraftFinalConfirm
+  (`editWrapper`). Паттерн: перенести `open` в setup-ref + `onClickOutside(root, …)`,
+  убрать ручной `document mousedown`-capture. **SlotColorPicker — ОСТАВЛЕН manual**
+  (телепорт-popover со связанным attach/detach mousedown+scroll+resize по open/close —
+  onClickOutside фрагментирует чистый lifecycle).
+- **`useEventBus`** → `notificationBus.ts` — 3 события (`goToAction`/`cancel`/
+  `focusActions`) вместо `tm-notification-*` window-CustomEvents; dispatch в
+  NotificationLayer, listeners в PlayerHome/ConsoleShell/MandatoryInputModal/
+  InitialDraftFlowOverlay (`.on()` → off-handle в beforeUnmount).
+- **`usePreferredReducedMotion`** → `utils/reducedMotion.ts` (ОДИН источник):
+  `changeFeedbackManager.prefersReducedMotion` делегирует (был cache-forever
+  snapshot — теперь LIVE), 5 hand-rolled matchMedia убраны (AnimatedScaleMarker,
+  aresMarkerGlide, hazardIntensifyState, ConsoleReveal/StartScene через
+  `consoleReducedMotionActive`); `useConsoleReducedMotion` делегирует (один MQL-listener).
+- **`useIntervalFn`** — GamepadLayer focus-tick (pausable; start/stopTick = resume/pause,
+  авто-pause на unmount). Approved для новых component-scoped таймеров.
+- **`refAutoReset`** — GameHome «какой id скопирован» (авто-сброс 3с).
+
+### Approved-for-new (без форсированной миграции существующего)
+- **`useElementBounding`** — уже в `useConsoleFocusFrame`; существующие reposition-
+  popover (SpecialCellInfoOverlay/FinalScoringReveal/scaleTooltipState) — perf-tuned
+  rAF, мигрировать по мере касания.
+- **`useScroll`** — для нового scroll-position. **JournalFeed — DEFER**: `atBottom`
+  и derived, и ИМПЕРАТИВНО ставится после программного smooth-scroll (мост через
+  in-flight анимацию); read-only `arrivedState` вернёт race при append во время скролла.
+- **`useIntervalFn`/`useTimeoutFn`** — component-scoped таймеры (module-level поллы —
+  `joinGamesState`/`realtimeService` — меньше выигрыша, нет scope).
+
+### Rejected (наше умнее / не фитит — та же дисциплина, что useGamepad)
+- **`useIdle`** — NotificationCard AFK имеет pointer-travel threshold (игнорит 1px-
+  дрожь) + inputModeState гистерезис; наивный event-reset регрессирует.
+- **`useFullscreen`** — `consoleModeState` держит gesture-retry (геймпад-ввод не даёт
+  trusted-activation в Chromium → arm one-shot на след. trusted-жест); useFullscreen молча провалится.
+- **`useTitle`** — `documentTitle.ts` тривиален; `WaitingFor` title мигает через interval.
+- **`useDraggable`** — наш `draggable.ts` = click-vs-drag threshold + suppress-click +
+  viewport-clamp; useDraggable не покрывает.
 
 ## §10. Card deal cinematic + selection motion (карточные экраны)
 

@@ -299,7 +299,8 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, nextTick, PropType} from 'vue';
+import {defineComponent, nextTick, PropType, ref} from 'vue';
+import {onClickOutside} from '@vueuse/core';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {CardModel} from '@/common/models/CardModel';
@@ -316,7 +317,6 @@ type EditStep = 'corp' | 'prelude' | 'ceo' | 'projects';
 
 type DataModel = {
   zoomCard: CardModel | undefined;
-  editMenuOpen: boolean;
 };
 
 /*
@@ -386,10 +386,19 @@ export default defineComponent({
     'edit-step': (step: EditStep) =>
       step === 'corp' || step === 'prelude' || step === 'ceo' || step === 'projects',
   },
+  setup() {
+    // VueUse outside-click on the edit-menu wrapper — closes when the pointer
+    // lands outside it (was a manual capture-phase document mousedown listener).
+    const editWrapper = ref<HTMLElement>();
+    const editMenuOpen = ref(false);
+    onClickOutside(editWrapper, () => {
+      editMenuOpen.value = false;
+    });
+    return {editWrapper, editMenuOpen};
+  },
   data(): DataModel {
     return {
       zoomCard: undefined,
-      editMenuOpen: false,
     };
   },
   computed: {
@@ -466,19 +475,6 @@ export default defineComponent({
      * bubble дошёл бы до document. Кнопка-тоггл сама использует
      * `@click.stop`, чтобы её клик не закрывал меню сразу же.
      */
-    onDocumentMousedown(event: MouseEvent): void {
-      if (!this.editMenuOpen) {
-        return;
-      }
-      const wrapper = this.$refs.editWrapper as HTMLElement | undefined;
-      if (wrapper === undefined) {
-        return;
-      }
-      const target = event.target;
-      if (target instanceof Node && !wrapper.contains(target)) {
-        this.editMenuOpen = false;
-      }
-    },
     /*
      * Adaptive layout pass — для каждой horizontal стопки замеряем
      * доступную ширину контейнера + ширину первой карты, считаем
@@ -583,7 +579,6 @@ export default defineComponent({
     },
   },
   mounted() {
-    document.addEventListener('mousedown', this.onDocumentMousedown, true);
     this.scheduleRecompute();
     window.addEventListener('resize', this.scheduleRecompute);
     // ResizeObserver на корне компонента — реагирует на изменения
@@ -599,7 +594,6 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    document.removeEventListener('mousedown', this.onDocumentMousedown, true);
     window.removeEventListener('resize', this.scheduleRecompute);
     const observer = (this as unknown as {__resizeObserver?: ResizeObserver}).__resizeObserver;
     observer?.disconnect();

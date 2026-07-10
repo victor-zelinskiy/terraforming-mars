@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
+import {reducedMotionActive} from '@/client/utils/reducedMotion';
 
 /**
  * Smooth GLIDE for the Ares scale event markers when their threshold shifts
@@ -24,11 +25,6 @@ const glides: Record<string, Glide> = {};
 // that makes consumer computeds recompute while a glide is in flight.
 const tickState = reactive({frame: 0});
 let rafId = 0;
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 /** Pure easing (cubic in-out) — exported for tests. */
 export function aresGlideEase(t: number): number {
@@ -80,7 +76,7 @@ export function glidedThreshold(id: string, target: number): number {
     return target;
   }
   if (g.target !== target) {
-    if (prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+    if (reducedMotionActive() || typeof requestAnimationFrame !== 'function') {
       g.value = g.from = target;
       g.target = target;
     } else {

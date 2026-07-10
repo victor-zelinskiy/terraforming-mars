@@ -94,7 +94,7 @@
           <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10 L1.5 2.5 L10.5 2.5 Z"/></svg>
         </button>
       </div>
-      <div class="hand-sort" :class="{'hand-sort--open': sortOpen}">
+      <div ref="sort" class="hand-sort" :class="{'hand-sort--open': sortOpen}">
         <button
           ref="sortTrigger"
           type="button"
@@ -126,7 +126,8 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, ref} from 'vue';
+import {onClickOutside} from '@vueuse/core';
 import {AvailabilityChip, HandFilterState, HandSortMode, HandTagChip, HandTypeChip} from '@/client/components/handCards/handCardModel';
 import {translateText} from '@/client/directives/i18n';
 
@@ -168,9 +169,19 @@ export default defineComponent({
     },
   },
   emits: ['availability', 'toggle-type', 'toggle-tag', 'sort', 'sort-dir'],
+  setup() {
+    // VueUse outside-click on the SORT dropdown region (`.hand-sort`) — closes
+    // when the pointer lands outside it, including on the other filter chips
+    // (was a manual document mousedown listener querying `.hand-sort`).
+    const sort = ref<HTMLElement>();
+    const sortOpen = ref(false);
+    onClickOutside(sort, () => {
+      sortOpen.value = false;
+    });
+    return {sort, sortOpen};
+  },
   data() {
     return {
-      sortOpen: false,
       sortOptions: SORT_OPTIONS,
     };
   },
@@ -202,21 +213,6 @@ export default defineComponent({
       this.sortOpen = false;
       this.$emit('sort', value);
     },
-    onOutsidePointer(e: MouseEvent): void {
-      if (!this.sortOpen) {
-        return;
-      }
-      const sort = this.$el?.querySelector?.('.hand-sort');
-      if (sort && !sort.contains(e.target as Node)) {
-        this.sortOpen = false;
-      }
-    },
-  },
-  mounted(): void {
-    document.addEventListener('mousedown', this.onOutsidePointer, true);
-  },
-  beforeUnmount(): void {
-    document.removeEventListener('mousedown', this.onOutsidePointer, true);
   },
 });
 </script>

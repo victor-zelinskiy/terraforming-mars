@@ -561,6 +561,7 @@ import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {notificationBus} from '@/client/components/notifications/notificationBus';
 import {
   ConvertPlantsMatch,
   findAwardOptionPath,
@@ -4177,10 +4178,12 @@ export default defineComponent({
     // console mode from here on — see ArcScale.mouseTooltipsSuppressed).
     hideScaleTooltip();
     startConsoleLeakDetector(() => this.playerView);
-    // T6: the notification CTAs dispatch window events; PlayerHome's
-    // listeners don't exist in console — the shell answers them instead.
-    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
-    window.addEventListener('tm-notification-cancel', this.onNotificationCancel);
+    // T6: the notification CTAs go through the typed notificationBus;
+    // PlayerHome's listeners don't exist in console — the shell answers them.
+    (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
+      notificationBus.goToAction.on(this.onNotificationGoToAction),
+      notificationBus.cancel.on(this.onNotificationCancel),
+    ];
   },
   beforeUnmount() {
     this.offIntent?.();
@@ -4194,8 +4197,7 @@ export default defineComponent({
     resetGovScaleFocus();
     releaseZoomMotion();
     document.body.classList.remove('con-zoom-open');
-    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
-    window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
+    (this as unknown as {__notifOff?: Array<() => void>}).__notifOff?.forEach((off) => off());
   },
 });
 </script>

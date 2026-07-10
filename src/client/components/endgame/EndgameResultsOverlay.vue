@@ -114,6 +114,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useClipboard} from '@vueuse/core';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
@@ -154,8 +155,11 @@ export default defineComponent({
     view: {type: Object as () => ViewModel, required: true},
     viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
   },
-  data() {
-    return {copied: false};
+  setup() {
+    // VueUse clipboard: `copied` stays true for 2s after a copy, then auto-resets
+    // (was a hand-rolled navigator.clipboard branch + setTimeout).
+    const {copy: clipboardCopy, copied} = useClipboard({legacy: true, copiedDuring: 2000});
+    return {clipboardCopy, copied};
   },
   computed: {
     activeTab(): EndgameTab {
@@ -225,18 +229,7 @@ export default defineComponent({
       minimizeEndgameResults();
     },
     copyLink(): void {
-      const url = window.location.href;
-      const done = () => {
-        this.copied = true;
-        window.setTimeout(() => {
-          this.copied = false;
-        }, 2000);
-      };
-      if (navigator.clipboard !== undefined) {
-        navigator.clipboard.writeText(url).then(done).catch(() => done());
-      } else {
-        done();
-      }
+      void this.clipboardCopy(window.location.href); // `copied` flips true for 2s
     },
     onKeydown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {

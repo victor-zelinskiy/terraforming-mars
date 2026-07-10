@@ -345,6 +345,7 @@ import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/comm
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
@@ -365,10 +366,6 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -726,7 +723,7 @@ export default defineComponent({
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
-      if (prefersReducedMotion()) {
+      if (consoleReducedMotionActive()) {
         return {};
       }
       return {animationDelay: `calc(${Math.min(i, 12) * 55}ms * var(--motion-scale, 1))`};

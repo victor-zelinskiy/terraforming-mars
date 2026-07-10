@@ -173,6 +173,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, markAllTaken, markCardTaken,
@@ -181,10 +182,6 @@ import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
 
@@ -371,7 +368,7 @@ export default defineComponent({
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
-      if (prefersReducedMotion()) {
+      if (consoleReducedMotionActive()) {
         return {};
       }
       return {animationDelay: `calc(${Math.min(i, 12) * 55}ms * var(--motion-scale, 1))`};

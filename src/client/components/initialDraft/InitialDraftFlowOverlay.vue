@@ -129,6 +129,7 @@ import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {initialDraftSharedState, isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
+import {notificationBus} from '@/client/components/notifications/notificationBus';
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
 
@@ -820,10 +821,10 @@ export default defineComponent({
     },
   },
   mounted() {
-    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    (this as unknown as {__notifOff: () => void}).__notifOff = notificationBus.goToAction.on(this.onNotificationGoToAction);
   },
   beforeUnmount() {
-    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
+    (this as unknown as {__notifOff?: () => void}).__notifOff?.();
     if (typeof document !== 'undefined') {
       document.body.classList.remove(BODY_CLASS);
     }

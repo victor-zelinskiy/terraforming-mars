@@ -1,5 +1,6 @@
 import {HAZARD_STEPS, hazardSeverity} from '@/common/AresTileType';
 import {TileType} from '@/common/TileType';
+import {reducedMotionActive} from '@/client/utils/reducedMotion';
 
 /**
  * One-shot "hazard intensified" (mild → severe) animation tracker. A planetary
@@ -24,11 +25,6 @@ function nowMs(): number {
   return typeof performance !== 'undefined' ? performance.now() : 0;
 }
 
-function reducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /** 0 (none) / 1 (mild) / 2 (severe). */
 export function hazardSeverityLevel(tileType: TileType | undefined): number {
   return HAZARD_STEPS[hazardSeverity(tileType)];
@@ -50,7 +46,7 @@ export function hazardIntensifyElapsed(spaceId: string, tileType: TileType | und
     // A 0 → mild/severe rise is an APPEARANCE, not a strengthening — no pulse.
     const wasHazard = c.severity >= 1;
     c.severity = severity;
-    c.start = wasHazard && !reducedMotion() ? nowMs() : 0;
+    c.start = wasHazard && !reducedMotionActive() ? nowMs() : 0;
   } else if (severity !== c.severity) {
     c.severity = severity;
     c.start = 0;

@@ -753,6 +753,7 @@ import WaitingFor from '@/client/components/WaitingFor.vue';
 import Sidebar from '@/client/components/Sidebar.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
 import {journalState} from '@/client/components/journal/journalState';
+import {notificationBus} from '@/client/components/notifications/notificationBus';
 import {configureBoardInfo} from '@/client/components/board/boardInfoState';
 import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import GameBoardView from '@/client/components/GameBoardView.vue';
@@ -1480,13 +1481,14 @@ export default defineComponent({
     // hand / award / standard-project prompt is minimized to its pill, restore
     // it so the player can act. (A minimized generic modal restores itself via
     // its own listener; this covers the dedicated-overlay pills.)
-    window.addEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
-    window.addEventListener('tm-notification-cancel', this.onNotificationCancel);
+    (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [
+      notificationBus.goToAction.on(this.onNotificationGoToAction),
+      notificationBus.cancel.on(this.onNotificationCancel),
+    ];
     this.syncBoardInfo();
   },
   beforeUnmount() {
-    window.removeEventListener('tm-notification-go-to-action', this.onNotificationGoToAction);
-    window.removeEventListener('tm-notification-cancel', this.onNotificationCancel);
+    (this as unknown as {__notifOff?: Array<() => void>}).__notifOff?.forEach((off) => off());
     document.removeEventListener('click', this.handleOutsideOverlayClick);
     /* Defensive cleanup — if PlayerHome unmounts mid-placement (e.g.
      * navigation, game-over reroute), don't leave the lock state behind:

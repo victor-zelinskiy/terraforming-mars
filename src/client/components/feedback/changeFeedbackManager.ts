@@ -42,6 +42,7 @@
  */
 
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {reducedMotionActive} from '@/client/utils/reducedMotion';
 
 export interface FeedbackEvent {
   readonly delta: number;
@@ -234,20 +235,12 @@ function currentTimestamp(): number {
 export const changeFeedbackManager = new ChangeFeedbackManager();
 
 /**
- * Detect prefers-reduced-motion in a browser-safe way. SSR / tests
- * default to false (no reduced motion). Memoised because the media
- * query never changes within a session and a hot poll loop shouldn't
- * pay for matchMedia repeatedly.
+ * Detect prefers-reduced-motion. Delegates to the ONE reactive source
+ * (`utils/reducedMotion` on VueUse `usePreferredReducedMotion`) — kept here
+ * under its historical name so the many existing importers stay unchanged. It
+ * is now LIVE (reflects an OS-setting change mid-session) instead of the old
+ * cache-forever snapshot, and still O(1) per read (safe for hot loops).
  */
-let cachedReducedMotion: boolean | undefined;
 export function prefersReducedMotion(): boolean {
-  if (cachedReducedMotion !== undefined) {
-    return cachedReducedMotion;
-  }
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    cachedReducedMotion = false;
-    return false;
-  }
-  cachedReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return cachedReducedMotion;
+  return reducedMotionActive();
 }

@@ -68,6 +68,7 @@
  * `gamepad_enabled` preference — invariant 2.
  */
 import {defineComponent} from 'vue';
+import {useIntervalFn} from '@vueuse/core';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {gamepadCoreState, installGamepadCore, onGamepadIntent, uninstallGamepadCore} from '@/client/gamepad/gamepadCore';
 import {clearGamepadFocus, focusState, gamepadFocusTick, handleGamepadIntent} from '@/client/gamepad/focusEngine';
@@ -135,6 +136,13 @@ export default defineComponent({
     /** The App screen — drives lifecycle context (system menu labels, hints). */
     screen: {type: String, default: ''},
   },
+  setup() {
+    // VueUse pausable interval for the focus-validity tick (was a hand-managed
+    // setInterval + clearInterval + tickTimer guard). start/stopTick just
+    // resume/pause it; it also auto-pauses on unmount (belt-and-braces).
+    const focusTick = useIntervalFn(() => gamepadFocusTick(), FOCUS_TICK_MS, {immediate: false});
+    return {focusTick};
+  },
   data() {
     return {
       inputModeState,
@@ -154,7 +162,6 @@ export default defineComponent({
       intentLog: [] as Array<string>,
       offIntent: undefined as (() => void) | undefined,
       offMode: undefined as (() => void) | undefined,
-      tickTimer: undefined as number | undefined,
       lastPadsSeen: 0,
       menuPressedAt: undefined as number | undefined,
     };
@@ -377,16 +384,10 @@ export default defineComponent({
       }
     },
     startTick(): void {
-      if (this.tickTimer !== undefined) {
-        return;
-      }
-      this.tickTimer = window.setInterval(() => gamepadFocusTick(), FOCUS_TICK_MS);
+      this.focusTick.resume(); // VueUse pausable interval (idempotent)
     },
     stopTick(): void {
-      if (this.tickTimer !== undefined) {
-        window.clearInterval(this.tickTimer);
-        this.tickTimer = undefined;
-      }
+      this.focusTick.pause();
     },
     showToast(text: string): void {
       this.toast = text;

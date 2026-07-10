@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
+import {reducedMotionActive} from '@/client/utils/reducedMotion';
 
 /**
  * turnHandoffState — the TurnHandoff presentation layer.
@@ -101,12 +102,6 @@ function clearTimer(id: number | undefined): undefined {
   return undefined;
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 // ── Pure decision core (unit-tested) ────────────────────────────────────────
 
 export type TurnTransition =
@@ -153,7 +148,7 @@ export function noteTurnState(input: {
   reducedMotion?: boolean;
 }): void {
   turnHandoffState.localColor = input.localColor;
-  const reduced = input.reducedMotion ?? prefersReducedMotion();
+  const reduced = input.reducedMotion ?? reducedMotionActive();
   const transition = decideTurnTransition(turnHandoffState.currentOwner, input.owner, turnHandoffState.seeded);
 
   switch (transition.kind) {
@@ -281,7 +276,7 @@ export function registerTurnInput(): void {
  * reduced-motion.
  */
 function fireCtaPulse(): void {
-  if (typeof document === 'undefined' || prefersReducedMotion()) {
+  if (typeof document === 'undefined' || reducedMotionActive()) {
     return;
   }
   cardCtaPulseTimer = clearTimer(cardCtaPulseTimer);

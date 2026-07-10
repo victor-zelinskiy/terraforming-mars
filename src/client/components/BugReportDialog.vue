@@ -19,6 +19,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useClipboard} from '@vueuse/core';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import raw_settings from '@/genfiles/settings.json';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -58,6 +59,12 @@ type Refs = {
 
 export default defineComponent({
   name: 'BugReportDialog',
+  setup() {
+    // VueUse clipboard (navigator.clipboard + execCommand legacy fallback — the
+    // direct writeText here had NO fallback for older browsers).
+    const {copy: clipboardCopy} = useClipboard({legacy: true});
+    return {clipboardCopy};
+  },
   data() {
     return {
       message: '',
@@ -75,7 +82,7 @@ export default defineComponent({
     },
     copyTextArea() {
       this.typedRefs.textarea.select();
-      navigator.clipboard.writeText(this.typedRefs.textarea.value);
+      void this.clipboardCopy(this.typedRefs.textarea.value);
       this.showCopied = true;
     },
     url(playerView: PlayerViewModel | undefined) {

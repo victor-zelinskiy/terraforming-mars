@@ -113,6 +113,7 @@ import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits'
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import {ackBotTurn, setBotAckViewer} from '@/client/components/marsbot/botTurnAck';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
+import {notificationBus} from '@/client/components/notifications/notificationBus';
 import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
 import {consoleModeState} from '@/client/console/consoleModeState';
 
@@ -513,7 +514,7 @@ export default defineComponent({
         // Your turn acknowledged — draw the eye to the action area, then hide
         // the card for the remainder of THIS turn (it returns when the turn
         // changes — see notificationState.setTurn / dismissed-turn handling).
-        window.dispatchEvent(new CustomEvent('tm-notification-focus-actions'));
+        notificationBus.focusActions.emit();
         dismiss(notification.id);
         break;
       case 'go-to-action':
@@ -523,7 +524,7 @@ export default defineComponent({
         if (this.journalOpen) {
           journalState.open = false;
         }
-        window.dispatchEvent(new CustomEvent('tm-notification-go-to-action'));
+        notificationBus.goToAction.emit();
         break;
       case 'view-reveal':
         if (notification.reveal !== undefined) {
@@ -547,7 +548,7 @@ export default defineComponent({
     // cancel is submitted by PlayerHome (which owns the WaitingFor ref) — the card
     // is NOT dismissed here; it clears when the server resolves the prompt.
     onCancel(_notification: NotificationModel): void {
-      window.dispatchEvent(new CustomEvent('tm-notification-cancel'));
+      notificationBus.cancel.emit();
     },
     // The pending pill: open the journal — the canonical event center. The
     // journalOpen watcher then drops the queued ordinary cards (they are all
