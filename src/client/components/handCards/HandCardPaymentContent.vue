@@ -21,7 +21,7 @@
           <span class="play-confirm__kicker-dot" aria-hidden="true"></span>
           <span class="play-confirm__kicker-text" v-i18n>Play card</span>
         </span>
-        <h3 class="play-confirm__title" v-i18n>{{ cardTitle }}</h3>
+        <h3 class="play-confirm__title">{{ cardTitle }}</h3>
       </header>
 
       <!-- NOTICES — premium replacement for the legacy red warning text: maxed
@@ -426,7 +426,7 @@ import {actionRepeatPickResult} from '@/client/components/actions/actionRepeatPi
 import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/playedCardsPickState';
 import RepeatActionPicker from '@/client/components/actions/RepeatActionPicker.vue';
 import {cardPickSurface, CardPickSurface} from '@/client/components/cardPickRouting';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {translateText, translateMessage, translateCardName} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
@@ -523,7 +523,7 @@ export default defineComponent({
       return this.input.cards.find((c) => c.name === this.cardName) ?? ({name: this.cardName} as CardModel);
     },
     cardTitle(): string {
-      return this.cardName;
+      return translateCardName(this.cardName);
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];

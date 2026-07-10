@@ -1,5 +1,6 @@
 <template>
-  <div class="con-task-host con-trade" role="dialog" :aria-label="$t('Trade')">
+  <div class="con-task-host con-trade" role="dialog" :aria-label="$t('Trade')"
+       :class="{'con-trade--launching': launching}">
     <div class="con-task-host__backdrop" aria-hidden="true"></div>
     <div class="con-task con-trade__frame">
       <!-- ── Header ────────────────────────────────────────────────── -->
@@ -11,6 +12,13 @@
           </div>
           <div class="con-task__title">{{ $t(colonyName) }}</div>
         </div>
+        <!-- The viewer's fleet, charged and ready — the LAUNCH anchor of the
+             send-to-planet cinematic (`data-fleet-launch`). The flight proxy
+             lifts off exactly here when the trade is confirmed. -->
+        <span v-if="viewerColor !== undefined" class="con-trade__fleet-launch"
+              :class="'fleet-hue--' + viewerColor" data-fleet-launch>
+          <ColonyFleetIcon :color="viewerColor" mode="hero" :state="launching ? 'launch' : 'armed'" />
+        </span>
         <div class="con-trade__planet" :class="planetClass" aria-hidden="true"></div>
       </header>
 
@@ -70,7 +78,7 @@
                :ref="subIdx === i ? 'focusedEl' : undefined">
             <div class="con-task__option-main">
               <i v-if="targetIconClass !== ''" class="con-task__opt-icon" :class="targetIconClass" aria-hidden="true"></i>
-              <span class="con-task__opt-title">{{ $t(card.name) }}</span>
+              <span class="con-task__opt-title">{{ cardLabel(card.name) }}</span>
               <span class="con-task__opt-preview">{{ card.resources ?? 0 }} → {{ (card.resources ?? 0) + activeTargetStep.amount }}</span>
               <span v-if="captures[activeTargetKey] === card.name" class="con-trade__opt-check" aria-hidden="true">✓</span>
             </div>
@@ -226,7 +234,7 @@ import {SpendableResource} from '@/common/inputs/Spendable';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleColoniesUi} from '@/client/console/consoleColoniesModel';
@@ -253,6 +261,8 @@ import {
 } from '@/client/components/colonies/colonyTradePlan';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -290,7 +300,7 @@ const LANE_LABEL: Partial<Record<SpendableResource, string>> = {
 
 export default defineComponent({
   name: 'ConsoleColonyTradeConfirm',
-  components: {BenefitGlyph, ConsoleScrollArea},
+  components: {BenefitGlyph, ConsoleScrollArea, ColonyFleetIcon},
   props: {
     colony: {type: Object as PropType<ColonyModel | undefined>, default: undefined},
     colonyName: {type: String as PropType<ColonyName>, required: true},
@@ -316,9 +326,16 @@ export default defineComponent({
       captures: {} as Record<string, unknown>,
       /** The M€ lanes mix (auto-seeded with the optimal default). */
       paymentCounts: {} as Partial<Record<SpendableResource, number>>,
+      /** The trade-launch controller — drives the dissolve while the fleet flies. */
+      tradeFleetState,
     };
   },
   computed: {
+    /** The launch cinematic is running for THIS colony: dissolve the chrome so
+     *  the fleet lifts off + the colony grid behind is revealed for the flight. */
+    launching(): boolean {
+      return this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colonyName;
+    },
     metadata(): ColonyMetadata | undefined {
       try {
         return getColony(this.colonyName);
@@ -680,6 +697,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
+    cardLabel(name: string): string {
+      return translateCardName(name);
+    },
     isFocused(zone: 'pay' | 'step', index: number): boolean {
       return this.sub === undefined && this.focused?.zone === zone && this.focused.index === index;
     },

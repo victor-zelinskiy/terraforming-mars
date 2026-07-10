@@ -299,7 +299,7 @@ import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {
@@ -419,7 +419,7 @@ export default defineComponent({
       return this.input.cards.find((c) => c.name === this.cardName);
     },
     titleText(): string {
-      return translateText(this.cardName);
+      return translateCardName(this.cardName);
     },
     cost(): number {
       return this.card?.calculatedCost ?? 0;
@@ -807,7 +807,7 @@ export default defineComponent({
         const chosenName = this.picks[c.id];
         const items: Array<ListItem> = model.cards.map((card): ListItem => ({
           key: card.name,
-          label: translateText(card.name),
+          label: translateCardName(card.name),
           meta: card.resources !== undefined && card.resources > 0 ? `${card.resources}` : '',
           disabled: card.isDisabled === true,
           reason: card.isDisabled === true ? textOf(card.disabledReason) : '',
@@ -816,7 +816,7 @@ export default defineComponent({
           impact: (c.amount !== undefined && card.isDisabled !== true) ? `${card.resources ?? 0} → ${Math.max(0, (card.resources ?? 0) + c.amount)}` : undefined,
         }));
         for (const card of model.disabledCards ?? []) {
-          items.push({key: 'd' + card.name, label: translateText(card.name), meta: '', disabled: true, reason: textOf(card.disabledReason), chosen: false, card});
+          items.push({key: 'd' + card.name, label: translateCardName(card.name), meta: '', disabled: true, reason: textOf(card.disabledReason), chosen: false, card});
         }
         return items;
       }
@@ -993,7 +993,7 @@ export default defineComponent({
       if (nested.type === 'card') {
         const model = nested as SelectCardModel;
         return model.cards.map((card): ListItem => ({
-          key: card.name, label: translateText(card.name),
+          key: card.name, label: translateCardName(card.name),
           meta: card.resources !== undefined && card.resources > 0 ? `${card.resources}` : '',
           disabled: card.isDisabled === true, reason: card.isDisabled === true ? textOf(card.disabledReason) : '', chosen: false, card,
         }));

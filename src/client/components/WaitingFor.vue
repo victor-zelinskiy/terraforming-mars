@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -158,6 +158,12 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {
+  abortTradeFleet,
+  detectTradeFleet,
+  endTradeFleet,
+  runTradeFleet,
+} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
@@ -319,6 +325,16 @@ type DataModel = {
    */
   holdingForHazardCleanup: boolean;
   /*
+   * Counterpart hold for the console COLONY-TRADE launch cinematic (send a
+   * trade fleet to the planet). While true the next prompt is suppressed via
+   * the same empty-render branch, and the commit of the traded view (delta
+   * chips / docked-fleet board state) is blocked until the ship DOCKS. Gated
+   * on `tradeFleetState.active` (only ever true after the console shell arms
+   * a flight), so desktop + every non-trade submit are unaffected. See
+   * src/client/console/colonyFleet/consoleTradeFleet.ts.
+   */
+  holdingForTradeFleet: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -377,6 +393,7 @@ export default defineComponent({
       holdingForMarker: false,
       holdingForTilePlacement: false,
       holdingForConversion: false,
+      holdingForTradeFleet: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -704,6 +721,20 @@ export default defineComponent({
               // stays raised through the await (cleared in .finally).
               await runEnergyConversion(conversionEvent);
             }
+            /*
+             * Console COLONY-TRADE launch gate (send a trade fleet to the
+             * planet). Detect the ARMED client flight (undefined on desktop /
+             * every non-trade submit, so this is a no-op there): the ship is
+             * already flying to the target berth; HOLD the commit until it
+             * DOCKS, so the delta chips + docked-fleet board state land on a
+             * ship that has arrived — never during the flight. Composed after
+             * the other holds (a trade never places a tile / converts energy).
+             */
+            const tradeFleetEvent = detectTradeFleet();
+            if (tradeFleetEvent !== undefined) {
+              this.holdingForTradeFleet = true;
+              await runTradeFleet();
+            }
             this.updatePlayerView(newView);
             if (hazardCleanups.length > 0) {
               this.holdingForHazardCleanup = false;
@@ -716,9 +747,21 @@ export default defineComponent({
               // fires the seeded production chips — so there's no value flash.
               nextTick(() => endEnergyConversion());
             }
+            if (tradeFleetEvent !== undefined) {
+              this.holdingForTradeFleet = false;
+              // Hand the flight off AFTER the commit: the real docked ship
+              // just materialized under the (gone) proxy — end on the next
+              // tick so it gets the one-shot settle glow + the composer closes.
+              nextTick(() => endTradeFleet());
+            }
             return;
           }
 
+          // A rejected submit (bad request / unexpected) must RECALL any armed
+          // trade fleet immediately (else it hovers until the 12s safety) — the
+          // trade did not happen. No-op when no flight is armed (desktop).
+          this.holdingForTradeFleet = false;
+          abortTradeFleet();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -733,6 +776,8 @@ export default defineComponent({
           }
         })
         .catch((e) => {
+          this.holdingForTradeFleet = false;
+          abortTradeFleet(); // network failure — recall the fleet, restore the UI
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })

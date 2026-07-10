@@ -1,0 +1,126 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE TRADE FLEET — the "send a trade fleet to the planet" launch
+   cinematic (consoleTradeFleet.ts / tradeFleetDirector.ts).
+
+   The composer dissolves at confirm (--launching) revealing the colony
+   grid; a hero-mode fleet ship lifts off the composer's fleet emblem,
+   arcs to the target colony's berth on the app-level flight layer, and
+   docks — only THEN does the trade resolve. Transform/opacity/glow only;
+   the flight layer is clipped (no overflow); nothing animates layout.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The app-level flight stage (ConsoleTradeFleetLayer) ─────────────── */
+.con-fleet-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11620; /* above the composer (11480) + grid, below the command bar (11700) */
+    pointer-events: none;
+    overflow: clip; /* the off-berth arc can never create scrollable overflow */
+    contain: layout style;
+}
+.con-fleet-ship {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 46px;
+    height: 46px;
+    opacity: 0; /* the director reveals via autoAlpha once positioned */
+    pointer-events: none;
+    will-change: transform, opacity; /* scoped: the ship exists only mid-flight */
+
+    .colony-fleet-icon {
+        width: 46px;
+        height: 46px;
+    }
+}
+
+/* ── Composer LAUNCH state — the chrome dissolves so the flight is seen ─
+   The composer frame + backdrop fade out (revealing the colony grid the
+   ship flies over), while the composer's own fleet emblem lifts + ignites
+   as the launch anchor. The trade is NOT "done" — the overlay only fully
+   closes after the ship docks (the shell clears pendingTradeColony then). */
+.con-trade--launching {
+    .con-task-host__backdrop {
+        opacity: 0.22; /* a light veil keeps the grid readable, ship focal */
+        transition: opacity calc(320ms * var(--motion-scale, 1)) ease;
+    }
+    .con-trade__frame {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.985);
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) ease,
+            transform calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+        pointer-events: none;
+    }
+    /* The launch emblem lifts off as the ship proxy takes over. */
+    .con-trade__fleet-launch {
+        animation: con-fleet-liftoff calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 0.1) forwards;
+    }
+}
+@keyframes con-fleet-liftoff {
+    from { transform: translateY(0) scale(1); opacity: 1; }
+    60% { opacity: 0.85; }
+    to { transform: translateY(-24px) scale(1.12); opacity: 0; }
+}
+
+/* ── The composer's fleet launch emblem (the ship the launch lifts off) ─
+   Sits in the trade header beside the target planet — the viewer's fleet,
+   "charged and ready". `data-fleet-launch` is the flight's start anchor. */
+.con-trade__fleet-launch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .colony-fleet-icon {
+        width: 40px;
+        height: 40px;
+    }
+    /* A soft launch-pad ring under the charged ship. */
+    &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: 2px;
+        width: 30px;
+        height: 6px;
+        transform: translateX(-50%);
+        border-radius: 50%;
+        background: radial-gradient(ellipse at center, var(--fleet-glow, fade(@con-cyan, 40%)) 0%, transparent 70%);
+        opacity: 0.7;
+    }
+}
+
+/* ── Berth DOCK acknowledgment — the colony receives its fleet ─────────
+   A one-shot owner-hue ring pulse on the berth as the ship seats, and a
+   brief "settle" glow on the freshly-materialized real docked ship
+   (justDocked). Both bounded, both one-shot — never a looping effect. */
+.con-coltile__planet-berth--docking .con-coltile__planet {
+    animation: con-fleet-dock-ring calc(560ms * var(--motion-scale, 1)) ease-out;
+}
+@keyframes con-fleet-dock-ring {
+    0% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 2px var(--fleet-fill), 0 0 0 4px var(--fleet-glow); }
+    45% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 3px var(--fleet-fill), 0 0 16px 6px var(--fleet-glow); }
+    100% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 2px var(--fleet-fill), 0 0 9px var(--fleet-glow); }
+}
+.con-coltile--just-docked .con-coltile__dock {
+    animation: con-fleet-settle calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes con-fleet-settle {
+    0% { transform: translateY(-6px) scale(1.14); }
+    55% { transform: translateY(1px) scale(0.97); }
+    100% { transform: translateY(0) scale(1); }
+}
+
+/* ── Reduced motion: short/static — the path (sent → arrived → docked)
+   still reads, no arc/trail/loops. ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .con-trade--launching .con-trade__frame,
+    .con-trade--launching .con-task-host__backdrop { transition-duration: 1ms; }
+    .con-trade--launching .con-trade__fleet-launch { animation-duration: 1ms; }
+    .con-coltile__planet-berth--docking .con-coltile__planet,
+    .con-coltile--just-docked .con-coltile__dock { animation: none; }
+}

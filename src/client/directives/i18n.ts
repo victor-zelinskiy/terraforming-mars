@@ -50,6 +50,20 @@ export function setTranslationContext(playerView: PlayerViewModel) {
   }
 }
 
+// Translate a card NAME, tolerating a `Name:variant` enum id. Variant cards
+// (`:promo` / `:venus` / `:ares` / …) key ONLY their BASE name in the
+// dictionary, so when the full id isn't translated we fall back to the part
+// before the colon — yielding the localized name of the card it stands in for,
+// WITHOUT the expansion suffix. Use this anywhere a card name is rendered as
+// plain text (modal titles, notification headers, …), not just CARD log tokens.
+export function translateCardName(cardValue: string): string {
+  const translatedCard = translateText(cardValue);
+  if (translatedCard === cardValue && cardValue.includes(':')) {
+    return translateText(cardValue.substring(0, cardValue.indexOf(':')));
+  }
+  return translatedCard;
+}
+
 export function translateMessage(message: Message): string {
   message.message = translateText(message.message);
   return Log.applyData(message, (datum) => {
@@ -68,16 +82,10 @@ export function translateMessage(message: Message): string {
     case LogMessageDataType.TILE_TYPE:
       return tileTypeToString[datum.value];
     case LogMessageDataType.CARD: {
-      const cardValue = String(datum.value);
-      const translatedCard = translateText(cardValue);
       // Variant cards (`:promo` / `:venus` / …) carry a `Name:variant` enum id;
-      // the dictionary only keys the BASE name, so when the full id isn't
-      // translated fall back to the part before the colon. Fixes prompts like
-      // "Select space for Deimos Down:promo tile" showing the raw id.
-      if (translatedCard === cardValue && cardValue.includes(':')) {
-        return translateText(cardValue.substring(0, cardValue.indexOf(':')));
-      }
-      return translatedCard;
+      // the dictionary only keys the BASE name, so fall back to the base name.
+      // Fixes prompts like "Select space for Deimos Down:promo tile".
+      return translateCardName(String(datum.value));
     }
     default:
       return translateText(String(datum.value));

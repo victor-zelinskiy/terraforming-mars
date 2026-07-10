@@ -43,6 +43,7 @@
           <ConsoleColonyTile :colony="colony"
                              :tradeOffset="tradeOffset"
                              :focused="i === index"
+                             :justDocked="colony.name === dockedColony"
                              :status="tileStatus(colony)" />
         </div>
       </div>
@@ -117,6 +118,8 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
     tradeOffset: {type: Number, default: 0},
+    /** The colony whose fleet JUST docked (a one-shot settle glow; '' = none). */
+    dockedColony: {type: String, default: ''},
   },
   data() {
     return {

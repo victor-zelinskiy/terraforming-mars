@@ -59,19 +59,45 @@
             @click="enterGameAt(i)"
             @mousemove="gamesCursor = i"
           >
-            <span class="cm-game__main">
+            <div class="cm-game__head">
               <span class="cm-game__name">{{ g.name }}</span>
+              <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
+              <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
+            </div>
+
+            <!-- Crew — who you're playing against (names visible, YOU + whose turn marked). -->
+            <div class="cm-game__crew">
+              <span
+                v-for="p in gameCrew(g)"
+                :key="p.color"
+                class="cm-game__player"
+                :class="{'cm-game__player--you': p.isYou, 'cm-game__player--active': p.isActive}"
+              >
+                <span v-if="p.isActive" class="cm-game__pturn" aria-hidden="true"></span>
+                <span class="cm-game__pcube" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
+                <span class="cm-game__pname">{{ p.name }}</span>
+                <span v-if="p.isYou" class="cm-game__ptag">{{ $t('You') }}</span>
+              </span>
+            </div>
+
+            <div class="cm-game__foot">
               <span class="cm-game__meta">
                 <span>{{ $t('Generation') }} {{ g.generation }}</span>
                 <span class="cm-game__dot" aria-hidden="true">·</span>
                 <span>{{ boardLabel(g) }}</span>
               </span>
-            </span>
-            <span class="cm-game__players">
-              <span v-for="p in g.players" :key="p.color" class="cm-game__cube" :class="'player_bg_color_' + p.color" :title="p.name"></span>
-            </span>
-            <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
-            <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
+              <span v-if="gameExpansions(g).length > 0" class="cm-game__exp">
+                <img
+                  v-for="e in gameExpansions(g).slice(0, 8)"
+                  :key="e.id"
+                  :src="e.url"
+                  :alt="$t(e.label)"
+                  :title="$t(e.label)"
+                  draggable="false"
+                />
+                <span v-if="gameExpansions(g).length > 8" class="cm-game__exp-more">+{{ gameExpansions(g).length - 8 }}</span>
+              </span>
+            </div>
           </button>
           </div>
         </ConsoleScrollArea>
@@ -153,6 +179,8 @@ import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMe
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
+import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/expansionMeta';
+import {Expansion} from '@/common/cards/GameModule';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
 import raw_settings from '@/genfiles/settings.json';
@@ -428,6 +456,19 @@ export default defineComponent({
     },
     boardLabel(g: JoinableGameSummary): string {
       return $t(mapLabelKey(g.boardName));
+    },
+    /** Crew for the row — names visible, YOU tagged, whose-turn (active) flagged. */
+    gameCrew(g: JoinableGameSummary): ReadonlyArray<{name: string, color: string, isYou: boolean, isActive: boolean}> {
+      return g.players.map((p) => ({
+        name: p.name,
+        color: p.color,
+        isYou: p.isYou,
+        isActive: g.activePlayer === p.color,
+      }));
+    },
+    /** Enabled expansions as premium icon chips (same artwork as the create screen). */
+    gameExpansions(g: JoinableGameSummary): ReadonlyArray<{id: Expansion, url: string, label: string}> {
+      return g.expansions.map((e) => ({id: e, url: expansionIconUrl(e), label: expansionLabel(e)}));
     },
     enterGameAt(i: number): void {
       this.gamesCursor = i;

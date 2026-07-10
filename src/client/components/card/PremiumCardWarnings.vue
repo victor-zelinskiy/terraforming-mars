@@ -21,19 +21,19 @@
     <template v-if="additionalCosts !== undefined">
       <div v-if="additionalCosts.redsCost"
            class="card-notices__item card-notices__item--warning"
-           v-i18n="[$t(cardName), additionalCosts.redsCost, $t('Reds')]">
+           v-i18n="[cn(cardName), additionalCosts.redsCost, $t('Reds')]">
         <span class="card-notices__glyph" aria-hidden="true">⚠</span>
         <span class="card-notices__text">Playing ${0} will cost ${1} M€ more because ${2} are in power</span>
       </div>
       <div v-if="additionalCosts.aeronGenomicsResources"
            class="card-notices__item card-notices__item--warning"
-           v-i18n="[$t(cardName), additionalCosts.aeronGenomicsResources, 'animals', $t(aeronGenomics)]">
+           v-i18n="[cn(cardName), additionalCosts.aeronGenomicsResources, 'animals', $t(aeronGenomics)]">
         <span class="card-notices__glyph" aria-hidden="true">⚠</span>
         <span class="card-notices__text">Playing ${0} consumes ${1} ${2} from ${3}</span>
       </div>
       <div v-if="additionalCosts.thinkTankResources"
            class="card-notices__item card-notices__item--warning"
-           v-i18n="[$t(cardName), additionalCosts.thinkTankResources, 'data', $t(thinkTank)]">
+           v-i18n="[cn(cardName), additionalCosts.thinkTankResources, 'data', $t(thinkTank)]">
         <span class="card-notices__glyph" aria-hidden="true">⚠</span>
         <span class="card-notices__text">Playing ${0} consumes ${1} ${2} from ${3}</span>
       </div>
@@ -47,6 +47,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Warning} from '@/common/cards/Warning';
 import {AdditionalProjectCosts} from '@/common/cards/Types';
 import {WarningLevel, warningLevel, warningText} from '@/client/components/card/cardWarnings';
+import {translateCardName} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'PremiumCardWarnings',
@@ -86,6 +87,10 @@ export default defineComponent({
     },
   },
   methods: {
+    // Localized card name for the param messages, tolerating a `Name:variant` id.
+    cn(name: CardName): string {
+      return translateCardName(name);
+    },
     glyph(level: WarningLevel): string {
       switch (level) {
       case 'noEffect': return '⊘';

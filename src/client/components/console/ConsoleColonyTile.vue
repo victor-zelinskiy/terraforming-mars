@@ -14,6 +14,7 @@
          'con-coltile--inactive': status.kind === 'inactive',
          'con-coltile--blocked': status.kind === 'blocked',
          'con-coltile--ok': status.kind === 'ok',
+         'con-coltile--just-docked': justDocked,
        }"
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
@@ -22,11 +23,18 @@
            an owner-hue ring on the planet + a crisp ship token in the berth
            (replaces the old crude oversized sprite that crowded the planet;
            the owner is the ring/ship colour, named in the status line). -->
+      <!-- The berth is the STABLE landing anchor of the trade-launch cinematic
+           (`data-fleet-berth`, always rendered) — the flying fleet proxy docks
+           exactly here, then the real docked ship materializes under it. -->
       <span class="con-coltile__planet-berth"
-            :class="colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'fleet-hue--' + colony.visitor] : []">
+            :data-fleet-berth="colony.name"
+            :class="[
+              colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'fleet-hue--' + colony.visitor] : [],
+              {'con-coltile__planet-berth--docking': justDocked},
+            ]">
         <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
         <span v-if="colony.visitor !== undefined" class="con-coltile__dock" aria-hidden="true">
-          <ColonyFleetIcon :color="colony.visitor" />
+          <ColonyFleetIcon :color="colony.visitor" :state="justDocked ? 'docked' : 'idle'" />
         </span>
       </span>
     </header>
@@ -113,6 +121,8 @@ export default defineComponent({
     /** The viewer's standing trade offset (Trading Colony etc.). */
     tradeOffset: {type: Number, default: 0},
     focused: {type: Boolean, default: false},
+    /** Brief post-launch settle: the fleet just docked here (owner-hue seat). */
+    justDocked: {type: Boolean, default: false},
     status: {
       type: Object as PropType<ConsoleColonyTileStatus>,
       default: (): ConsoleColonyTileStatus => ({kind: 'none', text: ''}),

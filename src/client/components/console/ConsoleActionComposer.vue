@@ -260,7 +260,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
@@ -636,7 +636,7 @@ export default defineComponent({
         `${from} → ${Math.max(0, from + c.amount)}` : '';
       return {
         key: (disabled ? 'd' : '') + card.name,
-        label: translateText(card.name),
+        label: translateCardName(card.name),
         resIcon: c.cardResource ?? '',
         resCount: from,
         impact,

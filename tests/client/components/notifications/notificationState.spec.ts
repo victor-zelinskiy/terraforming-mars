@@ -18,6 +18,7 @@ import {resetPresentationLeases, acquireForegroundLease} from '@/client/componen
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
+import {setBotAckViewer, resetBotTurnAckForTesting} from '@/client/components/marsbot/botTurnAck';
 
 function model(id: string, kind: NotificationKind = 'normal', extra: Partial<NotificationModel> = {}): NotificationModel {
   return {
@@ -137,6 +138,28 @@ describe('notificationState (lifecycle)', () => {
       acknowledgeFlowHoldingCards();
       // The holding card is gone; the queued ordinary card promotes.
       expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['b']);
+    });
+
+    it('acknowledgeFlowHoldingCards soft-acks the bot turn (server stops extending the next turn)', () => {
+      // Regression: playing on used to drop the card WITHOUT telling the server,
+      // so `unacked` never cleared and every subsequent paced bot turn hit the
+      // max extension. Acting must fire the same ack as a manual dismiss/TTL.
+      const originalFetch = global.fetch;
+      const urls: Array<string> = [];
+      global.fetch = ((url: string) => {
+        urls.push(url);
+        return Promise.resolve({ok: true} as Response);
+      }) as typeof fetch;
+      try {
+        setBotAckViewer('viewer-1');
+        pushTransient(model('bot', 'important', {holdsFlow: true, variant: 'bot-turn', botTurnKey: 'red:2:7'}));
+        acknowledgeFlowHoldingCards();
+        expect(urls).to.have.length(1);
+        expect(urls[0]).to.contain('key=red%3A2%3A7');
+      } finally {
+        global.fetch = originalFetch;
+        resetBotTurnAckForTesting();
+      }
     });
 
     it('pendingSummary reports the backlog + critical content', () => {

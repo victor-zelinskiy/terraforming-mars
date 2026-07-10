@@ -129,6 +129,7 @@
                               :pick="colonyPick"
                               :players="playerView.players"
                               :viewerColor="thisPlayer.color"
+                              :dockedColony="tradeFleetState.dockedColonyName"
                               :tradeOffset="thisPlayer.colonyTradeOffset ?? 0" />
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
@@ -382,6 +383,12 @@
          closing mid-animation (cardExitDirector.ts). -->
     <ConsoleCardExitLayer />
 
+    <!-- The colony-trade LAUNCH flight stage (send a trade fleet to the
+         planet) — app-level so the ship survives the composer dissolving
+         beneath it; docks on the target colony's berth, then the trade
+         resolves (consoleTradeFleet.ts / tradeFleetDirector.ts). -->
+    <ConsoleTradeFleetLayer />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -523,6 +530,8 @@ import {
 } from '@/client/console/cardDeal/consoleDraftTray';
 import {Phase} from '@/common/Phase';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
+import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
+import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
@@ -632,6 +641,7 @@ export default defineComponent({
     ConsoleCardExitLayer,
     ConsoleDraftTray,
     ConsoleColonyTradeConfirm,
+    ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
     CardZoomModal,
     Card,
@@ -664,6 +674,8 @@ export default defineComponent({
       leakDetectorState,
       govScaleFocusState,
       botTurnReviewState,
+      /** The colony trade-launch controller (drives the docked-settle glow). */
+      tradeFleetState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
@@ -1630,6 +1642,11 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
+      // TRADE-FLEET LAUNCH: the ship is flying + docking — the pad is inert,
+      // the bar advertises nothing (the moment plays itself out, bounded).
+      if (isTradeFleetActive()) {
+        return [];
+      }
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
       // close. While the fullscreen viewer is up its OWN footer carries the
       // contract; during a peek B returns to the review.
@@ -2070,6 +2087,15 @@ export default defineComponent({
     },
   },
   watch: {
+    // TRADE-FLEET LAUNCH lifecycle: the composer stays mounted (dissolved via
+    // `--launching`) through the whole flight; the trade overlay only fully
+    // CLOSES once the ship has DOCKED (success) or the flight was recalled
+    // (error/stall). Both land here as active → false.
+    'tradeFleetState.active'(active: boolean) {
+      if (!active && this.pendingTradeColony !== undefined) {
+        this.pendingTradeColony = undefined;
+      }
+    },
     // A mandatory surface claimed the screen — the journal yields so the
     // task / placement / reveal is never hidden behind it (and never has
     // to share the pad with it).
@@ -2277,6 +2303,12 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
+      // TRADE-FLEET LAUNCH owns the moment: while the ship flies + docks the
+      // pad is inert (nothing can act on a trade that's mid-commit). Bounded
+      // by the flight duration + the WaitingFor gate, so it can never stick.
+      if (isTradeFleetActive()) {
+        return true;
+      }
       // «Разбор хода» review owns the pad while open (a read-only foreground
       // item — the presentation flow holds every other surface). B closes, X
       // inspects the played card, L3 shows the placed tile on the board, the
@@ -3652,8 +3684,9 @@ export default defineComponent({
     onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
       const pending = this.pendingTradeColony;
       const ctx = this.tradeColonyContext;
-      this.pendingTradeColony = undefined;
-      if (pending === undefined || ctx === undefined) {
+      // Guard a double-confirm: once the launch is armed the flight owns the
+      // moment (input is gated), so a second press can never re-submit.
+      if (pending === undefined || ctx === undefined || isTradeFleetActive()) {
         return;
       }
       const batch = buildTradeBatch({
@@ -3663,6 +3696,16 @@ export default defineComponent({
         steps: payload.steps,
         captures: payload.captures,
       });
+      // PREMIUM LAUNCH: ARM the trade-fleet flight (client-side) FIRST — the
+      // composer dissolves + the ship lifts off toward the colony immediately,
+      // independent of the server — THEN submit. The `pendingTradeColony`
+      // overlay is deliberately KEPT (dissolved via `--launching`, not closed)
+      // until the ship DOCKS; the WaitingFor `holdingForTradeFleet` gate
+      // blocks the view commit (delta chips / next prompt / docked board
+      // state) until then. A watcher on `tradeFleetState.active` closes the
+      // composer once the flight ends (dock or abort). Desktop is unaffected
+      // (never arms → detectTradeFleet returns undefined → no hold).
+      armTradeFleet(pending.colonyName, this.thisPlayer.color);
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
@@ -4333,6 +4376,7 @@ export default defineComponent({
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();
+    abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

@@ -27,9 +27,10 @@
         <span class="cm-vk-panel__hint"><GamepadGlyph control="dpad" />{{ $t('Navigate') }}</span>
         <span class="cm-vk-panel__hint"><GamepadGlyph control="confirm" />{{ $t('Type a key') }}</span>
         <span class="cm-vk-panel__hint"><GamepadGlyph control="secondary" />{{ $t('Backspace') }}</span>
-        <span v-if="multiLang" class="cm-vk-panel__hint"><GamepadGlyph control="inspect" />{{ $t('Input language') }}</span>
         <span class="cm-vk-panel__hint"><GamepadGlyph control="bumperR" />{{ $t('Space bar') }}</span>
-        <span class="cm-vk-panel__hint cm-vk-panel__hint--done"><GamepadGlyph control="back" />{{ $t('Done') }}</span>
+        <span v-if="multiLang" class="cm-vk-panel__hint"><GamepadGlyph control="triggerR" />{{ $t('Input language') }}</span>
+        <span class="cm-vk-panel__hint cm-vk-panel__hint--done"><GamepadGlyph control="inspect" />{{ $t('Confirm') }}</span>
+        <span class="cm-vk-panel__hint"><GamepadGlyph control="back" />{{ $t('Cancel') }}</span>
       </div>
     </div>
   </div>
@@ -53,10 +54,15 @@
  * done. A physical keyboard is a desktop convenience (its own window listener),
  * but the on-screen keyboard is the primary interface.
  *
+ * Pad hotkeys: A = type the cursored key, X = backspace, LB = shift,
+ * RB = space, **RT = switch input language**, **Y = CONFIRM (commit — no need
+ * to land on the on-screen ✓)**, B = cancel. The two hotkey keys carry their
+ * glyph baked on: ✓ shows the Y badge, {lang} shows the RT badge.
+ *
  * INPUT LANGUAGE — the offered layouts come from the USER'S own language
  * preferences (`resolveUserKeyboardLayouts`, driven by `navigator.languages` /
- * a localStorage override), NOT the game's UI languages. The language hotkey
- * (Y) + the on-screen «{lang}» key CYCLE through that resolved set.
+ * a localStorage override), NOT the game's UI languages. RT + the on-screen
+ * «{lang}» key CYCLE through that resolved set.
  *
  * Host contract: the parent renders this while name entry is active and routes
  * pad intents into `handleIntent`; it listens for `commit(value)` / `cancel`.
@@ -132,6 +138,7 @@ export default defineComponent({
         theme: 'hg-theme-default cm-vk',
         buttonTheme: [
           {class: 'cm-vk__key--fn', buttons: '{bksp} {shift} {lang} {space}'},
+          {class: 'cm-vk__key--lang', buttons: '{lang}'},
           {class: 'cm-vk__key--done', buttons: '{done}'},
           {class: 'cm-vk__key--wide', buttons: '{space}'},
         ],
@@ -159,11 +166,14 @@ export default defineComponent({
     displayMap(): Record<string, string> {
       const next = this.layouts[(this.layoutIndex + 1) % this.layouts.length];
       return {
+        // The {lang} / {done} keys carry their gamepad-hotkey glyph via CSS
+        // (::before badge), so their display stays compact — the layout code
+        // for {lang}, a bare check for {done}.
         '{bksp}': '⌫',
         '{shift}': '⇧',
         '{space}': $t('Space bar'),
         '{lang}': next.code,
-        '{done}': '✓ ' + $t('Done'),
+        '{done}': '✓',
       };
     },
     // ── Host-routed pad intents ────────────────────────────────────────
@@ -178,7 +188,8 @@ export default defineComponent({
       switch (intent.button) {
       case 'confirm': this.pressCursored(); return true;
       case 'secondary': this.press('{bksp}'); return true; // X — backspace
-      case 'inspect': this.toggleLang(); return true; // Y — input language
+      case 'inspect': this.$emit('commit', this.value); return true; // Y — CONFIRM (commit)
+      case 'triggerR': this.toggleLang(); return true; // RT — input language
       case 'bumperL': this.toggleShift(); return true; // LB — shift
       case 'bumperR': this.press('{space}'); return true; // RB — space
       case 'back': this.$emit('cancel'); return true; // B — cancel

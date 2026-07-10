@@ -1,29 +1,99 @@
-/* ── Shared trade-fleet SVG icon (ColonyFleetIcon) ───────────────────── *
- * The premium per-player rocket used by BOTH the console colonies surfaces
+/* ── Shared trade-fleet SHIP (ColonyFleetIcon) ───────────────────────── *
+ * The premium per-player shuttle used by BOTH the console colonies surfaces
  * AND the desktop colonies overlay / tiles / detail / card — it replaced the
- * legacy raster fleet sprite everywhere. `fleet-hue--<color>` sets three
- * INHERITABLE custom props (bright, legible on dark backgrounds), consumed
- * by the icon paths (and, in the console tile, the planet-berth ring). This
- * file is ONLY the icon primitive + palette; each host owns its own
- * PRESENTATION (size / placement / backing). */
+ * legacy raster fleet sprite everywhere — AND is the flying proxy of the
+ * console trade-launch cinematic. `fleet-hue--<color>` sets inheritable
+ * custom props (bright, legible on dark backgrounds), consumed by the ship
+ * paths (and, in the console tile, the planet-berth ring). This file is ONLY
+ * the ship primitive + palette + states; each host owns its own PRESENTATION
+ * (size / placement / backing). Transform/opacity/glow only — no heavy
+ * filters, no layout animation (Steam-Deck-safe). */
 .colony-fleet-icon {
     width: 26px;
     height: 26px;
     flex: 0 0 auto;
     display: inline-block;
     vertical-align: middle;
-    filter: drop-shadow(0 0 3px var(--fleet-glow, transparent));
+    overflow: visible;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 3px var(--fleet-glow, transparent));
 
     .cfi-hull {
         fill: var(--fleet-fill, #cfd8e0);
-        stroke: rgba(0, 0, 0, 0.42);
-        stroke-width: 0.6;
+        stroke: rgba(0, 0, 0, 0.5);
+        stroke-width: 0.7;
         stroke-linejoin: round;
     }
+    .cfi-fin {
+        fill: var(--fleet-fill, #cfd8e0);
+        filter: brightness(0.66);
+    }
+    .cfi-sheen { fill: rgba(255, 255, 255, 0.5); }
     .cfi-accent { fill: var(--fleet-accent, #ffffff); }
+    /* Cockpit glass — a cool inset lens, reads as depth on any hull hue. */
+    .cfi-glass {
+        fill: #0a1622;
+        stroke: var(--fleet-accent, #ffffff);
+        stroke-width: 0.9;
+    }
     .cfi-flame { fill: #ffce7a; opacity: 0; }
+    .cfi-thrust {
+        fill: var(--fleet-accent, #ffe6b0);
+        opacity: 0;
+        transform-origin: 50% 22%;
+    }
     &--free .cfi-flame { opacity: 0.92; }
 }
+
+/* Hero presentation (the flight proxy / a launch beat): a touch more presence
+   — a stronger glow + a hair more contrast so the ship reads as the important
+   object in motion, never a bumped-up icon soup. */
+.colony-fleet-icon--hero {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px var(--fleet-glow, transparent));
+    .cfi-hull { stroke-width: 0.55; }
+    .cfi-accent { filter: brightness(1.12); }
+}
+
+/* ── States (launch cinematic) — all compositor-friendly ─────────────── */
+/* ARMED: the chosen fleet focuses — a calm confirmation glow (no motion). */
+.colony-fleet-icon--armed {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 7px var(--fleet-glow, transparent));
+    .cfi-flame { opacity: 0.95; }
+}
+/* LAUNCH: engines charge — the thrust plume ignites + a short pre-lift pulse. */
+.colony-fleet-icon--launch {
+    .cfi-flame { opacity: 0; }
+    .cfi-thrust {
+        opacity: 1;
+        animation: cfi-charge calc(260ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
+    }
+}
+/* IN-FLIGHT: sustained thrust (the plume streams; the director owns travel). */
+.colony-fleet-icon--flight {
+    .cfi-flame { opacity: 0; }
+    .cfi-thrust {
+        opacity: 1;
+        animation: cfi-thrust-stream calc(220ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
+    }
+}
+/* DOCKED: engines cut, the ship settles — no exhaust, a brief owner-hue seat. */
+.colony-fleet-icon--docked {
+    .cfi-flame { opacity: 0; }
+    .cfi-thrust { opacity: 0; }
+}
+
+@keyframes cfi-charge {
+    from { transform: scaleY(0.7); opacity: 0.7; }
+    to { transform: scaleY(1.18); opacity: 1; }
+}
+@keyframes cfi-thrust-stream {
+    from { transform: scaleY(0.92); opacity: 0.85; }
+    to { transform: scaleY(1.28); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .colony-fleet-icon--launch .cfi-thrust,
+    .colony-fleet-icon--flight .cfi-thrust { animation: none; opacity: 0.9; }
+}
+
 .fleet-hue--red    { --fleet-fill: #ff5a48; --fleet-accent: #ffd0c8; --fleet-glow: rgba(255, 90, 72, 0.55); }
 .fleet-hue--yellow { --fleet-fill: #ffe14d; --fleet-accent: #fff4b0; --fleet-glow: rgba(255, 225, 77, 0.5); }
 .fleet-hue--green  { --fleet-fill: #4fe06a; --fleet-accent: #d6ffdd; --fleet-glow: rgba(79, 224, 106, 0.55); }

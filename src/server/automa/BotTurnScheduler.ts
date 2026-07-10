@@ -35,7 +35,7 @@ import {marsBotOf} from './AutomaUtil';
  */
 
 export const BOT_TURN_INITIAL_DELAY_MS = 2000;
-export const BOT_TURN_EXTENSION_MS = 3000;
+export const BOT_TURN_EXTENSION_MS = 1000;
 export const BOT_TURN_MAX_EXTENSIONS = 3;
 /** Bound the per-game unacked-turn map (a game is finite, but be tidy). */
 const UNACKED_TURN_CAP = 12;

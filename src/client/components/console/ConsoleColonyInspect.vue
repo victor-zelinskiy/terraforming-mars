@@ -142,7 +142,7 @@
               <template v-if="row.cards.length > 0">
                 <span v-for="card in row.cards" :key="card.name" class="con-colinspect__target-card">
                   <i v-if="row.iconClass !== ''" :class="row.iconClass" aria-hidden="true"></i>
-                  <span>{{ $t(card.name) }}</span>
+                  <span>{{ cardLabel(card.name) }}</span>
                   <b>{{ card.resources ?? 0 }} → {{ (card.resources ?? 0) + row.amount }}</b>
                 </span>
               </template>
@@ -175,7 +175,7 @@ import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradeP
 import {colonyOwnerCounts, effectiveTradePosition} from '@/client/components/colonies/colonyTradePlan';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {Message} from '@/common/logs/Message';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
@@ -332,6 +332,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
+    cardLabel(name: string): string {
+      return translateCardName(name);
+    },
     /** BenefitGlyph input for the trade reward at one track position. */
     tradeBenefit(position: number): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const t = this.metadata.trade;

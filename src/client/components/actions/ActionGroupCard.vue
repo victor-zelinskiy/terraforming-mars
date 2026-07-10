@@ -25,7 +25,7 @@
        :data-test="'action-group-' + cardName">
     <div class="action-group__head">
       <span class="action-group__accent" aria-hidden="true"></span>
-      <span class="action-group__name" v-i18n>{{ cardName }}</span>
+      <span class="action-group__name">{{ cardTitle }}</span>
       <span class="action-group__type" aria-hidden="true">
         <span v-if="isCorporation" v-i18n>Corporation</span>
         <span v-else v-i18n>Card</span>
@@ -79,7 +79,7 @@ import {ActionState, ActionStatus} from '@/client/components/actions/actionPlaya
 import {actionRowKey} from '@/client/components/actions/actionsOverlayState';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 
 export default defineComponent({
@@ -121,6 +121,10 @@ export default defineComponent({
   },
   emits: ['select', 'activate'],
   computed: {
+    // Localized card name, tolerating a `Name:variant` id (drops the suffix).
+    cardTitle(): string {
+      return translateCardName(this.cardName);
+    },
     group(): ActionGroup {
       return this.entry.group;
     },

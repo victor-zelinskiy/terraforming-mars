@@ -56,7 +56,7 @@
           <!-- RIGHT: source kind + name + the event summary / instruction. -->
           <section class="contextual-choice__panel">
             <span class="contextual-choice__kind" :class="'contextual-choice__kind--' + sourceKind" v-i18n>{{ kindLabel }}</span>
-            <h3 v-if="sourceCardName !== undefined" class="contextual-choice__title" v-i18n>{{ sourceCardName }}</h3>
+            <h3 v-if="sourceCardName !== undefined" class="contextual-choice__title">{{ sourceCardTitle }}</h3>
             <h3 v-else class="contextual-choice__title" v-i18n>{{ titleText }}</h3>
 
             <div v-if="triggerText !== ''" class="contextual-choice__trigger">
@@ -99,7 +99,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {OrOptionsModel, ChoiceContext} from '@/common/models/PlayerInputModel';
 import {OrOptionsResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {translateText, translateMessage, translateCardName} from '@/client/directives/i18n';
 import Card from '@/client/components/card/Card.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
@@ -164,6 +164,10 @@ export default defineComponent({
     },
     sourceCardName(): CardName | undefined {
       return this.context?.source.card;
+    },
+    // Localized card name, tolerating a `Name:variant` id (drops the suffix).
+    sourceCardTitle(): string {
+      return this.sourceCardName === undefined ? '' : translateCardName(this.sourceCardName);
     },
     sourceCardModel(): CardModel {
       return {name: this.sourceCardName} as CardModel;

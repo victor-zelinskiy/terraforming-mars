@@ -20,7 +20,7 @@
       <div class="action-detail__scroll">
       <header class="action-detail__head">
         <span class="action-detail__type" v-i18n>{{ isCorporation ? 'Corporation' : 'Card' }}</span>
-        <h3 class="action-detail__name" v-i18n>{{ cardName }}</h3>
+        <h3 class="action-detail__name">{{ cardTitle }}</h3>
         <button type="button"
                 class="action-detail__zoom"
                 :aria-label="$t('Open fullscreen')"
@@ -165,7 +165,7 @@ import {getActionUsageSummary, ActionUsageViewModel, ActionBranchScope, branchMe
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import Card from '@/client/components/card/Card.vue';
 import ActionResultsPreview from '@/client/components/actions/ActionResultsPreview.vue';
 import ActionNextStepNotice from '@/client/components/actions/ActionNextStepNotice.vue';
@@ -229,6 +229,10 @@ export default defineComponent({
   computed: {
     cardName(): CardName | undefined {
       return this.entry?.cardName;
+    },
+    // Localized card name, tolerating a `Name:variant` id (drops the suffix).
+    cardTitle(): string {
+      return this.cardName === undefined ? '' : translateCardName(this.cardName);
     },
     // Live tableau model when available (carries the resource count), else a bare
     // {name} so the embedded source-card preview still renders.

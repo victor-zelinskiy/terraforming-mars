@@ -7,6 +7,7 @@ import {
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
+import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
 
 /**
  * notificationState — the module-level reactive NotificationCenter store.
@@ -174,6 +175,12 @@ export function pendingSummary(): PendingQueueSummary {
 export function acknowledgeFlowHoldingCards(): void {
   const holding = notificationState.transient.filter((n) => n.holdsFlow === true);
   for (const n of holding) {
+    // Playing on IS one of the "notification finished" signals — soft-ack the
+    // bot turn (mirrors NotificationLayer.onDismiss) BEFORE removing the card,
+    // so the server doesn't keep extending the NEXT paced bot turn waiting on an
+    // ack that would otherwise never arrive (the card is gone from the UI, but a
+    // raw `dismiss` never told the server). `ackBotTurn` no-ops on a missing key.
+    ackBotTurn(n.botTurnKey);
     dismiss(n.id);
   }
 }

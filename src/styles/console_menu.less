@@ -370,11 +370,11 @@
 }
 .cm-game {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 14px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 11px 15px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 11px;
     background: rgba(12, 20, 30, 0.85);
     box-shadow: inset 0 0 0 1px fade(@con-cyan, 18%);
     color: @con-text;
@@ -383,39 +383,25 @@
     cursor: pointer;
 
     &--cursor { box-shadow: inset 0 0 0 2px fade(@con-cyan, 85%), 0 0 18px fade(@con-cyan, 25%); }
-    &--disabled { opacity: 0.55; cursor: default; }
+    &--disabled { opacity: 0.6; cursor: default; }
 }
-.cm-game__main {
+.cm-game__head {
     display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1;
+    align-items: center;
+    gap: 12px;
 }
 .cm-game__name {
+    flex: 1;
+    min-width: 0;
     font-size: 18px;
     letter-spacing: 0.6px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.cm-game__meta {
-    display: flex;
-    gap: 8px;
-    font-size: 14px;
-    color: @con-text-dim;
-}
-.cm-game__players {
-    display: flex;
-    gap: 5px;
-}
-.cm-game__cube {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-}
 .cm-game__turn {
-    padding: 3px 10px;
+    flex-shrink: 0;
+    padding: 3px 11px;
     border-radius: 999px;
     background: fade(@con-mint, 16%);
     box-shadow: inset 0 0 0 1px fade(@con-mint, 60%);
@@ -426,10 +412,100 @@
     white-space: nowrap;
 }
 .cm-game__note {
+    flex-shrink: 0;
+    font-size: 13px;
+    color: mix(#ffffff, @con-amber, 30%);
+    max-width: 230px;
+    text-align: right;
+}
+
+/* Crew chips — who's in the game (names, YOU + whose-turn marked). */
+.cm-game__crew {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.cm-game__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(180, 205, 230, 0.14);
+    font-size: 13.5px;
+    line-height: 1.1;
+
+    &--you { box-shadow: inset 0 0 0 1px fade(@cm-gold, 60%); }
+    &--active {
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 1px fade(@con-cyan, 70%), 0 0 10px fade(@con-cyan, 22%);
+    }
+    &--you.cm-game__player--active {
+        box-shadow: inset 0 0 0 1px fade(@cm-gold, 70%), 0 0 10px fade(@con-mint, 22%);
+    }
+}
+.cm-game__pturn {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: @con-mint;
+    box-shadow: 0 0 6px fade(@con-mint, 75%);
+    animation: cm-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+.cm-game__pcube {
+    width: 13px;
+    height: 13px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+}
+.cm-game__pname {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-game__ptag {
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: @cm-gold;
+}
+
+/* Foot — generation·map on the left, expansion icons on the right. */
+.cm-game__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.cm-game__meta {
+    display: flex;
+    gap: 8px;
     font-size: 13px;
     color: @con-text-dim;
-    max-width: 200px;
-    text-align: right;
+    white-space: nowrap;
+}
+.cm-game__exp {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+
+    img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        opacity: 0.92;
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+    }
+}
+.cm-game__exp-more {
+    font-size: 12px;
+    color: @con-text-dim;
+    letter-spacing: 0.4px;
 }
 
 /* ── Field rows (profile / participant editors) ──────────────────── */
@@ -1449,16 +1525,50 @@
         letter-spacing: 1.4px;
     }
     .cm-vk__key--wide { flex-grow: 4; }
-    /* Done — the single gold commit key. */
+    /* Done — the single gold commit key. Carries the CONFIRM hotkey (Y) glyph. */
     .cm-vk__key--done {
         flex-grow: 2;
+        gap: 8px;
         background: linear-gradient(180deg, fade(@cm-gold, 30%) 0%, fade(@cm-gold, 15%) 100%);
         box-shadow: inset 0 0 0 1px fade(@cm-gold, 75%);
         color: mix(#ffffff, @cm-gold, 30%);
-        font-size: 17px;
+        font-size: 19px;
         letter-spacing: 1.2px;
         &.cm-vk__key--cursor {
             box-shadow: inset 0 0 0 2px fade(@cm-gold, 95%), 0 0 22px fade(@cm-gold, 42%);
+        }
+    }
+    /* The gamepad-hotkey glyph baked ONTO the key (mirrors GamepadGlyph): the
+       CONFIRM (Y / inspect) badge on Done, the LANGUAGE (RT) badge on {lang}. */
+    .cm-vk__key--done::before {
+        content: 'Y';
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(8, 14, 22, 0.92);
+        box-shadow: inset 0 0 0 1px #e6c34a, 0 2px 6px rgba(0, 0, 0, 0.45);
+        color: #e6c34a;
+        font-size: 12px;
+        letter-spacing: 0;
+    }
+    .cm-vk__key--lang {
+        flex-grow: 1.8;
+        gap: 8px;
+        &::before {
+            content: 'RT';
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 7px;
+            border-radius: 6px;
+            background: rgba(8, 14, 22, 0.92);
+            box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 2px 6px rgba(0, 0, 0, 0.45);
+            color: @con-text-dim;
+            font-size: 11px;
+            letter-spacing: 0.4px;
         }
     }
 }
