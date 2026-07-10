@@ -133,7 +133,11 @@ import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {HydroDeltaLine, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
-import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
+
+/** Confirm-dialog semantics: A = confirm, B = cancel (the advertised verbs). */
+const CONFIRM_DIALOG_OVERRIDES: ConsoleActionOverrides = {confirm: 'confirm', back: 'cancel'};
 
 export default defineComponent({
   name: 'ConsoleHydroConfirm',
@@ -177,21 +181,17 @@ export default defineComponent({
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
     /** The shell/section routes every intent here while the modal is open.
-     *  The bonus is fixed on this screen — only A (confirm) / B (back) act. */
+     *  Foundation: the advertised A/B verbs route through the SEMANTIC action
+     *  layer (a confirm dialog maps primary→confirm, back→cancel) so the
+     *  handler can never drift from what the command bar shows. */
     handleIntent(intent: GamepadIntent): void {
-      if (intent.kind !== 'press') {
-        return;
-      }
-      this.onPress(intent.button);
-    },
-    onPress(button: SemanticButton): void {
-      switch (button) {
+      switch (consoleActionOf(intent, CONFIRM_DIALOG_OVERRIDES)) {
       case 'confirm':
         if (this.model.canConfirm) {
           this.$emit('confirm');
         }
         return;
-      case 'back':
+      case 'cancel':
         this.$emit('cancel');
         return;
       default:

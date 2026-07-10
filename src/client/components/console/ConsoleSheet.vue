@@ -5,7 +5,7 @@
       <div class="con-sheet__head">
         <div class="con-sheet__title">{{ $t(title) }}</div>
       </div>
-      <div class="con-sheet__rows con-info__scroll" ref="rows">
+      <ConsoleScrollArea class="con-sheet__scroll-host" content-class="con-sheet__rows" ref="rows">
         <template v-for="(row, i) in rows" :key="row.key">
           <div v-if="row.kind === 'header'" class="con-sheet__group">{{ $t(row.title) }}</div>
 
@@ -27,7 +27,7 @@
             <div v-if="!row.available && row.reason" class="con-sheet__row-reason">{{ $t(row.reason) }}</div>
           </div>
         </template>
-      </div>
+      </ConsoleScrollArea>
       <div class="con-sheet__foot">
         <span class="con-sheet__foot-item"><GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span></span>
         <span class="con-sheet__foot-item"><GamepadGlyph control="stickScroll" /><span>{{ $t('Scroll') }}</span></span>
@@ -49,6 +49,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {Color} from '@/common/Color';
 
 export type ConsoleSheetRow = {
@@ -71,7 +72,7 @@ export type ConsoleSheetRow = {
 
 export default defineComponent({
   name: 'ConsoleSheet',
-  components: {GamepadGlyph},
+  components: {ConsoleScrollArea, GamepadGlyph},
   props: {
     title: {type: String, required: true},
     rows: {type: Array as PropType<ReadonlyArray<ConsoleSheetRow>>, required: true},
@@ -83,12 +84,13 @@ export default defineComponent({
       void this.$nextTick(() => {
         const slot = this.$refs.selectedRow as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
-        el?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.rows as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     /** A tab/sheet switch resets the list to the top. */
     title() {
-      (this.$refs.rows as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      (this.$refs.rows as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
     },
   },
 });

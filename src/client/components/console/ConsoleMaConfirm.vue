@@ -140,7 +140,11 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {$t} from '@/client/directives/i18n';
-import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
+
+/** Confirm-dialog semantics: A = confirm, B = cancel (the advertised verbs). */
+const CONFIRM_DIALOG_OVERRIDES: ConsoleActionOverrides = {confirm: 'confirm', back: 'cancel'};
 
 export default defineComponent({
   name: 'ConsoleMaConfirm',
@@ -185,22 +189,18 @@ export default defineComponent({
   },
   methods: {
     $t,
-    /** The shell routes every intent here while the modal is open. */
+    /** The shell routes every intent here while the modal is open. Foundation:
+     *  the advertised A/B verbs route through the SEMANTIC action layer (a
+     *  confirm dialog maps primary→confirm, back→cancel). */
     handleIntent(intent: GamepadIntent): void {
-      if (intent.kind !== 'press') {
-        return;
-      }
-      this.onPress(intent.button);
-    },
-    onPress(button: SemanticButton): void {
-      switch (button) {
+      switch (consoleActionOf(intent, CONFIRM_DIALOG_OVERRIDES)) {
       case 'confirm':
         if (this.canConfirm) {
           this.submitted = true; // one-shot: A-spam can never double-submit
           this.$emit('confirm');
         }
         return;
-      case 'back':
+      case 'cancel':
         this.$emit('cancel');
         return;
       default:

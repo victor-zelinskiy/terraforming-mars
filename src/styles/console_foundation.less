@@ -44,6 +44,17 @@ html.console-native {
     }
 }
 
+/* ── §3.2a Visual (non-layout) transition mixin ─────────────────────
+ * The sanctioned replacement for `transition: all` in console-native code
+ * (CONSOLE_FOUNDATION.md §7): animates ONLY compositor/paint properties, so
+ * a hover/selected state can never animate width/height/padding/top/left —
+ * no layout thrash, no transient overflow. Use this instead of `all`. */
+.con-visual-transition(@dur: 140ms) {
+    transition-property: transform, opacity, background-color, box-shadow, color, border-color, filter;
+    transition-duration: calc(@dur * var(--motion-scale, 1));
+    transition-timing-function: ease;
+}
+
 /* ── §3.2 Overflow-safe animation pattern ───────────────────────────
  * Animated console content moves an INNER layer (transform/opacity only)
  * inside an OUTER clip wrapper — transform overshoot can never poke past

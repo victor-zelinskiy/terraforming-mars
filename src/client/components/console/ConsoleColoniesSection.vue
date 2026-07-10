@@ -70,6 +70,7 @@
  * server reasons. Button hints live ONLY in the shell's bottom command bar.
  */
 import {defineComponent, PropType} from 'vue';
+import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -124,7 +125,9 @@ export default defineComponent({
       /** The fit-set grid max-width so the layout's column count holds. */
       gridMaxW: 0,
       fitRaf: undefined as number | undefined,
-      resizeObs: undefined as ResizeObserver | undefined,
+      /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
+      stopResize: undefined as (() => void) | undefined,
+      stopResizeObs: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -249,22 +252,18 @@ export default defineComponent({
   mounted() {
     this.scrollSelectedIntoView();
     this.fit();
+    // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     const scroll = this.$refs.scroll as HTMLElement | undefined;
-    if (typeof ResizeObserver !== 'undefined' && scroll !== undefined) {
-      this.resizeObs = new ResizeObserver(() => this.scheduleFit());
-      this.resizeObs.observe(scroll);
+    if (scroll !== undefined) {
+      this.stopResizeObs = useResizeObserver(scroll, () => this.scheduleFit()).stop;
     }
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', this.scheduleFit);
-    }
+    this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
   },
   beforeUnmount() {
-    this.resizeObs?.disconnect();
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('resize', this.scheduleFit);
-      if (this.fitRaf !== undefined) {
-        window.cancelAnimationFrame(this.fitRaf);
-      }
+    this.stopResizeObs?.();
+    this.stopResize?.();
+    if (this.fitRaf !== undefined && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.fitRaf);
     }
   },
 });

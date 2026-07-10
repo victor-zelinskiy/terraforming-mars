@@ -308,7 +308,8 @@
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
  */
-import {defineComponent, PropType, markRaw} from 'vue';
+import {defineComponent, PropType} from 'vue';
+import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/Card.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -371,7 +372,9 @@ export default defineComponent({
       armedSkip: false,
       /** Single-row wizard-card fit (sets --con-cards-zoom so the row always
        *  fits → never scrolls on focus). Observers run it on resize; never per focus. */
-      stripFitObserver: undefined as ResizeObserver | undefined,
+      /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
+      stopStripObs: undefined as (() => void) | undefined,
+      stopResize: undefined as (() => void) | undefined,
       fitScheduled: false,
       fitRetries: 0,
     };
@@ -651,16 +654,13 @@ export default defineComponent({
   },
   mounted() {
     void this.$nextTick(() => this.fitCardStrip());
-    if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => this.scheduleFit());
-      ro.observe(this.$el as HTMLElement);
-      this.stripFitObserver = markRaw(ro);
-    }
-    window.addEventListener('resize', this.scheduleFit);
+    // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
+    this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
+    this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
   },
   beforeUnmount() {
-    this.stripFitObserver?.disconnect();
-    window.removeEventListener('resize', this.scheduleFit);
+    this.stopStripObs?.();
+    this.stopResize?.();
   },
   methods: {
     dealDelay(i: number): Record<string, string> {

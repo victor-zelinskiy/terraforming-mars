@@ -23,7 +23,7 @@
         </div>
 
         <div class="con-composer__playright">
-          <div class="con-composer__scroll" ref="scroll">
+          <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading">{{ $t('Loading') }}…</div>
 
             <!-- ── SUB-STATE: a list pick (card / player / or). ──────── -->
@@ -194,7 +194,7 @@
                 <span class="con-composer__cta-label">{{ $t(ctaLabel) }}</span>
               </div>
             </template>
-          </div>
+          </ConsoleScrollArea>
 
           <!-- ── The ONE bottom command bar ──────────────────────────── -->
           <footer class="con-composer__foot" aria-hidden="true">
@@ -244,6 +244,7 @@ import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -323,7 +324,7 @@ function isPreCollectable(c: ComposerChoice): boolean {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, GamepadGlyph, ActionEffectChip},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     cardName: {type: String as PropType<CardName>, required: true},
@@ -1214,7 +1215,8 @@ export default defineComponent({
       void this.$nextTick(() => {
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
-        node?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
   },

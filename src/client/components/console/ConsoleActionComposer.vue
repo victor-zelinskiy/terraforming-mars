@@ -41,7 +41,7 @@
       <div v-else-if="!hasDecisions" class="con-composer__hero con-composer__hero--plain">{{ $t('Confirm to perform this action.') }}</div>
 
       <!-- ── The decision surface ─────────────────────────────────────── -->
-      <div class="con-composer__scroll" ref="scroll">
+      <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
         <!-- SUB-STATE: a premium pick list (card / player / or). -->
         <template v-if="sub !== undefined && sub.kind === 'list'">
           <div class="con-composer__sub-title">{{ subTitle }}</div>
@@ -184,7 +184,7 @@
             <span aria-hidden="true">›</span><span>{{ n }}</span>
           </div>
         </template>
-      </div>
+      </ConsoleScrollArea>
 
       <!-- ── The ONE bottom command bar (composer context) ─────────── -->
       <footer class="con-composer__foot" aria-hidden="true">
@@ -240,6 +240,7 @@ import {
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
@@ -292,7 +293,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, GamepadGlyph},
+  components: {ActionEffectChip, ConsoleScrollArea, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     entry: {type: Object as PropType<ActionEntry>, required: true},
@@ -1129,7 +1130,10 @@ export default defineComponent({
       void this.$nextTick(() => {
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
-        node?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: keep the focused row visible via the ConsoleScrollArea's
+        // own viewport math (never scrollIntoView — it can walk outer scroll
+        // ancestors).
+        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
   },

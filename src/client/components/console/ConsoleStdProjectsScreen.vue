@@ -21,7 +21,7 @@
       <!-- The dashboard: a 2-column grid — every basic action is a focusable
            card (Patent sale included, Steam-version parity); a disabled card
            still explains itself via the footer context. -->
-      <div class="con-stdp__grid con-info__scroll" ref="grid">
+      <ConsoleScrollArea class="con-stdp__scroll-host" content-class="con-stdp__grid" ref="grid">
         <article v-for="(it, i) in items" :key="it.key"
                  class="con-stdp__card"
                  :class="{
@@ -52,7 +52,7 @@
             </span>
           </div>
         </article>
-      </div>
+      </ConsoleScrollArea>
 
       <!-- Footer: the FOCUSED item's one-line context + controller hints. -->
       <div class="con-stdp__foot">
@@ -85,12 +85,13 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
 import {StdProjectItem} from '@/client/console/consoleQuickModel';
 
 export default defineComponent({
   name: 'ConsoleStdProjectsScreen',
-  components: {GamepadGlyph, BarButtonIcon},
+  components: {ConsoleScrollArea, GamepadGlyph, BarButtonIcon},
   props: {
     items: {type: Array as PropType<ReadonlyArray<StdProjectItem>>, required: true},
     index: {type: Number, required: true},
@@ -137,7 +138,8 @@ export default defineComponent({
       void this.$nextTick(() => {
         const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
-        el?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.grid as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
   },

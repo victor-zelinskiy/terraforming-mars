@@ -143,16 +143,50 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   (consoleActionModel) — НИКОГДА локальный `window.addEventListener('keydown')` в
   компоненте. Новый семантический глагол → член `ConsoleAction` + запись в базовую
   карту или override экрана.
-- **Новый console-native экран** → `useConsoleNativeSurface()` в setup +
-  `useConsoleInput({...})` (или `installMenuPad` до игры) + скролл только через
+- **Новый console-native ЭКРАН** (владелец viewport) → `useConsoleNativeSurface()` в
+  setup + `useConsoleInput({...})` (или `installMenuPad` до игры) + скролл только через
   `ConsoleScrollArea` + регистрация в leak-detector (SERVING_SURFACES/KIND_SURFACES —
   прежнее правило).
-- **Новая анимация** → clip-wrapper паттерн; длительности через
+- **Новый console-native МОДАЛ / overlay** (внутри уже-залоченного экрана — НЕ
+  зовёт `useConsoleNativeSurface`, наследует политику):
+  1. scroll-зона → `<ConsoleScrollArea class="X__scroll" content-class="X__scroll-body" ref="scroll">`;
+     курсор держать в зоне видимости через `ensureVisible(el)` (никогда
+     `scrollIntoView`); CSS split — host `{flex:1; min-height:0}`, layout на
+     content-class; `overflow-y:auto` + `.con-scrollbars()` УБРАТЬ.
+  2. input через `handleIntent(intent)` (шелл/секция делегирует) — переключаться на
+     `consoleActionOf(intent, OVERRIDES)`, НЕ на сырые имена кнопок. Confirm-модал →
+     `{confirm:'confirm', back:'cancel'}` (пример: ConsoleHydroConfirm/ConsoleMaConfirm).
+  3. НЕ добавлять `keydown`/gamepad listener — интенты уже приходят через слот.
+- **Новая анимация** → `.con-motion-clip` + `.con-motion-layer`; `transition: all`
+  запрещён — вместо него миксин `.con-visual-transition(<dur>)` (анимирует только
+  transform/opacity/цвет/тень, НЕ layout); длительности через
   `consoleMotionMs`/`motionMs`/`--motion-scale`; проверка `reduced`.
-- **Пилот-примеры**: ConsoleMainMenu (surface + семантический `consoleActionOf` +
-  ScrollArea списка игр + `keepGamesCursorVisible`), ConsoleCreateGame (surface +
-  ScrollArea deck-зоны + `keepDeckCursorVisible`), ConsoleLaunchPanel
-  (`contentClass`+`fill` миграция `.cm-launch__scroll`), ConsoleShell (surface).
+- **Документируемое исключение** для scroll-зоны допустимо, если зона: (а) по дизайну
+  ВСЕГДА влезает (safety-valve), и (б) chrome-less (`.con-scrollbars()`), и (в) без
+  cursor-driven scroll (нет `scrollIntoView`) ИЛИ имеет тонко-настроенный flex-контракт,
+  который block-viewport ConsoleScrollArea сломает. Пометить комментарием в CSS
+  (пример: `.con-govsupport__panel`, `.con-colonies__scroll`).
+- **Пилот-примеры**: ConsoleMainMenu / ConsoleCreateGame / ConsoleLaunchPanel /
+  ConsoleShell (surface + ScrollArea + семантический input); модалки ActionComposer /
+  PlayCardConfirm / ColonyTradeConfirm (ScrollArea+ensureVisible); list-экраны
+  Sheet / MaScreen / StdProjects (ScrollArea, убран видимый thin-scrollbar).
+
+## §9. Dependency policy
+
+- `@vueuse/core@14.3.0` — DEFAULT для новых кросс-срезовых нужд (listeners, resize,
+  media, scroll-lock, reduced-motion). Точная версия (`--save-exact`).
+- `@vueuse/components` / `@vueuse/integrations` / внешние UI-либы — можно ПРЕДЛОЖИТЬ,
+  но только с обоснованием: конкретный use case, альтернативы, стоимость зависимости,
+  почему лучше своего решения. НЕ добавлять «потому что можно». Для одного мелкого
+  кейса — не брать; для повторяющейся архитектурной проблемы — обсудить.
+- Кандидаты «подумать шире» (по ситуации, НЕ сейчас): специализированная overlay-scroll
+  либа — если кастомный rail ConsoleScrollArea окажется недостаточным для всех
+  сценариев; Floating UI — при сложном popover/tooltip positioning; focus-trap — ТОЛЬКО
+  для non-console DOM-fallback модалок (console-навигация НЕ должна снова стать
+  DOM-focus based); Motion for Vue / GSAP / Rive — для будущих анимаций, отдельно, НЕ
+  смешивая с текущим foundation.
+- Своё сильнее generic: `gamepadPollModel`/`gamepadCore` (НЕ `useGamepad`),
+  `consoleActionModel` keyboard-map (НЕ `useMagicKeys`) — не заменять.
 
 ## §8. Ручной чеклист (прогонять при миграции экранов)
 
@@ -164,12 +198,50 @@ resize вживую. Экраны: главное меню (+Мои игры с 
 карт, 5–6 игроков, все расширения. Критерий: ни одного нативного скроллбара, ни
 одного `[console-overflow]` warn в консоли, курсор всегда в видимой зоне списка.
 
-## Статус миграции
+## Статус миграции (живой — обновлять при каждом экране)
 
-- ✅ Пилот: главное меню, создание игры, ConsoleShell (surface-lock), launch-панель.
-- ⏭ Остальной flow (рука/карты, wheels, колонии, драфт, модалки, theater, MarsBot,
-  endgame): экраны УЖЕ под page-lock'ом ConsoleShell; осталось перевести их внутренние
-  `overflow-y:auto` (`.con-scrollbars()`-места) на ConsoleScrollArea + семантические
-  actions — постепенно, экран за экраном.
+**Кросс-срезовое (готово):** raw keydown/gamepad listeners в компонентах — НЕТ
+(интенты идут через семантический слот; аудит подтвердил); page-level scrollbar —
+заблокирован (`html.console-native` surface-lock: ConsoleShell + оба pre-game экрана);
+DOM-focus не primary-навигация (курсоры state-driven); `transition: all` в console —
+0 (все 7 → `.con-visual-transition`); raw `resize`-listeners в console-компонентах — 0
+(3 fit-движка на `useEventListener`/`useResizeObserver`).
+
+| Экран / компонент | Surface | Scroll | Input | Статус |
+| --- | --- | --- | --- | --- |
+| ConsoleMainMenu | ✅ | ✅ ScrollArea | ✅ consoleActionOf | migrated |
+| ConsoleCreateGame | ✅ | ✅ ScrollArea (деки) | raw* | migrated |
+| ConsoleLaunchPanel | (наследует) | ✅ ScrollArea | — | migrated |
+| ConsoleShell | ✅ | side-panels ⏭ | raw* | surface done |
+| ConsoleActionComposer | (наследует) | ✅ ScrollArea+ensureVisible | raw* (степперы) | scroll migrated |
+| ConsolePlayCardConfirm | (наследует) | ✅ ScrollArea+ensureVisible | raw* | scroll migrated |
+| ConsoleColonyTradeConfirm | (наследует) | ✅ ScrollArea+ensureVisible | raw* | scroll migrated |
+| ConsoleSheet | (наследует) | ✅ ScrollArea (убран thin-bar) | shell-driven | migrated |
+| ConsoleMaScreen | (наследует) | ✅ ScrollArea (убран thin-bar) | shell-driven | migrated |
+| ConsoleStdProjectsScreen | (наследует) | ✅ ScrollArea | shell-driven | migrated |
+| ConsoleHydroConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
+| ConsoleMaConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
+| ConsoleGovernmentSupport | (наследует) | 📄 exception (always-fit 2×2) | raw* | doc exception |
+| ConsoleTaskHost | (наследует) | 📄 exception (fit-strip + bounded body) | raw* | doc exception |
+| ConsoleRevealOverlay | (наследует) | 📄 exception (fit-strip, inline-center bounded) | raw* | doc exception |
+| ConsoleColoniesSection | (наследует) | 📄 exception (flex-центр контракт; resize✅) | raw* | doc exception |
+| ConsoleHandSection | (наследует) | 📄 candidate (fit-managed, chrome-less) | raw* | pending |
+| ConsoleJournalPanel | (наследует) | ⏭ pending (свой premium thin-bar → rail) | raw* | pending |
+| ConsoleColonyInspect / InfoMode / ConsoleContextPanel (`.con-inspector` — видимый thin-bar) | (наследует) | ⏭ pending | — | pending |
+| ConsoleStartScene | ✅ (resize✅) | ⏭ pending (`__body` + fit-strip) | raw* | pending |
+| ConsoleCardActions / Hydro / MarsBotSections | (наследует) | ⏭ pending | raw* | pending |
+
+`*raw` = `handleIntent` пока матчит `intent.button`; поведение уже КОРРЕКТНО
+(A=контекстное действие, state-driven — не DOM-клик), миграция на `consoleActionOf` —
+консистентность, не багфикс. Гоча: модалки переиспользуют бамперы/триггеры под
+внутренние степперы (amount ±, max) — их семантическая миграция требует продуманного
+per-modal override (generic-verbs `prevSection`/`nextTab` не совпадают со степперной
+семантикой); делать аккуратно против command bar каждого экрана.
+
+**Оставшийся план (порядок пользователя):** hand/cards → card fullscreen → draft →
+received cards → blue action center → colonies → wheels → MarsBot theater →
+endgame/victory. Для каждого: применить §7-правила модала/экрана, проверить
+build+lint+specs, обновить эту таблицу.
+
 - ⏭ Legacy join/lobby в console-режиме — вне console-native политики до их
-  console-native переписывания.
+  console-native переписывания (window-scroll легитимен, хром скрыт P14).

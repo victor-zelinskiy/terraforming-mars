@@ -79,7 +79,7 @@
 
         <!-- ── REVIEW: payment methods → decisions → the trade outcome. ── -->
         <template v-else>
-          <div class="con-trade__columns">
+          <ConsoleScrollArea class="con-trade__columns" content-class="con-trade__columns-grid" ref="scroll">
             <!-- 1 · EVERY payment path, affordable AND not (never hidden). -->
             <section class="con-trade__paysec">
               <div class="con-trade__sec-title">{{ $t('Payment method') }}</div>
@@ -190,7 +190,7 @@
                 </span>
               </div>
             </section>
-          </div>
+          </ConsoleScrollArea>
         </template>
       </div>
     </div>
@@ -251,6 +251,7 @@ import {
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -288,7 +289,7 @@ const LANE_LABEL: Partial<Record<SpendableResource, string>> = {
 
 export default defineComponent({
   name: 'ConsoleColonyTradeConfirm',
-  components: {BenefitGlyph},
+  components: {BenefitGlyph, ConsoleScrollArea},
   props: {
     colony: {type: Object as PropType<ColonyModel | undefined>, default: undefined},
     colonyName: {type: String as PropType<ColonyName>, required: true},
@@ -894,7 +895,8 @@ export default defineComponent({
       void this.$nextTick(() => {
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
-        node?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
     emitConfirm(): void {

@@ -1389,7 +1389,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.18);
         cursor: pointer;
         zoom: 1.1;
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--selected {
             background: fade(@con-cyan, 12%);
@@ -3574,9 +3574,12 @@ html.console-mode {
         color: fade(@con-cyan, 95%);
         text-align: center;
     }
+    /* ConsoleScrollArea host (foundation) — no native scrollbar chrome. */
+    &__scroll-host {
+        flex: 1;
+        min-height: 0;
+    }
     &__rows {
-        overflow-y: auto;
-        scrollbar-width: thin;
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -3586,7 +3589,7 @@ html.console-mode {
         border-radius: 10px;
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--selected {
             background: fade(@con-cyan, 13%);
@@ -3896,16 +3899,16 @@ html.console-mode {
         white-space: nowrap;
     }
 
-    /* ── the dashboard grid ─────────────────────────────────────── */
-    &__grid {
+    /* ── the dashboard grid (ConsoleScrollArea host + grid content) ─── */
+    &__scroll-host {
         flex: 1;
         min-height: 0;
+    }
+    &__grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-auto-rows: minmax(0, 1fr);
         gap: 14px;
-        overflow-y: auto;
-        scrollbar-width: thin;
     }
     &__card {
         position: relative;
@@ -4324,11 +4327,15 @@ html.console-mode {
     &__wallet-after { color: @con-mint; }
     &__wallet-shortfall { color: @con-red; font-size: 16px; }
 
+    /* ConsoleScrollArea host + grid content (foundation). */
+    &__scroll-host {
+        flex: 1;
+        min-height: 0;
+    }
     &__grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
-        overflow-y: auto;
         padding: 4px 2px;
     }
     &__card {
@@ -6728,14 +6735,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
     &__main { min-height: 0; }
 
-    /* Review = two columns: (1) payment + decisions · (2) the outcome. */
+    /* Review = two columns: (1) payment + decisions · (2) the outcome.
+       ConsoleScrollArea host (fills the flex-column modal body); the grid
+       lives on the content wrapper. */
     &__columns {
+        flex: 1;
+        min-height: 0;
+    }
+    &__columns-grid {
         display: grid;
         grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
         gap: 18px;
-        overflow-y: auto;
-        min-height: 0;
-        .con-scrollbars();
     }
     &__sec-title {
         font-size: 13px;
@@ -7184,7 +7194,7 @@ html.console-mode {
         border-radius: 10px;
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--focused {
             background: fade(@con-cyan, 12%);
@@ -7364,7 +7374,7 @@ html.console-mode {
         border-radius: 12px;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.16);
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--focused {
             box-shadow: inset 0 0 0 1px fade(@con-cyan, 80%), 0 0 20px fade(@con-cyan, 20%);
@@ -7414,7 +7424,7 @@ html.console-mode {
         border-radius: 10px;
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--focused {
             background: fade(@con-cyan, 12%);
@@ -7690,8 +7700,11 @@ html.console-mode {
            static, cheap; the entrance is the cheap con-layer opacity fade. */
         box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%), 0 18px 52px rgba(0, 0, 0, 0.6);
         color: @con-text;
-        /* The 2×2 always fits; the scrollbar is a safety net only for the
-           rare many-option case (Moon adds extra tiles) — never for the 4. */
+        /* FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the 2×2
+           ALWAYS fits; this overflow is a chrome-less safety valve for the rare
+           many-option case (Moon adds extra tiles) only — no cursor-driven
+           scroll (no scrollIntoView), so a ConsoleScrollArea wrap adds churn
+           without value. Chrome hidden by .con-scrollbars(). */
         overflow-y: auto;
         .con-scrollbars();
     }
@@ -8475,7 +8488,7 @@ html.console-mode {
         letter-spacing: 1.2px;
         text-transform: uppercase;
         color: @con-text-dim;
-        transition: all calc(180ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(180ms);
 
         &--active {
             background: fade(@con-cyan, 12%);
@@ -9776,7 +9789,7 @@ html.console-mode .notifications-layer {
         border-radius: 10px;
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 1px rgba(120, 150, 180, 0.14);
-        transition: all calc(140ms * var(--motion-scale, 1)) ease;
+        .con-visual-transition(140ms);
 
         &--selected {
             background: fade(@con-cyan, 13%);
@@ -10610,11 +10623,12 @@ html.console-mode {
     }
     &__varchip-icon { width: 24px; height: 24px; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
 
-    /* ── Decision rows / sub-state lists ── */
+    /* ── Decision rows / sub-state lists (ConsoleScrollArea host) ── */
     &__scroll {
-        flex: 1; min-height: 0; overflow-y: auto;
+        flex: 1; min-height: 0;
+    }
+    &__scroll-body {
         display: flex; flex-direction: column; gap: 10px; padding-right: 6px;
-        .con-scrollbars();
     }
     &__sub-title { font-size: 15px; letter-spacing: 1.2px; text-transform: uppercase; color: fade(@con-cyan, 90%); }
 

@@ -37,7 +37,7 @@
            odd list's last card spans both columns; overflow scroll is an
            extreme-mod fallback only). Every card is focusable — taken and
            blocked items still explain themselves via the context strip. -->
-      <div class="con-ma__grid con-info__scroll" ref="grid">
+      <ConsoleScrollArea class="con-ma__scroll-host" content-class="con-ma__grid" ref="grid">
         <article v-for="(it, i) in items" :key="it.key"
                  class="con-ma__card"
                  :class="{
@@ -105,7 +105,7 @@
             </div>
           </div>
         </article>
-      </div>
+      </ConsoleScrollArea>
 
       <!-- Footer: the FOCUSED item's context (one fixed line — owner /
            ready / "+N to the threshold" / the concrete blocker) + the
@@ -154,12 +154,13 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {ConsoleMaItem, ConsoleMaKind, ConsoleMaScore, ConsoleMaFocusContext, consoleMaFocusContext} from '@/client/components/console/consoleMaModel';
 
 export default defineComponent({
   name: 'ConsoleMaScreen',
-  components: {GamepadGlyph, BarButtonIcon},
+  components: {ConsoleScrollArea, GamepadGlyph, BarButtonIcon},
   props: {
     kind: {type: String as PropType<ConsoleMaKind>, required: true},
     items: {type: Array as PropType<ReadonlyArray<ConsoleMaItem>>, required: true},
@@ -230,11 +231,12 @@ export default defineComponent({
       void this.$nextTick(() => {
         const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
-        el?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.grid as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     kind() {
-      (this.$refs.grid as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      (this.$refs.grid as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
     },
   },
   methods: {
