@@ -122,6 +122,12 @@
            header, so the header height can't jump when the filter changes. -->
       <span v-if="filteredCountText !== ''" class="con-hand__shown">{{ filteredCountText }}</span>
     </div>
+
+    <!-- The gliding selection frame — THE primary focus indicator of card
+         navigation (shared with the start scene / draft / reveal). Self-
+         resolving: tracks the cursored card inside this section itself,
+         following grid scroll and the focus scale transition live. -->
+    <ConsoleCardFocusFrame selector=".con-hand__slot--selected > .card-container" />
   </div>
 </template>
 
@@ -146,6 +152,7 @@
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/Card.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -203,7 +210,7 @@ function clampNum(lo: number, hi: number, v: number): number {
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card},
+  components: {Card, ConsoleCardFocusFrame},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},

@@ -1,22 +1,37 @@
 <template>
   <!--
-    CONSOLE FOCUS FRAME — the gliding "targeting bracket" of console card
-    selection. Instead of the highlight jumping from card to card, ONE
-    frame of four L-corner ticks (the fork's signature card chrome) glides
-    to the focused card with spring physics — fast d-pad chains re-target
-    mid-flight with preserved velocity, which is what makes it feel
-    console-native rather than web.
+    CONSOLE FOCUS FRAME — the gliding "targeting bracket", THE primary focus
+    indicator of card navigation in console mode. Instead of the highlight
+    jumping from card to card, ONE frame of four L-corner ticks (the fork's
+    signature card chrome) glides to the focused card with spring physics —
+    fast d-pad chains re-target mid-flight with preserved velocity, which is
+    what makes it feel console-native rather than web.
+
+    Used by EVERY console surface that navigates over real cards: the start
+    wizard/ceremony (ConsoleStartScene), the draft/buy card browser
+    (ConsoleTaskHost), the hand overlay (ConsoleHandSection), the received-
+    cards reveal (ConsoleRevealOverlay). Wiring is ONE line — mount it as a
+    direct child of the surface root with a `selector`:
+
+      <ConsoleCardFocusFrame selector=".con-hand__slot--selected > .card-container" />
+
+    The frame resolves the selector INSIDE its parent element on every
+    measure tick (scoped — two card surfaces stacked on screen never steal
+    each other's target), so hosts need no target-sync code at all. The
+    `target` prop remains for hosts that prefer to hand the element over
+    explicitly; `active=false` hides the frame (e.g. while a deal cinematic
+    runs and selection isn't interactive yet).
 
     Motion for Vue (motion-v) drives the ticks: transform-only springs,
     interruptible, honouring reduced motion (duration 0 → instant
-    placement). The card's own soft glow (`.con-cards__slot--focused`)
-    stays — the frame is the "aim", the glow is the "light"; together they
-    read as one instrument.
+    placement). The card's own soft glow (`--focused`/`--selected` slot
+    rings) stays — the frame is the "aim", the glow is the "light";
+    together they read as one instrument.
 
     Geometry: a rAF measure loop (FPS-gated via createFrameGate) tracks the
     target's live viewport rect — it follows the focus lift/scale
     transition, grid scrolling and window resizes without observers. One
-    getBoundingClientRect per frame for one element: negligible.
+    querySelector + one getBoundingClientRect per frame: negligible.
   -->
   <div v-show="visible" class="con-focus-frame" aria-hidden="true">
     <Motion v-for="tick in ticks" :key="tick.id"
@@ -43,11 +58,27 @@ export default defineComponent({
   name: 'ConsoleCardFocusFrame',
   components: {Motion},
   props: {
-    /** The focused card's element (`.card-container`); null hides the frame. */
+    /** Explicit target element (`.card-container`); null hides the frame. */
     target: {
       type: Object as () => HTMLElement | null,
       required: false,
       default: null,
+    },
+    /**
+     * Self-resolving mode: a CSS selector for the focused card, resolved
+     * inside this component's PARENT element on every measure tick. The
+     * preferred wiring — hosts need no target-sync code.
+     */
+    selector: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    /** Gate (e.g. false while a deal cinematic owns the cards). */
+    active: {
+      type: Boolean,
+      required: false,
+      default: true,
     },
   },
   setup() {
@@ -95,8 +126,24 @@ export default defineComponent({
     cancelAnimationFrame(this.raf);
   },
   methods: {
+    resolveTarget(): HTMLElement | null {
+      if (!this.active) {
+        return null;
+      }
+      if (this.target !== null) {
+        return this.target;
+      }
+      if (this.selector === '') {
+        return null;
+      }
+      // Scoped to the host surface (the frame's parent), so stacked card
+      // surfaces (e.g. a reveal overlay above the task host) never steal
+      // each other's focus target.
+      const scope = (this.$el as HTMLElement | undefined)?.parentElement ?? null;
+      return scope?.querySelector<HTMLElement>(this.selector) ?? null;
+    },
     measure(): void {
-      const el = this.target;
+      const el = this.resolveTarget();
       if (el === null || !el.isConnected) {
         this.visible = false;
         return;

@@ -315,8 +315,10 @@
     </transition>
 
     <!-- The gliding selection frame (motion-v springs) — outside the keyed
-         frame so it survives prompt swaps and glides across them. -->
-    <ConsoleCardFocusFrame :target="focusTarget" />
+         frame so it survives prompt swaps and glides across them.
+         Self-resolving: finds the focused card inside this host itself. -->
+    <ConsoleCardFocusFrame :active="!deal.state.active"
+                           selector=".con-cards__slot--focused > .card-container" />
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
                           :cards="deal.state.cards" :nonce="deal.state.nonce" />
@@ -489,8 +491,6 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
-      /** The gliding focus frame's target (the focused card's element). */
-      focusTarget: null as HTMLElement | null,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
        *  never scrolls on focus). Observers run it on resize; NEVER per focus.
        *  VueUse stop-handles (auto-managed; no raw addEventListener). */
@@ -904,15 +904,6 @@ export default defineComponent({
         return true;
       }
     },
-    /** Re-sync trigger for the gliding focus frame's target element. */
-    focusSignature(): string {
-      return [
-        this.resetKey,
-        this.focusIdx,
-        this.deal.state.active ? 'dealing' : '',
-        this.activeTask.kind,
-      ].join('|');
-    },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
       // While the deal cinematic runs, selection is NOT interactive yet —
       // the bar advertises only the skip (any button skips).
@@ -997,11 +988,6 @@ export default defineComponent({
         void this.$nextTick(() => this.fitCardStrip());
       },
     },
-    focusSignature: {
-      handler() {
-        this.syncFocusTarget();
-      },
-    },
     /** A genuinely NEW server prompt discards an open nested step. */
     baseKey() {
       this.nested = undefined;
@@ -1024,7 +1010,6 @@ export default defineComponent({
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
-    this.syncFocusTarget();
   },
   beforeUnmount() {
     this.stopStripObs?.();
@@ -1117,21 +1102,6 @@ export default defineComponent({
       }
       const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
-    },
-    /** Re-point the gliding focus frame at the focused card's element. */
-    syncFocusTarget(): void {
-      if (this.deal.state.active) {
-        this.focusTarget = null;
-        return;
-      }
-      void this.$nextTick(() => {
-        const root = this.$el as HTMLElement | undefined;
-        if (root === undefined || root.querySelector === undefined) {
-          this.focusTarget = null;
-          return;
-        }
-        this.focusTarget = root.querySelector<HTMLElement>('.con-cards__slot--focused > .card-container');
-      });
     },
     /** P13/P15: X opens the focused card fullscreen (reused viewer). The
      *  select context lets A toggle the pick from fullscreen — disabled

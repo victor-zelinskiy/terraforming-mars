@@ -119,6 +119,12 @@
         </footer>
       </div>
     </transition>
+
+    <!-- The gliding selection frame — THE primary focus indicator of card
+         navigation (shared vocabulary with hand / draft / start scene).
+         Self-resolving inside this overlay, so it can never target the
+         task host's focused card underneath. -->
+    <ConsoleCardFocusFrame selector=".con-cards__slot--focused > .card-container" />
   </div>
 </template>
 
@@ -149,6 +155,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/Card.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ColonyTile from '@/client/components/colonies/ColonyTile.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -179,7 +186,7 @@ export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, ColonyTile, GamepadGlyph, ActionEffectChip},
+  components: {Card, ColonyTile, GamepadGlyph, ActionEffectChip, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},

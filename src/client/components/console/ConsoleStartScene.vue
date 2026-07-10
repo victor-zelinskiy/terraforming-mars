@@ -285,8 +285,12 @@
     </transition>
 
     <!-- The gliding selection frame (motion-v springs) — mounts OUTSIDE the
-         keyed frame so it survives step swaps and glides across them. -->
-    <ConsoleCardFocusFrame :target="focusTarget" />
+         keyed frame so it survives step swaps and glides across them.
+         Self-resolving: finds the focused card inside this scene itself. -->
+    <ConsoleCardFocusFrame :active="!deal.state.active"
+                           selector=".con-cards__slot--focused > .card-container,
+                                     .con-start__corp--focused > .card-container,
+                                     .con-start__prelude--focused > .card-container" />
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
          only while a deal runs — will-change is scoped by construction. -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
@@ -395,8 +399,6 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
-      /** The gliding focus frame's target (the focused card's element). */
-      focusTarget: null as HTMLElement | null,
       /** Single-row wizard-card fit (sets --con-cards-zoom so the row always
        *  fits → never scrolls on focus). Observers run it on resize; never per focus. */
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
@@ -618,16 +620,6 @@ export default defineComponent({
     dealSignature(): string {
       return `${this.frameKey}|${this.dealCards.map((c) => c.name).join(',')}`;
     },
-    /** Re-sync trigger for the gliding focus frame's target element. */
-    focusSignature(): string {
-      return [
-        this.frameKey,
-        this.focusIdx,
-        this.deal.state.active ? 'dealing' : '',
-        this.stepEntries.length,
-        this.focusables.map((f) => f.kind + f.name).join(','),
-      ].join('|');
-    },
     frameKey(): string {
       if (this.mode === 'wizard') {
         return `wizard|${this.railPos}`;
@@ -713,18 +705,12 @@ export default defineComponent({
         this.focusIdx = Math.max(0, now.length - 1);
       }
     },
-    focusSignature: {
-      handler() {
-        this.syncFocusTarget();
-      },
-    },
   },
   mounted() {
     void this.$nextTick(() => this.fitCardStrip());
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
-    this.syncFocusTarget();
   },
   beforeUnmount() {
     this.stopStripObs?.();
@@ -810,24 +796,6 @@ export default defineComponent({
       }
       const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
-    },
-    /** Re-point the gliding focus frame at the focused card's element. */
-    syncFocusTarget(): void {
-      if (this.deal.state.active) {
-        this.focusTarget = null;
-        return;
-      }
-      void this.$nextTick(() => {
-        const root = this.$el as HTMLElement | undefined;
-        if (root === undefined || root.querySelector === undefined) {
-          this.focusTarget = null;
-          return;
-        }
-        this.focusTarget = root.querySelector<HTMLElement>(
-          '.con-cards__slot--focused > .card-container, ' +
-          '.con-start__corp--focused > .card-container, ' +
-          '.con-start__prelude--focused > .card-container');
-      });
     },
     onNav(dir: NavDirection): void {
       // P13: the wizard GRID jumps rows on up/down (measured, wrap-robust).

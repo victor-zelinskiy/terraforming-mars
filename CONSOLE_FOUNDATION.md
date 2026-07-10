@@ -237,9 +237,20 @@ Premium-подача раздачи/выбора карт (стартовые к
   чист; никаких animated blur/filter; `will-change` живёт только пока жив v-if-слой;
   reduced-motion → БЕЗ полёта/прокси: короткий stagger-reveal ≤160ms, ввод не
   блокируется; safety-timeout жёстко завершает раздачу при замёрзшем rAF.
-- **Focus-рамка**: 4 L-corner тика (transform-only springs, stiffness 420 / damping
-  34), цель — `.con-cards__slot--focused > .card-container` (+ ceremony-варианты),
-  glow слота остаётся («рамка = прицел, glow = свет»); reduced → duration 0.
+- **Focus-рамка = ОСНОВНОЙ индикатор навигации по картам ВЕЗДЕ в console-native.**
+  `ConsoleCardFocusFrame` (4 L-corner тика, transform-only springs stiffness 420 /
+  damping 34; glow слота остаётся — «рамка = прицел, glow = свет»; reduced →
+  duration 0). Подключение = ОДНА строка прямым ребёнком корня поверхности:
+  `<ConsoleCardFocusFrame selector=".<slot>--focused > .card-container" />` —
+  рамка сама резолвит селектор ВНУТРИ родителя каждый measure-тик (scoped: две
+  наложенные карточные поверхности — reveal над task host — не крадут цель друг
+  у друга), хосту не нужен sync-код. Prop `active=false` гасит рамку (deal
+  cinematic). Покрытие: ConsoleStartScene (wizard + ceremony corp/prelude/
+  candidates), ConsoleTaskHost (draft/buy/select), ConsoleHandSection
+  (`.con-hand__slot--selected`), ConsoleRevealOverlay (drawn/viewer). НЕ карты
+  (MA-постеры, std-projects панели, action-тайлы, gov-support брифинг) держат
+  свой фокус-стиль — рамка семантически означает именно КАРТУ. Новая карточная
+  поверхность ОБЯЗАНА монтировать рамку с своим селектором.
 - **Расширение** (received cards / draft rewards / MarsBot reveal): переиспользовать
   sequence+director как есть — хосту нужны только hold-класс на слотах, layer в
   template и 4 строки хост-паттерна выше. Новую хореографию строить В director-
