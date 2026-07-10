@@ -309,6 +309,41 @@ Premium-подача раздачи/выбора карт (стартовые к
   template и 4 строки хост-паттерна выше. Новую хореографию строить В director-
   модуле, не в компоненте.
 
+**§10b. Card EXIT / TRANSFER (обратная сторона цикла — карты уходят со стола).**
+Файлы: `cardExitState.ts` (реестр полётов) + `ConsoleCardExitLayer.vue` (ОДИН
+app-уровневый стейдж в ConsoleShell, z 11640 — полёт переживает закрытие своего
+хоста: взятие последней revealed-карты закрывает оверлей ПОД летящей картой) +
+`cardExitDirector.ts` (GSAP-словарь) + `.con-exit-*` стили в console_card_deal.less.
+
+Словарь жестов:
+- `runCardTake(source, onLift)` — взять ОДНУ (Reveal A): lift/tilt-бит → уверенный
+  нырок в зону игрока (низ-центр — та же география стола, что deck дилера).
+- `runCardCollect(sources, onLift)` — «взять все» / покупка research: веер
+  СХЛОПЫВАЕТСЯ в аккуратную стопку в точке сбора (повороты сходятся, микро-офсеты
+  держат стопку физичной), ОДИН confirmation-pulse, стопка уходит к игроку как
+  единый объект. Один timeline на N лёгких твинов; 1 карта деградирует в take.
+- `runHeroPick(source, onLift)` — драфт: выбранная = HERO (lift + статичный cyan
+  rim на прокси + читаемый бит → уход с достоинством); отвергнутые = ДЕШЁВЫЙ CSS
+  `applyDiscardExit` на реальных слотах (дрейф к стороне сброса + fade, стаггер
+  инлайн-delay, `forwards` держит до frame-swap) — вторичные по дизайну.
+- `runCardTransfer({from, resolveTo, holdFrom, holdTarget, onLift})` — слот→слот
+  (рука→композер розыгрыша и ОБРАТНО на cancel): язык zoom-handoff'а — цель
+  PRE-hold'ится В ТОМ ЖЕ flush (до её первого пейнта), поллинг стабильного rect,
+  прибытие проявляет карту ПОД прокси + crossfade; `holdFrom` опустошает исходный
+  слот на время полёта (нет двоения; рука честно восстанавливается — розыгрыш не
+  подтверждён).
+- `runCardDepart(source)` — SUCCESS-финал композера: карта взлетает ВВЕРХ «на
+  стол» (никакого фальшивого возврата в руку, которую она покинула).
+
+**Lifecycle-контракт `onLift`:** хост коммитит game/UI state ВНУТРИ onLift —
+директор вызывает его в кадре, когда прокси уже стоит поверх реальной карты
+(same-frame swap: ни мигания, ни задержки сабмита за анимацией). Reduced motion:
+прокси не спаунятся вовсе, onLift сразу. Подключено: RevealOverlay
+(takeFocused/takeAll), TaskHost (commitSingleCard hero / confirmCardSetWithExit
+purchase, 0 picks → только спокойный discard), Shell (openPlayCardFromHand /
+onPlayCardCancel / success-depart в onPlayCardConfirmNative). Zoom-пути (взять из
+fullscreen) сохраняют свой consume-своп.
+
 ## §11. Fullscreen card inspector (открытие/листание/закрытие карт)
 
 Premium-хореография консольного fullscreen-осмотра. Файлы: `consoleCardZoom.ts`

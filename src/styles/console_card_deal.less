@@ -232,6 +232,55 @@ dialog.con-zoom {
     to { opacity: 1; }
 }
 
+/* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────
+   The outbound twin of the deal: take-one, collect-all, draft hero-pick,
+   hand→play-modal transfers fly FaceLite proxies on the ONE app-level
+   `.con-exit-layer` stage (mounted in ConsoleShell — flights survive their
+   host surface closing). Transform/opacity only; clipped. */
+.con-exit-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11640; /* above console surfaces/inspects, below the command bar (11700) */
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+.con-exit-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden; /* the director reveals via autoAlpha once positioned */
+    pointer-events: none;
+    will-change: transform, opacity; /* scoped: proxies exist only mid-flight */
+
+    /* The draft HERO pick: a static cyan rim (set once, fades with the
+       element — never an animated box-shadow). */
+    &--hero .con-card-lite {
+        box-shadow: 0 0 0 3px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 30%);
+        border-radius: 16px;
+    }
+}
+
+/* The SUBDUED discard of non-chosen cards (draft rejects / unbought
+   research cards): the REAL slots drift toward the discard side and fade —
+   clearly secondary to the hero/collect flight. `forwards` keeps them
+   hidden until the prompt's frame swap replaces the set. Per-slot stagger
+   rides an inline animation-delay set by applyDiscardExit. */
+.con-exit-reject {
+    animation: con-exit-reject calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2) both;
+    pointer-events: none;
+}
+@keyframes con-exit-reject {
+    to {
+        opacity: 0;
+        transform: translate(52px, 30px) rotate(2.6deg) scale(0.95);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-exit-reject { animation-duration: 1ms; }
+}
+
 /* While the fullscreen inspector is open the IDEOLOGICAL focus is on the
    viewer — the background focus chrome goes quiet: slot focus rings/glow
    and the «A …» action chips fade out (their existing transitions carry

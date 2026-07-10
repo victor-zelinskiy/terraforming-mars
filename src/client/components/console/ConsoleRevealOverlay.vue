@@ -178,6 +178,8 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, markAllTaken, markCardTaken,
 } from '@/client/components/drawnCards/drawnCardsState';
+import {CardName} from '@/common/cards/CardName';
+import {runCardCollect, runCardTake} from '@/client/console/cardDeal/cardExitDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -507,26 +509,58 @@ export default defineComponent({
         });
       }
     },
-    /** A: take the focused card (last one closes + releases + acks). */
+    /** The live slot element for a drawn/viewer card (data-zoom-slot key). */
+    exitSlotFor(key: string): HTMLElement | null {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return null;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"');
+      return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc}"]`);
+    },
+    /** A: take the focused card (last one closes + releases + acks).
+     *  EXIT cinematic: the card physically lifts off the reveal surface and
+     *  dives to the player zone — state commits the frame the proxy stands
+     *  ready (onLift), so the real card never blinks. The flight lives on
+     *  the shell's exit layer, surviving the overlay closing on the last
+     *  take. Reduced motion / missing slot → the bare commit. */
     takeFocused(): void {
       const e = this.drawnEvent;
       const entry = this.drawnUntaken[this.focusIdx];
       if (e === undefined || entry === undefined) {
         return;
       }
-      if (this.drawnUntaken.length <= 1) {
-        closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
+      const commit = () => {
+        if (this.drawnUntaken.length <= 1) {
+          closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
+        } else {
+          markCardTaken(e.id, entry.index);
+        }
+      };
+      const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
+      if (slot === null) {
+        commit();
         return;
       }
-      markCardTaken(e.id, entry.index);
+      void runCardTake({name: entry.card.name, el: slot}, commit);
     },
-    /** RT / B: take everything (the reveal's accept-and-close exit). */
+    /** RT / B: take everything — the premium GROUP collect: the fan
+     *  collapses into a stack at the gather point, one confirmation pulse,
+     *  the stack drops to the player as ONE object (cardExitDirector). */
     takeAll(): void {
       const e = this.drawnEvent;
       if (e === undefined) {
         return;
       }
-      closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+      const commit = () => closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+      const sources = this.drawnUntaken
+        .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`)}))
+        .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
+      if (sources.length === 0) {
+        commit();
+        return;
+      }
+      void runCardCollect(sources, commit);
     },
     /** A inside the fullscreen viewer — take the card at the viewer's index.
      *  The last card closes the viewer + releases the batch; otherwise the

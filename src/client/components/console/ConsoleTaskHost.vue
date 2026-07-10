@@ -393,6 +393,7 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
@@ -1348,13 +1349,71 @@ export default defineComponent({
         this.commitSingleCard(entry.card.name);
       }
     },
+    /** The live strip slot for a card (data-zoom-slot marker). */
+    exitSlotFor(name: CardName): HTMLElement | null {
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined || strip === null || typeof strip.querySelector !== 'function') {
+        return null;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+      return strip.querySelector<HTMLElement>(`[data-zoom-slot="${esc}"]`);
+    },
     commitSingleCard(name: CardName): void {
       const entry = this.cardEntries.find((e) => e.card.name === name);
       if (entry === undefined || entry.disabled) {
         return;
       }
-      this.picks = [name];
-      this.onConfirm();
+      const commit = () => {
+        this.picks = [name];
+        this.onConfirm();
+      };
+      // DRAFT HERO PICK: the chosen card lifts with the hero rim and departs
+      // to the player; the rejected cards drift to the discard side (cheap
+      // CSS on the real slots — subdued, never competing). Submit fires the
+      // frame the proxy stands ready (onLift) — the game flow is never
+      // delayed behind the cinematic. Fast-paced by design (draft repeats).
+      if (this.submitting || !this.confirmReady) {
+        commit(); // onConfirm self-guards
+        return;
+      }
+      const slot = this.exitSlotFor(name);
+      if (slot === null) {
+        commit();
+        return;
+      }
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const rejects = strip !== undefined && strip !== null ?
+        (Array.from(strip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
+      applyDiscardExit(rejects);
+      void runHeroPick({name, el: slot}, commit);
+    },
+    /** BUY / multi commit (RT) — the PURCHASE cinematic: the kept cards
+     *  gather into a stack (one confirmation pulse) and go to the player;
+     *  the unbought cards drift to the discard side. Zero picks → just the
+     *  calm discard (no hero objects). Submit fires at onLift. */
+    confirmCardSetWithExit(): void {
+      if (this.activeTask.kind !== 'cardSelect' || this.singlePick || this.submitting || !this.confirmReady) {
+        this.onConfirm(); // self-guarding fallback (also the 'not ready' path)
+        return;
+      }
+      const commit = () => this.onConfirm();
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined || strip === null) {
+        commit();
+        return;
+      }
+      const sources = this.picks
+        .map((name) => ({name, el: this.exitSlotFor(name)}))
+        .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
+      const chosen = new Set(sources.map((s) => s.el));
+      const rejects = (Array.from(strip.children) as Array<HTMLElement>)
+        .filter((el) => !chosen.has(el) && !el.classList.contains('con-deal-hold'));
+      applyDiscardExit(rejects);
+      if (sources.length === 0) {
+        commit(); // 0 bought: the calm discard alone
+        return;
+      }
+      void runCardCollect(sources, commit);
     },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;
@@ -1431,7 +1490,7 @@ export default defineComponent({
           if (this.canInspectDrafted) {
             this.openDraftedViewer();
           } else if (!this.singlePick) {
-            this.onConfirm();
+            this.confirmCardSetWithExit();
           }
           return;
         }

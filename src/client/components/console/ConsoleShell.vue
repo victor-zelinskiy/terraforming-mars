@@ -394,6 +394,11 @@
       </template>
     </CardZoomModal>
 
+    <!-- The ONE exit/transfer flight stage (take / collect / hero-pick /
+         hand→modal) — app-level so a flight survives its host surface
+         closing mid-animation (cardExitDirector.ts). -->
+    <ConsoleCardExitLayer />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -432,7 +437,7 @@
                               :cardName="pendingPlayCard.cardName"
                               :input="pendingPlayCard.input"
                               @confirm="onPlayCardConfirmNative($event)"
-                              @cancel="pendingPlayCard = undefined" />
+                              @cancel="onPlayCardCancel" />
     </transition>
 
   </div>
@@ -527,6 +532,8 @@ import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernm
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
+import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
+import {runCardTransfer, runCardDepart} from '@/client/console/cardDeal/cardExitDirector';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
@@ -633,6 +640,7 @@ export default defineComponent({
     ConsoleStartScene,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
+    ConsoleCardExitLayer,
     ConsoleColonyTradeConfirm,
     ConsoleColonyInspect,
     CardZoomModal,
@@ -3020,7 +3028,7 @@ export default defineComponent({
         this.showNotice('Finish your current action first');
         return;
       }
-      this.openPlayCard(entry.card.name);
+      this.openPlayCardFromHand(entry.card.name);
     },
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
@@ -3342,9 +3350,72 @@ export default defineComponent({
      * picks) still arrive as native tasks — the batch's graceful fallback
      * leaves the leftover prompt for them.
      */
+    /** The live hand-grid slot for a card (data-zoom-slot marker). */
+    handExitSlot(name: CardName): HTMLElement | null {
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+      return document.querySelector<HTMLElement>(`.con-hand [data-zoom-slot="${esc}"]`);
+    },
+    /**
+     * DIRECT play from the hand overlay (A on a playable card) — the same
+     * card motion language as fullscreen → modal: a FaceLite proxy
+     * TRANSFERS from the hand slot into the composer's card slot (source
+     * held empty for the flight, destination pre-held and revealed under
+     * the proxy, cross-fade). A missing slot / reduced motion degrades to
+     * the bare open.
+     */
+    openPlayCardFromHand(name: CardName): void {
+      const slot = this.handExitSlot(name);
+      this.openPlayCard(name);
+      if (slot === null) {
+        return;
+      }
+      void runCardTransfer({
+        name,
+        from: slot,
+        resolveTo: () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]'),
+        holdTarget: true,
+        holdFrom: true,
+      });
+    },
+    /**
+     * CANCEL of the play composer: the card physically RETURNS to its hand
+     * slot (the reverse transfer — playing was never committed). The modal
+     * closes the frame the proxy stands over its card (onLift); a hand slot
+     * hidden by filters/virtualization degrades to the dive-away exit.
+     */
+    onPlayCardCancel(): void {
+      const pending = this.pendingPlayCard;
+      if (pending === undefined) {
+        return;
+      }
+      const name = pending.cardName;
+      const modalSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
+      if (modalSlot === null) {
+        this.pendingPlayCard = undefined;
+        return;
+      }
+      void runCardTransfer({
+        name,
+        from: modalSlot,
+        resolveTo: () => this.handExitSlot(name),
+        holdTarget: true,
+        onLift: () => {
+          this.pendingPlayCard = undefined;
+        },
+      });
+    },
     onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
+      // SUCCESS finale: the card lifts OFF the composer toward the board —
+      // "played onto the table" — never a fake return to the hand it left.
+      // (The rect is measured synchronously before the modal unmounts.)
+      if (pending !== undefined) {
+        const departSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
+        if (departSlot !== null) {
+          void runCardDepart({name: pending.cardName, el: departSlot});
+        }
+      }
       this.pendingPlayCard = undefined;
       if (pending === undefined || action === undefined) {
         return;
