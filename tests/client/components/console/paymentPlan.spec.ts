@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   autoMegacredits, initialCounts, laneCap, paymentCovers, paymentFromCounts,
-  paymentLanes, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
+  paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
   projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -81,6 +81,16 @@ describe('paymentPlan (T3 native payment math)', () => {
     expect(paymentCovers(10, lanes, {steel: 2}, 3)).to.eq(false); // 7 < 10
     expect(paymentCovers(10, lanes, {steel: 4}, 3)).to.eq(true); // 8 + 2 = 10
     expect(paymentCovers(10, lanes, {steel: 9}, 3)).to.eq(false); // exceeds ownership
+  });
+
+  it('paymentOverpay: M€-value spent above the cost (0 when exact / under)', () => {
+    const lanes = paymentLanes(prompt(11, {steel: true}), player({steel: 6, megacredits: 20}));
+    // 6 steel @2 = 12 for an 11 cost → overpay 1 (M€ auto-lane stays 0).
+    expect(paymentOverpay(11, lanes, {steel: 6}, 20)).to.eq(1);
+    // 5 steel @2 = 10, +1 auto M€ = 11 exact → no overpay.
+    expect(paymentOverpay(11, lanes, {steel: 5}, 20)).to.eq(0);
+    // Under-covered → deficit, never a phantom overpay.
+    expect(paymentOverpay(11, lanes, {steel: 2}, 0)).to.eq(0);
   });
 
   it('paymentFromCounts: full Payment payload, auto-M€ baked in', () => {

@@ -1,0 +1,210 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE CARD DEAL — the premium deal/reveal cinematic + selection
+   motion for console card-choice surfaces (ConsoleStartScene wizard /
+   ceremony candidates, ConsoleTaskHost draft & buy).
+
+   Architecture (CONSOLE_FOUNDATION.md §"Card deal cinematic"):
+    - the real interactive cards are PRE-MOUNTED in their final slots and
+      held invisible (`.con-deal-hold`) — the grid is final from frame one,
+      zero layout shift;
+    - lightweight proxy twins (ConsoleCardFaceLite) fly on the fixed
+      `.con-deal-layer` stage (GSAP, transform/opacity only), land on the
+      exact slot rects and hand off: proxy fades out while the slot's own
+      160ms opacity transition fades the real card in;
+    - the gliding focus frame (`.con-focus-frame`, motion-v springs)
+      replaces the "jumping ring" as the aim indicator; the slot's soft
+      glow stays as the light.
+
+   Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
+   `transition: all`; `will-change` lives ONLY on elements that exist for
+   the duration of their animation (the deal layer is v-if'd, the 4 frame
+   ticks animate on every d-pad move).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The HOLD: a slot whose real card hasn't been dealt yet ──────────
+   `!important` wins over the `.con-start__deal` entry keyframes and every
+   strip dim rule (important declarations beat animations per the cascade),
+   so a held card can never flash before its proxy lands. RELEASING the
+   hold rides the slot's own existing opacity transition (160ms) — that IS
+   the handoff fade-in. */
+.con-deal-hold {
+    opacity: 0 !important;
+}
+
+/* ── The flight stage ────────────────────────────────────────────────── */
+.con-deal-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 30; /* inside the scene's own stacking context (.con-start / .con-task-host) */
+    pointer-events: none;
+    overflow: clip; /* flights can never create scrollable overflow */
+    contain: layout style;
+}
+
+.con-deal-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden; /* the director reveals via autoAlpha at launch time */
+    pointer-events: none;
+    perspective: 900px;
+    will-change: transform, opacity; /* scoped: proxies exist only while dealing */
+}
+.con-deal-proxy__flip {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+.con-deal-proxy__face,
+.con-deal-proxy__back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+}
+.con-deal-proxy__back {
+    transform: rotateY(180deg);
+}
+
+/* ── The lite card face (the honest lightweight twin of <Card>) ──────
+   Reuses the REAL frame/header classes — only the interior is simplified.
+   The body is the shared art hook (cardArtUrl): with art it shows the
+   same crop the full card will use; without it, the same bare
+   type-gradient face the full card has today. */
+.con-card-lite {
+    // The proxy owns geometry — kill the legacy .filterDiv margin and
+    // stretch to the proxy box (set once by the director, never animated).
+    margin: 0 !important;
+    width: 100%;
+    height: 100%;
+    cursor: default;
+
+    .card-content-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .con-card-lite__body {
+        flex: 1;
+        min-height: 0;
+        margin: 8px 12px 12px;
+        border-radius: 10px;
+        background-size: cover;
+        background-position: center top;
+    }
+}
+
+/* ── The dealer's deck (card-back stack, bottom-centre) ──────────────── */
+.con-deal-deck {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 118px;
+    height: 164px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.55));
+
+    .con-deal-deck__c {
+        position: absolute;
+        inset: 0;
+    }
+    .con-deal-deck__c--3 { transform: translate(4px, 6px) rotate(2.5deg); opacity: 0.72; }
+    .con-deal-deck__c--2 { transform: translate(-3px, 3px) rotate(-1.6deg); opacity: 0.88; }
+}
+
+/* ── The card back — the fork's sci-fi sleeve (CSS-only, no assets) ──── */
+.con-card-back {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 16px; /* matches the sci-fi card chassis radius */
+    background: linear-gradient(155deg, #13202f 0%, #0a1420 48%, #0d1a29 100%);
+    box-shadow:
+        inset 0 0 0 1px fade(@con-cyan, 38%),
+        inset 0 0 0 3px rgba(9, 15, 24, 0.92),
+        inset 0 0 26px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+
+    /* The planet emblem: a muted Mars disc inside a thin orbit ring. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(circle at 50% 46%, fade(#d3663a, 42%) 0 16.5%, transparent 18%),
+            radial-gradient(circle at 50% 46%, transparent 0 23.5%, fade(@con-cyan, 22%) 24.5% 25.5%, transparent 26.5%);
+    }
+    /* The faint iso-tech grid — the start-scene visual signature. */
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image:
+            repeating-linear-gradient(60deg, fade(@con-cyan, 4%) 0 1px, transparent 1px 24px),
+            repeating-linear-gradient(-60deg, fade(@con-cyan, 4%) 0 1px, transparent 1px 24px);
+    }
+}
+
+/* ── The gliding focus frame (four L-corner ticks, motion-v springs) ─── */
+.con-focus-frame {
+    position: fixed;
+    inset: 0;
+    z-index: 26; /* under the flight stage (30) */
+    pointer-events: none;
+}
+.con-focus-frame__tick {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 22px;
+    height: 22px;
+    border: 0 solid @con-cyan;
+    opacity: 0;
+    will-change: transform;
+    filter: drop-shadow(0 0 7px fade(@con-cyan, 55%));
+}
+.con-focus-frame__tick--tl { border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 6px; }
+.con-focus-frame__tick--tr { border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 6px; }
+.con-focus-frame__tick--bl { border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 6px; }
+.con-focus-frame__tick--br { border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 6px; }
+
+/* ── Selection states: the pick band POPS in (damped-spring ease) ────── */
+.con-cards__pickband {
+    animation: con-pickband-pop calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) backwards;
+}
+@keyframes con-pickband-pop {
+    from { opacity: 0; transform: translateX(-50%) scale(0.72); }
+    to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+/* ── Verdict bar: the focused card's context swaps smoothly, not pop ─── */
+.con-cards__verdict-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-width: 0;
+}
+.con-verdict-swap-enter-active {
+    transition: opacity calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+        transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-verdict-swap-leave-active {
+    transition: opacity calc(60ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+}
+.con-verdict-swap-enter-from { opacity: 0; transform: translateY(5px); }
+.con-verdict-swap-leave-to { opacity: 0; }
+
+/* ── Reduced motion: short/static premium variants, never broken ─────── */
+@media (prefers-reduced-motion: reduce) {
+    .con-cards__pickband { animation: none; }
+    .con-verdict-swap-enter-active,
+    .con-verdict-swap-leave-active { transition: none; }
+    .con-focus-frame__tick { filter: none; }
+}

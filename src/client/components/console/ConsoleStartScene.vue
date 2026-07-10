@@ -87,6 +87,7 @@
                      'con-cards__slot--focused': focusIdx === i,
                      'con-cards__slot--picked': isPickedHere(card.name),
                      'con-cards__slot--dim': dimUnpicked && !isPickedHere(card.name),
+                     'con-deal-hold': deal.isHeld(card.name + '#' + i),
                    }"
                    :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                 <Card :card="card" :key="card.name" lightweight />
@@ -94,27 +95,34 @@
               </div>
             </div>
             <!-- P15 grammar: multi-pick → A select/deselect + Y continue;
-                 single-pick (corp / CEO) → A SELECTS + advances (draft parity). -->
-            <div v-if="focusedCard !== undefined" class="con-cards__verdictbar">
-              <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
-              <span v-if="singlePickStep" class="con-cards__verdict con-cards__verdict--ok">
-                <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-              </span>
-              <span v-else-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
-                <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
-              </span>
-              <span v-else-if="canPickFocused" class="con-cards__verdict con-cards__verdict--ok">
-                <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-              </span>
-              <span v-else class="con-cards__verdict con-cards__verdict--blocked">
-                <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
-              </span>
-              <span class="con-cards__verdict con-cards__verdict--zoom">
-                <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
-              </span>
-              <span v-if="!singlePickStep && currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
-                <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
-              </span>
+                 single-pick (corp / CEO) → A SELECTS + advances (draft parity).
+                 Hidden while the deal cinematic runs (the bar must never
+                 promise a selection that isn't interactive yet); the focused
+                 card's context swaps smoothly on d-pad moves (con-verdict-swap). -->
+            <div v-if="focusedCard !== undefined && !deal.state.active" class="con-cards__verdictbar">
+              <transition name="con-verdict-swap" mode="out-in">
+                <div class="con-cards__verdict-inner" :key="focusedCard.name">
+                  <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
+                  <span v-if="singlePickStep" class="con-cards__verdict con-cards__verdict--ok">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                  </span>
+                  <span v-else-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+                  </span>
+                  <span v-else-if="canPickFocused" class="con-cards__verdict con-cards__verdict--ok">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                  </span>
+                  <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                    <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
+                  </span>
+                  <span class="con-cards__verdict con-cards__verdict--zoom">
+                    <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                  </span>
+                  <span v-if="!singlePickStep && currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
+                    <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
+                  </span>
+                </div>
+              </transition>
             </div>
           </div>
         </div>
@@ -215,13 +223,14 @@
                  comparison row instead of giant overflowing cards. -->
             <div v-if="candidateCards.length > 0" class="con-start__cands"
                  :class="{'con-start__cands--corps': corpCandidatePick}">
-              <div class="con-cards__strip">
+              <div class="con-cards__strip" ref="candStrip">
                 <div v-for="(card, i) in candidateCards" :key="card.name + '#' + i"
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(i)"
                      :class="{
                        'con-cards__slot--focused': isFocused('candidate', card.name),
                        'con-cards__slot--disabled': card.isDisabled === true,
+                       'con-deal-hold': deal.isHeld(card.name + '#' + i),
                      }"
                      :ref="isFocused('candidate', card.name) ? 'focusedCardSlot' : undefined">
                   <Card :card="card" :key="card.name" lightweight />
@@ -274,6 +283,14 @@
         </footer>
       </div>
     </transition>
+
+    <!-- The gliding selection frame (motion-v springs) — mounts OUTSIDE the
+         keyed frame so it survives step swaps and glides across them. -->
+    <ConsoleCardFocusFrame :target="focusTarget" />
+    <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
+         only while a deal runs — will-change is scoped by construction. -->
+    <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
+                          :cards="deal.state.cards" :nonce="deal.state.nonce" />
   </div>
 </template>
 
@@ -334,6 +351,10 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
@@ -358,7 +379,7 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate', name: CardName, disabl
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -370,6 +391,11 @@ export default defineComponent({
       focusIdx: 0,
       /** Zero-projects submit armed (second X confirms — the skip warning). */
       armedSkip: false,
+      /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
+      deal: createCardDealSequence(),
+      dealLaunchTimer: undefined as number | undefined,
+      /** The gliding focus frame's target (the focused card's element). */
+      focusTarget: null as HTMLElement | null,
       /** Single-row wizard-card fit (sets --con-cards-zoom so the row always
        *  fits → never scrolls on focus). Observers run it on resize; never per focus. */
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
@@ -579,6 +605,28 @@ export default defineComponent({
       }
       return textOf(this.wf?.title);
     },
+    /** The card set the deal cinematic flies for the CURRENT frame. */
+    dealCards(): ReadonlyArray<CardModel> {
+      if (this.mode === 'wizard') {
+        return this.currentStep !== undefined ? this.stepEntries : [];
+      }
+      return this.candidateCards;
+    },
+    /** The deal identity: frame + the exact card set (a fresh candidate set
+     *  under the SAME frame — e.g. successive draw-1-of-N asks — re-deals). */
+    dealSignature(): string {
+      return `${this.frameKey}|${this.dealCards.map((c) => c.name).join(',')}`;
+    },
+    /** Re-sync trigger for the gliding focus frame's target element. */
+    focusSignature(): string {
+      return [
+        this.frameKey,
+        this.focusIdx,
+        this.deal.state.active ? 'dealing' : '',
+        this.stepEntries.length,
+        this.focusables.map((f) => f.kind + f.name).join(','),
+      ].join('|');
+    },
     frameKey(): string {
       if (this.mode === 'wizard') {
         return `wizard|${this.railPos}`;
@@ -586,6 +634,11 @@ export default defineComponent({
       return `ceremony|${this.wf?.type ?? ''}|${textOf(this.wf?.title)}`;
     },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
+      // While the deal cinematic runs, selection is NOT interactive yet —
+      // the bar advertises only the skip (any button skips).
+      if (this.deal.state.active) {
+        return [{control: 'confirm', label: 'Skip'}];
+      }
       if (this.mode === 'wizard') {
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
@@ -642,6 +695,14 @@ export default defineComponent({
         this.fitCardStrip();
       });
     },
+    /** Pre-flush: arm the deal HOLD before the new card set paints (the
+     *  real cards mount hidden — zero first-frame flash). */
+    dealSignature: {
+      immediate: true,
+      handler() {
+        this.prepareDeal();
+      },
+    },
     /** Grid↔row transition re-fits the single row (never per focus). */
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
@@ -651,16 +712,26 @@ export default defineComponent({
         this.focusIdx = Math.max(0, now.length - 1);
       }
     },
+    focusSignature: {
+      handler() {
+        this.syncFocusTarget();
+      },
+    },
   },
   mounted() {
     void this.$nextTick(() => this.fitCardStrip());
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
+    this.syncFocusTarget();
   },
   beforeUnmount() {
     this.stopStripObs?.();
     this.stopResize?.();
+    if (this.dealLaunchTimer !== undefined) {
+      window.clearTimeout(this.dealLaunchTimer);
+    }
+    this.deal.dispose();
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -686,6 +757,13 @@ export default defineComponent({
     },
     /** The shell routes every intent here while the scene is active. */
     handleIntent(intent: GamepadIntent): void {
+      // Any input mid-deal SKIPS the cinematic (and is consumed) — the
+      // player is never made to wait, and no press can act on cards that
+      // aren't interactive yet.
+      if (this.deal.state.active) {
+        this.deal.skip();
+        return;
+      }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
@@ -694,6 +772,61 @@ export default defineComponent({
         return;
       }
       this.onPress(intent.button);
+    },
+    /**
+     * DEAL CINEMATIC (console_card_deal.less / cardDealSequence.ts): decide
+     * + arm the hold for the current frame's card set, synchronously —
+     * called pre-flush from the frameKey watcher and on mount, so the real
+     * cards render hidden from their very first frame.
+     */
+    prepareDeal(): void {
+      if (this.dealLaunchTimer !== undefined) {
+        window.clearTimeout(this.dealLaunchTimer);
+        this.dealLaunchTimer = undefined;
+      }
+      const cards = this.dealCards;
+      const names = cards.map((c) => c.name);
+      const keys = cards.map((c, i) => c.name + '#' + i);
+      const dealKey = `${this.playerView.id}|${this.frameKey}|${names.join(',')}`;
+      if (this.deal.prepare(dealKey, names, keys)) {
+        // Launch after the con-task-swap frame transition (160ms) settles +
+        // fitCardStrip has sized the row — the measured rects are final.
+        this.dealLaunchTimer = window.setTimeout(() => {
+          this.dealLaunchTimer = undefined;
+          requestAnimationFrame(() => this.launchDeal());
+        }, motionMs(260));
+      }
+    },
+    launchDeal(): void {
+      if (!this.deal.state.active) {
+        return;
+      }
+      const strip = (this.mode === 'wizard' ? this.$refs.cardStrip : this.$refs.candStrip) as HTMLElement | undefined;
+      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      if (strip === undefined || strip === null || layer === undefined) {
+        this.deal.dispose();
+        return;
+      }
+      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
+      this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
+    },
+    /** Re-point the gliding focus frame at the focused card's element. */
+    syncFocusTarget(): void {
+      if (this.deal.state.active) {
+        this.focusTarget = null;
+        return;
+      }
+      void this.$nextTick(() => {
+        const root = this.$el as HTMLElement | undefined;
+        if (root === undefined || root.querySelector === undefined) {
+          this.focusTarget = null;
+          return;
+        }
+        this.focusTarget = root.querySelector<HTMLElement>(
+          '.con-cards__slot--focused > .card-container, ' +
+          '.con-start__corp--focused > .card-container, ' +
+          '.con-start__prelude--focused > .card-container');
+      });
     },
     onNav(dir: NavDirection): void {
       // P13: the wizard GRID jumps rows on up/down (measured, wrap-robust).

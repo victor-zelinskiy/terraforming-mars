@@ -190,6 +190,21 @@ export function paymentTotal(
   return nonMcSpend(lanes, counts) + autoMegacredits(cost, lanes, counts, mcAvailable);
 }
 
+/**
+ * M€-equivalent OVERPAY — how much value above the cost the current mix spends
+ * (an unavoidable rate remainder: e.g. an 11 M€ card paid with 6 steel @2 = 12,
+ * overpaying 1). 0 when the mix is exact or the cost is not yet covered (M€ is
+ * an auto lane, so it never overpays — only rate>1 alt resources can).
+ */
+export function paymentOverpay(
+  cost: number,
+  lanes: ReadonlyArray<PaymentLane>,
+  counts: Partial<Record<SpendableResource, number>>,
+  mcAvailable: number,
+): number {
+  return Math.max(0, paymentTotal(cost, lanes, counts, mcAvailable) - cost);
+}
+
 /** Cost covered AND no lane exceeds ownership (mirrors PaymentFormV2.canSave). */
 export function paymentCovers(
   cost: number,

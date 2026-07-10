@@ -62,8 +62,17 @@
                 <span class="con-composer__lane-name">{{ $t('Megacredits') }}</span>
                 <span class="con-composer__lane-value"><b>{{ payAutoMc }}</b><i>{{ $t('auto') }}</i></span>
               </div>
-              <div class="con-composer__paytotal" :class="{'con-composer__paytotal--ok': paymentReady}">
-                {{ $t('Total') }}: {{ payTotal }} / {{ cost }} M€
+              <div class="con-composer__paytotal"
+                   :class="{
+                     'con-composer__paytotal--ok': paymentReady && paymentView.overpay === 0,
+                     'con-composer__paytotal--over': paymentView.overpay > 0,
+                   }">
+                <span class="con-composer__paytotal-main">{{ $t('Total') }}: {{ payTotal }} / {{ cost }} M€</span>
+                <span v-if="paymentView.overpay > 0" class="con-composer__payover">
+                  <span class="con-composer__payover-label">{{ $t('Overpaying') }}</span>
+                  <span class="con-composer__payover-amt">+{{ paymentView.overpay }}</span>
+                  <i class="resource_icon resource_icon--megacredits con-composer__payover-icon" aria-hidden="true"></i>
+                </span>
               </div>
             </template>
 
@@ -185,6 +194,15 @@
                 <div v-if="!paymentReady" class="con-composer__pay-short">
                   <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="paymentView.deficit > 0">:
                     <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ paymentView.deficit }}</template>
+                </div>
+                <!-- Overpay: a resource mix spends N M€ of value ABOVE the cost
+                     (unavoidable rate remainder). Flagged in orange so the wasted
+                     value is never silent. -->
+                <div v-else-if="paymentView.overpay > 0" class="con-composer__pay-over">
+                  <span class="con-composer__pay-over-glyph" aria-hidden="true">⚠</span>
+                  <span class="con-composer__pay-over-label">{{ $t('Overpaying') }}</span>
+                  <span class="con-composer__pay-over-amt">+{{ paymentView.overpay }}</span>
+                  <i class="resource_icon resource_icon--megacredits con-composer__pay-over-icon" aria-hidden="true"></i>
                 </div>
               </div>
 

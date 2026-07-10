@@ -33,7 +33,7 @@ import {Payment} from '@/common/inputs/Payment';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {SpendableResource} from '@/common/inputs/Spendable';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
-import {autoMegacredits, laneCap, paymentCovers, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
+import {autoMegacredits, laneCap, paymentCovers, paymentOverpay, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
 
 export type PlayCardBatchArgs = {
   /**
@@ -161,6 +161,9 @@ export type PlayPaymentView = {
   paymentValid: boolean;
   /** M€-equivalent shortfall (0 when valid). */
   deficit: number;
+  /** M€-equivalent OVERPAY — value spent above the cost (unavoidable rate
+   *  remainder; 0 when exact). Mutually exclusive with `deficit`. */
+  overpay: number;
 };
 
 function payChipEffect(unit: string, spent: number, stock: Partial<Record<string, number>>): ActionEffect {
@@ -224,7 +227,8 @@ export function buildPaymentView(args: {
   }
 
   const deficit = Math.max(0, cost - paymentTotal(cost, lanes, counts, mcAvailable));
-  return {totalCost: cost, chips, configurable, quickAdjustEligible, quickAdjustUnit: quickLane?.unit, paymentValid, deficit};
+  const overpay = paymentOverpay(cost, lanes, counts, mcAvailable);
+  return {totalCost: cost, chips, configurable, quickAdjustEligible, quickAdjustUnit: quickLane?.unit, paymentValid, deficit, overpay};
 }
 
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────

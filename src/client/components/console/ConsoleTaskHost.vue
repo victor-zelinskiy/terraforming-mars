@@ -203,6 +203,7 @@
                          'con-cards__slot--picked': isPicked(entry.card.name),
                          'con-cards__slot--disabled': entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
+                         'con-deal-hold': deal.isHeld(entry.card.name + '#' + i),
                        }"
                        :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
                     <Card :card="entry.card" :key="entry.card.name" lightweight />
@@ -217,30 +218,37 @@
                      duplicate card (X = the universal fullscreen INSPECT read).
                      PICK phase: A = select (one press commits, no deselect).
                      BUY / multi: A = select/deselect, RT = commit the set. -->
-                <div v-if="focusedCardEntry !== undefined" class="con-cards__verdictbar">
-                  <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
-                  <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
-                    <span aria-hidden="true">✕</span>
-                    <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
-                  </span>
-                  <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                  </span>
-                  <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
-                  </span>
-                  <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                  </span>
-                  <span v-else class="con-cards__verdict con-cards__verdict--blocked">
-                    <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
-                  </span>
-                  <span class="con-cards__verdict con-cards__verdict--zoom">
-                    <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
-                  </span>
-                  <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
-                    <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
-                  </span>
+                <!-- Hidden while the deal cinematic runs (never promise a
+                     selection that isn't interactive yet); the focused
+                     card's context swaps smoothly on d-pad moves. -->
+                <div v-if="focusedCardEntry !== undefined && !deal.state.active" class="con-cards__verdictbar">
+                  <transition name="con-verdict-swap" mode="out-in">
+                    <div class="con-cards__verdict-inner" :key="focusedCardEntry.card.name">
+                      <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
+                      <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
+                        <span aria-hidden="true">✕</span>
+                        <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
+                      </span>
+                      <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                      </span>
+                      <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+                      </span>
+                      <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                      </span>
+                      <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                        <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
+                      </span>
+                      <span class="con-cards__verdict con-cards__verdict--zoom">
+                        <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                      </span>
+                      <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
+                        <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
+                      </span>
+                    </div>
+                  </transition>
                 </div>
               </div>
             </template>
@@ -305,6 +313,13 @@
         </footer>
       </div>
     </transition>
+
+    <!-- The gliding selection frame (motion-v springs) — outside the keyed
+         frame so it survives prompt swaps and glides across them. -->
+    <ConsoleCardFocusFrame :target="focusTarget" />
+    <!-- The deal cinematic stage (draft / buy / research card sets). -->
+    <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
+                          :cards="deal.state.cards" :nonce="deal.state.nonce" />
   </div>
 </template>
 
@@ -374,6 +389,10 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -437,7 +456,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -466,6 +485,11 @@ export default defineComponent({
       /** Blocks a duplicate submit between the emit and the next server response
        *  (e.g. rapid A presses in the pick phase) — cleared on every response. */
       submitting: false,
+      /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
+      deal: createCardDealSequence(),
+      dealLaunchTimer: undefined as number | undefined,
+      /** The gliding focus frame's target (the focused card's element). */
+      focusTarget: null as HTMLElement | null,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
        *  never scrolls on focus). Observers run it on resize; NEVER per focus.
        *  VueUse stop-handles (auto-managed; no raw addEventListener). */
@@ -879,7 +903,21 @@ export default defineComponent({
         return true;
       }
     },
+    /** Re-sync trigger for the gliding focus frame's target element. */
+    focusSignature(): string {
+      return [
+        this.resetKey,
+        this.focusIdx,
+        this.deal.state.active ? 'dealing' : '',
+        this.activeTask.kind,
+      ].join('|');
+    },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
+      // While the deal cinematic runs, selection is NOT interactive yet —
+      // the bar advertises only the skip (any button skips).
+      if (this.deal.state.active) {
+        return [{control: 'confirm', label: 'Skip'}];
+      }
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
       const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined ? 'Back' : this.deferLabel};
       switch (this.activeTask.kind) {
@@ -951,8 +989,16 @@ export default defineComponent({
       immediate: true,
       handler() {
         this.resetState();
+        // Pre-flush: arm the deal HOLD before the new frame paints (the
+        // real cards mount hidden — zero first-frame flash).
+        this.prepareDeal();
         // Re-fit the single-row card strip for the new prompt (after render).
         void this.$nextTick(() => this.fitCardStrip());
+      },
+    },
+    focusSignature: {
+      handler() {
+        this.syncFocusTarget();
       },
     },
     /** A genuinely NEW server prompt discards an open nested step. */
@@ -977,10 +1023,15 @@ export default defineComponent({
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
+    this.syncFocusTarget();
   },
   beforeUnmount() {
     this.stopStripObs?.();
     this.stopResize?.();
+    if (this.dealLaunchTimer !== undefined) {
+      window.clearTimeout(this.dealLaunchTimer);
+    }
+    this.deal.dispose();
   },
   methods: {
     // Render-ready row for a server-computed target change (resource/M€ stock, or
@@ -1013,6 +1064,12 @@ export default defineComponent({
     },
     /** The shell routes every intent here while the host is active. */
     handleIntent(intent: GamepadIntent): void {
+      // Any input mid-deal SKIPS the cinematic (and is consumed) — no press
+      // can act on cards that aren't interactive yet.
+      if (this.deal.state.active) {
+        this.deal.skip();
+        return;
+      }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
@@ -1021,6 +1078,59 @@ export default defineComponent({
         return;
       }
       this.onPress(intent.button);
+    },
+    /**
+     * DEAL CINEMATIC (console_card_deal.less / cardDealSequence.ts): decide
+     * + arm the hold for a fresh card set, synchronously — called pre-flush
+     * from the resetKey watcher, so the real cards render hidden from their
+     * very first frame. Only the card browser deals; every other task kind
+     * clears any previous hold.
+     */
+    prepareDeal(): void {
+      if (this.dealLaunchTimer !== undefined) {
+        window.clearTimeout(this.dealLaunchTimer);
+        this.dealLaunchTimer = undefined;
+      }
+      const cards = this.activeTask.kind === 'cardSelect' ? this.cardEntries.map((e) => e.card) : [];
+      const names = cards.map((c) => c.name);
+      const keys = cards.map((c, i) => c.name + '#' + i);
+      const dealKey = `${this.playerView.id}|${this.resetKey}`;
+      if (this.deal.prepare(dealKey, names, keys)) {
+        // Launch after the con-task-swap frame transition (160ms) settles +
+        // fitCardStrip has sized the row — the measured rects are final.
+        this.dealLaunchTimer = window.setTimeout(() => {
+          this.dealLaunchTimer = undefined;
+          requestAnimationFrame(() => this.launchDeal());
+        }, motionMs(260));
+      }
+    },
+    launchDeal(): void {
+      if (!this.deal.state.active) {
+        return;
+      }
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      if (strip === undefined || strip === null || layer === undefined) {
+        this.deal.dispose();
+        return;
+      }
+      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
+      this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
+    },
+    /** Re-point the gliding focus frame at the focused card's element. */
+    syncFocusTarget(): void {
+      if (this.deal.state.active) {
+        this.focusTarget = null;
+        return;
+      }
+      void this.$nextTick(() => {
+        const root = this.$el as HTMLElement | undefined;
+        if (root === undefined || root.querySelector === undefined) {
+          this.focusTarget = null;
+          return;
+        }
+        this.focusTarget = root.querySelector<HTMLElement>('.con-cards__slot--focused > .card-container');
+      });
     },
     /** P13/P15: X opens the focused card fullscreen (reused viewer). The
      *  select context lets A toggle the pick from fullscreen — disabled

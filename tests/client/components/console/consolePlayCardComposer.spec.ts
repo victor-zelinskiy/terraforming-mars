@@ -277,6 +277,22 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     expect(v.chips.map((c) => c.effect.icon)).to.deep.equal(['megacredits', 'steel', 'titanium']);
   });
 
+  it('overpay: a rate-remainder mix reports the M€-value spent above the cost', () => {
+    // cost 11, 6 steel @2 = 12 → overpay 1 (valid, no deficit).
+    const v = buildPaymentView({cost: 11, lanes: [{unit: 'steel', rate: 2, available: 6, reserved: false}], counts: {steel: 6}, mcAvailable: 65, stock: {...stock, steel: 6}});
+    expect(v.paymentValid).to.be.true;
+    expect(v.overpay).to.equal(1);
+    expect(v.deficit).to.equal(0);
+  });
+
+  it('overpay is 0 for an exact mix, and never coexists with a deficit', () => {
+    const exact = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65, stock});
+    expect(exact.overpay).to.equal(0); // 10 + 1 auto M€
+    const short = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0, stock: {steel: 5}});
+    expect(short.overpay).to.equal(0);
+    expect(short.deficit).to.equal(1);
+  });
+
   it('a special (non-standard) alt resource shows a signed amount, no before → after', () => {
     const microbeLane: PaymentLane = {unit: 'microbes', rate: 1, available: 3, reserved: false};
     const v = buildPaymentView({cost: 3, lanes: [microbeLane], counts: {microbes: 3}, mcAvailable: 10, stock: {megacredits: 10}});

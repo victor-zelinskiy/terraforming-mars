@@ -134,8 +134,11 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   Правило прежнее: reduced — ОТДЕЛЬНАЯ перекрывающая ось, не «быстрее», а
   «короткий/статичный вариант».
 - **`useConsoleFocusFrame.ts`** — measured-rect провайдер (`useElementBounding`)
-  под будущую движущуюся premium-рамку выделения (Motion for Vue задача): `frameStyle`
-  (transform/size — GPU-path) для fixed-слоя. Пока никем не потребляется — задел.
+  под статичные measured-рамки. Живая скользящая рамка выделения РЕАЛИЗОВАНА как
+  `ConsoleCardFocusFrame.vue` (см. §Card-deal ниже) и осознанно НЕ на этом провайдере:
+  `useElementBounding` не реагирует на transform-анимации цели (focus lift/scale),
+  поэтому рамка ведёт собственный FPS-gated rAF-measure loop (один
+  getBoundingClientRect за кадр). Провайдер остаётся для рамок вокруг статичных целей.
 
 ## §7. Как добавлять новое (правила)
 
@@ -175,6 +178,15 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
 
 - `@vueuse/core@14.3.0` — DEFAULT для новых кросс-срезовых нужд (listeners, resize,
   media, scroll-lock, reduced-motion). Точная версия (`--save-exact`).
+- **`gsap` + `motion-v` ПОДКЛЮЧЕНЫ** (задача card-deal cinematic, см. §Card-deal):
+  РАЗДЕЛЕНИЕ РОЛЕЙ СТРОГОЕ — `gsap` = ПОСТАНОВОЧНЫЕ одноразовые timeline-сцены
+  (раздача/reveal/handoff: staged полёты, stagger, per-card handoff-колбеки,
+  skip/kill lifecycle); `motion-v` = ПОСТОЯННЫЕ интерактивные состояния
+  (скользящая focus-рамка: прерываемые springs с сохранением velocity при
+  быстрых d-pad-чейнах). НЕ размазывать `gsap.to()` по компонентам — только
+  через director-модули (`cardDealDirector.ts` — образец); НЕ использовать
+  motion-v для одноразовых сцен (там нужен timeline-контроль). Обе длительности
+  идут через `motionMs()`/`consoleMotionMs` — пресеты скорости масштабируют всё.
 - `@vueuse/components` / `@vueuse/integrations` / внешние UI-либы — можно ПРЕДЛОЖИТЬ,
   но только с обоснованием: конкретный use case, альтернативы, стоимость зависимости,
   почему лучше своего решения. НЕ добавлять «потому что можно». Для одного мелкого
@@ -183,10 +195,55 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
   либа — если кастомный rail ConsoleScrollArea окажется недостаточным для всех
   сценариев; Floating UI — при сложном popover/tooltip positioning; focus-trap — ТОЛЬКО
   для non-console DOM-fallback модалок (console-навигация НЕ должна снова стать
-  DOM-focus based); Motion for Vue / GSAP / Rive — для будущих анимаций, отдельно, НЕ
-  смешивая с текущим foundation.
+  DOM-focus based); Rive — НЕ добавлен (для текущих задач не нужен).
 - Своё сильнее generic: `gamepadPollModel`/`gamepadCore` (НЕ `useGamepad`),
   `consoleActionModel` keyboard-map (НЕ `useMagicKeys`) — не заменять.
+
+## §10. Card deal cinematic + selection motion (карточные экраны)
+
+Premium-подача раздачи/выбора карт (стартовые корпорации/прелюдии/проекты, ceremony-
+кандидаты, драфт/покупка в TaskHost). Файлы: `src/client/console/cardDeal/`
+(`cardDealModel.ts` — PURE тайминги/план, unit-tested; `cardDealMemory.ts` — «уже
+раздавали» module-set; `cardDealSequence.ts` — reactive-клей per-host;
+`cardDealDirector.ts` — GSAP timeline) + `src/client/components/console/cardDeal/`
+(`ConsoleCardFaceLite.vue` — честная lite-карта; `ConsoleCardDealLayer.vue` — fixed
+слой полёта; `ConsoleCardFocusFrame.vue` — motion-v рамка) +
+`src/styles/console_card_deal.less` + арт-хук `src/client/cards/cardArt.ts`.
+
+Контракты:
+- **Карты раздаются В ТЕ ЖЕ слоты**: real `<Card>` пре-монтируются в финальном
+  layout и держатся классом `.con-deal-hold` (`opacity:0 !important` — important
+  бьёт CSS-анимации по каскаду; снятие класса едет на СОБСТВЕННОМ 160ms opacity-
+  transition слота = это и есть handoff fade-in). Ноль layout shift.
+- **Lite-proxy = та же карта в lite-режиме**: реиспользует РЕАЛЬНЫЕ классы фрейма
+  (`.card-container.filterDiv` + `.card-content-wrapper > .card-title`-структура →
+  scifi-chassis/`:has()`-селекторы подхватывают тот же тип-фрейм и corner ticks) и
+  РЕАЛЬНЫЕ компоненты CardCost/CardTags/CardTitle (включая per-corp логотип).
+  Выброшено только тяжёлое нутро (CardContent-рекурсия, requirements, бейджи,
+  интерактив). Арт: ОДИН источник `cardArtUrl()` для proxy И full — сейчас
+  `undefined` → оба показывают одинаковый type-gradient fallback; никаких blur-up.
+- **Хост-паттерн** (ConsoleStartScene / ConsoleTaskHost — образцы): `deal:
+  createCardDealSequence()` в data; PRE-FLUSH watcher на deal-identity
+  (`dealSignature` / `resetKey`) зовёт `prepareDeal()` — hold ставится ДО первого
+  пейнта нового набора; запуск через `setTimeout(motionMs(260))` (пережидает
+  `con-task-swap` 160ms) + double-probe стабилизацию rect в `sequence.launch`;
+  `handleIntent` первой строкой — `if (deal.state.active) {deal.skip(); return;}`
+  (любая кнопка = skip, ввод проглатывается); `footHints` при deal — ТОЛЬКО
+  `[A Пропустить]` (бар не обещает недоступный выбор); verdictbar скрыт при deal;
+  `beforeUnmount` — `deal.dispose()`. Память раздач — `shouldRunDealOnce(key)`:
+  повторный показ того же набора (defer/restore, шаг назад) МГНОВЕННЫЙ.
+- **Перф**: transform/opacity only (высота proxy СТАВИТСЯ один раз до полёта, не
+  анимируется); полёт на fixed-слое `overflow: clip` (+ `contain`) — оверфлоу-гард
+  чист; никаких animated blur/filter; `will-change` живёт только пока жив v-if-слой;
+  reduced-motion → БЕЗ полёта/прокси: короткий stagger-reveal ≤160ms, ввод не
+  блокируется; safety-timeout жёстко завершает раздачу при замёрзшем rAF.
+- **Focus-рамка**: 4 L-corner тика (transform-only springs, stiffness 420 / damping
+  34), цель — `.con-cards__slot--focused > .card-container` (+ ceremony-варианты),
+  glow слота остаётся («рамка = прицел, glow = свет»); reduced → duration 0.
+- **Расширение** (received cards / draft rewards / MarsBot reveal): переиспользовать
+  sequence+director как есть — хосту нужны только hold-класс на слотах, layer в
+  template и 4 строки хост-паттерна выше. Новую хореографию строить В director-
+  модуле, не в компоненте.
 
 ## §8. Ручной чеклист (прогонять при миграции экранов)
 
@@ -222,13 +279,13 @@ DOM-focus не primary-навигация (курсоры state-driven); `transi
 | ConsoleHydroConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
 | ConsoleMaConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
 | ConsoleGovernmentSupport | (наследует) | 📄 exception (always-fit 2×2) | raw* | doc exception |
-| ConsoleTaskHost | (наследует) | 📄 exception (fit-strip + bounded body) | raw* | doc exception |
+| ConsoleTaskHost | (наследует) | 📄 exception (fit-strip + bounded body) | raw* | doc exception · deal cinematic ✅ (§10) |
 | ConsoleRevealOverlay | (наследует) | 📄 exception (fit-strip, inline-center bounded) | raw* | doc exception |
 | ConsoleColoniesSection | (наследует) | 📄 exception (flex-центр контракт; resize✅) | raw* | doc exception |
 | ConsoleHandSection | (наследует) | 📄 candidate (fit-managed, chrome-less) | raw* | pending |
 | ConsoleJournalPanel | (наследует) | ⏭ pending (свой premium thin-bar → rail) | raw* | pending |
 | ConsoleColonyInspect / InfoMode / ConsoleContextPanel (`.con-inspector` — видимый thin-bar) | (наследует) | ⏭ pending | — | pending |
-| ConsoleStartScene | ✅ (resize✅) | ⏭ pending (`__body` + fit-strip) | raw* | pending |
+| ConsoleStartScene | ✅ (resize✅) | ⏭ pending (`__body` + fit-strip) | raw* | pending · deal cinematic ✅ (§10) |
 | ConsoleCardActions / Hydro / MarsBotSections | (наследует) | ⏭ pending | raw* | pending |
 
 `*raw` = `handleIntent` пока матчит `intent.button`; поведение уже КОРРЕКТНО

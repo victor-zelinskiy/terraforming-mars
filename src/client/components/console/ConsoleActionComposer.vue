@@ -82,8 +82,17 @@
             <span class="con-composer__lane-name">{{ $t('Megacredits') }}</span>
             <span class="con-composer__lane-value"><b>{{ paymentView.mc }}</b><i>{{ $t('auto') }}</i></span>
           </div>
-          <div class="con-composer__paytotal" :class="{'con-composer__paytotal--ok': paymentView.covers}">
-            {{ $t('Total') }}: {{ paymentView.total }} / {{ paymentView.cost }} M€
+          <div class="con-composer__paytotal"
+               :class="{
+                 'con-composer__paytotal--ok': paymentView.covers && paymentView.overpay === 0,
+                 'con-composer__paytotal--over': paymentView.overpay > 0,
+               }">
+            <span class="con-composer__paytotal-main">{{ $t('Total') }}: {{ paymentView.total }} / {{ paymentView.cost }} M€</span>
+            <span v-if="paymentView.overpay > 0" class="con-composer__payover">
+              <span class="con-composer__payover-label">{{ $t('Overpaying') }}</span>
+              <span class="con-composer__payover-amt">+{{ paymentView.overpay }}</span>
+              <i class="resource_icon resource_icon--megacredits con-composer__payover-icon" aria-hidden="true"></i>
+            </span>
           </div>
         </template>
 
@@ -160,6 +169,11 @@
                 <div class="con-composer__row-value">
                   <span v-if="paymentSummary(item.choice) !== ''">{{ paymentSummary(item.choice) }}</span>
                   <span v-else class="con-composer__row-empty">{{ $t('Configure payment') }}…</span>
+                  <span v-if="paymentOverpayOf(item.choice) > 0" class="con-composer__payover con-composer__payover--inline">
+                    <span class="con-composer__payover-label">{{ $t('Overpaying') }}</span>
+                    <span class="con-composer__payover-amt">+{{ paymentOverpayOf(item.choice) }}</span>
+                    <i class="resource_icon resource_icon--megacredits con-composer__payover-icon" aria-hidden="true"></i>
+                  </span>
                 </div>
               </template>
 
@@ -487,7 +501,7 @@ export default defineComponent({
       }
       return [];
     },
-    paymentView(): {lanes: ReadonlyArray<PaymentLane>, counts: Partial<Record<SpendableResource, number>>, mc: number, total: number, cost: number, covers: boolean} | undefined {
+    paymentView(): {lanes: ReadonlyArray<PaymentLane>, counts: Partial<Record<SpendableResource, number>>, mc: number, total: number, cost: number, covers: boolean, overpay: number} | undefined {
       const c = this.subChoice;
       return c === undefined || c.kind !== 'payment' ? undefined : this.paymentStateFor(c);
     },
@@ -854,7 +868,8 @@ export default defineComponent({
       const counts = this.payCounts[c.id] ?? {};
       const mcAvail = megacreditsAvailable(this.thisPlayer);
       const payment = paymentFromCounts(model.amount, lanes, counts, mcAvail);
-      return {lanes, counts, mc: payment.megacredits, total: paymentTotal(model.amount, lanes, counts, mcAvail), cost: model.amount, covers: paymentCovers(model.amount, lanes, counts, mcAvail)};
+      const total = paymentTotal(model.amount, lanes, counts, mcAvail);
+      return {lanes, counts, mc: payment.megacredits, total, cost: model.amount, covers: paymentCovers(model.amount, lanes, counts, mcAvail), overpay: Math.max(0, total - model.amount)};
     },
     paymentSummary(c: ComposerChoice): string {
       if (this.paymentCaptureOf(c) === undefined) {
@@ -872,6 +887,11 @@ export default defineComponent({
         }
       }
       return parts.join(' + ');
+    },
+    /** M€-value overpaid by the captured mix (unavoidable rate remainder), 0 when
+     *  exact / not yet captured — drives the orange overpay badge on the row. */
+    paymentOverpayOf(c: ComposerChoice): number {
+      return this.paymentCaptureOf(c) === undefined ? 0 : this.paymentStateFor(c).overpay;
     },
     paymentCaptureOf(c: ComposerChoice): unknown {
       if (c.scope === 'option') {
