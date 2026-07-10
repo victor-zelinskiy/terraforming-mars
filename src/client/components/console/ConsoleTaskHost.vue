@@ -1384,7 +1384,8 @@ export default defineComponent({
       const strip = this.$refs.cardStrip as HTMLElement | undefined;
       const rejects = strip !== undefined && strip !== null ?
         (Array.from(strip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
-      applyDiscardExit(rejects);
+      // The hero beat reads FIRST; the rejects start tumbling under it.
+      applyDiscardExit(rejects, {delayMs: 150});
       void runHeroPick({name, el: slot}, commit);
     },
     /** BUY / multi commit (RT) — the PURCHASE cinematic: the kept cards

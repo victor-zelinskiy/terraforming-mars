@@ -361,6 +361,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
@@ -1002,8 +1003,9 @@ export default defineComponent({
         this.zoomFocused();
         return;
       case 'nextTab':
-        // RT = continue / begin (the card-context confirm).
-        this.onContinue();
+        // RT = continue / begin (the card-context confirm) — with the
+        // group-hero / discard exit on a completed multi-pick step.
+        this.continueWithExit();
         return;
       case 'prevSection':
         // LB is STEP navigation (back one wizard step); B always minimizes.
@@ -1014,7 +1016,7 @@ export default defineComponent({
       case 'nextSection':
         // RB = forward step navigation (LB's pair); gated on completion.
         if (this.mode === 'wizard') {
-          this.onContinue();
+          this.continueWithExit();
         }
         return;
       case 'back':
@@ -1098,16 +1100,70 @@ export default defineComponent({
         this.commitSinglePickByName(card.name);
       }
     },
+    /** The live slot for a card on this scene (data-zoom-slot marker). */
+    exitSlotFor(name: string): HTMLElement | null {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return null;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+      return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc}"]`);
+    },
     /** Shared by the strip's A AND the fullscreen viewer's A: write the single
      *  pick (always SELECT, never deselect) then advance via onContinue (which
-     *  guards on currentStepComplete — satisfied once the one card is written). */
+     *  guards on currentStepComplete — satisfied once the one card is written).
+     *  HERO EXIT: the chosen corporation/CEO lifts with the hero rim and
+     *  departs to the player; the rest tumble to the discard side (cheap CSS
+     *  on the real slots, sequenced AFTER the hero beat). State commits at
+     *  onLift — the step advances without waiting for the cinematic. */
     commitSinglePickByName(name: CardName): void {
       const step = this.currentStep;
       if (step === undefined || !this.singlePickStep) {
         return;
       }
-      this.writePicks(step.id, [name]);
-      this.onContinue();
+      const commit = () => {
+        this.writePicks(step.id, [name]);
+        this.onContinue();
+      };
+      const slot = this.deal.state.active ? null : this.exitSlotFor(name);
+      if (slot === null) {
+        commit();
+        return;
+      }
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const rejects = strip !== undefined && strip !== null ?
+        (Array.from(strip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
+      applyDiscardExit(rejects, {delayMs: 150});
+      void runHeroPick({name, el: slot}, commit);
+    },
+    /** Y / RB on a MULTI-pick wizard step (preludes / project buy): the
+     *  chosen cards GATHER into a stack (one confirmation pulse) and go to
+     *  the player — the group hero; the unpicked cards tumble to the
+     *  discard side. Zero picks → the calm discard alone. Every other case
+     *  (summary, single-pick, incomplete) falls through to onContinue. */
+    continueWithExit(): void {
+      if (this.mode !== 'wizard' || this.currentStep === undefined || this.singlePickStep || !this.currentStepComplete || this.deal.state.active) {
+        this.onContinue();
+        return;
+      }
+      const commit = () => this.onContinue();
+      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      if (strip === undefined || strip === null) {
+        commit();
+        return;
+      }
+      const sources = this.picksHere
+        .map((name) => ({name, el: this.exitSlotFor(name)}))
+        .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
+      const chosen = new Set(sources.map((s) => s.el));
+      const rejects = (Array.from(strip.children) as Array<HTMLElement>)
+        .filter((el) => !chosen.has(el) && !el.classList.contains('con-deal-hold'));
+      applyDiscardExit(rejects, {delayMs: sources.length > 0 ? 120 : 0});
+      if (sources.length === 0) {
+        commit();
+        return;
+      }
+      void runCardCollect(sources, commit);
     },
     /** X / RB: advance the wizard; on the summary — submit. */
     onContinue(): void {
@@ -1170,10 +1226,28 @@ export default defineComponent({
       // A drew-N-choose-ONE pick is recorded BEFORE submit (the discarded
       // candidates vanish from the view — this is the only capture window).
       const draw = startFlowPreludeDrawPrompt(this.playerView);
-      if (item.kind === 'candidate' && draw !== undefined) {
-        recordDrawChoice(this.playerView.id, this.candidateCards.map((c) => c.name), name);
+      const submit = () => {
+        if (item.kind === 'candidate' && draw !== undefined) {
+          recordDrawChoice(this.playerView.id, this.candidateCards.map((c) => c.name), name);
+        }
+        this.$emit('submit', cardsResponse([name]));
+      };
+      // CANDIDATE pick (drew-1-of-N / Double Down / Merger): the chosen card
+      // is the HERO; its rivals — genuinely discarded by the rules — tumble
+      // to the discard side under it. Preludes played from the rail keep the
+      // calm in-place status flip (the card stays on the table as «played»).
+      if (item.kind === 'candidate' && !this.deal.state.active) {
+        const slot = this.exitSlotFor(name);
+        if (slot !== null) {
+          const candStrip = this.$refs.candStrip as HTMLElement | undefined;
+          const rejects = candStrip !== undefined && candStrip !== null ?
+            (Array.from(candStrip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
+          applyDiscardExit(rejects, {delayMs: 150});
+          void runHeroPick({name, el: slot}, submit);
+          return;
+        }
       }
-      this.$emit('submit', cardsResponse([name]));
+      submit();
     },
     /** The fullscreen A-verb for a ceremony card, or undefined → read-only.
      *  Preludes / drew-N candidates are PLAYABLE from fullscreen (desktop

@@ -76,24 +76,14 @@
 .con-card-lite {
     // The proxy owns geometry — kill the legacy .filterDiv margin and
     // stretch to the proxy box (set once by the director, never animated).
+    // The INTERIOR is the real printed face (CardContent / requirements /
+    // VP via the shared presentational components) — recognisable
+    // mid-flight, lite only in cost: zero interactivity, zero live state.
     margin: 0 !important;
     width: 100%;
     height: 100%;
     cursor: default;
-
-    .card-content-wrapper {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-    .con-card-lite__body {
-        flex: 1;
-        min-height: 0;
-        margin: 8px 12px 12px;
-        border-radius: 10px;
-        background-size: cover;
-        background-position: center top;
-    }
+    pointer-events: none;
 }
 
 /* ── The dealer's deck (card-back stack, bottom-centre) ──────────────── */
@@ -288,7 +278,8 @@ dialog.con-zoom {
    close flights measure the slot rect, and dropping the scale mid-zoom
    would land the returning card on a shifted target. The gliding focus
    frame hides itself in JS (ConsoleCardFocusFrame reads the zoom state). */
-body.con-zoom-open {
+body.con-zoom-open,
+body.con-play-modal-open {
     .con-cards__slot--focused,
     .con-start__corp--focused,
     .con-start__prelude--focused {

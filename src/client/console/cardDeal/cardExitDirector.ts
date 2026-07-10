@@ -247,14 +247,17 @@ export async function runHeroPick(source: ExitSource, onLift: () => void): Promi
  * the discard side and fade, clearly secondary to the hero/collect. The
  * `forwards` fill keeps them hidden until the frame swap replaces them.
  */
-export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs?: number}): void {
+export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs?: number, delayMs?: number}): void {
   if (consoleReducedMotionActive()) {
     els.forEach((el) => el.classList.add(HOLD_CLASS));
     return;
   }
   const step = opts?.stepMs ?? 24;
+  // `delayMs` sequences the read: the HERO beat lands first, THEN the
+  // rejected cards start tumbling — the eye follows one thing at a time.
+  const base = opts?.delayMs ?? 0;
   els.forEach((el, i) => {
-    el.style.animationDelay = `${motionMs(i * step)}ms`;
+    el.style.animationDelay = `${motionMs(base + i * step)}ms`;
     el.classList.add('con-exit-reject');
   });
 }
@@ -276,6 +279,14 @@ export type TransferArgs = {
   holdFrom?: boolean,
   /** Fires once the proxy stands over the source (host updates state). */
   onLift?: () => void,
+  /**
+   * Fires the frame the proxy TOUCHES DOWN (right before its cross-fade)
+   * — hosts that keep the destination hidden via their OWN reactive state
+   * (Vue-managed holds are patch-proof, classList isn't) reveal it here so
+   * the card materializes exactly under the proxy. Guaranteed to fire once
+   * on EVERY path (landing, dive fallback, safety timeout).
+   */
+  onTouchdown?: () => void,
 };
 
 /**
@@ -289,6 +300,7 @@ export type TransferArgs = {
 export async function runCardTransfer(args: TransferArgs): Promise<void> {
   if (consoleReducedMotionActive()) {
     args.onLift?.();
+    args.onTouchdown?.();
     return;
   }
   const spawned = await spawnProxies([{name: args.name, el: args.from}], false);
@@ -299,6 +311,13 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
   const s = spawned[0];
   let held: HTMLElement | null = null;
   let heldFrom: HTMLElement | null = null;
+  let touched = false;
+  const touchdown = () => {
+    if (!touched) {
+      touched = true;
+      args.onTouchdown?.();
+    }
+  };
   if (args.holdFrom === true) {
     heldFrom = args.from.querySelector<HTMLElement>('.card-container') ?? args.from;
     heldFrom.classList.add(HOLD_CLASS);
@@ -317,6 +336,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     let tries = 0;
     let lastSig = '';
     const dive = () => {
+      touchdown(); // no believable slot — reveal the host state honestly
       const tl = gsap.timeline({onComplete: done});
       tl.to(s.el, {y: '+=26', scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
     };
@@ -348,7 +368,10 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
         duration: motionMs(340) / 1000,
         ease: 'power3.inOut',
       });
-      tl.call(() => held?.classList.remove(HOLD_CLASS));
+      tl.call(() => {
+        held?.classList.remove(HOLD_CLASS);
+        touchdown();
+      });
       tl.to(s.el, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
     };
     requestAnimationFrame(poll);
@@ -357,6 +380,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     (held as HTMLElement).classList.remove(HOLD_CLASS); // safety-path release
   }
   heldFrom?.classList.remove(HOLD_CLASS);
+  touchdown(); // safety: the reveal callback never strands host state
   cleanup(spawned);
 }
 

@@ -268,13 +268,18 @@ Premium-подача раздачи/выбора карт (стартовые к
   layout и держатся классом `.con-deal-hold` (`opacity:0 !important` — important
   бьёт CSS-анимации по каскаду; снятие класса едет на СОБСТВЕННОМ 160ms opacity-
   transition слота = это и есть handoff fade-in). Ноль layout shift.
-- **Lite-proxy = та же карта в lite-режиме**: реиспользует РЕАЛЬНЫЕ классы фрейма
-  (`.card-container.filterDiv` + `.card-content-wrapper > .card-title`-структура →
-  scifi-chassis/`:has()`-селекторы подхватывают тот же тип-фрейм и corner ticks) и
-  РЕАЛЬНЫЕ компоненты CardCost/CardTags/CardTitle (включая per-corp логотип).
-  Выброшено только тяжёлое нутро (CardContent-рекурсия, requirements, бейджи,
-  интерактив). Арт: ОДИН источник `cardArtUrl()` для proxy И full — сейчас
-  `undefined` → оба показывают одинаковый type-gradient fallback; никаких blur-up.
+- **Lite-proxy = та же карта в lite-режиме — ПОЛНОЕ печатное лицо, лёгкая только
+  по СТОИМОСТИ**: реиспользует РЕАЛЬНЫЕ классы фрейма (`.card-container.filterDiv`
+  + `.card-content-wrapper > .card-title`-структура → scifi-chassis/`:has()`-
+  селекторы подхватывают тот же тип-фрейм и corner ticks) и РЕАЛЬНЫЕ
+  презентационные компоненты: CardCost/CardTags/CardTitle (per-corp логотип) +
+  **CardContent (весь render-DSL: иконки, эффекты, текст) + CardRequirements +
+  CardVictoryPoints + CardExpansion** — карта УЗНАВАЕМА в полёте, никакой пустой
+  заглушки. Lite = ноль интерактива (нет click/hover/zoom/Teleport/tooltips,
+  pointer-events: none), ноль живого состояния (нет resource counter/action-cube/
+  preference-логики), один плоский манифест-lookup, render-once (в полёте DOM
+  статичен — GSAP двигает композитный слой). Арт: ОДИН источник `cardArtUrl()`
+  для proxy И full; никаких blur-up.
 - **Хост-паттерн** (ConsoleStartScene / ConsoleTaskHost — образцы): `deal:
   createCardDealSequence()` в data; PRE-FLUSH watcher на deal-identity
   (`dealSignature` / `resetKey`) зовёт `prepareDeal()` — hold ставится ДО первого
@@ -335,14 +340,33 @@ app-уровневый стейдж в ConsoleShell, z 11640 — полёт пе
 - `runCardDepart(source)` — SUCCESS-финал композера: карта взлетает ВВЕРХ «на
   стол» (никакого фальшивого возврата в руку, которую она покинула).
 
-**Lifecycle-контракт `onLift`:** хост коммитит game/UI state ВНУТРИ onLift —
-директор вызывает его в кадре, когда прокси уже стоит поверх реальной карты
-(same-frame swap: ни мигания, ни задержки сабмита за анимацией). Reduced motion:
-прокси не спаунятся вовсе, onLift сразу. Подключено: RevealOverlay
-(takeFocused/takeAll), TaskHost (commitSingleCard hero / confirmCardSetWithExit
-purchase, 0 picks → только спокойный discard), Shell (openPlayCardFromHand /
-onPlayCardCancel / success-depart в onPlayCardConfirmNative). Zoom-пути (взять из
+**Lifecycle-контракты:** `onLift` — хост коммитит game/UI state ВНУТРИ него
+(директор вызывает в кадре, когда прокси уже стоит поверх реальной карты:
+same-frame swap, ни мигания, ни задержки сабмита за анимацией); `onTouchdown`
+(transfer) — гарантированно один раз на ЛЮБОМ пути (посадка/dive/safety) — хосты
+с VUE-managed hold'ами (patch-proof, в отличие от classList) проявляют цель
+именно тут. Reduced motion: прокси не спаунятся, onLift+onTouchdown сразу.
+Подключено: RevealOverlay (takeFocused/takeAll), TaskHost (commitSingleCard hero
+/ confirmCardSetWithExit purchase, 0 picks → только спокойный discard;
+`applyDiscardExit({delayMs})` секвенирует: hero-бит ЧИТАЕТСЯ первым, реджекты
+сыплются под ним), **StartScene** (commitSinglePickByName hero корп/CEO;
+continueWithExit — group-hero collect прелюдий/покупок + discard, 0 → calm;
+actByName candidate-hero для drew-1-of-N/DoubleDown/Merger — прелюдии из rail
+НАМЕРЕННО без exit'а: карта остаётся на столе «разыгранной»), Shell
+(openPlayCardFromHand / onPlayCardCancel / success-depart). Zoom-пути (взять из
 fullscreen) сохраняют свой consume-своп.
+
+**Hand↔композер: ОДНА физическая карта (Vue-managed стейджинг).** Слот руки
+держится пустым через РЕАКТИВНЫЙ hold (`ConsoleHandSection :stagedCard` →
+`con-deal-hold` в :class — patch-proof; runtime-classList Vue сотрёт при патче):
+shell `stagedHandCard = pendingPlayCard ?? returningPlayCard ?? departingPlayCard`.
+Открытие композера ⇒ hold в том же flush; CANCEL ⇒ `returningPlayCard` держит
+слот через закрытие модалки до `onTouchdown` обратного transfer'а (карта
+материализуется ровно под прокси); SUCCESS ⇒ `departingPlayCard` держит слот до
+РЕАЛЬНОГО ухода карты из руки (watcher handEntriesAll; safety-таймер 6s на
+отклонённый розыгрыш) — никакого фальшивого возврата. Фокус-хром руки гаснет под
+композером: `body.con-play-modal-open` (те же правила, что `con-zoom-open`) +
+FocusFrame читает класс в measure-тике.
 
 ## §11. Fullscreen card inspector (открытие/листание/закрытие карт)
 

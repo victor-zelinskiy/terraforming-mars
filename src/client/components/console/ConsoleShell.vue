@@ -137,7 +137,8 @@
                           :select="handSelectProps"
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
-                          :activeTag="consoleState.handTagFilter" />
+                          :activeTag="consoleState.handTagFilter"
+                          :stagedCard="stagedHandCard" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
@@ -675,6 +676,13 @@ export default defineComponent({
       govScaleFocusState,
       botTurnReviewState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
+      /** The card mid-RETURN from a cancelled play composer (its hand slot
+       *  stays held until the transfer proxy touches down). */
+      returningPlayCard: undefined as CardName | undefined,
+      /** The card just PLAYED (success) — its hand slot stays held until the
+       *  server response removes it from the hand (never a fake return). */
+      departingPlayCard: undefined as CardName | undefined,
+      departingTimer: undefined as number | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
       hydroPickCards: [] as Array<{name: CardName, current?: number}>,
@@ -1065,6 +1073,13 @@ export default defineComponent({
     // The VISIBLE hand — narrowed by the active tag filter (sale mode always
     // shows the whole hand). This is what the grid renders + what handIndex
     // indexes into, so play / inspect / command-bar all read the filtered set.
+    /** The card whose HAND SLOT is held empty (Vue-managed, patch-proof):
+     *  staged in the play composer, mid-return after cancel, or departing
+     *  after a successful play (until the server removes it from the hand).
+     *  One physical card never sits in two places at once. */
+    stagedHandCard(): CardName | undefined {
+      return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard;
+    },
     handEntries(): ReadonlyArray<ConsoleHandEntry> {
       if (this.consoleState.sale.active) {
         return this.handEntriesAll;
@@ -2127,6 +2142,20 @@ export default defineComponent({
             this.zoomFlight = false;
           });
         });
+      }
+    },
+    // The play composer owns the ideological focus while open — the hand's
+    // focus chrome behind it goes quiet (same rule as the fullscreen zoom).
+    pendingPlayCard(now: PendingPlayCard | undefined) {
+      document.body.classList.toggle('con-play-modal-open', now !== undefined);
+    },
+    // A successfully played card leaves the hand with the server response —
+    // release its held slot the moment it is genuinely gone (never a fake
+    // return; the safety timer below covers a rejected play).
+    handEntriesAll(entries: ReadonlyArray<ConsoleHandEntry>) {
+      const name = this.departingPlayCard;
+      if (name !== undefined && !entries.some((e) => e.card.name === name)) {
+        this.clearDepartingPlayCard();
       }
     },
     // Server-driven placement pulls the player to the board (§10: a
@@ -3365,6 +3394,9 @@ export default defineComponent({
      */
     openPlayCardFromHand(name: CardName): void {
       const slot = this.handExitSlot(name);
+      // Opening pendingPlayCard ALSO engages the Vue-managed hand-slot hold
+      // (stagedHandCard) in the same flush — the source card leaves the
+      // table the frame its proxy exists; no double-vision, patch-proof.
       this.openPlayCard(name);
       if (slot === null) {
         return;
@@ -3374,14 +3406,15 @@ export default defineComponent({
         from: slot,
         resolveTo: () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]'),
         holdTarget: true,
-        holdFrom: true,
       });
     },
     /**
      * CANCEL of the play composer: the card physically RETURNS to its hand
      * slot (the reverse transfer — playing was never committed). The modal
-     * closes the frame the proxy stands over its card (onLift); a hand slot
-     * hidden by filters/virtualization degrades to the dive-away exit.
+     * closes at onLift; the hand slot stays held (returningPlayCard) until
+     * the proxy TOUCHES DOWN, so the card materializes exactly under it. A
+     * hand slot hidden by filters/virtualization degrades to the dive-away
+     * exit (touchdown still fires — the hold is always released).
      */
     onPlayCardCancel(): void {
       const pending = this.pendingPlayCard;
@@ -3394,27 +3427,42 @@ export default defineComponent({
         this.pendingPlayCard = undefined;
         return;
       }
+      this.returningPlayCard = name; // keeps the hand slot held across the modal close
       void runCardTransfer({
         name,
         from: modalSlot,
         resolveTo: () => this.handExitSlot(name),
-        holdTarget: true,
         onLift: () => {
           this.pendingPlayCard = undefined;
         },
+        onTouchdown: () => {
+          this.returningPlayCard = undefined;
+        },
       });
+    },
+    clearDepartingPlayCard(): void {
+      this.departingPlayCard = undefined;
+      if (this.departingTimer !== undefined) {
+        window.clearTimeout(this.departingTimer);
+        this.departingTimer = undefined;
+      }
     },
     onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       // SUCCESS finale: the card lifts OFF the composer toward the board —
-      // "played onto the table" — never a fake return to the hand it left.
-      // (The rect is measured synchronously before the modal unmounts.)
+      // "played onto the table" — never a fake return to the hand it left:
+      // the hand slot stays held (departingPlayCard) until the server
+      // response actually removes the card from the hand (watcher above),
+      // with a safety timer for a rejected play.
       if (pending !== undefined) {
         const departSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
         if (departSlot !== null) {
           void runCardDepart({name: pending.cardName, el: departSlot});
         }
+        this.clearDepartingPlayCard();
+        this.departingPlayCard = pending.cardName;
+        this.departingTimer = window.setTimeout(() => this.clearDepartingPlayCard(), 6000);
       }
       this.pendingPlayCard = undefined;
       if (pending === undefined || action === undefined) {
@@ -4268,6 +4316,8 @@ export default defineComponent({
     resetGovScaleFocus();
     releaseZoomMotion();
     document.body.classList.remove('con-zoom-open');
+    document.body.classList.remove('con-play-modal-open');
+    this.clearDepartingPlayCard();
     (this as unknown as {__notifOff?: Array<() => void>}).__notifOff?.forEach((off) => off());
   },
 });

@@ -56,6 +56,7 @@
                    'con-hand__slot--sale-picked': saleActive && isSaleSelected(entry.card.name),
                    'con-hand__slot--select-picked': selectActive && isSelectPicked(entry.card.name),
                    'con-hand__slot--select-disabled': selectActive && !isSelectable(entry.card.name),
+                   'con-deal-hold': entry.card.name === stagedCard,
                  }">
               <Card :card="entry.card" :key="entry.card.name" lightweight />
               <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
@@ -155,6 +156,7 @@ import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/Card.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {CardModel} from '@/common/models/CardModel';
+import {CardName} from '@/common/cards/CardName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
@@ -228,6 +230,13 @@ export default defineComponent({
     tagFilters: {type: Array as PropType<ReadonlyArray<ConsoleTagFilterOption>>, default: () => []},
     /** The active tag filter (`'all'` or one tag) — drives the chip highlight. */
     activeTag: {type: String as PropType<HandTagFilter>, default: 'all'},
+    /**
+     * The card currently STAGED in the play composer (or mid-return /
+     * mid-depart) — its hand slot is held empty via a VUE-managed
+     * `con-deal-hold` (patch-proof, unlike a runtime classList): one
+     * physical card can never sit in the hand AND the modal at once.
+     */
+    stagedCard: {type: String as PropType<CardName | undefined>, default: undefined},
   },
   data() {
     return {

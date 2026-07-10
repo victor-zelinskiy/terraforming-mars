@@ -131,10 +131,11 @@ export default defineComponent({
       if (!this.active) {
         return null;
       }
-      // The fullscreen inspector owns the ideological focus while open —
-      // the background frame goes quiet (read fresh every measure tick,
-      // so no watcher plumbing is needed).
-      if (consoleCardZoom.card !== undefined) {
+      // The fullscreen inspector / play composer own the ideological focus
+      // while open — the background frame goes quiet (read fresh every
+      // measure tick, so no watcher plumbing is needed).
+      if (consoleCardZoom.card !== undefined ||
+          document.body.classList.contains('con-play-modal-open')) {
         return null;
       }
       if (this.target !== null) {
