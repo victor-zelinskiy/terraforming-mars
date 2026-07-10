@@ -9,11 +9,23 @@ function setLanguages(langs: ReadonlyArray<string>): void {
   Object.defineProperty(navigator, 'language', {value: langs[0] ?? '', configurable: true});
 }
 
+// jsdom runs on an opaque origin here, so the real `window.localStorage` throws
+// SecurityError — install a tiny in-memory fake so the override path is testable
+// (the resolver reads window.localStorage through a try/catch).
+const store = new Map<string, string>();
+const fakeStorage = {
+  getItem: (k: string) => store.get(k) ?? null,
+  setItem: (k: string, v: string) => void store.set(k, v),
+  removeItem: (k: string) => void store.delete(k),
+  clear: () => store.clear(),
+} as unknown as Storage;
+
 describe('resolveUserKeyboardLayouts', () => {
+  before(() => {
+    Object.defineProperty(window, 'localStorage', {value: fakeStorage, configurable: true});
+  });
   beforeEach(() => {
-    try {
-      window.localStorage.removeItem('tm_kb_layouts');
-    } catch { /* private mode */ }
+    store.clear();
     setLanguages([]);
   });
 
