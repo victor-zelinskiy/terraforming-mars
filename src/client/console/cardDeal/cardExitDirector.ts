@@ -71,10 +71,20 @@ type Spawned = {id: number, el: HTMLElement, rect: DOMRect};
  * Spawn proxies for the given sources, position each exactly over its
  * source rect, and return the live elements. Sources with degenerate rects
  * are skipped (their state change simply happens without a flight).
+ *
+ * `holdSource` (every EXIT flow): the moment a proxy is positioned over its
+ * source, the SOURCE card is hidden (`.con-deal-hold` — instant `opacity:0
+ * !important`, no transition) in the SAME synchronous block, BEFORE the
+ * browser paints. So the proxy appears and the real card vanishes in one
+ * frame — never both at once (the "card flies while still sitting in its
+ * slot" double-vision). The source is an EXITING element (the ensuing
+ * re-render removes it), so the class is never released here — a stuck
+ * hold can only happen if the commit no-ops, which exits never do (the
+ * draft beat's recovery path is the one exception, and it un-holds).
  */
-async function spawnProxies(sources: ReadonlyArray<ExitSource>, hero: boolean): Promise<Array<Spawned>> {
+async function spawnProxies(sources: ReadonlyArray<ExitSource>, hero: boolean, holdSource = false): Promise<Array<Spawned>> {
   const entries = sources
-    .map((s) => ({id: nextFlightId(), name: s.name, rect: cardRect(s.el)}))
+    .map((s) => ({id: nextFlightId(), name: s.name, rect: cardRect(s.el), src: s.el}))
     .filter((e) => usable(e.rect));
   if (entries.length === 0) {
     return [];
@@ -98,6 +108,10 @@ async function spawnProxies(sources: ReadonlyArray<ExitSource>, hero: boolean): 
       autoAlpha: 1,
       transformOrigin: 'top left',
     });
+    if (holdSource) {
+      const card = e.src.querySelector<HTMLElement>('.card-container') ?? e.src;
+      card.classList.add(HOLD_CLASS);
+    }
     out.push({id: e.id, el, rect: e.rect});
   }
   return out;
@@ -143,7 +157,7 @@ export async function runCardTake(source: ExitSource, onLift: () => void): Promi
     onLift();
     return;
   }
-  const spawned = await spawnProxies([source], false);
+  const spawned = await spawnProxies([source], false, true);
   onLift();
   if (spawned.length === 0) {
     return;
@@ -178,7 +192,7 @@ export async function runCardCollect(sources: ReadonlyArray<ExitSource>, onLift:
     onLift();
     return;
   }
-  const spawned = await spawnProxies(sources, false);
+  const spawned = await spawnProxies(sources, false, true);
   onLift();
   if (spawned.length === 0) {
     return;
@@ -222,7 +236,7 @@ export async function runHeroPick(source: ExitSource, onLift: () => void): Promi
     onLift();
     return;
   }
-  const spawned = await spawnProxies([source], true);
+  const spawned = await spawnProxies([source], true, true);
   onLift();
   if (spawned.length === 0) {
     return;
@@ -331,18 +345,17 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
   const safety = setTimeout(finish, totalBudget);
 
   const run = async () => {
-    spawnedAll = await spawnProxies(args.picks, true);
+    // holdSource: the strip slot empties the FRAME its proxy stands over it
+    // (before paint) — no double-vision, and no reliance on the 240ms
+    // table-beat fade (which would otherwise show the source fading UNDER
+    // the already-flying proxy). The round is over for these cards; the
+    // frame swap replaces the set.
+    spawnedAll = await spawnProxies(args.picks, true, true);
     args.onLift();
     if (spawnedAll.length === 0 || skipped) {
       clearTimeout(safety);
       finish();
       return;
-    }
-    // The strip slot empties the frame its hero lifts (no double-vision) —
-    // the round is over for these cards; the frame swap replaces the set.
-    for (const p of args.picks) {
-      const card = p.el.querySelector<HTMLElement>('.card-container') ?? p.el;
-      card.classList.add(HOLD_CLASS);
     }
     await Promise.all(spawnedAll.map(async (s, i) => {
       const name = args.picks[i]?.name;
@@ -558,7 +571,10 @@ export async function runCardDepart(source: ExitSource): Promise<void> {
   if (consoleReducedMotionActive()) {
     return;
   }
-  const spawned = await spawnProxies([source], false);
+  // holdSource: hide the composer card the frame the proxy stands over it —
+  // the modal is closing (pendingPlayCard cleared) but the two must never
+  // both paint (double-vision during the close race).
+  const spawned = await spawnProxies([source], false, true);
   if (spawned.length === 0) {
     return;
   }
