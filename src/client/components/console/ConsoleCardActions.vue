@@ -97,37 +97,11 @@
                        },
                      ]"
                      :ref="focusKey === tile.key ? 'focused' : undefined">
-                  <!-- The COMPLETE cost → reward formula: static chips + the
-                       player-chosen VARIABLE ranges. The DSL graphic is the
-                       safe fallback when nothing structured is known. -->
-                  <div v-if="tileHasFormula(tile)" class="con-cardactions__formula">
-                    <template v-for="(eff, k) in tile.costEffects" :key="'c' + k">
-                      <ActionEffectChip :effect="eff" />
-                    </template>
-                    <span v-for="(vc, k) in tile.variableCost" :key="'vc' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
-                      <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
-                      <b>{{ rangeText(vc) }}</b>
-                    </span>
-                    <span v-if="tileHasBothSides(tile)" class="con-cardactions__arrow" aria-hidden="true">→</span>
-                    <template v-for="(eff, k) in tile.gainEffects" :key="'g' + k">
-                      <ActionEffectChip :effect="eff" />
-                    </template>
-                    <span v-for="(vc, k) in tile.variableGain" :key="'vg' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
-                      <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
-                      <b>{{ rangeText(vc) }}</b>
-                    </span>
-                    <!-- Direction-unknown amounts — their OWN cluster (never
-                         claiming the spent/received side). -->
-                    <template v-if="tile.variableChoice.length > 0">
-                      <span v-if="tile.costEffects.length + tile.gainEffects.length + tile.variableCost.length + tile.variableGain.length > 0" class="con-cardactions__vardiv" aria-hidden="true">·</span>
-                      <span v-for="(vc, k) in tile.variableChoice" :key="'vx' + k" class="con-cardactions__varchip con-cardactions__varchip--choice">
-                        <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
-                        <b>{{ rangeText(vc) }}</b>
-                        <em>{{ $t('your choice') }}</em>
-                      </span>
-                    </template>
-                  </div>
-                  <div v-else class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                  <!-- The tile ALWAYS shows the card's OWN action graphic
+                       (icons straight from the manifest — instant, no fetch,
+                       so it never flickers). The COMPLETE cost → reward
+                       formula chips live only in the right-panel summary. -->
+                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
                     <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
                     <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
                     <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
@@ -589,16 +563,6 @@ export default defineComponent({
       return typeof reason.message === 'string' ?
         translateTextWithParams(reason.message, [...reason.params]) :
         translateMessage(reason.message);
-    },
-    tileHasFormula(tile: ConsoleActionTile): boolean {
-      return tile.costEffects.length > 0 || tile.gainEffects.length > 0 ||
-        tile.variableCost.length > 0 || tile.variableGain.length > 0 ||
-        tile.variableChoice.length > 0;
-    },
-    tileHasBothSides(tile: ConsoleActionTile): boolean {
-      const cost = tile.costEffects.length > 0 || tile.variableCost.length > 0;
-      const gain = tile.gainEffects.length > 0 || tile.variableGain.length > 0;
-      return cost && gain;
     },
     rangeText(vc: ConsoleVariableChip): string {
       const unit = vc.unit ?? '';
