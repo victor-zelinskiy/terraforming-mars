@@ -30,22 +30,30 @@ describe('consoleTradeFleet', () => {
     expect(detectTradeFleet()).to.eq(undefined);
   });
 
-  it('run resolves via the registered director dock, then end hands off', async () => {
+  it('run docks, then end crossfades (release) before clearing + settle glow', async () => {
     armTradeFleet(ColonyName.TITAN, 'green');
     let dockedCalled = false;
+    let releaseCalled = false;
     registerTradeFleetHandle({
-      dock: (onDock) => {
+      dock: (onLand) => {
         dockedCalled = true;
-        onDock(); // the director reports the dock snap finished
+        onLand(); // the director reports the pixel-perfect landing (gate resolves)
+      },
+      release: (onGone) => {
+        releaseCalled = true;
+        onGone(); // the proxy finished crossfading onto the real ship
       },
       skip: () => {},
     });
     detectTradeFleet();
     await runTradeFleet();
     expect(dockedCalled).to.eq(true);
+    // Still active until the crossfade completes (proxy over the real ship).
+    expect(isTradeFleetActive()).to.eq(true);
     endTradeFleet();
+    expect(releaseCalled).to.eq(true);
     expect(isTradeFleetActive()).to.eq(false);
-    // The just-traded colony gets the brief settle-glow marker.
+    // The just-traded colony gets the settle glow AFTER the crossfade.
     expect(tradeFleetState.dockedColonyName).to.eq(ColonyName.TITAN);
   });
 
@@ -60,7 +68,7 @@ describe('consoleTradeFleet', () => {
   it('abort recalls the fleet AND resolves a pending gate (never hangs)', async () => {
     armTradeFleet(ColonyName.PLUTO, 'purple');
     let skipped = false;
-    registerTradeFleetHandle({dock: () => {}, skip: () => {
+    registerTradeFleetHandle({dock: () => {}, release: () => {}, skip: () => {
       skipped = true;
     }});
     detectTradeFleet();

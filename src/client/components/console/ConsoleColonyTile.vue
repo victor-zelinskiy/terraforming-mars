@@ -23,18 +23,24 @@
            an owner-hue ring on the planet + a crisp ship token in the berth
            (replaces the old crude oversized sprite that crowded the planet;
            the owner is the ring/ship colour, named in the status line). -->
-      <!-- The berth is the STABLE landing anchor of the trade-launch cinematic
-           (`data-fleet-berth`, always rendered) — the flying fleet proxy docks
-           exactly here, then the real docked ship materializes under it. -->
       <span class="con-coltile__planet-berth"
-            :data-fleet-berth="colony.name"
             :class="[
               colony.visitor !== undefined ? ['con-coltile__planet-berth--occupied', 'fleet-hue--' + colony.visitor] : [],
               {'con-coltile__planet-berth--docking': justDocked},
             ]">
         <span class="con-coltile__planet" :class="planetClass" aria-hidden="true"></span>
-        <span v-if="colony.visitor !== undefined" class="con-coltile__dock" aria-hidden="true">
-          <ColonyFleetIcon :color="colony.visitor" :state="justDocked ? 'docked' : 'idle'" />
+        <!-- The DOCK SLOT is the STABLE, PIXEL-PERFECT landing anchor of the
+             trade-launch cinematic (`data-fleet-berth`, ALWAYS rendered, even
+             empty): the flying fleet proxy docks EXACTLY here at this slot's
+             size + position + angle — the identical rect the real docked ship
+             occupies — so the proxy fades directly into the real ship with no
+             centre-of-planet detour. The ship itself renders inside only when
+             a fleet is present; an empty dock is an invisible measurement slot. -->
+        <span class="con-coltile__dock"
+              :data-fleet-berth="colony.name"
+              :class="colony.visitor !== undefined ? ['con-coltile__dock--occupied', 'fleet-hue--' + colony.visitor] : []"
+              aria-hidden="true">
+          <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" :state="justDocked ? 'docked' : 'idle'" />
         </span>
       </span>
     </header>

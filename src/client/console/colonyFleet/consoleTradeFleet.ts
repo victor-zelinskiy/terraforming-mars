@@ -160,30 +160,40 @@ export function runTradeFleet(): Promise<void> {
 }
 
 /**
- * END (next tick, after the view committed) — hand the flight off: mark the
- * traded colony for a brief "settle" seat glow on its now-real docked ship,
- * then clear. Idempotent.
+ * END (next tick, after the view committed) — the REAL docked ship has now
+ * materialized in the exact berth rect UNDER the pixel-perfect landed proxy.
+ * CROSSFADE the proxy out onto it (`handle.release`), and only when the fade
+ * completes CLEAR the flight (unmount the proxy) + fire the one-shot settle
+ * glow on the real ship — so the handoff is seamless (proxy → real, same
+ * position/size/angle), never a "vanish at centre then reappear". Idempotent.
  */
 export function endTradeFleet(): void {
   clearArmSafety();
   const colony = tradeFleetState.colonyName;
-  tradeFleetState.active = false;
-  tradeFleetState.phase = 'idle';
-  tradeFleetState.color = '';
-  tradeFleetState.colonyName = '';
-  handle = undefined;
-  claimed = false;
-  // The real docked ship just materialized under the (now-gone) proxy —
-  // give it a one-shot settle glow so the handoff reads continuous.
-  if (colony !== '') {
-    tradeFleetState.dockedColonyName = colony;
-    if (settleTimerId !== 0) {
-      clearTimeout(settleTimerId);
+  const finalize = () => {
+    tradeFleetState.active = false;
+    tradeFleetState.phase = 'idle';
+    tradeFleetState.color = '';
+    tradeFleetState.colonyName = '';
+    handle = undefined;
+    claimed = false;
+    // The real docked ship is in place — give it a one-shot settle glow now
+    // the proxy has fully faded (never a double image during the crossfade).
+    if (colony !== '') {
+      tradeFleetState.dockedColonyName = colony;
+      if (settleTimerId !== 0) {
+        clearTimeout(settleTimerId);
+      }
+      settleTimerId = setTimeout(() => {
+        tradeFleetState.dockedColonyName = '';
+        settleTimerId = 0;
+      }, 900) as unknown as number;
     }
-    settleTimerId = setTimeout(() => {
-      tradeFleetState.dockedColonyName = '';
-      settleTimerId = 0;
-    }, 900) as unknown as number;
+  };
+  if (handle !== undefined) {
+    handle.release(finalize);
+  } else {
+    finalize();
   }
 }
 

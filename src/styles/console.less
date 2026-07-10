@@ -6132,8 +6132,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex-direction: column;
         align-items: center;
         justify-content: flex-end;
-
-        &--empty { opacity: 0.9; } /* the pad stays; only the ship is gone */
     }
     /* The ship perches on the pad; the slot itself is the stable launch rect. */
     &__fleetship {
@@ -6148,6 +6146,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         justify-content: center;
 
         .colony-fleet-icon { width: 22px; height: 22px; }
+    }
+    /* An EMPTY berth (fleet is OUT trading) reads UNMISTAKABLY — a dashed
+       "vacant slot" ring where the ship would sit, so an out-fleet is never
+       confused for a missing platform. The lit pad below stays fully visible. */
+    &__fleetberth--empty &__fleetship::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 15px;
+        height: 15px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        border: 1.5px dashed fade(@con-text, 32%);
+        box-sizing: border-box;
     }
     &__fleetdock .colony-fleet-pad { width: 30px; height: 14px; }
     &__fleetchip-name {
@@ -6278,22 +6291,34 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
                 0 0 9px var(--fleet-glow) !important;
         }
     }
+    /* The dock is the ship-SIZED landing slot (ALWAYS in the DOM — the flight's
+       pixel-perfect anchor): 21px == the docked ship, so the flying proxy docks
+       exactly at this slot's rect + the real ship materializes in the SAME rect.
+       Empty (no visitor) = an invisible measurement slot; the grounding halo is
+       a `::before` shown only when occupied (never a stray disc on empty tiles). */
     &__dock {
         position: absolute;
-        left: -6px;
-        bottom: -6px;
-        width: 28px;
-        height: 28px;
+        left: -2px;
+        bottom: -2px;
+        width: 21px;
+        height: 21px;
         display: flex;
         align-items: center;
         justify-content: center;
-        /* The crisp ship GROUNDED by a soft dark halo that fades to nothing —
-           reads on any planet, but never a hard "sticker" disc/rim slapped over
-           the medallion (that was the coarse-overlay look). No border/rim. */
-        background: radial-gradient(circle at 50% 52%,
-            rgba(3, 7, 13, 0.70) 0%,
-            rgba(3, 7, 13, 0.34) 46%,
-            transparent 66%);
+
+        /* Grounding halo (only when a fleet is docked) — soft, fades to nothing,
+           never a hard "sticker" disc slapped over the medallion. */
+        &--occupied::before {
+            content: '';
+            position: absolute;
+            inset: -5px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 52%,
+                rgba(3, 7, 13, 0.70) 0%,
+                rgba(3, 7, 13, 0.34) 46%,
+                transparent 66%);
+            z-index: -1;
+        }
 
         .colony-fleet-icon {
             width: 21px;

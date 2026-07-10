@@ -31,8 +31,13 @@ import {
 export type FleetPhaseName = 'launch' | 'transit' | 'approach' | 'dock' | 'ack';
 
 export type TradeFleetDirectorHandle = {
-  /** Release the approach hold: play the final dock snap, then `onDock`. */
-  dock: (onDock: () => void) => void,
+  /** Release the approach hold: play the final PIXEL-PERFECT dock snap onto
+   *  the berth slot, then `onLand` (the caller commits — the real ship
+   *  materializes in this exact rect under the still-visible proxy). */
+  dock: (onLand: () => void) => void,
+  /** After the commit: crossfade the landed proxy out onto the now-real
+   *  docked ship, then `onGone` (the caller unmounts + clears). */
+  release: (onGone: () => void) => void,
   /** Tear down instantly (abort / unmount) — no visual guarantees. */
   skip: () => void,
 };
@@ -121,6 +126,13 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     tl.to(ship, {y: '+=4', duration: s(220), yoyo: true, repeat: -1, ease: 'sine.inOut'}, approachAt);
   }
 
+  // PIXEL-PERFECT dock scale: the proxy (its own box) shrinks so its VISUAL
+  // size equals the berth slot's real rect — the same size the docked ship
+  // renders at. Combined with centring on the slot centre + rotation 0, the
+  // landed proxy occupies the IDENTICAL rect the real ship will, so the fade
+  // is a true crossfade (never a centre-of-planet detour + reappear).
+  const dockScale = args.to.width > 8 ? args.to.width / (ship.offsetWidth || 46) : (reduced ? 0.5 : 0.46);
+
   function finishDock(): void {
     if (docked || killed) {
       return;
@@ -128,6 +140,11 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     docked = true;
     gsap.killTweensOf(ship); // stop the idle bob
     args.onPhase('dock');
+    // Settle EXACTLY onto the final ship slot (position + size + angle), a
+    // clean ease (no overshoot — the last frame must be pixel-perfect). On
+    // landing, resolve the gate: the caller commits, the REAL docked ship
+    // materializes in this exact rect UNDER the still-visible proxy, and only
+    // then does `release()` crossfade the proxy out.
     const land = gsap.timeline({
       onComplete: () => {
         args.onPhase('ack');
@@ -136,14 +153,10 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
         cb?.();
       },
     });
-    // The snap into the berth: settle onto the dock centre, scale to the
-    // docked token size, a tiny overshoot for the "seat" feel, then fade —
-    // the real docked ship materializes underneath on the commit.
     land.to(ship, {
-      x: to.x - half, y: to.y - halfH, rotation: 0, scale: reduced ? 0.8 : 0.86,
-      duration: s(t.dockMs), ease: 'back.out(1.6)',
+      x: to.x - half, y: to.y - halfH, rotation: 0, scale: dockScale,
+      duration: s(t.dockMs), ease: 'power2.out',
     });
-    land.to(ship, {autoAlpha: 0, duration: s(t.ackMs), ease: 'power1.out'}, '>-0.02');
   }
 
   // The dock can be requested before OR after the ship reaches the approach
@@ -159,24 +172,46 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   // the WaitingFor gate can never hang.
   let safetyId = 0;
 
+  function clearSafety(): void {
+    if (safetyId !== 0) {
+      clearTimeout(safetyId);
+      safetyId = 0;
+    }
+  }
+
   return {
-    dock: (onDock: () => void) => {
-      dockCb = onDock;
+    dock: (onLand: () => void) => {
+      dockCb = onLand;
       dockRequested = true;
       // Guarantee resolution even if the timeline is frozen.
       safetyId = window.setTimeout(() => {
         const cb = dockCb;
         dockCb = undefined;
         cb?.();
-      }, motionMs(approachReadyMs(t) + t.dockMs + t.ackMs) + 1200) as unknown as number;
+      }, motionMs(approachReadyMs(t) + t.dockMs) + 1200) as unknown as number;
       tryDock();
+    },
+    release: (onGone: () => void) => {
+      clearSafety();
+      if (killed) {
+        onGone();
+        return;
+      }
+      // The real docked ship is now committed UNDER the pixel-perfect proxy —
+      // crossfade the proxy out onto it. A safety fires onGone even if rAF stalls.
+      let released = false;
+      const finish = () => {
+        if (!released) {
+          released = true;
+          onGone();
+        }
+      };
+      window.setTimeout(finish, motionMs(t.ackMs) + 600);
+      gsap.to(ship, {autoAlpha: 0, duration: s(t.ackMs), ease: 'power1.out', onComplete: finish});
     },
     skip: () => {
       killed = true;
-      if (safetyId !== 0) {
-        clearTimeout(safetyId);
-        safetyId = 0;
-      }
+      clearSafety();
       tl.kill();
       gsap.killTweensOf(ship);
       gsap.set(ship, {autoAlpha: 0});
