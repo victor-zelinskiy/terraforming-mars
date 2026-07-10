@@ -3969,10 +3969,14 @@ export default defineComponent({
         }
         return true;
       case 'nextTab': {
-        // RT = take all (RECEIVE bridge only); otherwise the viewer owns it.
+        // RT = take all (RECEIVE bridge only). Same premium parity as the
+        // single take: CLOSE the viewer first (the card flies back to its
+        // slot), THEN run the reveal modal's own group collect — never a
+        // bare state jump. Otherwise the viewer owns RT.
         const r = this.consoleCardZoom.receive;
-        if (r?.takeAll !== undefined) {
-          r.takeAll();
+        if (r?.takeAll !== undefined && !this.zoomClosing) {
+          const takeAll = r.takeAll;
+          void this.closeZoomViewer().then(() => takeAll());
         }
         return true;
       }
@@ -3990,13 +3994,22 @@ export default defineComponent({
         z.select.toggle(z.card.name as CardName);
       }
     },
-    /** The RECEIVE bridge A-verb — take the card at the viewer's index. The
-     *  opener (reveal overlay) owns the take + list-sync + close-on-last. */
+    /**
+     * The RECEIVE bridge A-verb — take the inspected card from FULLSCREEN.
+     * PREMIUM PARITY: never a bare state jump — the viewer CLOSES first (the
+     * card flies back into its reveal slot, choreographed), THEN the opener
+     * runs the SAME premium take the reveal modal uses (`runCardTake` — the
+     * card lifts off the slot and dives to the player). So a fullscreen take
+     * is the identical physical pipeline as an in-modal take. Re-entrant safe
+     * (`zoomClosing` guards a double press mid-flight).
+     */
     zoomTakeReceived(): void {
       const r = this.consoleCardZoom.receive;
-      if (r !== undefined) {
-        r.takeAt(this.consoleCardZoom.index);
+      if (r === undefined || this.zoomClosing) {
+        return;
       }
+      const idx = this.consoleCardZoom.index;
+      void this.closeZoomViewer().then(() => r.takeAt(idx));
     },
     /** P17: the viewer's A hands the card to the context action. Two paths:
      *  - HANDOFF (the action opens a surface showing this card, e.g. the

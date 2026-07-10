@@ -182,7 +182,7 @@ import {CardName} from '@/common/cards/CardName';
 import {runCardCollect, runCardTake} from '@/client/console/cardDeal/cardExitDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 
 export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
@@ -562,38 +562,23 @@ export default defineComponent({
       }
       void runCardCollect(sources, commit);
     },
-    /** A inside the fullscreen viewer — take the card at the viewer's index.
-     *  The last card closes the viewer + releases the batch; otherwise the
-     *  live untaken list is pushed to the viewer so its «consume» swap
-     *  advances to the next card. `takeFocused`'s twin (same shared logic). */
+    /**
+     * A from FULLSCREEN — the shell has ALREADY choreographed the viewer's
+     * close (the card flew back into its reveal slot), so this just SYNCS the
+     * focus to the inspected card and runs the SAME premium take as an in-modal
+     * A (`runCardTake` — lift off the slot + dive to the player). No bare state
+     * jump, no consume-swap: a fullscreen take is the identical physical flow.
+     */
     takeFromZoom(idx: number): void {
-      const e = this.drawnEvent;
-      const entry = this.drawnUntaken[idx];
-      if (e === undefined || entry === undefined) {
-        return;
-      }
-      if (this.drawnUntaken.length <= 1) {
-        closeConsoleCardZoom();
-        closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
-        return;
-      }
-      markCardTaken(e.id, entry.index);
-      const remaining = this.drawnUntaken.map((x) => x.card);
-      consoleCardZoom.cards = remaining;
-      if (remaining.length === 1) {
-        // The viewer leaves nav mode (its `cards` prop → undefined, so the
-        // modal's list watcher no-ops); drive the single card directly so the
-        // `:card` binding shows the SURVIVOR, not the just-taken card.
-        consoleCardZoom.card = remaining[0];
-        consoleCardZoom.index = 0;
-      }
-      // remaining.length > 1: the modal's `cards` watcher clamps + «consume»-
-      // swaps + re-emits navigate, which re-syncs card/index — nothing to do.
+      this.focusIdx = Math.max(0, Math.min(idx, this.drawnUntaken.length - 1));
+      // nextTick: the dialog just closed — let the reveal strip settle so the
+      // take reads the live focused slot rect.
+      void this.$nextTick(() => this.takeFocused());
     },
-    /** RT inside the fullscreen viewer — close it, then take all. */
+    /** RT from FULLSCREEN — the shell already closed the viewer; run the SAME
+     *  premium group collect as an in-modal RT (`runCardCollect`). */
     takeAllFromZoom(): void {
-      closeConsoleCardZoom();
-      this.takeAll();
+      void this.$nextTick(() => this.takeAll());
     },
   },
 });
