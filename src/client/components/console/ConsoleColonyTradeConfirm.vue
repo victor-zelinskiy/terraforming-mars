@@ -227,7 +227,8 @@ import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {
   paymentLanes,
@@ -735,16 +736,17 @@ export default defineComponent({
       consoleColoniesUi.composerReady = this.canConfirm;
       consoleColoniesUi.composerEditable = this.focusedRowEditable;
     },
-    /** The shell routes every intent here while the confirm is open. */
+    /** The shell routes every intent here while the confirm is open.
+     *  Foundation: presses resolve to SEMANTIC actions (no raw button names). */
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
-        return;
+      const action = consoleActionOf(intent);
+      if (action !== undefined) {
+        this.onPress(action);
       }
-      this.onPress(intent.button);
     },
     onNav(dir: NavDirection): void {
       if (this.sub === 'lanes') {
@@ -790,12 +792,12 @@ export default defineComponent({
       }
       return 0;
     },
-    onPress(button: SemanticButton): void {
-      switch (button) {
-      case 'confirm':
+    onPress(action: ConsoleAction): void {
+      switch (action) {
+      case 'primary':
         this.onConfirmPress();
         return;
-      case 'secondary':
+      case 'inspect':
         // X = the one final confirm (only when every decision is captured).
         if (this.sub === undefined && this.canConfirm) {
           this.emitConfirm();
@@ -803,7 +805,7 @@ export default defineComponent({
           this.onConfirmPress();
         }
         return;
-      case 'triggerR':
+      case 'nextTab':
         // RT in the lanes = MAX the focused lane (mirrors the action composer).
         if (this.sub === 'lanes') {
           const view = this.paymentView;

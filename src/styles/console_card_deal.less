@@ -117,37 +117,19 @@
     .con-deal-deck__c--2 { transform: translate(-3px, 3px) rotate(-1.6deg); opacity: 0.88; }
 }
 
-/* ── The card back — the fork's sci-fi sleeve (CSS-only, no assets) ──── */
+/* ── The card back — the CANONICAL sleeve art ─────────────────────────
+   assets/resources/card.webp (terraformed Mars, gold filigree frame) — the
+   same asset the board bonus icons / colonies overlay / player home use,
+   so the texture is already warm in the browser cache. The art ships its
+   own rounded TRANSPARENT corners → no CSS clip, corners scale correctly
+   at every size (deck stack 118px, flyer 300px). `100% 100%` stretches
+   the 0.699-ratio art onto the 0.723 card frame (~3.4% — imperceptible)
+   so the back's silhouette matches the face EXACTLY through the flip. */
 .con-card-back {
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 16px; /* matches the sci-fi card chassis radius */
-    background: linear-gradient(155deg, #13202f 0%, #0a1420 48%, #0d1a29 100%);
-    box-shadow:
-        inset 0 0 0 1px fade(@con-cyan, 38%),
-        inset 0 0 0 3px rgba(9, 15, 24, 0.92),
-        inset 0 0 26px rgba(0, 0, 0, 0.55);
-    overflow: hidden;
-
-    /* The planet emblem: a muted Mars disc inside a thin orbit ring. */
-    &::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background:
-            radial-gradient(circle at 50% 46%, fade(#d3663a, 42%) 0 16.5%, transparent 18%),
-            radial-gradient(circle at 50% 46%, transparent 0 23.5%, fade(@con-cyan, 22%) 24.5% 25.5%, transparent 26.5%);
-    }
-    /* The faint iso-tech grid — the start-scene visual signature. */
-    &::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image:
-            repeating-linear-gradient(60deg, fade(@con-cyan, 4%) 0 1px, transparent 1px 24px),
-            repeating-linear-gradient(-60deg, fade(@con-cyan, 4%) 0 1px, transparent 1px 24px);
-    }
+    background: url('./assets/resources/card.webp') center / 100% 100% no-repeat;
 }
 
 /* ── The gliding focus frame (four L-corner ticks, motion-v springs) ─── */

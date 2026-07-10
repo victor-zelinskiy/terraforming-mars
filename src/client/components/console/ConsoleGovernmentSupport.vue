@@ -102,7 +102,8 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
-import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {buildGovSupportCards, firstAvailableIndex, GovCard, GovParam} from '@/client/console/consoleGovernmentSupport';
@@ -203,16 +204,24 @@ export default defineComponent({
     textOf(v: string | Message | undefined): string {
       return textOf(v);
     },
-    /** The shell routes every intent here while the panel is active. */
+    /** The shell routes every intent here while the panel is active.
+     *  Foundation: presses resolve to SEMANTIC actions (no raw button names). */
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
+      switch (consoleActionOf(intent)) {
+      case 'primary':
+      case 'inspect': // X mirrors A (forgiving; no separate confirm step)
+        this.apply();
+        return;
+      case 'back':
+        this.$emit('defer');
+        return;
+      default:
         return;
       }
-      this.onPress(intent.button);
     },
     onNav(dir: NavDirection): void {
       const n = this.cards.length;
@@ -228,19 +237,6 @@ export default defineComponent({
       }
       if (next >= 0 && next < n) {
         this.focusIdx = next;
-      }
-    },
-    onPress(button: SemanticButton): void {
-      switch (button) {
-      case 'confirm': // A — the one verb
-      case 'secondary': // X mirrors A (forgiving; no separate confirm step)
-        this.apply();
-        return;
-      case 'back':
-        this.$emit('defer');
-        return;
-      default:
-        return;
       }
     },
     apply(): void {

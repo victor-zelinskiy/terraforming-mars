@@ -356,6 +356,7 @@ import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroSto
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 
 /** Reason kinds the «Требования» column already shows as red marks — the
@@ -741,7 +742,8 @@ export default defineComponent({
         return;
       }
       if (this.ui.helpOpen) {
-        if (intent.kind === 'press' && (intent.button === 'back' || intent.button === 'secondary')) {
+        const a = consoleActionOf(intent);
+        if (a === 'back' || a === 'inspect') {
           this.ui.helpOpen = false;
         }
         return;
@@ -755,28 +757,25 @@ export default defineComponent({
         this.cycleChoice(intent.dir === 'down' ? 1 : -1);
         return;
       }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      switch (intent.button) {
-      case 'bumperL':
+      // Foundation: presses resolve to SEMANTIC actions (no raw button names).
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
         this.cycleChoice(-1);
         return;
-      case 'bumperR':
+      case 'nextSection':
         this.cycleChoice(1);
         return;
-      case 'triggerR': { // P27b: the local verb moved off Y (Y = Info Mode)
-        // Y — jump to the FURTHEST legal+affordable stage.
+      case 'nextTab': { // RT — jump to the FURTHEST legal+affordable stage.
         const max = this.preview?.maxLegalSteps ?? 0;
         if (max > 0) {
           this.selectPosition(this.model.currentPosition + max);
         }
         return;
       }
-      case 'secondary':
+      case 'inspect':
         this.ui.helpOpen = !this.ui.helpOpen;
         return;
-      case 'confirm':
+      case 'primary':
         this.onPrimary();
         return;
       case 'back':

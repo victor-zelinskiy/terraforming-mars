@@ -335,7 +335,8 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText} from '@/client/directives/i18n';
-import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
@@ -768,10 +769,10 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
-        return;
+      const action = consoleActionOf(intent);
+      if (action !== undefined) {
+        this.onPress(action);
       }
-      this.onPress(intent.button);
     },
     /**
      * DEAL CINEMATIC (console_card_deal.less / cardDealSequence.ts): decide
@@ -999,29 +1000,29 @@ export default defineComponent({
       const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * gap) / (n * slotW)));
       strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
     },
-    onPress(button: SemanticButton): void {
-      switch (button) {
-      case 'confirm':
+    // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
+    // RT(nextTab) continue, LB/RB(prev/nextSection) wizard step, B(back) minimize.
+    onPress(action: ConsoleAction): void {
+      switch (action) {
+      case 'primary':
         this.onPrimary();
         return;
-      case 'secondary':
+      case 'inspect':
         // P13 global rule: X reads the focused card fullscreen.
         this.zoomFocused();
         return;
-      case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
-        // Y = continue / begin (the card-context confirm).
+      case 'nextTab':
+        // RT = continue / begin (the card-context confirm).
         this.onContinue();
         return;
-      case 'bumperL':
-        // P15: LB is STEP navigation (back one wizard step) — B no longer
-        // doubles as a step-back, it always minimizes for board inspection.
+      case 'prevSection':
+        // LB is STEP navigation (back one wizard step); B always minimizes.
         if (this.mode === 'wizard') {
           this.backStep();
         }
         return;
-      case 'bumperR':
-        // RB = forward step navigation (LB's pair); gated on completion,
-        // same as Y — the FOOTER advertises only Y as the continue.
+      case 'nextSection':
+        // RB = forward step navigation (LB's pair); gated on completion.
         if (this.mode === 'wizard') {
           this.onContinue();
         }

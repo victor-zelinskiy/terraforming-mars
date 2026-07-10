@@ -130,6 +130,7 @@ import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {
@@ -388,13 +389,16 @@ export default defineComponent({
       if (createGameState.creating) {
         return true; // The launch is in flight — nothing may interrupt it.
       }
+      // Foundation: presses resolve to SEMANTIC actions (X = launch — the
+      // create screen's advertised verb; no raw button names).
+      const action = consoleActionOf(intent, {secondary: 'launch'});
       const overlay = this.ui.overlay;
       if (overlay?.kind === 'editor') {
         const editor = this.$refs.editor as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (editor?.handleIntent?.(intent) === true) {
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'back') {
+        if (action === 'back') {
           this.closeOverlay();
         }
         return true;
@@ -404,27 +408,25 @@ export default defineComponent({
           overlay.cursor = intent.dir === 'right' ? Math.min(1, overlay.cursor + 1) : Math.max(0, overlay.cursor - 1);
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.pickType(overlay.cursor);
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'back') {
+        } else if (action === 'back') {
           this.closeOverlay();
         }
         return true;
       }
       if (overlay?.kind === 'confirm') {
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.executeConfirm();
-        } else if (intent.kind === 'press' && intent.button === 'back') {
+        } else if (action === 'back') {
           this.closeOverlay();
         }
         return true;
       }
       if (overlay?.kind === 'launch') {
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.doLaunch();
-        } else if (intent.kind === 'press' && intent.button === 'back') {
+        } else if (action === 'back') {
           this.closeOverlay();
         }
         return true;
@@ -442,26 +444,23 @@ export default defineComponent({
         }
         return true;
       }
-      if (intent.kind !== 'press') {
-        return true;
-      }
-      switch (intent.button) {
-      case 'bumperL':
+      switch (action) {
+      case 'prevSection':
         this.setDeck(cycleCreateDeck(this.ui.deck, -1));
         return true;
-      case 'bumperR':
+      case 'nextSection':
         this.setDeck(cycleCreateDeck(this.ui.deck, 1));
         return true;
-      case 'confirm':
+      case 'primary':
         this.activateCurrent();
         return true;
-      case 'secondary':
+      case 'launch':
         this.onLaunchPressed();
         return true;
-      case 'inspect':
+      case 'fullscreen':
         this.onRemovePressed();
         return true;
-      case 'view':
+      case 'reset':
         this.ui.overlay = {kind: 'confirm', id: 'reset', cursor: 0};
         return true;
       case 'back':

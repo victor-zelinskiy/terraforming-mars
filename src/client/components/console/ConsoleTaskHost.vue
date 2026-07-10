@@ -375,7 +375,8 @@ import {displayNameForColor, participantDisplayName} from '@/client/components/m
 /** A render-ready target-impact row: a resource/M€ stock change (iconClass), or
  *  a MarsBot production hit shown as its track's Tag + step count. */
 type TargetRowVM = {isTrack: boolean, tag?: Tag, iconClass: string, from: number, to: number, steps?: number, prod: boolean};
-import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
   amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
@@ -1074,10 +1075,10 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
-        return;
+      const action = consoleActionOf(intent);
+      if (action !== undefined) {
+        this.onPress(action);
       }
-      this.onPress(intent.button);
     },
     /**
      * DEAL CINEMATIC (console_card_deal.less / cardDealSequence.ts): decide
@@ -1430,15 +1431,18 @@ export default defineComponent({
         this.payCounts = {...this.payCounts, [lane.unit]: laneCap(this.paymentCost, lane)};
       }
     },
-    onPress(button: SemanticButton): void {
-      switch (button) {
-      case 'bumperL':
+    // Foundation: SEMANTIC actions — LB/RB(prev/nextSection) adjust,
+    // RT(nextTab) multi-commit/max, A(primary) act, X(inspect) zoom/confirm,
+    // B(back) exit-nested/defer.
+    onPress(action: ConsoleAction): void {
+      switch (action) {
+      case 'prevSection':
         this.adjust(-1);
         return;
-      case 'bumperR':
+      case 'nextSection':
         this.adjust(1);
         return;
-      case 'triggerR': // P27b: the local verb moved off Y (Y = Info Mode)
+      case 'nextTab':
         // CARD context: RT is the MULTI (buy / multi-target) commit. In the
         // single-keep DRAFT (where RT would otherwise be inert) RT opens the
         // read-only drafted-cards viewer instead.
@@ -1452,10 +1456,10 @@ export default defineComponent({
         }
         this.maxOut();
         return;
-      case 'confirm':
+      case 'primary':
         this.onPrimary();
         return;
-      case 'secondary':
+      case 'inspect':
         // P13 global rule: X opens the focused card FULLSCREEN in every
         // card context; elsewhere it stays the one-press confirm.
         if (this.activeTask.kind === 'cardSelect') {

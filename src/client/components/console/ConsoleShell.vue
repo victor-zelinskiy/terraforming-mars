@@ -556,6 +556,7 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {
   ConvertPlantsMatch,
   findAwardOptionPath,
@@ -2203,6 +2204,10 @@ export default defineComponent({
     },
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
+      // Foundation: presses resolve to SEMANTIC actions (consoleActionOf) —
+      // the shell compares `action`, never raw button names (undefined for
+      // nav/scroll/release and the screen-specific STICKS, which stay raw).
+      const action = consoleActionOf(intent);
       // «Разбор хода» review owns the pad while open (a read-only foreground
       // item — the presentation flow holds every other surface). B closes, X
       // inspects the played card, L3 shows the placed tile on the board, the
@@ -2225,17 +2230,17 @@ export default defineComponent({
           return true;
         }
         if (intent.kind === 'press') {
-          if (intent.button === 'secondary') {
+          if (action === 'inspect') {
             this.inspectReviewCard();
-          } else if (intent.button === 'bumperL') {
+          } else if (action === 'prevSection') {
             // LB → previous bot turn (edge notice at the first archived turn).
             stepBotTurnReview(-1);
-          } else if (intent.button === 'bumperR') {
+          } else if (action === 'nextSection') {
             // RB → next bot turn (edge notice if the next turn is not made yet).
             stepBotTurnReview(1);
           } else if (intent.button === 'stickL' && this.reviewMapSpaces.length > 0) {
             setBotReviewPeek(true, this.reviewMapSpaces);
-          } else if (intent.button === 'back') {
+          } else if (action === 'back') {
             closeBotTurnReview();
           }
         }
@@ -2264,16 +2269,16 @@ export default defineComponent({
       // through to the surface beneath, so the board/section stays usable.
       const topCard = this.topNotification;
       if (topCard !== undefined && this.consoleCardZoom.card === undefined) {
-        if (intent.kind === 'press' && intent.button === 'back') {
+        if (action === 'back') {
           dismissNotification(topCard.id);
           return true;
         }
         if (topCard.holdsFlow === true) {
-          if (intent.kind === 'press' && intent.button === 'secondary' && topCard.botTurnKey !== undefined) {
+          if (action === 'inspect' && topCard.botTurnKey !== undefined) {
             openBotTurnReviewByKey(topCard.botTurnKey);
             return true;
           }
-          if (intent.kind === 'press' && intent.button === 'confirm') {
+          if (action === 'primary') {
             return true;
           }
         }
@@ -2311,9 +2316,9 @@ export default defineComponent({
       // close back to the dashboard; the right stick scrolls the long text.
       if (this.maInspectItem !== undefined) {
         if (intent.kind === 'press') {
-          if (intent.button === 'back' || intent.button === 'secondary') {
+          if (action === 'back' || action === 'inspect') {
             this.closeMaInspect();
-          } else if (intent.button === 'confirm') {
+          } else if (action === 'primary') {
             this.confirmMaInspect();
           }
         }
@@ -2338,8 +2343,7 @@ export default defineComponent({
       }
       if (this.journalPanelVisible) {
         const journalLocalBack = consoleJournalUi.filterOpen || consoleJournalUi.inspectOpen || consoleJournalUi.peekActive;
-        if (intent.kind === 'press' &&
-            (intent.button === 'view' || (intent.button === 'back' && !journalLocalBack))) {
+        if (action === 'reset' || (action === 'back' && !journalLocalBack)) {
           this.closeJournal();
           return true;
         }
@@ -2348,7 +2352,7 @@ export default defineComponent({
         // Info Mode like everywhere else. Suppressed while a local journal
         // layer (filter popover / inspect card / map peek) owns the pad, so Y
         // there still resolves that layer through the panel's own grammar.
-        if (intent.kind === 'press' && intent.button === 'inspect' && !journalLocalBack) {
+        if (action === 'fullscreen' && !journalLocalBack) {
           this.toggleInfoMode();
           return true;
         }
@@ -2360,7 +2364,7 @@ export default defineComponent({
       // Y verb moved to RT: task-host MAX/confirm, start-scene Continue,
       // reveal Take-all, sale-mode Sell, hydro Farthest). The two small
       // confirm dialogs keep the pad focused on the decision itself.
-      if (intent.kind === 'press' && intent.button === 'inspect' &&
+      if (action === 'fullscreen' &&
           this.consoleState.confirm === undefined && !this.consoleCardActionsUi.confirmOpen) {
         this.toggleInfoMode();
         return true;
@@ -2368,7 +2372,7 @@ export default defineComponent({
       // Draft re-pick WAITING: the pad is otherwise idle (the board stays
       // inspectable, Info Mode is handled above). X opens the read-only
       // drafted-cards viewer; every other button falls through to the board.
-      if (this.draftWaitActive && intent.kind === 'press' && intent.button === 'secondary' && this.draftedCards.length > 0) {
+      if (this.draftWaitActive && action === 'inspect' && this.draftedCards.length > 0) {
         openConsoleCardZoom([...this.draftedCards], 0);
         return true;
       }
@@ -2431,9 +2435,9 @@ export default defineComponent({
         }
       }
       if (this.consoleState.confirm !== undefined) {
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (action === 'primary') {
           this.acceptConfirm();
-        } else if (intent.kind === 'press' && intent.button === 'back') {
+        } else if (action === 'back') {
           this.consoleState.confirm = undefined;
         }
         return true;
@@ -2491,29 +2495,29 @@ export default defineComponent({
       // (which don't exist for the Automa). Same buttons, same flow.
       const viewedIsBot = this.playerView.players
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
-      switch (intent.button) {
-      case 'bumperL':
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
         this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, -1);
         this.reconcileInfoDetail();
         break;
-      case 'bumperR':
+      case 'nextSection':
         this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, 1);
         this.reconcileInfoDetail();
         break;
-      case 'secondary':
+      case 'inspect':
         this.openInfoDetail(viewedIsBot ? 'botBoard' : 'extras');
         break;
-      case 'triggerL':
+      case 'prevTab':
         // P27: the actions detail moved from Y to LT (Y toggles Info Mode).
         this.openInfoDetail(viewedIsBot ? 'botPlayed' : 'actions');
         break;
-      case 'inspect':
+      case 'fullscreen':
         this.toggleInfoMode(); // Y closes — the same key that opened it
         break;
-      case 'triggerR':
+      case 'nextTab':
         this.openInfoDetail(viewedIsBot ? 'botBonus' : 'effects');
         break;
-      case 'confirm':
+      case 'primary':
         if (this.infoModeState.detail === undefined) {
           if (this.infoVpVisible) {
             this.openInfoDetail('vp');
@@ -2561,18 +2565,18 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      switch (intent.button) {
-      case 'confirm':
+      switch (consoleActionOf(intent)) {
+      case 'primary':
         this.activateQuickSlot('center');
         break;
       case 'back':
         this.consoleState.quick = undefined;
         break;
-      case 'triggerR':
+      case 'nextTab':
         // The opening trigger toggles its own selector closed.
         this.consoleState.quick = this.consoleState.quick === 'actions' ? undefined : 'actions';
         break;
-      case 'triggerL':
+      case 'prevTab':
         this.consoleState.quick = this.consoleState.quick === 'basics' ? undefined : 'basics';
         break;
       default:
@@ -2696,9 +2700,10 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'press') {
-          if (intent.button === 'confirm') {
+          const a = consoleActionOf(intent);
+          if (a === 'primary') {
             this.activateStdItem(this.stdProjectItems[this.consoleState.sheetIndex]);
-          } else if (intent.button === 'back') {
+          } else if (a === 'back') {
             this.deferShellTask();
             this.consoleState.sheet = undefined;
             this.consoleState.section = 'board';
@@ -2715,20 +2720,20 @@ export default defineComponent({
           return;
         }
         if (intent.kind === 'press') {
-          switch (intent.button) {
-          case 'confirm':
+          switch (consoleActionOf(intent)) {
+          case 'primary':
             this.activateMaItem(this.maScreenItems[this.consoleState.sheetIndex]);
             break;
-          case 'secondary':
+          case 'inspect':
             // X → «Осмотреть»: open the full-text reader for the focused item.
             this.openMaInspect(this.maScreenItems[this.consoleState.sheetIndex]);
             break;
-          case 'bumperL':
+          case 'prevSection':
             if (this.maScreenKind !== 'milestones') {
               this.openSheet('milestones');
             }
             break;
-          case 'bumperR':
+          case 'nextSection':
             if (this.maScreenKind !== 'awards') {
               this.openSheet('awards');
             }
@@ -2756,9 +2761,10 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'press') {
-        if (intent.button === 'confirm') {
+        const a = consoleActionOf(intent);
+        if (a === 'primary') {
           this.activateSheetRow(this.sheetRows[this.consoleState.sheetIndex]);
-        } else if (intent.button === 'back') {
+        } else if (a === 'back') {
           // B: back to the board. The hydro card pick returns to the HYDRO
           // screen (its plan is still being composed there), never to the board.
           const stayInSection = this.consoleState.sheet === 'hydroPick';
@@ -2786,8 +2792,39 @@ export default defineComponent({
         return true;
       }
       const onBoard = this.consoleState.section === 'board';
-      switch (intent.button) {
-      case 'bumperL':
+      // Stick-clicks are screen-specific (no base semantic action, by design) —
+      // they carry board/hand context verbs, handled raw before the semantic switch.
+      if (intent.button === 'stickL') {
+        // P20: L3 = next AVAILABLE placement target during placement;
+        // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
+        // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
+        if (this.placementActive && this.consoleState.section === 'board') {
+          this.handleNextJump();
+        } else if (onBoard) {
+          this.toggleInspection();
+        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
+          this.toggleSelectAllSale();
+        }
+        return true;
+      }
+      if (intent.button === 'stickR') {
+        // P20: R3 toggles INSPECT-ALL cells during placement (was the LT
+        // hold) — persistent, announced, and reflected in every hint row.
+        // P27b: on the board home R3 = SCALE INSPECTION (the cursor walks
+        // the track bonuses in a circle). In the hand (non-sale) R3 RESETS the
+        // tag filter to "All" (the right-stick AXIS still scrolls the grid).
+        if (this.placementActive && this.consoleState.section === 'board') {
+          this.consoleState.freeRoam = !this.consoleState.freeRoam;
+          this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
+        } else if (onBoard) {
+          this.toggleScaleInspect();
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+          this.resetHandFilter();
+        }
+        return true;
+      }
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
         // Stable board semantics: LB = Milestones (viewable any time).
         // (P29c: the temporary board-scale tuner is gone — ×1.05 shipped
         // as the compiled default in ConsoleBoardSection.)
@@ -2795,15 +2832,15 @@ export default defineComponent({
           this.openSheet('milestones');
         }
         return true;
-      case 'bumperR':
+      case 'nextSection':
         if (onBoard) {
           this.openSheet('awards');
         }
         return true;
-      case 'view':
+      case 'reset':
         this.toggleJournal();
         return true;
-      case 'triggerR':
+      case 'nextTab':
         // P27: RT = the action-category QUICK SELECTOR from the board home
         // (P20: including during placement — inspection is always allowed). In
         // the hand: sale mode CONFIRMS the sale; otherwise RT cycles the tag
@@ -2827,7 +2864,7 @@ export default defineComponent({
           }
         }
         return true;
-      case 'triggerL':
+      case 'prevTab':
         // P27: LT = the basic-actions QUICK SELECTOR (board home only). In the
         // hand: SELECT mode toggles the "suitable only" filter; otherwise LT
         // cycles the tag filter to the PREVIOUS tag.
@@ -2839,37 +2876,10 @@ export default defineComponent({
           this.cycleHandFilter(-1);
         }
         return true;
-      case 'stickL':
-        // P20: L3 = next AVAILABLE placement target during placement;
-        // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
-        // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
-        if (this.placementActive && this.consoleState.section === 'board') {
-          this.handleNextJump();
-        } else if (onBoard) {
-          this.toggleInspection();
-        } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
-          this.toggleSelectAllSale();
-        }
-        return true;
-      case 'stickR':
-        // P20: R3 toggles INSPECT-ALL cells during placement (was the LT
-        // hold) — persistent, announced, and reflected in every hint row.
-        // P27b: on the board home R3 = SCALE INSPECTION (the cursor walks
-        // the track bonuses in a circle). In the hand (non-sale) R3 RESETS the
-        // tag filter to "All" (the right-stick AXIS still scrolls the grid).
-        if (this.placementActive && this.consoleState.section === 'board') {
-          this.consoleState.freeRoam = !this.consoleState.freeRoam;
-          this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
-        } else if (onBoard) {
-          this.toggleScaleInspect();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
-          this.resetHandFilter();
-        }
-        return true;
-      case 'confirm':
+      case 'primary':
         this.handleSectionConfirm();
         return true;
-      case 'secondary':
+      case 'inspect':
         // P13 global rule: X reads the focused object fullscreen — in the
         // colonies section X = «Осмотреть» (the full colony dossier).
         if (this.consoleState.section === 'hand') {
@@ -3437,12 +3447,13 @@ export default defineComponent({
       }
       // A = trade this colony (section source, live-tradeable only) — close the
       // dossier and open the composer. Read-only journal dossier: A does nothing.
-      if (intent.button === 'confirm' && this.colonyInspectTradeable) {
+      const a = consoleActionOf(intent);
+      if (a === 'primary' && this.colonyInspectTradeable) {
         this.closeColonyInspect();
         this.tryOpenColonyTrade();
         return;
       }
-      if (intent.button === 'back' || intent.button === 'secondary') {
+      if (a === 'back' || a === 'inspect') {
         this.closeColonyInspect();
       }
     },
@@ -3718,14 +3729,14 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return true;
       }
-      switch (intent.button) {
-      case 'bumperL':
+      switch (consoleActionOf(intent)) {
+      case 'prevSection':
         zoom?.prev();
         return true;
-      case 'bumperR':
+      case 'nextSection':
         zoom?.next();
         return true;
-      case 'confirm':
+      case 'primary':
         // A = take the on-screen card (RECEIVE bridge) OR toggle the pick
         // (selection contexts) OR fire the context ACTION (play-from-hand
         // parity, P17) — read-only contexts (source viewer) no-op.
@@ -3737,7 +3748,7 @@ export default defineComponent({
           this.zoomExecuteAction();
         }
         return true;
-      case 'triggerR': {
+      case 'nextTab': {
         // RT = take all (RECEIVE bridge only); otherwise the viewer owns it.
         const r = this.consoleCardZoom.receive;
         if (r?.takeAll !== undefined) {
@@ -3745,7 +3756,7 @@ export default defineComponent({
         }
         return true;
       }
-      case 'secondary': // X closes too — the same key that opened it
+      case 'inspect': // X closes too — the same key that opened it
       case 'back':
         this.closeZoomViewer();
         return true;

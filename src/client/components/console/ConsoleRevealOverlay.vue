@@ -160,7 +160,8 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {translateText} from '@/client/directives/i18n';
-import {GamepadIntent, NavDirection, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, markAllTaken, markCardTaken,
@@ -373,7 +374,15 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      this.onPress(intent.button);
+      // L3 = inspect the DRAW SOURCE (screen-specific stick, drawn mode only).
+      if (intent.button === 'stickL' && this.mode === 'drawn') {
+        this.zoomSource();
+        return;
+      }
+      const action = consoleActionOf(intent);
+      if (action !== undefined) {
+        this.onPress(action);
+      }
     },
     onNav(dir: NavDirection): void {
       if (dir !== 'left' && dir !== 'right') {
@@ -393,32 +402,31 @@ export default defineComponent({
         });
       }
     },
-    onPress(button: SemanticButton): void {
+    // Foundation: SEMANTIC actions — A(primary) take/dismiss, X(inspect) zoom,
+    // RT(nextTab)/B(back) take-all/dismiss. L3 source-zoom handled in handleIntent.
+    onPress(action: ConsoleAction): void {
       switch (this.mode) {
       case 'drawn':
-        if (button === 'confirm') {
+        if (action === 'primary') {
           this.takeFocused();
-        } else if (button === 'secondary') {
+        } else if (action === 'inspect') {
           // P13 global rule: X reads the focused card fullscreen.
           this.zoomFocused();
-        } else if (button === 'stickL') {
-          // L3 inspects the DRAW SOURCE (a card) fullscreen.
-          this.zoomSource();
-        } else if (button === 'triggerR' || button === 'back') {
+        } else if (action === 'nextTab' || action === 'back') {
           this.takeAll();
         }
         return;
       case 'result':
-        if (button === 'secondary') {
+        if (action === 'inspect') {
           this.zoomRevealed();
-        } else if (button === 'confirm' || button === 'triggerR' || button === 'back') {
+        } else if (action === 'primary' || action === 'nextTab' || action === 'back') {
           this.$emit('dismiss-result');
         }
         return;
       default:
-        if (button === 'secondary') {
+        if (action === 'inspect') {
           this.zoomViewerCard();
-        } else if (button === 'confirm' || button === 'triggerR' || button === 'back') {
+        } else if (action === 'primary' || action === 'nextTab' || action === 'back') {
           closeRevealViewer();
         }
         return;

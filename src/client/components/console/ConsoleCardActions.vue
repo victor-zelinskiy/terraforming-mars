@@ -62,7 +62,7 @@
 
       <!-- ── Master (groups) + detail (inspector) ─────────────────────── -->
       <div class="con-cardactions__body">
-        <div class="con-cardactions__list" ref="list">
+        <ConsoleScrollArea class="con-cardactions__list" content-class="con-cardactions__list-body" ref="list">
           <!-- Empty states — never a blank screen; names the hiding filter. -->
           <div v-if="model.groups.length === 0" class="con-cardactions__empty">
             <span class="con-cardactions__empty-mark" aria-hidden="true">◇</span>
@@ -148,7 +148,7 @@
               </template>
             </div>
           </div>
-        </div>
+        </ConsoleScrollArea>
 
         <!-- ── The inspector (the ONE detail surface) ─────────────────── -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined">
@@ -319,12 +319,14 @@ import {
 } from '@/client/console/consoleCardActions';
 import {buildActionBatch} from '@/client/console/consoleActionComposer';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {findPerformActionCard, wrapPath} from '@/client/console/turnIntents';
@@ -367,7 +369,7 @@ type ComposerContext = {
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -692,18 +694,16 @@ export default defineComponent({
         this.scrollList(intent.dy);
         return;
       }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      switch (intent.button) {
-      case 'confirm': this.activateFocused(); break;
-      case 'secondary': this.inspectFocused(); break;
+      // Foundation: presses resolve to SEMANTIC actions (R3 = reset filters).
+      switch (consoleActionOf(intent, {stickR: 'reset'})) {
+      case 'primary': this.activateFocused(); break;
+      case 'inspect': this.inspectFocused(); break;
       case 'back': this.$emit('close'); break;
-      case 'bumperL': this.stepAvailability(-1); break;
-      case 'bumperR': this.stepAvailability(1); break;
-      case 'triggerL': this.stepActivation(-1); break;
-      case 'triggerR': this.stepActivation(1); break;
-      case 'stickR': this.resetFilters(); break;
+      case 'prevSection': this.stepAvailability(-1); break;
+      case 'nextSection': this.stepAvailability(1); break;
+      case 'prevTab': this.stepActivation(-1); break;
+      case 'nextTab': this.stepActivation(1); break;
+      case 'reset': this.resetFilters(); break;
       default: break;
       }
     },
@@ -824,15 +824,14 @@ export default defineComponent({
       }, 340);
     },
     scrollList(dy: number): void {
-      const list = this.$refs.list as HTMLElement | undefined;
-      if (list !== undefined) {
-        list.scrollTop += Math.sign(dy) * SCROLL_STEP_PX;
-      }
+      // Foundation: right-stick scroll through the ConsoleScrollArea API.
+      (this.$refs.list as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX);
     },
     scrollFocusedIntoView(): void {
       const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
       const node = Array.isArray(el) ? el[0] : el;
-      node?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+      (this.$refs.list as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
     },
   },
 });

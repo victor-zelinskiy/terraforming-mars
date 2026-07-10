@@ -257,6 +257,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
@@ -951,27 +952,25 @@ export default defineComponent({
       const from = card.resources ?? 0;
       return `${from} → ${Math.max(0, from + c.amount)}`;
     },
-    // ── input routing ───────────────────────────────────────────────────
+    // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'scroll') {
-        const el = this.$refs.scroll as HTMLElement | undefined;
-        if (el !== undefined) {
-          el.scrollTop += Math.sign(intent.dy) * 40;
-        }
+        (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
       }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
+      const action = consoleActionOf(intent);
+      if (action === undefined) {
         return;
       }
       if (this.sub !== undefined) {
-        this.onSubPress(intent.button);
+        this.onSubPress(action);
         return;
       }
-      this.onMainPress(intent.button);
+      this.onMainPress(action);
     },
     onNav(dir: NavDirection): void {
       if (this.sub !== undefined) {
@@ -999,10 +998,12 @@ export default defineComponent({
         this.adjustFloaters(item.choice, dir === 'left' ? -1 : 1);
       }
     },
-    onMainPress(button: string): void {
+    // MAIN state: A(primary) select/open, X(inspect) submits the action, B back,
+    // LB/RB(prev/nextSection) step amount/floaters, RT(nextTab) = max.
+    onMainPress(action: ConsoleAction): void {
       const item = this.focusedItem;
-      switch (button) {
-      case 'confirm':
+      switch (action) {
+      case 'primary':
         if (item === undefined) {
           this.submit();
         } else if (item.kind === 'branch') {
@@ -1011,15 +1012,15 @@ export default defineComponent({
           this.openChoice(item.choice);
         }
         return;
-      case 'secondary':
+      case 'inspect':
         this.submit();
         return;
       case 'back':
         this.$emit('cancel');
         return;
-      case 'bumperL':
-      case 'bumperR': {
-        const step = button === 'bumperL' ? -1 : 1;
+      case 'prevSection':
+      case 'nextSection': {
+        const step = action === 'prevSection' ? -1 : 1;
         if (item?.kind === 'choice' && item.choice.kind === 'amount') {
           this.setAmount(item.choice, this.amountFor(item.choice.id) + step);
         } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
@@ -1027,7 +1028,7 @@ export default defineComponent({
         }
         return;
       }
-      case 'triggerR':
+      case 'nextTab':
         if (item?.kind === 'choice' && item.choice.kind === 'amount') {
           this.setAmount(item.choice, this.amountModel(item.choice).max);
         }
@@ -1059,13 +1060,15 @@ export default defineComponent({
         this.seedChoice(c);
       }
     },
-    onSubPress(button: string): void {
+    // SUB state (a pick list / payment): A(primary) pick/close, X(inspect) zoom
+    // the list card, B back, LB/RB(prev/nextSection) adjust payment, RT max.
+    onSubPress(action: ConsoleAction): void {
       const sub = this.sub;
       if (sub === undefined) {
         return;
       }
-      switch (button) {
-      case 'confirm':
+      switch (action) {
+      case 'primary':
         if (sub.kind === 'payment') {
           if (this.paymentView?.covers === true) {
             this.sub = undefined;
@@ -1074,7 +1077,7 @@ export default defineComponent({
         }
         this.pickListItem(sub.index);
         return;
-      case 'secondary':
+      case 'inspect':
         if (sub.kind === 'list') {
           this.inspectListItem(sub.index);
         }
@@ -1082,13 +1085,13 @@ export default defineComponent({
       case 'back':
         this.sub = undefined;
         return;
-      case 'bumperL':
-      case 'bumperR':
+      case 'prevSection':
+      case 'nextSection':
         if (sub.kind === 'payment' && this.subChoice !== undefined) {
-          this.adjustPayment(this.subChoice, sub.index, button === 'bumperL' ? -1 : 1);
+          this.adjustPayment(this.subChoice, sub.index, action === 'prevSection' ? -1 : 1);
         }
         return;
-      case 'triggerR':
+      case 'nextTab':
         if (sub.kind === 'payment' && this.subChoice !== undefined) {
           this.adjustPayment(this.subChoice, sub.index, 0, true);
         }

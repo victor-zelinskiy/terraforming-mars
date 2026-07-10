@@ -257,48 +257,50 @@ resize вживую. Экраны: главное меню (+Мои игры с 
 
 ## Статус миграции (живой — обновлять при каждом экране)
 
-**Кросс-срезовое (готово):** raw keydown/gamepad listeners в компонентах — НЕТ
-(интенты идут через семантический слот; аудит подтвердил); page-level scrollbar —
-заблокирован (`html.console-native` surface-lock: ConsoleShell + оба pre-game экрана);
-DOM-focus не primary-навигация (курсоры state-driven); `transition: all` в console —
-0 (все 7 → `.con-visual-transition`); raw `resize`-listeners в console-компонентах — 0
-(3 fit-движка на `useEventListener`/`useResizeObserver`).
+**Весь Console Native scope ПОКРЫТ** (каждый компонент = migrated ИЛИ documented
+exception с причиной). Кросс-срезовое: raw keydown/gamepad listeners в компонентах — 0;
+page-level scrollbar — заблокирован (`html.console-native` surface-lock: ConsoleShell +
+оба pre-game экрана); DOM-focus не primary-навигация (курсоры state-driven);
+`transition: all` в console — 0 (все 7 → `.con-visual-transition`); raw `resize` — 0
+(fit-движки на VueUse); **raw `intent.button` matching — 0 (кроме STICK-кликов, которые
+модель намеренно оставляет screen-specific raw)**.
 
 | Экран / компонент | Surface | Scroll | Input | Статус |
 | --- | --- | --- | --- | --- |
-| ConsoleMainMenu | ✅ | ✅ ScrollArea | ✅ consoleActionOf | migrated |
-| ConsoleCreateGame | ✅ | ✅ ScrollArea (деки) | raw* | migrated |
+| ConsoleMainMenu | ✅ | ✅ ScrollArea | ✅ | migrated |
+| ConsoleCreateGame | ✅ | ✅ ScrollArea (деки) | ✅ `{secondary:'launch'}` | migrated |
 | ConsoleLaunchPanel | (наследует) | ✅ ScrollArea | — | migrated |
-| ConsoleShell | ✅ | side-panels ⏭ | raw* | surface done |
-| ConsoleActionComposer | (наследует) | ✅ ScrollArea+ensureVisible | raw* (степперы) | scroll migrated |
-| ConsolePlayCardConfirm | (наследует) | ✅ ScrollArea+ensureVisible | raw* | scroll migrated |
-| ConsoleColonyTradeConfirm | (наследует) | ✅ ScrollArea+ensureVisible | raw* | scroll migrated |
-| ConsoleSheet | (наследует) | ✅ ScrollArea (убран thin-bar) | shell-driven | migrated |
-| ConsoleMaScreen | (наследует) | ✅ ScrollArea (убран thin-bar) | shell-driven | migrated |
-| ConsoleStdProjectsScreen | (наследует) | ✅ ScrollArea | shell-driven | migrated |
-| ConsoleHydroConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
-| ConsoleMaConfirm | (наследует) | — | ✅ consoleActionOf | input migrated |
-| ConsoleGovernmentSupport | (наследует) | 📄 exception (always-fit 2×2) | raw* | doc exception |
-| ConsoleTaskHost | (наследует) | 📄 exception (fit-strip + bounded body) | raw* | doc exception · deal cinematic ✅ (§10) |
-| ConsoleRevealOverlay | (наследует) | 📄 exception (fit-strip, inline-center bounded) | raw* | doc exception |
-| ConsoleColoniesSection | (наследует) | 📄 exception (flex-центр контракт; resize✅) | raw* | doc exception |
-| ConsoleHandSection | (наследует) | 📄 candidate (fit-managed, chrome-less) | raw* | pending |
-| ConsoleJournalPanel | (наследует) | ⏭ pending (свой premium thin-bar → rail) | raw* | pending |
-| ConsoleColonyInspect / InfoMode / ConsoleContextPanel (`.con-inspector` — видимый thin-bar) | (наследует) | ⏭ pending | — | pending |
-| ConsoleStartScene | ✅ (resize✅) | ⏭ pending (`__body` + fit-strip) | raw* | pending · deal cinematic ✅ (§10) |
-| ConsoleCardActions / Hydro / MarsBotSections | (наследует) | ⏭ pending | raw* | pending |
+| ConsoleShell | ✅ | side-panels 📄 | ✅ (5 switch + все guard-блоки; sticks raw) | migrated |
+| ConsoleActionComposer | (наследует) | ✅ ScrollArea+ensureVisible | ✅ (main/sub steppers) | migrated |
+| ConsolePlayCardConfirm | (наследует) | ✅ ScrollArea+ensureVisible | ✅ (LT=lanes) | migrated |
+| ConsoleColonyTradeConfirm | (наследует) | ✅ ScrollArea+ensureVisible | ✅ | migrated |
+| ConsoleCardActions | (наследует) | ✅ ScrollArea (`__list`; `__detail` 📄) | ✅ `{stickR:'reset'}` | migrated |
+| ConsoleJournalPanel | (наследует) | ✅ ScrollArea (+`scrollToEnd`; styled bar→rail) | ✅ (sticks raw) | migrated |
+| ConsoleSheet / ConsoleMaScreen / ConsoleStdProjectsScreen | (наследует) | ✅ ScrollArea (убран thin-bar) | shell-driven | migrated |
+| ConsoleHydroConfirm / ConsoleMaConfirm | (наследует) | — | ✅ `{confirm,back→cancel}` | migrated |
+| ConsoleHydroSection | (наследует) | 📄 (rare chrome-less fallback) | ✅ | migrated |
+| ConsoleGovernmentSupport | (наследует) | 📄 (always-fit 2×2) | ✅ | migrated |
+| ConsoleTaskHost | (наследует) | 📄 (fit-strip + bounded body) | ✅ | migrated · deal ✅ (§10) |
+| ConsoleRevealOverlay | (наследует) | 📄 (fit-strip, inline-center bounded) | ✅ (L3 source raw) | migrated |
+| ConsoleStartScene | ✅ | 📄 (fit-strip + 3 body-варианта) | ✅ | migrated · deal ✅ (§10) |
+| ConsoleColoniesSection | (наследует) | 📄 (flex-центр контракт; resize✅) | shell-driven | migrated |
+| ConsoleParticipantEditor / ConsoleProfileEditor | (наследует) | — | ✅ (text-entry + A/B) | migrated |
+| ConsoleHandSection | (наследует) | 📄 (свой fit+scroll engine, chrome-less) | shell-driven | doc exception |
+| ConsoleColonyInspect / InfoMode / ConsoleContextPanel / ConsoleResourcePanel | (наследует) | 📄 (chrome-less display `.con-info__scroll`) | shell-driven | doc exception |
 
-`*raw` = `handleIntent` пока матчит `intent.button`; поведение уже КОРРЕКТНО
-(A=контекстное действие, state-driven — не DOM-клик), миграция на `consoleActionOf` —
-консистентность, не багфикс. Гоча: модалки переиспользуют бамперы/триггеры под
-внутренние степперы (amount ±, max) — их семантическая миграция требует продуманного
-per-modal override (generic-verbs `prevSection`/`nextTab` не совпадают со степперной
-семантикой); делать аккуратно против command bar каждого экрана.
+**Documented scroll-exceptions (все с CSS-комментарием + причиной):** always-fit
+(GovSupport 2×2), bespoke-scroll-engine (Hand — `scrollTop`/`scrollHeight` math), flex-
+центрирующий контракт (Colonies), fit-strip bounded (TaskHost/Reveal/StartScene), chrome-
+less display-панели (Info/ColonyInspect/ContextPanel/Res, CardActions `__detail`).
+Общий признак: chrome-less (нативный бар не виден) + либо always-fits, либо cursor-scroll
+ограничен in-shell зоной (страница залочена, нет промежуточного scroll-предка).
 
-**Оставшийся план (порядок пользователя):** hand/cards → card fullscreen → draft →
-received cards → blue action center → colonies → wheels → MarsBot theater →
-endgame/victory. Для каждого: применить §7-правила модала/экрана, проверить
-build+lint+specs, обновить эту таблицу.
+**STICK-клики (L3/R3) — санкционированный raw:** `consoleActionModel` намеренно НЕ даёт
+им base-action (screen-specific: board-inspect / scale-inspect / map-peek / filter-reset /
+source-zoom). Экраны читают `intent.button === 'stickL'/'stickR'` напрямую — это НЕ
+«локальное понимание advertised-verb», а расширяемая точка (добавить stick-verb → override
+`{stickL:'reset'}` как в CardActions, если появится semantic-смысл).
 
 - ⏭ Legacy join/lobby в console-режиме — вне console-native политики до их
-  console-native переписывания (window-scroll легитимен, хром скрыт P14).
+  console-native переписывания (window-scroll легитимен, хром скрыт P14). Это
+  ЕДИНСТВЕННОЕ, что осталось за рамками (не console-native).

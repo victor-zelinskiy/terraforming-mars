@@ -137,6 +137,20 @@ export default defineComponent({
       measure();
     };
 
+    /** Jump to the end (follow-latest feeds — e.g. the journal). */
+    const scrollToEnd = (): void => {
+      const vp = viewport.value;
+      if (vp === undefined) {
+        return;
+      }
+      if (props.axis === 'y') {
+        vp.scrollTop = vp.scrollHeight;
+      } else {
+        vp.scrollLeft = vp.scrollWidth;
+      }
+      measure();
+    };
+
     /**
      * Keep an element (the cursored row) inside the viewport with a margin.
      * Manual math on THIS viewport only — never scrollIntoView, which may
@@ -165,7 +179,7 @@ export default defineComponent({
       measure();
     };
 
-    expose({scrollByPx, scrollToStart, ensureVisible, measure});
+    expose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure});
 
     return {viewport, content, overflowing, thumbStyle, rootClasses, onScroll};
   },

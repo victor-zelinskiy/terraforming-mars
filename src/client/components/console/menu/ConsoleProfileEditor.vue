@@ -65,6 +65,7 @@
 import {defineComponent} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {identityState, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
@@ -97,11 +98,11 @@ export default defineComponent({
     /** Host-routed pad intents. Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
       if (this.entering) {
-        if (intent.kind === 'press' && intent.button === 'confirm') {
+        if (consoleActionOf(intent) === 'primary') {
           this.commitNameEntry();
           return true;
         }
-        if (intent.kind === 'press' && intent.button === 'back') {
+        if (consoleActionOf(intent) === 'back') {
           this.cancelNameEntry();
           return true;
         }
@@ -118,7 +119,7 @@ export default defineComponent({
         }
         return true;
       }
-      if (intent.kind === 'press' && intent.button === 'confirm') {
+      if (consoleActionOf(intent) === 'primary') {
         if (this.cursor === 0) {
           this.startNameEntry();
         } else {

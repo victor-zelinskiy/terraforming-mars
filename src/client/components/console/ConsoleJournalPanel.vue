@@ -47,7 +47,7 @@
     </header>
 
     <!-- ── Feed ───────────────────────────────────────────────────── -->
-    <div ref="scroll" class="con-journal__scroll">
+    <ConsoleScrollArea ref="scroll" class="con-journal__scroll" content-class="con-journal__scroll-body">
       <div v-if="renderNodes.length === 0" class="con-journal__placeholder">
         <template v-if="loading">
           <span v-i18n>Loading</span>…
@@ -82,7 +82,7 @@
             :players="players" />
         </template>
       </ul>
-    </div>
+    </ConsoleScrollArea>
 
     <!-- ── P29: the INSPECT card (X — standard project / action / hydro).
          A compact premium preview reusing the SAME sources the desktop
@@ -181,6 +181,7 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import JournalEntry from '@/client/components/journal/JournalEntry.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import JournalGroup from '@/client/components/journal/JournalGroup.vue';
 import {buildJournalView, JournalGroupNode} from '@/client/components/journal/journalView';
 import {JournalFilter, journalFilterEquals, messagePassesFilter} from '@/client/components/journal/journalFilter';
@@ -192,6 +193,7 @@ import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJ
 import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalNodeMode, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {LogMessageType} from '@/common/logs/LogMessageType';
 import {SpaceId} from '@/common/Types';
 import {standardProjectVisual, StandardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
@@ -231,7 +233,7 @@ type DataModel = {
 
 export default defineComponent({
   name: 'ConsoleJournalPanel',
-  components: {BarButtonIcon, GamepadGlyph, JournalEntry, JournalGroup},
+  components: {BarButtonIcon, ConsoleScrollArea, GamepadGlyph, JournalEntry, JournalGroup},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -527,8 +529,8 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): void {
       // The inspect card owns input while open — A/X/B all put it away.
       if (this.inspect !== undefined) {
-        if (intent.kind === 'press' &&
-            (intent.button === 'back' || intent.button === 'secondary' || intent.button === 'confirm')) {
+        const a = consoleActionOf(intent);
+        if (a === 'back' || a === 'inspect' || a === 'primary') {
           this.inspect = undefined;
         }
         return;
@@ -554,34 +556,38 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      switch (intent.button) {
-      case 'confirm':
-        this.toggleExpand();
-        break;
-      case 'secondary':
-        this.openInspect();
-        break;
-      case 'stickL':
+      // Stick-clicks are screen-specific (no base semantic action, by design).
+      if (intent.button === 'stickL') {
         this.showFocusedOnMap();
-        break;
-      case 'stickR':
+        return;
+      }
+      if (intent.button === 'stickR') {
         // R3 opens the player filter (Y is reserved for Info Mode).
         if (this.filterAvailable) {
           this.openFilter();
         } else {
           this.$emit('notice', 'Unavailable right now');
         }
+        return;
+      }
+      // Foundation: the advertised verbs resolve to SEMANTIC actions.
+      switch (consoleActionOf(intent)) {
+      case 'primary':
+        this.toggleExpand();
         break;
-      case 'bumperL':
+      case 'inspect':
+        this.openInspect();
+        break;
+      case 'prevSection':
         this.setMode('detailed');
         break;
-      case 'bumperR':
+      case 'nextSection':
         this.setMode('summary');
         break;
-      case 'triggerL':
+      case 'prevTab':
         this.stepGeneration(-1);
         break;
-      case 'triggerR':
+      case 'nextTab':
         this.stepGeneration(1);
         break;
       default:
@@ -604,8 +610,13 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      switch (intent.button) {
-      case 'confirm': {
+      // R3 toggles the popover closed (screen-specific stick, mirrors the open).
+      if (intent.button === 'stickR') {
+        this.filterOpen = false;
+        return;
+      }
+      switch (consoleActionOf(intent)) {
+      case 'primary': {
         const opt = this.filterOptions[this.filterIndex];
         if (opt !== undefined) {
           this.applyFilter(opt);
@@ -614,8 +625,6 @@ export default defineComponent({
         break;
       }
       case 'back':
-      case 'stickR':
-        // R3 toggles the popover closed (mirrors the open control).
         this.filterOpen = false;
         break;
       default:
@@ -644,15 +653,16 @@ export default defineComponent({
         }
       }
       void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as HTMLElement | undefined;
-        scroll?.scrollTo({top: scroll.scrollHeight});
+        // Foundation: follow-latest through the ConsoleScrollArea API.
+        (this.$refs.scroll as {scrollToEnd?: () => void} | undefined)?.scrollToEnd?.();
       });
     },
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
         const list = this.$refs.list as HTMLElement | undefined;
         const el = list?.children[this.focusIndex] as HTMLElement | undefined;
-        el?.scrollIntoView({block: 'nearest'});
+        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     toggleExpand(): void {

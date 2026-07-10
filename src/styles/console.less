@@ -2888,7 +2888,13 @@ html.console-mode {
         pointer-events: none;
     }
 
-    /* ── the scrolling grid viewport (windowed by the section) ─────────── */
+    /* ── the scrolling grid viewport (windowed by the section) ─────────── *
+       FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the hand
+       has its OWN fit + scroll engine (ConsoleHandSection: `--con-hand-zoom`
+       sizing + manual `scrollTop`/`scrollHeight` math for right-stick paging)
+       that a ConsoleScrollArea would CONFLICT with — its `$refs.grid` scroll
+       measurements read this element directly. Already chrome-less
+       (scrollbar-width:none + overflow-x:clip). Do NOT wrap. */
     &__grid {
         position: relative;
         flex: 1;
@@ -4996,22 +5002,15 @@ html.console-mode {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Feed — the premium thin scrollbar is the RS-scroll affordance. */
+/* Feed — ConsoleScrollArea host (foundation): the custom cyan RAIL replaces
+   the former styled native scrollbar (no browser chrome in console-native). */
 .con-journal__scroll {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+}
+.con-journal__scroll-body {
     padding: 10px 12px 14px;
     scroll-padding: 52px 0;
-    scrollbar-width: thin;
-    scrollbar-color: fade(@con-cyan, 35%) transparent;
-
-    &::-webkit-scrollbar { width: 7px; }
-    &::-webkit-scrollbar-track { background: transparent; }
-    &::-webkit-scrollbar-thumb {
-        background: fade(@con-cyan, 28%);
-        border-radius: 999px;
-    }
 }
 .con-journal__list {
     list-style: none;
@@ -5601,6 +5600,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-size: 18px;
     }
 
+    /* FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the shared
+       chrome-less DISPLAY-scroll utility for read-only info surfaces (Info Mode
+       grids/details, the cell-detail inspector / ConsoleContextPanel). No
+       cursor-driven scroll inside them (navigation is BETWEEN sections, not
+       within a scroll); chrome hidden by .con-scrollbars(). */
     &__scroll {
         overflow-y: auto;
         min-height: 0;
@@ -8580,7 +8584,14 @@ html.console-mode {
         }
     }
 
-    /* ── Body ──────────────────────────────────────────────────────── */
+    /* ── Body ──────────────────────────────────────────────────────── *
+       FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the start
+       sequence is FIT-managed (fitCardStrip sizes the single card row to width
+       so a focus move never scrolls the strip); only the wizard GRID scrolls
+       vertically to the focused row, guarded + bounded to this chrome-less
+       in-shell body (page locked, no outer scroll ancestor). Three mode
+       variants share this class + ref="body" — a ConsoleScrollArea wrap would
+       need per-variant restructuring for no navigational gain. */
     &__body {
         flex: 1;
         min-height: 0;
@@ -10378,10 +10389,9 @@ html.console-mode {
 
     /* ── Body: master list + inspector ── */
     &__body { flex: 1; min-height: 0; display: flex; gap: 18px; }
-    &__list {
-        flex: 1.35; min-width: 0; overflow-y: auto;
+    &__list { flex: 1.35; min-width: 0; }
+    &__list-body {
         display: flex; flex-direction: column; gap: 14px; padding-right: 8px;
-        .con-scrollbars();
     }
 
     &__group {
@@ -10465,7 +10475,11 @@ html.console-mode {
     /* The quiet divider before the direction-unknown "you choose" cluster. */
     &__vardiv { font-size: 20px; color: fade(@con-cyan, 55%); }
 
-    /* ── The inspector (the ONE detail surface) ── */
+    /* ── The inspector (the ONE detail surface) ──
+       FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): chrome-less
+       CONTENT-display panel (no cursor-driven scroll — the cursor lives in the
+       master __list which IS a ConsoleScrollArea); a styled-frame wrap would
+       only add churn. Chrome hidden by .con-scrollbars(). */
     &__detail {
         flex: 1; min-width: 0; max-width: 44%; overflow-y: auto;
         display: flex; flex-direction: column; gap: 10px;

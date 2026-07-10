@@ -282,6 +282,7 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
@@ -967,27 +968,25 @@ export default defineComponent({
     payCount(unit: SpendableResource): number {
       return this.payCounts[unit] ?? 0;
     },
-    // ── input routing (the shell forwards every intent here) ────────────
+    // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'scroll') {
-        const el = this.$refs.scroll as HTMLElement | undefined;
-        if (el !== undefined) {
-          el.scrollTop += Math.sign(intent.dy) * 40;
-        }
+        (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
       }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
         return;
       }
-      if (intent.kind !== 'press') {
+      const action = consoleActionOf(intent);
+      if (action === undefined) {
         return;
       }
       if (this.sub !== undefined) {
-        this.onSubPress(intent.button);
+        this.onSubPress(action);
         return;
       }
-      this.onReviewPress(intent.button);
+      this.onReviewPress(action);
     },
     onNav(dir: NavDirection): void {
       if (this.loading) {
@@ -1025,27 +1024,29 @@ export default defineComponent({
         this.adjustFloaters(row.choice, dir === 'left' ? -1 : 1);
       }
     },
-    onReviewPress(button: string): void {
+    // REVIEW state: A(primary) play/lead-to-choice, LT(prevTab) enter payment
+    // lanes, X(inspect) zoom the card, B back, LB/RB(prev/nextSection) step, RT max.
+    onReviewPress(action: ConsoleAction): void {
       if (this.loading) {
         // Only Cancel is honoured while the preview is still loading.
-        if (button === 'back') {
+        if (action === 'back') {
           this.$emit('cancel');
         }
         return;
       }
       const row = this.focusedRow;
-      switch (button) {
-      case 'confirm':
+      switch (action) {
+      case 'primary':
         this.primaryAction();
         return;
-      case 'triggerL':
+      case 'prevTab':
         // LT = enter the payment lanes (secondary — never A). Only when there's
         // a non-M€ mix to dial; a pure-AUTO M€ payment has nothing to configure.
         if (this.payLanes.length > 0) {
           this.sub = {kind: 'payment', index: 0};
         }
         return;
-      case 'secondary':
+      case 'inspect':
         if (this.card !== undefined) {
           openConsoleCardZoom([this.card], 0);
         }
@@ -1053,9 +1054,9 @@ export default defineComponent({
       case 'back':
         this.$emit('cancel');
         return;
-      case 'bumperL':
-      case 'bumperR': {
-        const step = button === 'bumperL' ? -1 : 1;
+      case 'prevSection':
+      case 'nextSection': {
+        const step = action === 'prevSection' ? -1 : 1;
         // A focused amount/spend-heat stepper takes priority; otherwise LB/RB do
         // the global inline payment quick-adjust (no focus on payment needed).
         if (row?.kind === 'step' && row.choice.kind === 'amount') {
@@ -1067,7 +1068,7 @@ export default defineComponent({
         }
         return;
       }
-      case 'triggerR':
+      case 'nextTab':
         if (row?.kind === 'step' && row.choice.kind === 'amount') {
           this.setAmount(row.choice, this.amountModel(row.choice).max);
         }
@@ -1108,13 +1109,15 @@ export default defineComponent({
       }
       // blocked-requirement: nothing to do — the CTA + status show the reason.
     },
-    onSubPress(button: string): void {
+    // SUB state (pick list / payment lanes): A(primary) pick/close, X(inspect)
+    // zoom the list card, B back, LB/RB(prev/nextSection) adjust lane, RT max.
+    onSubPress(action: ConsoleAction): void {
       const sub = this.sub;
       if (sub === undefined) {
         return;
       }
-      switch (button) {
-      case 'confirm':
+      switch (action) {
+      case 'primary':
         if (sub.kind === 'payment') {
           if (this.paymentReady) {
             this.sub = undefined;
@@ -1123,7 +1126,7 @@ export default defineComponent({
         }
         this.pickListItem(sub.index);
         return;
-      case 'secondary':
+      case 'inspect':
         if (sub.kind === 'list') {
           this.inspectListItem(sub.index);
         }
@@ -1131,13 +1134,13 @@ export default defineComponent({
       case 'back':
         this.sub = undefined;
         return;
-      case 'bumperL':
-      case 'bumperR':
+      case 'prevSection':
+      case 'nextSection':
         if (sub.kind === 'payment') {
-          this.adjustLane(sub.index, button === 'bumperL' ? -1 : 1);
+          this.adjustLane(sub.index, action === 'prevSection' ? -1 : 1);
         }
         return;
-      case 'triggerR':
+      case 'nextTab':
         if (sub.kind === 'payment') {
           this.adjustLane(sub.index, 0, true);
         }
