@@ -21,6 +21,7 @@ import {ClientAward, ClientMilestone} from '../../common/ma/ClientMilestoneAward
 import {CardType} from '../../common/cards/CardType';
 import {OneOrArray} from '../../common/utils/types';
 import {globalInitialize} from '../globalInitialize';
+import {buildCardInformation, writeCardInfoArtifacts} from './cardInfo/buildCardInformation';
 
 type Mutable<T> = {
   -readonly [P in keyof T]: T[P];
@@ -86,6 +87,10 @@ class CardProcessor {
     }
 
     const production = card.behavior?.production;
+    // vize1215: structured per-graphic-block card text (CardInformation) —
+    // generated here at export time and attached to the metadata copy.
+    const information = buildCardInformation(card, module);
+    const metadata = information !== undefined ? {...card.metadata, information} : card.metadata;
     const clientCard: Mutable<ClientCard> = {
       module: module,
       name: card.name,
@@ -94,7 +99,7 @@ class CardProcessor {
       victoryPoints: card.victoryPoints,
       cost: card.cost,
       type: card.type,
-      metadata: card.metadata,
+      metadata: metadata,
       resourceType: card.resourceType,
       startingMegaCredits: startingMegaCredits,
       cardCost: cardCost,
@@ -219,6 +224,7 @@ MilestoneProcessor.makeJson();
 AwardProcessor.makeJson();
 
 fs.writeFileSync('src/genfiles/cards.json', JSON.stringify(CardProcessor.json, null, 2));
+writeCardInfoArtifacts();
 fs.writeFileSync('src/genfiles/events.json', JSON.stringify(GlobalEventProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/colonies.json', JSON.stringify(ColoniesProcessor.json, null, 2));
 fs.writeFileSync('src/genfiles/milestones.json', JSON.stringify(MilestoneProcessor.json, null, 2));

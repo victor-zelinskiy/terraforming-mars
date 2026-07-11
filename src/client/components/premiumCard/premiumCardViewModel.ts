@@ -224,6 +224,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     throw new Error(`buildPremiumCardViewModel: ${clientCard.name} (${clientCard.type}) is outside the premium face scope`);
   }
   const tags = buildTags(clientCard, model);
+  const vp = buildVp(clientCard.metadata);
   return {
     name: clientCard.name,
     slug: slugOf(clientCard.name),
@@ -235,8 +236,11 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     tagCluster: tagClusterPlan(tags.length),
     requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
     art: premiumCardArt(clientCard.name),
-    mechanics: buildMechanics(clientCard.metadata.renderData),
-    vp: buildVp(clientCard.metadata),
+    // The printed VP fine print (vpText) leaves the FACE for dynamic-VP
+    // cards — the rule is a card-information VP block now (the icons-only
+    // face keeps the compact VP badge formula).
+    mechanics: buildMechanics(clientCard.metadata.renderData, {dropVpText: vp !== undefined && vp.kind !== 'fixed'}),
+    vp,
     expansion: clientCard.module,
     compatibility: clientCard.compatibility,
     resource: buildResource(clientCard, model),

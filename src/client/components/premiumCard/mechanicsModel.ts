@@ -19,6 +19,8 @@
 import {CardComponent} from '@/common/cards/render/CardComponent';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
+import {Size} from '@/common/cards/render/Size';
+import {deriveGraphicIds} from '@/common/cards/render/cardGraphicIds';
 import {
   ItemType,
   ICardRenderEffect,
@@ -42,6 +44,13 @@ export type MechGroup = {
   /** References into the original renderData tree (strings/undefined already dropped). */
   nodes: ReadonlyArray<ItemType>;
   weight: number;
+  /**
+   * Stable content-derived id of this group's ROOT ROW — the address the
+   * card-information model's blocks link to (`CardInfoBlock.graphicId`).
+   * Shared derivation with the build-time generator (cardGraphicIds.ts),
+   * so the mapping can never disagree.
+   */
+  graphicId?: string;
 };
 
 export type MechanicsVM = {
@@ -174,22 +183,44 @@ export function densityAtLeast(density: MechDensity, threshold: MechDensity): bo
   return DENSITY_ORDER.indexOf(density) >= DENSITY_ORDER.indexOf(threshold);
 }
 
-export function buildMechanics(renderData: CardComponent | undefined): MechanicsVM {
+/** The vpText fine-print marker: `b.vpText()` emits TEXT at TINY, uppercase. */
+function isVpTextItem(node: ItemType): boolean {
+  return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) &&
+    node.type === CardRenderItemType.TEXT && node.size === Size.TINY && node.isUppercase === true;
+}
+
+export type BuildMechanicsOptions = {
+  /**
+   * Drop the printed VP fine print (the TINY-uppercase vpText items) from
+   * the face — the rule lives in the card-information VP block now, shown
+   * by overlays / the future info panel next to the VP badge. Passed only
+   * for cards with a DYNAMIC VP (the vpText population), so ordinary tiny
+   * notes on other cards are untouched.
+   */
+  dropVpText?: boolean;
+};
+
+export function buildMechanics(renderData: CardComponent | undefined, options: BuildMechanicsOptions = {}): MechanicsVM {
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
     return {groups: [], density: 'sparse', score: 0, textOnly: true};
   }
+  const graphicIds = deriveGraphicIds(renderData);
   const groups: Array<MechGroup> = [];
-  for (const row of renderData.rows) {
-    const nodes = renderableNodes(row);
+  renderData.rows.forEach((row, rowIndex) => {
+    let nodes = renderableNodes(row);
+    if (options.dropVpText === true) {
+      nodes = nodes.filter((node) => !isVpTextItem(node));
+    }
     if (nodes.length === 0) {
-      continue; // a description-only / spacer row
+      return; // a description-only / spacer / dropped-fine-print row
     }
     groups.push({
       kind: groupKindOf(nodes),
       nodes,
       weight: sumNodes(nodes),
+      graphicId: graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
     });
-  }
+  });
   const score = groups.reduce((acc, g) => acc + g.weight, 0);
   return {
     groups,
