@@ -76,6 +76,31 @@ export type ConsoleZoomReceive = {
   takeAllLabel?: string,
   /** Take every remaining card (closes the viewer). Omit → no take-all. */
   takeAll?: () => void,
+  /**
+   * SINGLE-CARD reveal: the take DEPARTS from fullscreen (the stage dives
+   * straight to the player zone, the backdrop fading under it), instead of
+   * closing back to a source slot. `takeAt` is then the BARE commit — the
+   * premium flight is `playZoomDepart`, run by the shell over the still-open
+   * dialog. The multi-card fullscreen take (omit this) closes first, then the
+   * reveal modal's own `runCardTake` lifts the card off its strip slot.
+   */
+  departFromFullscreen?: boolean,
+};
+
+/**
+ * A ROLE-SWAP bridge (the single-card «Получены карты» reveal). L3 flips the
+ * fullscreen between the two paired cards — the RECEIVED card ⇄ the DRAW
+ * SOURCE — without a nested viewer or a full recreation (the shell crossfades
+ * the same stage via `CardZoomModal.runSwap`). The opener re-points the module
+ * state inside `swap()` (received: receive bridge + take, source: read-only).
+ */
+export type ConsoleZoomSwap = {
+  /** The L3-verb naming the OTHER role (i18n key): «Source» / «Received card». */
+  label: string,
+  /** The OTHER card's name — the swap chip shows it («ИСТОЧНИК · <name>»). */
+  otherName: CardName,
+  /** Re-point the viewer to the other paired card (received ⇄ source). */
+  swap: () => void,
 };
 
 /**
@@ -142,11 +167,30 @@ export type ConsoleZoomExtra = {
   /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
   receive?: ConsoleZoomReceive,
   /**
-   * A caption shown in the viewer bar (i18n key), e.g. «Источник добора карт»
-   * when the viewer is inspecting the SOURCE of a draw rather than a card
-   * being decided. Marks a read-only context: A never acts on it.
+   * A caption shown in the viewer bar (i18n key), e.g. «Ход MarsBot» /
+   * «Действия карты» — a small read-only marker for an inspector opened from
+   * a chip/summary. A never acts on it.
    */
   contextLabel?: string,
+  /**
+   * A PROMINENT role status (i18n key) shown as a pill in the viewer bar —
+   * WHAT the card on screen is: «ПОЛУЧЕННАЯ КАРТА» / «ИСТОЧНИК ДОБОРА». Unlike
+   * `contextLabel` (a faint caption), the status leads the bar so the player
+   * always tells a received card from the draw source at a glance.
+   */
+  statusLabel?: string,
+  /**
+   * Present ⇔ L3 flips the fullscreen between two paired cards (single-card
+   * reveal: received ⇄ source). Drives the swap chip + the L3 handler.
+   */
+  swap?: ConsoleZoomSwap,
+  /**
+   * MANDATORY: the viewer cannot be dismissed by B / X / Esc / backdrop — the
+   * single-card reveal is completed ONLY by taking the received card (A).
+   * Every close path is gated so the player can't return to the game with the
+   * card untaken.
+   */
+  mandatory?: boolean,
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
 };
@@ -166,8 +210,14 @@ export const consoleCardZoom = reactive({
   action: undefined as ConsoleZoomAction | undefined,
   /** Present ⇔ A takes / RT takes all (the drawn-cards reveal flow). */
   receive: undefined as ConsoleZoomReceive | undefined,
-  /** A read-only caption (i18n key) — e.g. the «Источник добора карт» viewer. */
+  /** A read-only caption (i18n key) — e.g. the bot-turn / card-actions viewer. */
   contextLabel: undefined as string | undefined,
+  /** A prominent role status pill (i18n key) — «ПОЛУЧЕННАЯ КАРТА» / «ИСТОЧНИК ДОБОРА». */
+  statusLabel: undefined as string | undefined,
+  /** Present ⇔ L3 swaps the paired cards (single-card reveal: received ⇄ source). */
+  swap: undefined as ConsoleZoomSwap | undefined,
+  /** MANDATORY: no B / X / Esc / backdrop dismissal (single-card reveal). */
+  mandatory: false,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
 });
@@ -185,6 +235,9 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.action = action;
   consoleCardZoom.receive = extra?.receive;
   consoleCardZoom.contextLabel = extra?.contextLabel;
+  consoleCardZoom.statusLabel = extra?.statusLabel;
+  consoleCardZoom.swap = extra?.swap;
+  consoleCardZoom.mandatory = extra?.mandatory === true;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
 }
 
@@ -192,6 +245,24 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
 export function navigateConsoleCardZoom(card: ZoomCard, index: number): void {
   consoleCardZoom.card = card;
   consoleCardZoom.index = index;
+}
+
+/**
+ * RE-POINT the OPEN viewer to a different single card + bridges WITHOUT
+ * re-running the open choreography (the single-card reveal swap: received ⇄
+ * source). The dialog stays mounted (`card` never goes undefined, so the
+ * shell's undefined→defined open watcher never fires); the caller crossfades
+ * the stage via `CardZoomModal.runSwap`. `origin` / `mandatory` are preserved
+ * (both paired views are equally mandatory); `select`/`action`/`contextLabel`
+ * stay cleared (a reveal is never a selection/action context).
+ */
+export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZoomReceive, swap?: ConsoleZoomSwap, statusLabel?: string}): void {
+  consoleCardZoom.card = card;
+  consoleCardZoom.cards = [card];
+  consoleCardZoom.index = 0;
+  consoleCardZoom.receive = opts.receive;
+  consoleCardZoom.swap = opts.swap;
+  consoleCardZoom.statusLabel = opts.statusLabel;
 }
 
 export function closeConsoleCardZoom(): void {
@@ -202,5 +273,8 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.action = undefined;
   consoleCardZoom.receive = undefined;
   consoleCardZoom.contextLabel = undefined;
+  consoleCardZoom.statusLabel = undefined;
+  consoleCardZoom.swap = undefined;
+  consoleCardZoom.mandatory = false;
   consoleCardZoom.origin = {kind: 'none'};
 }

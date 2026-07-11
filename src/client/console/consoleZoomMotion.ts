@@ -328,6 +328,125 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
   });
 }
 
+/**
+ * DEPART-TO-PLAYER choreography — the SINGLE-CARD reveal take. Instead of
+ * closing back to a source slot (there is no strip in single-card mode), the
+ * fullscreen stage dives STRAIGHT to the player zone (bottom centre, the same
+ * table geography the exit director's take uses), the dialog backdrop fading
+ * under it (the host's `--closing` class) so the game is revealed as the card
+ * lands "in the hand". The take reads as one continuous gesture from
+ * fullscreen — never a return to an empty modal.
+ *
+ * `onCommit` fires as the dive BEGINS (the reveal state commits while the card
+ * flies — the same "onLift" same-frame semantics as the exit director, so the
+ * hand count / delta-chip tick up on the revealing screen). Resolves when the
+ * flight is done; the caller then closes the dialog. Reduced motion / missing
+ * stage → an immediate commit + short fade.
+ */
+export function playZoomDepart(dialog: HTMLElement | undefined, onCommit: () => void): Promise<void> {
+  if (ctx.closing) {
+    return Promise.resolve();
+  }
+  ctx.closing = true;
+  killTween();
+  const stage = dialog !== undefined ? stageEl(dialog) : null;
+  if (stage === null) {
+    onCommit();
+    return Promise.resolve();
+  }
+  const reduced = consoleReducedMotionActive();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        ctx.tween = undefined;
+        resolve();
+      }
+    };
+    const safety = window.setTimeout(finish, motionMs(560) + 500);
+    const done = () => {
+      window.clearTimeout(safety);
+      finish();
+    };
+    // Commit while the card is airborne (or immediately under reduced motion).
+    onCommit();
+    if (reduced) {
+      ctx.tween = gsap.to(stage, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.in', onComplete: done});
+      return;
+    }
+    const rect = stage.getBoundingClientRect();
+    // The player zone (mirrors cardExitDirector.playerPoint): bottom centre,
+    // just off-screen. Drift the dive laterally toward centre for a natural arc.
+    const targetY = window.innerHeight + 80 - rect.top;
+    const driftX = (window.innerWidth / 2 - (rect.left + rect.width / 2)) * 0.2;
+    const tl = gsap.timeline({onComplete: done});
+    // The pick-up beat: the card comes off the inspector.
+    tl.to(stage, {y: -18, scale: 1.03, rotation: -2, duration: motionMs(130) / 1000, ease: 'power2.out'});
+    // The dive home — shrinks toward the hand, fades on the last third.
+    tl.to(stage, {x: driftX, y: targetY, scale: 0.5, rotation: -7, duration: motionMs(400) / 1000, ease: 'power2.in'}, '>-0.02');
+    tl.to(stage, {autoAlpha: 0, duration: motionMs(150) / 1000, ease: 'power1.in'}, '<55%');
+    ctx.tween = tl;
+  });
+}
+
+/**
+ * SWAP choreography — the single-card reveal L3 flip (received ⇄ source) on
+ * the SAME open viewer. A quick depth-out of the stage, then `swapState`
+ * re-points the module card, then a re-fit + depth-in of the (re-rendered)
+ * stage. No dialog recreation, no backdrop flash — a soft crossfade. `refit`
+ * is the host's `fitCardToViewport` (the paired card may size differently).
+ * Resolves when the swap-in settles (the caller gates re-entrant L3 on it).
+ */
+export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => void, refit: () => void): Promise<void> {
+  const stage = dialog !== undefined ? stageEl(dialog) : null;
+  if (stage === null || typeof requestAnimationFrame !== 'function') {
+    swapState();
+    refit();
+    return Promise.resolve();
+  }
+  killTween();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    // Safety: a stalled rAF can never leave the swap guard stuck.
+    const safety = window.setTimeout(done, motionMs(320) + 500);
+    const finish = () => {
+      window.clearTimeout(safety);
+      done();
+    };
+    if (consoleReducedMotionActive()) {
+      swapState();
+      // One frame for the re-render, then a short fade-in over the new card.
+      requestAnimationFrame(() => {
+        refit();
+        ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(120) / 1000, ease: 'power1.out', onComplete: finish});
+      });
+      return;
+    }
+    ctx.tween = gsap.to(stage, {
+      autoAlpha: 0, scale: 0.94, y: 14,
+      duration: motionMs(120) / 1000,
+      ease: 'power2.in',
+      onComplete: () => {
+        swapState();
+        // The re-point re-renders the card next flush; fit + rise it in then.
+        requestAnimationFrame(() => {
+          refit();
+          ctx.tween = gsap.fromTo(stage,
+            {autoAlpha: 0, scale: 0.94, y: 14},
+            {autoAlpha: 1, scale: 1, y: 0, duration: motionMs(200) / 1000, ease: 'expo.out', onComplete: finish});
+        });
+      },
+    });
+  });
+}
+
 /** Final cleanup — after the dialog actually closed (any path, incl. Esc). */
 export function releaseZoomMotion(): void {
   killTween();

@@ -328,12 +328,13 @@
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"
                    :selected="zoomSelected"
+                   :dismissable="!consoleCardZoom.mandatory"
                    :consoleMotion="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <template #actions>
-        <!-- A read-only SOURCE viewer (opened via L3 from the reveal) names
-             itself, so the card never reads as an ordinary picked card. -->
+        <!-- A read-only inspector (bot-turn / card-actions, opened from a chip)
+             names itself, so the card never reads as an ordinary picked card. -->
         <div v-if="consoleCardZoom.contextLabel !== undefined" class="con-zoom__context">
           <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
           <span>{{ $t(consoleCardZoom.contextLabel) }}</span>
@@ -345,9 +346,18 @@
           <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
         </div>
         <div class="con-zoom__bar">
+          <!-- The prominent ROLE status (single-card reveal): «ПОЛУЧЕННАЯ
+               КАРТА» / «ИСТОЧНИК ДОБОРА» — the player always tells a received
+               card from the draw source at a glance. -->
+          <span v-if="zoomStatusLabel !== undefined"
+                class="con-zoom__status"
+                :class="zoomReceiveLabel !== undefined ? 'con-zoom__status--received' : 'con-zoom__status--source'">
+            {{ $t(zoomStatusLabel) }}
+          </span>
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <!-- The RECEIVE bridge (drawn-cards reveal) — A takes the on-screen
-               card without leaving the viewer; RT takes them all. -->
+               card. Single-card departs from fullscreen; multi-card closes to
+               the strip first. Absent on the read-only source view. -->
           <button v-if="zoomReceiveLabel !== undefined" class="con-zoom__btn con-zoom__btn--play" @click="zoomTakeReceived">
             <GamepadGlyph control="confirm" />
             <span>{{ $t(zoomReceiveLabel) }}</span>
@@ -366,11 +376,21 @@
             <GamepadGlyph control="triggerR" />
             <span>{{ $t(zoomTakeAllLabel) }}</span>
           </span>
+          <!-- The L3 role swap (single-card reveal: received ⇄ source) — a
+               compact chip naming the OTHER card. -->
+          <span v-if="zoomSwapLabel !== undefined && zoomSwapOtherName !== undefined" class="con-zoom__swap">
+            <GamepadGlyph control="stickL" />
+            <span class="con-zoom__swap-label">{{ $t(zoomSwapLabel) }}</span>
+            <span class="con-zoom__swap-sep" aria-hidden="true">·</span>
+            <span class="con-zoom__swap-name">{{ $t(zoomSwapOtherName) }}</span>
+          </span>
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
             <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
             <span>{{ $t('Browse') }}</span>
           </span>
-          <button class="con-zoom__btn" @click="closeZoomViewer">
+          <!-- A MANDATORY viewer (single-card reveal) has NO close — the only
+               completion is taking the received card. -->
+          <button v-if="!consoleCardZoom.mandatory" class="con-zoom__btn" @click="closeZoomViewer">
             <GamepadGlyph control="back" />
             <span>{{ $t('Close') }}</span>
           </button>
@@ -548,7 +568,7 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/Card.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {playZoomOpen, playZoomClose, playZoomHandoff, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
+import {playZoomOpen, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
@@ -678,6 +698,8 @@ export default defineComponent({
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
       zoomClosing: false,
+      /** Re-entrancy guard for the single-card reveal L3 role swap. */
+      zoomSwapping: false,
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
@@ -1710,13 +1732,32 @@ export default defineComponent({
         return cmds;
       }
       if (this.consoleRevealMode !== undefined) {
-        // The overlay footer carries the detailed contract; the bar mirrors it.
-        return [
-          {control: 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: this.consoleRevealMode === 'drawn' ? 'Take card' : 'OK'},
-          {control: 'secondary', label: 'Inspect'},
-          {control: 'back', label: this.consoleRevealMode === 'drawn' ? 'Take all cards' : 'Close'},
-        ];
+        // The command bar is the SINGLE hint zone for the reveal (the overlay
+        // has NO footer of its own — B never reads two conflicting labels).
+        // Single-card drawn is fullscreen (the dialog covers the bar), so this
+        // is the multi-card modal / result / viewer contract.
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.consoleRevealMode === 'drawn') {
+          const ev = currentRevealEvent();
+          const untaken = ev !== undefined ? ev.cards.length - ev.takenIndices.size : 0;
+          if (untaken > 1) {
+            cmds.push({control: 'dpadH', label: 'Navigate'});
+          }
+          cmds.push({control: 'confirm', label: 'Take card'});
+          cmds.push({control: 'secondary', label: 'Inspect'});
+          if (ev?.source?.type === 'card') {
+            cmds.push({control: 'stickL', label: 'Source'});
+          }
+          cmds.push({control: 'back', label: 'Take all cards'});
+        } else if (this.consoleRevealMode === 'viewer') {
+          cmds.push({control: 'dpadH', label: 'Navigate'});
+          cmds.push({control: 'secondary', label: 'Inspect'});
+          cmds.push({control: 'back', label: 'Close'});
+        } else {
+          cmds.push({control: 'confirm', label: 'OK'});
+          cmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        return cmds;
       }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
         // The scene footer carries the detailed contract; the bar mirrors it.
@@ -2072,6 +2113,18 @@ export default defineComponent({
     zoomTakeAllLabel(): string | undefined {
       const r = this.consoleCardZoom.receive;
       return r?.takeAll !== undefined ? r.takeAllLabel : undefined;
+    },
+    /** The prominent ROLE status pill (single-card reveal), or undefined. */
+    zoomStatusLabel(): string | undefined {
+      return this.consoleCardZoom.statusLabel;
+    },
+    /** The L3 role-swap chip verb (single-card reveal), or undefined. */
+    zoomSwapLabel(): string | undefined {
+      return this.consoleCardZoom.swap?.label;
+    },
+    /** The OTHER card's name shown in the swap chip, or undefined. */
+    zoomSwapOtherName(): CardName | undefined {
+      return this.consoleCardZoom.swap?.otherName;
     },
     /** P17: «why not» lines when the current card is NOT actionable. */
     zoomReasons(): ReadonlyArray<string> {
@@ -3954,6 +4007,7 @@ export default defineComponent({
       releaseZoomMotion();
       this.zoomFlight = false;
       this.zoomClosing = false;
+      this.zoomSwapping = false;
       document.body.classList.remove('con-zoom-open');
       closeConsoleCardZoom();
     },
@@ -3974,6 +4028,12 @@ export default defineComponent({
         return true;
       }
       if (intent.kind !== 'press') {
+        return true;
+      }
+      // L3 = the single-card reveal ROLE SWAP (received ⇄ source) on the SAME
+      // viewer (screen-specific stick, before the semantic-action switch).
+      if (intent.button === 'stickL' && this.consoleCardZoom.swap !== undefined) {
+        this.zoomSwap();
         return true;
       }
       switch (consoleActionOf(intent)) {
@@ -4009,11 +4069,38 @@ export default defineComponent({
       }
       case 'inspect': // X closes too — the same key that opened it
       case 'back':
+        // A MANDATORY viewer (single-card reveal) cannot be closed — the only
+        // completion is taking the received card (A). Swallow B / X so the
+        // player can never return to the game with the card untaken; the swap
+        // (L3) is the only way to look at the source and back.
+        if (this.consoleCardZoom.mandatory) {
+          return true;
+        }
         void this.closeZoomViewer();
         return true;
       default:
         return true; // the viewer owns ALL input while open
       }
+    },
+    /**
+     * L3 single-card reveal ROLE SWAP — flip the fullscreen between the
+     * received card and the draw source on the SAME viewer (a soft crossfade,
+     * never a nested viewer / recreation). The reveal overlay's `swap()`
+     * re-points the module card + bridges; `playZoomSwap` crossfades the stage
+     * and re-fits (the paired card can size differently). Re-entrant-guarded
+     * so rapid L3 gives clean flips, not a mid-animation stutter.
+     */
+    zoomSwap(): void {
+      const swap = this.consoleCardZoom.swap;
+      if (swap === undefined || this.zoomClosing || this.zoomSwapping) {
+        return;
+      }
+      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      this.zoomSwapping = true;
+      void playZoomSwap(zoom?.$el as HTMLElement | undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
+        .then(() => {
+          this.zoomSwapping = false;
+        });
     },
     zoomToggleSelect(): void {
       const z = this.consoleCardZoom;
@@ -4036,6 +4123,20 @@ export default defineComponent({
         return;
       }
       const idx = this.consoleCardZoom.index;
+      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      if (r.departFromFullscreen === true) {
+        // SINGLE-CARD reveal: the card DEPARTS from fullscreen straight to the
+        // player (the backdrop fading under it via `--closing`), THEN the
+        // dialog closes. `takeAt` is the reveal overlay's bare commit — the
+        // premium flight is `playZoomDepart` here, running over the still-open
+        // dialog so it survives the reveal overlay unmounting on the commit.
+        this.zoomFlight = true;
+        this.zoomClosing = true;
+        void playZoomDepart(zoom?.$el as HTMLElement | undefined, () => r.takeAt(idx)).then(() => zoom?.close());
+        return;
+      }
+      // MULTI-CARD: close back to the strip slot first, then the reveal modal's
+      // own premium take (runCardTake) lifts the card off the slot.
       void this.closeZoomViewer().then(() => r.takeAt(idx));
     },
     /** P17: the viewer's A hands the card to the context action. Two paths:

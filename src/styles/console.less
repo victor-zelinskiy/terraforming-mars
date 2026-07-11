@@ -8569,6 +8569,60 @@ html.console-mode {
     &-mark { color: @con-cyan; }
 }
 
+/* The PROMINENT role status pill (single-card «Получены карты» reveal): what
+   the fullscreen card IS — «ПОЛУЧЕННАЯ КАРТА» (mint) vs «ИСТОЧНИК ДОБОРА»
+   (amber). Leads the viewer bar so the player always tells one from the other
+   at a glance; the accent tells the role before the text is read. */
+.con-zoom__status {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 18px;
+    border-radius: 999px;
+    font-family: @con-font;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+
+    &--received {
+        background: fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-mint, 75%), 0 0 16px fade(@con-mint, 14%);
+        color: @con-mint;
+    }
+    &--source {
+        background: fade(@con-amber, 14%);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 70%), 0 0 16px fade(@con-amber, 12%);
+        color: #ffe3b0;
+    }
+}
+/* The L3 ROLE-SWAP chip (single-card reveal: received ⇄ source) — a compact
+   navigation affordance naming the OTHER card. A quiet metadata element, never
+   a button-looking control. */
+.con-zoom__swap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 15px;
+    border-radius: 999px;
+    background: rgba(14, 22, 33, 0.7);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 45%);
+    font-family: @con-font;
+    font-size: 15px;
+    color: @con-text-dim;
+
+    &-label {
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        font-size: 13px;
+        color: fade(@con-cyan, 88%);
+    }
+    &-sep { color: fade(@con-cyan, 55%); }
+    &-name {
+        font-weight: 700;
+        color: @con-text;
+    }
+}
+
 /* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
    Full-screen premium scene: hero header + step rail + budget capsule,
    the shared .con-cards inspector/filmstrip, the corp column and prelude
@@ -9043,6 +9097,15 @@ html.console-mode {
     font-family: @con-font;
     color: @con-text;
 
+    /* SINGLE-CARD reveal is HEADLESS — the received card IS the reveal, shown
+       directly in the fullscreen viewer (the dialog owns the backdrop). This
+       root renders nothing + never blocks the dialog, but keeps the reveal a
+       registered serving surface + hosts the auto-open lifecycle. */
+    &--headless {
+        pointer-events: none;
+        background: none;
+    }
+
     &__backdrop {
         position: absolute;
         inset: 0;
@@ -9082,6 +9145,54 @@ html.console-mode {
         font-size: 16px;
         line-height: 1.4;
         color: @con-text-dim;
+    }
+    /* Compact SOURCE chip (multi-card drawn header) — a navigation-context
+       metadata element sitting under the description, NEVER a second full
+       card. An inspectable (card) source is a subtle button (L3 opens it); a
+       colony / tile source is a plain informational chip (button disabled). */
+    &__source-chip {
+        appearance: none;
+        border: 0;
+        margin-top: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: rgba(14, 22, 33, 0.66);
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 42%);
+        font-family: @con-font;
+        color: @con-text-dim;
+        cursor: default;
+        transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease;
+
+        &--inspectable {
+            cursor: pointer;
+            &:hover { box-shadow: inset 0 0 0 1px fade(@con-amber, 75%), 0 0 14px fade(@con-amber, 12%); }
+        }
+        &-mark { color: @con-amber; font-size: 13px; }
+        &-label {
+            letter-spacing: 1.3px;
+            text-transform: uppercase;
+            font-size: 12.5px;
+            color: #ffe3b0;
+        }
+        &-sep { color: fade(@con-amber, 55%); }
+        &-name {
+            font-weight: 700;
+            color: @con-text;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        &-l3 {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 2px;
+            padding-left: 8px;
+            border-left: 1px solid fade(@con-cyan, 30%);
+        }
     }
     /* The premium «Получено: N» chip — sized to content, subtle glow. */
     &__count {
@@ -11417,6 +11528,9 @@ html.con-profile-handheld {
     .con-zoom__state { font-size: 13px; padding: 3px 10px; }
     .con-zoom__cmd { font-size: 13px; }
     .con-zoom__context { font-size: 13.5px; padding: 3px 13px; }
+    .con-zoom__status { font-size: 13px; padding: 4px 14px; letter-spacing: 1.2px; }
+    .con-zoom__swap { font-size: 13px; padding: 4px 12px; gap: 6px; }
+    .con-zoom__swap-label { font-size: 11.5px; }
 
     /* ── 21 · the task host (all native prompts) ─────────────────── */
     .con-task {

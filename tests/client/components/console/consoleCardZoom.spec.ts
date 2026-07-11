@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, openConsoleCardZoom, repointConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 
@@ -94,6 +94,51 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.receive).to.eq(undefined); // a source is read-only
     closeConsoleCardZoom();
     expect(consoleCardZoom.contextLabel).to.eq(undefined);
+  });
+
+  it('the SINGLE-CARD reveal carries status / swap / mandatory + departFromFullscreen, all cleared on close', () => {
+    let swapped = 0;
+    openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
+      receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
+      swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => swapped++},
+      statusLabel: 'Received card',
+      mandatory: true,
+      origin: {kind: 'textual'},
+    });
+    expect(consoleCardZoom.mandatory).to.eq(true);
+    expect(consoleCardZoom.statusLabel).to.eq('Received card');
+    expect(consoleCardZoom.receive?.departFromFullscreen).to.eq(true);
+    expect(consoleCardZoom.swap?.label).to.eq('Source');
+    expect(consoleCardZoom.swap?.otherName).to.eq(CardName.BIRDS);
+    consoleCardZoom.swap?.swap();
+    expect(swapped).to.eq(1);
+    closeConsoleCardZoom();
+    expect(consoleCardZoom.mandatory).to.eq(false);
+    expect(consoleCardZoom.statusLabel).to.eq(undefined);
+    expect(consoleCardZoom.swap).to.eq(undefined);
+    expect(consoleCardZoom.receive).to.eq(undefined);
+  });
+
+  it('repoint flips the role (received → source) WITHOUT re-opening — card defined throughout, receive cleared', () => {
+    openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
+      receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
+      swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => {}},
+      statusLabel: 'Received card',
+      mandatory: true,
+      origin: {kind: 'textual'},
+    });
+    // Flip to the read-only source view: card stays defined (no undefined→defined
+    // open-choreography re-trigger); the receive bridge is dropped (no take).
+    repointConsoleCardZoom(card(CardName.BIRDS), {
+      swap: {label: 'Received card', otherName: CardName.ANTS, swap: () => {}},
+      statusLabel: 'Draw source',
+    });
+    expect(consoleCardZoom.card?.name).to.eq(CardName.BIRDS);
+    expect(consoleCardZoom.receive).to.eq(undefined); // source is read-only
+    expect(consoleCardZoom.statusLabel).to.eq('Draw source');
+    expect(consoleCardZoom.swap?.otherName).to.eq(CardName.ANTS);
+    expect(consoleCardZoom.mandatory).to.eq(true); // preserved across the swap
+    closeConsoleCardZoom();
   });
 
   it('P17: the ACTION context (play-from-hand parity) rides along and clears on close', () => {

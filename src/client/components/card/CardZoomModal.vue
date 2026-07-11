@@ -261,6 +261,19 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /*
+     * MANDATORY viewer (opt-in; default dismissable). When false the viewer
+     * cannot be dismissed by a backdrop tap or the native Esc — used by the
+     * single-card «Получены карты» reveal, where the ONLY completion is taking
+     * the card. The controller close paths are separately gated in the shell;
+     * this covers the DOM-native ones (mouse/touch backdrop, keyboard Esc) so
+     * they can't strand the reveal with the card untaken. Desktop leaves it
+     * true → byte-identical.
+     */
+    dismissable: {
+      type: Boolean,
+      default: true,
+    },
   },
   emits: ['close', 'navigate', 'update:index'],
   data() {
@@ -405,6 +418,11 @@ export default defineComponent({
       }
     },
     onBackdropClick() {
+      // A mandatory viewer (single-card reveal) can't be dismissed by a
+      // backdrop tap — the card must be taken.
+      if (!this.dismissable) {
+        return;
+      }
       this.close();
     },
     computeStartIndex(): number {
@@ -687,6 +705,13 @@ export default defineComponent({
     }
     this.typedRefs.dialog.addEventListener('close', () => {
       this.$emit('close');
+    });
+    // A mandatory viewer swallows the native Esc ('cancel' fires before
+    // 'close') so a keyboard press can't strand the single-card reveal.
+    this.typedRefs.dialog.addEventListener('cancel', (e: Event) => {
+      if (!this.dismissable) {
+        e.preventDefault();
+      }
     });
     // Re-fit on viewport resize so cards stay within bounds when the
     // player resizes the window with the modal open.
