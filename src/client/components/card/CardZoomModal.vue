@@ -163,6 +163,17 @@
       <div v-if="navEnabled" class="card-zoom-preload" aria-hidden="true">
         <CardZoomCard v-for="c in preloadCards" :key="'preload-' + c.name" :card="c" />
       </div>
+
+      <!--
+        Fullscreen rule overlay (premium faces only — the layer self-gates on
+        a `.pcard` stage). Mounted INSIDE the container so clicks on a rule
+        block ride the container's @click.stop (never a backdrop dismiss).
+        `settleNonce` is the SECOND STAGE of the fullscreen choreography: it
+        bumps only when the card has LANDED (open settled / slide finished /
+        external re-point settled), so the rule blocks always materialize
+        around a stationary card — never mid-flight.
+      -->
+      <CardAnnotationsLayer :cardName="annotationCardName" :nonce="settleNonce" />
     </div>
   </dialog>
 </template>
@@ -171,8 +182,11 @@
 import {defineComponent} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
-import {ZoomCard} from './cardZoomTypes';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {CardName} from '@/common/cards/CardName';
+import {ZoomCard, isBonusZoom} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
+import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
 import dialogPolyfill from 'dialog-polyfill';
 
 // The measured card element differs by entry kind: a premium face is `.pcard`,
@@ -209,6 +223,7 @@ export default defineComponent({
   name: 'CardZoomModal',
   components: {
     CardZoomCard,
+    CardAnnotationsLayer,
   },
   props: {
     card: {
@@ -291,6 +306,10 @@ export default defineComponent({
       slideAnim: undefined as Animation | undefined,
       // Names of the cards rendered off-screen for preload (neighbours).
       preloadNames: [] as ReadonlyArray<string>,
+      // The annotation layer's SETTLE signal — bumped (debounced) when the
+      // fullscreen card has landed; 0 while closed. See scheduleSettle().
+      settleNonce: 0,
+      settleTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -334,6 +353,10 @@ export default defineComponent({
       }
       return out;
     },
+    /** The rule-overlay card: project cards only (a bonus entry has no rules model). */
+    annotationCardName(): CardName | undefined {
+      return isBonusZoom(this.activeCard) ? undefined : this.activeCard.name as CardName;
+    },
   },
   watch: {
     /*
@@ -374,6 +397,16 @@ export default defineComponent({
         });
       }
     },
+    /*
+     * The card on stage changed for ANY reason — internal navigation, a
+     * consume swap, or an EXTERNAL re-point (the console reveal's L3 swap
+     * re-points the `card` prop on the open viewer). Re-arm the annotation
+     * settle with a beat generous enough for the swap-in choreography; the
+     * debounce collapses this with the slide-finish bump into ONE reveal.
+     */
+    'activeCard.name'() {
+      this.scheduleSettle(prefersReducedMotion() ? 80 : motionMs(360));
+    },
   },
   methods: {
     show() {
@@ -399,6 +432,11 @@ export default defineComponent({
       // card's content has flowed before we read offsetHeight.
       this.$nextTick(() => this.fitCardToViewport());
       this.schedulePreloadWarm();
+      // Stage 2 of the fullscreen choreography: the rule overlay reveals
+      // after the card has landed. The console FLIP open (consoleZoomMotion,
+      // motionMs(380)) needs the longer beat; the layer's own stage-stability
+      // poll then guards the exact hand-off frame.
+      this.scheduleSettle(prefersReducedMotion() ? 80 : (this.consoleMotion ? motionMs(380) + 160 : motionMs(220)));
     },
     // Warm the neighbour preloads AFTER the open frame has painted, so the
     // initial fullscreen open only renders the one visible card. Self-guards
@@ -501,6 +539,27 @@ export default defineComponent({
       this.clearAnimTimer();
     },
     /*
+     * Debounced settle for the rule overlay: every transition path schedules
+     * its own beat and the LAST schedule wins, so open + navigation + an
+     * external re-point can never stack into a double reveal. The callback
+     * self-gates on the dialog still being open.
+     */
+    scheduleSettle(delayMs: number) {
+      this.cancelSettle();
+      this.settleTimer = window.setTimeout(() => {
+        this.settleTimer = undefined;
+        if (this.typedRefs.dialog?.open === true) {
+          this.settleNonce++;
+        }
+      }, delayMs);
+    },
+    cancelSettle() {
+      if (this.settleTimer !== undefined) {
+        window.clearTimeout(this.settleTimer);
+        this.settleTimer = undefined;
+      }
+    },
+    /*
      * The directional slide of the PERSISTENT card, driven by the Web
      * Animations API — a compositor-only transform + opacity tween on the ONE
      * card element. It never forces layout and never needs a second (leaving)
@@ -513,6 +572,7 @@ export default defineComponent({
       if (host === undefined || host === null || typeof host.animate !== 'function') {
         this.releaseAnimGuard();
         this.refreshPreload();
+        this.scheduleSettle(0);
         return;
       }
       // consoleMotion interrupt: a rapid re-step cancels the in-flight slide
@@ -553,6 +613,10 @@ export default defineComponent({
         this.releaseAnimGuard();
         // Warm the next neighbours' art + prime the fit cache while idle.
         this.refreshPreload();
+        // The landed card is stationary — reveal its rule overlay. (A
+        // cancelled slide never finishes, so rapid browsing defers the
+        // reveal to the card the player actually lands on.)
+        this.scheduleSettle(60);
       };
     },
     refreshPreload() {
@@ -705,6 +769,10 @@ export default defineComponent({
       dialogPolyfill.registerDialog(this.typedRefs.dialog);
     }
     this.typedRefs.dialog.addEventListener('close', () => {
+      // Rule overlay off: nonce 0 clears the blocks + the target marks so a
+      // reopen (the modal instance can persist across opens) starts clean.
+      this.cancelSettle();
+      this.settleNonce = 0;
       this.$emit('close');
     });
     // A mandatory viewer swallows the native Esc ('cancel' fires before
@@ -724,6 +792,7 @@ export default defineComponent({
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onKeydown);
     this.clearAnimTimer();
+    this.cancelSettle();
   },
 });
 </script>

@@ -1,0 +1,292 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ *  CARD ANNOTATIONS — the fullscreen rule overlay (CardAnnotationsLayer)
+ *
+ *  Floating sci-fi rule blocks in the gutters around the fullscreen card,
+ *  tethered by thin gold traces to the graphic elements they explain.
+ *  Palette matches the premium card face's gold family (premium_card.less:
+ *  --pcard-gold #d9b878 / hi #f2d795 / deep #8a6a35) — the annotation layer
+ *  belongs to the CARD's world, not the viewer's cyan chrome.
+ *
+ *  Reveal choreography is GSAP-driven (autoAlpha / x / stroke-dash — inline
+ *  styles); the stylesheet only carries the RESTING hidden state, the focus
+ *  transitions and the one-shot target-highlight materialization. All CSS
+ *  durations ride var(--motion-scale) per the unified motion system.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+@caanno-gold: #d9b878;
+@caanno-gold-hi: #f2d795;
+@caanno-amber: #ffbe72;
+
+.card-annotations {
+    position: fixed;
+    inset: 0;
+    /* The layer itself is transparent to the pointer — only the rule blocks
+       are interactive. Clicks between blocks fall through to the backdrop. */
+    pointer-events: none;
+    z-index: 5; /* above the stage, below the nav topbar (6) */
+}
+
+/* Measuring pass + the pre-choreography frame: fully invisible (layout kept
+   so block heights can be read). GSAP then owns visibility via inline
+   autoAlpha. */
+.card-annotations--measuring {
+    visibility: hidden;
+}
+
+/* ── tether lines ──────────────────────────────────────────────────── */
+
+.card-annotations__lines {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.cal-line {
+    filter: drop-shadow(0 0 3px rgba(217, 184, 120, 0.30));
+
+    path {
+        fill: none;
+        stroke: fade(@caanno-gold, 46%);
+        stroke-width: 1;
+        stroke-linejoin: round;
+        stroke-linecap: round;
+        transition:
+            stroke calc(160ms * var(--motion-scale, 1)) ease,
+            stroke-width calc(160ms * var(--motion-scale, 1)) ease;
+    }
+
+    .cal-line__node {
+        fill: fade(@caanno-gold-hi, 85%);
+        transition: fill calc(160ms * var(--motion-scale, 1)) ease;
+    }
+}
+
+.cal-line--special {
+    filter: drop-shadow(0 0 4px rgba(255, 190, 114, 0.35));
+
+    path {
+        stroke: fade(@caanno-amber, 55%);
+    }
+
+    .cal-line__node {
+        fill: fade(@caanno-amber, 92%);
+    }
+}
+
+.cal-line--focus {
+    path {
+        stroke: fade(@caanno-gold-hi, 85%);
+        stroke-width: 1.5;
+    }
+
+    .cal-line__node {
+        fill: @caanno-gold-hi;
+    }
+}
+
+.cal-line--special.cal-line--focus path {
+    stroke: fade(@caanno-amber, 90%);
+}
+
+/* ── the floating rule block ───────────────────────────────────────── */
+
+.caanno {
+    position: fixed;
+    box-sizing: border-box;
+    pointer-events: auto;
+    padding: 9px 12px 10px;
+    border-radius: 3px;
+    border: 1px solid fade(@caanno-gold, 20%);
+    background: linear-gradient(168deg, rgba(15, 21, 30, 0.78) 0%, rgba(9, 13, 20, 0.72) 100%);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(242, 215, 149, 0.07);
+    /* Resting state is HIDDEN — the GSAP reveal owns visibility (inline
+       autoAlpha), so a block can never flash before its tween starts. */
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        border-color calc(160ms * var(--motion-scale, 1)) ease,
+        box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+}
+
+/* A 2px accent seam on the side FACING the card — where the tether leaves. */
+.caanno::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, fade(@caanno-gold, 55%) 30%, fade(@caanno-gold, 55%) 70%, transparent);
+    pointer-events: none;
+}
+.caanno--left::before { right: -1px; }
+.caanno--right::before { left: -1px; }
+
+/* HUD L-corner ticks (house style) */
+.caanno__tick {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    pointer-events: none;
+}
+.caanno__tick--tl {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid fade(@caanno-gold-hi, 55%);
+    border-left: 1px solid fade(@caanno-gold-hi, 55%);
+}
+.caanno__tick--br {
+    right: -1px;
+    bottom: -1px;
+    border-right: 1px solid fade(@caanno-gold-hi, 55%);
+    border-bottom: 1px solid fade(@caanno-gold-hi, 55%);
+}
+
+.caanno__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+}
+
+.caanno__label {
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: fade(@caanno-gold, 85%);
+    text-shadow: 0 0 8px rgba(217, 184, 120, 0.25);
+}
+
+/* The styled «*» — the physical cards' special-rule footnote as a small
+   4-point spark emblem (CSS-drawn, never a bare text asterisk). */
+.caanno__star {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    background: radial-gradient(circle at 50% 42%, @caanno-gold-hi 0%, @caanno-amber 55%, fade(@caanno-amber, 0%) 100%);
+    clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+    filter: drop-shadow(0 0 4px rgba(255, 190, 114, 0.65));
+}
+
+.caanno__text {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: rgba(224, 233, 242, 0.92);
+}
+
+/* special rule block: amber accent takes over the chrome */
+.caanno--special {
+    border-color: fade(@caanno-amber, 32%);
+
+    .caanno__label {
+        color: fade(@caanno-amber, 90%);
+        text-shadow: 0 0 8px rgba(255, 190, 114, 0.3);
+    }
+    &::before {
+        background: linear-gradient(180deg, transparent, fade(@caanno-amber, 60%) 30%, fade(@caanno-amber, 60%) 70%, transparent);
+    }
+}
+
+/* hover / focus interplay: the block brightens together with its target */
+.caanno--focus {
+    border-color: fade(@caanno-gold-hi, 55%);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.45),
+        0 0 16px rgba(217, 184, 120, 0.22),
+        inset 0 1px 0 rgba(242, 215, 149, 0.12);
+}
+.caanno--special.caanno--focus {
+    border-color: fade(@caanno-amber, 60%);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.45),
+        0 0 16px rgba(255, 190, 114, 0.26),
+        inset 0 1px 0 rgba(255, 218, 166, 0.12);
+}
+
+/* dense cards: quieter typography, tighter padding — never a side panel */
+.card-annotations--compact .caanno {
+    padding: 7px 10px 8px;
+
+    .caanno__head {
+        margin-bottom: 4px;
+    }
+    .caanno__label {
+        font-size: 8.5px;
+    }
+    .caanno__text {
+        font-size: 11.5px;
+        line-height: 1.38;
+    }
+}
+
+/* ── target highlight ON the card ──────────────────────────────────────
+ *  Applied by the layer to the anchored element (`.pcard-mech-group`,
+ *  `.pcard__reqs`, `.pcard__vp`). A soft halo, never a hard frame; the
+ *  materialization is a one-shot glow sweep timed by the GSAP call(). */
+
+.caanno-target {
+    box-shadow:
+        0 0 0 1px rgba(217, 184, 120, 0.34),
+        0 0 10px rgba(217, 184, 120, 0.16);
+    /* `backwards` (never `both`): after the one-shot sweep the CASCADE must
+       own box-shadow again, or the animation's end frame would pin the base
+       halo over the stronger --special / --focus states forever. */
+    animation: caanno-target-in calc(460ms * var(--motion-scale, 1)) ease-out backwards;
+    transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+}
+
+/* The mechanics rows are square-cornered — soften the halo there; the reqs
+   band / VP badge keep their OWN silhouette (never restyle their radius). */
+.pcard-mech-group.caanno-target {
+    border-radius: 4px;
+}
+
+.caanno-target--special {
+    box-shadow:
+        0 0 0 1px rgba(255, 190, 114, 0.48),
+        0 0 14px rgba(255, 183, 90, 0.24);
+}
+
+.caanno-target--focus {
+    box-shadow:
+        0 0 0 1.5px rgba(242, 215, 149, 0.65),
+        0 0 18px rgba(217, 184, 120, 0.32);
+}
+
+@keyframes caanno-target-in {
+    0% {
+        box-shadow:
+            0 0 0 1px rgba(242, 215, 149, 0),
+            0 0 0 rgba(242, 215, 149, 0);
+    }
+    45% {
+        box-shadow:
+            0 0 0 1.5px rgba(242, 215, 149, 0.7),
+            0 0 22px rgba(242, 215, 149, 0.4);
+    }
+    100% {
+        box-shadow:
+            0 0 0 1px rgba(217, 184, 120, 0.34),
+            0 0 10px rgba(217, 184, 120, 0.16);
+    }
+}
+
+/* ── reduced motion: static presentation, no sweeps ───────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .caanno,
+    .cal-line path,
+    .cal-line .cal-line__node,
+    .caanno-target {
+        transition: none;
+        animation: none;
+    }
+}

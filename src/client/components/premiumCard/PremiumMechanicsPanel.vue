@@ -5,8 +5,12 @@
       <div v-if="group.orJoin" class="pcard-mech-or">
         <span>{{ orLabel }}</span>
       </div>
+      <!-- data-graphic-id: the SHARED content-derived row address
+           (cardGraphicIds.ts) — the fullscreen annotation layer anchors its
+           rule blocks to these (undefined → attribute omitted, no anchor). -->
       <div class="pcard-mech-group"
-           :class="['pcard-mech-group--' + group.kind, {'pcard-mech-group--after-or': group.orJoin}]">
+           :class="['pcard-mech-group--' + group.kind, {'pcard-mech-group--after-or': group.orJoin}]"
+           :data-graphic-id="group.graphicId">
         <PremiumMechNode v-for="(node, ni) in group.nodes" :key="ni" :node="node" />
       </div>
     </template>
