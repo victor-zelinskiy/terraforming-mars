@@ -746,7 +746,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import LeftPlayerPanel from '@/client/components/overview/LeftPlayerPanel.vue';
 import InitialDraftStatusRail from '@/client/components/initialDraft/InitialDraftStatusRail.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';

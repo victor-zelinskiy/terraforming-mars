@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- PREMIUM VP BADGE — engraved gold plate (victory points), value overlaid in DOM. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6df9f"/>
+      <stop offset="0.5" stop-color="#d4ae60"/>
+      <stop offset="1" stop-color="#8f6c33"/>
+    </linearGradient>
+    <linearGradient id="bevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff3cd" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#4d3814" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#241a0a"/>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="url(#g)" stroke="#5c4319" stroke-width="1"/>
+  <rect x="7.5" y="7.5" width="49" height="49" rx="9" fill="none" stroke="url(#bevel)" stroke-width="1.5"/>
+  <rect x="10.5" y="10.5" width="43" height="43" rx="7" fill="none" stroke="#6d5124" stroke-width="0.9" opacity="0.9"/>
+  <path d="M8 18 Q 32 26 56 18 L 56 12 Q 32 4 8 12 Z" fill="#ffffff" opacity="0.12"/>
+</svg>

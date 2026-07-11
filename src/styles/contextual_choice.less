@@ -212,7 +212,7 @@
     transition: filter 0.15s ease, transform 0.15s ease;
     /* Zero the legacy asymmetric card margin + scale to a prominent (not tiny)
        source artifact. autoTall lets a corp card grow; the scroll area absorbs it. */
-    > .card-container { margin: 0; zoom: var(--cc-card-zoom); }
+    > :is(.card-container, .pcard) { margin: 0; zoom: var(--cc-card-zoom); }
     &:hover { filter: brightness(1.06); transform: translateY(-1px); }
     &:focus-visible { outline: 2px solid var(--cc-accent-bright); outline-offset: 3px; }
 }

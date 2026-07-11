@@ -330,7 +330,7 @@
          frame so it survives prompt swaps and glides across them.
          Self-resolving: finds the focused card inside this host itself. -->
     <ConsoleCardFocusFrame :active="!deal.state.active && !trayPickBeat"
-                           selector=".con-cards__slot--focused > .card-container" />
+                           selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
                           :cards="deal.state.cards" :nonce="deal.state.nonce" />
@@ -365,7 +365,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -1041,7 +1041,7 @@ export default defineComponent({
       }
       // The pick-beat holds the source .card-container via classList (the
       // deal's own holds live on the SLOT via a Vue :class — untouched).
-      for (const el of Array.from(strip.querySelectorAll<HTMLElement>('.card-container.con-deal-hold'))) {
+      for (const el of Array.from(strip.querySelectorAll<HTMLElement>(':is(.card-container, .pcard).con-deal-hold'))) {
         el.classList.remove('con-deal-hold');
       }
     },
@@ -1175,7 +1175,7 @@ export default defineComponent({
         }
         return;
       }
-      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
+      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl(), rise: this.riseExtras()});
     },
     /**
@@ -1197,7 +1197,7 @@ export default defineComponent({
       for (let i = 0; i < cards.length; i++) {
         const name = cards[i];
         const slot = resolveTraySlot(name);
-        const card = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+        const card = slot !== null ? (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot) : null;
         const r = card !== null ? card.getBoundingClientRect() : undefined;
         if (r === undefined || r.width < 10 || r.height < 10) {
           finishRiseScene(); // no believable tray — the deck deal carries it

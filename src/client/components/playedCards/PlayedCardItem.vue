@@ -44,7 +44,7 @@ import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 
 /**
  * One played card on the board. Renders the shared `<Card>` (scaled by the

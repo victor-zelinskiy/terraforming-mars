@@ -8,6 +8,8 @@
     <ActionsPlayground v-if="showActionsPlayground" />
     <!-- Dev-only player-cube visual playground (URL: ?cubePlayground). -->
     <PlayerCubePlayground v-if="showCubePlayground" />
+    <!-- Dev-only premium-card-face showcase (URL: ?premiumCardsPlayground). -->
+    <PremiumCardsPlayground v-if="showPremiumCardsPlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -390,6 +392,7 @@ const ModalInputPlayground = defineAsyncComponent(() => import(/* webpackChunkNa
 const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "effects-playground" */ '@/client/components/effects/EffectsPlayground.vue'));
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
+const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
@@ -550,6 +553,7 @@ export default defineComponent({
     EffectsPlayground,
     ActionsPlayground,
     PlayerCubePlayground,
+    PremiumCardsPlayground,
     JournalPanel,
     NotificationLayer,
     GamepadLayer,
@@ -651,6 +655,11 @@ export default defineComponent({
     // `?cubePlayground`. Never shown in normal play.
     showCubePlayground(): boolean {
       return window.location.search.includes('cubePlayground');
+    },
+    // Dev-only: render the premium-card-face showcase when the URL carries
+    // `?premiumCardsPlayground`. Never shown in normal play.
+    showPremiumCardsPlayground(): boolean {
+      return window.location.search.includes('premiumCardsPlayground');
     },
     // The active view (player or spectator) ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.

@@ -176,7 +176,7 @@
     transition: transform 160ms ease, filter 160ms ease;
 
     // Centre the card under its slot (the legacy .card-container right margin).
-    > .card-container {
+    > :is(.card-container, .pcard) {
         margin: 0;
         zoom: 0.62;
     }
@@ -244,7 +244,7 @@
     .reveal-viewer {
         padding: 12px;
     }
-    .reveal-viewer__slot > .card-container {
+    .reveal-viewer__slot > :is(.card-container, .pcard) {
         zoom: 0.5;
     }
 }

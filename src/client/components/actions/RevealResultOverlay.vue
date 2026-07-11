@@ -92,7 +92,7 @@ import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {ActionGroup, playerActionGroups, actionNodeDescription} from '@/client/components/actions/actionExtraction';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CompactActionCard from '@/client/components/actions/CompactActionCard.vue';
 import ActionRevealSlot from '@/client/components/actions/ActionRevealSlot.vue';
 

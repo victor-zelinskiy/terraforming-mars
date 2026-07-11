@@ -157,7 +157,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import {additionalResourceGroup, AdditionalResourceGroup, AdditionalResourceCardEntry, resourceScoring, accumulatedVp as calcAccumulatedVp} from '@/client/components/additionalResources/additionalResources';

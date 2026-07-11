@@ -236,7 +236,7 @@ function classify(el: HTMLElement): {kind: FocusKind, variant: RingVariant} {
     const placing = document.body.classList.contains('placement-pending');
     return {kind: 'board-cell', variant: placing ? 'illegal' : 'default'};
   }
-  if (el.closest(CARD_HOST_SELECTOR) !== null || el.querySelector('.card-container') !== null) {
+  if (el.closest(CARD_HOST_SELECTOR) !== null || el.querySelector(':is(.card-container, .pcard)') !== null) {
     return {kind: 'card', variant: 'card'};
   }
   return {kind: 'action', variant: 'default'};
@@ -486,8 +486,8 @@ function inspectCard(): void {
     return;
   }
   const host = focusedEl.closest<HTMLElement>(CARD_HOST_SELECTOR) ?? focusedEl;
-  const card = host.querySelector<HTMLElement>('.card-container') ??
-    (host.classList.contains('card-container') ? host : null);
+  const card = host.querySelector<HTMLElement>(':is(.card-container, .pcard)') ??
+    ((host.classList.contains('card-container') || host.classList.contains('pcard')) ? host : null);
   if (card !== null) {
     card.click();
     scheduleSync();

@@ -292,9 +292,9 @@
          keyed frame so it survives step swaps and glides across them.
          Self-resolving: finds the focused card inside this scene itself. -->
     <ConsoleCardFocusFrame :active="!deal.state.active"
-                           selector=".con-cards__slot--focused > .card-container,
-                                     .con-start__corp--focused > .card-container,
-                                     .con-start__prelude--focused > .card-container" />
+                           selector=".con-cards__slot--focused > :is(.card-container, .pcard),
+                                     .con-start__corp--focused > :is(.card-container, .pcard),
+                                     .con-start__prelude--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
          only while a deal runs — will-change is scoped by construction. -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
@@ -335,7 +335,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -796,7 +796,7 @@ export default defineComponent({
         this.deal.dispose();
         return;
       }
-      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > .card-container'));
+      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
     },
     onNav(dir: NavDirection): void {

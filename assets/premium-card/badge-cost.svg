@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- PREMIUM COST BADGE — faceted gold octagon (M€), number overlaid in DOM. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8e2a4"/>
+      <stop offset="0.45" stop-color="#d9b365"/>
+      <stop offset="0.8" stop-color="#a67f3e"/>
+      <stop offset="1" stop-color="#8a6730"/>
+    </linearGradient>
+    <linearGradient id="bevel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff3cd" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff3cd" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#4d3814" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <!-- dark outline plate -->
+  <path d="M20 1.5 h24 L62.5 20 v24 L44 62.5 h-24 L1.5 44 v-24 Z" fill="#241a0a"/>
+  <!-- gold body -->
+  <path d="M20.8 3.5 h22.4 L60.5 20.8 v22.4 L43.2 60.5 h-22.4 L3.5 43.2 v-22.4 Z" fill="url(#g)" stroke="#5c4319" stroke-width="1"/>
+  <!-- bevel rim -->
+  <path d="M22 6.5 h20 L57.5 22 v20 L42 57.5 h-20 L6.5 42 v-22 Z" fill="none" stroke="url(#bevel)" stroke-width="1.6"/>
+  <!-- facet lines -->
+  <path d="M20.8 3.5 L22 6.5 M43.2 3.5 L42 6.5 M60.5 20.8 L57.5 22 M60.5 43.2 L57.5 42 M43.2 60.5 L42 57.5 M20.8 60.5 L22 57.5 M3.5 43.2 L6.5 42 M3.5 20.8 L6.5 22" stroke="#7a5c28" stroke-width="0.8" opacity="0.8"/>
+  <!-- top sheen -->
+  <path d="M8 20.5 L21.5 7 h21 L56 20.5 Q 32 27 8 20.5 Z" fill="#ffffff" opacity="0.14"/>
+</svg>

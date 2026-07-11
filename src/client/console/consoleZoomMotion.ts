@@ -81,7 +81,7 @@ function sourceCardEl(origin: ZoomOrigin, index: number): HTMLElement | null {
   if (slot === null) {
     return null;
   }
-  return slot.querySelector<HTMLElement>('.card-container') ?? slot;
+  return slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot;
 }
 
 function stageEl(dialog: HTMLElement): HTMLElement | null {
@@ -287,7 +287,7 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
       }
       tries++;
       const slot = resolveTarget();
-      const cardEl = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+      const cardEl = slot !== null ? (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot) : null;
       const rect = usableRect(cardEl);
       const sig = rect !== undefined ? `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)}` : '';
       if (rect === undefined || sig !== lastSig) {

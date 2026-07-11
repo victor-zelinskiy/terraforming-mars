@@ -646,7 +646,7 @@
     /* auto-FIT (not auto-fill): empty tracks collapse, so a small hand stays
        a centred cluster (via justify-content) instead of hugging the left,
        while a full hand spreads across the whole width. */
-    grid-template-columns: repeat(auto-fit, calc(300px * var(--hand-card-zoom)));
+    grid-template-columns: repeat(auto-fit, calc(320px * var(--hand-card-zoom)));
     justify-content: center;
     gap: 24px 22px;
     align-content: start;
@@ -687,7 +687,7 @@
 
     /* Zero the legacy asymmetric 30px right margin so the card silhouette
        centers under the action button (see CLAUDE.md "Centering UI"). */
-    > .card-container {
+    > :is(.card-container, .pcard) {
         zoom: var(--hand-card-zoom);
         margin: 0;
     }
@@ -715,7 +715,7 @@
 
 .hand-card-item__action {
     position: relative;
-    width: calc(300px * var(--hand-card-zoom));
+    width: calc(320px * var(--hand-card-zoom));
     display: flex;
     justify-content: center;
 }
@@ -1312,7 +1312,7 @@
 }
 .hand-play-modal__body {
     /* Center the reused payment widget's card; zero its legacy margin. */
-    .card-container { margin: 0 auto; }
+    :is(.card-container, .pcard) { margin: 0 auto; }
     .payments_cards { display: flex; justify-content: center; }
 }
 

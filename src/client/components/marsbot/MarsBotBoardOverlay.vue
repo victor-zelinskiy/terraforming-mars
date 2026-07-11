@@ -126,7 +126,7 @@ import {DIFFICULTY_LABEL} from './marsBotView';
 import {GuideSection, MarsBotGuideContext, marsBotGuide} from './marsBotGuide';
 import MarsBotTracks from './MarsBotTracks.vue';
 import BonusCardFace from './BonusCardFace.vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'MarsBotBoardOverlay',

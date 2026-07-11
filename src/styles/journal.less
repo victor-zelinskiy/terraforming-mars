@@ -1171,7 +1171,7 @@
 }
 /* Neutralise the legacy asymmetric card margin so the preview box hugs
    the card silhouette (see CLAUDE "Centering UI under a <Card>"). */
-.journal-card-preview .card-container { margin: 0; }
+.journal-card-preview :is(.card-container, .pcard) { margin: 0; }
 
 /* ── Colony hover preview (a read-only ColonyTile mini-card) ───────────── */
 .journal-colony-preview {

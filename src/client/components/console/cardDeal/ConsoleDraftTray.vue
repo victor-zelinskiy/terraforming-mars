@@ -54,7 +54,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';

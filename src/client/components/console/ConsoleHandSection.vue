@@ -129,7 +129,7 @@
          navigation (shared with the start scene / draft / reveal). Self-
          resolving: tracks the cursored card inside this section itself,
          following grid scroll and the focus scale transition live. -->
-    <ConsoleCardFocusFrame selector=".con-hand__slot--selected > .card-container" />
+    <ConsoleCardFocusFrame selector=".con-hand__slot--selected > :is(.card-container, .pcard)" />
   </div>
 </template>
 
@@ -153,7 +153,7 @@
  * reasons (unit-suffixed "Сейчас: …"). Button hints live ONLY in the footer.
  */
 import {defineComponent, PropType, markRaw} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';

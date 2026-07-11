@@ -584,7 +584,7 @@ import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {playZoomOpen, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';

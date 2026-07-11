@@ -486,7 +486,7 @@
         transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
 
         &:first-child { margin-left: 0; }
-        > .card-container { margin: 0; zoom: 0.32; }
+        > :is(.card-container, .pcard) { margin: 0; zoom: 0.32; }
     }
     /* Big piles (initial draft iterations) overlap tighter — bounded width. */
     &__stack--dense {
@@ -3036,14 +3036,14 @@ html.console-mode {
             transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
             filter calc(150ms * var(--motion-scale, 1)) ease;
         /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
-        > .card-container { margin: 0; border-radius: 8px; }
+        > :is(.card-container, .pcard) { margin: 0; border-radius: 8px; }
 
         /* PLAYABLE: a clean mint hairline so it reads as actionable. */
-        &--playable > .card-container {
+        &--playable > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 1px fade(@con-mint, 26%);
         }
         /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card. */
-        &--unplayable > .card-container {
+        &--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.42) brightness(0.78);
         }
         /* SELECTED: the focus pop — a cheap ring + glow + slight scale (the
@@ -3052,29 +3052,29 @@ html.console-mode {
             transform: scale(1.035);
             z-index: 3;
         }
-        &--selected > .card-container {
+        &--selected > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 3px fade(@con-cyan, 80%), 0 0 18px fade(@con-cyan, 34%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
         }
-        &--selected&--playable > .card-container {
+        &--selected&--playable > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 3px fade(@con-mint, 84%), 0 0 20px fade(@con-mint, 40%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
         }
-        &--selected&--unplayable > .card-container {
+        &--selected&--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.16) brightness(0.94);
             box-shadow: 0 0 0 3px fade(@con-red, 72%), 0 0 18px fade(@con-red, 30%), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
         }
         /* SALE mode: picked cards get the amber sale frame + state band. */
-        &--sale-picked > .card-container {
+        &--sale-picked > :is(.card-container, .pcard) {
             filter: none;
             box-shadow: 0 0 0 3px fade(@con-amber, 82%), 0 0 20px fade(@con-amber, 36%);
         }
         /* SELECT mode (discard / reveal / place): a picked card gets the cyan
            select frame + ✓ band; a non-candidate is dimmed (its «why not»
            reason rides the compact chip + the info panel). */
-        &--select-picked > .card-container {
+        &--select-picked > :is(.card-container, .pcard) {
             filter: none;
             box-shadow: 0 0 0 3px fade(@con-cyan, 84%), 0 0 20px fade(@con-cyan, 40%);
         }
-        &--select-disabled > .card-container {
+        &--select-disabled > :is(.card-container, .pcard) {
             filter: grayscale(0.5) brightness(0.64);
         }
         .con-cards__pickband { zoom: 1.15; }
@@ -5919,7 +5919,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__excard {
         position: relative;
         zoom: 0.78;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
     }
     &__excard-count {
         position: absolute;
@@ -7331,7 +7331,7 @@ html.console-mode {
     &__source {
         flex-shrink: 0;
         zoom: 0.9;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
     }
     &__source-label {
         font-size: 15px;
@@ -8204,11 +8204,11 @@ html.con-scale-focus-venus .arc-scale--venus {
            parity) - stronger than the neighbour calm, still readable, and
            the focused one lifts back to near-full presence so the player
            can inspect / re-pick without squinting. */
-        &--has-focus > .con-cards__slot--dim:not(.con-cards__slot--focused) > .card-container {
+        &--has-focus > .con-cards__slot--dim:not(.con-cards__slot--focused) > :is(.card-container, .pcard) {
             opacity: 0.45;
             filter: saturate(0.45) brightness(0.8);
         }
-        &--has-focus > .con-cards__slot--dim.con-cards__slot--focused > .card-container {
+        &--has-focus > .con-cards__slot--dim.con-cards__slot--focused > :is(.card-container, .pcard) {
             opacity: 0.9;
             filter: saturate(0.8);
         }
@@ -8220,7 +8220,7 @@ html.con-scale-focus-venus .arc-scale--venus {
         transition: transform calc(160ms * var(--motion-scale, 1)) ease,
             box-shadow calc(160ms * var(--motion-scale, 1)) ease,
             opacity calc(160ms * var(--motion-scale, 1)) ease;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
 
         /* P13/P15 in-place emphasis: the focused card grows and comes
            forward. P15 tuned the maths clip-safe: a natural-size card at
@@ -8238,7 +8238,7 @@ html.con-scale-focus-venus .arc-scale--venus {
         &--focused&--picked {
             box-shadow: 0 0 0 2px fade(@con-mint, 90%), 0 0 0 4px fade(@con-cyan, 55%), 0 0 30px fade(@con-mint, 28%);
         }
-        &--disabled > .card-container {
+        &--disabled > :is(.card-container, .pcard) {
             opacity: 0.55;
             filter: grayscale(0.5) brightness(0.85);
         }
@@ -8911,7 +8911,7 @@ html.console-mode {
     &__mini {
         flex-shrink: 0;
         zoom: 0.62;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
         &--id { zoom: 0.7; }
@@ -9007,7 +9007,7 @@ html.console-mode {
         border-radius: 14px;
         zoom: 0.92;
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
 
         &--ready {
             box-shadow: inset 0 0 0 1px fade(@con-cyan, 35%);
@@ -9018,11 +9018,11 @@ html.console-mode {
         /* P18: state badges anchor to the card top; the body dims while
            the badge stays bright. */
         .con-cards__pickband { top: -2px; }
-        &--done > .card-container {
+        &--done > :is(.card-container, .pcard) {
             opacity: 0.75;
             filter: saturate(0.8);
         }
-        &--pending > .card-container {
+        &--pending > :is(.card-container, .pcard) {
             opacity: 0.55;
             filter: saturate(0.6) brightness(0.85);
         }
@@ -9047,14 +9047,14 @@ html.console-mode {
         border-radius: 12px;
         zoom: 0.86;
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, transform calc(160ms * var(--motion-scale, 1)) ease;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
 
         &--played {
             box-shadow: 0 0 0 2px rgba(150, 180, 208, 0.45);
 
             /* P18: the BODY dims (clearly not an active option); the
                «Разыграна» band above stays bright. */
-            > .card-container {
+            > :is(.card-container, .pcard) {
                 opacity: 0.6;
                 filter: saturate(0.55) brightness(0.82);
             }
@@ -9062,7 +9062,7 @@ html.console-mode {
         &--playable {
             box-shadow: 0 0 0 2px fade(@con-cyan, 45%), 0 0 18px fade(@con-cyan, 12%);
         }
-        &--awaiting > .card-container {
+        &--awaiting > :is(.card-container, .pcard) {
             opacity: 0.6;
             filter: saturate(0.6) brightness(0.85);
         }
@@ -9304,7 +9304,7 @@ html.console-mode {
         align-items: center;
         gap: 8px;
         zoom: 0.92;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
     }
     &__source-colony {
         zoom: 0.78;
@@ -9371,7 +9371,7 @@ html.console-mode {
         border-radius: 12px;
         padding: 8px;
         zoom: 1.08;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
 
         &--met { box-shadow: 0 0 0 2px fade(@con-mint, 75%), 0 0 26px fade(@con-mint, 20%); }
         &--miss { box-shadow: 0 0 0 2px fade(@con-red, 65%), 0 0 22px fade(@con-red, 16%); }
@@ -9416,7 +9416,7 @@ html.console-mode {
     &__cardside {
         flex-shrink: 0;
         zoom: 1.02;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
     }
     &__body { gap: 10px; }
     &__vp {
@@ -11163,7 +11163,7 @@ html.console-mode {
     }
     &__playcard {
         flex-shrink: 0; align-self: flex-start; zoom: 1.0;
-        > .card-container { margin: 0; }
+        > :is(.card-container, .pcard) { margin: 0; }
     }
     &__playright {
         flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0;

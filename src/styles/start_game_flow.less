@@ -439,7 +439,7 @@
     cursor: pointer;
     transition: box-shadow 200ms ease, filter 200ms ease, transform 180ms ease;
 
-    > .card-container {
+    > :is(.card-container, .pcard) {
         margin: 0;
         zoom: var(--sgf-prelude-zoom, 0.68);
         position: relative;
@@ -504,7 +504,7 @@
         0 0 26px rgba(106, 176, 230, 0.16),
         0 10px 26px rgba(0, 0, 0, 0.45);
 
-    > .card-container { zoom: var(--sgf-corp-zoom, 0.76); }
+    > :is(.card-container, .pcard) { zoom: var(--sgf-corp-zoom, 0.76); }
 }
 /* Effect ready to apply → brighter cyan attention glow (draws the eye to the
    apply button beneath). */
@@ -1164,11 +1164,11 @@
         letter-spacing: 2px;
     }
 
-    .start-game-flow__card-thumb > .card-container {
+    .start-game-flow__card-thumb > :is(.card-container, .pcard) {
         zoom: min(var(--sgf-prelude-zoom, 0.68), 0.58);
     }
 
-    .start-game-flow__corp-item .start-game-flow__card-thumb > .card-container {
+    .start-game-flow__corp-item .start-game-flow__card-thumb > :is(.card-container, .pcard) {
         zoom: min(var(--sgf-corp-zoom, 0.76), 0.64);
     }
 
@@ -1260,11 +1260,11 @@
         margin-bottom: 4px;
     }
 
-    .start-game-flow__card-thumb > .card-container {
+    .start-game-flow__card-thumb > :is(.card-container, .pcard) {
         zoom: min(var(--sgf-prelude-zoom, 0.68), 0.46);
     }
 
-    .start-game-flow__corp-item .start-game-flow__card-thumb > .card-container {
+    .start-game-flow__corp-item .start-game-flow__card-thumb > :is(.card-container, .pcard) {
         zoom: min(var(--sgf-corp-zoom, 0.76), 0.52);
     }
 

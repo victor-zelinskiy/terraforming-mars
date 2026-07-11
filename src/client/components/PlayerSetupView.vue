@@ -113,7 +113,7 @@
 import {defineComponent} from 'vue';
 
 import Board from '@/client/components/Board.vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import DynamicTitle from '@/client/components/common/DynamicTitle.vue';
 import WaitingFor from '@/client/components/WaitingFor.vue';
 import Turmoil from '@/client/components/turmoil/Turmoil.vue';

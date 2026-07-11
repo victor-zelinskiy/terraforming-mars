@@ -207,7 +207,7 @@ body.draw-reveal-open {
 
     /* Zero the legacy 30px right margin so the card centers in its slot
        (CLAUDE.md "Centering UI under a Card"). */
-    > .card-container {
+    > :is(.card-container, .pcard) {
         zoom: var(--draw-card-zoom, 0.8);
         margin: 0;
     }

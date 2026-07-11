@@ -56,7 +56,7 @@
 
 <script lang="ts">
 import {defineComponent, nextTick, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';

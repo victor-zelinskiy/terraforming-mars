@@ -13,6 +13,18 @@
     <BonusCardFace :id="bonusEntry.bonus" :ctx="bonusEntry.ctx" large />
   </div>
 
+  <!-- PREMIUM face (project cards + preludes) — the same stage/halo wrapper,
+       the fork's from-scratch renderer inside (tier `full`, inert: the modal
+       owns interaction). Out-of-scope types keep the legacy silhouette below.
+       `premium-card-face` is registered GLOBALLY in main.ts — a static import
+       here would close the PremiumCard -> CardZoomModal -> CardZoomCard type
+       cycle and collapse vue-tsc inference to `{}`. -->
+  <div v-else-if="premiumFace"
+       class="card-zoom-card card-zoom-card--premium"
+       :class="{ 'card-zoom-card--selected': selected }">
+    <premium-card-face :card="premiumModel" tier="full" :inert="true" :selected="selected" />
+  </div>
+
   <div v-else-if="cardInstance"
        class="card-zoom-card"
        :class="{ 'card-zoom-card--selected': selected }">
@@ -46,6 +58,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {ZoomCard, BonusZoomEntry, isBonusZoom} from './cardZoomTypes';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
+import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import {getCard, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {liveCardResources} from '@/client/components/card/liveCardResources';
 import {CardType} from '@/common/cards/CardType';
@@ -111,6 +124,15 @@ export default defineComponent({
     },
     cardOrThrow(): ClientCard {
       return getCardOrThrow(this.cardModel.name);
+    },
+    /** True when this card renders via the premium face (project + prelude). */
+    premiumFace(): boolean {
+      const instance = this.cardInstance;
+      return instance !== undefined && isPremiumFaceType(instance.type);
+    },
+    /** The model handed to the premium face, with the live-resource fallback baked in. */
+    premiumModel(): CardModel {
+      return {...this.cardModel, resources: this.resourceAmount};
     },
     cardType(): CardType {
       return this.cardOrThrow.type;

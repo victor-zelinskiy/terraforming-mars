@@ -146,7 +146,7 @@ import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Tag from '@/client/components/Tag.vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotSections',

@@ -27,7 +27,13 @@
     exactly this DOM shape). When card ART lands, `cardArtUrl` stays the
     ONE shared source for proxy and full face alike.
   -->
-  <div class="card-container filterDiv con-card-lite" :class="rootClass" :style="artStyle" aria-hidden="true">
+  <!-- PREMIUM face proxy (project + prelude) — the SAME renderer the landed
+       card uses (name-only static mode, inert by construction), so the flying
+       proxy and the real card can never disagree. Out-of-scope types keep the
+       legacy lite face below. -->
+  <PremiumCard v-if="premiumFace" :name="name" :inert="true" aria-hidden="true" />
+
+  <div v-else class="card-container filterDiv con-card-lite" :class="rootClass" :style="artStyle" aria-hidden="true">
     <span class="card-corner card-corner--tl"></span>
     <span class="card-corner card-corner--tr"></span>
     <span class="card-corner card-corner--bl"></span>
@@ -59,6 +65,8 @@ import {Tag} from '@/common/cards/Tag';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {cardArtUrl} from '@/client/cards/cardArt';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import CardCost from '@/client/components/card/CardCost.vue';
 import CardTags from '@/client/components/card/CardTags.vue';
 import CardTitle from '@/client/components/card/CardTitle.vue';
@@ -69,7 +77,7 @@ import CardVictoryPoints from '@/client/components/card/CardVictoryPoints.vue';
 
 export default defineComponent({
   name: 'ConsoleCardFaceLite',
-  components: {CardCost, CardTags, CardTitle, CardContent, CardRequirementsComponent, CardExpansion, CardVictoryPoints},
+  components: {CardCost, CardTags, CardTitle, CardContent, CardRequirementsComponent, CardExpansion, CardVictoryPoints, PremiumCard},
   props: {
     name: {
       type: String as () => CardName,
@@ -79,6 +87,10 @@ export default defineComponent({
   computed: {
     cardInstance(): ClientCard | undefined {
       return getCard(this.name);
+    },
+    premiumFace(): boolean {
+      const instance = this.cardInstance;
+      return instance !== undefined && isPremiumFaceType(instance.type);
     },
     cardType(): CardType {
       return this.cardInstance?.type ?? CardType.AUTOMATED;

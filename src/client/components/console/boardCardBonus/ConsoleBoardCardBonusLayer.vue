@@ -54,8 +54,8 @@ import {
 } from '@/client/console/boardCardBonus/boardCardBonusDirector';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 
-/** The natural (unscaled) FaceLite height — mirrors the card frame. */
-const CARD_NATURAL_H = 420;
+/** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
+const CARD_NATURAL_H = 460;
 
 /** The source icon hides under the lifting cover (one-object rule). */
 const SOURCE_LIFTED_CLASS = 'con-bonus-source-lifted';
@@ -380,7 +380,7 @@ export default defineComponent({
       await this.$nextTick();
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
       const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] .card-container`,
+        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
       ))));
       if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
         return;

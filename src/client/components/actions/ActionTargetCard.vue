@@ -118,7 +118,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {translateText, translateMessage} from '@/client/directives/i18n';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
 
@@ -437,7 +437,7 @@ export default defineComponent({
   &:focus-visible { box-shadow: 0 0 0 2px fade(@atc-cyan, 70%); }
   // Compact the legacy card render to a thumbnail; zero the asymmetric margin
   // (see CLAUDE.md "Centering UI under a Card") so the tile reads centred.
-  > :deep(.card-container) {
+  > :deep(:is(.card-container, .pcard)) {
     margin: 0;
     zoom: 0.46;
   }

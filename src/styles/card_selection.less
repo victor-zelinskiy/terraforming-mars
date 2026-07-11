@@ -588,7 +588,7 @@
      * grid is owned by the parent `.card-selection__cards { gap }`
      * — independent of card-container margins.
      */
-    > .card-container {
+    > :is(.card-container, .pcard) {
         /* Card size is the continuous `--cs-zoom` the fit engine sets (was a
          * static 1.0 + a viewport-only media-query ladder). Defaults to 1 before
          * the engine runs / under JSDOM. */
@@ -791,7 +791,7 @@
         }
     }
 
-    > .card-selection__card-clickable > .card-container {
+    > .card-selection__card-clickable > :is(.card-container, .pcard) {
         position: relative;
         z-index: 1;
         /*
@@ -853,7 +853,7 @@
  * mechanisms. */
 :lang(en) .card-selection__card-slot--selected
     > .card-selection__card-clickable
-    > .card-container::after {
+    > :is(.card-container, .pcard)::after {
     content: 'SELECTED';
 }
 
@@ -936,7 +936,7 @@
      */
     .card-selection__card-slot,
     .card-selection__card-clickable,
-    .card-selection__card-clickable > .card-container,
+    .card-selection__card-clickable > :is(.card-container, .pcard),
     .card-selection__card-action-btn {
         transition: none !important;
     }
@@ -1232,7 +1232,7 @@ body:has(.mandatory-input-modal--picker-mode) .drafted-pile {
         filter 200ms ease,
         z-index 0ms;
 
-    > .card-container {
+    > :is(.card-container, .pcard) {
         zoom: 0.65;
         margin: 0;
     }
@@ -1259,7 +1259,7 @@ body:has(.mandatory-input-modal--picker-mode) .drafted-pile {
         z-index: 999 !important;
         filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6));
 
-        > .card-container {
+        > :is(.card-container, .pcard) {
             box-shadow:
                 inset 0 0 0 1px rgba(255, 255, 255, 0.88),
                 0 0 0 3px rgba(106, 176, 230, 0.85),
@@ -1279,7 +1279,7 @@ body:has(.mandatory-input-modal--picker-mode) .drafted-pile {
         max-width: 210px;
         padding: 8px 12px 10px;
     }
-    .drafted-pile__card-slot > .card-container { zoom: 0.55; }
+    .drafted-pile__card-slot > :is(.card-container, .pcard) { zoom: 0.55; }
     .drafted-pile__card-slot + .drafted-pile__card-slot {
         margin-top: -152px;
         margin-left: 0;

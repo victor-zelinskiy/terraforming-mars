@@ -142,7 +142,7 @@
            navigation (shared vocabulary with hand / draft / start scene).
            Self-resolving inside this overlay, so it can never target the
            task host's focused card underneath. -->
-      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > .card-container" />
+      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     </template>
   </div>
 </template>
@@ -179,7 +179,7 @@
  * so B never reads two conflicting labels. Priority drawn > result > viewer.
  */
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';

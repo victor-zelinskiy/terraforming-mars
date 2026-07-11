@@ -13,7 +13,7 @@
     cards reveal (ConsoleRevealOverlay). Wiring is ONE line — mount it as a
     direct child of the surface root with a `selector`:
 
-      <ConsoleCardFocusFrame selector=".con-hand__slot--selected > .card-container" />
+      <ConsoleCardFocusFrame selector=".con-hand__slot--selected > :is(.card-container, .pcard)" />
 
     The frame resolves the selector INSIDE its parent element on every
     measure tick (scoped — two card surfaces stacked on screen never steal

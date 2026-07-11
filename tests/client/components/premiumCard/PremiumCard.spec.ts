@@ -1,0 +1,78 @@
+import {mount} from '@vue/test-utils';
+import {expect} from 'chai';
+import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import PremiumCardArt from '@/client/components/premiumCard/PremiumCardArt.vue';
+
+function model(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
+  return {name, ...overrides} as CardModel;
+}
+
+describe('PremiumCard', () => {
+  it('renders the crimson event face with cost, tags and mechanics', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect(wrapper.classes()).to.include('pcard--theme-crimson');
+    expect(wrapper.find('.pcard__cost-value').text()).to.eq('21');
+    expect(wrapper.find('.pcard__cost-delta').exists()).to.eq(false);
+    expect(wrapper.findAll('.pcard-tag').length).to.be.greaterThan(0); // event tag appended
+    expect(wrapper.findAll('.pcard-mech-group').length).to.be.greaterThan(0);
+    expect(wrapper.find('.pcard__title span').text()).to.not.eq('');
+  });
+
+  it('shows the discount mini-chip when calculatedCost differs', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.COMET, {calculatedCost: 17})}});
+    const delta = wrapper.find('.pcard__cost-delta');
+    expect(delta.exists()).to.eq(true);
+    expect(delta.text()).to.eq('−4');
+    // printed cost stays on the badge
+    expect(wrapper.find('.pcard__cost-value').text()).to.eq('21');
+  });
+
+  it('prelude face: no cost badge, prelude theme', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.DONATION)}});
+    expect(wrapper.classes()).to.include('pcard--theme-prelude');
+    expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(false);
+  });
+
+  it('carries live resources and unavailable state', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.PREDATORS, {resources: 3, isDisabled: true})}});
+    expect(wrapper.find('.pcard__res-count').text()).to.eq('3');
+    expect(wrapper.classes()).to.include('pcard--unavailable');
+    expect(wrapper.classes()).to.include('pcard--theme-azure');
+  });
+
+  it('static name-only mode renders the pristine printed face', () => {
+    const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
+    expect(wrapper.classes()).to.include('pcard--theme-crimson');
+    expect(wrapper.find('.pcard__res').exists()).to.eq(false);
+    expect(wrapper.classes()).to.not.include('pcard--interactive');
+  });
+
+  it('VP-only card renders without a mechanics panel', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.DUST_SEALS)}});
+    expect(wrapper.find('.pcard__mech').exists()).to.eq(false);
+    expect(wrapper.find('.pcard__vp').exists()).to.eq(true);
+  });
+});
+
+describe('PremiumCardArt', () => {
+  it('one-shot fallback chain: art → -1.webp → procedural body (no loop)', async () => {
+    const wrapper = mount(PremiumCardArt, {
+      props: {art: {url: 'assets/card-images/001.webp', fallback: false}},
+    });
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').attributes('src')).to.eq('assets/card-images/-1.webp');
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').exists()).to.eq(false);
+    expect(wrapper.classes()).to.include('pcard__art--void');
+  });
+
+  it('a fallback-art card that errors goes straight to the procedural body', async () => {
+    const wrapper = mount(PremiumCardArt, {
+      props: {art: {url: 'assets/card-images/-1.webp', fallback: true}},
+    });
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').exists()).to.eq(false);
+  });
+});

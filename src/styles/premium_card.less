@@ -1,0 +1,796 @@
+/*
+ * PREMIUM CARD FACE (.pcard) — the fork's from-scratch card renderer styles.
+ *
+ * FULLY ISOLATED namespace: no dependency on .card-container / .filterDiv /
+ * cards.less / cards_v2.less. Icon images are inline-styled by the components
+ * (premiumCardIcons.ts is the single asset map) — this file owns geometry,
+ * materials, themes and states only.
+ *
+ * Design space: 320×460 px at scale 1 (matches the card back's 0.697 ratio).
+ * Hosts scale the WHOLE card via `zoom` (same mechanism as the legacy card),
+ * so every token below is in design px.
+ *
+ * Layers (bottom → top):
+ *   __body   — dark metal corpus (theme gradients + brushed texture)
+ *   __frame  — 9-patch gold border-image (assets/premium-card/frame-gold.svg)
+ *   __rim    — inner 1px theme-coloured kant + inset depth
+ *   __content— CSS grid: header / requirements / art / mechanics / footer
+ *   __state  — selection ring / unavailable scrim overlays
+ *
+ * Quality tiers: .pcard--tier-thumb drops textures, glow and hover (dense
+ * boards); default = normal; .pcard--tier-full adds the richer fullscreen
+ * lighting. Never an infinite animation.
+ */
+
+.pcard {
+  /* ── geometry tokens ─────────────────────────────────────────────── */
+  --pcard-w: 320px;
+  --pcard-h: 460px;
+  --pcard-radius: 15px;
+  --pcard-frame-band: 22px;
+  --pcard-pad-x: 17px;
+  --pcard-pad-top: 15px;
+  --pcard-pad-bottom: 13px;
+  --pcard-header-min: 52px;
+  --pcard-footer-h: 38px;
+  --pcard-art-min: 96px;
+  --pcard-mech-icon: 24px;
+  --pcard-mech-font: 15px;
+
+  /* ── shared gold / steel palette ─────────────────────────────────── */
+  --pcard-gold: #d9b878;
+  --pcard-gold-hi: #f2d795;
+  --pcard-gold-deep: #8a6a35;
+  --pcard-ink: #2c1e08;          /* dark engraving on gold */
+  --pcard-text: #e9eef4;
+
+  /* ── theme variables (overridden by pcard--theme-*) ──────────────── */
+  --pcard-body-a: #10161f;
+  --pcard-body-b: #1b2534;
+  --pcard-rim: #7d8ea3;
+  --pcard-rim-soft: rgba(125, 142, 163, 0.4);
+  --pcard-accent: #aab8c8;
+  --pcard-glow: rgba(125, 142, 163, 0.35);
+  --pcard-band: rgba(125, 142, 163, 0.16);
+
+  position: relative;
+  width: var(--pcard-w);
+  height: var(--pcard-h);
+  border-radius: var(--pcard-radius);
+  font-family: Prototype, 'Times New Roman', serif;
+  color: var(--pcard-text);
+  contain: layout style;
+  /* resting depth — the card reads as a physical object on the table */
+  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+}
+
+/* ── themes — the colour of the WHOLE corpus system ─────────────────── */
+.pcard--theme-emerald {
+  --pcard-body-a: #0a2018;
+  --pcard-body-b: #15392b;
+  --pcard-rim: #43b381;
+  --pcard-rim-soft: rgba(67, 179, 129, 0.45);
+  --pcard-accent: #6fe0a8;
+  --pcard-glow: rgba(67, 179, 129, 0.4);
+  --pcard-band: rgba(45, 120, 86, 0.28);
+}
+.pcard--theme-azure {
+  --pcard-body-a: #0a1830;
+  --pcard-body-b: #143259;
+  --pcard-rim: #4d8fd9;
+  --pcard-rim-soft: rgba(77, 143, 217, 0.45);
+  --pcard-accent: #7db9ff;
+  --pcard-glow: rgba(77, 143, 217, 0.42);
+  --pcard-band: rgba(45, 90, 160, 0.28);
+}
+.pcard--theme-crimson {
+  --pcard-body-a: #270d10;
+  --pcard-body-b: #4a161a;
+  --pcard-rim: #cf5a52;
+  --pcard-rim-soft: rgba(207, 90, 82, 0.45);
+  --pcard-accent: #ff8f78;
+  --pcard-glow: rgba(207, 90, 82, 0.42);
+  --pcard-band: rgba(150, 55, 48, 0.3);
+}
+.pcard--theme-prelude {
+  --pcard-body-a: #23101b;
+  --pcard-body-b: #43202f;
+  --pcard-rim: #cd7d9d;
+  --pcard-rim-soft: rgba(205, 125, 157, 0.45);
+  --pcard-accent: #ff9fc0;
+  --pcard-glow: rgba(205, 125, 157, 0.4);
+  --pcard-band: rgba(145, 75, 105, 0.28);
+}
+
+/* ── corpus layers ──────────────────────────────────────────────────── */
+.pcard__body {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--pcard-radius);
+  background:
+    radial-gradient(130% 90% at 50% -12%, var(--pcard-body-b) 0%, var(--pcard-body-a) 58%),
+    var(--pcard-body-a);
+  box-shadow:
+    inset 0 0 26px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+/* brushed metal + diagonal sheen (skipped on thumbnails) */
+.pcard__body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(104deg,
+      rgba(255, 255, 255, 0.016) 0 1px,
+      transparent 1px 3px),
+    linear-gradient(118deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.045) 44%,
+      transparent 58%);
+  pointer-events: none;
+}
+.pcard--tier-thumb .pcard__body::before {
+  display: none;
+}
+
+.pcard__frame {
+  position: absolute;
+  inset: 0;
+  border-style: solid;
+  border-width: var(--pcard-frame-band);
+  border-image: url(./assets/premium-card/frame-gold.svg) 60 / var(--pcard-frame-band) stretch;
+  border-radius: var(--pcard-radius);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.pcard__rim {
+  position: absolute;
+  inset: 9px;
+  border-radius: 9px;
+  border: 1px solid var(--pcard-rim);
+  opacity: 0.75;
+  box-shadow:
+    inset 0 0 16px rgba(0, 0, 0, 0.5),
+    inset 0 0 3px var(--pcard-rim-soft),
+    0 0 7px var(--pcard-glow);
+  pointer-events: none;
+  z-index: 1;
+}
+.pcard--tier-thumb .pcard__rim {
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+/* ── content grid ───────────────────────────────────────────────────── */
+.pcard__content {
+  position: absolute;
+  inset: var(--pcard-pad-top) var(--pcard-pad-x) var(--pcard-pad-bottom);
+  display: grid;
+  grid-template-rows:
+    minmax(var(--pcard-header-min), auto)  /* header  */
+    auto                                   /* requirements */
+    minmax(var(--pcard-art-min), 1fr)      /* art     */
+    auto                                   /* mechanics */
+    var(--pcard-footer-h);                 /* footer  */
+  row-gap: 6px;
+  z-index: 2;
+}
+
+/* density presets — icon scale for the mechanics zone */
+.pcard--mech-sparse    { --pcard-mech-icon: 27px; --pcard-mech-font: 16px; }
+.pcard--mech-normal    { --pcard-mech-icon: 24px; --pcard-mech-font: 15px; }
+.pcard--mech-dense     { --pcard-mech-icon: 21px; --pcard-mech-font: 13.5px; }
+.pcard--mech-veryDense { --pcard-mech-icon: 18px; --pcard-mech-font: 12px; }
+
+/* ── header: cost + title + tags ────────────────────────────────────── */
+.pcard__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 7px;
+}
+
+.pcard__title {
+  align-self: center;
+  min-width: 0;
+  text-align: center;
+  padding: 5px 2px;
+  /* engraved band */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), var(--pcard-band) 45%, rgba(0, 0, 0, 0.28));
+  border-top: 1px solid rgba(242, 215, 149, 0.35);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.pcard__title span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  line-height: 1.16;
+  color: #f2f0e6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.pcard__title--t1 span { font-size: 17px; text-transform: uppercase; letter-spacing: 0.05em; }
+.pcard__title--t2 span { font-size: 14.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+.pcard__title--t3 span { font-size: 13px; }
+.pcard__title--t4 span { font-size: 11.5px; }
+
+/* ── cost cluster ───────────────────────────────────────────────────── */
+.pcard__cost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: -5px 0 0 -5px; /* slight overhang onto the frame band — stays inside the card box */
+  width: 48px;
+}
+.pcard__cost-badge {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  background: url(./assets/premium-card/badge-cost.svg) center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+.pcard__cost-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  color: var(--pcard-ink);
+  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
+}
+.pcard__cost--three .pcard__cost-value { font-size: 17px; }
+/* discount / surcharge mini-chip (concept style: «−4» under the badge) */
+.pcard__cost-delta {
+  margin-top: 2px;
+  padding: 0 6px;
+  height: 16px;
+  line-height: 15px;
+  font-size: 11.5px;
+  border-radius: 8px;
+  background: rgba(8, 14, 11, 0.82);
+  border: 1px solid var(--pcard-gold-deep);
+  color: #7de0a8;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+.pcard__cost-delta--surcharge { color: #ff9a8a; }
+.pcard--tier-thumb .pcard__cost-delta { display: none; }
+.pcard__cost-spacer { width: 6px; }
+
+/* ── tag rail ───────────────────────────────────────────────────────── */
+.pcard__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: -2px -3px 0 0;
+}
+.pcard__tags--row     { --pcard-tag-size: 30px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); }
+.pcard__tags--wrap2   { --pcard-tag-size: 27px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); }
+.pcard__tags--compact { --pcard-tag-size: 24px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); gap: 3px; }
+.pcard__tags--fan     { --pcard-tag-size: 22px; max-width: calc(var(--pcard-tag-size) * 3 + 4px); gap: 2px; }
+.pcard-tag {
+  position: relative;
+  width: var(--pcard-tag-size);
+  height: var(--pcard-tag-size);
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.pcard-tag::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
+}
+
+/* ── requirements bar ───────────────────────────────────────────────── */
+.pcard__reqs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 3px 7px;
+  min-height: 25px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #c97e38 0%, #a35d24 55%, #82471b 100%);
+  border: 1px solid #5c3312;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 230, 180, 0.5),
+    inset 0 -2px 4px rgba(60, 28, 8, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+  color: #fff3e0;
+  font-size: 14px;
+  text-shadow: 0 1px 1px rgba(60, 28, 8, 0.8);
+}
+.pcard__reqs--all {
+  background: linear-gradient(180deg, #b8442e 0%, #8f2f1e 55%, #6e2115 100%);
+  border-color: #571a0e;
+}
+.pcard-req {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pcard-req__word { font-size: 13px; letter-spacing: 0.02em; }
+.pcard-req__value { font-size: 15px; }
+.pcard-req__icon {
+  width: 19px;
+  height: 19px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+}
+.pcard-req__icon--wide { width: 26px; }
+.pcard-req__minus {
+  color: #ffd9c9;
+  font-size: 15px;
+  margin-right: -2px;
+}
+.pcard-req__joiner { font-size: 12px; opacity: 0.85; }
+.pcard-req__label { font-size: 11.5px; letter-spacing: 0.02em; }
+
+/* ── art viewport ───────────────────────────────────────────────────── */
+.pcard__art {
+  position: relative;
+  min-height: var(--pcard-art-min);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #090d13;
+  border: 1px solid rgba(217, 184, 120, 0.5);
+  box-shadow:
+    inset 0 0 16px rgba(0, 0, 0, 0.65),
+    inset 0 0 2px rgba(217, 184, 120, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.pcard__art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  opacity: 0;
+  transition: opacity calc(240ms * var(--motion-scale, 1)) ease-out;
+}
+.pcard__art--loaded img { opacity: 1; }
+/* integration gradient: seats the art into the corpus + theme kiss of light */
+.pcard__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(6, 8, 12, 0.28) 0%, transparent 18% 72%, rgba(6, 8, 12, 0.42) 100%),
+    radial-gradient(120% 60% at 50% 108%, var(--pcard-glow) 0%, transparent 55%);
+  opacity: 0.85;
+}
+/* generic fallback art gets a stronger theme wash so it reads type-coloured */
+.pcard__art--fallback::after {
+  background:
+    linear-gradient(180deg, rgba(6, 8, 12, 0.3) 0%, transparent 20% 68%, rgba(6, 8, 12, 0.5) 100%),
+    linear-gradient(160deg, var(--pcard-glow), transparent 60%),
+    radial-gradient(120% 60% at 50% 108%, var(--pcard-glow) 0%, transparent 55%);
+  opacity: 0.95;
+}
+/* procedural body when even the fallback image failed */
+.pcard__art--void {
+  background:
+    radial-gradient(90% 70% at 50% 30%, var(--pcard-body-b), var(--pcard-body-a)),
+    #090d13;
+}
+
+/* ── mechanics panel ────────────────────────────────────────────────── */
+.pcard__mech {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(4, 7, 11, 0.38), rgba(4, 7, 11, 0.52));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px var(--pcard-band);
+  font-size: var(--pcard-mech-font);
+}
+.pcard-mech-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 4px;
+  min-height: calc(var(--pcard-mech-icon) + 4px);
+}
+.pcard-mech-group + .pcard-mech-group {
+  border-top: 1px solid rgba(242, 215, 149, 0.14);
+  padding-top: 4px;
+}
+
+/* mechanic ITEM (icon + digits) */
+.pcard-mi {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  position: relative;
+}
+.pcard-ic {
+  display: inline-block;
+  width: var(--pcard-mech-icon);
+  height: var(--pcard-mech-icon);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+.pcard-ic--sm {
+  width: calc(var(--pcard-mech-icon) * 0.62);
+  height: calc(var(--pcard-mech-icon) * 0.62);
+}
+.pcard-mi__digit {
+  font-size: var(--pcard-mech-font);
+  color: #f3e9d2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  margin-right: 1px;
+}
+/* megacredit: value INSIDE the gold square */
+.pcard-mi--mc .pcard-ic { position: relative; }
+.pcard-mi__inside {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--pcard-mech-icon) * 0.58);
+  color: #2f2008;
+  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.4);
+}
+/* red ring — «any player» */
+.pcard-mi--any .pcard-ic,
+.pcard-mi--any .pcard-tile {
+  box-shadow: 0 0 0 1.6px #d04141;
+  border-radius: 5px;
+}
+/* cancelled — red diagonal strike */
+.pcard-mi--cancelled::after,
+.pcard-sym--cancelled::after {
+  content: '';
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 50%;
+  height: 2px;
+  background: #e03d3d;
+  transform: rotate(-32deg);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+/* secondary tag bubble (top-right) */
+.pcard-mi__bubble {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  width: calc(var(--pcard-mech-icon) * 0.62);
+  height: calc(var(--pcard-mech-icon) * 0.62);
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 1px var(--pcard-gold-deep), 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.pcard-mi--bubbled { margin-right: 6px; }
+.pcard-mi--superscript {
+  transform: translateY(-30%) scale(0.72);
+  transform-origin: bottom left;
+}
+/* text / plate items */
+.pcard-mi__text {
+  font-size: calc(var(--pcard-mech-font) * 0.82);
+  line-height: 1.15;
+  color: #e7dfc9;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+  max-width: 220px;
+}
+.pcard-mi__text--uc { text-transform: uppercase; letter-spacing: 0.03em; }
+.pcard-mi__text--b { font-weight: bold; }
+.pcard-plate {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #e6c887, #bb9350);
+  border: 1px solid #6d5124;
+  box-shadow: inset 0 1px 0 rgba(255, 244, 205, 0.6);
+  color: #2c1e08;
+  font-size: calc(var(--pcard-mech-font) * 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+}
+/* unmapped fallback chip — visible, honest, never a broken image */
+.pcard-mi__chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px dashed rgba(242, 215, 149, 0.5);
+  color: #d8cfae;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+/* SYMBOLS */
+.pcard-sym {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: var(--pcard-gold);
+  font-size: calc(var(--pcard-mech-font) * 1.15);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  min-width: 10px;
+}
+.pcard-sym--arrow {
+  width: calc(var(--pcard-mech-icon) * 0.95);
+  height: calc(var(--pcard-mech-icon) * 0.5);
+  background: linear-gradient(180deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  clip-path: polygon(0 36%, 52% 36%, 52% 6%, 100% 50%, 52% 94%, 52% 64%, 0 64%);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+.pcard-sym--or {
+  font-size: calc(var(--pcard-mech-font) * 0.8);
+  letter-spacing: 0.06em;
+  color: #e7dfc9;
+  padding: 0 2px;
+}
+.pcard-sym--asterix { font-size: calc(var(--pcard-mech-font) * 1.4); line-height: 0.6; align-self: flex-start; }
+
+/* PRODUCTION plate (riveted bronze) */
+.pcard-prod {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 4px 4px, rgba(255, 235, 200, 0.5) 0 1.2px, transparent 1.6px),
+    radial-gradient(circle at calc(100% - 4px) 4px, rgba(255, 235, 200, 0.5) 0 1.2px, transparent 1.6px),
+    radial-gradient(circle at 4px calc(100% - 4px), rgba(255, 235, 200, 0.5) 0 1.2px, transparent 1.6px),
+    radial-gradient(circle at calc(100% - 4px) calc(100% - 4px), rgba(255, 235, 200, 0.5) 0 1.2px, transparent 1.6px),
+    linear-gradient(180deg, #7c5c3b 0%, #5d4128 55%, #47301c 100%);
+  border: 1px solid #2e1e10;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 235, 200, 0.28),
+    inset 0 -2px 4px rgba(20, 12, 5, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.pcard-prod__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 4px;
+}
+
+/* EFFECT / ACTION frame */
+.pcard-effect {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 3px 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--pcard-rim-soft);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+  max-width: 100%;
+}
+.pcard-effect--action {
+  border-color: rgba(242, 215, 149, 0.4);
+}
+.pcard-effect__part {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 4px;
+}
+
+/* TILE pictogram */
+.pcard-tile {
+  position: relative;
+  display: inline-block;
+  width: calc(var(--pcard-mech-icon) * 1.35);
+  height: calc(var(--pcard-mech-icon) * 1.58);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.pcard-tile__symbol {
+  position: absolute;
+  inset: 14%;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* ── footer ─────────────────────────────────────────────────────────── */
+.pcard__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+.pcard__exp {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.pcard__exp-medallion {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: rgba(10, 14, 18, 0.75);
+  background-size: 72%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.pcard__exp-medallion::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
+}
+/* base game — engraved triangle instead of an icon */
+.pcard__exp-medallion--base::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: none;
+  clip-path: polygon(50% 24%, 76% 70%, 24% 70%);
+  background-color: rgba(217, 184, 120, 0.55);
+}
+.pcard__exp-compat {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.85;
+  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.4);
+}
+
+.pcard__res {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 5px;
+  border-radius: 11px;
+  background: rgba(6, 10, 14, 0.7);
+  border: 1px solid rgba(150, 170, 190, 0.4);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.pcard__res-icon {
+  width: 17px;
+  height: 17px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.pcard__res-count {
+  font-size: 13.5px;
+  color: #eaf2fb;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+.pcard__vp {
+  position: relative;
+  margin-left: auto;
+  width: 42px;
+  height: 42px;
+  background: url(./assets/premium-card/badge-vp.svg) center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pcard__vp--wide { width: 58px; background-size: 100% 100%; }
+.pcard__vp-value {
+  font-size: 19px;
+  color: var(--pcard-ink);
+  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
+}
+.pcard__vp-value--negative { color: #7a1d12; }
+.pcard__vp-dyn {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 13px;
+  color: var(--pcard-ink);
+}
+.pcard__vp-dyn .pcard-ic {
+  width: 16px;
+  height: 16px;
+  filter: none;
+}
+.pcard__vp-slash { font-size: 13px; margin: 0 1px; }
+.pcard__vp-asterisk { font-size: 13px; margin-left: 1px; }
+.pcard__footer-spacer { margin-left: auto; }
+
+/* ── states ─────────────────────────────────────────────────────────── */
+.pcard__state {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--pcard-radius);
+  pointer-events: none;
+  z-index: 4;
+}
+.pcard--unavailable .pcard__content,
+.pcard--unavailable .pcard__body {
+  filter: grayscale(0.65) brightness(0.6);
+}
+.pcard--unavailable .pcard__state {
+  background: rgba(6, 10, 14, 0.32);
+}
+.pcard--selected {
+  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 9px rgba(41, 211, 226, 0.55));
+}
+.pcard--selected .pcard__state {
+  box-shadow: inset 0 0 0 2px #29d3e2;
+}
+
+/* hover — calm lift (interactive tiers only) */
+.pcard--interactive {
+  transition:
+    transform calc(160ms * var(--motion-scale, 1)) ease-out,
+    filter calc(160ms * var(--motion-scale, 1)) ease-out;
+}
+.pcard--interactive:not(.pcard--tier-thumb):hover {
+  transform: translateY(-2px);
+  filter:
+    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 10px var(--pcard-glow));
+}
+.pcard:focus-visible {
+  outline: 2px solid #29d3e2;
+  outline-offset: 2px;
+}
+
+/* fullscreen tier — richer lighting */
+.pcard--tier-full {
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px var(--pcard-glow));
+}
+.pcard--tier-full .pcard__rim { opacity: 0.95; }
+
+/* thumbnails: cheapest paint */
+.pcard--tier-thumb {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard--interactive { transition: none; }
+  .pcard--interactive:not(.pcard--tier-thumb):hover { transform: none; }
+  .pcard__art img { transition: none; }
+}
+
+/* ── legacy-glue: hosts that relied on the legacy card's built-in margin ──
+   The premium face ships margin-less (modern hosts own spacing via gap).
+   The remaining legacy-glue surfaces (OtherPlayer / SelectCard `.cardbox`
+   rows and their `.cards-stack` peek piles) get an equivalent here so
+   premium cards neither touch nor mis-overlap. */
+.cardbox .pcard {
+  margin: 12px 18px 10px 0;
+}
+/* Peek overlap was tuned for the 300×400 legacy card (+ its margins) at
+   -256px; re-keyed for the 320×460 premium face so each stacked card still
+   peeks its header + requirements band (~112px). */
+.cards-stack:has(.pcard) {
+  margin-top: -370px;
+}

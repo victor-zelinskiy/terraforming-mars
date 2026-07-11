@@ -417,7 +417,7 @@ import {SelectProjectCardToPlayModel, SelectCardModel, PlayerInputModel, AndOpti
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import PremiumCardWarnings from '@/client/components/card/PremiumCardWarnings.vue';
 import {playedCardActionPickResult} from '@/client/components/playedCards/playedCardActionPick';
@@ -1441,7 +1441,7 @@ export default defineComponent({
   cursor: zoom-in;
   // Compact the card so it reads as PART of the layout, not an oversized object
   // bursting the modal. Zero the legacy asymmetric margin (centred render).
-  > :deep(.card-container) { margin: 0; zoom: 0.62; }
+  > :deep(:is(.card-container, .pcard)) { margin: 0; zoom: 0.62; }
 }
 // Fullscreen affordance — a glass chip in the card corner (separate from any
 // other click), revealed on hover.
@@ -1705,7 +1705,7 @@ export default defineComponent({
   border-radius: 8px;
   transition: filter 0.15s ease, transform 0.15s ease;
   &:hover { filter: brightness(1.06); transform: translateY(-1px); }
-  > .card-container { margin: 0; zoom: 0.5; }
+  > :is(.card-container, .pcard) { margin: 0; zoom: 0.5; }
 }
 .play-confirm__handpick-change {
   padding: 6px 14px;

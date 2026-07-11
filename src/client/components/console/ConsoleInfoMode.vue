@@ -278,7 +278,7 @@ import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSe
 import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 
 const TAG_ORDER: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,

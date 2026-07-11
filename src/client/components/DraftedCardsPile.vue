@@ -48,7 +48,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'DraftedCardsPile',

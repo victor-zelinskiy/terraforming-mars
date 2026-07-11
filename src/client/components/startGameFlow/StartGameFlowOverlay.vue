@@ -381,7 +381,7 @@ import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {
   startGameFlowState,

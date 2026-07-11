@@ -19,6 +19,11 @@ const ModalInputHost = defineAsyncComponent(() => import(/* webpackChunkName: "p
 // mochapack client-test bundle (the known baseline class), and the picker
 // only renders when a trade actually has card-target steps.
 const ActionTargetCard = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
+// Registered globally so CardZoomCard can render the premium face WITHOUT a
+// static import — breaks the PremiumCard -> CardZoomModal -> CardZoomCard ->
+// PremiumCard type cycle (same trick as `modal-input-host` above; a cycle
+// collapses vue-tsc inference to `{}`).
+const PremiumCardFace = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
 
 declare global {
   interface Window {
@@ -59,6 +64,7 @@ async function bootstrap() {
   app.component('player-input-factory', PlayerInputFactory);
   app.component('modal-input-host', ModalInputHost);
   app.component('action-target-card', ActionTargetCard);
+  app.component('premium-card-face', PremiumCardFace);
 
   app.directive('trim-whitespace', {
     mounted: trimEmptyTextNodes,

@@ -209,7 +209,7 @@ import {SelectCardResponse} from '@/common/inputs/InputResponse';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {translateText, translateMessage} from '@/client/directives/i18n';
 import {setDraftWaitPending, clearDraftWaitPending} from '@/client/components/draftWaitState';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {baseZoom, cardSelectionRowPlan, FIT_MAX_CONTENT_W, FIT_MIN_ZOOM, FIT_SINGLE_ROW_MAX} from '@/client/components/cardSelectionFit';
 

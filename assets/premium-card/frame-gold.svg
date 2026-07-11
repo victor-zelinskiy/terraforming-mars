@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <!--
+    PREMIUM CARD FRAME — 9-patch gold frame for border-image.
+    Slice: 60 (corners are 60×60, edges stretch). The double gold line +
+    corner flourish echo the card-back ornament (assets/resources/card.webp)
+    so the face reads as part of the same physical set.
+  -->
+  <defs>
+    <linearGradient id="au" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2d795"/>
+      <stop offset="0.42" stop-color="#c9a25c"/>
+      <stop offset="0.72" stop-color="#8d6b36"/>
+      <stop offset="1" stop-color="#e0bf7c"/>
+    </linearGradient>
+    <linearGradient id="auHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7e3ac"/>
+      <stop offset="1" stop-color="#b58f4e"/>
+    </linearGradient>
+    <g id="corner">
+      <!-- inner echo arc bridging the two frame lines -->
+      <path d="M 7.5 34 Q 7.5 7.5 34 7.5" fill="none" stroke="url(#au)" stroke-width="1.5" opacity="0.95"/>
+      <path d="M 15 30 Q 15 15 30 15" fill="none" stroke="url(#auHi)" stroke-width="1.1" opacity="0.9"/>
+      <!-- curl terminals -->
+      <circle cx="34" cy="7.5" r="1.5" fill="#e8cd8e"/>
+      <circle cx="7.5" cy="34" r="1.5" fill="#e8cd8e"/>
+      <!-- ornament gem on the diagonal -->
+      <circle cx="20.6" cy="20.6" r="2" fill="url(#auHi)" stroke="#5c4319" stroke-width="0.6"/>
+      <!-- fine spurs continuing along the edges -->
+      <path d="M 34 7.5 H 46 M 7.5 34 V 46" fill="none" stroke="url(#au)" stroke-width="1.2" opacity="0.75"/>
+    </g>
+  </defs>
+
+  <!-- main outer line -->
+  <rect x="6.75" y="6.75" width="226.5" height="226.5" rx="13" fill="none" stroke="url(#au)" stroke-width="2.6"/>
+  <!-- dark backing hairline (depth, sits just outside the gold) -->
+  <rect x="4.75" y="4.75" width="230.5" height="230.5" rx="14.5" fill="none" stroke="#241a0c" stroke-width="1" opacity="0.85"/>
+  <!-- inner hairline -->
+  <rect x="12.25" y="12.25" width="215.5" height="215.5" rx="8.5" fill="none" stroke="#7c5f30" stroke-width="1" opacity="0.9"/>
+
+  <use href="#corner"/>
+  <use href="#corner" transform="matrix(-1 0 0 1 240 0)"/>
+  <use href="#corner" transform="matrix(1 0 0 -1 0 240)"/>
+  <use href="#corner" transform="matrix(-1 0 0 -1 240 240)"/>
+</svg>

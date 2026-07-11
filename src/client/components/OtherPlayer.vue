@@ -40,7 +40,7 @@ import {defineComponent} from 'vue';
 import StackedCards from '@/client/components/StackedCards.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {vueRoot} from '@/client/components/vueRoot';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import AppButton from '@/client/components/common/AppButton.vue';
 import {CardType} from '@/common/cards/CardType';
 import {getCardsByType, isCardActivated} from '@/client/utils/CardUtils';

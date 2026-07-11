@@ -57,7 +57,7 @@ export type ExitSource = {
 const HOLD_CLASS = 'con-deal-hold'; // the shared "slot is empty" cascade rule
 
 function cardRect(el: HTMLElement): DOMRect {
-  const card = el.querySelector<HTMLElement>('.card-container') ?? el;
+  const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
   return card.getBoundingClientRect();
 }
 
@@ -109,7 +109,7 @@ async function spawnProxies(sources: ReadonlyArray<ExitSource>, hero: boolean, h
       transformOrigin: 'top left',
     });
     if (holdSource) {
-      const card = e.src.querySelector<HTMLElement>('.card-container') ?? e.src;
+      const card = e.src.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? e.src;
       card.classList.add(HOLD_CLASS);
     }
     out.push({id: e.id, el, rect: e.rect});
@@ -281,7 +281,7 @@ function stableSlotRect(resolve: () => HTMLElement | null): Promise<DOMRect | un
     const poll = () => {
       tries++;
       const slot = resolve();
-      const card = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+      const card = slot !== null ? (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot) : null;
       const r = card !== null ? card.getBoundingClientRect() : undefined;
       const ok = r !== undefined && usable(r);
       const sig = ok ? `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}` : '';
@@ -497,14 +497,14 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     }
   };
   if (args.holdFrom === true) {
-    heldFrom = args.from.querySelector<HTMLElement>('.card-container') ?? args.from;
+    heldFrom = args.from.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? args.from;
     heldFrom.classList.add(HOLD_CLASS);
   }
   // Pre-hold the destination in the SAME flush (before its first paint):
   // the landing slot's own card must never flash before the proxy arrives.
   if (args.holdTarget === true) {
     const pre = args.resolveTo();
-    const preCard = pre !== null ? (pre.querySelector<HTMLElement>('.card-container') ?? pre) : null;
+    const preCard = pre !== null ? (pre.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? pre) : null;
     if (preCard !== null) {
       held = preCard;
       preCard.classList.add(HOLD_CLASS);
@@ -521,7 +521,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     const poll = () => {
       tries++;
       const slot = args.resolveTo();
-      const card = slot !== null ? (slot.querySelector<HTMLElement>('.card-container') ?? slot) : null;
+      const card = slot !== null ? (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot) : null;
       const r = card !== null ? card.getBoundingClientRect() : undefined;
       const ok = r !== undefined && usable(r);
       const sig = ok ? `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}` : '';

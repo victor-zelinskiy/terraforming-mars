@@ -175,12 +175,13 @@ import {ZoomCard} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
 import dialogPolyfill from 'dialog-polyfill';
 
-// The measured card element differs by entry kind: a normal project card is
-// `.card-container.filterDiv`, an Automa bonus card is `.mb-face`. Both scoped
-// to the viewer's own card so a stray board `.mb-face` is never measured.
-const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card .card-container.filterDiv, .card-zoom-stage .card-zoom-card .mb-face';
-const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card .card-container.filterDiv, .card-zoom-preload .card-zoom-card .mb-face';
-const CARD_EL_SELECTOR = '.card-container.filterDiv, .mb-face';
+// The measured card element differs by entry kind: a premium face is `.pcard`,
+// a legacy card is `.card-container.filterDiv`, an Automa bonus card is
+// `.mb-face`. All scoped to the viewer's own card so a stray board `.mb-face`
+// is never measured.
+const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-stage .card-zoom-card .mb-face';
+const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-preload .card-zoom-card .mb-face';
+const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .mb-face';
 
 type Refs = {
   dialog: HTMLDialogElement;

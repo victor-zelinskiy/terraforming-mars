@@ -87,7 +87,7 @@
         animation: none; /* the handoff is the entrance — never the deal-in replay */
     }
     /* The release fade — the real card materializes under its proxy. */
-    .con-reveal__strip .con-cards__slot > .card-container {
+    .con-reveal__strip .con-cards__slot > :is(.card-container, .pcard) {
         transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
     }
 }
@@ -98,7 +98,7 @@
     }
 }
 .con-reveal--bonus-held {
-    .con-reveal__strip .con-cards__slot > .card-container {
+    .con-reveal__strip .con-cards__slot > :is(.card-container, .pcard) {
         opacity: 0 !important;
     }
     /* No focus chrome over cards that "aren't there yet". */

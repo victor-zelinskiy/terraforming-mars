@@ -662,7 +662,7 @@
 
     /* Centering UI under a <Card>: zero the legacy asymmetric margin so the
        footer below reads as centred on the card silhouette. */
-    > .card-container {
+    > :is(.card-container, .pcard) {
         margin: 0;
     }
 }
@@ -881,7 +881,10 @@
    selectors out-specify their `.card-container` bases. */
 .additional-resource-detail__card--special {
     .card-container .card-resources-counter,
-    .card-container .card-points {
+    .card-container .card-points,
+    // Premium face twins (the same "footer marker supersedes" rule).
+    .pcard .pcard__res,
+    .pcard .pcard__vp {
         display: none;
     }
 }

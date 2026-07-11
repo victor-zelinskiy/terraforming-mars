@@ -822,7 +822,7 @@ body.initial-draft-awaiting-others {
      * art itself reads as a touch more alive than unselected.
      */
     &__card-unit--selected {
-        .initial-draft-pick__card-clickable > .card-container {
+        .initial-draft-pick__card-clickable > :is(.card-container, .pcard) {
             filter:
                 drop-shadow(0 0 6px rgba(140, 200, 235, 0.3))
                 brightness(1.04);
@@ -848,7 +848,7 @@ body.initial-draft-awaiting-others {
 
     &__card-clickable {
         cursor: pointer;
-        > .card-container {
+        > :is(.card-container, .pcard) {
             margin: 0;
             transition: filter 200ms ease;
         }
@@ -969,16 +969,16 @@ body.initial-draft-awaiting-others {
             flex-wrap: wrap;
             gap: 32px;
         }
-        .initial-draft-pick__card-clickable .card-container { zoom: 1.05; }
+        .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 1.05; }
 
         @media (max-height: 900px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.95; }
         }
         @media (max-height: 800px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.85; }
         }
         @media (max-height: 720px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.76; }
         }
     }
 
@@ -991,16 +991,16 @@ body.initial-draft-awaiting-others {
             flex-wrap: wrap;
             gap: 24px 20px;
         }
-        .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+        .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.95; }
 
         @media (max-height: 900px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.85; }
         }
         @media (max-height: 800px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.76; }
         }
         @media (max-width: 1100px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.7; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.7; }
         }
     }
 
@@ -1013,16 +1013,16 @@ body.initial-draft-awaiting-others {
             flex-wrap: wrap;
             gap: 28px;
         }
-        .initial-draft-pick__card-clickable .card-container { zoom: 1.05; }
+        .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 1.05; }
 
         @media (max-height: 900px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.95; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.95; }
         }
         @media (max-height: 800px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.85; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.85; }
         }
         @media (max-height: 720px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.76; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.76; }
         }
     }
 
@@ -1075,21 +1075,21 @@ body.initial-draft-awaiting-others {
          * поднят пропорционально. Height-ladder обеспечивает absence
          * scroll'ов на 1080p / 900p / 800p.
          */
-        .initial-draft-pick__card-clickable .card-container { zoom: 0.82; }
+        .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.82; }
 
         @media (max-height: 1000px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.74; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.74; }
         }
         @media (max-height: 900px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.66; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.66; }
             .initial-draft-pick__grid { gap: 12px 10px; }
         }
         @media (max-height: 800px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.58; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.58; }
             .initial-draft-pick__grid { gap: 10px 8px; }
         }
         @media (max-height: 720px) {
-            .initial-draft-pick__card-clickable .card-container { zoom: 0.5; }
+            .initial-draft-pick__card-clickable :is(.card-container, .pcard) { zoom: 0.5; }
             .initial-draft-pick__grid { gap: 8px 8px; }
         }
     }
@@ -1610,7 +1610,7 @@ body.initial-draft-awaiting-others {
             filter 180ms ease,
             z-index 0ms;
 
-        > .card-container {
+        > :is(.card-container, .pcard) {
             zoom: 0.46;
             margin: 0;
             transition: filter 180ms ease;
@@ -1620,19 +1620,19 @@ body.initial-draft-awaiting-others {
             z-index: 999 !important;
             transform: translateY(-8px);
 
-            > .card-container {
+            > :is(.card-container, .pcard) {
                 filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55))
                         drop-shadow(0 0 12px rgba(140, 190, 235, 0.55));
             }
         }
 
         /* Корпорация — крупнее остальных. */
-        &--corp > .card-container {
+        &--corp > :is(.card-container, .pcard) {
             zoom: 0.7;
         }
 
         /* CEO между corporate и обычным размером. */
-        &--ceo > .card-container {
+        &--ceo > :is(.card-container, .pcard) {
             zoom: 0.58;
         }
     }
@@ -2126,9 +2126,9 @@ body.initial-draft-awaiting-others {
     @media (max-height: 900px) {
         &__body { padding: 12px 24px 8px; gap: 14px 22px; }
         &__top-strip { gap: 16px; }
-        &__card-slot > .card-container { zoom: 0.4; }
-        &__card-slot--corp > .card-container { zoom: 0.6; }
-        &__card-slot--ceo > .card-container { zoom: 0.5; }
+        &__card-slot > :is(.card-container, .pcard) { zoom: 0.4; }
+        &__card-slot--corp > :is(.card-container, .pcard) { zoom: 0.6; }
+        &__card-slot--ceo > :is(.card-container, .pcard) { zoom: 0.5; }
         &__projects-row { grid-template-columns: 144px minmax(0, 1fr); }
         &__projects-row-label { padding-top: 12px; }
     }
@@ -2136,9 +2136,9 @@ body.initial-draft-awaiting-others {
     @media (max-height: 800px) {
         &__header { padding: 14px 24px 12px; }
         &__title { font-size: 18px; letter-spacing: 3px; }
-        &__card-slot > .card-container { zoom: 0.36; }
-        &__card-slot--corp > .card-container { zoom: 0.52; }
-        &__card-slot--ceo > .card-container { zoom: 0.44; }
+        &__card-slot > :is(.card-container, .pcard) { zoom: 0.36; }
+        &__card-slot--corp > :is(.card-container, .pcard) { zoom: 0.52; }
+        &__card-slot--ceo > :is(.card-container, .pcard) { zoom: 0.44; }
         &__projects-row {
             grid-template-columns: 130px minmax(0, 1fr);
             column-gap: 10px;

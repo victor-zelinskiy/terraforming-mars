@@ -70,7 +70,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';

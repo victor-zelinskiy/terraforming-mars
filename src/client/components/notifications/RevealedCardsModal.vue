@@ -63,7 +63,7 @@ import {defineComponent, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 import {revealViewerState, closeRevealViewer} from '@/client/components/notifications/revealViewerState';

@@ -211,7 +211,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {HandCardEntry} from '@/client/components/handCards/handCardModel';
 import {HandCardBlock} from '@/client/components/handCards/cardPlayability';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';

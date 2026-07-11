@@ -89,8 +89,14 @@ export const REVEAL_AT = 0.86;
 /** Proxy fade-out start within the flight (overlaps the slot fade-in). */
 export const HANDOFF_AT = 0.92;
 
-/** The natural (unscaled) card width — mirrors `.filterDiv { width: 300px }`. */
-export const CARD_NATURAL_W = 300;
+/**
+ * The natural (unscaled) card width — mirrors the premium face
+ * (`.pcard { width: 320px }`). Every card these cinematics fly (hand /
+ * draft / research / reveal) is a project or prelude card, i.e. premium;
+ * with the proxy box at 320 × (320/aspect) a premium target resolves to
+ * exactly 320×460 — the pcard's own natural size, no stretch.
+ */
+export const CARD_NATURAL_W = 320;
 
 /** Deck presentation scale (card backs in the stack, ~108px wide). */
 export const DECK_SCALE = 0.36;

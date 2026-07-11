@@ -442,7 +442,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {ActionGroup, playerActionGroups, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes} from '@/client/components/actions/actionBranchNodes';
 import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -1500,7 +1500,7 @@ export default defineComponent({
   transition: filter 0.15s ease, transform 0.15s ease;
   &:hover { filter: brightness(1.06); transform: translateY(-1px); }
   // Zero the legacy asymmetric card margin + scale down so the chip is compact.
-  > :deep(.card-container) { margin: 0; zoom: 0.5; }
+  > :deep(:is(.card-container, .pcard)) { margin: 0; zoom: 0.5; }
 }
 .action-confirm__handpick-change {
   display: inline-flex;

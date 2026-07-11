@@ -99,7 +99,7 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionRevealDescriptor} from '@/common/models/ActionPreviewModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardTag from '@/client/components/card/CardTag.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 

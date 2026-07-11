@@ -276,7 +276,7 @@
  * payment math).
  */
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';

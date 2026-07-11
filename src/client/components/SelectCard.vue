@@ -34,7 +34,7 @@ import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {CardOrderStorage} from '@/client/utils/CardOrderStorage';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';

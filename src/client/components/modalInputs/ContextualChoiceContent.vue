@@ -100,7 +100,7 @@ import {OrOptionsModel, ChoiceContext} from '@/common/models/PlayerInputModel';
 import {OrOptionsResponse} from '@/common/inputs/InputResponse';
 import {Message} from '@/common/logs/Message';
 import {translateText, translateMessage, translateCardName} from '@/client/directives/i18n';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ModernOptionPicker from '@/client/components/modalInputs/ModernOptionPicker.vue';
 

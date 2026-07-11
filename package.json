@@ -92,7 +92,7 @@
     "lint:server": "eslint --cache src tests",
     "lint:i18n": "npx tsx src/tools/translation_audit.ts",
     "lint:fix": "eslint --fix src tests",
-    "make:cards": "npx tsx src/server/tools/export_card_rendering.ts",
+    "make:cards": "npx tsx src/server/tools/export_card_rendering.ts && npx tsx src/tools/make_card_art_manifest.ts",
     "make:css": "lessc src/styles/common.less build/styles.css && node src/server/tools/gzip.js",
     "convert:webp": "node scripts/convert-webp.cjs",
     "watch:less": "npx tsx scripts/watchcss.ts src/styles",

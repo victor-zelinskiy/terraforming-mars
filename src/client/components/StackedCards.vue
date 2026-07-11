@@ -9,7 +9,7 @@
 <script lang="ts">
 
 import {defineComponent} from 'vue';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 
 export default defineComponent({

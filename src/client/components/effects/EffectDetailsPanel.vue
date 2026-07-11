@@ -147,7 +147,7 @@ import {getEffectSummary, EffectSummaryViewModel, EffectSummaryContext} from '@/
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripEffectPrefix} from '@/client/directives/stripEffectPrefix';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 

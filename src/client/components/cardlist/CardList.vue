@@ -214,7 +214,7 @@ import {FundedAwardModel} from '@/common/models/FundedAwardModel';
 import {TypeOption, CardListModel, hashToModel, modelToHash, ResourceOption, TagOption} from '@/client/components/cardlist/CardListModel';
 import {getAward, getMilestone} from '@/client/MilestoneAwardManifest';
 import {BonusId, BONUS_IDS, PolicyId, POLICY_IDS, agendaIdDescription} from '@/common/turmoil/Types';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
 import GlobalEvent from '@/client/components/turmoil/GlobalEvent.vue';
 import PreferencesIcon from '@/client/components/PreferencesIcon.vue';

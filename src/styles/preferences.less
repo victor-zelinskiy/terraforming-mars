@@ -853,7 +853,7 @@
     pointer-events: none;
 }
 
-.card-zoom-preload .card-container.filterDiv {
+.card-zoom-preload :is(.card-container.filterDiv, .pcard) {
     /* Default fullscreen zoom is 2.5 — pointless for an invisible warm-up.
        Keep it cheap; image / sprite requests fire regardless of scale. */
     zoom: 1;

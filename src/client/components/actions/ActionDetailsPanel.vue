@@ -166,7 +166,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import ActionResultsPreview from '@/client/components/actions/ActionResultsPreview.vue';
 import ActionNextStepNotice from '@/client/components/actions/ActionNextStepNotice.vue';
 

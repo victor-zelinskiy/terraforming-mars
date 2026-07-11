@@ -721,7 +721,7 @@
     align-items: center;
     /* Neutralise the legacy asymmetric card margin so the scaled card
        hugs its slot (see CLAUDE "Centering UI under a <Card>"). */
-    .card-container { margin: 0; }
+    :is(.card-container, .pcard) { margin: 0; }
     /* Perf: isolate each card's layout so the fit engine's repeated zoom
        measures don't reflow sibling cards. `layout style` only — NOT `paint`
        (paint containment would clip card badges that sit at the card edge,
@@ -737,14 +737,14 @@
    rendered the tucked Events at natural size). Identity cards get a SMALL bump
    (corporation largest); the bumps are kept small so corp/preludes stay <= 1.0
    even at the max base zoom (0.95) and never upscale the raster art. */
-.played-card-item .card-container {
+.played-card-item :is(.card-container, .pcard) {
     zoom: var(--played-card-zoom, 0.6);
 }
-.played-group--corporation .played-card-item .card-container {
+.played-group--corporation .played-card-item :is(.card-container, .pcard) {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.05);
 }
-.played-group--prelude .played-card-item .card-container,
-.played-group--ceo .played-card-item .card-container {
+.played-group--prelude .played-card-item :is(.card-container, .pcard),
+.played-group--ceo .played-card-item :is(.card-container, .pcard) {
     zoom: calc(var(--played-card-zoom, 0.6) + 0.03);
 }
 
@@ -1098,15 +1098,15 @@
 .played-card-item--pickable {
     position: relative;
 }
-.played-card-item--pickable .card-container {
+.played-card-item--pickable :is(.card-container, .pcard) {
     outline: 2px solid rgba(70, 230, 255, 0.85);
     outline-offset: 1px;
     border-radius: 6px;
     box-shadow: 0 0 18px -2px rgba(70, 230, 255, 0.55);
     transition: outline-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
-.played-card-item--pickable .played-card-item__card:hover .card-container,
-.played-card-item--pickable .played-card-item__card:focus-visible .card-container {
+.played-card-item--pickable .played-card-item__card:hover :is(.card-container, .pcard),
+.played-card-item--pickable .played-card-item__card:focus-visible :is(.card-container, .pcard) {
     outline-color: #7af2ff;
     box-shadow: 0 0 26px 0 rgba(70, 230, 255, 0.72);
     transform: translateY(-3px);
@@ -1115,7 +1115,7 @@
 @media (prefers-reduced-motion: reduce) {
     .played-board-overlay { animation: none; }
     .played-board__pickstrip-dot { animation: none; }
-    .played-card-item--pickable > .card-container { transition: none; }
+    .played-card-item--pickable > :is(.card-container, .pcard) { transition: none; }
     .played-card-item,
     .played-filter-chip,
     .played-board__close { transition: none; }

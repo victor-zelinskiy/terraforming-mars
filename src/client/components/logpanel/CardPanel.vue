@@ -22,7 +22,7 @@ import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel, simpleColonyModel} from '@/common/models/ColonyModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import Card from '@/client/components/card/Card.vue';
+import Card from '@/client/components/card/CardFace.vue';
 import GlobalEvent from '@/client/components/turmoil/GlobalEvent.vue';
 import AppButton from '@/client/components/common/AppButton.vue';
 import Colony from '@/client/components/colonies/Colony.vue';
