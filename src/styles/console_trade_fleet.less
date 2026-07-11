@@ -9,6 +9,57 @@
    the flight layer is clipped (no overflow); nothing animates layout.
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE HYDRO MARKER — the "marker advances along the track" micro-
+   interaction (consoleHydroMarker.ts / hydroMarkerDirector.ts). The
+   engineering-flavoured sibling: a small token GLIDES along the rail from
+   the old stop to the new one and LOCKS IN — only THEN do the action's
+   consequences apply. Same z-band + clip discipline as the fleet.
+   ═══════════════════════════════════════════════════════════════════ */
+.con-hydromarker-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11620; /* above the hydro screen + confirm modal, below the command bar */
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+.con-hydromarker {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    opacity: 0; /* the director reveals via autoAlpha once positioned */
+    pointer-events: none;
+    will-change: transform, opacity; /* scoped: exists only mid-glide */
+    /* Owner-hue token (player_bg_color_* sets the background) — a firm ring +
+       an aqua conduit glow so it reads as a hydronetwork instrument marker. */
+    box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 10px fade(@con-hydro-aqua, 75%);
+
+    /* CHARGE: a bright ready aura before lift. */
+    &--charge { box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 14px fade(@con-hydro-aqua, 95%); }
+    /* GLIDE: a subtle motion trail behind the travelling token. */
+    &--glide::after {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: 50%;
+        box-shadow: 0 0 12px 3px fade(@con-hydro-aqua, 45%);
+    }
+    /* LOCK / PULSE: the seat — a crisp confirmation ring. */
+    &--lock, &--pulse { box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 0 3px fade(@con-hydro-aqua, 70%), 0 0 16px fade(@con-hydro-aqua, 80%); }
+}
+@keyframes con-hydromarker-settle {
+    0% { transform: scale(1.5); box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9), 0 0 0 4px fade(@con-hydro-aqua, 90%), 0 0 18px fade(@con-hydro-aqua, 90%); }
+    100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9), 0 0 8px fade(@con-hydro-aqua, 80%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-hydro__stop-marker--settle { animation: none; }
+    .con-hydromarker--glide::after { box-shadow: none; }
+}
+
 /* ── The app-level flight stage (ConsoleTradeFleetLayer) ─────────────── */
 .con-fleet-layer {
     position: fixed;

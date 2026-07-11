@@ -373,6 +373,7 @@ import {
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
 import {isTradeFleetActive} from '@/client/console/colonyFleet/consoleTradeFleet';
+import {isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import BotTurnReviewOverlay from '@/client/components/marsbot/BotTurnReviewOverlay.vue';
 import {
@@ -722,7 +723,7 @@ export default defineComponent({
            * next-phase modal over it). The poll loop keeps running, so the next
            * poll after the animation finishes commits fresh state.
            */
-          if (isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive()) {
+          if (isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() || isHydroMarkerActive()) {
             return;
           }
           /*

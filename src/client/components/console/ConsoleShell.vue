@@ -389,6 +389,11 @@
          resolves (consoleTradeFleet.ts / tradeFleetDirector.ts). -->
     <ConsoleTradeFleetLayer />
 
+    <!-- The hydronetwork MARKER-ADVANCE stage — a token glides along the rail
+         to the new stop and locks in, then the advance resolves (calmer,
+         engineering-flavoured; consoleHydroMarker.ts). -->
+    <ConsoleHydroMarkerLayer />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -551,6 +556,8 @@ import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
+import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
+import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
@@ -640,6 +647,7 @@ export default defineComponent({
     ConsolePlayCardConfirm,
     ConsoleCardExitLayer,
     ConsoleDraftTray,
+    ConsoleHydroMarkerLayer,
     ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
@@ -676,6 +684,8 @@ export default defineComponent({
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
       tradeFleetState,
+      /** The hydronetwork marker-advance controller (the plan-reset watcher). */
+      hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
@@ -1642,9 +1652,9 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
-      // TRADE-FLEET LAUNCH: the ship is flying + docking — the pad is inert,
-      // the bar advertises nothing (the moment plays itself out, bounded).
-      if (isTradeFleetActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER: the animation owns the moment — the
+      // pad is inert, the bar advertises nothing (bounded, plays itself out).
+      if (isTradeFleetActive() || isHydroMarkerActive()) {
         return [];
       }
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
@@ -2096,6 +2106,15 @@ export default defineComponent({
         this.pendingTradeColony = undefined;
       }
     },
+    // MARKER ADVANCE lifecycle: the hydro screen STAYS OPEN through the whole
+    // glide; when the marker has locked in + the view committed (active →
+    // false), reset the plan so the (now-used) screen shows a clean state.
+    // The screen is never auto-closed (advancing leaves you in hydro).
+    'hydroMarkerState.active'(active: boolean) {
+      if (!active && this.consoleState.section === 'hydro') {
+        resetHydroPlan();
+      }
+    },
     // A mandatory surface claimed the screen — the journal yields so the
     // task / placement / reveal is never hidden behind it (and never has
     // to share the pad with it).
@@ -2303,10 +2322,11 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
-      // TRADE-FLEET LAUNCH owns the moment: while the ship flies + docks the
-      // pad is inert (nothing can act on a trade that's mid-commit). Bounded
-      // by the flight duration + the WaitingFor gate, so it can never stick.
-      if (isTradeFleetActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER own the moment: while the ship flies
+      // or the marker glides + locks in, the pad is inert (nothing can act on
+      // an advance that's mid-commit). Bounded by the animation + WaitingFor
+      // gate, so it can never stick.
+      if (isTradeFleetActive() || isHydroMarkerActive()) {
         return true;
       }
       // «Разбор хода» review owns the pad while open (a read-only foreground
@@ -3709,10 +3729,10 @@ export default defineComponent({
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
-    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName}): void {
+    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number}): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
-      if (path === undefined) {
-        return;
+      if (path === undefined || isHydroMarkerActive()) {
+        return; // guard a double-confirm: the marker glide owns the moment
       }
       const responses: Array<unknown> = [
         optionResponseForPath(path),
@@ -3724,9 +3744,16 @@ export default defineComponent({
       if (payload.selectedCard !== undefined) {
         responses.push({type: 'card' as const, cards: [payload.selectedCard]});
       }
+      // PREMIUM MARKER ADVANCE: ARM the marker glide (client-side, from→to)
+      // FIRST — the confirm modal already closed, the hydro SCREEN STAYS OPEN,
+      // and the marker physically moves to the new stop — THEN submit. The
+      // WaitingFor `holdingForHydroMarker` gate BLOCKS the commit (delta chips /
+      // new position) until the marker LOCKS IN. The plan is reset + the
+      // screen kept open by the `hydroMarkerState.active` watcher (never
+      // `section='board'` — trading leaves you in colonies, advancing leaves
+      // you in hydro). Desktop is unaffected (never arms).
+      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color);
       this.submitBatch(responses);
-      resetHydroPlan();
-      this.consoleState.section = 'board';
     },
     confirmSale(): void {
       const picked = this.consoleState.sale.selected;
@@ -4390,6 +4417,7 @@ export default defineComponent({
     resetGovScaleFocus();
     releaseZoomMotion();
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
+    abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

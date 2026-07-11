@@ -62,10 +62,22 @@
               <span v-else-if="stop.vm.stage.vp === undefined" class="con-hydro__stop-noreward" aria-hidden="true">—</span>
             </div>
           </template>
-          <div class="con-hydro__stop-markers">
+          <!-- The marker row is the STABLE landing anchor of the advance
+               micro-interaction (`data-hydro-marker`, a fixed min-size even
+               when empty): the gliding proxy locks in EXACTLY here, then the
+               real marker materializes in the same rect. The viewer's own
+               marker at the FROM stop is hidden while the glide carries it. -->
+          <div class="con-hydro__stop-markers" :data-hydro-marker="stop.position">
             <span v-for="m in stop.vm.markers" :key="m.color"
+                  v-show="!(m.isViewer && markerGliding && stop.position === markerFrom)"
                   class="con-hydro__stop-marker"
-                  :class="['player_bg_color_' + m.color, {'con-hydro__stop-marker--viewer': m.isViewer}]"
+                  :class="[
+                    'player_bg_color_' + m.color,
+                    {
+                      'con-hydro__stop-marker--viewer': m.isViewer,
+                      'con-hydro__stop-marker--settle': m.isViewer && stop.position === markerSettled,
+                    },
+                  ]"
                   aria-hidden="true"></span>
           </div>
         </div>
@@ -355,6 +367,7 @@ import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} f
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade} from '@/client/components/hydronetwork/hydroReasons';
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
+import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
@@ -385,12 +398,26 @@ export default defineComponent({
   data() {
     return {
       ui: consoleHydroUi,
+      /** The marker-advance controller (drives the glide hide + settle glow). */
+      hydroMarkerState,
       /** One-shot attention pulse on the bonus selector (A with no bonus chosen). */
       bonusAttention: false,
       bonusAttentionTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   computed: {
+    /** The advance glide is running for THIS viewer — hide the FROM marker
+     *  (the proxy carries it) so the token is never in two places at once. */
+    markerGliding(): boolean {
+      return this.hydroMarkerState.active;
+    },
+    markerFrom(): number {
+      return this.hydroMarkerState.fromPosition;
+    },
+    /** The stop whose real marker JUST locked in — a one-shot settle glow. */
+    markerSettled(): number {
+      return this.hydroMarkerState.settledPosition;
+    },
     viewerColor(): Color {
       return this.playerView.thisPlayer.color;
     },
@@ -731,6 +758,9 @@ export default defineComponent({
         spend: this.model.selectedSpend,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        // The marker glide anchors: from the current stop to the planned one.
+        fromPosition: this.model.currentPosition,
+        toPosition: this.model.selectedPosition,
       });
     },
     /** The shell routes every hydro-section intent here. */

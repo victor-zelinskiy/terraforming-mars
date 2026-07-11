@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -164,6 +164,12 @@ import {
   endTradeFleet,
   runTradeFleet,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
+import {
+  abortHydroMarker,
+  detectHydroMarker,
+  endHydroMarker,
+  runHydroMarker,
+} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
@@ -335,6 +341,15 @@ type DataModel = {
    */
   holdingForTradeFleet: boolean;
   /*
+   * Counterpart hold for the console HYDRONETWORK marker advance. Blocks the
+   * commit (delta chips / new track position) until the marker glides to the
+   * new stop and LOCKS IN. Gated on `hydroMarkerState.active` (only ever true
+   * after the console shell arms an advance), so desktop + every non-hydro
+   * submit are unaffected. See
+   * src/client/console/hydroMarker/consoleHydroMarker.ts.
+   */
+  holdingForHydroMarker: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -394,6 +409,7 @@ export default defineComponent({
       holdingForTilePlacement: false,
       holdingForConversion: false,
       holdingForTradeFleet: false,
+      holdingForHydroMarker: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -735,6 +751,20 @@ export default defineComponent({
               this.holdingForTradeFleet = true;
               await runTradeFleet();
             }
+            /*
+             * Console HYDRONETWORK marker-advance gate. Detect the ARMED
+             * client advance (undefined on desktop / non-hydro submits, so a
+             * no-op there): the marker is already gliding to the new stop;
+             * HOLD the commit until it LOCKS IN, so the delta chips + new
+             * track position land on a marker that has arrived — never during
+             * the glide. Composed after the other holds (an advance never
+             * places a tile / converts energy / trades a colony).
+             */
+            const hydroMarkerEvent = detectHydroMarker();
+            if (hydroMarkerEvent !== undefined) {
+              this.holdingForHydroMarker = true;
+              await runHydroMarker();
+            }
             this.updatePlayerView(newView);
             if (hazardCleanups.length > 0) {
               this.holdingForHazardCleanup = false;
@@ -754,14 +784,23 @@ export default defineComponent({
               // tick so it gets the one-shot settle glow + the composer closes.
               nextTick(() => endTradeFleet());
             }
+            if (hydroMarkerEvent !== undefined) {
+              this.holdingForHydroMarker = false;
+              // Hand the advance off AFTER the commit: the real marker just
+              // materialized on the new stop under the locked proxy — end on
+              // the next tick so it gets the one-shot settle glow.
+              nextTick(() => endHydroMarker());
+            }
             return;
           }
 
           // A rejected submit (bad request / unexpected) must RECALL any armed
-          // trade fleet immediately (else it hovers until the 12s safety) — the
-          // trade did not happen. No-op when no flight is armed (desktop).
+          // trade fleet / hydro marker immediately (else it hovers until the
+          // safety) — the action did not happen. No-op when none armed (desktop).
           this.holdingForTradeFleet = false;
           abortTradeFleet();
+          this.holdingForHydroMarker = false;
+          abortHydroMarker();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -778,6 +817,8 @@ export default defineComponent({
         .catch((e) => {
           this.holdingForTradeFleet = false;
           abortTradeFleet(); // network failure — recall the fleet, restore the UI
+          this.holdingForHydroMarker = false;
+          abortHydroMarker(); // network failure — recall the marker too
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })
