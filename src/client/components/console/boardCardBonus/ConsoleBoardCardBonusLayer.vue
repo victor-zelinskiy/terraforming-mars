@@ -154,7 +154,12 @@ export default defineComponent({
         }
         return revealMatchesSource(e.source, s.source) ? e : undefined;
       }
-      return isVenusScaleReveal(e.source) ? e : undefined;
+      // No scene → a venus reveal SELF-ARMS. CRUCIAL: never re-arm the batch
+      // this scene ALREADY handled (`stagedEventId` persists after the scene
+      // ends). Without this, the venus reveal — untaken while the fullscreen
+      // is open — would re-match every time the scene ends and re-arm in an
+      // endless loop, keeping the input gate locked so the take never fires.
+      return isVenusScaleReveal(e.source) && e.id !== s.stagedEventId ? e : undefined;
     },
     /** Commit heartbeat — drives the honest "no cards came" recall (board). */
     commitAge(): number {
@@ -359,7 +364,12 @@ export default defineComponent({
             // the proxy ourselves so the card never doubles.
             gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
           }
-          ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(reduced ? 300 : 950)));
+          // END the scene once the fullscreen viewer has TAKEN OVER (the FLIP
+          // has captured this proxy as its physical source — a few frames). The
+          // TAKE belongs to the viewer now, so the input gate must NOT stay
+          // locked through it (that swallowed the «A Взять» press). Short window
+          // = the fly-in still can't be taken prematurely; cleanup follows.
+          ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(reduced ? 120 : 300)));
         },
       });
     },

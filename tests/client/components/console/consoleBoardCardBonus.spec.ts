@@ -45,6 +45,23 @@ describe('consoleBoardCardBonus', () => {
     expect(bonusHoldingSingleZoom(11)).to.be.true;
   });
 
+  it('a FINISHED venus batch stays remembered (guards the layer re-arm loop)', () => {
+    // The layer's venus self-arm is gated on `e.id !== stagedEventId`. After
+    // the scene ends, the (still-untaken) venus reveal must NOT re-match — else
+    // it would re-arm endlessly and keep the input gate locked so the take
+    // never fires. The persisted `stagedEventId` is what makes that guard work.
+    armBoardCardBonus(VENUS);
+    setBoardCardBonusPhase('hover');
+    stageBoardCardBonusReveal(11, 1);
+    setBoardCardBonusPhase('frame');
+    endBoardCardBonus();
+    expect(isBoardCardBonusActive()).to.be.false;
+    // The batch id is remembered → the layer's `e.id !== stagedEventId` guard
+    // holds, so the same untaken reveal is not re-armed.
+    expect(boardCardBonusState.stagedEventId).to.eq(11);
+    expect(isBonusRevealStaged(11)).to.be.true;
+  });
+
   it('stage claims the reveal EXACTLY once, only while at the cell', () => {
     armBoardCardBonus(CELL);
     setBoardCardBonusPhase('hover');
