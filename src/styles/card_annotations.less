@@ -229,40 +229,67 @@
 }
 
 /* ── target highlight ON the card ──────────────────────────────────────
- *  Applied by the layer to the anchored element (`.pcard-mech-group`,
- *  `.pcard__reqs`, `.pcard__vp`). A soft halo, never a hard frame; the
- *  materialization is a one-shot glow sweep timed by the GSAP call(). */
+ *  Two variants, applied by the layer per annotation kind:
+ *
+ *  --frame  effects / actions / the VP badge — a THIN gold contour accent
+ *           hugging the element's own silhouette. No fill, no wash: the
+ *           element's colour identity (effect blue / action frame / gold
+ *           badge) stays untouched — gold only traces the perimeter.
+ *  --block  on-play mechanics + the requirements bar — the allowed
+ *           block-level treatment: a calm ring + a barely-there gold wash.
+ *
+ *  --focus  rides the EXACT node (hover interplay) — crisp and local.
+ *  The materialization is a one-shot sweep timed by the GSAP call();
+ *  `backwards` fill (never `both`): after the sweep the CASCADE must own
+ *  box-shadow again, or the end frame would pin over --special/--focus. */
 
 .caanno-target {
-    box-shadow:
-        0 0 0 1px rgba(217, 184, 120, 0.34),
-        0 0 10px rgba(217, 184, 120, 0.16);
-    /* `backwards` (never `both`): after the one-shot sweep the CASCADE must
-       own box-shadow again, or the animation's end frame would pin the base
-       halo over the stronger --special / --focus states forever. */
-    animation: caanno-target-in calc(460ms * var(--motion-scale, 1)) ease-out backwards;
     transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
 }
 
+.caanno-target--frame {
+    box-shadow:
+        0 0 0 1px rgba(217, 184, 120, 0.50),
+        0 0 6px rgba(217, 184, 120, 0.12);
+    animation: caanno-frame-in calc(380ms * var(--motion-scale, 1)) ease-out backwards;
+}
+
+.caanno-target--block {
+    background-color: rgba(217, 184, 120, 0.05);
+    box-shadow:
+        0 0 0 1px rgba(217, 184, 120, 0.30),
+        0 0 8px rgba(217, 184, 120, 0.14);
+    animation: caanno-block-in calc(460ms * var(--motion-scale, 1)) ease-out backwards;
+}
+
 /* The mechanics rows are square-cornered — soften the halo there; the reqs
-   band / VP badge keep their OWN silhouette (never restyle their radius). */
+   band / VP badge / effect frames keep their OWN silhouette. */
 .pcard-mech-group.caanno-target {
     border-radius: 4px;
 }
 
-.caanno-target--special {
+.caanno-target--special.caanno-target--frame {
     box-shadow:
-        0 0 0 1px rgba(255, 190, 114, 0.48),
-        0 0 14px rgba(255, 183, 90, 0.24);
+        0 0 0 1px rgba(255, 190, 114, 0.60),
+        0 0 8px rgba(255, 183, 90, 0.18);
+}
+.caanno-target--special.caanno-target--block {
+    box-shadow:
+        0 0 0 1px rgba(255, 190, 114, 0.44),
+        0 0 12px rgba(255, 183, 90, 0.20);
 }
 
+/* Focus (hover interplay): a crisp LOCAL ring on the exact anchor — also
+   applied to bare nodes inside a block-marked row, so it must be
+   self-sufficient. Declared last: it wins over the resting variants. */
 .caanno-target--focus {
+    border-radius: 4px;
     box-shadow:
-        0 0 0 1.5px rgba(242, 215, 149, 0.65),
-        0 0 18px rgba(217, 184, 120, 0.32);
+        0 0 0 1.5px rgba(242, 215, 149, 0.68),
+        0 0 12px rgba(217, 184, 120, 0.30);
 }
 
-@keyframes caanno-target-in {
+@keyframes caanno-frame-in {
     0% {
         box-shadow:
             0 0 0 1px rgba(242, 215, 149, 0),
@@ -270,13 +297,33 @@
     }
     45% {
         box-shadow:
-            0 0 0 1.5px rgba(242, 215, 149, 0.7),
-            0 0 22px rgba(242, 215, 149, 0.4);
+            0 0 0 1px rgba(242, 215, 149, 0.72),
+            0 0 12px rgba(242, 215, 149, 0.26);
     }
     100% {
         box-shadow:
-            0 0 0 1px rgba(217, 184, 120, 0.34),
-            0 0 10px rgba(217, 184, 120, 0.16);
+            0 0 0 1px rgba(217, 184, 120, 0.50),
+            0 0 6px rgba(217, 184, 120, 0.12);
+    }
+}
+
+@keyframes caanno-block-in {
+    0% {
+        background-color: rgba(217, 184, 120, 0);
+        box-shadow:
+            0 0 0 1px rgba(242, 215, 149, 0),
+            0 0 0 rgba(242, 215, 149, 0);
+    }
+    45% {
+        box-shadow:
+            0 0 0 1.5px rgba(242, 215, 149, 0.55),
+            0 0 16px rgba(242, 215, 149, 0.30);
+    }
+    100% {
+        background-color: rgba(217, 184, 120, 0.05);
+        box-shadow:
+            0 0 0 1px rgba(217, 184, 120, 0.30),
+            0 0 8px rgba(217, 184, 120, 0.14);
     }
 }
 
@@ -285,7 +332,9 @@
     .caanno,
     .cal-line path,
     .cal-line .cal-line__node,
-    .caanno-target {
+    .caanno-target,
+    .caanno-target--frame,
+    .caanno-target--block {
         transition: none;
         animation: none;
     }

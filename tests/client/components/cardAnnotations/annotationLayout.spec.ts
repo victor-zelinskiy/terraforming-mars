@@ -47,7 +47,7 @@ describe('annotationLayout', () => {
     expect(layout!.placements.map((p) => p.id).sort()).to.deep.eq(['a', 'b', 'c']);
   });
 
-  it('deals sides round-robin by anchor order (first → right)', () => {
+  it('alternates FREE items across sides by anchor order (first → right)', () => {
     const layout = solveAnnotationLayout(input([
       item('top', 200), item('mid', 400), item('low', 600), item('bottom', 700),
     ]))!;
@@ -56,6 +56,44 @@ describe('annotationLayout', () => {
     expect(sides.get('mid')).to.eq('left');
     expect(sides.get('low')).to.eq('right');
     expect(sides.get('bottom')).to.eq('left');
+  });
+
+  it('honours the anchor-side bias (block beside the element it explains)', () => {
+    const layout = solveAnnotationLayout(input([
+      {id: 'l1', anchorY: 300, height: 60, bias: 'left'},
+      {id: 'l2', anchorY: 500, height: 60, bias: 'left'},
+      {id: 'r1', anchorY: 400, height: 60, bias: 'right'},
+      {id: 'free', anchorY: 600, height: 60, bias: 'free'},
+    ]))!;
+    const sides = new Map(layout.placements.map((p) => [p.id, p.side]));
+    expect(sides.get('l1')).to.eq('left');
+    expect(sides.get('l2')).to.eq('left');
+    expect(sides.get('r1')).to.eq('right');
+    expect(sides.get('free')).to.eq('right'); // fills the lighter side
+  });
+
+  it('vertical order per side mirrors the anchors (biased case)', () => {
+    const layout = solveAnnotationLayout(input([
+      {id: 'b', anchorY: 620, height: 70, bias: 'left'},
+      {id: 'a', anchorY: 240, height: 70, bias: 'left'},
+      {id: 'm', anchorY: 430, height: 70, bias: 'left'},
+    ]))!;
+    const left = layout.placements.filter((p) => p.side === 'left');
+    const orderById = left.sort((x, y) => x.y - y.y).map((p) => p.id);
+    expect(orderById).to.deep.eq(['a', 'm', 'b']);
+  });
+
+  it('bottom-clamped blocks push earlier ones up instead of overlapping', () => {
+    // Both anchored at the very bottom of the SAME side: the naive clamp
+    // used to park them on the same y — the two-pass pack must separate.
+    const layout = solveAnnotationLayout(input([
+      {id: 'p', anchorY: 850, height: 90, bias: 'right'},
+      {id: 'q', anchorY: 860, height: 90, bias: 'right'},
+    ]))!;
+    const right = layout.placements.filter((p) => p.side === 'right').sort((a, b) => a.y - b.y);
+    expect(right).to.have.length(2);
+    expect(right[1].y - right[0].y).to.be.gte(90 + 18);
+    expect(right[1].y + 90).to.be.lte(VIEWPORT.height - 78);
   });
 
   it('pins block x to the card edge gap per side', () => {

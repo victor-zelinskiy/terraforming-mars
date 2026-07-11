@@ -103,6 +103,23 @@ function effectKind(node: {rows: Array<Array<ItemType>>}): 'effect' | 'action' {
   return delimiter?.type === CardRenderSymbolType.ARROW ? 'action' : 'effect';
 }
 
+/**
+ * The content token of ONE top-level row node — the SUB-ROW anchor address
+ * (`CardInfoBlock.graphicNode` ↔ the premium face's `data-graphic-node`).
+ * Same derivation on both sides ⇒ the exact-anchor mapping can never
+ * disagree. Undefined for silent nodes (strings / spacers / delimiters).
+ * Null-tolerant: genfiles JSON serializes undefined row entries as null.
+ */
+export function nodeGraphicToken(node: ItemType): string | undefined {
+  // eslint-disable-next-line eqeqeq -- null too: genfiles JSON turns undefined into null
+  if (node == null || typeof node === 'string') {
+    return undefined;
+  }
+  const out: Array<string> = [];
+  nodeTokens(node, out);
+  return out.length === 0 ? undefined : out.join('+');
+}
+
 function rowKind(row: ReadonlyArray<ItemType>): GraphicBlockKind {
   for (const node of row) {
     if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) {

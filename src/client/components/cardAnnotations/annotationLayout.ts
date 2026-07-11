@@ -5,11 +5,14 @@
  *
  * Strategy:
  *  - blocks live in the free gutters LEFT and RIGHT of the fullscreen card;
- *  - items are sorted by their anchor's vertical position and dealt
- *    round-robin across the two sides — blocks on one side keep anchor
- *    order, so tether lines on a side can never cross each other;
- *  - per side, blocks are packed to their anchor's Y with a minimum gap
- *    (simple top-down collision resolution + viewport clamping);
+ *  - a block prefers the side its EXACT anchor is nearest (`bias`, from the
+ *    anchor's horizontal position) — the tether stays short and direct and
+ *    never crosses the card face; anchors without a clear side ('free' —
+ *    full-width rows / unresolved anchors) fill the lighter side;
+ *  - per side, blocks keep ANCHOR ORDER (vertical order of text mirrors the
+ *    vertical order of the targets — same-side lines can never cross) and
+ *    pack to their anchor's Y in two passes: top-down min-gap, then a
+ *    bottom-up clamp that pushes earlier blocks up instead of overlapping;
  *  - a side that would overflow the viewport hands its tail to the other
  *    side; if the gutters are too narrow for a readable block (< MIN_W)
  *    the layout reports null and the layer gracefully doesn't appear —
@@ -17,6 +20,7 @@
  */
 
 export type AnnotationSide = 'left' | 'right';
+export type AnnotationSideBias = AnnotationSide | 'free';
 
 export type LayoutItem = {
   id: string;
@@ -24,6 +28,8 @@ export type LayoutItem = {
   anchorY: number;
   /** The block's measured height at the layout width, px. */
   height: number;
+  /** Preferred side from the anchor's horizontal position (default free). */
+  bias?: AnnotationSideBias;
 };
 
 export type LayoutRect = {left: number, right: number, top: number, bottom: number};
@@ -57,23 +63,31 @@ export type AnnotationLayout = {
 export const ANNOTATION_MAX_W = 252;
 export const ANNOTATION_MIN_W = 168;
 const CARD_GAP = 30;    // block ↔ card breathing room
-const BLOCK_GAP = 12;   // min vertical gap between blocks on a side
+const BLOCK_GAP = 18;   // min vertical gap between blocks on a side
 const SAFE_TOP = 18;
 const SAFE_BOTTOM = 78; // the fullscreen actions strip
 
-/** Pack one side: ideal y = anchor-centered, resolved top-down, clamped. */
+/**
+ * Pack one side in two passes: (1) top-down — ideal y is anchor-centered,
+ * resolved against the running cursor; (2) bottom-up — clamp into the safe
+ * band, pushing EARLIER blocks up instead of letting bottom-clamped blocks
+ * pile onto each other (floored at SAFE_TOP: an over-capacity side degrades
+ * by squeezing at the top, which the compact flag already signals).
+ */
 function packSide(items: Array<LayoutItem>, viewportH: number): Array<{id: string, y: number}> {
-  const out: Array<{id: string, y: number}> = [];
+  const ys: Array<number> = [];
   let cursor = SAFE_TOP;
   for (const item of items) {
-    const ideal = item.anchorY - item.height / 2;
-    let y = Math.max(ideal, cursor);
-    y = Math.min(y, viewportH - SAFE_BOTTOM - item.height);
-    y = Math.max(y, SAFE_TOP);
-    out.push({id: item.id, y});
+    const y = Math.max(item.anchorY - item.height / 2, cursor);
+    ys.push(y);
     cursor = y + item.height + BLOCK_GAP;
   }
-  return out;
+  let limit = viewportH - SAFE_BOTTOM;
+  for (let i = items.length - 1; i >= 0; i--) {
+    ys[i] = Math.max(Math.min(ys[i], limit - items[i].height), SAFE_TOP);
+    limit = ys[i] - BLOCK_GAP;
+  }
+  return items.map((item, i) => ({id: item.id, y: ys[i]}));
 }
 
 function sideCapacity(viewportH: number): number {
@@ -96,11 +110,23 @@ export function solveAnnotationLayout(input: LayoutInput): AnnotationLayout | nu
     return null; // not enough premium room — never squeeze into mush
   }
 
-  // Deal by anchor order, round-robin — same-side lines never cross.
+  // Side assignment, in anchor order: biased items go beside their anchor
+  // (short direct tethers); free items fill the currently-lighter side.
   const ordered = [...items].sort((a, b) => a.anchorY - b.anchorY);
   const left: Array<LayoutItem> = [];
   const right: Array<LayoutItem> = [];
-  ordered.forEach((item, i) => (i % 2 === 0 ? right : left).push(item));
+  for (const item of ordered) {
+    const bias = item.bias ?? 'free';
+    if (bias === 'left') {
+      left.push(item);
+    } else if (bias === 'right') {
+      right.push(item);
+    } else {
+      (usedHeight(left) < usedHeight(right) ? left : right).push(item);
+    }
+  }
+  left.sort((a, b) => a.anchorY - b.anchorY);
+  right.sort((a, b) => a.anchorY - b.anchorY);
 
   // Overflow: hand the tail to the lighter side (keeps anchor order).
   const capacity = sideCapacity(viewport.height);

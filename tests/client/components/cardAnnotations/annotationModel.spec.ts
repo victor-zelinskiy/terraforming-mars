@@ -68,6 +68,18 @@ describe('annotationModel', () => {
     expect(buildCardAnnotations(corp)).to.deep.eq([]);
   });
 
+  it('carries EXACT node anchors — Herbivores blocks tether to distinct nodes', () => {
+    // The flagship ambiguity case: «add animal» + «decrease plant
+    // production» share ONE graphic row; each must carry its own
+    // graphicNode so the tether lines land on different elements.
+    const annotations = buildCardAnnotations(getCardOrThrow(CardName.HERBIVORES));
+    const immediate = annotations.filter((a) => a.kind === 'immediate' && a.graphicNode !== undefined);
+    expect(immediate.length).to.be.gte(2);
+    const [first, second] = immediate;
+    expect(first.graphicId).to.eq(second.graphicId); // same row…
+    expect(first.graphicNode).to.not.eq(second.graphicNode); // …different nodes
+  });
+
   it('detects the styled «*» on the LINKED graphic row only', () => {
     const annotations = buildCardAnnotations(syntheticCard());
     const byId = new Map(annotations.map((a) => [a.id, a]));

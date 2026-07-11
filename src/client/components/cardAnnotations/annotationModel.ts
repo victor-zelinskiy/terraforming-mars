@@ -32,6 +32,11 @@ export type CardAnnotation = {
   text: string;
   /** The graphic element this block explains (data-graphic-id address). */
   graphicId?: string;
+  /**
+   * EXACT semantic anchor inside the row (data-graphic-node address) — the
+   * tether line lands on this node, never on the whole section.
+   */
+  graphicNode?: string;
   /** The linked graphic carries the styled «*» special-rule footnote. */
   special: boolean;
   order: number;
@@ -102,6 +107,7 @@ export function buildCardAnnotations(clientCard: ClientCard): Array<CardAnnotati
         labelKey: LABEL_BY_KIND[block.kind],
         text: block.text,
         graphicId: block.graphicId,
+        graphicNode: block.graphicNode,
         special,
         order: order++,
       });

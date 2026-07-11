@@ -48,6 +48,15 @@ export type CardInfoBlock = {
    * Undefined = the mechanic has no dedicated graphic (audited).
    */
   graphicId?: string;
+  /**
+   * EXACT semantic anchor within the linked row: the content token of the
+   * specific top-level node this block describes (`nodeGraphicToken`,
+   * mirrored by the premium face's `data-graphic-node`). A row hosting
+   * several mechanics (e.g. «add animal» + «decrease plant production»)
+   * gives each block its own node — never an ambiguous section anchor.
+   * Undefined = the whole row is the anchor.
+   */
+  graphicNode?: string;
 };
 
 export type CardInfoGroupKind =

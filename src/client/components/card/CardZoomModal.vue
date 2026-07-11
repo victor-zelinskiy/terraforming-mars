@@ -208,6 +208,11 @@ type SlideDir = '' | 'next' | 'prev' | 'consume';
 // guard if the animation's finish callback never fires (e.g. no WAAPI).
 const ANIM_MS = 240;
 
+// Bounded number of animation-frame retries the fit engine takes when the card
+// element isn't measurable yet (~0.5s at 60fps). Covers the one-time async
+// resolution of the premium face on the first fullscreen open.
+const FIT_MAX_RETRIES = 30;
+
 /*
  * perf: a card's NATURAL (zoom = 1) size is deterministic per card name, so it
  * is cached module-wide and survives reopen. A cached card fits with a pure
@@ -310,6 +315,14 @@ export default defineComponent({
       // fullscreen card has landed; 0 while closed. See scheduleSettle().
       settleNonce: 0,
       settleTimer: undefined as number | undefined,
+      // Bounded rAF retry for the fit engine. On the FIRST-EVER fullscreen open
+      // the premium face (`premium-card-face`, an async global registered in
+      // main.ts to break the type cycle) hasn't resolved yet when show()'s fit
+      // runs, so `.pcard` isn't in the DOM and the measure early-returns — the
+      // card then stays at its unscaled CSS size (small). We retry across the
+      // next frames until the element appears + measures, then apply the fit.
+      fitRetryHandle: 0,
+      fitRetries: 0,
     };
   },
   computed: {
@@ -412,6 +425,8 @@ export default defineComponent({
     show() {
       this.currentIndex = this.computeStartIndex();
       this.slideDir = '';
+      // Fresh fit-retry budget for this open (the persistent-instance reuse case).
+      this.clearFitRetry();
       // Do NOT render the neighbour preloads synchronously on open — that
       // mounts 2 extra full card trees in the SAME frame as the dialog,
       // tripling the open cost. Start empty; warm them once the dialog has
@@ -716,6 +731,9 @@ export default defineComponent({
         cardRoot.querySelector(CARD_EL_SELECTOR) :
         dialog?.querySelector(STAGE_CARD_SELECTOR)) as HTMLElement | null;
       if (cardEl === null || cardEl === undefined) {
+        // The card face isn't in the DOM yet — on the first fullscreen open the
+        // async premium face is still resolving. Retry on the next frame(s).
+        this.scheduleFitRetry();
         return;
       }
 
@@ -735,9 +753,10 @@ export default defineComponent({
         const w = cardEl.offsetWidth;
         const h = cardEl.offsetHeight;
         if (w === 0 || h === 0) {
-          // Card not laid out yet (e.g. display:none mid-swap) — restore and
-          // let a later fit (nextTick / resize) measure it.
+          // Card not laid out yet (e.g. display:none mid-swap, or the premium
+          // face resolved but hasn't flowed) — restore and retry next frame.
           cardEl.style.zoom = previousZoom;
+          this.scheduleFitRetry();
           return;
         }
         natural = {width: w, height: h};
@@ -762,6 +781,33 @@ export default defineComponent({
       const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
 
       cardEl.style.zoom = String(finalZoom);
+      // Measured + applied — cancel any pending retry and re-arm the budget.
+      this.clearFitRetry();
+    },
+    /*
+     * Schedule a bounded animation-frame retry of the fit. Used when the card
+     * element isn't measurable yet — the first fullscreen open races the async
+     * premium face's resolution. Coalesced (one pending frame) and self-limiting
+     * (FIT_MAX_RETRIES), and only re-fires while the dialog is open.
+     */
+    scheduleFitRetry(): void {
+      if (this.fitRetryHandle !== 0 || this.fitRetries >= FIT_MAX_RETRIES) {
+        return;
+      }
+      this.fitRetryHandle = window.requestAnimationFrame(() => {
+        this.fitRetryHandle = 0;
+        this.fitRetries++;
+        if (this.typedRefs.dialog?.open === true) {
+          this.fitCardToViewport();
+        }
+      });
+    },
+    clearFitRetry(): void {
+      this.fitRetries = 0;
+      if (this.fitRetryHandle !== 0) {
+        window.cancelAnimationFrame(this.fitRetryHandle);
+        this.fitRetryHandle = 0;
+      }
     },
   },
   mounted() {
@@ -793,6 +839,7 @@ export default defineComponent({
     window.removeEventListener('keydown', this.onKeydown);
     this.clearAnimTimer();
     this.cancelSettle();
+    this.clearFitRetry();
   },
 });
 </script>

@@ -82,7 +82,7 @@ import {Color} from '@/common/Color';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {getPreferences} from '@/client/utils/PreferencesManager';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateCardName} from '@/client/directives/i18n';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {buildPremiumCardViewModel, PremiumCardVM, vpVariantOf} from './premiumCardViewModel';
@@ -211,7 +211,9 @@ export default defineComponent({
       return this.lightweight ? 'thumb' : 'normal';
     },
     translatedTitle(): string {
-      return translateText(this.vm.title);
+      // Tolerate a `Name:variant` id (`:ares` / `:promo` / …) — the dictionary
+      // keys only the BASE name, so fall back to it without the suffix.
+      return translateCardName(this.vm.title);
     },
     titleTier(): TitleTier {
       return titleTierFor(this.translatedTitle);

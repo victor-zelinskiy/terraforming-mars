@@ -50,7 +50,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardInformation, CardInfoBlock, CardInfoGroup} from '../../../common/cards/CardInformation';
 import {CardRequirementDescriptor, requirementType} from '../../../common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../../common/cards/RequirementType';
-import {deriveGraphicIds, GraphicBlockRef} from '../../../common/cards/render/cardGraphicIds';
+import {deriveGraphicIds, nodeGraphicToken, GraphicBlockRef} from '../../../common/cards/render/cardGraphicIds';
 import {isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} from '../../../common/cards/render/Types';
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
 import {Size} from '../../../common/cards/render/Size';
@@ -505,11 +505,12 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         vpTextOverride = entry.text;
         return;
       }
+      const match = entry.tokens !== undefined ? matchGraphic(graphics, entry.tokens, card.metadata.renderData) : {};
       const block: CardInfoBlock = {
         id: `mech:authored.${i}`,
         kind,
         text: key(entry.text),
-        graphicId: entry.tokens !== undefined ? matchGraphic(graphics, entry.tokens) : undefined,
+        ...match,
       };
       // Ongoing rules drawn as raw rows (no effect node) get their own group.
       if (kind === 'effect' || kind === 'action') {
@@ -524,12 +525,12 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     if (pending !== undefined && pending.length > 0 && !hasBespoke && !notes.includes('behavior-partial')) {
       immediate = pending.map((p) => ({
         ...p.block,
-        graphicId: matchGraphic(graphics, p.tokens),
+        ...matchGraphic(graphics, p.tokens, card.metadata.renderData),
       }));
     } else if (pending !== undefined && pending.length > 0) {
       // Declarative part + a bespoke remainder → keep the canonical blocks,
       // flag for curation (the bespoke part is not yet described).
-      immediate = pending.map((p) => ({...p.block, graphicId: matchGraphic(graphics, p.tokens)}));
+      immediate = pending.map((p) => ({...p.block, ...matchGraphic(graphics, p.tokens, card.metadata.renderData)}));
       status = 'needs-curation';
     } else {
       // Fully bespoke — seed a single block from the printed description
@@ -641,15 +642,39 @@ function hasBespokePlay(card: ICard): boolean {
     Object.prototype.hasOwnProperty.call(proto, 'bespokePlay');
 }
 
-function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>): string | undefined {
+type GraphicMatch = {graphicId?: string, graphicNode?: string};
+
+/**
+ * Match a block's wanted tokens to a graphic ROW, and — within it — to the
+ * EXACT top-level node that produced the matching token (`graphicNode`, via
+ * the shared `nodeGraphicToken` derivation). The node is what the fullscreen
+ * annotation layer tethers to: a row hosting several mechanics gives each
+ * block its own semantic anchor instead of one ambiguous section anchor.
+ */
+function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatch {
+  const root = renderData !== undefined && isICardRenderRoot(renderData) ? renderData : undefined;
   for (const ref of graphics) {
     if (ref.kind !== 'row') {
       continue;
     }
     for (const wanted of tokens) {
       if (ref.tokens.some((have) => have === wanted || have.startsWith(wanted))) {
-        return ref.id;
+        return {graphicId: ref.id, graphicNode: matchRowNode(root?.rows[ref.rowIndex], wanted)};
       }
+    }
+  }
+  return {};
+}
+
+/** The first row node whose token matches — same rule as the row match. */
+function matchRowNode(row: ReadonlyArray<ItemType> | undefined, wanted: string): string | undefined {
+  if (row === undefined) {
+    return undefined;
+  }
+  for (const node of row) {
+    const token = nodeGraphicToken(node);
+    if (token !== undefined && (token === wanted || token.startsWith(wanted))) {
+      return token;
     }
   }
   return undefined;

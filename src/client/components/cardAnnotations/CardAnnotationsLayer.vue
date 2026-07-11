@@ -76,12 +76,29 @@ type TetherLine = {
   special: boolean;
 };
 
+/**
+ * A rule block's resolved card elements. `line` is the EXACT semantic anchor
+ * (data-graphic-node / the effect frame / the VP badge) — the tether lands
+ * on it and hover-focus rings it. `mark` is the HIGHLIGHT surface: for
+ * effects/actions it IS the frame (contour accent, colour identity kept);
+ * for on-play/requirement blocks it's the row/bar (block-level treatment).
+ */
+type ResolvedAnchor = {
+  line?: HTMLElement;
+  mark?: HTMLElement;
+  markVariant: 'frame' | 'block';
+};
+
+const EFFECT_KINDS: ReadonlySet<string> = new Set(['effect', 'action', 'action-cost', 'action-result']);
+
 /** Non-reactive per-instance bookkeeping (DOM refs, gsap, poll tokens). */
 type AnnotationFx = {
   blockEls: Map<string, HTMLElement | undefined>;
   pathEls: Map<string, SVGPathElement | undefined>;
   nodeEls: Map<string, SVGCircleElement | undefined>;
   markedTargets: Set<HTMLElement>;
+  /** annotation id → its resolved card elements (computed once per layout). */
+  anchors: Map<string, ResolvedAnchor>;
   /** anchor element → annotation id (reverse hover: card element → block). */
   targetIds: Map<HTMLElement, string>;
   /** the stage element the reverse-hover listeners are attached to. */
@@ -123,6 +140,7 @@ export default defineComponent({
       pathEls: new Map(),
       nodeEls: new Map(),
       markedTargets: new Set(),
+      anchors: new Map(),
       targetIds: new Map(),
       revealToken: 0,
     };
@@ -187,8 +205,8 @@ export default defineComponent({
       // on stage → null → the layer stays silent.
       return this.dialogEl()?.querySelector<HTMLElement>('.card-zoom-stage .pcard') ?? null;
     },
-    /** Resolve an annotation's anchor element with the documented fallbacks. */
-    anchorEl(stage: HTMLElement, graphicId: string | undefined): HTMLElement | null {
+    /** The annotation's ROW element (data-graphic-id + documented fallbacks). */
+    rowEl(stage: HTMLElement, graphicId: string | undefined): HTMLElement | null {
       if (graphicId === undefined) {
         return null;
       }
@@ -203,6 +221,30 @@ export default defineComponent({
         return stage.querySelector<HTMLElement>('.pcard__vp');
       }
       return stage.querySelector<HTMLElement>('.pcard__mech');
+    },
+    /**
+     * Resolve the EXACT anchors: the tether target (`line`) and the
+     * highlight surface (`mark`). Effects/actions and the VP badge use
+     * their own frame (contour accent); on-play/requirement blocks keep the
+     * block-level mark on the row/bar while the line lands on the specific
+     * node the text describes (data-graphic-node).
+     */
+    resolveAnchor(stage: HTMLElement, a: CardAnnotation): ResolvedAnchor {
+      const row = this.rowEl(stage, a.graphicId);
+      if (row === null) {
+        return {markVariant: 'block'};
+      }
+      if (EFFECT_KINDS.has(a.kind)) {
+        const frame = row.querySelector<HTMLElement>('.pcard-effect') ?? row;
+        return {line: frame, mark: frame, markVariant: 'frame'};
+      }
+      if (a.graphicId === 'vp' || a.kind === 'victory-points') {
+        return {line: row, mark: row, markVariant: 'frame'};
+      }
+      const node = a.graphicNode !== undefined ?
+        row.querySelector<HTMLElement>(`[data-graphic-node="${cssEscape(a.graphicNode)}"]`) :
+        null;
+      return {line: node ?? row, mark: row, markVariant: 'block'};
     },
 
     /* ── the reveal ──────────────────────────────────────────────────── */
@@ -308,20 +350,31 @@ export default defineComponent({
         return;
       }
       const cardRect = stage.getBoundingClientRect();
+      const cardCenterX = (cardRect.left + cardRect.right) / 2;
+      this.fx.anchors.clear();
       const anchors = new Map<string, DOMRect>();
       for (const a of this.rendered) {
-        const el = this.anchorEl(stage, a.graphicId);
-        if (el !== null) {
-          anchors.set(a.id, el.getBoundingClientRect());
+        const resolved = this.resolveAnchor(stage, a);
+        this.fx.anchors.set(a.id, resolved);
+        if (resolved.line !== undefined) {
+          anchors.set(a.id, resolved.line.getBoundingClientRect());
         }
       }
       const layout = solveAnnotationLayout({
         items: this.rendered.map((a) => {
           const rect = anchors.get(a.id);
+          // Side bias from the EXACT anchor's horizontal position: a block
+          // reads best beside the element it explains (short, direct line).
+          // Wide anchors (the full-width reqs bar / whole rows) are 'free'.
+          let bias: 'left' | 'right' | 'free' = 'free';
+          if (rect !== undefined && rect.width <= cardRect.width * 0.6) {
+            bias = (rect.left + rect.right) / 2 <= cardCenterX ? 'left' : 'right';
+          }
           return {
             id: a.id,
             anchorY: rect !== undefined ? (rect.top + rect.bottom) / 2 : (cardRect.top + cardRect.bottom) / 2,
             height: this.fx.blockEls.get(a.id)?.offsetHeight ?? 40,
+            bias,
           };
         }),
         cardRect,
@@ -364,10 +417,12 @@ export default defineComponent({
         const height = this.fx.blockEls.get(a.id)?.offsetHeight ?? 40;
         const by = a.y + Math.min(height / 2, 30);
         const bx = a.side === 'left' ? a.x + this.width : a.x;
-        const ax = a.side === 'left' ? rect.left + 6 : rect.right - 6;
+        // The endpoint sits just OUTSIDE the exact element's near edge — the
+        // anchor dot touches the node it explains, never covers its art.
+        const ax = a.side === 'left' ? rect.left - 4 : rect.right + 4;
         const ay = rect.top + rect.height / 2;
-        // elbow trace: horizontal run, then a straight segment to the anchor
-        const xm = a.side === 'left' ? ax - 22 : ax + 22;
+        // elbow trace: horizontal run, then a short approach to the anchor
+        const xm = a.side === 'left' ? ax - 16 : ax + 16;
         const d = `M ${bx} ${by} L ${xm} ${by} L ${ax} ${ay}`;
         lines.push({id: a.id, d, ax, ay, special: a.special});
       }
@@ -418,7 +473,7 @@ export default defineComponent({
         if (node !== undefined) {
           tl.to(node, {scale: 1, duration: motionMs(180) / 1000, ease: 'back.out(2.2)'}, at + 0.26);
         }
-        tl.call(() => this.markTarget(stage, a), undefined, at + 0.24);
+        tl.call(() => this.markTarget(a), undefined, at + 0.24);
       });
       this.armReverseHover(stage);
     },
@@ -438,43 +493,53 @@ export default defineComponent({
         if (node !== undefined) {
           gsap.set(node, {scale: 1, transformOrigin: 'center'});
         }
-        this.markTarget(stage, a);
+        this.markTarget(a);
       }
       this.measuring = false;
       this.armReverseHover(stage);
     },
 
-    markTarget(stage: HTMLElement, a: RenderedAnnotation) {
-      const el = this.anchorEl(stage, a.graphicId);
-      if (el === null) {
+    markTarget(a: RenderedAnnotation) {
+      const resolved = this.fx.anchors.get(a.id);
+      if (resolved === undefined) {
         return;
       }
-      el.classList.add('caanno-target');
-      if (a.special) {
-        el.classList.add('caanno-target--special');
+      const mark = resolved.mark;
+      if (mark !== undefined) {
+        mark.classList.add('caanno-target', `caanno-target--${resolved.markVariant}`);
+        if (a.special) {
+          mark.classList.add('caanno-target--special');
+        }
+        this.fx.markedTargets.add(mark);
+        if (!this.fx.targetIds.has(mark)) {
+          this.fx.targetIds.set(mark, a.id); // a shared row keeps its first block
+        }
       }
-      this.fx.markedTargets.add(el);
-      this.fx.targetIds.set(el, a.id);
+      // The EXACT node is a reverse-hover hotspot of its own (visual-less
+      // class) — pointing at the node accents ITS block, not the row's first.
+      const line = resolved.line;
+      if (line !== undefined && line !== mark) {
+        line.classList.add('caanno-node');
+        this.fx.markedTargets.add(line);
+        this.fx.targetIds.set(line, a.id);
+      }
     },
 
     /* ── focus interplay (block ↔ card element, both directions) ─────── */
+    /** The element the focus ring rides: the EXACT anchor, else the mark. */
+    focusEl(id: string): HTMLElement | undefined {
+      const resolved = this.fx.anchors.get(id);
+      return resolved?.line ?? resolved?.mark;
+    },
     setFocus(id: string) {
       this.focusId = id;
-      const stage = this.stageCardEl();
-      const a = this.rendered.find((r) => r.id === id);
-      if (stage !== null && a !== undefined) {
-        this.anchorEl(stage, a.graphicId)?.classList.add('caanno-target--focus');
-      }
+      this.focusEl(id)?.classList.add('caanno-target--focus');
     },
     clearFocus(id: string) {
       if (this.focusId === id) {
         this.focusId = null;
       }
-      const stage = this.stageCardEl();
-      const a = this.rendered.find((r) => r.id === id);
-      if (stage !== null && a !== undefined) {
-        this.anchorEl(stage, a.graphicId)?.classList.remove('caanno-target--focus');
-      }
+      this.focusEl(id)?.classList.remove('caanno-target--focus');
     },
     /** Delegated hover on the CARD: pointing at a marked element accents its block. */
     armReverseHover(stage: HTMLElement) {
@@ -495,7 +560,8 @@ export default defineComponent({
       }
     },
     onStageOver(e: Event) {
-      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-target');
+      // The exact node hotspot wins over its host row (closest walks up).
+      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-target');
       if (target === null || target === undefined) {
         return;
       }
@@ -505,7 +571,7 @@ export default defineComponent({
       }
     },
     onStageOut(e: Event) {
-      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-target');
+      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-target');
       if (target === null || target === undefined) {
         return;
       }
@@ -546,9 +612,12 @@ export default defineComponent({
         this.fx.resizeRaf = undefined;
       }
       for (const el of this.fx.markedTargets) {
-        el.classList.remove('caanno-target', 'caanno-target--special', 'caanno-target--focus');
+        el.classList.remove(
+          'caanno-target', 'caanno-target--frame', 'caanno-target--block',
+          'caanno-target--special', 'caanno-target--focus', 'caanno-node');
       }
       this.fx.markedTargets.clear();
+      this.fx.anchors.clear();
       this.fx.targetIds.clear();
       this.fx.blockEls.clear();
       this.fx.pathEls.clear();
