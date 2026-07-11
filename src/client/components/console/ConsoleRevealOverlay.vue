@@ -1,5 +1,12 @@
 <template>
-  <div class="con-reveal" :class="{'con-reveal--headless': headless}" role="dialog" :aria-label="titleText">
+  <div class="con-reveal"
+       :class="{
+         'con-reveal--headless': headless,
+         'con-reveal--bonus-mode': bonusMode,
+         'con-reveal--bonus-veiled': bonusVeiled,
+         'con-reveal--bonus-held': bonusHeld,
+       }"
+       role="dialog" :aria-label="titleText">
     <!--
       SINGLE-CARD drawn reveal is HEADLESS: the received card IS the reveal,
       shown DIRECTLY in the fullscreen viewer (auto-opened). Nothing renders
@@ -195,6 +202,12 @@ import {closeRevealViewer, revealViewerState} from '@/client/components/notifica
 import {
   consoleCardZoom, ConsoleZoomReceive, ConsoleZoomSwap, openConsoleCardZoom, repointConsoleCardZoom, slotZoomOrigin,
 } from '@/client/console/consoleCardZoom';
+import {
+  boardCardBonusState, bonusHoldingSingleZoom, bonusZoomOriginEl, isBoardCardBonusActive, isBonusRevealStaged,
+} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+
+/** The scene phases during which the reveal frame stays fully veiled. */
+const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
 
 
 export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
@@ -283,9 +296,32 @@ export default defineComponent({
      * The single-card reveal SHOULD be showing its fullscreen but isn't (the
      * initial mount, or an unexpected close while the card is still untaken).
      * The watcher (re-)opens it, so the reveal can never be left "invisible".
+     * HELD while the board card-bonus cover is still travelling — the viewer
+     * then opens off the arrived cover (a physical origin), never over it.
      */
     singleCardNeedsFullscreen(): boolean {
-      return this.singleCardMode && consoleCardZoom.card === undefined;
+      return this.singleCardMode && consoleCardZoom.card === undefined &&
+        !bonusHoldingSingleZoom(this.drawnEvent?.id);
+    },
+    // ── Board card-bonus STAGED entrance (consoleBoardCardBonus) ───────
+    /**
+     * This batch came off a board card-bonus cell and the lift scene owns
+     * its entrance: the stock deal-in / frame rise are suppressed for the
+     * batch's whole on-screen life (persists after the scene ends — see
+     * boardCardBonusState.stagedEventId).
+     */
+    bonusMode(): boolean {
+      return this.mode === 'drawn' && isBonusRevealStaged(this.drawnEvent?.id);
+    },
+    /** Pre-frame: the modal is mounted for measurement but fully veiled. */
+    bonusVeiled(): boolean {
+      return this.bonusMode && isBoardCardBonusActive() &&
+        BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase);
+    },
+    /** The static cards stay hidden until the handoff releases them. */
+    bonusHeld(): boolean {
+      return this.bonusMode && isBoardCardBonusActive() &&
+        (BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase) || boardCardBonusState.phase === 'frame');
     },
     /**
      * Count-driven card scale so 1–4 cards stay roomy with a generous safe gap
@@ -560,6 +596,11 @@ export default defineComponent({
       if (card === undefined) {
         return;
       }
+      // A board card-bonus batch: the cover proxy stands at the presentation
+      // point — the viewer opens with a PHYSICAL origin resolving to it, so
+      // the existing zoom FLIP lifts the real card out of the scene (and
+      // `con-zoom-hold` hides the proxy the frame the flight starts).
+      const bonusEntrance = isBoardCardBonusActive() && isBonusRevealStaged(this.drawnEvent?.id);
       openConsoleCardZoom([card], 0, undefined, undefined, {
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
@@ -567,7 +608,7 @@ export default defineComponent({
         receivedCount: this.drawnEvent?.cards.length ?? 1,
         statusLabel: 'Received card',
         mandatory: true,
-        origin: {kind: 'textual'},
+        origin: bonusEntrance ? {kind: 'physical', resolve: () => bonusZoomOriginEl()} : {kind: 'textual'},
       });
     },
     /**

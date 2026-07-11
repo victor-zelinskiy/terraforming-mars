@@ -428,6 +428,11 @@
          engineering-flavoured; consoleHydroMarker.ts). -->
     <ConsoleHydroMarkerLayer />
 
+    <!-- The board CARD-BONUS stage — the card-back bonus physically lifts
+         off the placed cell, travels into the reveal space and flips into
+         the real received cards (consoleBoardCardBonus.ts). -->
+    <ConsoleBoardCardBonusLayer :player-view="playerView" />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -592,6 +597,9 @@ import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovSca
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
+import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
+import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
@@ -682,6 +690,7 @@ export default defineComponent({
     ConsoleCardExitLayer,
     ConsoleDraftTray,
     ConsoleHydroMarkerLayer,
+    ConsoleBoardCardBonusLayer,
     ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
@@ -1688,9 +1697,10 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
-      // TRADE-FLEET LAUNCH / HYDRO MARKER: the animation owns the moment — the
-      // pad is inert, the bar advertises nothing (bounded, plays itself out).
-      if (isTradeFleetActive() || isHydroMarkerActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS: the animation
+      // owns the moment — the pad is inert, the bar advertises nothing
+      // (bounded, plays itself out).
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
         return [];
       }
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
@@ -2397,11 +2407,11 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
-      // TRADE-FLEET LAUNCH / HYDRO MARKER own the moment: while the ship flies
-      // or the marker glides + locks in, the pad is inert (nothing can act on
-      // an advance that's mid-commit). Bounded by the animation + WaitingFor
-      // gate, so it can never stick.
-      if (isTradeFleetActive() || isHydroMarkerActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS own the moment:
+      // while the ship flies, the marker glides or the bonus cover travels,
+      // the pad is inert (nothing can act on an action that's mid-commit).
+      // Bounded by the animations' safety timers, so it can never stick.
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
         return true;
       }
       // «Разбор хода» review owns the pad while open (a read-only foreground
@@ -3141,8 +3151,19 @@ export default defineComponent({
     handleSectionConfirm(): void {
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
-        if (this.placementActive && board?.activate() !== true) {
-          this.showNotice('Cannot place here');
+        if (this.placementActive) {
+          // Card-bonus cell: ARM the lift BEFORE activating — the click
+          // submits synchronously through the headless SelectSpace, and the
+          // cover must separate at submit time (never after the response).
+          const targetId = this.consoleState.boardSpaceId;
+          if (targetId !== undefined) {
+            this.armBoardBonusIfCardCell(targetId);
+          }
+          if (board?.activate() !== true) {
+            this.showNotice('Cannot place here');
+            // Nothing was submitted — recall the armed cover instantly.
+            abortBoardCardBonus('instant');
+          }
         }
         return;
       }
@@ -3851,7 +3872,28 @@ export default defineComponent({
       if (found === undefined || found.path.length === 0) {
         return;
       }
+      this.armBoardBonusIfCardCell(spaceResponse.spaceId);
       this.submit(wrapPath(found.path, spaceResponse));
+    },
+    /**
+     * The placed cell prints a card-draw bonus and its cover is on the
+     * board → ARM the "card bonus lifts off the cell" cinematic BEFORE the
+     * submit (the cover separates while the server resolves; the arriving
+     * tile-source reveal is then staged instead of popping instantly). A
+     * cell without the visual source (no icon in the DOM) never arms —
+     * the standard reveal flow stays untouched.
+     */
+    armBoardBonusIfCardCell(spaceId: string): void {
+      const space = this.playerView.game.spaces.find((s) => s.id === spaceId);
+      if (space === undefined || !space.bonus.includes(SpaceBonus.DRAW_CARD)) {
+        return;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(spaceId) : spaceId;
+      const icon = document.querySelector(`.board-space[data_space_id="${esc}"] .board-space-bonus--card`);
+      if (icon === null) {
+        return;
+      }
+      armBoardCardBonus(spaceId);
     },
     cancelPlacement(): void {
       if (this.taskSpacePending !== undefined) {
@@ -3967,6 +4009,7 @@ export default defineComponent({
         return;
       }
       this.consoleState.task.deferred = false;
+      this.armBoardBonusIfCardCell(spaceResponse.spaceId);
       this.submit(orWrappedResponse(pending.index, spaceResponse));
     },
     // ── T6: reveal-result ack + notification CTAs ────────────────────────
@@ -4541,6 +4584,7 @@ export default defineComponent({
     releaseZoomMotion();
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
+    abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

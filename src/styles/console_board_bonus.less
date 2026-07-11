@@ -1,0 +1,118 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE BOARD CARD-BONUS — the "card bonus lifts off the board cell"
+   cinematic (consoleBoardCardBonus.ts / boardCardBonusDirector.ts).
+
+   The cover on the cell IS the console card-back sleeve (the same
+   assets/resources/card.webp art at 16px), so the hero cover takes over
+   pixel-perfect and stays crisp at every scale. Transform/opacity only;
+   the stage is clipped (no overflow); nothing animates layout.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The app-level flight stage (ConsoleBoardCardBonusLayer) ─────────── */
+.con-bonusfly-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11630; /* above the reveal modal (11520) + fleet (11620), below the exit layer (11640) + command bar (11700) */
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
+/* The hero cover — the board icon's twin (same art, same rect at frame
+   one). The director sizes/positions it and reveals via autoAlpha. */
+.con-bonusfly-cover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    will-change: transform, opacity; /* scoped: exists only mid-scene */
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+
+    .con-card-back {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+/* A reveal proxy — the deal flip plumbing (con-deal-proxy__flip/face/back
+   are the shared 3D-flip classes) wrapped in this scene's own flyer root. */
+.con-bonusfly-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    perspective: 900px;
+    will-change: transform, opacity; /* scoped: proxies exist only mid-scene */
+    filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
+}
+
+/* ── The lifted board icon (one-object rule) ─────────────────────────
+   The real cell icon hides the same frame the cover appears over it; the
+   `!important` wins over any board hover/animation styles (the same
+   cascade trick as .con-deal-hold). Restored deterministically by the
+   layer on abort / scenes that never cover the cell. */
+.board-space-bonus--card.con-bonus-source-lifted {
+    opacity: 0 !important;
+    transition: none !important;
+}
+
+/* ── The reveal overlay's STAGED mode (multi-card batch) ─────────────
+   While the scene owns the entrance, the overlay mounts INVISIBLE but
+   laid out (the covers need its exact slot rects), then materializes
+   around the landed cards:
+
+    bonus-mode   — the batch belongs to the scene: the stock deal-in
+                   entrance + frame rise are suppressed for its whole
+                   on-screen life (the flight IS the entrance), and the
+                   frame/backdrop/card fades are transition-driven.
+    bonus-veiled — pre-frame: backdrop + modal frame fully transparent
+                   (opacity keeps layout — the slots stay measurable).
+    bonus-held   — the static cards (and the focus chrome) stay hidden
+                   until the handoff releases them under the proxies. */
+.con-reveal--bonus-mode {
+    .con-reveal__card {
+        animation: none; /* the scene choreographs the frame, not con-rise */
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    }
+    .con-reveal__backdrop {
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    }
+    .con-reveal__strip .con-start__deal {
+        animation: none; /* the handoff is the entrance — never the deal-in replay */
+    }
+    /* The release fade — the real card materializes under its proxy. */
+    .con-reveal__strip .con-cards__slot > .card-container {
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+    }
+}
+.con-reveal--bonus-veiled {
+    .con-reveal__backdrop,
+    .con-reveal__card {
+        opacity: 0;
+    }
+}
+.con-reveal--bonus-held {
+    .con-reveal__strip .con-cards__slot > .card-container {
+        opacity: 0 !important;
+    }
+    /* No focus chrome over cards that "aren't there yet". */
+    .con-focus-frame,
+    .con-start__slot-a {
+        opacity: 0 !important;
+    }
+}
+
+/* ── Reduced motion: short/static — the path (cell → reveal → cards)
+   still reads, no float/fan theatrics. ───────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .con-bonusfly-cover,
+    .con-bonusfly-proxy { filter: none; }
+    .con-reveal--bonus-mode .con-reveal__card,
+    .con-reveal--bonus-mode .con-reveal__backdrop { transition-duration: 1ms; }
+}

@@ -170,6 +170,7 @@ import {
   endHydroMarker,
   runHydroMarker,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
+import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
@@ -795,12 +796,14 @@ export default defineComponent({
           }
 
           // A rejected submit (bad request / unexpected) must RECALL any armed
-          // trade fleet / hydro marker immediately (else it hovers until the
-          // safety) — the action did not happen. No-op when none armed (desktop).
+          // trade fleet / hydro marker / bonus cover immediately (else it
+          // hovers until the safety) — the action did not happen. No-op when
+          // none armed (desktop).
           this.holdingForTradeFleet = false;
           abortTradeFleet();
           this.holdingForHydroMarker = false;
           abortHydroMarker();
+          abortBoardCardBonus('return');
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -819,6 +822,7 @@ export default defineComponent({
           abortTradeFleet(); // network failure — recall the fleet, restore the UI
           this.holdingForHydroMarker = false;
           abortHydroMarker(); // network failure — recall the marker too
+          abortBoardCardBonus('return'); // …and the bonus cover, back onto its cell
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })
