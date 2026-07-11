@@ -31,8 +31,7 @@
   --pcard-pad-x: 17px;
   --pcard-pad-top: 15px;
   --pcard-pad-bottom: 13px;
-  --pcard-header-min: 52px;
-  --pcard-footer-h: 38px;
+  --pcard-plate-h: 46px;
   --pcard-art-min: 96px;
   --pcard-mech-icon: 24px;
   --pcard-mech-font: 15px;
@@ -168,11 +167,10 @@
   inset: var(--pcard-pad-top) var(--pcard-pad-x) var(--pcard-pad-bottom);
   display: grid;
   grid-template-rows:
-    minmax(var(--pcard-header-min), auto)  /* header  */
-    auto                                   /* requirements */
-    minmax(var(--pcard-art-min), 1fr)      /* art     */
-    auto                                   /* mechanics */
-    var(--pcard-footer-h);                 /* footer  */
+    var(--pcard-plate-h)                   /* header shell (title plate) */
+    auto                                   /* requirements rail / divider */
+    minmax(var(--pcard-art-min), 1fr)      /* art */
+    auto;                                  /* lower section (mechanics + anchors) */
   row-gap: 6px;
   z-index: 2;
 }
@@ -183,25 +181,93 @@
 .pcard--mech-dense     { --pcard-mech-icon: 21px; --pcard-mech-font: 13.5px; }
 .pcard--mech-veryDense { --pcard-mech-icon: 18px; --pcard-mech-font: 12px; }
 
-/* ── header: cost + title + tags ────────────────────────────────────── */
+/* ══ HEADER SHELL — the flagship nameplate + overlay clusters ═════════
+ *
+ * Layering model (the load-bearing design decision of this zone):
+ *   .pcard__header          positioned shell, FIXED height — the header's
+ *                           silhouette can never change;
+ *   .pcard-nameplate        the full-width faceted title plate (gold kant →
+ *                           dark metal body → engraving → theme edge-light);
+ *                           it visually CONTINUES under the overlays;
+ *   .pcard-nameplate__text  the title text SAFE-AREA — only its paddings
+ *                           react to the overlays (CSS vars from the VM);
+ *   .pcard__cost / __tags   OVERLAY layers pinned over the plate ends,
+ *                           z-index above the plate AND the gold frame —
+ *                           they never narrow or clip the plate.
+ */
 .pcard__header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 7px;
+  position: relative;
+  height: var(--pcard-plate-h);
+}
+/* theme edge-light seam under the plate — ties it to the requirements rail */
+.pcard__header::after {
+  content: '';
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: -4px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--pcard-rim-soft) 30% 70%, transparent);
+  filter: blur(0.4px);
+  pointer-events: none;
 }
 
-.pcard__title {
-  align-self: center;
-  min-width: 0;
+/* ── the nameplate: faceted gold kant + dark metal corpus ── */
+.pcard-nameplate {
+  position: absolute;
+  inset: 0;
+  /* stepped sci-fi silhouette: 45° top cuts, longer bottom cuts */
+  clip-path: polygon(
+    10px 0, calc(100% - 10px) 0,
+    100% 9px, 100% calc(100% - 9px),
+    calc(100% - 18px) 100%, 18px 100%,
+    0 calc(100% - 9px), 0 9px);
+  /* the kant itself — brushed gold, darker toward the bottom edge */
+  background: linear-gradient(180deg,
+    var(--pcard-gold-hi) 0%,
+    #b5904f 34%,
+    var(--pcard-gold-deep) 72%,
+    #63481f 100%);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+.pcard-nameplate__body {
+  position: absolute;
+  inset: 1.6px;
+  clip-path: polygon(
+    9px 0, calc(100% - 9px) 0,
+    100% 8px, 100% calc(100% - 8px),
+    calc(100% - 17px) 100%, 17px 100%,
+    0 calc(100% - 8px), 0 8px);
+  background:
+    /* soft theme light pooling behind the name */
+    radial-gradient(70% 150% at 50% -40%, var(--pcard-band) 0%, transparent 62%),
+    /* directional sheen */
+    linear-gradient(112deg, transparent 38%, rgba(255, 255, 255, 0.055) 47%, transparent 56%),
+    /* micro tech engraving */
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px),
+    /* engraved end dots */
+    radial-gradient(circle at 13px 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 13px) 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
+    /* the dark metal corpus */
+    linear-gradient(180deg, #29323d 0%, #161c23 46%, #0d1117 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),      /* top bevel light  */
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.75),          /* bottom bevel dark */
+    inset 0 0 0 1px var(--pcard-rim-soft),         /* theme inner contour */
+    inset 0 0 16px rgba(0, 0, 0, 0.6);             /* depth vignette */
+}
+.pcard--tier-thumb .pcard-nameplate { filter: none; }
+
+/* the title text safe-area — paddings come from the VM-driven vars */
+.pcard-nameplate__text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 5px 2px;
-  /* engraved band */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), var(--pcard-band) 45%, rgba(0, 0, 0, 0.28));
-  border-top: 1px solid rgba(242, 215, 149, 0.35);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
-  border-radius: 3px;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  padding: 3px var(--pcard-title-safe-r, 14px) 5px var(--pcard-title-safe-l, 14px);
+  z-index: 1;
 }
 .pcard__title span {
   display: -webkit-box;
@@ -209,33 +275,36 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: break-word;
-  line-height: 1.16;
-  color: #f2f0e6;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  line-height: 1.12;
+  color: #f4f1e6;
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.9),
+    0 0 6px rgba(0, 0, 0, 0.5);
 }
-.pcard__title--t1 span { font-size: 17px; text-transform: uppercase; letter-spacing: 0.05em; }
-.pcard__title--t2 span { font-size: 14.5px; text-transform: uppercase; letter-spacing: 0.03em; }
-.pcard__title--t3 span { font-size: 13px; }
-.pcard__title--t4 span { font-size: 11.5px; }
+.pcard__title--t1 span { font-size: 16.5px; text-transform: uppercase; letter-spacing: 0.055em; }
+.pcard__title--t2 span { font-size: 14px; text-transform: uppercase; letter-spacing: 0.035em; }
+.pcard__title--t3 span { font-size: 12.5px; letter-spacing: 0.01em; }
+.pcard__title--t4 span { font-size: 11px; }
 
-/* ── cost cluster ───────────────────────────────────────────────────── */
+/* ── cost cluster OVERLAY (top-left, pinned over the plate's left end) ── */
 .pcard__cost {
+  position: absolute;
+  top: -5px;
+  left: -6px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: -5px 0 0 -5px; /* slight overhang onto the frame band — stays inside the card box */
-  width: 48px;
+  align-items: flex-end;
+  z-index: 4; /* above the plate AND the gold frame — a pinned physical badge */
 }
 .pcard__cost-badge {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   background: url(./assets/premium-card/badge-cost.svg) center / contain no-repeat;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 2.5px 3.5px rgba(0, 0, 0, 0.6));
 }
 .pcard__cost-value {
   position: absolute;
-  inset: 0;
+  inset: 0 0 2px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -243,45 +312,58 @@
   color: var(--pcard-ink);
   text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
 }
-.pcard__cost--three .pcard__cost-value { font-size: 17px; }
-/* discount / surcharge mini-chip (concept style: «−4» under the badge) */
+.pcard__cost--three .pcard__cost-value { font-size: 16px; }
+/* discount / surcharge chip — docked to the badge's lower-right, extends the
+   cluster RIGHTWARD over the plate (the title's left safe-area covers it) */
 .pcard__cost-delta {
-  margin-top: 2px;
-  padding: 0 6px;
-  height: 16px;
-  line-height: 15px;
-  font-size: 11.5px;
-  border-radius: 8px;
-  background: rgba(8, 14, 11, 0.82);
+  margin: 0 0 3px -9px;
+  padding: 0 6px 0 10px;
+  height: 15px;
+  line-height: 14px;
+  font-size: 11px;
+  border-radius: 0 8px 8px 0;
+  background: rgba(8, 14, 11, 0.88);
   border: 1px solid var(--pcard-gold-deep);
   color: #7de0a8;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .pcard__cost-delta--surcharge { color: #ff9a8a; }
 .pcard--tier-thumb .pcard__cost-delta { display: none; }
-.pcard__cost-spacer { width: 6px; }
 
-/* ── tag rail ───────────────────────────────────────────────────────── */
+/* ── tag cluster OVERLAY (pinned over the plate's right end) ──────────
+   Sized by --pcard-tag-size / --pcard-tag-overlap / --pcard-tag-cluster-w
+   (set inline from tagClusterPlan). NEVER clipped, never in layout flow. */
 .pcard__tags {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 4px;
-  margin: -2px -3px 0 0;
+  z-index: 4;
+  pointer-events: none;
 }
-.pcard__tags--row     { --pcard-tag-size: 30px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); }
-.pcard__tags--wrap2   { --pcard-tag-size: 27px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); }
-.pcard__tags--compact { --pcard-tag-size: 24px; max-width: calc(var(--pcard-tag-size) * 2 + 6px); gap: 3px; }
-.pcard__tags--fan     { --pcard-tag-size: 22px; max-width: calc(var(--pcard-tag-size) * 3 + 4px); gap: 2px; }
+.pcard__tags--overlap .pcard-tag + .pcard-tag,
+.pcard__tags--stack .pcard-tag + .pcard-tag {
+  margin-left: calc(-1 * var(--pcard-tag-overlap, 0px));
+}
+.pcard__tags--row .pcard-tag + .pcard-tag { margin-left: 4px; }
+.pcard__tags--stack {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  width: var(--pcard-tag-cluster-w);
+}
 .pcard-tag {
   position: relative;
-  width: var(--pcard-tag-size);
-  height: var(--pcard-tag-size);
+  width: var(--pcard-tag-size, 30px);
+  height: var(--pcard-tag-size, 30px);
   border-radius: 50%;
   background-size: cover;
   background-position: center;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  /* pinned-medallion depth: sits ON the plate, casts onto it */
+  filter: drop-shadow(0 2px 2.5px rgba(0, 0, 0, 0.65));
 }
 .pcard-tag::after {
   content: '';
@@ -289,54 +371,74 @@
   inset: -2px;
   background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
 }
+.pcard--tier-thumb .pcard-tag { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 
-/* ── requirements bar ───────────────────────────────────────────────── */
+/* ── requirements RAIL — the nameplate's thin secondary module ────────
+   Deliberately narrower, thinner and darker than the plate (hierarchy);
+   the hex-cut ends echo the plate's facet motif. Copper stays the
+   requirement colour, but muted — an information rail, not a button. */
 .pcard__reqs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 3px 7px;
-  min-height: 25px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #c97e38 0%, #a35d24 55%, #82471b 100%);
-  border: 1px solid #5c3312;
+  align-self: center;
+  gap: 2px 7px;
+  width: 86%;
+  margin: 0 auto;
+  min-height: 21px;
+  padding: 1px 14px;
+  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 9px 100%, 0 50%);
+  background:
+    linear-gradient(112deg, transparent 40%, rgba(255, 235, 200, 0.06) 48%, transparent 56%),
+    linear-gradient(180deg, #a8622a 0%, #82491c 52%, #643716 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 230, 180, 0.5),
-    inset 0 -2px 4px rgba(60, 28, 8, 0.55),
-    0 1px 2px rgba(0, 0, 0, 0.5);
-  color: #fff3e0;
-  font-size: 14px;
+    inset 0 1px 0 rgba(255, 220, 170, 0.4),
+    inset 0 -1.5px 2px rgba(45, 20, 5, 0.55),
+    inset 0 0 0 1px rgba(58, 28, 9, 0.7);
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.45));
+  color: #ffeeda;
+  font-size: 12.5px;
   text-shadow: 0 1px 1px rgba(60, 28, 8, 0.8);
 }
 .pcard__reqs--all {
-  background: linear-gradient(180deg, #b8442e 0%, #8f2f1e 55%, #6e2115 100%);
-  border-color: #571a0e;
+  background:
+    linear-gradient(112deg, transparent 40%, rgba(255, 220, 210, 0.06) 48%, transparent 56%),
+    linear-gradient(180deg, #a53f2b 0%, #82301e 52%, #611f13 100%);
 }
 .pcard-req {
   display: inline-flex;
   align-items: center;
   gap: 3px;
 }
-.pcard-req__word { font-size: 13px; letter-spacing: 0.02em; }
-.pcard-req__value { font-size: 15px; }
+.pcard-req__word { font-size: 12px; letter-spacing: 0.02em; }
+.pcard-req__value { font-size: 13.5px; }
 .pcard-req__icon {
-  width: 19px;
-  height: 19px;
+  width: 16px;
+  height: 16px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
 }
-.pcard-req__icon--wide { width: 26px; }
+.pcard-req__icon--wide { width: 22px; }
 .pcard-req__minus {
   color: #ffd9c9;
-  font-size: 15px;
+  font-size: 13.5px;
   margin-right: -2px;
 }
-.pcard-req__joiner { font-size: 12px; opacity: 0.85; }
-.pcard-req__label { font-size: 11.5px; letter-spacing: 0.02em; }
+.pcard-req__joiner { font-size: 11px; opacity: 0.85; }
+.pcard-req__label { font-size: 10.5px; letter-spacing: 0.02em; }
+
+/* no requirements → the rail collapses to a hair-thin decorative divider
+   (the plate reads finished, the art naturally rises) */
+.pcard__divider {
+  align-self: center;
+  justify-self: center;
+  width: 44%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(217, 184, 120, 0.4) 30% 70%, transparent);
+}
 
 /* ── art viewport ───────────────────────────────────────────────────── */
 .pcard__art {
@@ -620,109 +722,161 @@
   background-repeat: no-repeat;
 }
 
-/* ── footer ─────────────────────────────────────────────────────────── */
-.pcard__footer {
+/* ══ LOWER SECTION — mechanics content + anchored service elements ════
+ *
+ * NO footer row. The mechanics panel is the primary occupant; the three
+ * service elements are ANCHORS pinned to their historical corners:
+ *   VP badge        → bottom-right (its own gold plate; the panel reserves
+ *                     a right column via --pcard-lower-safe-r, per-variant,
+ *                     ONLY when a VP exists);
+ *   expansion stamp → bottom-left, halved to a meta-stamp;
+ *   resource capsule→ bottom-left beside the stamp (panel bumps its bottom
+ *                     padding only when a counter exists — pcard--has-res).
+ * A card without VP / counter reserves NOTHING — the panel takes the full
+ * width, mechanics get the space back.
+ */
+.pcard__lower {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-top: 2px;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 18px;
 }
-.pcard__exp {
+.pcard__lower .pcard__mech {
+  margin-right: var(--pcard-lower-safe-r, 0px);
+}
+/* per-variant right reserve — deterministic from the VM, never measured */
+.pcard--vp-compact { --pcard-lower-safe-r: 44px; }
+.pcard--vp-wide    { --pcard-lower-safe-r: 62px; }
+.pcard--vp-formula { --pcard-lower-safe-r: 86px; }
+/* the resource capsule tucks under the panel's lower-left corner — bump the
+   panel's own bottom padding so content can never sit under it */
+.pcard--has-res .pcard__lower .pcard__mech { padding-bottom: 14px; }
+
+/* ── VP badge: a gold plate that SIZES TO ITS CONTENT (no more clipping) ── */
+.pcard__vp {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 34px;
+  max-width: 78px; /* < the formula reserve (86) — content can never overlap the panel */
+  height: 32px;
+  padding: 0 7px;
+  border-radius: 8px;
+  background:
+    linear-gradient(112deg, transparent 40%, rgba(255, 246, 214, 0.25) 48%, transparent 58%),
+    linear-gradient(180deg, #f4dfa0 0%, #d2ab5d 52%, #93702f 100%);
+  border: 1px solid #211705;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 208, 0.85),
+    inset 0 -2px 3px rgba(70, 48, 14, 0.55),
+    inset 0 0 0 2px rgba(120, 90, 40, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.55);
+}
+.pcard__vp--wide,
+.pcard__vp--formula { padding: 0 8px; }
+.pcard__vp-value {
+  font-size: 17px;
+  color: var(--pcard-ink);
+  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
+}
+.pcard__vp--wide .pcard__vp-value,
+.pcard__vp--formula .pcard__vp-value { font-size: 14px; }
+.pcard__vp-value--negative { color: #7a1d12; }
+.pcard__vp-dyn {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
+  font-size: 12.5px;
+  color: var(--pcard-ink);
+}
+.pcard__vp-dyn .pcard-ic {
+  width: 15px;
+  height: 15px;
+  filter: none;
+}
+.pcard__vp-slash { font-size: 12.5px; margin: 0 1px; }
+.pcard__vp-asterisk { font-size: 12.5px; margin-left: 1px; }
+
+/* ── expansion stamp: halved meta-marker (bottom-left) ── */
+.pcard__exp {
+  position: absolute;
+  left: 1px;
+  bottom: -2px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .pcard__exp-medallion {
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  background-color: rgba(10, 14, 18, 0.75);
-  background-size: 72%;
+  background-color: rgba(10, 14, 18, 0.8);
+  background-size: 74%;
   background-position: center;
   background-repeat: no-repeat;
-}
-.pcard__exp-medallion::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
+  /* thin engraved ring instead of the heavy medallion bezel */
+  box-shadow:
+    0 0 0 1px rgba(165, 133, 76, 0.75),
+    0 0 0 1.8px rgba(30, 22, 10, 0.85),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+  opacity: 0.92;
 }
 /* base game — engraved triangle instead of an icon */
 .pcard__exp-medallion--base::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: none;
-  clip-path: polygon(50% 24%, 76% 70%, 24% 70%);
-  background-color: rgba(217, 184, 120, 0.55);
+  clip-path: polygon(50% 26%, 74% 68%, 26% 68%);
+  background-color: rgba(217, 184, 120, 0.5);
 }
 .pcard__exp-compat {
-  width: 15px;
-  height: 15px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background-size: cover;
   background-position: center;
-  opacity: 0.85;
-  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.4);
+  opacity: 0.7;
+  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.35);
 }
 
+/* ── resource capsule: compact live counter (bottom-left, after the stamp) ── */
 .pcard__res {
+  position: absolute;
+  left: 21px;
+  bottom: -2px;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px 2px 5px;
-  border-radius: 11px;
-  background: rgba(6, 10, 14, 0.7);
-  border: 1px solid rgba(150, 170, 190, 0.4);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  gap: 3px;
+  height: 18px;
+  padding: 1px 7px 1px 4px;
+  border-radius: 9px;
+  background: rgba(7, 11, 15, 0.82);
+  border: 1px solid rgba(180, 196, 212, 0.38);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.5);
 }
 .pcard__res-icon {
-  width: 17px;
-  height: 17px;
+  width: 13px;
+  height: 13px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
 }
 .pcard__res-count {
-  font-size: 13.5px;
+  font-size: 12px;
   color: #eaf2fb;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 }
-
-.pcard__vp {
-  position: relative;
-  margin-left: auto;
-  width: 42px;
-  height: 42px;
-  background: url(./assets/premium-card/badge-vp.svg) center / contain no-repeat;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pcard__vp--wide { width: 58px; background-size: 100% 100%; }
-.pcard__vp-value {
-  font-size: 19px;
-  color: var(--pcard-ink);
-  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
-}
-.pcard__vp-value--negative { color: #7a1d12; }
-.pcard__vp-dyn {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  font-size: 13px;
-  color: var(--pcard-ink);
-}
-.pcard__vp-dyn .pcard-ic {
-  width: 16px;
-  height: 16px;
-  filter: none;
-}
-.pcard__vp-slash { font-size: 13px; margin: 0 1px; }
-.pcard__vp-asterisk { font-size: 13px; margin-left: 1px; }
-.pcard__footer-spacer { margin-left: auto; }
 
 /* ── states ─────────────────────────────────────────────────────────── */
 .pcard__state {
@@ -730,7 +884,7 @@
   inset: 0;
   border-radius: var(--pcard-radius);
   pointer-events: none;
-  z-index: 4;
+  z-index: 5; /* above the cost/tag overlays (z4) — the scrim dims EVERYTHING */
 }
 .pcard--unavailable .pcard__content,
 .pcard--unavailable .pcard__body {

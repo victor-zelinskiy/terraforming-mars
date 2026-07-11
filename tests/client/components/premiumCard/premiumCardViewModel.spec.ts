@@ -9,8 +9,9 @@ import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
 import {GameModule} from '@/common/cards/GameModule';
-import {buildPremiumCardViewModel, normalizeRequirement} from '@/client/components/premiumCard/premiumCardViewModel';
+import {buildPremiumCardViewModel, normalizeRequirement, vpVariantOf} from '@/client/components/premiumCard/premiumCardViewModel';
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
+import {tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
 import {cardArtUrl, premiumCardArt, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
 
 function model(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
@@ -112,6 +113,46 @@ describe('buildPremiumCardViewModel', () => {
     expect(comet.mechanics.textOnly).to.eq(false);
     expect(comet.mechanics.groups.length).to.be.greaterThan(0);
     expect(['sparse', 'normal', 'dense', 'veryDense']).to.include(comet.mechanics.density);
+  });
+});
+
+describe('tagClusterPlan (title overlay geometry)', () => {
+  it('empty cluster reserves nothing', () => {
+    expect(tagClusterPlan(0).width).to.eq(0);
+  });
+  it('1–2 tags: full-size row', () => {
+    expect(tagClusterPlan(1)).to.deep.include({mode: 'row', size: 30, width: 30});
+    expect(tagClusterPlan(2)).to.deep.include({mode: 'row', size: 30, width: 64});
+  });
+  it('3–6 tags: single overlapped row — never a narrower plate', () => {
+    const three = tagClusterPlan(3);
+    expect(three.mode).to.eq('overlap');
+    expect(three.width).to.eq(26 + 2 * 19);
+    const six = tagClusterPlan(6);
+    expect(six.rows).to.eq(1);
+    expect(six.width).to.be.lessThan(100);
+  });
+  it('7+ tags (fan cards): two compact rows, bounded width', () => {
+    const plan = tagClusterPlan(8);
+    expect(plan.mode).to.eq('stack');
+    expect(plan.rows).to.eq(2);
+    expect(plan.width).to.be.lessThan(70);
+  });
+});
+
+describe('vpVariantOf (VP badge sizing / lower safe reserve)', () => {
+  it('fixed values are compact (incl. negatives)', () => {
+    expect(vpVariantOf({kind: 'fixed', value: 2})).to.eq('compact');
+    expect(vpVariantOf({kind: 'fixed', value: -1})).to.eq('compact');
+  });
+  it('simple per-item VP is wide; ratios / one-or-more / vermin are formula', () => {
+    const base = {kind: 'dynamic' as const, points: 1, target: 1, item: undefined,
+      asterisk: false, anyPlayer: false, targetOneOrMore: false, asFraction: false};
+    expect(vpVariantOf(base)).to.eq('wide');
+    expect(vpVariantOf({...base, target: 2})).to.eq('formula');
+    expect(vpVariantOf({...base, targetOneOrMore: true})).to.eq('formula');
+    expect(vpVariantOf({kind: 'vermin'})).to.eq('formula');
+    expect(vpVariantOf(vmOf(CardName.SEARCH_FOR_LIFE).vp!)).to.eq('formula');
   });
 });
 

@@ -1,5 +1,13 @@
 <template>
-  <div class="pcard__cost" :class="{'pcard__cost--three': cost.printed >= 100}">
+  <!--
+    COST CLUSTER OVERLAY — the recognisable megacredit tile pinned over the
+    LEFT end of the title plate (own layer, above plate + frame). Shows the
+    PRINTED cost (the card's physical identity); a live discount/surcharge
+    appears as the compact «−N» chip docked to the badge's lower-right —
+    it extends the cluster RIGHTWARD, widening only the title text's left
+    safe-area (pcard--cost-mod), never the plate silhouette.
+  -->
+  <div class="pcard__cost" :class="{'pcard__cost--three': cost.printed >= 100}" aria-hidden="true">
     <div class="pcard__cost-badge">
       <span class="pcard__cost-value">{{ cost.printed }}</span>
     </div>
@@ -13,12 +21,6 @@
 import {defineComponent} from 'vue';
 import {PremiumCostVM} from './premiumCardViewModel';
 
-/**
- * The gold faceted cost badge. Shows the PRINTED cost (the card's physical
- * identity); a live discount/surcharge appears as the compact «−N» chip
- * below it (concept style) — the vertical stack can never collide with the
- * title band.
- */
 export default defineComponent({
   name: 'PremiumCostBadge',
   props: {

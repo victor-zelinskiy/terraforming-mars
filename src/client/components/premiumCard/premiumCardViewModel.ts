@@ -23,7 +23,7 @@ import {ICardRenderItem} from '@/common/cards/render/Types';
 import {premiumCardArt, PremiumCardArt} from '@/client/cards/cardArt';
 import {PremiumTheme, premiumThemeFor} from './premiumCardTheme';
 import {buildMechanics, MechanicsVM} from './mechanicsModel';
-import {tagLayoutFor, TagLayoutMode} from './tagLayout';
+import {tagClusterPlan, TagClusterPlan} from './tagLayout';
 import {standardResourceIconUrl, tagIconUrl} from './premiumCardIcons';
 
 export type PremiumCostVM = {
@@ -58,6 +58,29 @@ export type PremiumVpVM =
      asterisk: boolean, anyPlayer: boolean, targetOneOrMore: boolean, asFraction: boolean}
   | {kind: 'vermin'};
 
+/**
+ * The VP badge's SIZE variant — drives both the badge's own proportions and
+ * the mechanics panel's bottom-right safe reserve (`pcard--vp-<variant>`).
+ * Deterministic from the VM (never DOM-measured):
+ *   compact — a plain number («2», «−1»);
+ *   wide    — a short «N[icon]» expression;
+ *   formula — «N/M[icon]», one-or-more and the Vermin special.
+ */
+export type PremiumVpVariant = 'compact' | 'wide' | 'formula';
+
+export function vpVariantOf(vp: PremiumVpVM): PremiumVpVariant {
+  if (vp.kind === 'fixed') {
+    return 'compact';
+  }
+  if (vp.kind === 'vermin') {
+    return 'formula';
+  }
+  if (vp.target > 1 || vp.targetOneOrMore || vp.asterisk) {
+    return 'formula';
+  }
+  return 'wide';
+}
+
 export type PremiumCardVM = {
   name: CardName;
   slug: string;
@@ -67,7 +90,7 @@ export type PremiumCardVM = {
   title: string;
   cost?: PremiumCostVM;
   tags: ReadonlyArray<Tag>;
-  tagLayout: TagLayoutMode;
+  tagCluster: TagClusterPlan;
   requirements: ReadonlyArray<NormalizedRequirement>;
   art: PremiumCardArt;
   mechanics: MechanicsVM;
@@ -209,7 +232,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     title: clientCard.name,
     cost: buildCost(clientCard, model),
     tags,
-    tagLayout: tagLayoutFor(tags.length),
+    tagCluster: tagClusterPlan(tags.length),
     requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
     art: premiumCardArt(clientCard.name),
     mechanics: buildMechanics(clientCard.metadata.renderData),

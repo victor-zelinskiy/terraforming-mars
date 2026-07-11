@@ -1,6 +1,7 @@
 <template>
   <div class="pcard"
        :class="rootClasses"
+       :style="headerVars"
        role="img"
        :aria-label="ariaLabel"
        @click="onClick">
@@ -8,30 +9,39 @@
     <div class="pcard__rim" aria-hidden="true"></div>
 
     <div class="pcard__content">
-      <!-- header: cost + title + tags -->
+      <!-- ── HEADER SHELL ─────────────────────────────────────────────
+           The title plate is the FLAGSHIP element: a full-width faceted
+           nameplate whose silhouette NEVER changes. Cost badge and tag
+           medallions are OVERLAY layers pinned over its ends — they only
+           drive the title text's safe-area paddings (CSS vars set from
+           the deterministic view-model, no DOM measuring). -->
       <div class="pcard__header">
-        <PremiumCostBadge v-if="vm.cost !== undefined" :cost="vm.cost" />
-        <span v-else class="pcard__cost-spacer" aria-hidden="true"></span>
-        <div class="pcard__title" :class="'pcard__title--t' + titleTier">
+        <div class="pcard-nameplate" aria-hidden="true">
+          <span class="pcard-nameplate__body"></span>
+        </div>
+        <div class="pcard__title pcard-nameplate__text" :class="'pcard__title--t' + titleTier">
           <span>{{ translatedTitle }}</span>
         </div>
-        <PremiumTagRail v-if="vm.tags.length > 0" :tags="vm.tags" :layout="vm.tagLayout" />
-        <span v-else class="pcard__cost-spacer" aria-hidden="true"></span>
+        <PremiumCostBadge v-if="vm.cost !== undefined" :cost="vm.cost" />
+        <PremiumTagRail v-if="vm.tags.length > 0" :tags="vm.tags" :plan="vm.tagCluster" />
       </div>
 
-      <!-- requirements band (collapses when absent) -->
+      <!-- requirements rail (secondary to the plate); collapses to a thin
+           decorative divider when the card has no requirements -->
       <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
-      <span v-else aria-hidden="true"></span>
+      <span v-else class="pcard__divider" aria-hidden="true"></span>
 
       <!-- art viewport -->
       <PremiumCardArt :art="vm.art" />
 
-      <!-- mechanics plate (collapses when the card has none) -->
-      <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
-      <span v-else aria-hidden="true"></span>
-
-      <!-- footer: expansion medallion · resource socket · VP badge -->
-      <div class="pcard__footer">
+      <!-- ── LOWER SECTION ────────────────────────────────────────────
+           Mechanics content + ANCHORED service elements (no footer row).
+           The VP badge reserves a right column via `--pcard-lower-safe-r`
+           (per-variant, only when VP exists); the expansion stamp and the
+           resource capsule are pinned at the bottom-left corner — tiny,
+           overlapping the panel's border zone only. -->
+      <div class="pcard__lower">
+        <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
                 :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"
@@ -75,7 +85,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import {translateText} from '@/client/directives/i18n';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
-import {buildPremiumCardViewModel, PremiumCardVM} from './premiumCardViewModel';
+import {buildPremiumCardViewModel, PremiumCardVM, vpVariantOf} from './premiumCardViewModel';
 import {titleTierFor, TitleTier} from './titleFit';
 import {cardResourceIconUrl, expansionIconUrl} from './premiumCardIcons';
 import PremiumCostBadge from './PremiumCostBadge.vue';
@@ -86,6 +96,16 @@ import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
 
 export type PremiumCardTier = 'thumb' | 'normal' | 'full';
+
+/* Title text safe-areas (design px). The plate keeps its full width; only
+ * the text inset changes. Values are derived from the overlay clusters'
+ * DETERMINISTIC geometry — badge 46px with a −6px overhang, the delta chip
+ * extends the cost cluster rightward, the tag cluster width comes from
+ * tagClusterPlan. */
+const TITLE_SAFE_BASE = 14;
+const TITLE_SAFE_COST = 50;
+const TITLE_SAFE_COST_MOD = 84;
+const TITLE_SAFE_TAG_GAP = 18;
 
 /**
  * PREMIUM CARD FACE — the fork's from-scratch card renderer (project cards +
@@ -209,7 +229,7 @@ export default defineComponent({
       return !this.inert;
     },
     rootClasses(): Record<string, boolean> {
-      return {
+      const classes: Record<string, boolean> = {
         ['pcard--theme-' + this.vm.theme]: true,
         ['pcard--mech-' + this.vm.mechanics.density]: true,
         ['pcard--tier-' + this.effectiveTier]: true,
@@ -217,6 +237,32 @@ export default defineComponent({
         'pcard--interactive': this.interactive,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
+        'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,
+        'pcard--has-res': this.resourceInfo !== undefined,
+      };
+      if (this.vm.vp !== undefined) {
+        classes['pcard--vp-' + vpVariantOf(this.vm.vp)] = true;
+      }
+      return classes;
+    },
+    /*
+     * The header's safe-area system: the title plate stays full-width; the
+     * TEXT insets around the overlay clusters. Pure arithmetic from the VM
+     * (tagClusterPlan geometry + cost/modifier presence) — set once as CSS
+     * custom properties, never measured from the DOM.
+     */
+    headerVars(): Record<string, string> {
+      const plan = this.vm.tagCluster;
+      const safeL = this.vm.cost === undefined ?
+        TITLE_SAFE_BASE :
+        (this.vm.cost.delta !== 0 ? TITLE_SAFE_COST_MOD : TITLE_SAFE_COST);
+      const safeR = plan.count === 0 ? TITLE_SAFE_BASE : plan.width + TITLE_SAFE_TAG_GAP;
+      return {
+        '--pcard-title-safe-l': `${safeL}px`,
+        '--pcard-title-safe-r': `${safeR}px`,
+        '--pcard-tag-size': `${plan.size}px`,
+        '--pcard-tag-overlap': `${plan.overlap}px`,
+        '--pcard-tag-cluster-w': `${plan.width}px`,
       };
     },
     expansionIcon(): string | undefined {

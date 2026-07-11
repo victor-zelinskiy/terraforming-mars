@@ -1,5 +1,11 @@
 <template>
-  <div class="pcard__vp" :class="{'pcard__vp--wide': isWide}" :aria-label="ariaText">
+  <!--
+    VP BADGE — anchored bottom-right inside the lower section (never touching
+    the card border; the mechanics panel reserves its column via the
+    pcard--vp-<variant> safe classes). A CSS-drawn gold plate that SIZES TO
+    ITS CONTENT (min/max bounded) — a formula can never overflow or clip.
+  -->
+  <div class="pcard__vp" :class="'pcard__vp--' + variant" :aria-label="ariaText">
     <!-- fixed VP -->
     <span v-if="vp.kind === 'fixed'"
           class="pcard__vp-value"
@@ -28,15 +34,10 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {PremiumVpVM} from './premiumCardViewModel';
+import {PremiumVpVM, PremiumVpVariant, vpVariantOf} from './premiumCardViewModel';
 import {mechItemIcon} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 
-/**
- * The gold VP badge (bottom-right). Fixed values engrave a large number;
- * dynamic formulas compact to «N/[icon]» (badge widens); the Vermin special
- * keeps its honest −1/city form.
- */
 export default defineComponent({
   name: 'PremiumVpBadge',
   props: {
@@ -46,8 +47,8 @@ export default defineComponent({
     },
   },
   computed: {
-    isWide(): boolean {
-      return this.vp.kind !== 'fixed';
+    variant(): PremiumVpVariant {
+      return vpVariantOf(this.vp);
     },
     pointsText(): string {
       if (this.vp.kind !== 'dynamic') {

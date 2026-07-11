@@ -54,6 +54,29 @@ describe('PremiumCard', () => {
     expect(wrapper.find('.pcard__mech').exists()).to.eq(false);
     expect(wrapper.find('.pcard__vp').exists()).to.eq(true);
   });
+
+  it('header layering: full-width nameplate + overlay-driven text safe-areas', () => {
+    // Comet: cost badge + 2 tags (space + event) → cluster width 64 → safe-r 82.
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect(wrapper.find('.pcard-nameplate').exists()).to.eq(true);
+    const style = wrapper.attributes('style') ?? '';
+    expect(style).to.contain('--pcard-title-safe-l: 50px');
+    expect(style).to.contain('--pcard-title-safe-r: 82px');
+    // discount widens ONLY the left safe-area
+    const discounted = mount(PremiumCard, {props: {card: model(CardName.COMET, {calculatedCost: 17})}});
+    expect(discounted.attributes('style') ?? '').to.contain('--pcard-title-safe-l: 84px');
+    expect(discounted.classes()).to.include('pcard--cost-mod');
+  });
+
+  it('lower anchors: VP variant class reserves the panel column', () => {
+    const formula = mount(PremiumCard, {props: {card: model(CardName.SEARCH_FOR_LIFE)}});
+    expect(formula.classes()).to.include('pcard--vp-formula');
+    const compact = mount(PremiumCard, {props: {card: model(CardName.DUST_SEALS)}});
+    expect(compact.classes()).to.include('pcard--vp-compact');
+    // no VP → no reserve class at all
+    const none = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect(none.classes().some((c) => c.startsWith('pcard--vp-'))).to.eq(false);
+  });
 });
 
 describe('PremiumCardArt', () => {
