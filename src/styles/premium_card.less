@@ -746,107 +746,108 @@
   justify-content: flex-end;
   min-height: 18px;
 }
-/* The mechanics panel ALWAYS takes the full free width — the VP badge sits
-   ON TOP of its corner and only the CONTENT yields: the last content row
-   gets a per-variant right inset (deterministic from the VM, never
-   measured), so nothing ever hides under the badge while the panel's frame
-   stays whole. */
-.pcard--vp-compact { --pcard-lower-safe-r: 40px; }
-.pcard--vp-wide    { --pcard-lower-safe-r: 58px; }
-.pcard--vp-formula { --pcard-lower-safe-r: 80px; }
-.pcard__lower .pcard-mech-group:last-child { padding-right: var(--pcard-lower-safe-r, 0px); }
-/* the resource capsule docks INTO the panel's bottom-left border — bump the
-   panel's own bottom padding so content can never sit under it */
-.pcard--has-res .pcard__lower .pcard__mech { padding-bottom: 12px; }
+/* The mechanics panel ALWAYS takes the full free width — the corner
+   elements (VP badge bottom-right, resource slot bottom-left) sit on/in it
+   and only the CONTENT yields, LOCALLY and SYMMETRICALLY: the last content
+   row gets an EQUAL left+right inset = the widest corner slot. A short
+   centered row is therefore visually UNTOUCHED (the padding only bites when
+   the row actually reaches the corner zones), a wide row WRAPS to the next
+   line and stays centered — never the old "shove everything left".
+   Deterministic from the VM (never measured). */
+.pcard--vp-compact { --pcard-vp-safe: 40px; }
+.pcard--vp-wide    { --pcard-vp-safe: 44px; }
+.pcard--vp-formula { --pcard-vp-safe: 64px; }
+.pcard--has-res    { --pcard-res-safe: 60px; }
+.pcard__lower .pcard-mech-group:last-child {
+  padding-left: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
+  padding-right: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
+}
+/* content rows paint above the engraved corner stamp (see .pcard__exp) */
+.pcard__lower .pcard-mech-group { position: relative; z-index: 1; }
 
-/* ── VP badge: a gold plate that SIZES TO ITS CONTENT (no more clipping) ── */
+/* ── VP badge: the card's VALUE — a confident premium plate ───────────
+   Sits over the panel's bottom-right corner (inset from the card border),
+   sizes to its content (max-width strictly < the formula reserve 64+8 —
+   can never overlap yielded content). Material: gold body + specular
+   sweep + double engraved ring + outer gold micro-rim. */
 .pcard__vp {
   position: absolute;
   right: 0;
-  bottom: -4px; /* straddles the panel's bottom edge — pinned OVER the effects zone */
+  bottom: -4px;
   z-index: 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 34px;
-  max-width: 78px; /* < the formula reserve (86) — content can never overlap the panel */
-  height: 32px;
-  padding: 0 7px;
-  border-radius: 8px;
+  min-width: 44px;
+  max-width: 70px;
+  height: 38px;
+  padding: 0 9px;
+  border-radius: 10px;
   background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 246, 214, 0.25) 48%, transparent 58%),
-    linear-gradient(180deg, #f4dfa0 0%, #d2ab5d 52%, #93702f 100%);
-  border: 1px solid #211705;
+    linear-gradient(112deg, transparent 38%, rgba(255, 248, 220, 0.32) 47%, transparent 57%),
+    radial-gradient(90% 70% at 50% 8%, rgba(255, 246, 214, 0.35), transparent 55%),
+    linear-gradient(180deg, #f6e2a4 0%, #d3ac5e 50%, #8f6c2e 100%);
+  border: 1px solid #1c1305;
   box-shadow:
-    inset 0 1px 0 rgba(255, 244, 208, 0.85),
-    inset 0 -2px 3px rgba(70, 48, 14, 0.55),
-    inset 0 0 0 2px rgba(120, 90, 40, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.55);
+    inset 0 1.5px 0 rgba(255, 246, 212, 0.9),
+    inset 0 -2.5px 4px rgba(70, 48, 14, 0.6),
+    inset 0 0 0 2px rgba(120, 90, 40, 0.45),
+    inset 0 0 0 3.5px rgba(246, 226, 164, 0.25),
+    0 0 0 1px rgba(217, 184, 120, 0.35),
+    0 2.5px 5px rgba(0, 0, 0, 0.6);
 }
-.pcard__vp--wide,
-.pcard__vp--formula { padding: 0 8px; }
 .pcard__vp-value {
-  font-size: 17px;
+  font-size: 20px;
   color: var(--pcard-ink);
-  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
+  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.6);
 }
 .pcard__vp--wide .pcard__vp-value,
-.pcard__vp--formula .pcard__vp-value { font-size: 14px; }
+.pcard__vp--formula .pcard__vp-value { font-size: 15px; }
 .pcard__vp-value--negative { color: #7a1d12; }
 .pcard__vp-dyn {
   display: flex;
   align-items: center;
   gap: 1px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--pcard-ink);
 }
 .pcard__vp-dyn .pcard-ic {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   filter: none;
 }
-.pcard__vp-slash { font-size: 12.5px; margin: 0 1px; }
-.pcard__vp-asterisk { font-size: 12.5px; margin-left: 1px; }
+.pcard__vp-slash { font-size: 13.5px; margin: 0 1px; }
+.pcard__vp-asterisk { font-size: 13.5px; margin-left: 1px; }
 
-/* ── expansion stamp: a dedicated CORNER zone (bottom-left) ──────────
-   Nestled into the card's corner (under the gold frame — reads embedded,
-   not floating), framed by a faint L-bracket facet that marks the corner
-   slot. Pure meta-information: tiny, subdued, out of the panel's way. */
+/* ── expansion stamp: ENGRAVED into the panel surface (bottom-left) ──
+   Not a badge, not an overlay — a small seal pressed INTO the card: no
+   elevation, no ring, inset shading only, muted colour. It sits UNDER the
+   content rows (z0 vs their z1) like a stamp under the print — it can
+   never fight the mechanics, and it never touches the card frame. */
 .pcard__exp {
   position: absolute;
-  left: -7px;
-  bottom: -8px;
+  left: 8px;
+  bottom: 6px;
+  z-index: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 2px;
-}
-/* the corner bracket — the stamp's own angular zone */
-.pcard__exp::before {
-  content: '';
-  position: absolute;
-  left: -3px;
-  bottom: -3px;
-  width: 20px;
-  height: 20px;
-  border-left: 1px solid rgba(217, 184, 120, 0.38);
-  border-bottom: 1px solid rgba(217, 184, 120, 0.38);
-  border-bottom-left-radius: 7px;
-  pointer-events: none;
 }
 .pcard__exp-medallion {
   position: relative;
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background-color: rgba(10, 14, 18, 0.85);
-  background-size: 76%;
+  background-color: rgba(0, 0, 0, 0.32);
+  background-size: 78%;
   background-position: center;
   background-repeat: no-repeat;
   box-shadow:
-    0 0 0 1px rgba(165, 133, 76, 0.6),
-    0 1px 2px rgba(0, 0, 0, 0.5);
-  opacity: 0.85;
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.05); /* lip light below = pressed in */
+  filter: saturate(0.75) brightness(0.92);
+  opacity: 0.75;
 }
 /* base game — engraved triangle instead of an icon */
 .pcard__exp-medallion--base::before {
@@ -854,40 +855,40 @@
   position: absolute;
   inset: 0;
   clip-path: polygon(50% 26%, 74% 68%, 26% 68%);
-  background-color: rgba(217, 184, 120, 0.45);
+  background-color: rgba(217, 184, 120, 0.4);
 }
 .pcard__exp-compat {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background-size: cover;
   background-position: center;
-  opacity: 0.6;
-  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.3);
+  opacity: 0.5;
 }
 
-/* ── resource capsule: a tab DOCKED into the panel's bottom-left border ──
-   Shares the panel's material (dark fill + the theme inner-ring colour) and
-   straddles its border line — it reads as part of the panel's chrome, not a
-   floating widget. `pcard--has-res` bumps the panel's bottom padding so
-   content never sits under the tab's upper half. */
+/* ── resource slot: a capsule CARVED INTO the panel (bottom-left) ─────
+   Fully inside the panel, sunken (inset shadows + a light lip below) so it
+   reads as a machined recess in the plate, not a sprite on top. Sits after
+   the engraved stamp; the last row's symmetric inset (--pcard-res-safe)
+   keeps content clear of it. */
 .pcard__res {
   position: absolute;
-  left: 22px;
-  bottom: -8px;
-  z-index: 3;
+  left: 26px;
+  bottom: 5px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 17px;
-  padding: 1px 7px 1px 4px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #141b23, #0a0e13);
-  border: 1px solid var(--pcard-rim-soft);
+  height: 18px;
+  padding: 0 8px 0 5px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(3, 6, 9, 0.88), rgba(10, 15, 20, 0.72));
+  border: 1px solid rgba(0, 0, 0, 0.7);
   box-shadow:
-    0 0 0 1px rgba(5, 8, 12, 0.8),
-    inset 0 1px 2px rgba(0, 0, 0, 0.55),
-    0 1px 2px rgba(0, 0, 0, 0.5);
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px var(--pcard-band),
+    0 1px 0 rgba(255, 255, 255, 0.07); /* lip light below = carved */
 }
 .pcard__res-icon {
   width: 12px;
