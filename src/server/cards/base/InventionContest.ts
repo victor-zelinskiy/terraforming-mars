@@ -19,6 +19,12 @@ export class InventionContest extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Look at the top 3 cards from the deck. Take 1 of them into hand and discard the other two.', tokens: ['cards', 'text']},
+
+        ],
         cardNumber: '192',
         renderData: CardRenderer.builder((b) => {
           b.text('Look at the top 3 cards from the deck. Take 1 of them into hand and discard the other two', Size.SMALL, true);

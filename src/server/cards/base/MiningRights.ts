@@ -1,5 +1,6 @@
 
 import {CardName} from '../../../common/cards/CardName';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {MiningCard} from './MiningCard';
 import {TileType} from '../../../common/TileType';
 import {CardRenderer} from '../render/CardRenderer';
@@ -9,7 +10,11 @@ export class MiningRights extends MiningCard {
 
   constructor(
     name = CardName.MINING_RIGHTS,
-    metadata = {
+    metadata: CardMetadata = {
+      infoText: [
+        {text: 'Place this tile on an area with a steel or titanium placement bonus.', tokens: ['tile-']},
+        {text: 'Increase the matching production (steel or titanium) 1 step.', tokens: ['production(']},
+      ],
       cardNumber: '067',
       renderData: CardRenderer.builder((b) => {
         b.tile(TileType.MINING_RIGHTS, true).asterix().br;

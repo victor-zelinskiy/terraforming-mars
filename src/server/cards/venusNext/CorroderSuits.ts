@@ -19,6 +19,14 @@ export class CorroderSuits extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+
+          {text: 'Add 1 resource to any Venus card.', tokens: ['wild']},
+
+        ],
         cardNumber: '219',
         description: 'Increase your M€ production 2 steps. Add 1 resource to ANY Venus CARD.',
         renderData: CardRenderer.builder((b) => {

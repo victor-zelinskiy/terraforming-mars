@@ -25,6 +25,14 @@ export class KaguyaTech extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your M€ production 2 steps and draw 1 card.', tokens: ['production(']},
+
+          {text: 'Remove 1 of your greenery tiles (oxygen is not affected) and place a city tile there, regardless of placement rules. Gain placement bonuses as usual.', tokens: ['greenery']},
+
+        ],
         cardNumber: 'X58',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(2)).cards(1).br;

@@ -18,6 +18,12 @@ export class LandClaim extends Card implements IProjectCard {
       cost: 1,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Place your marker on a non-reserved area. Only you may place a tile there.', tokens: ['text']},
+
+        ],
         cardNumber: '066',
         renderData: CardRenderer.builder((b) => {
           b.text('Place your marker on a non-reserved area. Only you may place a tile there.', Size.SMALL, true);

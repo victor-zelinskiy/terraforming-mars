@@ -26,6 +26,14 @@ export class ImportedHydrogen extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Gain 3 plants, or add 3 microbes or 2 animals to another card.', tokens: ['plants']},
+
+          {text: 'Place an ocean tile.', tokens: ['oceans']},
+
+        ],
         cardNumber: '019',
         renderData: CardRenderer.builder((b) => {
           b.plants(3, {digit});

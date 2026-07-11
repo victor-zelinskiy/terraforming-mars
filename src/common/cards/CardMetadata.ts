@@ -1,7 +1,7 @@
 import {CardRenderDynamicVictoryPoints} from './render/CardRenderDynamicVictoryPoints';
 import {ICardRenderDescription} from './render/ICardRenderDescription';
 import {CardComponent} from './render/CardComponent';
-import {CardInformation} from './CardInformation';
+import {CardInformation, CardInfoText} from './CardInformation';
 
 export type CardMetadata = {
   /**
@@ -13,6 +13,13 @@ export type CardMetadata = {
   description?: string | ICardRenderDescription;
   renderData?: CardComponent;
   victoryPoints?: number | CardRenderDynamicVictoryPoints;
+  /**
+   * CO-LOCATED information texts for BESPOKE mechanics (English keys only —
+   * translations live in each locale's card_info.json). Authored in the
+   * card file, consumed by the make:cards information generator; NOT
+   * exported to the client (the generated `information` below is).
+   */
+  infoText?: ReadonlyArray<CardInfoText>;
   /**
    * Structured per-graphic-block card text (see CardInformation.ts).
    * GENERATED at build time (make:cards) — never hand-set in card classes;

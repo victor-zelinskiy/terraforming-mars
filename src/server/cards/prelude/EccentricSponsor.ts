@@ -12,6 +12,12 @@ export class EccentricSponsor extends PreludeCard {
       name: CardName.ECCENTRIC_SPONSOR,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Play a card from hand, reducing its cost by 25 M€.', tokens: ['text']},
+
+        ],
         cardNumber: 'P11',
         renderData: CardRenderer.builder((b) => {
           b.text('Play a card from hand, reducing its cost by 25 M€', Size.SMALL, true);

@@ -20,6 +20,16 @@ export class StrategicBasePlanning extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Pay 3 M€.', tokens: ['megacredits']},
+
+          {text: 'Place a city tile.', tokens: ['city']},
+
+          {text: 'Place a colony.', tokens: ['colonies']},
+
+        ],
         cardNumber: 'X65',
         renderData: CardRenderer.builder((b) => {
           b.minus().megacredits(3).city().colonies();

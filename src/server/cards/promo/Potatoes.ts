@@ -24,6 +24,14 @@ export class Potatoes extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Lose 2 plants.', tokens: ['plants']},
+
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+
+        ],
         cardNumber: 'X28',
         renderData: CardRenderer.builder((b) => {
           b.minus().plants(2).nbsp.production((pb) => pb.megacredits(2));

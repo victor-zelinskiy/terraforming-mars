@@ -1,4 +1,5 @@
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {TileType} from '../../../common/TileType';
 import {CardName} from '../../../common/cards/CardName';
 import {MiningCard} from './MiningCard';
@@ -10,7 +11,11 @@ export class MiningArea extends MiningCard {
 
   constructor(
     name = CardName.MINING_AREA,
-    metadata = {
+    metadata: CardMetadata = {
+      infoText: [
+        {text: 'Place this tile on an area with a steel or titanium placement bonus, adjacent to another of your tiles.', tokens: ['tile-']},
+        {text: 'Increase the matching production (steel or titanium) 1 step.', tokens: ['production(']},
+      ],
       cardNumber: '064',
       renderData: CardRenderer.builder((b) => {
         b.tile(TileType.MINING_AREA, true).asterix().br;

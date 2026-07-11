@@ -68,3 +68,23 @@ export type CardInformation = {
   /** Ordered groups: requirements → immediate → effects → actions → VP. */
   groups: ReadonlyArray<CardInfoGroup>;
 };
+
+/**
+ * CO-LOCATED authoring input (`CardMetadata.infoText`) — the hand-written
+ * information texts a BESPOKE card declares IN ITS OWN FILE (next to its
+ * renderData, so an upstream change to the card surfaces in the same diff).
+ * The make:cards generator consumes these instead of deriving from
+ * `behavior`; cards with a fully declarative behavior need none.
+ *
+ * `text` is ENGLISH ONLY — it is the i18n key; every locale (ru today,
+ * any future language) translates it in its `card_info.json`. Never put
+ * localized text in a card file.
+ */
+export type CardInfoText = {
+  /** Defaults to 'immediate'. */
+  kind?: 'immediate' | 'effect' | 'action' | 'note' | 'victory-points';
+  /** English text — the i18n key. */
+  text: string;
+  /** Graphic-row tokens this block describes (see cardGraphicIds.ts). */
+  tokens?: ReadonlyArray<string>;
+};

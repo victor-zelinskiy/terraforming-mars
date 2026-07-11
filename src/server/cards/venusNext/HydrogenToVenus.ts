@@ -20,6 +20,14 @@ export class HydrogenToVenus extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise Venus 1 step.', tokens: ['venus']},
+
+          {text: 'Add 1 floater to a Venus card for each Jovian tag you have.', tokens: ['res-floater']},
+
+        ],
         cardNumber: '231',
         renderData: CardRenderer.builder((b) => {
           b.venus(1).br.br; // double br is intentional for visual appeal

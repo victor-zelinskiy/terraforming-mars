@@ -27,6 +27,14 @@ export class VenusianPlants extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise Venus 1 step.', tokens: ['venus']},
+
+          {text: 'Add 1 microbe or 1 animal to another Venus card.', tokens: ['res-microbe']},
+
+        ],
         cardNumber: '261',
         renderData: CardRenderer.builder((b) => {
           b.venus(1).br.br; // intentional double br

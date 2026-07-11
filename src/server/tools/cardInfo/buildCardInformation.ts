@@ -9,17 +9,26 @@
  *                       text can never drift from the graphic);
  *   immediate         ← the executable `behavior` (texts with baked numbers
  *                       — generated text can never lie about the rules);
- *                       bespoke cards fall back to the curated registry or
- *                       a seeded single block from the (requirement-stripped)
+ *                       bespoke cards declare CO-LOCATED texts in their own
+ *                       file (`metadata.infoText`) or fall back to a seeded
+ *                       single block from the (requirement-stripped)
  *                       printed description;
  *   effects / actions ← the render-DSL effect/action nodes' co-located
- *                       descriptions (already localized in ru/cards.json;
- *                       the 'Effect: '/'Action: ' prefix is display-stripped
- *                       by the client, per the established fork pattern);
- *   victory points    ← the vpText node when present (canonical printed
- *                       wording), else generated from the countable shape;
- *                       plain numeric VP produces NO block (self-explanatory
- *                       badge, per the task).
+ *                       descriptions (the 'Effect: '/'Action: ' prefix is
+ *                       display-stripped by the client, per the established
+ *                       fork pattern);
+ *   victory points    ← a `victory-points` infoText entry, else the vpText
+ *                       node (canonical printed wording), else generated
+ *                       from the countable shape; plain numeric VP produces
+ *                       NO block (self-explanatory badge).
+ *
+ * LOCALIZATION PRINCIPLE: every text this generator emits (and every
+ * `infoText` a card file declares) is ENGLISH ONLY — the text IS the i18n
+ * key. Translations live exclusively in the locale jsons
+ * (src/locales/<lang>/card_info.json for generated/authored keys; the DSL
+ * strings are already in <lang>/cards.json). The generator only VALIDATES
+ * coverage for the enforced locales and reports gaps in the audit — adding
+ * a new language never touches this code.
  *
  * Graphic linkage: content-derived row ids from the SHARED
  * `deriveGraphicIds` (common/cards/render/cardGraphicIds.ts) — the client
@@ -27,8 +36,8 @@
  *
  * Outputs (written by writeCardInfoArtifacts):
  *   - `information` attached to each exported ClientCard's metadata;
- *   - src/locales/ru/card_info.json — generated ru for generated texts;
- *   - src/genfiles/cardInfoAudit.json — the per-card audit matrix.
+ *   - src/genfiles/cardInfoAudit.json — the per-card audit matrix
+ *     (`needsCuration` + `missingTranslations` are the worklists).
  */
 
 import * as fs from 'fs';
@@ -46,15 +55,12 @@ import {isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} fro
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
 import {Size} from '../../../common/cards/render/Size';
 import {Behavior} from '../../behavior/Behavior';
-import {CURATED_CARD_INFO, CURATED_SPECIAL_VP, MANUAL_RU} from './curatedCardInfo';
-import {
-  plural, quantGen, ruResourceAcc, ruResourceProdGen, ruCardResourceAcc, ruTagGen,
-  TAG_WORD_QGEN, OCEAN_TILE_QGEN, CITY_TILE_QGEN, GREENERY_TILE_QGEN, COLONY_QGEN,
-  FLOATER_QGEN, RESOURCE_TYPE_QGEN, CARD_ACC,
-} from './ruText';
 
-const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
+
+/** Locales whose card-information coverage is ENFORCED (audited). */
+const ENFORCED_LOCALES: ReadonlyArray<string> = ['ru'];
 
 /* ── collectors ─────────────────────────────────────────────────────── */
 
@@ -62,52 +68,39 @@ type AuditEntry = {
   name: string;
   module: GameModule;
   type: CardType;
-  status: 'ok' | 'curated' | 'seeded' | 'needs-curation';
+  status: 'ok' | 'authored' | 'seeded' | 'needs-curation';
   blocks: number;
   requirementBlocks: number;
   unlinkedBlocks: Array<string>;
   notes: Array<string>;
 };
 
-const ruPairs = new Map<string, string>();
-const missingRu = new Set<string>();
+const usedKeys = new Set<string>();
 const audit: Array<AuditEntry> = [];
-let existingRuKeys: Set<string> | undefined;
+const localeKeys = new Map<string, Set<string>>();
 
-function loadExistingRuKeys(): Set<string> {
-  if (existingRuKeys === undefined) {
-    existingRuKeys = new Set<string>();
-    const dir = 'src/locales/ru';
+function keysOfLocale(lang: string): Set<string> {
+  let keys = localeKeys.get(lang);
+  if (keys === undefined) {
+    keys = new Set<string>();
+    const dir = `src/locales/${lang}`;
     for (const file of fs.readdirSync(dir)) {
-      if (!file.endsWith('.json') || file === 'card_info.json') {
+      if (!file.endsWith('.json')) {
         continue;
       }
       const json = JSON.parse(fs.readFileSync(`${dir}/${file}`, 'utf8'));
       for (const key of Object.keys(json)) {
-        existingRuKeys.add(key);
+        keys.add(key);
       }
     }
+    localeKeys.set(lang, keys);
   }
-  return existingRuKeys;
+  return keys;
 }
 
-/** Register a generated en→ru pair (skipped when the key is already translated elsewhere). */
-function t(en: string, ru: string): string {
-  if (!loadExistingRuKeys().has(en)) {
-    ruPairs.set(en, ru);
-  }
-  return en;
-}
-
-/** Register a DSL-sourced key (must already exist in ru; audited otherwise). */
-function existing(en: string): string {
-  if (!loadExistingRuKeys().has(en) && !ruPairs.has(en)) {
-    if (MANUAL_RU[en] !== undefined) {
-      ruPairs.set(en, MANUAL_RU[en]);
-    } else {
-      missingRu.add(en);
-    }
-  }
+/** Register an emitted English key (coverage is validated per enforced locale). */
+function key(en: string): string {
+  usedKeys.add(en);
   return en;
 }
 
@@ -129,49 +122,40 @@ function enCount(n: number, one: string, many: string): string {
 function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, notes: Array<string>): CardInfoBlock | undefined {
   const type = requirementType(descriptor);
   const max = descriptor.max === true;
-  const anyPlayer = descriptor.all === true;
-  const suffixEn = anyPlayer ? ' (any player).' : '.';
-  const suffixRu = anyPlayer ? ' (у любых игроков).' : '.';
+  const suffix = descriptor.all === true ? ' (any player).' : '.';
   let en: string;
-  let ru: string;
   let qualifier = '';
 
   switch (type) {
   case RequirementType.OXYGEN: {
     const v = descriptor.oxygen ?? 0;
     en = max ? `Requires an oxygen level of at most ${v}%.` : `Requires an oxygen level of at least ${v}%.`;
-    ru = max ? `Требуется уровень кислорода не более ${v}%.` : `Требуется уровень кислорода не менее ${v}%.`;
     break;
   }
   case RequirementType.TEMPERATURE: {
     const v = descriptor.temperature ?? 0;
     en = max ? `Requires a temperature of at most ${v}°C.` : `Requires a temperature of at least ${v}°C.`;
-    ru = max ? `Требуется температура не выше ${v} °C.` : `Требуется температура не ниже ${v} °C.`;
     break;
   }
   case RequirementType.VENUS: {
     const v = descriptor.venus ?? 0;
     en = max ? `Requires Venus terraforming of at most ${v}%.` : `Requires Venus terraforming of at least ${v}%.`;
-    ru = max ? `Требуется терраформирование Венеры не более ${v}%.` : `Требуется терраформирование Венеры не менее ${v}%.`;
     break;
   }
   case RequirementType.TR: {
     const v = descriptor.tr ?? 0;
     en = max ? `Requires a terraform rating of at most ${v}.` : `Requires a terraform rating of at least ${v}.`;
-    ru = max ? `Требуется РТ не более ${v}.` : `Требуется РТ не менее ${v}.`;
     break;
   }
   case RequirementType.OCEANS: {
     const n = descriptor.oceans ?? descriptor.count ?? 1;
-    en = max ? `Requires at most ${enCount(n, 'ocean tile', 'ocean tiles')}${suffixEn}` : `Requires at least ${enCount(n, 'ocean tile', 'ocean tiles')}${suffixEn}`;
-    ru = `${max ? 'Требуется не более' : 'Требуется не менее'} ${n} ${quantGen(n, OCEAN_TILE_QGEN)}${suffixRu}`;
+    en = `${max ? 'Requires at most' : 'Requires at least'} ${enCount(n, 'ocean tile', 'ocean tiles')}${suffix}`;
     break;
   }
   case RequirementType.TAG: {
     const tag = descriptor.tag as Tag;
     const n = descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, `${tag} tag`, `${tag} tags`)}${suffixEn}`;
-    ru = `Требуется не менее ${n} ${quantGen(n, TAG_WORD_QGEN)} ${ruTagGen(tag)}${suffixRu}`;
+    en = `Requires at least ${enCount(n, `${tag} tag`, `${tag} tags`)}${suffix}`;
     qualifier = `:${tag}`;
     break;
   }
@@ -179,7 +163,6 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     const res = descriptor.production as Resource;
     const n = descriptor.count ?? 1;
     en = `Requires ${EN_RESOURCE[res][1]} production of at least ${n}.`;
-    ru = `Требуется производство ${ruResourceProdGen(res)} не менее ${n}.`;
     qualifier = `:${res}`;
     break;
   }
@@ -187,41 +170,34 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     const n = descriptor.cities ?? descriptor.count ?? 1;
     if (descriptor.nextTo === true) {
       notes.push('requirement-nextTo: verify wording');
-      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')} adjacent${suffixEn}`;
-      ru = `Требуется не менее ${n} ${quantGen(n, CITY_TILE_QGEN)} по соседству${suffixRu}`;
+      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')} adjacent${suffix}`;
     } else {
-      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')}${suffixEn}`;
-      ru = `Требуется не менее ${n} ${quantGen(n, CITY_TILE_QGEN)}${suffixRu}`;
+      en = `Requires at least ${enCount(n, 'city tile', 'city tiles')}${suffix}`;
     }
     break;
   }
   case RequirementType.GREENERIES: {
     const n = descriptor.greeneries ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'greenery tile', 'greenery tiles')}${suffixEn}`;
-    ru = `Требуется не менее ${n} ${quantGen(n, GREENERY_TILE_QGEN)}${suffixRu}`;
+    en = `Requires at least ${enCount(n, 'greenery tile', 'greenery tiles')}${suffix}`;
     break;
   }
   case RequirementType.COLONIES: {
     const n = descriptor.colonies ?? descriptor.count ?? 1;
-    en = `Requires at least ${enCount(n, 'colony', 'colonies')}${suffixEn}`;
-    ru = `Требуется не менее ${n} ${quantGen(n, COLONY_QGEN)}${suffixRu}`;
+    en = `Requires at least ${enCount(n, 'colony', 'colonies')}${suffix}`;
     break;
   }
   case RequirementType.FLOATERS: {
     const n = descriptor.floaters ?? descriptor.count ?? 1;
     en = `Requires at least ${enCount(n, 'floater', 'floaters')}.`;
-    ru = `Требуется не менее ${n} ${quantGen(n, FLOATER_QGEN)}.`;
     break;
   }
   case RequirementType.RESOURCE_TYPES: {
     const n = descriptor.resourceTypes ?? descriptor.count ?? 1;
     en = `Requires at least ${enCount(n, 'resource type', 'resource types')}.`;
-    ru = `Требуется не менее ${n} ${quantGen(n, RESOURCE_TYPE_QGEN)}.`;
     break;
   }
   case RequirementType.REMOVED_PLANTS: {
     en = 'Requires that plants were removed from any player this generation.';
-    ru = 'Требуется, чтобы в этом поколении у любого игрока были удалены растения.';
     break;
   }
   default:
@@ -232,7 +208,7 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
   return {
     id: `req:${type}${qualifier}${dup > 1 ? `~${dup}` : ''}`,
     kind: 'requirement',
-    text: t(en, ru),
+    text: key(en),
     graphicId: `req:${type}${qualifier}${dup > 1 ? `~${dup}` : ''}`,
   };
 }
@@ -258,75 +234,59 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
   }
   const out: Array<Pending> = [];
   let complex = false;
-  const push = (id: string, en: string, ru: string, tokens: ReadonlyArray<string>) => {
-    out.push({block: {id: `mech:${id}`, kind: 'immediate', text: t(en, ru)}, tokens});
+  const push = (id: string, en: string, tokens: ReadonlyArray<string>) => {
+    out.push({block: {id: `mech:${id}`, kind: 'immediate', text: key(en)}, tokens});
   };
   const numeric = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
 
   if (b.spend !== undefined) {
-    for (const [key, raw] of Object.entries(b.spend)) {
+    for (const [k, raw] of Object.entries(b.spend)) {
       const n = numeric(raw);
-      const res = key as Resource;
+      const res = k as Resource;
       if (n === undefined || EN_RESOURCE[res] === undefined) {
         complex = true;
         continue;
       }
-      push(`spend.${key}`, `Spend ${enResourceCount(res, n)}.`, `Потратьте ${n} ${ruResourceAcc(res, n)}.`, [key]);
+      push(`spend.${k}`, `Spend ${enResourceCount(res, n)}.`, [k]);
     }
   }
   if (b.production !== undefined) {
-    for (const [key, raw] of Object.entries(b.production)) {
+    for (const [k, raw] of Object.entries(b.production)) {
       const n = numeric(raw);
-      const res = key as Resource;
+      const res = k as Resource;
       if (n === undefined || n === 0 || EN_RESOURCE[res] === undefined) {
         if (n === undefined) {
           complex = true;
-          notes.push(`production.${key} is countable`);
+          notes.push(`production.${k} is countable`);
         }
         continue;
       }
-      const steps = Math.abs(n);
-      const stepsEn = steps === 1 ? '1 step' : `${steps} steps`;
-      if (n > 0) {
-        push(`production.${key}`,
-          `Increase your ${EN_RESOURCE[res][1]} production ${stepsEn}.`,
-          `Увеличьте своё производство ${ruResourceProdGen(res)} на ${steps}.`,
-          [`production(${key}`, 'production(']);
-      } else {
-        push(`production.${key}`,
-          `Decrease your ${EN_RESOURCE[res][1]} production ${stepsEn}.`,
-          `Уменьшите своё производство ${ruResourceProdGen(res)} на ${steps}.`,
-          [`production(${key}`, 'production(']);
-      }
+      const steps = Math.abs(n) === 1 ? '1 step' : `${Math.abs(n)} steps`;
+      push(`production.${k}`,
+        n > 0 ? `Increase your ${EN_RESOURCE[res][1]} production ${steps}.` : `Decrease your ${EN_RESOURCE[res][1]} production ${steps}.`,
+        [`production(${k}`, 'production(']);
     }
   }
   if (b.stock !== undefined) {
-    for (const [key, raw] of Object.entries(b.stock)) {
+    for (const [k, raw] of Object.entries(b.stock)) {
       const n = numeric(raw);
-      const res = key as Resource;
+      const res = k as Resource;
       if (n === undefined || n === 0 || EN_RESOURCE[res] === undefined) {
         if (n === undefined) {
           complex = true;
-          notes.push(`stock.${key} is countable`);
+          notes.push(`stock.${k} is countable`);
         }
         continue;
       }
-      if (n > 0) {
-        push(`stock.${key}`, `Gain ${enResourceCount(res, n)}.`, `Получите ${n} ${ruResourceAcc(res, n)}.`, [key]);
-      } else {
-        push(`stock.${key}`, `Lose ${enResourceCount(res, -n)}.`, `Потеряйте ${-n} ${ruResourceAcc(res, -n)}.`, [key]);
-      }
+      push(`stock.${k}`, n > 0 ? `Gain ${enResourceCount(res, n)}.` : `Lose ${enResourceCount(res, -n)}.`, [k]);
     }
   }
   if (b.standardResource !== undefined) {
     const n = typeof b.standardResource === 'number' ? b.standardResource : b.standardResource.count;
     const same = typeof b.standardResource === 'object' && b.standardResource.same === true;
-    const enTail = same ? ' (all of the same kind)' : '';
-    const ruTail = same ? ' (одного вида)' : '';
-    const word = plural(n, ['стандартный ресурс', 'стандартных ресурса', 'стандартных ресурсов']);
     push('standardResource',
-      `Gain ${n} standard ${n === 1 ? 'resource' : 'resources'} of your choice${enTail}.`,
-      `Получите ${n} ${word} на выбор${ruTail}.`, ['wild']);
+      `Gain ${n} standard ${n === 1 ? 'resource' : 'resources'} of your choice${same ? ' (all of the same kind)' : ''}.`,
+      ['wild']);
   }
   if (b.tr !== undefined) {
     const n = numeric(b.tr);
@@ -334,48 +294,36 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
       complex = true;
       notes.push('tr is countable');
     } else if (n !== 0) {
-      if (n > 0) {
-        push('tr', `Gain ${n} TR.`, `Получите ${n} РТ.`, ['tr']);
-      } else {
-        push('tr', `Lose ${-n} TR.`, `Потеряйте ${-n} РТ.`, ['tr']);
-      }
+      push('tr', n > 0 ? `Gain ${n} TR.` : `Lose ${-n} TR.`, ['tr']);
     }
   }
   if (b.global !== undefined) {
     const g = b.global;
     if (g.temperature !== undefined) {
-      push('global.temperature',
-        `Raise the temperature ${g.temperature === 1 ? '1 step' : `${g.temperature} steps`}.`,
-        `Повысьте температуру на ${g.temperature}.`, ['temperature']);
+      push('global.temperature', `Raise the temperature ${g.temperature === 1 ? '1 step' : `${g.temperature} steps`}.`, ['temperature']);
     }
     if (g.oxygen !== undefined) {
-      push('global.oxygen',
-        `Raise the oxygen level ${g.oxygen === 1 ? '1 step' : `${g.oxygen} steps`}.`,
-        `Повысьте уровень кислорода на ${g.oxygen}.`, ['oxygen']);
+      push('global.oxygen', `Raise the oxygen level ${g.oxygen === 1 ? '1 step' : `${g.oxygen} steps`}.`, ['oxygen']);
     }
     if (g.venus !== undefined) {
-      push('global.venus',
-        `Raise Venus ${g.venus === 1 ? '1 step' : `${g.venus} steps`}.`,
-        `Повысьте Венеру на ${g.venus}.`, ['venus']);
+      push('global.venus', `Raise Venus ${g.venus === 1 ? '1 step' : `${g.venus} steps`}.`, ['venus']);
     }
   }
   if (b.ocean !== undefined) {
-    push('tile.ocean', 'Place an ocean tile.', 'Разместите тайл океана.', ['oceans', 'tile-ocean']);
+    push('tile.ocean', 'Place an ocean tile.', ['oceans', 'tile-ocean']);
   }
   if (b.city !== undefined) {
-    push('tile.city', 'Place a city tile.', 'Разместите тайл города.', ['city', 'tile-city']);
+    push('tile.city', 'Place a city tile.', ['city', 'tile-city']);
   }
   if (b.greenery !== undefined) {
-    push('tile.greenery', 'Place a greenery tile.', 'Разместите тайл озеленения.', ['greenery', 'tile-greenery']);
+    push('tile.greenery', 'Place a greenery tile.', ['greenery', 'tile-greenery']);
   }
   if (b.tile !== undefined) {
-    push('tile.special', 'Place a special tile.', 'Разместите особый тайл.', ['tile-']);
+    push('tile.special', 'Place a special tile.', ['tile-']);
   }
   if (b.drawCard !== undefined) {
     if (typeof b.drawCard === 'number') {
-      push('drawCard',
-        `Draw ${b.drawCard === 1 ? '1 card' : `${b.drawCard} cards`}.`,
-        `Возьмите ${b.drawCard} ${plural(b.drawCard, CARD_ACC)}.`, ['cards']);
+      push('drawCard', `Draw ${b.drawCard === 1 ? '1 card' : `${b.drawCard} cards`}.`, ['cards']);
     } else {
       complex = true;
       notes.push('drawCard is structured (keep/pay/filter)');
@@ -388,10 +336,7 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
       complex = true;
       notes.push('addResources is countable / no resourceType');
     } else {
-      push('addResources',
-        `Add ${n} ${enCardResource(res, n)} to this card.`,
-        `Добавьте ${n} ${ruCardResourceAcc(res, n)} на эту карту.`,
-        [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
+      push('addResources', `Add ${n} ${enCardResource(res, n)} to this card.`, [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
     }
   }
   if (b.addResourcesToAnyCard !== undefined) {
@@ -404,34 +349,26 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
         notes.push('addResourcesToAnyCard entry is complex');
         return;
       }
-      const tagEn = entry.tag !== undefined ? ` ${entry.tag}` : '';
-      const tagRu = entry.tag !== undefined ? ` с меткой ${ruTagGen(entry.tag)}` : '';
-      push(`addToAny.${i}`,
-        `Add ${n} ${enCardResource(res, n)} to any${tagEn} card.`,
-        `Добавьте ${n} ${ruCardResourceAcc(res, n)} на любую карту${tagRu}.`,
-        [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
+      const tag = entry.tag !== undefined ? ` ${entry.tag}` : '';
+      push(`addToAny.${i}`, `Add ${n} ${enCardResource(res, n)} to any${tag} card.`, [`res-${res.toLowerCase().replaceAll(' ', '-')}`]);
     });
   }
   if (b.removeAnyPlants !== undefined) {
-    const n = b.removeAnyPlants;
-    push('removeAnyPlants',
-      `Remove up to ${n} plants from any player.`,
-      `Удалите до ${n} ${plural(n, ['растения', 'растений', 'растений'])} у любого игрока.`, ['plants']);
+    push('removeAnyPlants', `Remove up to ${b.removeAnyPlants} plants from any player.`, ['plants']);
   }
   if (b.decreaseAnyProduction !== undefined) {
     const {type, count} = b.decreaseAnyProduction;
     const n = numeric(count) ?? 1;
     push('decreaseAnyProduction',
       `Decrease any ${EN_RESOURCE[type][1]} production ${n === 1 ? '1 step' : `${n} steps`}.`,
-      `Уменьшите производство ${ruResourceProdGen(type)} любого игрока на ${n}.`,
       [`production(${type}`, 'production(']);
   }
   if (b.colonies !== undefined) {
     if (b.colonies.buildColony !== undefined) {
-      push('colonies.build', 'Place a colony.', 'Постройте колонию.', ['colonies']);
+      push('colonies.build', 'Place a colony.', ['colonies']);
     }
     if (b.colonies.addTradeFleet !== undefined) {
-      push('colonies.fleet', 'Gain a trade fleet.', 'Получите торговый флот.', ['trade_fleet']);
+      push('colonies.fleet', 'Gain a trade fleet.', ['trade_fleet']);
     }
   }
   if (b.or !== undefined) {
@@ -531,13 +468,12 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     const next = requirements[i + 1];
     if (descriptor.cities !== undefined && descriptor.nextTo === true &&
         next !== undefined && next.oceans !== undefined) {
-      const any = descriptor.all === true;
       reqBlocks.push({
         id: 'req:city-next-to-ocean',
         kind: 'requirement',
-        text: t(
-          any ? 'Requires a city tile (any player) adjacent to an ocean.' : 'Requires that you have a city tile adjacent to an ocean.',
-          any ? 'Требуется тайл города (любого игрока) рядом с океаном.' : 'Требуется ваш тайл города рядом с океаном.'),
+        text: key(descriptor.all === true ?
+          'Requires a city tile (any player) adjacent to an ocean.' :
+          'Requires that you have a city tile adjacent to an ocean.'),
         graphicId: 'req:city-next-to-ocean',
       });
       i++; // consume the oceans half
@@ -557,22 +493,27 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
 
   /* immediate mechanics */
   let status: AuditEntry['status'] = 'ok';
-  const curated = CURATED_CARD_INFO[card.name];
+  const authored = card.metadata.infoText;
+  let vpTextOverride: string | undefined;
   let immediate: Array<CardInfoBlock> = [];
-  const curatedGroups: Array<CardInfoGroup> = [];
-  if (curated !== undefined) {
-    status = 'curated';
-    curated.blocks.forEach((entry, i) => {
+  const authoredGroups: Array<CardInfoGroup> = [];
+  if (authored !== undefined) {
+    status = 'authored';
+    authored.forEach((entry, i) => {
       const kind = entry.kind ?? 'immediate';
+      if (kind === 'victory-points') {
+        vpTextOverride = entry.text;
+        return;
+      }
       const block: CardInfoBlock = {
-        id: `mech:curated.${i}`,
+        id: `mech:authored.${i}`,
         kind,
-        text: t(entry.en, entry.ru),
+        text: key(entry.text),
         graphicId: entry.tokens !== undefined ? matchGraphic(graphics, entry.tokens) : undefined,
       };
       // Ongoing rules drawn as raw rows (no effect node) get their own group.
       if (kind === 'effect' || kind === 'action') {
-        curatedGroups.push({kind, id: `curated:${kind}:${i}`, blocks: [block]});
+        authoredGroups.push({kind, id: `authored:${kind}:${i}`, blocks: [block]});
       } else {
         immediate.push(block);
       }
@@ -601,7 +542,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         immediate = [{
           id: 'mech:description',
           kind: 'immediate',
-          text: existing(cleaned),
+          text: key(cleaned),
           graphicId: mechRows.length === 1 ? mechRows[0].id : undefined,
         }];
         status = mechRows.length <= 1 ? 'seeded' : 'needs-curation';
@@ -614,8 +555,8 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   if (immediate.length > 0) {
     groups.push({kind: 'immediate', id: 'immediate', blocks: immediate});
   }
-  groups.push(...curatedGroups);
-  for (const block of [...immediate, ...curatedGroups.flatMap((g) => g.blocks)]) {
+  groups.push(...authoredGroups);
+  for (const block of [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]) {
     if (block.graphicId === undefined && block.kind !== 'note') {
       unlinked.push(block.id);
     }
@@ -647,7 +588,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         blocks: [{
           id: `${ref.kind}:${ref.id.slice(2)}`,
           kind: ref.kind,
-          text: existing(description),
+          text: key(description),
           graphicId: ref.id,
         }],
       });
@@ -657,30 +598,19 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   /* special victory points */
   const vp = card.victoryPoints;
   if (vp !== undefined && typeof vp !== 'number') {
-    const vpText = findVpText(card);
+    const vpText = vpTextOverride ?? findVpText(card);
     let text: string | undefined;
     if (vpText !== undefined) {
-      text = existing(vpText);
-    } else if (vp === 'special') {
-      const curatedVp = CURATED_SPECIAL_VP[card.name];
-      if (curatedVp !== undefined) {
-        text = t(curatedVp.en, curatedVp.ru);
-      } else {
-        notes.push('special VP without vpText or curated text');
-      }
+      text = key(vpText);
     } else if (typeof vp === 'object' && 'resourcesHere' in vp && card.resourceType !== undefined) {
       // The one countable shape without a printed vpText — generate it.
       const per = (vp as {per?: number}).per ?? 1;
       const res = card.resourceType;
-      if (per === 1) {
-        text = t(`1 VP for each ${enCardResource(res, 1)} on this card.`,
-          `1 ПО за ${ruVpEach(res)} на этой карте.`);
-      } else {
-        text = t(`1 VP per ${per} ${enCardResource(res, per)} on this card.`,
-          `1 ПО за каждые ${per} ${ruCardResourceAcc(res, per)} на этой карте.`);
-      }
+      text = key(per === 1 ?
+        `1 VP for each ${enCardResource(res, 1)} on this card.` :
+        `1 VP per ${per} ${enCardResource(res, per)} on this card.`);
     } else {
-      notes.push('countable VP without vpText — add a curated VP text');
+      notes.push('special/countable VP without a text source — author a victory-points infoText');
     }
     if (text !== undefined) {
       groups.push({
@@ -705,27 +635,9 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   return groups.length > 0 ? {groups} : undefined;
 }
 
-/** «за каждое животное / каждую бактерию / каждый астероид» — gendered EACH forms. */
-const RU_VP_EACH: Partial<Record<CardResource, string>> = {
-  [CardResource.ANIMAL]: 'каждое животное',
-  [CardResource.MICROBE]: 'каждую бактерию',
-  [CardResource.SCIENCE]: 'каждый жетон науки',
-  [CardResource.FLOATER]: 'каждый аэростат',
-  [CardResource.ASTEROID]: 'каждый астероид',
-  [CardResource.FIGHTER]: 'каждый истребитель',
-  [CardResource.CAMP]: 'каждый лагерь',
-  [CardResource.DISEASE]: 'каждую болезнь',
-  [CardResource.PRESERVATION]: 'каждый жетон сохранения',
-  [CardResource.HYDROELECTRIC_RESOURCE]: 'каждый гидроресурс',
-};
-
-function ruVpEach(resource: CardResource): string {
-  return RU_VP_EACH[resource] ?? `каждый ресурс (${resource})`;
-}
-
 function hasBespokePlay(card: ICard): boolean {
   const proto = Object.getPrototypeOf(card);
-  return typeof proto.bespokePlay === 'function' && proto.bespokePlay !== Object.getPrototypeOf(proto).bespokePlay &&
+  return typeof proto.bespokePlay === 'function' &&
     Object.prototype.hasOwnProperty.call(proto, 'bespokePlay');
 }
 
@@ -746,8 +658,15 @@ function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: Readonly
 /* ── artifacts ──────────────────────────────────────────────────────── */
 
 export function writeCardInfoArtifacts(): void {
-  const sortedRu = Object.fromEntries([...ruPairs.entries()].sort(([a], [b]) => a.localeCompare(b)));
-  fs.writeFileSync('src/locales/ru/card_info.json', JSON.stringify(sortedRu, null, 2) + '\n');
+  // LOCALIZATION VALIDATION only — the generator never writes locale files.
+  const missingTranslations: Record<string, Array<string>> = {};
+  for (const lang of ENFORCED_LOCALES) {
+    const keys = keysOfLocale(lang);
+    const missing = [...usedKeys].filter((k) => !keys.has(k)).sort();
+    if (missing.length > 0) {
+      missingTranslations[lang] = missing;
+    }
+  }
 
   const summary = {
     total: audit.length,
@@ -758,12 +677,13 @@ export function writeCardInfoArtifacts(): void {
     requirementBlocks: audit.reduce((acc, e) => acc + e.requirementBlocks, 0),
     totalBlocks: audit.reduce((acc, e) => acc + e.blocks, 0),
     cardsWithUnlinkedBlocks: audit.filter((e) => e.unlinkedBlocks.length > 0).map((e) => e.name),
-    missingRu: [...missingRu].sort(),
+    missingTranslations,
     needsCuration: audit.filter((e) => e.status === 'needs-curation').map((e) => e.name),
     seeded: audit.filter((e) => e.status === 'seeded').map((e) => e.name),
   };
   fs.writeFileSync('src/genfiles/cardInfoAudit.json', JSON.stringify({summary, cards: audit}, null, 1) + '\n');
+  const missingCount = Object.values(missingTranslations).reduce((acc, list) => acc + list.length, 0);
   console.log(`card info: ${audit.length} cards, ${summary.totalBlocks} blocks ` +
     `(${summary.requirementBlocks} requirements); status: ${JSON.stringify(summary.byStatus)}; ` +
-    `missing ru: ${summary.missingRu.length}; needs curation: ${summary.needsCuration.length}`);
+    `missing translations: ${missingCount}; needs curation: ${summary.needsCuration.length}`);
 }

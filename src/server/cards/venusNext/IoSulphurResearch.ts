@@ -20,6 +20,12 @@ export class IoSulphurResearch extends Card implements IProjectCard {
       victoryPoints: 2,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Draw 1 card, or draw 3 cards if you have at least 3 Venus tags.', tokens: ['cards']},
+
+        ],
         cardNumber: '232',
         renderData: CardRenderer.builder((b) => {
           b.cards(1).br;

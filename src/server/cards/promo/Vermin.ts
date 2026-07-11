@@ -44,6 +44,12 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {kind: 'victory-points', text: 'If this card has 10 or more animals, EVERY player loses 1 VP per city tile at the end of the game.'},
+
+        ],
         cardNumber: 'X75',
         renderData: CardRenderer.builder((b) => {
           b.effect('When any city is placed, add 1 animal here.', (eb) => {

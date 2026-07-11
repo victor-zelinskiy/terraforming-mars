@@ -23,6 +23,14 @@ export class AirRaid extends Card implements IProjectCard {
       type: CardType.EVENT,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Spend 1 floater from any card.', tokens: ['res-floater']},
+
+          {text: 'Steal 5 M€ from any player.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'C02',
         description: 'Requires that you lose 1 floater. Steal 5 M€ from any player.',
         renderData: CardRenderer.builder((b) => {

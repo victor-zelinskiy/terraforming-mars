@@ -21,6 +21,14 @@ export class LunaMetropolis extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your M€ production 1 step for each Earth tag you have, including this.', tokens: ['production(']},
+
+          {text: 'Place a city tile on the reserved area.', tokens: ['city']},
+
+        ],
         cardNumber: '236',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(1).slash().tag(Tag.EARTH)).br;

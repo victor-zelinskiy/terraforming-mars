@@ -23,6 +23,16 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Decrease your energy production 1 step.', tokens: ['production(']},
+
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+
+          {text: 'Place a city tile on a volcanic area, regardless of adjacent cities.', tokens: ['city']},
+
+        ],
         cardNumber: 'P37',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

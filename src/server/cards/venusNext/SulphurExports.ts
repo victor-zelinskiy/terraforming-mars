@@ -19,6 +19,14 @@ export class SulphurExports extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise Venus 1 step.', tokens: ['venus']},
+
+          {text: 'Increase your M€ production 1 step for each Venus tag you have, including this.', tokens: ['production(']},
+
+        ],
         cardNumber: '250',
         renderData: CardRenderer.builder((b) => {
           b.venus(1).br;

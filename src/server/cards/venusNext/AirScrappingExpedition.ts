@@ -24,6 +24,14 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise Venus 1 step.', tokens: ['venus']},
+
+          {text: 'Add 3 floaters to any Venus card.', tokens: ['res-floater']},
+
+        ],
         cardNumber: '215',
         description: 'Raise Venus 1 step. Add 3 floaters to ANY Venus CARD.',
         renderData: CardRenderer.builder((b) => {

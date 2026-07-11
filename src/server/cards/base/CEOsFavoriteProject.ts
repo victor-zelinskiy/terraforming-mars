@@ -22,6 +22,12 @@ export class CEOsFavoriteProject extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Add 1 resource to a card with at least 1 resource on it.', tokens: ['wild', 'text']},
+
+        ],
         cardNumber: '149',
         renderData: CardRenderer.builder((b) => b.text('Add 1 resource to a card with at least 1 resource on it', Size.SMALL, true)),
       },

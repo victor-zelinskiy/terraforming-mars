@@ -24,6 +24,12 @@ export class OlympusConference extends Card implements IProjectCard {
       victoryPoints: 1,
 
       metadata: {
+
+        infoText: [
+
+          {kind: 'effect', text: 'When you play a science tag, including this, either add a science resource to this card, or remove a science resource from it to draw a card.', tokens: ['tag-science']},
+
+        ],
         cardNumber: '185',
         renderData: CardRenderer.builder((b) => {
           b.tag(Tag.SCIENCE).colon().resource(CardResource.SCIENCE).br;

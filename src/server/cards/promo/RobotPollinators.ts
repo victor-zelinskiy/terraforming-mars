@@ -18,6 +18,14 @@ export class RobotPollinators extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your plant production 1 step.', tokens: ['production(']},
+
+          {text: 'Gain 1 plant for each plant tag you have.', tokens: ['plants']},
+
+        ],
         cardNumber: 'X45',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.plants(1)).br.plants(1).slash().tag(Tag.PLANT);

@@ -11,6 +11,12 @@ export class DoubleDown extends PreludeCard {
       name: CardName.DOUBLE_DOWN,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Copy your other prelude’s direct effect.', tokens: ['text']},
+
+        ],
         cardNumber: 'X40',
         description: '',
         renderData: CardRenderer.builder((b) => {

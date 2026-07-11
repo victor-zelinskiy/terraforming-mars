@@ -18,6 +18,14 @@ export class BusinessEmpire extends PreludeCard {
       startingMegacredits: -6,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your M€ production 6 steps.', tokens: ['production(']},
+
+          {text: 'Pay 6 M€.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'P06',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(6)).br;

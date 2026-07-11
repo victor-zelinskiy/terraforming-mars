@@ -90,7 +90,11 @@ class CardProcessor {
     // vize1215: structured per-graphic-block card text (CardInformation) —
     // generated here at export time and attached to the metadata copy.
     const information = buildCardInformation(card, module);
-    const metadata = information !== undefined ? {...card.metadata, information} : card.metadata;
+    // The authored infoText is generator INPUT (co-located in card files) —
+    // the client receives only the generated `information`.
+    const {infoText, ...restMetadata} = card.metadata;
+    void infoText;
+    const metadata = information !== undefined ? {...restMetadata, information} : restMetadata;
     const clientCard: Mutable<ClientCard> = {
       module: module,
       name: card.name,

@@ -23,6 +23,14 @@ export class HiredRaiders extends Card implements IProjectCard {
       cost: 1,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Steal up to 2 steel from any player.', tokens: ['steel']},
+
+          {text: 'Or steal up to 3 M€ from any player.', tokens: ['megacredits']},
+
+        ],
         cardNumber: '124',
         renderData: CardRenderer.builder((b) => {
           b.text('steal', Size.MEDIUM, true).steel(2, {all}).br;

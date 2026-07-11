@@ -24,6 +24,16 @@ export class NitrogenRichAsteroid extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise your terraform rating 2 steps.', tokens: ['tr']},
+
+          {text: 'Raise the temperature 1 step.', tokens: ['temperature']},
+
+          {text: 'Increase your plant production 1 step, or 4 steps if you have at least 3 plant tags.', tokens: ['production(']},
+
+        ],
         cardNumber: '037',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

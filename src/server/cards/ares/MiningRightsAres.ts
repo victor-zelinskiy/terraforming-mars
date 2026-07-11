@@ -11,6 +11,11 @@ export class MiningRightsAres extends MiningRights {
       CardName.MINING_RIGHTS_ARES,
       {
         cardNumber: 'A15',
+        infoText: [
+          {text: 'Place this tile on an area with a steel or titanium placement bonus.', tokens: ['tile-']},
+          {text: 'Increase the matching production (steel or titanium) 1 step.', tokens: ['production(']},
+          {kind: 'note', text: 'This tile provides an adjacency bonus of the same resource as the area.'},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.tile(TileType.MINING_STEEL_BONUS, false, true);
           b.tile(TileType.MINING_TITANIUM_BONUS, false, true).asterix().br;

@@ -25,6 +25,10 @@ export class NitrophilicMoss extends Card implements IProjectCard {
 
       requirements: {oceans: 3},
       metadata: {
+        infoText: [
+          {text: 'Lose 2 plants.', tokens: ['plants']},
+          {text: 'Increase your plant production 2 steps.', tokens: ['production(']},
+        ],
         cardNumber: '146',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

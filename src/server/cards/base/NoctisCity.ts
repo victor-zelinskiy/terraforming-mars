@@ -28,6 +28,16 @@ export class NoctisCity extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Decrease your energy production 1 step.', tokens: ['production(']},
+
+          {text: 'Increase your M€ production 3 steps.', tokens: ['production(']},
+
+          {text: 'Place a city tile on the reserved Noctis City area, disregarding normal placement restrictions.', tokens: ['city']},
+
+        ],
         cardNumber: '017',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

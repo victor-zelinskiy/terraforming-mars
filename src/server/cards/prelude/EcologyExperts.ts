@@ -16,6 +16,14 @@ export class EcologyExperts extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your plant production 1 step.', tokens: ['production(']},
+
+          {text: 'Play a card from your hand, ignoring its global requirements.', tokens: ['ignore_global_requirements']},
+
+        ],
         cardNumber: 'P10',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.plants(1)).br.br;

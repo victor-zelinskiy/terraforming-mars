@@ -25,6 +25,14 @@ export class HermeticOrderOfMars extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+
+          {text: 'Gain 1 M€ for each empty area adjacent to your tiles.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'X56',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(2)).nbsp.megacredits(1).slash().emptyTile().asterix();

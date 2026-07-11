@@ -194,7 +194,7 @@ describe('premium face coverage guard', () => {
   // rule with no iconifiable shape), so an absent mechanics panel is correct
   // (the art takes the space). A NEW card landing in this list should be
   // triaged (does it truly have no graphics?), never silently accepted.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
   const NO_MECHANICS_ACCEPTED = new Set<string>([
     CardName.ADVANCED_ECOSYSTEMS,
     CardName.BREATHING_FILTERS,

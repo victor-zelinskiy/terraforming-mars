@@ -25,6 +25,12 @@ export class LawSuit extends Card implements IProjectCard {
       victoryPoints: 'special',
 
       metadata: {
+
+        infoText: [
+
+          {kind: 'victory-points', text: 'The player who takes this card counts it as −1 VP.'},
+
+        ],
         cardNumber: 'X06',
         renderData: CardRenderer.builder((b) => {
           b.text('steal', Size.SMALL, true).megacredits(3, {all}).asterix();

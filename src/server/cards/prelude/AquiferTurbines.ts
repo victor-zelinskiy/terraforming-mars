@@ -20,6 +20,16 @@ export class AquiferTurbines extends PreludeCard {
       startingMegacredits: -3,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Place an ocean tile.', tokens: ['oceans']},
+
+          {text: 'Increase your energy production 2 steps.', tokens: ['production(']},
+
+          {text: 'Pay 3 M€.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'P02',
         renderData: CardRenderer.builder((b) => {
           b.oceans(1).production((pb) => pb.energy(2)).br;

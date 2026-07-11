@@ -32,6 +32,12 @@ export class MarsNomads extends Card implements IActionCard {
       cost: 13,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Place the Nomads on a non-reserved, empty area on the game board.', tokens: ['nomads']},
+
+        ],
         cardNumber: 'X59',
         renderData: CardRenderer.builder((b) => {
           b.action('MOVE THE NOMADS to an adjacent, non-reserved empty area and collect THE PLACEMENT BONUS ' +

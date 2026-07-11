@@ -22,6 +22,10 @@ export class ButterflyEffect extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'A03',
+        infoText: [
+          {text: 'Gain 1 TR.', tokens: ['tr']},
+          {text: 'Move each hazard marker up to 1 step up or down along its terraforming track.', tokens: ['plate', 'text']},
+        ],
         description: 'Gain 1 TR. Move each hazard marker up to 1 step up or down along its terraforming track.',
         renderData: CardRenderer.builder((b) => {
           b.tr(1).br;

@@ -21,6 +21,14 @@ export class MolecularPrinting extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Gain 1 M€ for each city tile in play.', tokens: ['megacredits']},
+
+          {text: 'Gain 1 M€ for each colony in play.', tokens: ['colonies']},
+
+        ],
         cardNumber: 'C27',
         renderData: CardRenderer.builder((b) => {
           b.megacredits(1).slash().city({size: Size.SMALL, all}).br;

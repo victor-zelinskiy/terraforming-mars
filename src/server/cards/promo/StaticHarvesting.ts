@@ -24,6 +24,14 @@ export class StaticHarvesting extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your energy production 1 step.', tokens: ['production(']},
+
+          {text: 'Gain 1 M€ for each building tag you have.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'X74',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.energy(1)).br;

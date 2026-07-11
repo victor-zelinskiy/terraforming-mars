@@ -16,6 +16,14 @@ export class CorporateArchives extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Look at the top 7 cards of the deck: take 2 of them into your hand, discard the rest.', tokens: ['text']},
+
+          {text: 'Gain 13 M€.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'X39',
         description: 'Gain 13 M€.',
         renderData: CardRenderer.builder((b) => {

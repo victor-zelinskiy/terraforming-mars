@@ -25,6 +25,10 @@ export class Moss extends Card implements IProjectCard {
 
       requirements: {oceans: 3},
       metadata: {
+        infoText: [
+          {text: 'Lose 1 plant.', tokens: ['plants']},
+          {text: 'Increase your plant production 1 step.', tokens: ['production(']},
+        ],
         cardNumber: '122',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.plants(1)).nbsp.minus().plants(1);

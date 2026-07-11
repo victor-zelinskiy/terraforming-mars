@@ -21,6 +21,12 @@ export class MarketManipulation extends Card implements IProjectCard {
       type: CardType.EVENT,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase one colony tile track 1 step. Decrease another colony tile track 1 step.', tokens: ['text']},
+
+        ],
         cardNumber: 'C23',
         renderData: CardRenderer.builder((b) => {
           b.text(

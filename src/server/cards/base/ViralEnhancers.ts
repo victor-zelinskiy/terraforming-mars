@@ -24,6 +24,10 @@ export class ViralEnhancers extends Card implements IProjectCard {
       cost: 9,
 
       metadata: {
+
+        infoText: [
+
+        ],
         cardNumber: '074',
         renderData: CardRenderer.builder((b) => {
           b.tag(Tag.PLANT).slash().tag(Tag.MICROBE).slash().tag(Tag.ANIMAL).br;

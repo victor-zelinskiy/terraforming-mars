@@ -28,6 +28,14 @@ export class CometForVenus extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise Venus 1 step.', tokens: ['venus']},
+
+          {text: 'Remove up to 4 M€ from any player with a Venus tag in play.', tokens: ['megacredits']},
+
+        ],
         description: 'Raise Venus 1 step. Remove up to 4M€ from any player WITH A VENUS TAG IN PLAY.',
         cardNumber: '218',
         renderData: CardRenderer.builder((b) => {

@@ -25,6 +25,14 @@ export class EcologyResearch extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your plant production 1 step for each colony you own.', tokens: ['production(']},
+
+          {text: 'Add 1 animal to another card and 2 microbes to another card.', tokens: ['res-animal']},
+
+        ],
         description: 'Increase your plant production 1 step for each colony you own. Add 1 animal to ANOTHER card and 2 microbes to ANOTHER card.',
         cardNumber: 'C09',
         renderData: CardRenderer.builder((b) => {

@@ -20,6 +20,12 @@ export class MartianLumberCorp extends Card {
       requirements: {greeneries: 2},
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your plant production 1 step.', tokens: ['production(']},
+
+        ],
         cardNumber: 'X60',
         renderData: CardRenderer.builder((b) => {
           b.effect('When playing a building tag, plants may be used as 3 M€ each.',

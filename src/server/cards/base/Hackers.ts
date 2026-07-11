@@ -23,6 +23,16 @@ export class Hackers extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Decrease your energy production 1 step.', tokens: ['production(']},
+
+          {text: 'Decrease any player’s M€ production 2 steps.', tokens: ['production(']},
+
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+
+        ],
         cardNumber: '125',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

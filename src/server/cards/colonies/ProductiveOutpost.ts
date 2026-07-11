@@ -26,6 +26,12 @@ export class ProductiveOutpost extends Card implements IProjectCard {
       type: CardType.AUTOMATED,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Gain all your colony bonuses.', tokens: ['text']},
+
+        ],
         cardNumber: 'C30',
         renderData: CardRenderer.builder((b) => {
           b.text('Gain all your colony bonuses.', Size.SMALL, true);

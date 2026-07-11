@@ -20,6 +20,12 @@ export class ProjectInspection extends Card implements IProjectCard {
       cost: 0,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Use a card action that has been used this generation.', tokens: ['text']},
+
+        ],
         cardNumber: 'X02',
         renderData: CardRenderer.builder((b) => {
           b.text('Use a card action that has been used this generation.', Size.SMALL, true);

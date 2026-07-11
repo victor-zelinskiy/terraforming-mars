@@ -28,6 +28,12 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Spend 1 floater from any card.', tokens: ['res-floater']},
+
+        ],
         cardNumber: '249',
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 animal to this card.', (eb) => {

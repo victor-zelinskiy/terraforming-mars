@@ -15,6 +15,14 @@ export class AcquiredSpaceAgency extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Gain 6 titanium.', tokens: ['titanium']},
+
+          {text: 'Reveal cards from the deck until you reveal two cards with space tags. Take them into your hand and discard the rest.', tokens: ['cards']},
+
+        ],
         cardNumber: 'P35',
         renderData: CardRenderer.builder((b) => {
           b.titanium(6, {digit}).br.br; // double break intentional

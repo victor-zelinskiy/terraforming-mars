@@ -19,6 +19,16 @@ export class Gyropolis extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Decrease your energy production 2 steps.', tokens: ['production(']},
+
+          {text: 'Increase your M€ production 1 step for each Venus and Earth tag you have.', tokens: ['production(']},
+
+          {text: 'Place a city tile.', tokens: ['city']},
+
+        ],
         cardNumber: '230',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

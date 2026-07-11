@@ -29,6 +29,14 @@ export class LargeConvoy extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Place an ocean tile and draw 2 cards.', tokens: ['oceans']},
+
+          {text: 'Gain 5 plants, or add 4 animals to another card.', tokens: ['plants']},
+
+        ],
         cardNumber: '143',
         renderData: CardRenderer.builder((b) => {
           b.oceans(1).cards(2).br;

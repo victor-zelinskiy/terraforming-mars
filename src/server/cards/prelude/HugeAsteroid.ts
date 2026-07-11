@@ -17,6 +17,14 @@ export class HugeAsteroid extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise the temperature 3 steps.', tokens: ['temperature']},
+
+          {text: 'Pay 5 M€.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'P15',
         renderData: CardRenderer.builder((b) => {
           b.temperature(3).br;

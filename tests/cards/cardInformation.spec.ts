@@ -15,7 +15,7 @@ import {CardType} from '../../src/common/cards/CardType';
  * graphic linkage, no duplication, and the flagship Asteroid split.
  */
 
-const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude']);
+const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
 const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
 
 function loadCards(): Array<ClientCard> {
@@ -47,7 +47,7 @@ function ruKeys(): Set<string> {
 describe('card information model', function() {
   const cards = scopeCards();
 
-  it('covers EVERY in-scope card (431) with at least one group', () => {
+  it('covers EVERY in-scope card (457) with at least one group', () => {
     expect(cards.length).to.be.gte(400);
     // Trans-Neptune Probe is the ONE honest empty: fixed VP + cost + tags
     // only — pure self-explanatory metadata, nothing to describe. A NEW

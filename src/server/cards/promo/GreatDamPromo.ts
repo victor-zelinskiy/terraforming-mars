@@ -1,4 +1,5 @@
 import {IProjectCard} from '../IProjectCard';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {Tag} from '../../../common/cards/Tag';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
@@ -18,7 +19,11 @@ export class GreatDamPromo extends Card implements IProjectCard {
   constructor(
     name = CardName.GREAT_DAM_PROMO,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
+      infoText: [
+        {text: 'Increase your energy production 2 steps.', tokens: ['production(']},
+        {text: 'Place this tile adjacent to an ocean tile.', tokens: ['tile-']},
+      ],
       cardNumber: 'X32',
       renderData: CardRenderer.builder((b) => {
         b.production((pb) => pb.energy(2)).tile(TileType.GREAT_DAM, true, false).asterix();

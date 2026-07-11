@@ -18,6 +18,14 @@ export class EstablishedMethods extends PreludeCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Gain 30 M€. Then pay for and perform 2 standard projects.', tokens: ['megacredits']},
+
+          {kind: 'note', text: 'If you cannot afford a second standard project, spend 10 M€ instead, or as much as possible.'},
+
+        ],
         cardNumber: 'X54',
         renderData: CardRenderer.builder((b) => {
           b.megacredits(30).asterix();

@@ -34,6 +34,14 @@ export class Atmoscoop extends Card implements IProjectCard {
       },
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Raise the temperature 2 steps, or raise Venus 2 steps.', tokens: ['temperature']},
+
+          {text: 'Add 2 floaters to any card.', tokens: ['res-floater']},
+
+        ],
         cardNumber: '217',
         description: 'Requires 3 science tags. Either raise the temperature 2 steps, or raise Venus 2 steps. Add 2 floaters to ANY card.',
         renderData: CardRenderer.builder((b) => {

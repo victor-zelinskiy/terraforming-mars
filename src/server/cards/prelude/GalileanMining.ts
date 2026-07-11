@@ -18,6 +18,14 @@ export class GalileanMining extends PreludeCard {
       startingMegacredits: -5,
 
       metadata: {
+
+        infoText: [
+
+          {text: 'Increase your titanium production 2 steps.', tokens: ['production(']},
+
+          {text: 'Pay 5 M€.', tokens: ['megacredits']},
+
+        ],
         cardNumber: 'P13',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {
