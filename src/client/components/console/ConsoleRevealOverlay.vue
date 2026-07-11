@@ -23,7 +23,7 @@
               <div class="con-reveal__headmain">
                 <div class="con-reveal__title">{{ titleText }}</div>
                 <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
-                  {{ $t('Cards were added from a draw source. Pick a card to inspect or take the available ones.') }}
+                  {{ $t('Cards were added from a draw source.') }}
                 </div>
                 <!--
                   Compact SOURCE chip — a navigation-context metadata element,
@@ -563,10 +563,22 @@ export default defineComponent({
       openConsoleCardZoom([card], 0, undefined, undefined, {
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
+        sourceInfo: this.singleSourceInfo(),
+        receivedCount: this.drawnEvent?.cards.length ?? 1,
         statusLabel: 'Received card',
         mandatory: true,
         origin: {kind: 'textual'},
       });
+    },
+    /**
+     * The STATIC source chip for the single-card fullscreen when the source is
+     * NOT an inspectable card (a tile / colony bonus — «ИСТОЧНИК · Бонус
+     * клетки»). A card source is shown interactively via the swap bridge (L3)
+     * instead, so this returns undefined for it.
+     */
+    singleSourceInfo(): {label: string, name: string} | undefined {
+      const chip = this.sourceChip;
+      return chip !== undefined && !chip.inspectable ? {label: 'Source', name: chip.name} : undefined;
     },
     /** The single-card receive bridge — A departs the card from fullscreen. */
     singleReceiveBridge(): ConsoleZoomReceive {

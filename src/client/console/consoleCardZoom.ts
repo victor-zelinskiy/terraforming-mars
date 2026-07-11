@@ -191,6 +191,18 @@ export type ConsoleZoomExtra = {
    * card untaken.
    */
   mandatory?: boolean,
+  /**
+   * The «ПОЛУЧЕНО N» count shown in the viewer bar (single-card reveal — for
+   * parity with the multi-card modal's header count). 0 / undefined → hidden.
+   */
+  receivedCount?: number,
+  /**
+   * A STATIC source chip (i18n `label` + already-translated `name`) for a
+   * source that is NOT an inspectable card — e.g. «ИСТОЧНИК · Бонус клетки»
+   * (a tile / colony bonus). A card source is shown INTERACTIVELY via `swap`
+   * (L3) instead, so this stays undefined for it. Persists across the swap.
+   */
+  sourceInfo?: {label: string, name: string},
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
 };
@@ -218,6 +230,10 @@ export const consoleCardZoom = reactive({
   swap: undefined as ConsoleZoomSwap | undefined,
   /** MANDATORY: no B / X / Esc / backdrop dismissal (single-card reveal). */
   mandatory: false,
+  /** The «ПОЛУЧЕНО N» count in the viewer bar (single-card reveal). 0 = hidden. */
+  receivedCount: 0,
+  /** A static source chip (i18n label + translated name) for a non-card source. */
+  sourceInfo: undefined as {label: string, name: string} | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
 });
@@ -238,6 +254,8 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.statusLabel = extra?.statusLabel;
   consoleCardZoom.swap = extra?.swap;
   consoleCardZoom.mandatory = extra?.mandatory === true;
+  consoleCardZoom.receivedCount = extra?.receivedCount ?? 0;
+  consoleCardZoom.sourceInfo = extra?.sourceInfo;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
 }
 
@@ -252,9 +270,9 @@ export function navigateConsoleCardZoom(card: ZoomCard, index: number): void {
  * re-running the open choreography (the single-card reveal swap: received ⇄
  * source). The dialog stays mounted (`card` never goes undefined, so the
  * shell's undefined→defined open watcher never fires); the caller crossfades
- * the stage via `CardZoomModal.runSwap`. `origin` / `mandatory` are preserved
- * (both paired views are equally mandatory); `select`/`action`/`contextLabel`
- * stay cleared (a reveal is never a selection/action context).
+ * the stage via `CardZoomModal.runSwap`. `origin` / `mandatory` / `receivedCount`
+ * / `sourceInfo` are preserved (stable across the swap); `select`/`action`/
+ * `contextLabel` stay cleared (a reveal is never a selection/action context).
  */
 export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZoomReceive, swap?: ConsoleZoomSwap, statusLabel?: string}): void {
   consoleCardZoom.card = card;
@@ -276,5 +294,7 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.statusLabel = undefined;
   consoleCardZoom.swap = undefined;
   consoleCardZoom.mandatory = false;
+  consoleCardZoom.receivedCount = 0;
+  consoleCardZoom.sourceInfo = undefined;
   consoleCardZoom.origin = {kind: 'none'};
 }

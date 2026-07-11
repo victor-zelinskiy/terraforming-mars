@@ -354,6 +354,12 @@
                 :class="zoomReceiveLabel !== undefined ? 'con-zoom__status--received' : 'con-zoom__status--source'">
             {{ $t(zoomStatusLabel) }}
           </span>
+          <!-- «ПОЛУЧЕНО N» — parity with the multi-card modal's header count. -->
+          <span v-if="zoomReceivedCount > 0" class="con-zoom__count">
+            <span class="con-zoom__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+            <span class="con-zoom__count-label">{{ $t('Received') }}</span>
+            <b class="con-zoom__count-num">{{ zoomReceivedCount }}</b>
+          </span>
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <!-- The RECEIVE bridge (drawn-cards reveal) — A takes the on-screen
                card. Single-card departs from fullscreen; multi-card closes to
@@ -377,12 +383,20 @@
             <span>{{ $t(zoomTakeAllLabel) }}</span>
           </span>
           <!-- The L3 role swap (single-card reveal: received ⇄ source) — a
-               compact chip naming the OTHER card. -->
+               compact chip naming the OTHER card (interactive card source). -->
           <span v-if="zoomSwapLabel !== undefined && zoomSwapOtherName !== undefined" class="con-zoom__swap">
             <GamepadGlyph control="stickL" />
             <span class="con-zoom__swap-label">{{ $t(zoomSwapLabel) }}</span>
             <span class="con-zoom__swap-sep" aria-hidden="true">·</span>
             <span class="con-zoom__swap-name">{{ $t(zoomSwapOtherName) }}</span>
+          </span>
+          <!-- A STATIC source chip for a non-inspectable source (tile / colony
+               bonus) — the received card always names where it came from. -->
+          <span v-else-if="zoomSourceInfo !== undefined" class="con-zoom__swap con-zoom__swap--static">
+            <span class="con-zoom__swap-mark" aria-hidden="true">◈</span>
+            <span class="con-zoom__swap-label">{{ $t(zoomSourceInfo.label) }}</span>
+            <span class="con-zoom__swap-sep" aria-hidden="true">·</span>
+            <span class="con-zoom__swap-name">{{ zoomSourceInfo.name }}</span>
           </span>
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
             <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
@@ -2125,6 +2139,14 @@ export default defineComponent({
     /** The OTHER card's name shown in the swap chip, or undefined. */
     zoomSwapOtherName(): CardName | undefined {
       return this.consoleCardZoom.swap?.otherName;
+    },
+    /** The «ПОЛУЧЕНО N» count in the viewer bar (single-card reveal). 0 = hidden. */
+    zoomReceivedCount(): number {
+      return this.consoleCardZoom.receivedCount;
+    },
+    /** The static source chip (non-card source, e.g. tile bonus), or undefined. */
+    zoomSourceInfo(): {label: string, name: string} | undefined {
+      return this.consoleCardZoom.sourceInfo;
     },
     /** P17: «why not» lines when the current card is NOT actionable. */
     zoomReasons(): ReadonlyArray<string> {

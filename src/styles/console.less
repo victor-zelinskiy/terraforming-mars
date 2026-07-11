@@ -8621,6 +8621,46 @@ html.console-mode {
         font-weight: 700;
         color: @con-text;
     }
+    &-mark { color: @con-amber; font-size: 12px; }
+
+    /* A STATIC source chip (non-inspectable tile / colony bonus) — same shape
+       as the swap chip but amber-rimmed (source, not navigation) + no L3. */
+    &--static {
+        box-shadow: inset 0 0 0 1px fade(@con-amber, 42%);
+        .con-zoom__swap-label { color: #ffe3b0; }
+        .con-zoom__swap-sep { color: fade(@con-amber, 55%); }
+    }
+}
+/* «ПОЛУЧЕНО N» count chip in the fullscreen viewer bar — parity with the
+   multi-card modal header count (`.con-reveal__count`). */
+.con-zoom__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 15px;
+    border-radius: 999px;
+    background: rgba(14, 22, 33, 0.72);
+    box-shadow: inset 0 0 0 1px fade(@con-cyan, 55%), 0 0 14px fade(@con-cyan, 10%);
+    font-family: @con-font;
+
+    &-icon {
+        width: 20px;
+        height: 20px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &-label {
+        font-size: 13px;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &-num {
+        font-size: 19px;
+        font-weight: 800;
+        color: @con-cyan;
+    }
 }
 
 /* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
@@ -11531,6 +11571,9 @@ html.con-profile-handheld {
     .con-zoom__status { font-size: 13px; padding: 4px 14px; letter-spacing: 1.2px; }
     .con-zoom__swap { font-size: 13px; padding: 4px 12px; gap: 6px; }
     .con-zoom__swap-label { font-size: 11.5px; }
+    .con-zoom__count { font-size: 13px; padding: 4px 12px; gap: 6px; }
+    .con-zoom__count-num { font-size: 16px; }
+    .con-zoom__count-icon { width: 17px; height: 17px; }
 
     /* ── 21 · the task host (all native prompts) ─────────────────── */
     .con-task {

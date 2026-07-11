@@ -101,6 +101,8 @@ describe('consoleCardZoom (P15)', () => {
     openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
       receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
       swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => swapped++},
+      sourceInfo: {label: 'Source', name: 'Tile bonus'},
+      receivedCount: 1,
       statusLabel: 'Received card',
       mandatory: true,
       origin: {kind: 'textual'},
@@ -110,6 +112,8 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.receive?.departFromFullscreen).to.eq(true);
     expect(consoleCardZoom.swap?.label).to.eq('Source');
     expect(consoleCardZoom.swap?.otherName).to.eq(CardName.BIRDS);
+    expect(consoleCardZoom.receivedCount).to.eq(1);
+    expect(consoleCardZoom.sourceInfo?.name).to.eq('Tile bonus');
     consoleCardZoom.swap?.swap();
     expect(swapped).to.eq(1);
     closeConsoleCardZoom();
@@ -117,12 +121,15 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.statusLabel).to.eq(undefined);
     expect(consoleCardZoom.swap).to.eq(undefined);
     expect(consoleCardZoom.receive).to.eq(undefined);
+    expect(consoleCardZoom.receivedCount).to.eq(0);
+    expect(consoleCardZoom.sourceInfo).to.eq(undefined);
   });
 
-  it('repoint flips the role (received → source) WITHOUT re-opening — card defined throughout, receive cleared', () => {
+  it('repoint flips the role (received → source) WITHOUT re-opening — card defined throughout, receive cleared, count/source preserved', () => {
     openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
       receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
       swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => {}},
+      receivedCount: 1,
       statusLabel: 'Received card',
       mandatory: true,
       origin: {kind: 'textual'},
@@ -138,6 +145,7 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.statusLabel).to.eq('Draw source');
     expect(consoleCardZoom.swap?.otherName).to.eq(CardName.ANTS);
     expect(consoleCardZoom.mandatory).to.eq(true); // preserved across the swap
+    expect(consoleCardZoom.receivedCount).to.eq(1); // preserved across the swap
     closeConsoleCardZoom();
   });
 
