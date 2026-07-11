@@ -38,11 +38,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {
-  abortBoardCardBonus, boardCardBonusState, endBoardCardBonus, markBonusZoomEntryReady,
-  registerBoardCardBonusHandle, registerBonusZoomOrigin, setBoardCardBonusPhase,
-  stageBoardCardBonusReveal, BoardCardBonusAbortMode,
+  abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, endBoardCardBonus, isVenusScaleReveal,
+  markBonusZoomEntryReady, registerBoardCardBonusHandle, registerBonusZoomOrigin, revealMatchesSource,
+  setBoardCardBonusPhase, stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
   bonusSceneTimings, gatherPoint, presentationTarget, reducedBonusSceneTimings,
@@ -57,8 +57,11 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 /** The natural (unscaled) FaceLite height — mirrors the card frame. */
 const CARD_NATURAL_H = 420;
 
-/** The board icon hides under the lifting cover (one-object rule). */
+/** The source icon hides under the lifting cover (one-object rule). */
 const SOURCE_LIFTED_CLASS = 'con-bonus-source-lifted';
+
+/** The Venus scale 8% card-bonus marker (a fixed anchor — [[scaleBonusZones]]). */
+const VENUS_MARKER_SEL = '[data-arc-marker="venus-8"] .bonus-zone__icon';
 
 /**
  * Commit arrived (gameAge moved) but no tile-source reveal followed within
@@ -129,36 +132,61 @@ export default defineComponent({
   },
   computed: {
     /**
-     * The arriving TILE-source reveal batch this scene should claim: only
-     * while armed + not yet staged. Watched (pre-flush) so the staging is
-     * applied BEFORE the reveal overlay's first render — it mounts already
-     * veiled + held, never a one-frame flash of the finished modal.
+     * The reveal batch this layer should drive NOW (the current one — the
+     * batch the overlay is about to show). TWO paths, both watched pre-flush
+     * so the staging lands BEFORE the overlay's first render (no flash of
+     * the finished modal):
+     *   · an ACTIVE scene (board, armed at submit) → the reveal matching its
+     *     source (`tile`), while still at the source (lift/hover), unstaged;
+     *   · NO scene yet → a VENUS-scale reveal SELF-ARMS a scene (no tile
+     *     race → reactive is safe; the layer is console-only, so desktop is
+     *     never touched).
      */
-    tileRevealCandidate(): DrawnCardEntry | undefined {
-      if (!this.boardCardBonusState.active || this.boardCardBonusState.stagedEventId !== undefined) {
+    revealToProcess(): DrawnCardEntry | undefined {
+      const e = currentRevealEvent();
+      if (e === undefined) {
         return undefined;
       }
-      return drawnCardsState.events.find((e) => !e.dismissed && e.source?.type === 'tile');
+      const s = this.boardCardBonusState;
+      if (s.active) {
+        if (s.stagedEventId !== undefined || (s.phase !== 'lift' && s.phase !== 'hover')) {
+          return undefined;
+        }
+        return revealMatchesSource(e.source, s.source) ? e : undefined;
+      }
+      return isVenusScaleReveal(e.source) ? e : undefined;
     },
-    /** Commit heartbeat — drives the honest "no cards came" recall. */
+    /** Commit heartbeat — drives the honest "no cards came" recall (board). */
     commitAge(): number {
       return this.playerView.game.gameAge;
     },
   },
   watch: {
-    /** A fresh arm (the shell bumped the nonce): begin the scene. */
+    /** A fresh arm (the shell / self-arm bumped the nonce): begin the scene. */
     'boardCardBonusState.nonce'() {
       void this.beginScene();
     },
-    tileRevealCandidate(e: DrawnCardEntry | undefined) {
-      if (e !== undefined) {
-        this.onRevealArrived(e);
+    revealToProcess(e: DrawnCardEntry | undefined) {
+      if (e === undefined) {
+        return;
       }
+      // A venus-scale reveal with no scene yet SELF-ARMS (atomic: arm + the
+      // stage below land in this one tick, so the overlay veils on first
+      // render). A board scene is already armed → straight to staging.
+      if (!boardCardBonusState.active) {
+        armBoardCardBonus({kind: 'venus-scale'});
+      }
+      this.onRevealArrived(e);
     },
     commitAge() {
-      // The commit landed. If no tile reveal follows shortly, the bonus
-      // produced nothing — recall the cover instead of hovering forever.
-      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
+      // BOARD only: the commit landed but no tile reveal followed → the bonus
+      // produced nothing (deck empty / a non-placement pick). Recall the
+      // cover instead of hovering forever. (Venus self-arms FROM its reveal,
+      // so a venus scene always has its batch — this path never applies.)
+      if (!boardCardBonusState.active || boardCardBonusState.source.kind !== 'board-cell') {
+        return;
+      }
+      if (boardCardBonusState.stagedEventId !== undefined) {
         return;
       }
       if (boardCardBonusState.phase !== 'lift' && boardCardBonusState.phase !== 'hover') {
@@ -167,12 +195,13 @@ export default defineComponent({
       if (ctx.noRevealTimer !== undefined) {
         return;
       }
+      const spaceId = boardCardBonusState.source.spaceId;
       ctx.noRevealTimer = setTimeout(() => {
         ctx.noRevealTimer = undefined;
         if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
           return;
         }
-        const space = this.playerView.game.spaces.find((sp) => sp.id === boardCardBonusState.spaceId);
+        const space = this.playerView.game.spaces.find((sp) => sp.id === spaceId);
         abortBoardCardBonus(space?.tileType !== undefined ? 'absorb' : 'return');
       }, motionMs(NO_REVEAL_GRACE_MS));
     },
@@ -197,6 +226,19 @@ export default defineComponent({
     flipEls(): Array<HTMLElement> {
       return this.sceneCards.map((_, i) => this.flipRefs[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
     },
+    /**
+     * The real source-icon element(s) the cover lifts off — the SAME
+     * card.webp art in both cases, so the takeover is pixel-perfect:
+     *   · board-cell → the placed cell's `.board-space-bonus--card`;
+     *   · venus-scale → the fixed Venus 8% marker pictogram.
+     */
+    resolveSourceIcons(): Array<HTMLElement> {
+      const source = boardCardBonusState.source;
+      const sel = source.kind === 'board-cell' ?
+        `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card` :
+        VENUS_MARKER_SEL;
+      return Array.from(document.querySelectorAll<HTMLElement>(sel));
+    },
     // ── The scene ────────────────────────────────────────────────────────
     async beginScene(): Promise<void> {
       if (!boardCardBonusState.active || typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
@@ -205,8 +247,7 @@ export default defineComponent({
       this.teardownVisuals();
       registerBoardCardBonusHandle({abort: (mode) => this.onAbort(mode)});
       registerBonusZoomOrigin(() => this.proxyCardEl());
-      const spaceSel = `.board-space[data_space_id="${cssEscape(boardCardBonusState.spaceId)}"]`;
-      const icons = Array.from(document.querySelectorAll<HTMLElement>(`${spaceSel} .board-space-bonus--card`));
+      const icons = this.resolveSourceIcons();
       if (icons.length === 0) {
         abortBoardCardBonus('instant');
         return;

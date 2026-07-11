@@ -274,6 +274,9 @@ export default defineComponent({
       if (s.type === 'tile') {
         return {name: translateText('Tile bonus'), inspectable: false};
       }
+      if (s.type === 'globalParameter' && s.parameter === 'venus') {
+        return {name: translateText('Venus scale bonus'), inspectable: false};
+      }
       return undefined;
     },
     /**

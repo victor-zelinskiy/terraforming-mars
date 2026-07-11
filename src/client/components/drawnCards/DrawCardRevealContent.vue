@@ -20,6 +20,11 @@
         <span class="draw-reveal__subtitle-label" v-i18n>Source</span><span aria-hidden="true">:</span>
         <span class="draw-reveal__subtitle-text" v-i18n>Tile bonus</span>
       </template>
+      <template v-else-if="venusScaleSource">
+        <span class="draw-reveal__subtitle-sep" aria-hidden="true">·</span>
+        <span class="draw-reveal__subtitle-label" v-i18n>Source</span><span aria-hidden="true">:</span>
+        <span class="draw-reveal__subtitle-text" v-i18n>Venus scale bonus</span>
+      </template>
     </div>
 
     <!--
@@ -115,6 +120,9 @@ export default defineComponent({
     },
     sourceColony(): ColonyName | undefined {
       return this.event.source?.type === 'colony' ? this.event.source.colonyName : undefined;
+    },
+    venusScaleSource(): boolean {
+      return this.event.source?.type === 'globalParameter' && this.event.source.parameter === 'venus';
     },
     // Roomy for the common 1–3 cards; compacts as the batch grows so a large
     // (rare) draw still fits without turning into the hand overlay.

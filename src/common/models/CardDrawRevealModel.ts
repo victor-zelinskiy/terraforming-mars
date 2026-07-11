@@ -1,6 +1,7 @@
 import {CardModel} from './CardModel';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
+import {GlobalParameter} from '../GlobalParameter';
 
 /**
  * Where a batch of drawn cards came from, used to give the player a
@@ -9,11 +10,17 @@ import {ColonyName} from '../colonies/ColonyName';
  * bonus tags itself; tile bonuses tag themselves); otherwise omitted → generic
  * text. A `card` / `colony` source renders as a HOVERABLE chip (mini-card
  * popover) + click-to-fullscreen for a card.
+ *
+ * `globalParameter` is a scale-threshold reward (the Venus 8% "draw a card"
+ * bonus — the only base global-parameter card draw). It names the scale so
+ * the console can lift the card-bonus cover off that scale's marker (mirrors
+ * how `tile` drives the board-cell lift cinematic).
  */
 export type CardDrawRevealSource =
   | {type: 'card', cardName: CardName}
   | {type: 'colony', colonyName: ColonyName}
   | {type: 'tile'}
+  | {type: 'globalParameter', parameter: GlobalParameter}
   | {type: 'other'};
 
 /**

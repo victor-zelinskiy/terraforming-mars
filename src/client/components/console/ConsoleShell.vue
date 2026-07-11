@@ -3893,7 +3893,7 @@ export default defineComponent({
       if (icon === null) {
         return;
       }
-      armBoardCardBonus(spaceId);
+      armBoardCardBonus({kind: 'board-cell', spaceId});
     },
     cancelPlacement(): void {
       if (this.taskSpacePending !== undefined) {

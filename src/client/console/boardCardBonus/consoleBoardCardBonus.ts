@@ -1,26 +1,56 @@
 /*
- * CONSOLE BOARD CARD-BONUS — the controller + gates of the "card bonus
- * lifts off the board cell" cinematic (console-native only).
+ * CONSOLE BOARD CARD-BONUS — the controller + gates of the "card-bonus
+ * cover lifts off its source and flips into the received cards" cinematic
+ * (console-native only). ONE premium language for two sources:
  *
- * The story: the player confirms a tile placement on a cell printed with a
- * card-draw bonus → the cover ARMs client-side and physically separates
- * from the cell BEFORE the tile covers it (the shell calls
- * `armBoardCardBonus` right before submitting the space response). The
- * commit is NOT delayed (the tile-placement hold plays as usual, under the
- * hovering cover); instead the arriving reveal batch (source `tile`) is
- * STAGED — the reveal overlay mounts veiled + held, the covers travel into
- * its exact slots, flip into the real received cards, the frame
- * materializes around them, and only the handoff makes the static cards
- * visible/interactive. A single card hands over to the fullscreen viewer
- * instead (the existing zoom FLIP physically lifts it from the scene).
+ *  board-cell  — the player places a tile on a cell printed with a card
+ *      bonus. The shell ARMs at SUBMIT time (`armBoardCardBonus`), so the
+ *      cover separates BEFORE the tile covers it; the arriving reveal
+ *      (source `tile`) is claimed.
+ *  venus-scale — the Venus scale crosses 8% (the "draw a card" reward).
+ *      There is no tile race, so the layer SELF-ARMs reactively when the
+ *      reveal (source `globalParameter`/venus) arrives, lifting the cover
+ *      off the 8% marker.
+ *
+ * Either way: the commit is NOT delayed — the reveal batch is STAGED (the
+ * overlay mounts veiled + held), the cover travels into the reveal space,
+ * flips into the real received cards, and only the handoff makes the static
+ * cards visible/interactive. A single card hands over to the fullscreen
+ * viewer (the existing zoom FLIP physically lifts it from the scene).
  *
  * Module-level reactive (survives remounts, one scene at a time — mirrors
  * consoleTradeFleet / consoleHydroMarker). The DESKTOP path is untouched:
- * nothing arms outside the console shell, and every read gate degrades to
- * a no-op while `active` is false.
+ * the layer is console-only, so nothing arms there, and every read gate
+ * degrades to a no-op while `active` is false.
  */
 
 import {reactive} from 'vue';
+import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+
+/**
+ * WHERE the lifting cover comes from. `board-cell` carries the placed
+ * space's id (its `.board-space-bonus--card` icon is the anchor); the
+ * `venus-scale` marker is a fixed anchor (`[data-arc-marker="venus-8"]`).
+ */
+export type BonusCoverSource =
+  | {kind: 'board-cell', spaceId: string}
+  | {kind: 'venus-scale'};
+
+/** The reveal source a `venus-scale` scene claims (the Venus 8% draw). */
+export function isVenusScaleReveal(source: CardDrawRevealSource | undefined): boolean {
+  return source?.type === 'globalParameter' && source.parameter === 'venus';
+}
+
+/** Does a reveal batch belong to a scene armed from `sceneSource`? */
+export function revealMatchesSource(
+  revealSource: CardDrawRevealSource | undefined,
+  sceneSource: BonusCoverSource,
+): boolean {
+  if (sceneSource.kind === 'board-cell') {
+    return revealSource?.type === 'tile';
+  }
+  return isVenusScaleReveal(revealSource);
+}
 
 export type BoardCardBonusPhase =
   | 'idle'
@@ -55,8 +85,8 @@ export type BoardCardBonusHandle = {
 export const boardCardBonusState = reactive({
   active: false,
   phase: 'idle' as BoardCardBonusPhase,
-  /** The placed space (the cell whose card bonus is being taken). */
-  spaceId: '',
+  /** WHERE the cover lifts from (the placed cell, or the Venus 8% marker). */
+  source: {kind: 'board-cell', spaceId: ''} as BonusCoverSource,
   /** Bumped per arm — the layer (re-)starts its scene on this. */
   nonce: 0,
   /**
@@ -116,11 +146,12 @@ export function bonusZoomOriginEl(): HTMLElement | null {
 }
 
 /**
- * ARM the scene — called by the shell RIGHT BEFORE submitting a space
- * response for a cell with a card-draw bonus. Synchronous `active` so the
- * input gate closes at once (no double confirm). One scene at a time.
+ * ARM the scene — called by the shell RIGHT BEFORE submitting a placement
+ * (board-cell), or by the layer when a Venus-scale reveal arrives
+ * (venus-scale). Synchronous `active` so the input gate closes at once (no
+ * double confirm). One scene at a time.
  */
-export function armBoardCardBonus(spaceId: string): void {
+export function armBoardCardBonus(source: BonusCoverSource): void {
   if (boardCardBonusState.active) {
     return;
   }
@@ -128,7 +159,7 @@ export function armBoardCardBonus(spaceId: string): void {
   boardCardBonusState.stagedEventId = undefined;
   boardCardBonusState.stagedCount = 0;
   boardCardBonusState.zoomEntryReady = false;
-  boardCardBonusState.spaceId = spaceId;
+  boardCardBonusState.source = source;
   boardCardBonusState.phase = 'lift';
   boardCardBonusState.active = true;
   boardCardBonusState.nonce++;
@@ -229,7 +260,7 @@ export function resetBoardCardBonus(): void {
   zoomOriginResolver = undefined;
   boardCardBonusState.active = false;
   boardCardBonusState.phase = 'idle';
-  boardCardBonusState.spaceId = '';
+  boardCardBonusState.source = {kind: 'board-cell', spaceId: ''};
   boardCardBonusState.stagedEventId = undefined;
   boardCardBonusState.stagedCount = 0;
   boardCardBonusState.zoomEntryReady = false;

@@ -2,10 +2,13 @@ import {expect} from 'chai';
 import {
   abortBoardCardBonus, armBoardCardBonus, boardCardBonusState, bonusHoldingSingleZoom,
   bonusZoomOriginEl, endBoardCardBonus, isBoardCardBonusActive, isBonusRevealStaged,
-  markBonusZoomEntryReady, registerBoardCardBonusHandle, registerBonusZoomOrigin,
-  resetBoardCardBonus, setBoardCardBonusPhase, stageBoardCardBonusReveal,
-  BoardCardBonusAbortMode,
+  isVenusScaleReveal, markBonusZoomEntryReady, registerBoardCardBonusHandle,
+  registerBonusZoomOrigin, resetBoardCardBonus, revealMatchesSource, setBoardCardBonusPhase,
+  stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+
+const CELL = {kind: 'board-cell', spaceId: '05'} as const;
+const VENUS = {kind: 'venus-scale'} as const;
 
 describe('consoleBoardCardBonus', () => {
   beforeEach(() => resetBoardCardBonus());
@@ -13,19 +16,37 @@ describe('consoleBoardCardBonus', () => {
 
   it('arm sets the scene live synchronously (input gate closes at once)', () => {
     expect(isBoardCardBonusActive()).to.be.false;
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     expect(isBoardCardBonusActive()).to.be.true;
     expect(boardCardBonusState.phase).to.eq('lift');
-    expect(boardCardBonusState.spaceId).to.eq('05');
+    expect(boardCardBonusState.source).to.deep.eq({kind: 'board-cell', spaceId: '05'});
     const nonce = boardCardBonusState.nonce;
     // A second arm while live is a no-op (one scene at a time).
-    armBoardCardBonus('07');
-    expect(boardCardBonusState.spaceId).to.eq('05');
+    armBoardCardBonus({kind: 'board-cell', spaceId: '07'});
+    expect(boardCardBonusState.source).to.deep.eq({kind: 'board-cell', spaceId: '05'});
     expect(boardCardBonusState.nonce).to.eq(nonce);
   });
 
+  it('matches a reveal to its scene source (board=tile, venus=globalParameter)', () => {
+    expect(isVenusScaleReveal({type: 'globalParameter', parameter: 'venus'} as any)).to.be.true;
+    expect(isVenusScaleReveal({type: 'tile'})).to.be.false;
+    expect(isVenusScaleReveal(undefined)).to.be.false;
+    expect(revealMatchesSource({type: 'tile'}, CELL)).to.be.true;
+    expect(revealMatchesSource({type: 'globalParameter', parameter: 'venus'} as any, CELL)).to.be.false;
+    expect(revealMatchesSource({type: 'globalParameter', parameter: 'venus'} as any, VENUS)).to.be.true;
+    expect(revealMatchesSource({type: 'tile'}, VENUS)).to.be.false;
+  });
+
+  it('a venus-scale scene arms from its own descriptor', () => {
+    armBoardCardBonus(VENUS);
+    expect(boardCardBonusState.source).to.deep.eq({kind: 'venus-scale'});
+    setBoardCardBonusPhase('hover');
+    expect(stageBoardCardBonusReveal(11, 1)).to.be.true;
+    expect(bonusHoldingSingleZoom(11)).to.be.true;
+  });
+
   it('stage claims the reveal EXACTLY once, only while at the cell', () => {
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     setBoardCardBonusPhase('hover');
     expect(stageBoardCardBonusReveal(3, 2)).to.be.true;
     expect(boardCardBonusState.stagedEventId).to.eq(3);
@@ -39,14 +60,14 @@ describe('consoleBoardCardBonus', () => {
 
   it('stage refuses mid-transfer and when idle (standard reveal instead)', () => {
     expect(stageBoardCardBonusReveal(3, 2)).to.be.false; // not armed
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     setBoardCardBonusPhase('gather');
     expect(stageBoardCardBonusReveal(3, 2)).to.be.false; // cover already travelling
     expect(boardCardBonusState.stagedEventId).to.be.undefined;
   });
 
   it('single-card: the fullscreen auto-open is held until the cover arrives', () => {
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     setBoardCardBonusPhase('hover');
     stageBoardCardBonusReveal(7, 1);
     expect(bonusHoldingSingleZoom(7)).to.be.true;
@@ -56,13 +77,13 @@ describe('consoleBoardCardBonus', () => {
   });
 
   it('a multi-card batch never holds the single-card auto-open', () => {
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     stageBoardCardBonusReveal(7, 3);
     expect(bonusHoldingSingleZoom(7)).to.be.false;
   });
 
   it('end keeps the staged batch id (bonus-mode persists for the batch)', () => {
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     stageBoardCardBonusReveal(7, 2);
     setBoardCardBonusPhase('handoff');
     endBoardCardBonus();
@@ -70,13 +91,13 @@ describe('consoleBoardCardBonus', () => {
     expect(boardCardBonusState.phase).to.eq('done');
     expect(isBonusRevealStaged(7)).to.be.true; // the overlay's entrance stays suppressed
     // …until the NEXT arm supersedes it.
-    armBoardCardBonus('09');
+    armBoardCardBonus({kind: 'board-cell', spaceId: '09'});
     expect(isBonusRevealStaged(7)).to.be.false;
   });
 
   it('abort recalls the scene AND releases every hold (never a stranded UI)', () => {
     const aborts: Array<BoardCardBonusAbortMode> = [];
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     registerBoardCardBonusHandle({abort: (mode) => aborts.push(mode)});
     stageBoardCardBonusReveal(7, 1);
     expect(bonusHoldingSingleZoom(7)).to.be.true;
@@ -95,7 +116,7 @@ describe('consoleBoardCardBonus', () => {
   it('phase transitions only apply to a live scene (zombie-safe)', () => {
     setBoardCardBonusPhase('fan');
     expect(boardCardBonusState.phase).to.eq('idle');
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     setBoardCardBonusPhase('fan');
     expect(boardCardBonusState.phase).to.eq('fan');
     endBoardCardBonus();
@@ -105,7 +126,7 @@ describe('consoleBoardCardBonus', () => {
 
   it('zoom origin resolver is registered/cleared with the scene', () => {
     expect(bonusZoomOriginEl()).to.eq(null);
-    armBoardCardBonus('05');
+    armBoardCardBonus(CELL);
     const el = {} as HTMLElement;
     registerBonusZoomOrigin(() => el);
     expect(bonusZoomOriginEl()).to.eq(el);

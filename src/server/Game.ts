@@ -1518,7 +1518,11 @@ export class Game implements IGame, Logger {
         // skipped for it. The 16% TR bonus below applies normally ("per the
         // normal rules", Adding Expansions p.2).
         if (!player.isMarsBot) {
-          player.drawCard();
+          // Tag the reveal with the Venus scale so the console lifts the
+          // card-bonus cover off the 8% marker (mirrors the tile-bonus lift).
+          // Explicit source beats the active card scope: the 8% reward is a
+          // SCALE bonus, not the triggering card's own draw.
+          player.drawCard(1, {source: {type: 'globalParameter', parameter: GlobalParameter.VENUS}});
         }
       }
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_TR_BONUS &&

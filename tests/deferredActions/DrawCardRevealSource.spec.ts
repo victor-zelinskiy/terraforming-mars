@@ -2,6 +2,8 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {GlobalParameter} from '@/common/GlobalParameter';
+import {runAllActions} from '../TestingUtils';
 
 /**
  * The "you drew cards" reveal modal must ALWAYS name where the draw came from
@@ -53,5 +55,22 @@ describe('Card-draw reveal source', () => {
     const [, player] = testGame(2);
     player.drawCard(1);
     expect(player.cardDrawReveals[player.cardDrawReveals.length - 1]!.source).to.be.undefined;
+  });
+
+  it('the Venus 8% card bonus is tagged as a globalParameter/venus source', () => {
+    // The console lifts the card-bonus cover off the Venus 8% marker, so the
+    // 8% "draw a card" reward must carry the Venus scale source (an EXPLICIT
+    // source that beats any triggering card scope — the reward is the SCALE's,
+    // not the card's own draw).
+    const [game, player] = testGame(2, {venusNextExtension: true});
+    game.increaseVenusScaleLevel(player, 3); // 0 → 6%
+    runAllActions(game);
+    expect(player.cardDrawReveals, 'no reveal below 8%').to.have.length(0);
+
+    game.increaseVenusScaleLevel(player, 1); // 6 → 8% (crosses the card bonus)
+    runAllActions(game);
+    const reveal = player.cardDrawReveals[player.cardDrawReveals.length - 1];
+    expect(reveal, 'the 8% bonus enqueued a reveal').to.not.be.undefined;
+    expect(reveal!.source).to.deep.eq({type: 'globalParameter', parameter: GlobalParameter.VENUS});
   });
 });
