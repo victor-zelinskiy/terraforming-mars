@@ -19,7 +19,7 @@ import {marsBotOf} from './AutomaUtil';
  *      state where the bot IS the active player (its chip reads «Действие»),
  *      and schedule a deferred resolve. Returns immediately — no `sleep`, no
  *      blocked request thread / event loop, no held game lock.
- *   2. after ~2s (extended while clients are still presenting the previous
+ *   2. after ~1s (extended while clients are still presenting the previous
  *      turn's notification, bounded), `AutomaController.takeTurn` runs and the
  *      result is broadcast. Turn hand-off then proceeds through the ordinary
  *      game loop.
@@ -34,7 +34,7 @@ import {marsBotOf} from './AutomaUtil';
  * (`server.ts`); a forgotten enable degrades safely to the legacy inline turn.
  */
 
-export const BOT_TURN_INITIAL_DELAY_MS = 2000;
+export const BOT_TURN_INITIAL_DELAY_MS = 1000;
 export const BOT_TURN_EXTENSION_MS = 1000;
 export const BOT_TURN_MAX_EXTENSIONS = 3;
 /** Bound the per-game unacked-turn map (a game is finite, but be tidy). */
