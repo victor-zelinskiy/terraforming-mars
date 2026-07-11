@@ -93,10 +93,12 @@ describe('consoleOrChoice — tabbed targets (Virus)', () => {
     const animal = targets.find((t) => t.tab === 'animal')!;
     expect(animal.cardName).to.eq('Pets');
     expect(animal.impact).to.eq('3 → 1');
+    expect(animal.icon).to.eq('animal'); // the impact names WHICH resource
     expect(animal.response).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Pets']}});
     const plant = targets.find((t) => t.tab === 'plant')!;
     expect(plant.playerColor).to.eq('red');
     expect(plant.impact).to.eq('6 → 1');
+    expect(plant.icon).to.eq('plants');
     expect(plant.response).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
   });
 });

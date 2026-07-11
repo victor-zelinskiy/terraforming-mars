@@ -151,6 +151,8 @@ export type ConsoleTabbedTarget = {
   /** Impact `current → resulting` (a plant target has it; an animal card uses
    *  the card's own count). */
   impact: string;
+  /** The resource icon for the impact (so the "N → M" names WHICH resource). */
+  icon?: string;
   disabled: boolean;
   reason: string | Message;
   playerColor?: Color;
@@ -176,6 +178,7 @@ export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbed
         key: 'a' + card.name,
         label: card.name,
         impact: `${from} → ${Math.max(0, from - (step.animal.amount ?? 0))}`,
+        icon: step.animal.icon,
         disabled: card.isDisabled === true,
         reason: card.isDisabled === true ? (card.disabledReason ?? '') : '',
         cardName: card.name,
@@ -190,6 +193,7 @@ export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbed
         key: 'p' + t.color,
         label: t.name,
         impact: `${t.current} → ${t.resulting}`,
+        icon: step.plant.icon,
         disabled: t.disabled === true,
         reason: t.reason ?? '',
         playerColor: t.color,

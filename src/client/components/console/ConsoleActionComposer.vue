@@ -721,14 +721,11 @@ export default defineComponent({
         if (paymentCovers(model.amount, lanes, counts, mc)) {
           this.captureFor(c, {type: 'payment', payment: paymentFromCounts(model.amount, lanes, counts, mc)});
         }
-      } else if (c.kind === 'card' && c.repeatAction !== true) {
-        const model = c.input as SelectCardModel;
-        const enabled = model.cards.filter((card) => card.isDisabled !== true);
-        if (enabled.length === 1) {
-          this.picks[c.id] = enabled[0].name;
-          this.captureFor(c, {type: 'card', cards: [enabled[0].name]});
-        }
       }
+      // A card/player/or TARGET is NEVER auto-selected — not even a lone
+      // candidate (the fork's non-negotiable no-auto-select rule): the player
+      // must consciously pick the target, so a single-target choice is never
+      // silently skipped. Only amount/heat/payment get a visible, editable default.
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
       if (c.scope === 'pre') {

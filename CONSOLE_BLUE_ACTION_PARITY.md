@@ -43,10 +43,24 @@ Three defects across the PLAY + ACTION composers, all fixed:
    `buildOrItems` derives the target colour from the option TITLE's PLAYER token
    when metadata omits it (robust for every "… from ${player}" option).
 
+4. **No auto-select of a lone target + the impact names WHICH resource.** The
+   console composers auto-CAPTURED a single-candidate card target in `seedChoice`
+   (marking it resolved) — so the player could press A and play WITHOUT ever
+   consciously choosing where the resource goes (violating the fork's
+   non-negotiable no-auto-select rule). Removed the lone-candidate card
+   auto-capture in BOTH `ConsolePlayCardConfirm` and `ConsoleActionComposer`
+   (amount/heat/payment keep their visible, editable defaults). Now a card/
+   player/or target starts UNRESOLVED, focus lands on it («ВЫБЕРИТЕ …» + the CTA
+   not ready), and A opens the picker — the choice can't be silently skipped.
+   Also the PLAY composer's «N → M» impact was icon-less (the action composer
+   already showed it): added `impactIcon` to its pick-list items + the resolved
+   decision row (`c.cardResource` / `model.icon` / a tabbed target's icon, +
+   `icon` on `ConsoleTabbedTarget`), so a floater add reads «[аэростат] 0 → 2».
+
 Tests: `consoleOrChoice.spec.ts` (+2: title-token colour fallback + metadata
-precedence), `consolePlayCardComposer.spec.ts` (+2: Y «Change» present when a
-resolved pick is focused / absent otherwise). Gates: vue-tsc + `tsc --build
-tests` + eslint + make:css + webpack — all green; `i18n.spec` unaffected.
+precedence; tabbed target `icon`), `consolePlayCardComposer.spec.ts` (+2: A
+shows the focused-row verb / never emits a Y control). Gates: vue-tsc + `tsc
+--build tests` + eslint + make:css + webpack — all green; `i18n.spec` unaffected.
 
 ---
 

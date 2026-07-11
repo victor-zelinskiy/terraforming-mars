@@ -45,7 +45,9 @@
                 <span class="con-composer__opt-name">{{ item.label }}</span>
                 <span v-if="item.orItem !== undefined && item.orItem.nested !== undefined" class="con-composer__opt-chevron" aria-hidden="true">›</span>
                 <span v-for="(eff, k) in (item.chips ?? [])" :key="'ch' + k" class="con-composer__opt-chip"><ActionEffectChip :effect="eff" /></span>
-                <span v-if="item.impact" class="con-composer__opt-impact">{{ item.impact }}</span>
+                <span v-if="item.impact" class="con-composer__opt-impact">
+                  <i v-if="item.impactIcon" class="con-composer__opt-impact-icon" :class="iconClass(item.impactIcon)" aria-hidden="true"></i>{{ item.impact }}
+                </span>
                 <span v-if="item.meta !== ''" class="con-composer__opt-meta">{{ item.meta }}</span>
                 <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
                 <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
@@ -176,7 +178,9 @@
                   <div class="con-composer__row-value">
                     <span v-if="chosenLabel(row.choice) !== ''">{{ chosenLabel(row.choice) }}</span>
                     <span v-else class="con-composer__row-empty">{{ pickPlaceholder(row.choice) }}…</span>
-                    <span v-if="chosenImpact(row.choice) !== ''" class="con-composer__row-impact">{{ chosenImpact(row.choice) }}</span>
+                    <span v-if="chosenImpact(row.choice) !== ''" class="con-composer__row-impact">
+                      <i v-if="row.choice.cardResource" class="con-composer__row-impact-icon" :class="iconClass(row.choice.cardResource)" aria-hidden="true"></i>{{ chosenImpact(row.choice) }}
+                    </span>
                   </div>
                 </template>
               </div>
@@ -348,6 +352,8 @@ type ListItem = {
   chips?: ReadonlyArray<ActionEffect>,
   /** `current → resulting` impact (a card / player / tabbed target). */
   impact?: string,
+  /** The resource icon for the impact (so "0 → 2" names WHICH resource). */
+  impactIcon?: string,
   /** Tab badge for a tabbed target ('animal' | 'plant'). */
   tab?: string,
   /** The whole or-item, when this row is an OrOptions option (leaf or nested). */
@@ -791,7 +797,7 @@ export default defineComponent({
         const chosenKey = this.picks['tabbed#' + sub.stepIndex];
         return buildTabbedTargets(ts.step).map((t): ListItem => ({
           key: t.key, label: translateText(t.label), meta: '', disabled: t.disabled,
-          reason: textOf(t.reason), chosen: chosenKey === t.key, color: t.playerColor, impact: t.impact, tab: t.tab,
+          reason: textOf(t.reason), chosen: chosenKey === t.key, color: t.playerColor, impact: t.impact, impactIcon: t.icon, tab: t.tab,
         }));
       }
       // NESTED-input or option (Comet for Venus's SelectPlayer sitting in the or).
@@ -814,6 +820,7 @@ export default defineComponent({
           chosen: chosenName === card.name,
           card,
           impact: (c.amount !== undefined && card.isDisabled !== true) ? `${card.resources ?? 0} → ${Math.max(0, (card.resources ?? 0) + c.amount)}` : undefined,
+          impactIcon: c.cardResource,
         }));
         for (const card of model.disabledCards ?? []) {
           items.push({key: 'd' + card.name, label: translateCardName(card.name), meta: '', disabled: true, reason: textOf(card.disabledReason), chosen: false, card});
@@ -965,7 +972,7 @@ export default defineComponent({
     playerItems(model: SelectPlayerModel, chosen: string | undefined): Array<ListItem> {
       const items: Array<ListItem> = model.players.map((color): ListItem => ({
         key: color, label: this.playerName(color), meta: '', disabled: false, reason: '', chosen: chosen === color, color,
-        impact: this.playerImpact(model, color),
+        impact: this.playerImpact(model, color), impactIcon: model.icon,
       }));
       for (const d of model.disabledPlayers ?? []) {
         items.push({key: 'd' + d.color, label: this.playerName(d.color), meta: '', disabled: true, reason: textOf(d.reason), chosen: false, color: d.color});
@@ -1017,15 +1024,13 @@ export default defineComponent({
           this.floaters[c.id] = plan.minFloaters;
           this.captureFor(c, spendHeatResponse(plan, plan.minFloaters));
         }
-      } else if (c.kind === 'card') {
-        // A lone candidate auto-captures but stays VISIBLE as the chosen row.
-        const model = c.input as SelectCardModel;
-        const enabled = model.cards.filter((card) => card.isDisabled !== true);
-        if (enabled.length === 1) {
-          this.picks[c.id] = enabled[0].name;
-          this.captureFor(c, {type: 'card', cards: [enabled[0].name]});
-        }
       }
+      // A card/player/or TARGET is NEVER auto-selected — not even a lone
+      // candidate (the fork's non-negotiable no-auto-select rule): the player
+      // must consciously pick WHERE the resource goes, so a single-target choice
+      // is never silently skipped. The row starts unresolved, focus lands on it,
+      // and A opens the picker («Выбрать»). Only amount/heat get a visible,
+      // adjustable default above.
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
       if (c.scope === 'pre') {

@@ -9,6 +9,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
 import {GameModule} from '@/common/cards/GameModule';
+import {isICardRenderEffect, isICardRenderSymbol} from '@/common/cards/render/Types';
+import {effectParts} from '@/client/components/premiumCard/mechanicsModel';
 import {buildPremiumCardViewModel, normalizeRequirement, vpVariantOf} from '@/client/components/premiumCard/premiumCardViewModel';
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
@@ -116,6 +118,14 @@ describe('buildPremiumCardViewModel', () => {
   });
 });
 
+function isSpacer(node: unknown): boolean {
+  const n = node as {is?: string, type?: string};
+  if (n?.is === 'symbol') {
+    return n.type === 'nbsp' || n.type === ' ' || n.type === 'vspace';
+  }
+  return n?.is === 'item' && n.type === 'nbsp';
+}
+
 describe('the OR choice marker is never lost on the face', () => {
   it('Vermin (split per-branch action rows with NO drawn OR) gets a structural orJoin', () => {
     const groups = vmOf(CardName.VERMIN).mechanics.groups;
@@ -125,26 +135,47 @@ describe('the OR choice marker is never lost on the face', () => {
     expect(actions[1].orJoin, 'the second action branch must carry the ИЛИ divider').to.eq(true);
   });
 
-  it('an explicit OR-only row normalizes into orJoin (no stray lone glyph group)', () => {
-    const groups = vmOf(CardName.EXTREME_COLD_FUNGUS).mechanics.groups;
-    // the or-row itself is gone…
+  it('an explicit OR-only row (Aerial Mappers) normalizes into a single orJoin', () => {
+    const groups = vmOf(CardName.AERIAL_MAPPERS).mechanics.groups;
+    // the or-row itself never leaks as its own group…
     for (const group of groups) {
-      expect(group.nodes.length === 1 && group.kind === 'plain' && group.weight < 0.5,
-        'or-only row leaked as its own group').to.not.eq(true);
+      const onlyOr = group.nodes.every((n) => isICardRenderSymbol(n));
+      expect(onlyOr && group.nodes.length <= 1, 'or-only row leaked as a group').to.not.eq(true);
     }
-    // …and the junction carries the marker exactly once
     expect(groups.filter((g) => g.orJoin === true).length).to.eq(1);
   });
 
-  it('a card that draws its own OR inside the action frame gets NO double marker', () => {
-    const groups = vmOf(CardName.TITAN_FLOATING_LAUNCHPAD).mechanics.groups;
-    expect(groups.some((g) => g.orJoin === true)).to.eq(false);
+  it('a TRAILING OR inside the action frame (Atmo Collectors) becomes the divider, not a stray glyph', () => {
+    const clientCard = getCardOrThrow(CardName.ATMO_COLLECTORS);
+    const groups = buildPremiumCardViewModel(clientCard).mechanics.groups;
+    const actions = groups.filter((g) => g.kind === 'action');
+    expect(actions.length).to.eq(2);
+    expect(actions[1].orJoin, 'second action must carry the ИЛИ divider').to.eq(true);
+    // the first action's effect result must NOT still render a trailing OR
+    const firstEffect = actions[0].nodes.find(isICardRenderEffect)!;
+    const result = effectParts(firstEffect).result;
+    expect(result.some((n) => isICardRenderSymbol(n) && (n as {type: string}).type === 'OR'),
+      'stray OR left in the rendered result').to.eq(false);
   });
 
-  it('an inline leading OR inside a content row stays inline (Sabotage — as printed)', () => {
+  it('a trailing frame OR (Titan Floating Launch-pad) makes the divider without a double marker', () => {
+    const groups = vmOf(CardName.TITAN_FLOATING_LAUNCHPAD).mechanics.groups;
+    const actions = groups.filter((g) => g.kind === 'action');
+    expect(actions.length).to.eq(2);
+    expect(actions[1].orJoin).to.eq(true);
+  });
+
+  it('a leading edge OR (Sabotage) becomes the divider; interior OR stays inline', () => {
     const groups = vmOf(CardName.SABOTAGE).mechanics.groups;
-    expect(groups.some((g) => g.orJoin === true)).to.eq(false);
-    expect(groups.length).to.be.greaterThan(1);
+    // the second row led with an OR → it becomes a divider
+    expect(groups.some((g) => g.orJoin === true), 'Sabotage lost its choice marker').to.eq(true);
+    // no group renders a leading/trailing bare OR glyph
+    for (const group of groups) {
+      const first = group.nodes.find((n) => !isSpacer(n));
+      const last = [...group.nodes].reverse().find((n) => !isSpacer(n));
+      expect(isICardRenderSymbol(first) && (first as {type: string}).type === 'OR', 'leading OR glyph leaked').to.not.eq(true);
+      expect(isICardRenderSymbol(last) && (last as {type: string}).type === 'OR', 'trailing OR glyph leaked').to.not.eq(true);
+    }
   });
 
   it('every in-scope multi-action card carries a choice marker at each action junction', () => {
@@ -153,18 +184,41 @@ describe('the OR choice marker is never lost on the face', () => {
     for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
       const groups = buildPremiumCardViewModel(card).mechanics.groups;
       for (let i = 1; i < groups.length; i++) {
-        if (groups[i].kind !== 'action' || groups[i - 1].kind !== 'action') {
-          continue;
-        }
-        const marked = groups[i].orJoin === true ||
-          JSON.stringify(groups[i - 1].nodes).includes('"OR"') ||
-          JSON.stringify(groups[i].nodes).includes('"OR"');
-        if (!marked) {
+        if (groups[i].kind === 'action' && groups[i - 1].kind === 'action' && groups[i].orJoin !== true) {
           offenders.push(card.name);
         }
       }
     }
     expect(offenders, `action junctions without a choice marker:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('no group renders a stray leading/trailing bare OR glyph, incl. inside effect frames (population sweep)', () => {
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const offenders = new Set<string>();
+    for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
+      for (const group of buildPremiumCardViewModel(card).mechanics.groups) {
+        const first = group.nodes.find((n) => !isSpacer(n));
+        const last = [...group.nodes].reverse().find((n) => !isSpacer(n));
+        let stray = (isICardRenderSymbol(first) && (first as {type: string}).type === 'OR') ||
+          (isICardRenderSymbol(last) && (last as {type: string}).type === 'OR');
+        // Inside an effect frame, only a leading/trailing EDGE OR is stray —
+        // an interior OR («prod OR titanium», «microbe OR animal») is a
+        // legitimate inline choice within one action and stays.
+        for (const node of group.nodes) {
+          if (isICardRenderEffect(node)) {
+            const result = effectParts(node).result.filter((n) => !isSpacer(n));
+            const edge = [result[0], result[result.length - 1]];
+            if (edge.some((n) => isICardRenderSymbol(n) && (n as {type: string}).type === 'OR')) {
+              stray = true;
+            }
+          }
+        }
+        if (stray) {
+          offenders.add(card.name);
+        }
+      }
+    }
+    expect([...offenders], `cards with a stray edge OR glyph:\n${[...offenders].join('\n')}`).to.deep.eq([]);
   });
 });
 

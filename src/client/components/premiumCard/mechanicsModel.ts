@@ -86,6 +86,38 @@ export function renderableNodes(row: ReadonlyArray<ItemType>): Array<ItemType> {
   return row.filter(isRenderableNode);
 }
 
+/* ── OR-marker classification (see buildMechanics) ──────────────────── */
+
+function isSpacerNode(node: ItemType): boolean {
+  if (node === undefined || typeof node === 'string') {
+    return true;
+  }
+  if (isICardRenderSymbol(node)) {
+    return node.type === CardRenderSymbolType.NBSP || node.type === CardRenderSymbolType.EMPTY || node.type === CardRenderSymbolType.VSPACE;
+  }
+  return isICardRenderItem(node) && node.type === CardRenderItemType.NBSP;
+}
+
+function isOrNode(node: ItemType): boolean {
+  return node !== undefined && typeof node !== 'string' && isICardRenderSymbol(node) && node.type === CardRenderSymbolType.OR;
+}
+
+/** Index of the last non-spacer node, or -1. */
+function lastMeaningful(nodes: ReadonlyArray<ItemType>): number {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (!isSpacerNode(nodes[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** Drop a TRAILING connector OR (+ its spacers) — it renders as the group divider. */
+function dropTrailingOr(nodes: ReadonlyArray<ItemType>): Array<ItemType> {
+  const j = lastMeaningful(nodes);
+  return (j >= 0 && isOrNode(nodes[j])) ? nodes.slice(0, j) : [...nodes];
+}
+
 export function effectParts(node: ICardRenderEffect): EffectParts {
   const rows = node.rows;
   const delimiterRow = rows.length > 1 ? rows[1] : [];
@@ -93,8 +125,57 @@ export function effectParts(node: ICardRenderEffect): EffectParts {
   return {
     cause: renderableNodes(rows[0] ?? []),
     delimiter,
-    result: renderableNodes(rows[2] ?? []),
+    // A trailing OR inside the result is a CONNECTOR to the next action row
+    // (drawn as the «ИЛИ» divider), never an inline glyph.
+    result: dropTrailingOr(renderableNodes(rows[2] ?? [])),
   };
+}
+
+/** Does this group's LAST node draw a trailing OR inside its effect frame? */
+function effectFrameTrailingOr(nodes: ReadonlyArray<ItemType>): boolean {
+  const j = lastMeaningful(nodes);
+  const node = j >= 0 ? nodes[j] : undefined;
+  if (node === undefined || typeof node === 'string' || !isICardRenderEffect(node)) {
+    return false;
+  }
+  const result = renderableNodes(node.rows[2] ?? []);
+  const k = lastMeaningful(result);
+  return k >= 0 && isOrNode(result[k]);
+}
+
+type OrEdges = {nodes: Array<ItemType>, leadingOr: boolean, trailingOr: boolean};
+
+/**
+ * Split a group's EDGE connector ORs (leading / trailing — at the root OR
+ * inside a trailing effect frame) from its inline content. An edge OR joins
+ * two alternative groups and becomes the «ИЛИ» divider; an INTERIOR OR
+ * (between two content items in one row) stays inline.
+ */
+function orEdges(rawNodes: ReadonlyArray<ItemType>): OrEdges {
+  let nodes = [...rawNodes];
+  let leadingOr = false;
+  let trailingOr = false;
+
+  // leading connector OR (root level)
+  let i = 0;
+  while (i < nodes.length && isSpacerNode(nodes[i])) {
+    i++;
+  }
+  if (i < nodes.length && isOrNode(nodes[i])) {
+    leadingOr = true;
+    nodes = nodes.slice(i + 1);
+  }
+  // trailing connector OR (root level)
+  const j = lastMeaningful(nodes);
+  if (j >= 0 && isOrNode(nodes[j])) {
+    trailingOr = true;
+    nodes = nodes.slice(0, j);
+  } else if (effectFrameTrailingOr(nodes)) {
+    // trailing OR lives inside the effect frame — effectParts strips it from
+    // the RENDER; here it only signals the join.
+    trailingOr = true;
+  }
+  return {nodes, leadingOr, trailingOr};
 }
 
 /** Whether an effect node draws as an ACTION (arrow delimiter) or a passive EFFECT (colon). */
@@ -209,93 +290,56 @@ export type BuildMechanicsOptions = {
   dropVpText?: boolean;
 };
 
-/** A row that is ONLY the choice marker («b.or()» between alternatives). */
-function isOrOnlyGroup(group: MechGroup): boolean {
-  let hasOr = false;
-  for (const node of group.nodes) {
-    if (!isICardRenderSymbol(node)) {
-      return false;
-    }
-    if (node.type === CardRenderSymbolType.OR) {
-      hasOr = true;
-    } else if (node.type !== CardRenderSymbolType.NBSP && node.type !== CardRenderSymbolType.EMPTY && node.type !== CardRenderSymbolType.VSPACE) {
-      return false;
-    }
-  }
-  return hasOr;
-}
-
-/** Deep scan for an OR symbol anywhere in the group (incl. inside effect frames). */
-function containsOrSymbol(nodes: ReadonlyArray<ItemType>): boolean {
-  for (const node of nodes) {
-    if (node === undefined || typeof node === 'string') {
-      continue;
-    }
-    if (isICardRenderSymbol(node) && node.type === CardRenderSymbolType.OR) {
-      return true;
-    }
-    const rows = (node as {rows?: Array<Array<ItemType>>}).rows;
-    if (rows !== undefined && rows.some((row) => containsOrSymbol(row))) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function buildMechanics(renderData: CardComponent | undefined, options: BuildMechanicsOptions = {}): MechanicsVM {
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
     return {groups: [], density: 'sparse', score: 0, textOnly: true};
   }
   const graphicIds = deriveGraphicIds(renderData);
-  const raw: Array<MechGroup> = [];
+
+  /*
+   * The CHOICE marker must never be lost (the player has to read "one of
+   * these, not both" from the face), and it must never leave a stray glyph:
+   *  1. every EDGE connector OR (leading / trailing at the root OR inside a
+   *     trailing effect frame — an OR-only row is just the degenerate case,
+   *     its content strips to empty) is removed from the render (`orEdges`
+   *     + `effectParts`) and re-expressed as `orJoin` on the group it
+   *     joins → the panel draws the premium «ИЛИ» divider, not a lone «или»;
+   *  2. consecutive ACTION groups with no OR resolved at their junction get
+   *     a STRUCTURAL orJoin — one card = one activatable action, so multiple
+   *     action rows are by definition alternatives (the Vermin class, whose
+   *     per-branch split dropped the printed OR entirely).
+   */
+  const groups: Array<MechGroup> = [];
+  let pendingOr = false;
   renderData.rows.forEach((row, rowIndex) => {
-    let nodes = renderableNodes(row);
+    let rowNodes = renderableNodes(row);
     if (options.dropVpText === true) {
-      nodes = nodes.filter((node) => !isVpTextItem(node));
+      rowNodes = rowNodes.filter((node) => !isVpTextItem(node));
     }
-    if (nodes.length === 0) {
+    if (rowNodes.length === 0) {
       return; // a description-only / spacer / dropped-fine-print row
     }
-    raw.push({
+    const {nodes, leadingOr, trailingOr} = orEdges(rowNodes);
+    if (nodes.length === 0) {
+      pendingOr = pendingOr || leadingOr || trailingOr; // an OR-only row
+      return;
+    }
+    const group: MechGroup = {
       kind: groupKindOf(nodes),
       nodes,
       weight: sumNodes(nodes),
       graphicId: graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
-    });
+    };
+    if (pendingOr || leadingOr) {
+      group.orJoin = true;
+    }
+    pendingOr = trailingOr;
+    groups.push(group);
   });
 
-  /*
-   * The CHOICE marker must never be lost (the player has to read "one of
-   * these, not both" from the face):
-   *  1. an explicit OR-only row normalizes into `orJoin` on the following
-   *     group (the panel draws the premium «ИЛИ» divider — not a stray
-   *     lone glyph between frames);
-   *  2. consecutive ACTION groups with NO drawn OR anywhere near the
-   *     junction get a STRUCTURAL orJoin — one card = one activatable
-   *     action, so multiple action rows are by definition alternatives
-   *     (the Vermin class: the split into per-branch rows dropped the
-   *     printed OR). Skipped when either neighbour already draws an OR
-   *     inside its frame (Titan Floating Launch-pad) — no double marker.
-   */
-  const groups: Array<MechGroup> = [];
-  let pendingOr = false;
-  for (const group of raw) {
-    if (isOrOnlyGroup(group)) {
-      pendingOr = true;
-      continue;
-    }
-    if (pendingOr) {
-      group.orJoin = true;
-      pendingOr = false;
-    }
-    groups.push(group);
-  }
   for (let i = 1; i < groups.length; i++) {
-    const prev = groups[i - 1];
-    const current = groups[i];
-    if (current.kind === 'action' && prev.kind === 'action' && current.orJoin !== true &&
-        !containsOrSymbol(prev.nodes) && !containsOrSymbol(current.nodes)) {
-      current.orJoin = true;
+    if (groups[i].kind === 'action' && groups[i - 1].kind === 'action' && groups[i].orJoin !== true) {
+      groups[i].orJoin = true;
     }
   }
 
