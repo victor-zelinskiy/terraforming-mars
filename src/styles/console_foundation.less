@@ -42,6 +42,30 @@ html.console-native {
         min-height: 0;
         overflow: hidden;
     }
+
+    /* ── §3.1b Text selection is structurally OFF ───────────────────
+     * A console-native surface is driven by gamepad / d-pad, never a
+     * mouse drag — a text selection can only ever be an accidental smear
+     * (seen on Steam Deck: a stray drag highlighted the whole UI with no
+     * way to clear it). Kill selection for the ENTIRE flow at the root so
+     * no individual screen has to remember to. Real text-entry controls
+     * (player-name inputs on the create-game screen, etc.) opt back in
+     * below — they are the only places a caret/selection is meaningful. */
+    &,
+    body,
+    #app {
+        user-select: none;
+        -webkit-user-select: none;
+        /* Suppress the iOS/WebKit tap-hold selection callout too. */
+        -webkit-touch-callout: none;
+    }
+
+    input,
+    textarea,
+    [contenteditable="true"] {
+        user-select: text;
+        -webkit-user-select: text;
+    }
 }
 
 /* ── §3.2a Visual (non-layout) transition mixin ─────────────────────
