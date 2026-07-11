@@ -51,6 +51,15 @@ export type MechGroup = {
    * so the mapping can never disagree.
    */
   graphicId?: string;
+  /**
+   * This group is an ALTERNATIVE to the previous one — the panel renders
+   * the premium «ИЛИ» divider before it instead of the plain hairline.
+   * Set from an explicit OR-only DSL row (normalized away), or inserted
+   * STRUCTURALLY between consecutive action groups with no drawn OR (a
+   * card has exactly ONE activatable action — 2+ action rows ARE a
+   * choice; losing the marker would misread as "do both").
+   */
+  orJoin?: boolean;
 };
 
 export type MechanicsVM = {
@@ -200,12 +209,45 @@ export type BuildMechanicsOptions = {
   dropVpText?: boolean;
 };
 
+/** A row that is ONLY the choice marker («b.or()» between alternatives). */
+function isOrOnlyGroup(group: MechGroup): boolean {
+  let hasOr = false;
+  for (const node of group.nodes) {
+    if (!isICardRenderSymbol(node)) {
+      return false;
+    }
+    if (node.type === CardRenderSymbolType.OR) {
+      hasOr = true;
+    } else if (node.type !== CardRenderSymbolType.NBSP && node.type !== CardRenderSymbolType.EMPTY && node.type !== CardRenderSymbolType.VSPACE) {
+      return false;
+    }
+  }
+  return hasOr;
+}
+
+/** Deep scan for an OR symbol anywhere in the group (incl. inside effect frames). */
+function containsOrSymbol(nodes: ReadonlyArray<ItemType>): boolean {
+  for (const node of nodes) {
+    if (node === undefined || typeof node === 'string') {
+      continue;
+    }
+    if (isICardRenderSymbol(node) && node.type === CardRenderSymbolType.OR) {
+      return true;
+    }
+    const rows = (node as {rows?: Array<Array<ItemType>>}).rows;
+    if (rows !== undefined && rows.some((row) => containsOrSymbol(row))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function buildMechanics(renderData: CardComponent | undefined, options: BuildMechanicsOptions = {}): MechanicsVM {
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
     return {groups: [], density: 'sparse', score: 0, textOnly: true};
   }
   const graphicIds = deriveGraphicIds(renderData);
-  const groups: Array<MechGroup> = [];
+  const raw: Array<MechGroup> = [];
   renderData.rows.forEach((row, rowIndex) => {
     let nodes = renderableNodes(row);
     if (options.dropVpText === true) {
@@ -214,13 +256,49 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     if (nodes.length === 0) {
       return; // a description-only / spacer / dropped-fine-print row
     }
-    groups.push({
+    raw.push({
       kind: groupKindOf(nodes),
       nodes,
       weight: sumNodes(nodes),
       graphicId: graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
     });
   });
+
+  /*
+   * The CHOICE marker must never be lost (the player has to read "one of
+   * these, not both" from the face):
+   *  1. an explicit OR-only row normalizes into `orJoin` on the following
+   *     group (the panel draws the premium «ИЛИ» divider — not a stray
+   *     lone glyph between frames);
+   *  2. consecutive ACTION groups with NO drawn OR anywhere near the
+   *     junction get a STRUCTURAL orJoin — one card = one activatable
+   *     action, so multiple action rows are by definition alternatives
+   *     (the Vermin class: the split into per-branch rows dropped the
+   *     printed OR). Skipped when either neighbour already draws an OR
+   *     inside its frame (Titan Floating Launch-pad) — no double marker.
+   */
+  const groups: Array<MechGroup> = [];
+  let pendingOr = false;
+  for (const group of raw) {
+    if (isOrOnlyGroup(group)) {
+      pendingOr = true;
+      continue;
+    }
+    if (pendingOr) {
+      group.orJoin = true;
+      pendingOr = false;
+    }
+    groups.push(group);
+  }
+  for (let i = 1; i < groups.length; i++) {
+    const prev = groups[i - 1];
+    const current = groups[i];
+    if (current.kind === 'action' && prev.kind === 'action' && current.orJoin !== true &&
+        !containsOrSymbol(prev.nodes) && !containsOrSymbol(current.nodes)) {
+      current.orJoin = true;
+    }
+  }
+
   const score = groups.reduce((acc, g) => acc + g.weight, 0);
   return {
     groups,

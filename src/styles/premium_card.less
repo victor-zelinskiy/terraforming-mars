@@ -522,6 +522,50 @@
   padding-top: 4px;
 }
 
+/* ── the CHOICE divider — «— ИЛИ —» between alternative groups ────────
+   Replaces the plain hairline at an or-junction: flanking gradient lines
+   + a small engraved capsule with the translated OR. The marker the
+   physical card carries — a choice must never read as "do both". */
+.pcard-mech-or {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 1px 6%;
+}
+.pcard-mech-or::before,
+.pcard-mech-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+}
+.pcard-mech-or::before {
+  background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.45));
+}
+.pcard-mech-or::after {
+  background: linear-gradient(90deg, rgba(242, 215, 149, 0.45), transparent);
+}
+.pcard-mech-or span {
+  padding: 0 7px;
+  height: 15px;
+  line-height: 14px;
+  font-size: calc(var(--pcard-mech-font) * 0.68);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #e9dfc2;
+  background: rgba(6, 10, 14, 0.55);
+  border: 1px solid rgba(242, 215, 149, 0.4);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+/* the or-divider replaces the plain hairline for that junction */
+.pcard-mech-group--after-or {
+  border-top: none !important;
+  padding-top: 0 !important;
+}
+
 /* mechanic ITEM (icon + digits) */
 .pcard-mi {
   display: inline-flex;

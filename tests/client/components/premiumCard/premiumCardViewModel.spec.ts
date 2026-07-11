@@ -116,6 +116,58 @@ describe('buildPremiumCardViewModel', () => {
   });
 });
 
+describe('the OR choice marker is never lost on the face', () => {
+  it('Vermin (split per-branch action rows with NO drawn OR) gets a structural orJoin', () => {
+    const groups = vmOf(CardName.VERMIN).mechanics.groups;
+    const actions = groups.filter((g) => g.kind === 'action');
+    expect(actions.length).to.eq(2);
+    expect(actions[0].orJoin).to.not.eq(true);
+    expect(actions[1].orJoin, 'the second action branch must carry the ИЛИ divider').to.eq(true);
+  });
+
+  it('an explicit OR-only row normalizes into orJoin (no stray lone glyph group)', () => {
+    const groups = vmOf(CardName.EXTREME_COLD_FUNGUS).mechanics.groups;
+    // the or-row itself is gone…
+    for (const group of groups) {
+      expect(group.nodes.length === 1 && group.kind === 'plain' && group.weight < 0.5,
+        'or-only row leaked as its own group').to.not.eq(true);
+    }
+    // …and the junction carries the marker exactly once
+    expect(groups.filter((g) => g.orJoin === true).length).to.eq(1);
+  });
+
+  it('a card that draws its own OR inside the action frame gets NO double marker', () => {
+    const groups = vmOf(CardName.TITAN_FLOATING_LAUNCHPAD).mechanics.groups;
+    expect(groups.some((g) => g.orJoin === true)).to.eq(false);
+  });
+
+  it('an inline leading OR inside a content row stays inline (Sabotage — as printed)', () => {
+    const groups = vmOf(CardName.SABOTAGE).mechanics.groups;
+    expect(groups.some((g) => g.orJoin === true)).to.eq(false);
+    expect(groups.length).to.be.greaterThan(1);
+  });
+
+  it('every in-scope multi-action card carries a choice marker at each action junction', () => {
+    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const offenders: Array<string> = [];
+    for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
+      const groups = buildPremiumCardViewModel(card).mechanics.groups;
+      for (let i = 1; i < groups.length; i++) {
+        if (groups[i].kind !== 'action' || groups[i - 1].kind !== 'action') {
+          continue;
+        }
+        const marked = groups[i].orJoin === true ||
+          JSON.stringify(groups[i - 1].nodes).includes('"OR"') ||
+          JSON.stringify(groups[i].nodes).includes('"OR"');
+        if (!marked) {
+          offenders.push(card.name);
+        }
+      }
+    }
+    expect(offenders, `action junctions without a choice marker:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+});
+
 describe('tagClusterPlan (title overlay geometry)', () => {
   it('empty cluster reserves nothing', () => {
     expect(tagClusterPlan(0).width).to.eq(0);

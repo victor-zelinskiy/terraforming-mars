@@ -1,20 +1,29 @@
 <template>
   <div class="pcard__mech">
-    <div v-for="(group, gi) in mechanics.groups"
-         :key="gi"
-         class="pcard-mech-group"
-         :class="'pcard-mech-group--' + group.kind">
-      <PremiumMechNode v-for="(node, ni) in group.nodes" :key="ni" :node="node" />
-    </div>
+    <template v-for="(group, gi) in mechanics.groups" :key="gi">
+      <!-- the CHOICE divider: «— ИЛИ —» between alternative groups -->
+      <div v-if="group.orJoin" class="pcard-mech-or">
+        <span>{{ orLabel }}</span>
+      </div>
+      <div class="pcard-mech-group"
+           :class="['pcard-mech-group--' + group.kind, {'pcard-mech-group--after-or': group.orJoin}]">
+        <PremiumMechNode v-for="(node, ni) in group.nodes" :key="ni" :node="node" />
+      </div>
+    </template>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {MechanicsVM} from './mechanicsModel';
+import {translateText} from '@/client/directives/i18n';
 import PremiumMechNode from './PremiumMechNode.vue';
 
-/** The inset mechanics plate — one engraved row (group) per DSL root row. */
+/**
+ * The inset mechanics plate — one engraved row (group) per DSL root row.
+ * Alternative groups (`orJoin`) are joined by the premium «ИЛИ» divider
+ * instead of the plain hairline, so a choice can never read as "do both".
+ */
 export default defineComponent({
   name: 'PremiumMechanicsPanel',
   components: {PremiumMechNode},
@@ -22,6 +31,11 @@ export default defineComponent({
     mechanics: {
       type: Object as () => MechanicsVM,
       required: true,
+    },
+  },
+  computed: {
+    orLabel(): string {
+      return translateText('OR');
     },
   },
 });
