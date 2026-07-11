@@ -653,7 +653,24 @@
   color: #e7dfc9;
   padding: 0 2px;
 }
-.pcard-sym--asterix { font-size: calc(var(--pcard-mech-font) * 1.4); line-height: 0.6; align-self: flex-start; }
+/* footnote marker — the physical cards' «*»: THIS icon has a special rule
+   in the card's fine print (kept semantically — dropping it would make the
+   icon lie, e.g. Artificial Lake's ocean is NOT a normal ocean placement).
+   Rendered as a small engraved gold spark DOCKED to the top-right of the
+   preceding icon (a reference mark, not a floating star); the raw text
+   glyph is hidden — the clip-path shape IS the marker. */
+.pcard-sym--asterix {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
+  margin-left: -5px;
+  align-self: flex-start;
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+  font-size: 0;
+}
 
 /* PRODUCTION plate (riveted bronze) */
 .pcard-prod {
@@ -819,7 +836,17 @@
   filter: none;
 }
 .pcard__vp-slash { font-size: 13.5px; margin: 0 1px; }
-.pcard__vp-asterisk { font-size: 13.5px; margin-left: 1px; }
+/* the VP footnote (conditional VP) — the same spark, ENGRAVED into the gold */
+.pcard__vp-asterisk {
+  width: 8px;
+  height: 8px;
+  margin-left: 2px;
+  align-self: flex-start;
+  margin-top: 6px;
+  background: linear-gradient(180deg, #6d5124, #43300f);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  font-size: 0;
+}
 
 /* ── expansion stamp: ENGRAVED into the panel surface (bottom-left) ──
    Not a badge, not an overlay — a small seal pressed INTO the card: no
