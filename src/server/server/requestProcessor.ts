@@ -24,6 +24,7 @@ import {ApiBotTurnAck} from '../routes/ApiBotTurnAck';
 import {ApiGames} from '../routes/ApiGames';
 import {ApiGamesJoinable} from '../routes/ApiGamesJoinable';
 import {ApiGamePlayerColor} from '../routes/ApiGamePlayerColor';
+import {ApiHeapSnapshot} from '../routes/ApiHeapSnapshot';
 import {ApiIPs} from '../routes/ApiIPs';
 import {ApiLogout} from '../routes/ApiLogout';
 import {ApiMetrics} from '../routes/ApiMetrics';
@@ -102,6 +103,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAMES, ApiGames.INSTANCE],
     [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
     [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
+    [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],
     [paths.API_METRICS, ApiMetrics.INSTANCE],
     [paths.API_PLAYER, ApiPlayer.INSTANCE],

@@ -23,6 +23,7 @@ export const paths = {
   // reconcile a seat's cube colour with the player's chosen identity colour.
   API_GAMES_JOINABLE: 'api/games/joinable',
   API_GAME_PLAYER_COLOR: 'api/game/player-color',
+  API_HEAP_SNAPSHOT: 'api/heapsnapshot',
   API_IPS: 'api/ips',
   API_METRICS: 'api/metrics',
   API_LOGOUT: 'api/logout',
