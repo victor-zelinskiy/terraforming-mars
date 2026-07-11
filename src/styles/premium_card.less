@@ -295,24 +295,28 @@
   align-items: flex-end;
   z-index: 4; /* above the plate AND the gold frame — a pinned physical badge */
 }
+/* the badge IS the game's megacredit tile — instant M€ semantics; premium
+   depth comes from the drop shadow + the dark seat ring */
 .pcard__cost-badge {
   position: relative;
-  width: 46px;
-  height: 46px;
-  background: url(./assets/premium-card/badge-cost.svg) center / contain no-repeat;
+  width: 44px;
+  height: 44px;
+  background: url(./assets/resources/megacredit.png) center / contain no-repeat;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1.5px rgba(28, 19, 5, 0.9);
   filter: drop-shadow(0 2.5px 3.5px rgba(0, 0, 0, 0.6));
 }
 .pcard__cost-value {
   position: absolute;
-  inset: 0 0 2px 0;
+  inset: 0 0 1px 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 21px;
-  color: var(--pcard-ink);
-  text-shadow: 0 1px 0 rgba(255, 244, 205, 0.55);
+  font-size: 20px;
+  color: #3a2708;
+  text-shadow: 0 1px 0 rgba(255, 246, 210, 0.65);
 }
-.pcard__cost--three .pcard__cost-value { font-size: 16px; }
+.pcard__cost--three .pcard__cost-value { font-size: 15px; }
 /* discount / surcharge chip — docked to the badge's lower-right, extends the
    cluster RIGHTWARD over the plate (the title's left safe-area covers it) */
 .pcard__cost-delta {
@@ -742,22 +746,24 @@
   justify-content: flex-end;
   min-height: 18px;
 }
-.pcard__lower .pcard__mech {
-  margin-right: var(--pcard-lower-safe-r, 0px);
-}
-/* per-variant right reserve — deterministic from the VM, never measured */
-.pcard--vp-compact { --pcard-lower-safe-r: 44px; }
-.pcard--vp-wide    { --pcard-lower-safe-r: 62px; }
-.pcard--vp-formula { --pcard-lower-safe-r: 86px; }
-/* the resource capsule tucks under the panel's lower-left corner — bump the
+/* The mechanics panel ALWAYS takes the full free width — the VP badge sits
+   ON TOP of its corner and only the CONTENT yields: the last content row
+   gets a per-variant right inset (deterministic from the VM, never
+   measured), so nothing ever hides under the badge while the panel's frame
+   stays whole. */
+.pcard--vp-compact { --pcard-lower-safe-r: 40px; }
+.pcard--vp-wide    { --pcard-lower-safe-r: 58px; }
+.pcard--vp-formula { --pcard-lower-safe-r: 80px; }
+.pcard__lower .pcard-mech-group:last-child { padding-right: var(--pcard-lower-safe-r, 0px); }
+/* the resource capsule docks INTO the panel's bottom-left border — bump the
    panel's own bottom padding so content can never sit under it */
-.pcard--has-res .pcard__lower .pcard__mech { padding-bottom: 14px; }
+.pcard--has-res .pcard__lower .pcard__mech { padding-bottom: 12px; }
 
 /* ── VP badge: a gold plate that SIZES TO ITS CONTENT (no more clipping) ── */
 .pcard__vp {
   position: absolute;
   right: 0;
-  bottom: -2px;
+  bottom: -4px; /* straddles the panel's bottom edge — pinned OVER the effects zone */
   z-index: 3;
   display: inline-flex;
   align-items: center;
@@ -803,31 +809,44 @@
 .pcard__vp-slash { font-size: 12.5px; margin: 0 1px; }
 .pcard__vp-asterisk { font-size: 12.5px; margin-left: 1px; }
 
-/* ── expansion stamp: halved meta-marker (bottom-left) ── */
+/* ── expansion stamp: a dedicated CORNER zone (bottom-left) ──────────
+   Nestled into the card's corner (under the gold frame — reads embedded,
+   not floating), framed by a faint L-bracket facet that marks the corner
+   slot. Pure meta-information: tiny, subdued, out of the panel's way. */
 .pcard__exp {
   position: absolute;
-  left: 1px;
-  bottom: -2px;
-  z-index: 3;
+  left: -7px;
+  bottom: -8px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 2px;
+}
+/* the corner bracket — the stamp's own angular zone */
+.pcard__exp::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
+  border-left: 1px solid rgba(217, 184, 120, 0.38);
+  border-bottom: 1px solid rgba(217, 184, 120, 0.38);
+  border-bottom-left-radius: 7px;
+  pointer-events: none;
 }
 .pcard__exp-medallion {
   position: relative;
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
-  background-color: rgba(10, 14, 18, 0.8);
-  background-size: 74%;
+  background-color: rgba(10, 14, 18, 0.85);
+  background-size: 76%;
   background-position: center;
   background-repeat: no-repeat;
-  /* thin engraved ring instead of the heavy medallion bezel */
   box-shadow:
-    0 0 0 1px rgba(165, 133, 76, 0.75),
-    0 0 0 1.8px rgba(30, 22, 10, 0.85),
+    0 0 0 1px rgba(165, 133, 76, 0.6),
     0 1px 2px rgba(0, 0, 0, 0.5);
-  opacity: 0.92;
+  opacity: 0.85;
 }
 /* base game — engraved triangle instead of an icon */
 .pcard__exp-medallion--base::before {
@@ -835,45 +854,50 @@
   position: absolute;
   inset: 0;
   clip-path: polygon(50% 26%, 74% 68%, 26% 68%);
-  background-color: rgba(217, 184, 120, 0.5);
+  background-color: rgba(217, 184, 120, 0.45);
 }
 .pcard__exp-compat {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background-size: cover;
   background-position: center;
-  opacity: 0.7;
-  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.35);
+  opacity: 0.6;
+  box-shadow: 0 0 0 1px rgba(217, 184, 120, 0.3);
 }
 
-/* ── resource capsule: compact live counter (bottom-left, after the stamp) ── */
+/* ── resource capsule: a tab DOCKED into the panel's bottom-left border ──
+   Shares the panel's material (dark fill + the theme inner-ring colour) and
+   straddles its border line — it reads as part of the panel's chrome, not a
+   floating widget. `pcard--has-res` bumps the panel's bottom padding so
+   content never sits under the tab's upper half. */
 .pcard__res {
   position: absolute;
-  left: 21px;
-  bottom: -2px;
+  left: 22px;
+  bottom: -8px;
   z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 18px;
+  height: 17px;
   padding: 1px 7px 1px 4px;
-  border-radius: 9px;
-  background: rgba(7, 11, 15, 0.82);
-  border: 1px solid rgba(180, 196, 212, 0.38);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #141b23, #0a0e13);
+  border: 1px solid var(--pcard-rim-soft);
   box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(5, 8, 12, 0.8),
+    inset 0 1px 2px rgba(0, 0, 0, 0.55),
     0 1px 2px rgba(0, 0, 0, 0.5);
 }
 .pcard__res-icon {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
 }
 .pcard__res-count {
-  font-size: 12px;
+  font-size: 11.5px;
   color: #eaf2fb;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
 }
