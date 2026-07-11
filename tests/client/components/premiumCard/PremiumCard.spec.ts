@@ -68,6 +68,15 @@ describe('PremiumCard', () => {
     expect(discounted.classes()).to.include('pcard--cost-mod');
   });
 
+  it('default DSL amounts (-1 = unspecified) never leak a «−1» digit', () => {
+    // Herbivores: «greenery : animal» effect + «−1 plant production» — every
+    // icon uses the builder default amount (-1). The digit shows ONLY on an
+    // explicit showDigit (legacy semantics); negativity rides MINUS symbols.
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.HERBIVORES)}});
+    expect(wrapper.text()).to.not.contain('−1');
+    expect(wrapper.text()).to.not.contain('-1');
+  });
+
   it('lower anchors: VP variant class reserves the panel column', () => {
     const formula = mount(PremiumCard, {props: {card: model(CardName.SEARCH_FOR_LIFE)}});
     expect(formula.classes()).to.include('pcard--vp-formula');

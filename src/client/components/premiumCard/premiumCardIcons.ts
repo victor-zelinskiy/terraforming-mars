@@ -13,6 +13,7 @@
  * test lists the gaps per module).
  */
 
+import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {ICardRenderItem, ICardRenderTile} from '@/common/cards/render/Types';
 import {CardResource} from '@/common/CardResource';
@@ -85,7 +86,10 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.OCEANS]: `${TILES}/ocean.png`,
 
   [CardRenderItemType.CITY]: `${TILES}/city.png`,
-  [CardRenderItemType.GREENERY]: `${TILES}/greenery.png`,
+  // The PLAIN greenery (the classic-card default). The oxygen-raising variant
+  // (secondaryTag OXYGEN) resolves to greenery.png in mechItemIcon — the O₂
+  // symbol is baked into that asset.
+  [CardRenderItemType.GREENERY]: `${TILES}/greenery_no_O2.png`,
   [CardRenderItemType.EMPTY_TILE]: `${TILES}/empty.png`,
   [CardRenderItemType.EMPTY_TILE_GOLDEN]: `${TILES}/adjacency_bonus.png`,
   [CardRenderItemType.HAZARD_TILE]: `${TILES}/hazard.png`,
@@ -122,7 +126,7 @@ export type TileIconSpec = {
 const TILE_ICON: Partial<Record<TileType, TileIconSpec>> = {
   [TileType.OCEAN]: {base: `${TILES}/ocean.png`},
   [TileType.CITY]: {base: `${TILES}/city.png`},
-  [TileType.GREENERY]: {base: `${TILES}/greenery.png`},
+  [TileType.GREENERY]: {base: `${TILES}/greenery_no_O2.png`},
   [TileType.CAPITAL]: {base: `${TILES}/city.png`},
   [TileType.COMMERCIAL_DISTRICT]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/commerical_district.png`},
   [TileType.DEIMOS_DOWN]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/deimos.png`},
@@ -193,6 +197,13 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
       return {kind: 'img', url: cardResourceIconUrl(item.resource)};
     }
     break;
+  case CardRenderItemType.GREENERY:
+    // O₂-raising greenery → the O₂-baked asset; plain greenery → no_O2
+    // (mirrors the legacy greenery-tile / greenery-tile-oxygen split).
+    if (item.secondaryTag === AltSecondaryTag.OXYGEN) {
+      return {kind: 'img', url: `${TILES}/greenery.png`};
+    }
+    return {kind: 'img', url: `${TILES}/greenery_no_O2.png`};
   case CardRenderItemType.MULTIPLIER_WHITE:
     return {kind: 'glyph', glyph: 'X'};
   case CardRenderItemType.VP:

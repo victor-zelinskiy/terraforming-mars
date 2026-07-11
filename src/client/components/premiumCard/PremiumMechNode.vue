@@ -180,7 +180,9 @@ export default defineComponent({
         if (item.text !== undefined && item.text !== '') {
           return item.text;
         }
-        return String(item.amount);
+        // A REAL negative here (an M€ discount like «−4») keeps its sign —
+        // typographic minus for consistency with the cost delta chip.
+        return String(item.amount).replace('-', '−');
       }
       return undefined;
     },
@@ -194,21 +196,25 @@ export default defineComponent({
       }
       return itemRepeats(item);
     },
-    /** Leading digit («3 [icon]») when the count doesn't repeat as icons. */
+    /*
+     * Leading digit («3 [icon]») when the count doesn't repeat as icons.
+     * LEGACY SEMANTICS (load-bearing): the digit shows ONLY on an explicit
+     * `showDigit` (or the >5 compactness heuristic) and is ALWAYS the
+     * ABSOLUTE value — negativity in the DSL rides explicit MINUS symbol
+     * nodes, and `amount: -1` is the builder's «unspecified» default
+     * (= one icon, no digit). Deriving a digit from a negative amount
+     * plastered a bogus «−1» over every default icon.
+     */
     digitText(): string | undefined {
       const item = this.itemNode;
       if (item === undefined || this.insideText !== undefined) {
         return undefined;
       }
-      const n = item.amount;
-      const showDigit = item.showDigit === true || Math.abs(n) > 5;
-      if (!showDigit && n >= 0) {
+      const showDigit = item.showDigit === true || Math.abs(item.amount) > 5;
+      if (!showDigit) {
         return undefined;
       }
-      if (n < 0) {
-        return `−${Math.abs(n)}`;
-      }
-      return String(n);
+      return String(Math.abs(item.amount));
     },
     bubbleUrl(): string | undefined {
       const secondary = this.itemNode?.secondaryTag;
@@ -219,6 +225,11 @@ export default defineComponent({
         return tagIconUrl(secondary as Tag);
       }
       if (secondary === AltSecondaryTag.OXYGEN) {
+        // The oxygen-raising greenery uses the O₂-BAKED asset (greenery.png)
+        // — a separate bubble would double the symbol.
+        if (this.itemNode?.type === CardRenderItemType.GREENERY) {
+          return undefined;
+        }
         return 'assets/global-parameters/oxygen.png';
       }
       if (secondary === AltSecondaryTag.FLOATER) {
