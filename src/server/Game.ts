@@ -2192,8 +2192,14 @@ export class Game implements IGame, Logger {
     }
     game.verminInEffect = d.verminInEffect;
     game.exploitationOfVenusInEffect = d.exploitationOfVenusInEffect;
-    // Still in Draft or Research of generation 1
-    if (game.generation === 1 && players.some((p) => p.playedCards.filter(isICorporationCard).length === 0)) {
+    // Still in Draft or Research of generation 1 — i.e. some player has not yet
+    // played their corporation. MarsBot is EXCLUDED: it never picks/plays a
+    // corporation (it builds an action deck instead), so a corporation-less bot
+    // would make this proxy read TRUE forever in generation 1 and bounce an
+    // already-started game back to gotoInitialResearchPhase() on reload, which
+    // prompts nobody (the human already picked) — a RESEARCH-phase deadlock with
+    // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
+    if (game.generation === 1 && players.some((p) => p.isMarsBot !== true && p.playedCards.filter(isICorporationCard).length === 0)) {
       if (game.phase === Phase.INITIALDRAFTING) {
         switch (game.initialDraftIteration) {
         case 1:

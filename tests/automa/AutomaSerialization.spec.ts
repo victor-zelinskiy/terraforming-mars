@@ -3,8 +3,31 @@ import {Game} from '../../src/server/Game';
 import {Server} from '../../src/server/models/ServerModel';
 import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 import {CardName} from '../../src/common/cards/CardName';
+import {Phase} from '../../src/common/Phase';
+import {cardsFromJSON, corporationCardsFromJSON} from '../../src/server/createCard';
 import {TestPlayer} from '../TestPlayer';
+import {runAllActions} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
+
+/**
+ * Drive the REAL start flow to the human's first ACTION-phase turn (gen 1): seed
+ * a deterministic deal, answer SelectInitialCards, so the human's corporation is
+ * played and the game leaves RESEARCH.
+ */
+function reachGen1Action() {
+  const [game, human, bot] = testAutomaGame({keepInitialCardSelection: true});
+  // Replace IN PLACE — the live prompt holds the array refs.
+  human.dealtCorporationCards.splice(0, human.dealtCorporationCards.length,
+    ...corporationCardsFromJSON([CardName.INTERPLANETARY_CINEMATICS, CardName.HELION]));
+  human.dealtProjectCards.splice(0, 4,
+    ...cardsFromJSON([CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]));
+  human.process({type: 'initialCards', responses: [
+    {type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]},
+    {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
+  ]});
+  runAllActions(game);
+  return {game, human, bot};
+}
 
 describe('Automa serialization', () => {
   it('round-trips the whole automa state', () => {
@@ -75,6 +98,61 @@ describe('Automa serialization', () => {
     expect(serialized.players.every((p) => p.isMarsBot === undefined)).is.true;
     const restored = Game.deserialize(structuredClone(serialized));
     expect(restored.automa).is.undefined;
+  });
+
+  it('gen-1 reload after the human picked a corporation does not deadlock in RESEARCH', () => {
+    const {game, human} = reachGen1Action();
+
+    // Precondition: the start flow landed on the human's first ACTION-phase turn.
+    expect(game.phase).eq(Phase.ACTION);
+    expect(game.generation).eq(1);
+    expect(human.getWaitingFor(), 'the human must be prompted before reload').is.not.undefined;
+
+    // Reload (server restart / cache eviction).
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+    const restoredHuman = restored.players.find((p) => p.isMarsBot !== true)!;
+
+    // The gen-1 reload guard used "some player has no corporation card" as a
+    // proxy for "still in initial setup" — but MarsBot NEVER has a corporation,
+    // so it read TRUE forever and bounced the started game back to
+    // gotoInitialResearchPhase(), which prompts nobody (the human already
+    // picked): RESEARCH phase, no waitingFor → the deadlock the player saw
+    // (both chips «ГОТОВ»).
+    expect(restored.phase, 'reload must not bounce the game back to RESEARCH').eq(Phase.ACTION);
+    expect(restoredHuman.getWaitingFor(), 'the human must still be prompted for actions after reload').is.not.undefined;
+  });
+
+  it('gen-1 reload while the bot is the pending active player resolves the turn (no RESEARCH bounce)', () => {
+    const {game, human, bot} = reachGen1Action();
+    // Simulate production pacing (BotTurnScheduler): the human's turn ended and
+    // the bot was made the active player with its resolve pending, but the
+    // bounded timer died with the restart that dropped this game from memory.
+    human.popWaitingFor();
+    game.activePlayer = bot;
+    game.automa!.pendingTurn = true;
+
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+
+    // Before the fix, the gen-1 guard intercepted this too and bounced to
+    // RESEARCH. Now it falls through to resolveBotTurnOnLoad(), which resolves
+    // the pending turn and advances the game.
+    expect(restored.phase, 'reload must not bounce the game back to RESEARCH').eq(Phase.ACTION);
+    expect(restored.automa!.pendingTurn, 'the pending bot turn must have resolved').is.false;
+    const restoredHuman = restored.players.find((p) => p.isMarsBot !== true)!;
+    expect(restoredHuman.getWaitingFor(), 'control returns to the human after the bot resolves').is.not.undefined;
+  });
+
+  it('gen-1 reload DURING initial research re-prompts the human who has not yet picked', () => {
+    // The guard must still fire for a genuine mid-setup save: the human is
+    // re-prompted for their corporation + starting hand after reload.
+    const [game, human] = testAutomaGame({keepInitialCardSelection: true});
+    expect(game.phase).eq(Phase.RESEARCH);
+    expect(human.getWaitingFor()).is.not.undefined;
+
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+    const restoredHuman = restored.players.find((p) => p.isMarsBot !== true)!;
+    expect(restored.phase).eq(Phase.RESEARCH);
+    expect(restoredHuman.getWaitingFor(), 'the un-picked human must be re-prompted').is.not.undefined;
   });
 
   it('the face-down action deck contents never leak into any client model', () => {
