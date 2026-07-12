@@ -25,6 +25,10 @@ export class MinorityRefuge extends Card implements IProjectCard {
           b.production((pb) => pb.megacredits(-2)).colonies(1);
         }),
         description: 'Decrease your M€ production 2 steps. Place a colony.',
+        infoText: [
+          {text: 'Decrease your M€ production 2 steps.', tokens: ['production(megacredits', 'production(']},
+          {text: 'Place a colony.', tokens: ['colonies']},
+        ],
       },
     });
   }

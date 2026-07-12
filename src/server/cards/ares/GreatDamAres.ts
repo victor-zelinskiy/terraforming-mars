@@ -15,6 +15,11 @@ export class GreatDamAres extends GreatDamPromo {
           b.production((pb) => pb.energy(2)).tile(TileType.GREAT_DAM, false, true).asterix();
         }),
         description: 'Requires 4 ocean tiles. Increase your energy production 2 steps. Place this tile ADJACENT TO an ocean tile. The tile grants an ADJACENCY BONUS of 2 Energy.',
+        infoText: [
+          {text: 'Increase your energy production 2 steps.', tokens: ['production(']},
+          {text: 'Place this tile adjacent to an ocean tile.', tokens: ['tile-']},
+          {text: 'The tile grants an adjacency bonus of 2 energy.', tokens: ['tile-']},
+        ],
       },
     );
   }

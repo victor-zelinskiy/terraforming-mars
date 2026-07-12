@@ -27,6 +27,10 @@ export class Flooding extends Card implements IProjectCard {
           b.oceans(1).nbsp.minus().megacredits(4, {all}).asterix();
         }),
         description: 'Place an ocean tile. IF THERE ARE TILES ADJACENT TO THIS OCEAN TILE, YOU MAY REMOVE 4 M€ FROM THE OWNER OF ONE OF THOSE TILES.',
+        infoText: [
+          {text: 'Place an ocean tile.', tokens: ['oceans', 'tile-ocean']},
+          {text: 'If there are tiles adjacent to this ocean tile, you may remove 4 M€ from the owner of one of those tiles.', tokens: ['megacredits']},
+        ],
       },
     });
   }

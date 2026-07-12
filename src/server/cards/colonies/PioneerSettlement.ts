@@ -29,6 +29,10 @@ export class PioneerSettlement extends Card implements IProjectCard {
           b.nbsp.colonies(1);
         }),
         description: 'Requires that you have no more than 1 colony. Decrease your M€ production 2 steps. Place a colony.',
+        infoText: [
+          {text: 'Decrease your M€ production 2 steps.', tokens: ['production(megacredits', 'production(']},
+          {text: 'Place a colony.', tokens: ['colonies']},
+        ],
       },
     });
   }

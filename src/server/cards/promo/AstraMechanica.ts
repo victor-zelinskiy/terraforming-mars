@@ -26,6 +26,10 @@ export class AstraMechanica extends Card implements IProjectCard {
           b.cards(2, {secondaryTag: Tag.EVENT}).asterix();
         }),
         description: 'RETURN UP TO 2 OF YOUR PLAYED EVENT CARDS TO YOUR HAND. THEY MAY NOT BE CARDS THAT PLACE SPECIAL TILES.',
+        infoText: [
+          {text: 'Return up to 2 of your played event cards to your hand.', tokens: ['cards']},
+          {kind: 'note', text: 'They may not be cards that place special tiles.'},
+        ],
       },
     });
   }

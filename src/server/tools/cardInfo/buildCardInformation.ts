@@ -47,6 +47,8 @@ import {CardType} from '../../../common/cards/CardType';
 import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {CardResource} from '../../../common/CardResource';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
+import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardInformation, CardInfoBlock, CardInfoGroup} from '../../../common/cards/CardInformation';
 import {CardRequirementDescriptor, requirementType} from '../../../common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../../common/cards/RequirementType';
@@ -55,6 +57,7 @@ import {isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} fro
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
 import {Size} from '../../../common/cards/render/Size';
 import {Behavior} from '../../behavior/Behavior';
+import {Card} from '../../cards/Card';
 
 const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
@@ -227,6 +230,50 @@ function enCardResource(res: CardResource, n: number): string {
   return n === 1 ? noun : (noun.endsWith('s') ? noun : `${noun}s`);
 }
 
+/** Space-bonus nouns for an adjacency-bonus phrase (in-scope Ares tiles). */
+const EN_SPACE_BONUS: Partial<Record<SpaceBonus, [string, string]>> = {
+  [SpaceBonus.TITANIUM]: ['titanium', 'titanium'],
+  [SpaceBonus.STEEL]: ['steel', 'steel'],
+  [SpaceBonus.PLANT]: ['plant', 'plants'],
+  [SpaceBonus.DRAW_CARD]: ['card', 'cards'],
+  [SpaceBonus.HEAT]: ['heat', 'heat'],
+  [SpaceBonus.MEGACREDITS]: ['M€', 'M€'],
+  [SpaceBonus.ANIMAL]: ['animal', 'animals'],
+  [SpaceBonus.MICROBE]: ['microbe', 'microbes'],
+  [SpaceBonus.ENERGY]: ['energy', 'energy'],
+  [SpaceBonus.DATA]: ['data', 'data'],
+  [SpaceBonus.SCIENCE]: ['science', 'science'],
+  [SpaceBonus.ASTEROID]: ['asteroid', 'asteroids'],
+};
+
+/**
+ * Render a declarative `behavior.tile.adjacencyBonus` as an English phrase
+ * («2 M€», «1 plant and 1 microbe»). Returns undefined for a dynamic
+ * ('callback') or unmapped bonus — the caller then omits the adjacency clause
+ * rather than guess (a bespoke card describes it via co-located infoText).
+ */
+function adjacencyBonusText(adjacencyBonus: AdjacencyBonus | undefined): string | undefined {
+  if (adjacencyBonus === undefined) {
+    return undefined;
+  }
+  const counts = new Map<SpaceBonus, number>();
+  for (const bonus of adjacencyBonus.bonus) {
+    if (bonus === 'callback') {
+      return undefined;
+    }
+    counts.set(bonus, (counts.get(bonus) ?? 0) + 1);
+  }
+  const parts: Array<string> = [];
+  for (const [bonus, n] of counts) {
+    const names = EN_SPACE_BONUS[bonus];
+    if (names === undefined) {
+      return undefined;
+    }
+    parts.push(`${n} ${n === 1 ? names[0] : names[1]}`);
+  }
+  return parts.length > 0 ? parts.join(' and ') : undefined;
+}
+
 function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | undefined {
   const b: Behavior | undefined = (card as {behavior?: Behavior}).behavior;
   if (b === undefined) {
@@ -319,7 +366,16 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
     push('tile.greenery', 'Place a greenery tile.', ['greenery', 'tile-greenery']);
   }
   if (b.tile !== undefined) {
-    push('tile.special', 'Place a special tile.', ['tile-']);
+    // Surface a declarative adjacency bonus (the Ares special tiles — Capital,
+    // Commercial District, Ocean Farm … — place a tile that grants one). The
+    // bonus is a PROPERTY of the placed tile, so it rides the same line rather
+    // than a phantom separate «bonus».
+    const adj = adjacencyBonusText(b.tile.adjacencyBonus);
+    if (adj !== undefined) {
+      push('tile.special', `Place a special tile that grants an adjacency bonus of ${adj}.`, ['tile-']);
+    } else {
+      push('tile.special', 'Place a special tile.', ['tile-']);
+    }
   }
   if (b.drawCard !== undefined) {
     if (typeof b.drawCard === 'number') {
@@ -445,6 +501,11 @@ function stripRequirementSentences(text: string, hasRequirements: boolean): stri
   return out.trim();
 }
 
+/** Rough count of sentences — a sentence terminator followed by space/end. */
+function sentenceCount(text: string): number {
+  return (text.match(/[.!?](\s|$)/g) ?? []).length;
+}
+
 /* ── the per-card builder ───────────────────────────────────────────── */
 
 export function buildCardInformation(card: ICard, module: GameModule): CardInformation | undefined {
@@ -547,6 +608,13 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
           graphicId: mechRows.length === 1 ? mechRows[0].id : undefined,
         }];
         status = mechRows.length <= 1 ? 'seeded' : 'needs-curation';
+        // A seeded block that is actually SEVERAL sentences reads as one
+        // run-on paragraph in the fullscreen panel (the design wants one line
+        // per bonus). Flag it as a curation candidate — the fix is co-located
+        // `infoText` splitting it (the generator never prose-splits at runtime).
+        if (sentenceCount(cleaned) > 1) {
+          notes.push('seeded-run-on: multi-sentence description — split into infoText');
+        }
       } else if (mechRows.length > 0) {
         status = 'needs-curation';
         notes.push('no text source for graphic rows');
@@ -637,9 +705,15 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
 }
 
 function hasBespokePlay(card: ICard): boolean {
-  const proto = Object.getPrototypeOf(card);
-  return typeof proto.bespokePlay === 'function' &&
-    Object.prototype.hasOwnProperty.call(proto, 'bespokePlay');
+  // Detect an override ANYWHERE in the prototype chain, not just the card's own
+  // class: an Ares/promo subclass (GreatDamAres → GreatDamPromo) INHERITS its
+  // parent's bespoke tile placement, so an own-prototype `hasOwnProperty` check
+  // missed it — the card looked fully declarative and its bespoke tile (+ its
+  // adjacency bonus) silently vanished from the derived info. Comparing the
+  // resolved method against the base `Card` no-op catches an override at any
+  // depth.
+  const fn = (card as {bespokePlay?: unknown}).bespokePlay;
+  return typeof fn === 'function' && fn !== Card.prototype.bespokePlay;
 }
 
 type GraphicMatch = {graphicId?: string, graphicNode?: string};
@@ -705,6 +779,9 @@ export function writeCardInfoArtifacts(): void {
     missingTranslations,
     needsCuration: audit.filter((e) => e.status === 'needs-curation').map((e) => e.name),
     seeded: audit.filter((e) => e.status === 'seeded').map((e) => e.name),
+    // Seeded cards whose single block is a multi-sentence run-on paragraph —
+    // the worklist for splitting into per-bonus lines via co-located infoText.
+    seededRunOn: audit.filter((e) => e.notes.some((n) => n.startsWith('seeded-run-on'))).map((e) => e.name),
   };
   fs.writeFileSync('src/genfiles/cardInfoAudit.json', JSON.stringify({summary, cards: audit}, null, 1) + '\n');
   const missingCount = Object.values(missingTranslations).reduce((acc, list) => acc + list.length, 0);

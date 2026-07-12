@@ -34,6 +34,11 @@ export class ImmigrantCity extends Card implements IProjectCard {
           b.production((pb) => pb.minus().energy(1).megacredits(-2)).city();
         }),
         description: 'Decrease your energy production 1 step and decrease your M€ production 2 steps. Place a city tile.',
+        infoText: [
+          {text: 'Decrease your energy production 1 step.', tokens: ['production(energy', 'production(']},
+          {text: 'Decrease your M€ production 2 steps.', tokens: ['production(megacredits', 'production(']},
+          {text: 'Place a city tile.', tokens: ['city', 'tile-city']},
+        ],
       },
     });
   }

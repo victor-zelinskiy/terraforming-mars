@@ -27,6 +27,10 @@ export class SolarFarm extends Card implements IProjectCard {
           }).asterix().nbsp.tile(TileType.SOLAR_FARM, false, true).br;
         }),
         description: 'Place this tile which grants an ADJACENCY BONUS of 2 energy. Increase your energy production 1 step for each plant resource on the area where you place the tile.',
+        infoText: [
+          {text: 'Place a special tile that grants an adjacency bonus of 2 energy.', tokens: ['tile-']},
+          {text: 'Increase your energy production 1 step for each plant resource on the area where you place the tile.', tokens: ['production(']},
+        ],
       },
     });
   }

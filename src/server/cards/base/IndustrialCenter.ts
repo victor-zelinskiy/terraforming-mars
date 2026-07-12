@@ -9,6 +9,7 @@ import {Space} from '../../boards/Space';
 import {CardName} from '../../../common/cards/CardName';
 import {Board} from '../../boards/Board';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {CardRenderer} from '../render/CardRenderer';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import * as reason from '../actionReasons';
@@ -17,7 +18,7 @@ export class IndustrialCenter extends ActionCard implements IProjectCard {
   constructor(
     name = CardName.INDUSTRIAL_CENTER,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: '123',
       renderData: CardRenderer.builder((b) => {
         b.action('Spend 7 M€ to increase your steel production 1 step.', (eb) => {

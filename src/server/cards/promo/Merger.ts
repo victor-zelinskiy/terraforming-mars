@@ -23,6 +23,11 @@ export class Merger extends PreludeCard {
           b.br.br;
         }),
         description: 'Draw 4 corporation cards. Play one of them and discard the other 3. Then pay 42 M€.',
+        infoText: [
+          {text: 'Draw 4 corporation cards.', tokens: ['corporation']},
+          {text: 'Play one of them and discard the other 3.'},
+          {text: 'Then pay 42 M€.', tokens: ['megacredits']},
+        ],
       },
     });
   }
