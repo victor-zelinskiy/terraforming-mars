@@ -11,6 +11,9 @@ import {CompatSnapshot} from './updatePolicy';
 
 interface DesktopSession {
   lastKnownGood?: CompatSnapshot & {at: number};
+  // The app version that last populated Chromium's immutable asset cache. Used by
+  // electron/cacheVersion.ts to wipe stale art when the version changes.
+  cacheVersion?: string;
 }
 
 function sessionFile(): string {
@@ -51,5 +54,15 @@ export function getLastKnownGood(): CompatSnapshot | undefined {
 export function setLastKnownGood(compat: CompatSnapshot, now: number): void {
   const session = readSession();
   session.lastKnownGood = {...compat, at: now};
+  writeSession(session);
+}
+
+export function getCacheVersion(): string | undefined {
+  return readSession().cacheVersion;
+}
+
+export function setCacheVersion(version: string): void {
+  const session = readSession();
+  session.cacheVersion = version;
   writeSession(session);
 }

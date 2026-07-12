@@ -17,6 +17,7 @@
 import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
 import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
+import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
@@ -225,11 +226,22 @@ if (!app.requestSingleInstanceLock()) {
 
   app.setAppUserModelId('io.github.victor-zelinskiy.terraforming-mars');
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     if (APP_LOAD) {
       // Immutable art/font caching only in a packaged build; dev uses a short TTL
       // so edited assets still refresh (see protocol.cacheControl).
       registerAppProtocolHandler(app.isPackaged);
+    }
+    if (app.isPackaged) {
+      // The immutable asset cache is version-scoped: if this build's version differs
+      // from the one that populated the cache, wipe it BEFORE the window loads so
+      // rebuilt art/fonts appear instead of the stale immutable-cached bytes. No-op
+      // within one version (the fast cache keeps working).
+      const cleared = await enforceVersionScopedCache();
+      if (cleared) {
+        // eslint-disable-next-line no-console
+        console.log(`[electron] asset cache cleared for version ${app.getVersion()}`);
+      }
     }
     // eslint-disable-next-line no-console
     console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} — loading ${initialUrl()}`);

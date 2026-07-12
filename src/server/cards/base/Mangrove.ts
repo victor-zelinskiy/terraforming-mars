@@ -23,6 +23,9 @@ export class Mangrove extends Card implements IProjectCard {
         cardNumber: '059',
         renderData: CardRenderer.builder((b) => b.greenery().asterix()),
         description: 'Requires +4 C or warmer. Place a greenery tile ON AN AREA RESERVED FOR OCEAN and raise oxygen 1 step. Disregard normal placement restrictions for this.',
+        infoText: [
+          {text: 'Place a greenery tile on an area reserved for ocean, disregarding normal placement restrictions.', tokens: ['greenery', 'tile-greenery']},
+        ],
       },
     });
   }

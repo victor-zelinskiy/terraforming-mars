@@ -35,6 +35,11 @@ export class NewHolland extends Card implements IProjectCard {
         }),
         description: 'Requires 4 city tiles ON MARS. Increase your M€ production 3 steps. ' +
             'Place a city tile on top of an already placed ocean tile, FOLLOWING NORMAL CITY PLACEMENT RESTRICTIONS. The tile counts as a city and an ocean.',
+        infoText: [
+          {text: 'Increase your M€ production 3 steps.', tokens: ['production(']},
+          {text: 'Place a special tile on top of an existing ocean tile, following normal city placement restrictions.', tokens: ['tile-']},
+          {kind: 'note', text: 'The tile counts as a city and an ocean.'},
+        ],
       },
     });
   }

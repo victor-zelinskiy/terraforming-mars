@@ -33,6 +33,58 @@ let pollTimer: number | undefined;
 const decayTimers = new Map<string, number>();
 let activeName = '';
 
+// ── Cross-session cache ─────────────────────────────────────────────────────
+// The joinable list drives the console main menu's CONTINUE item + My-games
+// badge. Those depend on an async fetch, so a cold menu first rendered WITHOUT
+// them and popped CONTINUE in a beat later (a visible flash). The last
+// successful list is persisted so the menu can HYDRATE it synchronously before
+// its first render — no more appearing sections. Stale entries self-correct on
+// the background refresh. Local-only, keyed by the (temporary) display name.
+const CACHE_KEY = 'tm_joinable_cache';
+
+function storage(): Storage | undefined {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function persistJoinableCache(name: string, games: ReadonlyArray<JoinableGameSummary>): void {
+  try {
+    storage()?.setItem(CACHE_KEY, JSON.stringify({name, games}));
+  } catch {
+    // Private mode / quota — the in-memory list still works this session.
+  }
+}
+
+/**
+ * Synchronously seed the list from the last-session cache (call BEFORE the
+ * first render, e.g. a component `created()` hook) so CONTINUE / the badge are
+ * present on the first paint. No-op when already loaded this session or the
+ * cached name doesn't match. The background fetch refreshes + corrects it.
+ */
+export function hydrateJoinableGames(displayName: string): void {
+  if (joinGamesState.loadedOnce || displayName === '') {
+    return;
+  }
+  try {
+    const raw = storage()?.getItem(CACHE_KEY);
+    if (raw === null || raw === undefined) {
+      return;
+    }
+    const parsed = JSON.parse(raw) as {name?: string, games?: Array<JoinableGameSummary>};
+    if (parsed?.name === displayName && Array.isArray(parsed.games)) {
+      joinGamesState.games = parsed.games;
+      joinGamesState.loadedOnce = true;
+      // Match loadJoinableGames' active name so its next fetch diffs (not "all new").
+      activeName = displayName;
+    }
+  } catch {
+    // Corrupt blob — ignore; the fetch will populate cleanly.
+  }
+}
+
 export async function loadJoinableGames(displayName: string, opts: {silent?: boolean} = {}): Promise<void> {
   activeName = displayName;
   if (opts.silent !== true) {
@@ -54,6 +106,7 @@ export async function loadJoinableGames(displayName: string, opts: {silent?: boo
     joinGamesState.games = games;
     joinGamesState.error = false;
     joinGamesState.loadedOnce = true;
+    persistJoinableCache(displayName, games);
     if (fresh.length > 0) {
       markNew(fresh);
     }

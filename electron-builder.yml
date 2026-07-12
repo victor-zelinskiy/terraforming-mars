@@ -47,6 +47,9 @@ files:
   - build/styles.css
   - assets/**/*
   - package.json
+  # Build identity (git head + builtAt) read by the main process (electron/cacheVersion.ts)
+  # to make the immutable asset cache build-scoped — a new build wipes stale art on first launch.
+  - src/genfiles/settings.json
   - '!node_modules/**/*'
   - node_modules/electron-updater/**/*
   - node_modules/builder-util-runtime/**/*

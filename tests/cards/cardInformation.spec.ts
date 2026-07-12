@@ -241,6 +241,79 @@ describe('card information model', function() {
     expect(offenders, `immediate blocks out of render order:\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
+  // ── NO KEY RULE MAY BE SILENTLY DROPPED (the loss guard) ──────────────
+  // The generator derives a behavior-derived card's `information` from its
+  // `behavior` — and MUST NOT drop a rule the printed description states
+  // (Artificial Lake's «on an area not reserved for ocean», Ocean City's
+  // «counts as a city as well as an ocean», Nuclear Zone's adjacency penalty).
+  // This compares every behavior-derived card's generated text against its
+  // description word-for-word (synonym-folded) and FAILS on any uncovered
+  // content word — the exact regression that lost Artificial Lake's rule.
+
+  it('behavior-derived cards do not drop any KEY rule from the description', () => {
+    const audit = JSON.parse(fs.readFileSync('src/genfiles/cardInfoAudit.json', 'utf8'));
+    const statusOf = new Map<string, string>(audit.cards.map((c: {name: string, status: string}) => [c.name, c.status]));
+
+    // Fold wording/stemming differences so only a GENUINE missing rule trips it.
+    const SYN: Record<string, string> = {
+      plants: 'plant', terraforming: 'terraform', rating: 'terraform', terraform: 'tr',
+      which: 'that', provides: 'grant', provide: 'grant', grants: 'grant',
+      prod: 'production', reduce: 'decrease', lower: 'decrease',
+      two: '2', three: '3', four: '4', five: '5', six: '6',
+      another: 'any', other: 'any', others: 'any', adjacent: 'adjacency',
+      placed: 'place', playing: 'play', plus: 'gain',
+    };
+    const STOP = new Set(('a an the to of your you and or on for this that with may can if at in is are be it as ' +
+      'by from up per each all not into one them get pay step steps tile tiles place raise increase decrease ' +
+      'gain lose add remove production tr oxygen').split(/\s+/));
+    const norm = (w: string) => {
+      w = w.toLowerCase(); return SYN[w] ?? w;
+    };
+    const words = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9€°\- ]/gi, ' ')
+      .split(/\s+/).map(norm).filter((w) => w.length > 2 && !STOP.has(w));
+    const REQ = /^(Requires?|It must|Oxygen must|Temperature must|Venus must|Must have)([^.]*\.|[^.]*$)\s*/;
+    const stripReq = (t: string) => {
+      let o = t || ''; while (REQ.test(o)) {
+        o = o.replace(REQ, '');
+      } return o.trim();
+    };
+
+    // Cards where the residual words are NOT a lost rule — the rule is carried
+    // elsewhere (a printed TAG, board geography, or only the wording differs).
+    // Each needs an explicit reason; a NEW card must be fixed (infoText / a
+    // generator field) or justified here, never silently accepted.
+    const ACCEPTED = new Map<string, string>([
+      ['Research', '"counts as 2 science cards" IS the two printed SCIENCE tags (frame metadata)'],
+      ['Research Network', 'the wild-tag rule IS the printed WILD tag (frame metadata)'],
+      ['Nuclear Zone:ares', 'the adjacency penalty IS shown ("Other players pay 2 M€ more…"); only wording differs'],
+      ['Lava Flows', 'the volcano NAMES are board geography; "on a volcanic area" is the rule'],
+      ['Lava Flows:ares', 'the volcano NAMES are board geography; "on a volcanic area" is the rule'],
+      ['Stanford Torus', '"in space, outside the planet" is flavor; "on the reserved area" is the mechanical rule'],
+      ['Release of Inert Gases', '"terraforming rating" = TR, shown as "Gain 2 TR."'],
+      ['Deimos Down:promo', '"adjacent to no city tile" = "not next to a city", shown'],
+      ['Neutralizer Factory', '"Venus track" = "Raise Venus …", shown'],
+    ]);
+
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      if (statusOf.get(card.name) !== 'ok') {
+        continue; // authored = hand-written; seeded = full description verbatim
+      }
+      const desc = typeof card.metadata.description === 'string' ? card.metadata.description : card.metadata.description?.text;
+      if (desc === undefined) {
+        continue;
+      }
+      const generated = new Set(words((info(card)?.groups ?? []).flatMap((g) => g.blocks.map((b) => b.text)).join(' ')));
+      const missing = [...new Set(words(stripReq(desc)))].filter((w) => !generated.has(w));
+      if (missing.length > 0 && !ACCEPTED.has(card.name)) {
+        offenders.push(`${card.name}: description words not in generated info → ${missing.join(', ')}`);
+      }
+    }
+    expect(offenders,
+      `KEY rule dropped from generated card text — author infoText, add a generator field, or justify in ACCEPTED:\n${offenders.join('\n')}`,
+    ).to.deep.eq([]);
+  });
+
   it('out-of-scope cards carry NO information (scope is explicit)', () => {
     const outside = loadCards().filter((c) => !SCOPE_MODULES.has(c.module) || !SCOPE_TYPES.has(c.type));
     for (const card of outside) {

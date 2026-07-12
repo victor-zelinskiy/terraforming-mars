@@ -25,6 +25,10 @@ export class ProtectedValley extends Card implements IProjectCard {
           b.greenery().asterix();
         }),
         description: 'Increase your M€ production 2 steps. Place a greenery tile ON AN AREA RESERVED FOR OCEAN, disregarding normal placement restrictions, and increase oxygen 1 step.',
+        infoText: [
+          {text: 'Increase your M€ production 2 steps.', tokens: ['production(']},
+          {text: 'Place a greenery tile on an area reserved for ocean, disregarding normal placement restrictions.', tokens: ['greenery', 'tile-greenery']},
+        ],
       },
     });
   }

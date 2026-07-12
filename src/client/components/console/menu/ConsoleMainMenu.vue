@@ -174,7 +174,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
-import {joinGamesState, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
+import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
@@ -313,6 +313,13 @@ export default defineComponent({
         {control: 'inspect', label: 'Language'},
       ];
     },
+  },
+  created() {
+    // Resolve the identity + hydrate the joinable list from the cross-session
+    // cache BEFORE the first render, so CONTINUE / the My-games badge are on
+    // the first painted frame instead of popping in after the fetch (the flash).
+    ensureIdentityLoaded();
+    hydrateJoinableGames(this.identityName);
   },
   mounted() {
     setDocumentTitle('Terraforming Mars');

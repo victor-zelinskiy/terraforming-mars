@@ -49,6 +49,7 @@ import {Resource} from '../../../common/Resource';
 import {CardResource} from '../../../common/CardResource';
 import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
+import {PlacementType} from '../../boards/PlacementType';
 import {CardInformation, CardInfoBlock, CardInfoGroup} from '../../../common/cards/CardInformation';
 import {CardRequirementDescriptor, requirementType} from '../../../common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../../common/cards/RequirementType';
@@ -274,6 +275,42 @@ function adjacencyBonusText(adjacencyBonus: AdjacencyBonus | undefined): string 
   return parts.length > 0 ? parts.join(' and ') : undefined;
 }
 
+/**
+ * The KEY placement restriction of a declarative tile placement, as an English
+ * clause — the part the player MUST see (Artificial Lake places its ocean «on
+ * an area not reserved for ocean»; Lava Flows «on a volcanic area»; Ocean City
+ * «on top of an existing ocean tile»). The generic «Place an X tile.» drops it,
+ * so this is baked onto the tile line. `undefined` = the DEFAULT placement for
+ * that tile kind (no clause needed — an ocean on an ocean-reserved space, a
+ * special tile on land, …). A non-default `on` maps to its clause.
+ */
+const PLACEMENT_CLAUSE: Partial<Record<PlacementType, string>> = {
+  'land': 'on an area not reserved for ocean',
+  'ocean': 'on an area reserved for ocean',
+  'isolated': 'not next to any other tile',
+  'away-from-cities': 'not next to a city',
+  'volcanic': 'on a volcanic area',
+  'upgradeable-ocean': 'on top of an existing ocean tile',
+  'upgradeable-ocean-new-holland': 'on top of an existing ocean tile',
+  'city': 'on a city area',
+  'greenery': 'on a greenery area',
+};
+/** Per tile kind, the placement values that are the NORMAL rule → no clause. */
+const DEFAULT_PLACEMENT: Record<'ocean' | 'city' | 'greenery' | 'tile', ReadonlySet<PlacementType>> = {
+  ocean: new Set<PlacementType>(['ocean']),
+  city: new Set<PlacementType>(['land', 'city']),
+  greenery: new Set<PlacementType>(['land', 'greenery']),
+  // A special CITY tile (Capital) authors `on: 'city'` — that IS the normal
+  // city placement, not a special restriction, so no clause.
+  tile: new Set<PlacementType>(['land', 'city']),
+};
+function placementClause(kind: 'ocean' | 'city' | 'greenery' | 'tile', on: PlacementType | undefined): string | undefined {
+  if (on === undefined || DEFAULT_PLACEMENT[kind].has(on)) {
+    return undefined;
+  }
+  return PLACEMENT_CLAUSE[on];
+}
+
 function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | undefined {
   const b: Behavior | undefined = (card as {behavior?: Behavior}).behavior;
   if (b === undefined) {
@@ -356,25 +393,35 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
       push('global.venus', `Raise Venus ${g.venus === 1 ? '1 step' : `${g.venus} steps`}.`, ['venus']);
     }
   }
+  // Tile placements bake their KEY placement restriction (Artificial Lake «on
+  // an area not reserved for ocean», Lava Flows «on a volcanic area», …) and, for
+  // special tiles, the adjacency bonus — both are PROPERTIES of the placement,
+  // so they ride the same line rather than being dropped or split off.
+  const withClause = (verb: string, clause: string | undefined, extra?: string) =>
+    [verb, clause, extra].filter((s) => s !== undefined && s.length > 0).join(' ') + '.';
   if (b.ocean !== undefined) {
-    push('tile.ocean', 'Place an ocean tile.', ['oceans', 'tile-ocean']);
+    const count = b.ocean.count === 2 ? 2 : 1;
+    const verb = count === 2 ? 'Place 2 ocean tiles' : 'Place an ocean tile';
+    push('tile.ocean', withClause(verb, placementClause('ocean', b.ocean.on)), ['oceans', 'tile-ocean']);
   }
   if (b.city !== undefined) {
-    push('tile.city', 'Place a city tile.', ['city', 'tile-city']);
+    // A `space` pins the city to a RESERVED off-Mars slot (Ganymede, Phobos,
+    // Stanford Torus …) — «on the reserved area», the standard rule wording.
+    const clause = b.city.space !== undefined ? 'on the reserved area' : placementClause('city', b.city.on);
+    push('tile.city', withClause('Place a city tile', clause), ['city', 'tile-city']);
   }
   if (b.greenery !== undefined) {
-    push('tile.greenery', 'Place a greenery tile.', ['greenery', 'tile-greenery']);
+    push('tile.greenery', withClause('Place a greenery tile', placementClause('greenery', b.greenery.on)), ['greenery', 'tile-greenery']);
   }
   if (b.tile !== undefined) {
-    // Surface a declarative adjacency bonus (the Ares special tiles — Capital,
-    // Commercial District, Ocean Farm … — place a tile that grants one). The
-    // bonus is a PROPERTY of the placed tile, so it rides the same line rather
-    // than a phantom separate «bonus».
     const adj = adjacencyBonusText(b.tile.adjacencyBonus);
-    if (adj !== undefined) {
-      push('tile.special', `Place a special tile that grants an adjacency bonus of ${adj}.`, ['tile-']);
-    } else {
-      push('tile.special', 'Place a special tile.', ['tile-']);
+    push('tile.special',
+      withClause('Place a special tile', placementClause('tile', b.tile.on), adj === undefined ? undefined : `that grants an adjacency bonus of ${adj}`),
+      ['tile-']);
+    // An Ares hazard cost — OTHERS pay more to place adjacent (Nuclear Zone).
+    const cost = b.tile.adjacencyBonus?.cost;
+    if (cost !== undefined && cost > 0) {
+      push('tile.adjacencyCost', `Other players pay ${cost} M€ more to place a tile adjacent to it.`, ['tile-']);
     }
   }
   if (b.drawCard !== undefined) {
@@ -421,7 +468,8 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
   }
   if (b.colonies !== undefined) {
     if (b.colonies.buildColony !== undefined) {
-      push('colonies.build', 'Place a colony.', ['colonies']);
+      const dup = b.colonies.buildColony.allowDuplicates === true ? ' even where you already have a colony' : '';
+      push('colonies.build', `Place a colony${dup}.`, ['colonies']);
     }
     if (b.colonies.addTradeFleet !== undefined) {
       push('colonies.fleet', 'Gain a trade fleet.', ['trade_fleet']);
