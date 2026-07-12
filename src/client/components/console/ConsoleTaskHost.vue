@@ -1393,21 +1393,32 @@ export default defineComponent({
       if (strip === undefined) {
         return;
       }
-      if (this.activeTask.kind !== 'cardSelect' || this.gridMode) {
-        strip.style.removeProperty('--con-cards-zoom'); // grid/other own their zoom
+      if (this.activeTask.kind !== 'cardSelect') {
+        strip.style.removeProperty('--con-cards-zoom');
+        strip.style.removeProperty('--con-cards-grid-zoom');
+        strip.style.removeProperty('max-width');
         return;
       }
       const n = strip.children.length;
       if (n === 0) {
         strip.style.removeProperty('--con-cards-zoom');
+        strip.style.removeProperty('--con-cards-grid-zoom');
+        strip.style.removeProperty('max-width');
         return;
       }
-      // Measure one slot at natural scale, then compute the zoom that fits N.
-      // offsetWidth (NOT getBoundingClientRect) ignores the focused card's
-      // transform: scale, so the measure isn't inflated by the 1.08 lift.
-      strip.style.setProperty('--con-cards-zoom', '1');
-      const slotW = (strip.children[0] as HTMLElement).offsetWidth;
-      if (slotW <= 0) {
+      const grid = this.gridMode;
+      // Probe one slot at natural scale (offsetWidth/Height ignore the focused
+      // card's transform: scale AND report the UNZOOMED box). The premium
+      // 320×460 face made HEIGHT the binding constraint for the grid buy, so
+      // both branches now fit height too (was width-only + a fixed grid zoom
+      // tuned for the legacy 300×415 card → the 10-card buy overflowed).
+      strip.style.setProperty(grid ? '--con-cards-grid-zoom' : '--con-cards-zoom', '1');
+      strip.style.removeProperty(grid ? '--con-cards-zoom' : '--con-cards-grid-zoom');
+      strip.style.removeProperty('max-width');
+      const probe = strip.children[0] as HTMLElement;
+      const slotW = probe.offsetWidth;
+      const slotH = probe.offsetHeight;
+      if (slotW <= 0 || slotH <= 0) {
         // Not laid out yet (JSDOM / mid-reload) — retry a bounded number of frames.
         if (this.fitRetries < 20) {
           this.fitRetries++;
@@ -1418,14 +1429,39 @@ export default defineComponent({
       this.fitRetries = 0;
       const cs = window.getComputedStyle(strip);
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const rowGap = parseFloat(cs.rowGap) || colGap;
       const availW = strip.clientWidth - padX;
-      // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
-      // zoom against the width left after the gaps. 0.96 leaves headroom for
-      // the focused card's scale(1.08) — the row fits WITH the lift, so it
-      // never tips into overflow/scroll.
-      const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * gap) / (n * slotW)));
-      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+      if (!grid) {
+        // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
+        // zoom against the width left after the gaps. 0.96 leaves headroom for
+        // the focused card's scale(1.08) — the row fits WITH the lift.
+        const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * colGap) / (n * slotW)));
+        strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+        return;
+      }
+      // GRID buy: the modal is centred + viewport-capped (max-height: 86vh),
+      // so the available HEIGHT is a viewport budget (cap − the modal's header
+      // + verdict + paddings chrome), NOT the strip's own height (which grows
+      // WITH the cards → circular). Pick the balanced rows×cols with the
+      // largest zoom that fits both axes; cap the width so flex-wrap breaks at
+      // the planned columns (5+5, never 6+4).
+      const CHROME = 220; // header (title/trigger) + verdict bar + modal paddings
+      const availH = Math.max(200, 0.86 * window.innerHeight - CHROME - padY);
+      let best = {zoom: 0, cols: Math.ceil(n / 2)};
+      for (let rows = 1; rows <= Math.min(3, n); rows++) {
+        const cols = Math.ceil(n / rows);
+        const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
+        const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
+        const zoom = Math.min(1, wZoom, hZoom);
+        if (zoom > best.zoom) {
+          best = {zoom, cols};
+        }
+      }
+      const zoom = Math.max(0.4, best.zoom);
+      strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
+      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX) + 2}px`;
     },
     // ── card browser helpers (T2) ────────────────────────────────────
     isPicked(name: CardName): boolean {

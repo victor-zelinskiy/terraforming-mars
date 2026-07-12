@@ -188,7 +188,7 @@
     "${0} gained 2 ${1} from ${2}": "${0} получил 2 ${1} с помощью ${2}",
     "${0} gained 2 Science tags": "${0} получил 2 жетона Науки",
     "${0} gained 4 M€ for playing ${1}, which has no tags.": "${0} получил 4 M€ за розыгрыш ${1} без жетонов.",
-    "${0} gained a Jovian tag from the Delta Project": "${0} получил тег Юпитера от Гидросети",
+    "${0} gained a Jovian tag from the Delta Project": "${0} получил метку Юпитера от Гидросети",
     "${0} gained a bonus ${1} because of ${2}": "${0} получил бонусный ${1} из-за ${2}",
     "${0} gains ${1} M€ for a tile placed next to ${2}": "${0} получает ${1} M€ за тайл рядом с ${2}",
     "${0} gains ${1} TR instead of ${2} due to the Reds ruling policy": "${0} получает ${1} РТ вместо ${2} из-за правящей политики Красных",

@@ -20,10 +20,14 @@
 
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
-/** Natural card-container width (`cards.less .filterDiv { width: 300px }`). */
-export const CARD_NATURAL_W = 300;
-/** Natural FULL project-card height (matches playedTableauFit.FIT.cardNaturalH). */
-export const CARD_NATURAL_H = 415;
+/** Natural card face width — the PREMIUM `.pcard` design box (320×460 @ zoom 1;
+ *  see premium_card.less / premiumCardViewModel). The hand renders project cards
+ *  through the premium face, so the plan MUST size against 320×460, not the
+ *  legacy 300×415 (that underestimated height → 2 rows read as "fit", centred
+ *  non-scrolling, and overflowed the footer on the Steam Deck). */
+export const CARD_NATURAL_W = 320;
+/** Natural PREMIUM card-face height (the `.pcard` box @ zoom 1). */
+export const CARD_NATURAL_H = 460;
 /** Column gap (px) — MUST match the CSS `.con-hand__row` gap. */
 export const GAP_X = 16;
 /** Row gap (px) — MUST match the CSS row margin. */

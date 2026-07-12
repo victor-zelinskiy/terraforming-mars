@@ -343,7 +343,9 @@
              server reasons the hand verdict shows (desktop parity). -->
         <div v-if="zoomReasons.length > 0" class="con-zoom__reasons">
           <span class="con-zoom__reasons-head"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
-          <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
+          <div class="con-zoom__reason-list">
+            <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
+          </div>
         </div>
         <div class="con-zoom__bar">
           <!-- The prominent ROLE status (single-card reveal): «ПОЛУЧЕННАЯ
@@ -401,13 +403,6 @@
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
             <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
             <span>{{ $t('Browse') }}</span>
-          </span>
-          <!-- The rule-overlay traversal (right-stick DEFLECTION, not R3 —
-               hence the bespoke RS plate): advertised only when the card
-               actually has rule blocks on screen. -->
-          <span v-if="annotationTraversalState.active" class="con-zoom__cmd">
-            <span class="con-zoom__rs" aria-hidden="true">RS</span>
-            <span>{{ $t('Hints') }}</span>
           </span>
           <!-- A MANDATORY viewer (single-card reveal) has NO close — the only
                completion is taking the received card. -->
@@ -595,7 +590,6 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {annotationTraversalState, stepAnnotationFocus} from '@/client/components/cardAnnotations/annotationFocusBus';
 import {playZoomOpen, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -732,10 +726,6 @@ export default defineComponent({
       zoomClosing: false,
       /** Re-entrancy guard for the single-card reveal L3 role swap. */
       zoomSwapping: false,
-      /** Rule-overlay traversal presence (drives the RS hint chip). */
-      annotationTraversalState,
-      /** Right-stick flick edge detector (armed = ready for the next step). */
-      zoomStickArmed: true,
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
@@ -4111,12 +4101,9 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'scroll') {
-        // RIGHT STICK = rule-overlay traversal (the annotation layer's
-        // focus cycles through the visible rule blocks; D-pad / left stick
-        // stay reserved for card browsing). Flick semantics: one step per
-        // deflection past the threshold, re-armed on return to centre —
-        // never a per-frame autoscroll through the blocks.
-        this.zoomStickFlick(intent.dy);
+        // Right-stick does nothing in the fullscreen viewer — the rule-overlay
+        // traversal was removed (it overloaded the controls for little value).
+        // Swallow it so it can't leak to a surface underneath.
         return true;
       }
       if (intent.kind !== 'press') {
@@ -4172,26 +4159,6 @@ export default defineComponent({
         return true;
       default:
         return true; // the viewer owns ALL input while open
-      }
-    },
-    /**
-     * Right-stick FLICK → one traversal step across the fullscreen rule
-     * blocks (annotationFocusBus; the layer registers only while blocks are
-     * on screen — no layer, no-op). Edge-detected: a step fires when the
-     * deflection crosses the threshold and re-arms only after the stick
-     * returns near centre, so holding the stick never machine-guns focus.
-     */
-    zoomStickFlick(dy: number) {
-      const mag = Math.abs(dy);
-      if (!this.zoomStickArmed) {
-        if (mag < 0.25) {
-          this.zoomStickArmed = true;
-        }
-        return;
-      }
-      if (mag >= 0.55) {
-        this.zoomStickArmed = false;
-        stepAnnotationFocus(dy > 0 ? 1 : -1);
       }
     },
     /**

@@ -42,7 +42,7 @@
     "No cards gain the reward of this action.": "Ни одна карта не получает выгоду от этого действия.",
     "This action will have no effect.": "Это действие не даст эффекта.",
     "Note: This action will target you.": "Примечание: это действие затронет вас.",
-    "Note: playing a card with a microbe tag will cause you to lose 4 M€ (or as much as possible).": "Примечание: розыгрыш карты с тегом бактерии заставит вас потерять 4 M€ (или сколько возможно).",
+    "Note: playing a card with a microbe tag will cause you to lose 4 M€ (or as much as possible).": "Примечание: розыгрыш карты с меткой бактерии заставит вас потерять 4 M€ (или сколько возможно).",
     "Select player to remove up to ${0} plants": "Выберите игрока, у которого удалить до ${0} растений",
     "Remove ${0} plants from ${1}": "Удалите ${0} растений у ${1}",
     "Remove plants from the neutral oppponent": "Удалить растения у нейтрального соперника",

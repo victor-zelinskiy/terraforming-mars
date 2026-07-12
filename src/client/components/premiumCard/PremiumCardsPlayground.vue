@@ -52,7 +52,7 @@
 
     <!-- tag extremes -->
     <section class="pcpg__section">
-      <h2>Максимум тегов</h2>
+      <h2>Максимум меток</h2>
       <div class="pcpg__row">
         <PremiumCard v-for="n in mostTags" :key="n" :card="modelOf(n)" />
       </div>

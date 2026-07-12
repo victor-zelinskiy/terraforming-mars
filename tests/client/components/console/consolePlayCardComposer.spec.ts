@@ -280,10 +280,12 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     expect(v.chips[1]).to.deep.include({isAutoBalanced: true});
   });
 
-  it('quick-adjust canDecrease is FALSE when M€ cannot cover the larger remainder', () => {
-    // cost 11, 5 steel used, but only 0 M€ on hand → dropping steel would leave 2 M€ uncovered.
+  it('quick-adjust canDecrease stays TRUE even when dropping the alt underpays (parity with the LT editor)', () => {
+    // cost 11, 5 steel used, only 0 M€ on hand → dropping steel underpays. LB must
+    // stay LIVE (the detailed lanes editor lets the player dial into underpayment);
+    // the shortfall is flagged (deficit) and blocks the confirm, never the button.
     const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0, stock: {steel: 5}});
-    expect(v.chips[0].canDecrease).to.be.false;
+    expect(v.chips[0].canDecrease).to.be.true;
     expect(v.paymentValid).to.be.false; // 5*2=10 < 11, no M€ to top up
     expect(v.deficit).to.equal(1);
   });

@@ -204,8 +204,13 @@ export function buildPaymentView(args: {
       isAdjustable: adjustable,
       // Up = more alt (less M€), bounded by the anti-overpay cap.
       canIncrease: adjustable && n < cap,
-      // Down = less alt — only if M€ can still cover the (larger) remainder.
-      canDecrease: adjustable && n > 0 && (cost - (n - 1) * lane.rate) <= mcAvailable,
+      // Down = less alt, all the way to 0 — PARITY with the detailed lanes editor
+      // (adjustLane), which clamps at 0 and freely lets the player dial DOWN into an
+      // underpayment; the resulting shortfall is surfaced (deficit / «Not enough
+      // resources») and blocks the CONFIRM, never the button. Quick-adjust must not
+      // be stricter than the LT editor — an M€-coverage guard here made LB dead the
+      // moment the mix reached the exact cost, which read as broken.
+      canDecrease: adjustable && n > 0,
     };
   };
 

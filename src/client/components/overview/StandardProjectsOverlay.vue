@@ -29,7 +29,7 @@
           <div class="std-project-row-name" v-i18n>{{ nameFor(p) }}</div>
           <div class="std-project-row-desc" v-i18n>{{ descriptionFor(p) }}</div>
           <!-- Air Scrapping (Alternative Venus Board): name the per-Venus-tag
-               discount the final price already reflects — "−3 за теги Венеры" —
+               discount the final price already reflects — "−3 за метки Венеры" —
                WITHOUT repeating the base 15 M€ (the right-side CTA already shows
                the resulting price). Hidden when there's no discount. -->
           <div v-if="discountFor(p) > 0"

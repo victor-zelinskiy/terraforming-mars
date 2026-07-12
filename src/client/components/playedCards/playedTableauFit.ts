@@ -82,8 +82,13 @@ export type FitConstants = {
 };
 
 export const FIT: FitConstants = {
-  cardNaturalW: 300,
-  cardNaturalH: 415,
+  // The PREMIUM card face (`.pcard`, 320×460 @ zoom 1) the tableau renders now.
+  // The overlay OVERRIDES cardNaturalH with a live per-render measure (clamped
+  // [330,470]); the WIDTH is not measured, so this constant governs the column
+  // count — it must be the real 320, not the legacy 300 (which packed one column
+  // too many and let verifyShrink over-shrink to recover).
+  cardNaturalW: 320,
+  cardNaturalH: 460,
   minZoom: 0.34,
   // Up to the card's NATURAL size — so a few cards on a big / 4K screen GROW to
   // fill the space (the cards were capped too small before, leaving the right

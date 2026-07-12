@@ -40,8 +40,12 @@ export type StartGameFlowLayoutBudget = {
   modalOffsetY: number;
 };
 
-const CARD_NATURAL_W = 300;
-const CARD_NATURAL_H = 420;
+// The PREMIUM card face (`.pcard`, 320×460 @ zoom 1) — preludes render through
+// it now. Corporations are still the legacy face (300×~415), but reserving
+// against the LARGER premium box is the safe direction (extra room, never a
+// clip); the legacy 300×420 under-reserved and clipped premium prelude rows.
+const CARD_NATURAL_W = 320;
+const CARD_NATURAL_H = 460;
 const CARD_CHROME_H = 58; // status/action area under the card
 const SECTION_LABEL_H = 24;
 const SECTION_GAP_H = 18;

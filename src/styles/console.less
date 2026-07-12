@@ -8520,20 +8520,6 @@ html.console-mode {
 }
 /* The right-stick DEFLECTION plate (rule-overlay traversal) — bespoke: the
    glyph set's stickR means R3 (a press), which would mislead here. */
-.con-zoom__rs {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 26px;
-    height: 20px;
-    padding: 0 5px;
-    border-radius: 10px;
-    border: 1px solid fade(@con-text-dim, 55%);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: @con-text-dim;
-}
 /* P17: the context PLAY action (desktop parity) + the «why not» panel for
    an unplayable card - the fullscreen viewer is never mute. */
 .con-zoom__btn--play {
@@ -8547,9 +8533,20 @@ html.console-mode {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     margin-bottom: 8px;
     font-family: @con-font;
+}
+/* The reason chips flow in a centred, wrapping ROW so multiple short
+   "why not" lines share the horizontal band instead of stacking into a
+   tall column that pushes the card up. */
+.con-zoom__reason-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 6px 8px;
+    max-width: min(1040px, 92vw);
 }
 .con-zoom__reasons-head {
     display: inline-flex;
@@ -8566,16 +8563,18 @@ html.console-mode {
     text-transform: uppercase;
 }
 .con-zoom__reason {
+    display: inline-flex;
+    align-items: center;
     padding: 3px 12px;
     border-radius: 8px;
     background: rgba(10, 17, 26, 0.8);
     box-shadow: inset 0 0 0 1px rgba(150, 175, 205, 0.22);
     border-left: 3px solid fade(@con-red, 55%);
     color: @con-text;
-    font-size: 14.5px;
-    line-height: 1.35;
-    max-width: 560px;
-    text-align: center;
+    font-size: 14px;
+    line-height: 1.3;
+    max-width: 420px;
+    text-align: left;
 }
 /* A read-only SOURCE viewer names itself («Источник добора карт») so the
    inspected card never reads as an ordinary picked card. */
@@ -11261,7 +11260,13 @@ html.console-mode {
     &__rescat-text { font-weight: 600; }
     &__rescat-text b { color: @con-mint; font-weight: 800; font-variant-numeric: tabular-nums; }
     &__rescat-tags { display: inline-flex; align-items: center; gap: 6px; }
-    &__rescat-tag { width: 26px; height: 26px; }
+    /* Override the legacy `.resource-tag` base (34px sprite in a 30px box, -2px
+       offset, +5px bottom margin) — in this 26px inline-flex row those made the
+       icons oversized, off-centre and skewed. Fit the sprite + drop the margin. */
+    &__rescat-tag {
+        width: 26px; height: 26px; margin: 0; line-height: 26px;
+        background-size: contain; background-position: center; background-repeat: no-repeat;
+    }
     /* A muted one-line clarification (event tags: "not counted afterward"). */
     &__rescat-note {
         flex-basis: 100%; margin-left: 28px;

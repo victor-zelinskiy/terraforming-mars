@@ -164,7 +164,7 @@ export type EvidenceChip = {
   v: string;
   tone?: 'metric' | 'good' | 'bad' | 'neutral';
   /** Optional i18n unit/descriptor rendered AFTER the value (e.g. "+14" + "VP" → "+14 ПО",
-   *  "6" + "Jovian tags" → "6 юпитерианских тегов"). Backward-compatible (absent → bare value). */
+   *  "6" + "Jovian tags" → "6 юпитерианских меток"). Backward-compatible (absent → bare value). */
   label?: string;
 };
 
