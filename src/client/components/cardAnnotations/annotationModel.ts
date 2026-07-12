@@ -10,13 +10,16 @@
  * (cardGraphicIds.ts), which the premium face stamps onto its DOM. No
  * runtime text parsing, no per-card wiring.
  *
- * GROUPED BY SEMANTIC TYPE: one rule block per type — «Требование» is
- * always ONE block (composite requirements become internal rows),
- * «При розыгрыше» is always ONE block (each sub-effect a row, the block
- * tethers to the card's play-rail), action cost/result fold into ONE
- * «Действие» block, passive effects merge into ONE «Эффект» block. Rows
- * keep their own exact anchors (graphicId/graphicNode) for row-level
- * hover precision; the GROUP carries the tether anchor.
+ * GROUPED BY SEMANTIC TYPE — with a deliberate EXCEPTION for effects and
+ * actions. «Требование» is always ONE block (composite requirements become
+ * internal rows) and «При розыгрыше» is always ONE block (each sub-effect
+ * a row, the block tethers to the card's play-rail). But EVERY effect and
+ * EVERY action is its OWN block: each has its own frame on the card, so
+ * each gets its own tether — merging them would re-create the very
+ * section-anchor ambiguity the exact anchors removed. An action's related
+ * parts (cost/result blocks of ONE info group) still fold into that
+ * action's rows. Rows keep their own exact anchors (graphicId/graphicNode)
+ * for row-level hover precision; the block carries the tether anchor.
  *
  * The styled «*» (the physical cards' special-rule footnote) is detected
  * from the linked graphic row itself (an ASTERIX symbol anywhere in it) —
@@ -138,39 +141,44 @@ export function buildCardAnnotations(clientCard: ClientCard): Array<CardAnnotati
   const vpSpecial = vp !== undefined && typeof vp !== 'number' &&
     (vp.asterisk === true || vp.targetOneOrMore === true || vp.vermin === true);
 
+  const toRow = (block: {id: string, kind: string, text: string, graphicId?: string, graphicNode?: string}): CardAnnotationRow => ({
+    id: block.id,
+    text: block.text,
+    graphicId: block.graphicId,
+    graphicNode: block.graphicNode,
+    special:
+      block.kind === 'note' ||
+      (block.graphicId === 'vp' && vpSpecial) ||
+      (block.graphicId !== undefined && specialByGraphic.get(block.graphicId) === true),
+  });
+
+  // By-type buckets (requirement / «При розыгрыше» / VP / notes)…
   const buckets = new Map<CardAnnotationKind, Array<CardAnnotationRow>>();
+  // …and STANDALONE blocks: one per effect / action info group (each has
+  // its own frame on the card — its own tether), in info-model order.
+  const standalone = new Map<'effect' | 'action', Array<Array<CardAnnotationRow>>>([['effect', []], ['action', []]]);
   for (const group of information.groups) {
+    if (group.kind === 'effect' || group.kind === 'action') {
+      standalone.get(group.kind)?.push(group.blocks.map(toRow));
+      continue;
+    }
     for (const block of group.blocks) {
-      const special =
-        block.kind === 'note' ||
-        (block.graphicId === 'vp' && vpSpecial) ||
-        (block.graphicId !== undefined && specialByGraphic.get(block.graphicId) === true);
       const kind = groupKindOf(block.kind);
       let rows = buckets.get(kind);
       if (rows === undefined) {
         rows = [];
         buckets.set(kind, rows);
       }
-      rows.push({
-        id: block.id,
-        text: block.text,
-        graphicId: block.graphicId,
-        graphicNode: block.graphicNode,
-        special,
-      });
+      rows.push(toRow(block));
     }
   }
 
   const annotations: Array<CardAnnotation> = [];
   let order = 0;
-  for (const kind of KIND_ORDER) {
-    const rows = buckets.get(kind);
-    if (rows === undefined || rows.length === 0) {
-      continue;
-    }
+  const push = (kind: CardAnnotationKind, id: string, rows: Array<CardAnnotationRow>) => {
     const anchored = rows.find((r) => r.graphicId !== undefined);
     annotations.push({
-      id: `group:${kind}`,
+      id,
       kind,
       labelKey: LABEL_BY_KIND[kind],
       rows,
@@ -179,6 +187,27 @@ export function buildCardAnnotations(clientCard: ClientCard): Array<CardAnnotati
       graphicNode: anchored?.graphicNode,
       order: order++,
     });
+  };
+  for (const kind of KIND_ORDER) {
+    if (kind === 'effect' || kind === 'action') {
+      standalone.get(kind)?.forEach((rows, i) => {
+        if (rows.length > 0) {
+          push(kind, `group:${kind}:${i}`, rows);
+        }
+      });
+      // Defensive: an effect/action-kind block that (unexpectedly) lives
+      // outside its own info group still surfaces as its own block —
+      // never silently dropped.
+      const stray = buckets.get(kind);
+      if (stray !== undefined && stray.length > 0) {
+        push(kind, `group:${kind}:stray`, stray);
+      }
+      continue;
+    }
+    const rows = buckets.get(kind);
+    if (rows !== undefined && rows.length > 0) {
+      push(kind, `group:${kind}`, rows);
+    }
   }
   return annotations;
 }

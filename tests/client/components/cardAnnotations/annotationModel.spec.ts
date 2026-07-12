@@ -53,6 +53,29 @@ function syntheticCard(): ClientCard {
   } as unknown as ClientCard;
 }
 
+/** A synthetic ACTIVE card with TWO separate effect frames — each must
+ *  yield its OWN annotation block (own frame → own tether). */
+function twoEffectsCard(): ClientCard {
+  return {
+    name: CardName.HERBIVORES,
+    module: 'base',
+    tags: [],
+    type: CardType.ACTIVE,
+    compatibility: [],
+    hasAction: false,
+    metadata: {
+      cardNumber: 'X02',
+      renderData: {is: 'root', rows: []},
+      information: {
+        groups: [
+          {kind: 'effect', id: 'g:e1', blocks: [{id: 'effect:e1', kind: 'effect', text: 'Effect: First ongoing rule.', graphicId: 'g:e1'}]},
+          {kind: 'effect', id: 'g:e2', blocks: [{id: 'effect:e2', kind: 'effect', text: 'Effect: Second ongoing rule.', graphicId: 'g:e2'}]},
+        ],
+      },
+    },
+  } as unknown as ClientCard;
+}
+
 describe('annotationModel', () => {
   it('groups by semantic type: ONE «On play» block with rows (Asteroid)', () => {
     const annotations = buildCardAnnotations(getCardOrThrow(CardName.ASTEROID));
@@ -60,9 +83,19 @@ describe('annotationModel', () => {
     expect(immediate).to.have.length(1);
     expect(immediate[0].rows.length).to.be.gte(2); // temp + remove plants + titanium
     expect(immediate[0].labelKey).to.eq('On play');
-    // never more than one block per semantic type
-    const kinds = annotations.map((a) => a.kind);
-    expect(new Set(kinds).size).to.eq(kinds.length);
+    // block ids stay unique
+    const ids = annotations.map((a) => a.id);
+    expect(new Set(ids).size).to.eq(ids.length);
+  });
+
+  it('EXCEPTION: every effect / action is its OWN block (never merged)', () => {
+    const annotations = buildCardAnnotations(twoEffectsCard());
+    const effects = annotations.filter((a) => a.kind === 'effect');
+    expect(effects).to.have.length(2);
+    expect(effects[0].id).to.not.eq(effects[1].id);
+    expect(effects[0].graphicId).to.eq('g:e1'); // each tethers to ITS frame
+    expect(effects[1].graphicId).to.eq('g:e2');
+    expect(effects[0].rows).to.have.length(1);
   });
 
   it('is silent for cards without the information model', () => {
@@ -120,8 +153,13 @@ describe('annotationModel', () => {
     expect(covered.length).to.be.greaterThan(300); // the model ships broadly
     for (const card of covered) {
       const annotations = buildCardAnnotations(card);
+      expect(new Set(annotations.map((a) => a.id)).size, card.name).to.eq(annotations.length);
+      // ONE block per GROUPED type; effects/actions may legitimately repeat
+      // (each is its own block by design).
       const kinds = annotations.map((a) => a.kind);
-      expect(new Set(kinds).size, card.name).to.eq(kinds.length); // one per type
+      for (const grouped of ['requirement', 'immediate', 'victory-points', 'note'] as const) {
+        expect(kinds.filter((k) => k === grouped).length, `${card.name} ${grouped}`).to.be.lte(1);
+      }
       for (const a of annotations) {
         expect(a.labelKey, `${card.name} → ${a.kind}`).to.be.a('string').and.not.empty;
         expect(a.rows.length, `${card.name} → ${a.kind}`).to.be.gte(1);
