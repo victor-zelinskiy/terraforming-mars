@@ -25,14 +25,12 @@ export class NitrogenRichAsteroid extends Card implements IProjectCard {
 
       metadata: {
 
+        // Order MUST follow the render (row 0 = plant production, row 1 = TR +
+        // temperature); the player reads sequence from the card top-to-bottom.
         infoText: [
-
-          {text: 'Raise your terraform rating 2 steps.', tokens: ['tr']},
-
-          {text: 'Raise the temperature 1 step.', tokens: ['temperature']},
-
           {text: 'Increase your plant production 1 step, or 4 steps if you have at least 3 plant tags.', tokens: ['production(']},
-
+          {text: 'Raise your terraform rating 2 steps.', tokens: ['tr']},
+          {text: 'Raise the temperature 1 step.', tokens: ['temperature']},
         ],
         cardNumber: '037',
         renderData: CardRenderer.builder((b) => {

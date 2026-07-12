@@ -26,7 +26,7 @@ export class Merger extends PreludeCard {
         infoText: [
           {text: 'Draw 4 corporation cards.', tokens: ['corporation']},
           {text: 'Play one of them and discard the other 3.'},
-          {text: 'Then pay 42 M€.', tokens: ['megacredits']},
+          {text: 'Pay 42 M€.', tokens: ['megacredits']},
         ],
       },
     });

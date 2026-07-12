@@ -192,6 +192,55 @@ describe('card information model', function() {
     }
   });
 
+  // ── ORDER IS THE ONLY CARRIER OF SEQUENCE (hard requirement) ──────────
+  // The player must READ the on-play order top-to-bottom. So (a) a block never
+  // leans on a connective word ("then", "afterwards", …) to state sequence, and
+  // (b) the block order follows the card's render reading order — which is
+  // authored to match the real on-play execution order. See the "Card
+  // Information Model" section in CLAUDE.md.
+
+  it('no block leans on a sequencing connective word (order carries sequence)', () => {
+    // ONLY pure ordering connectives — NOT "next" ("the next card you play"),
+    // "after"/"before" (effect triggers) or ordinals ("first player", "second
+    // standard project"), which are legitimate rule wording.
+    const BANNED = /\b(then|afterwards?|finally|subsequently|firstly|secondly|thirdly|lastly)\b/i;
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      for (const group of info(card)?.groups ?? []) {
+        for (const block of group.blocks) {
+          if (BANNED.test(block.text)) {
+            offenders.push(`${card.name}: ${block.text}`);
+          }
+        }
+      }
+    }
+    expect(offenders, `sequencing word — convey order by BLOCK ORDER instead:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
+  it('immediate blocks are in RENDER READING ORDER (row-monotone, never interleaved)', () => {
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      const rowOf = new Map(deriveGraphicIds(card.metadata.renderData).map((r) => [r.id, r.rowIndex]));
+      const immediate = info(card)?.groups.find((g) => g.kind === 'immediate');
+      if (immediate === undefined) {
+        continue;
+      }
+      // The render-row index of each block that links to a mechanic row, in
+      // block order. Must be non-decreasing: reading the blocks top-to-bottom
+      // walks the card's rows once, never jumping back up.
+      const rows = immediate.blocks
+        .map((b) => (b.graphicId !== undefined ? rowOf.get(b.graphicId) : undefined))
+        .filter((r): r is number => r !== undefined);
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i] < rows[i - 1]) {
+          offenders.push(`${card.name}: block rows ${rows.join(',')} jump backwards`);
+          break;
+        }
+      }
+    }
+    expect(offenders, `immediate blocks out of render order:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
   it('out-of-scope cards carry NO information (scope is explicit)', () => {
     const outside = loadCards().filter((c) => !SCOPE_MODULES.has(c.module) || !SCOPE_TYPES.has(c.type));
     for (const card of outside) {

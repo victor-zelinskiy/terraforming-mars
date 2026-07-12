@@ -28,11 +28,9 @@ export class SponsoredAcademies extends Card implements IProjectCard {
       metadata: {
 
         infoText: [
-
-          {text: 'Discard 1 card from your hand, then draw 3 cards.', tokens: ['cards']},
-
+          {text: 'Discard 1 card from your hand.', tokens: ['cards']},
+          {text: 'Draw 3 cards.', tokens: ['cards']},
           {text: 'All opponents draw 1 card.', tokens: ['cards']},
-
         ],
         cardNumber: '247',
         renderData: CardRenderer.builder((b) => {

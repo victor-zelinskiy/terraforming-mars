@@ -34,7 +34,7 @@
   "Decrease your energy production 4 steps.": "Уменьшите своё производство энергии на 4.",
   "Decrease your heat production 2 steps.": "Уменьшите своё производство тепла на 2.",
   "Decrease your plants production 1 step.": "Уменьшите своё производство растений на 1.",
-  "Discard 1 card from your hand, then draw 3 cards.": "Сбросьте 1 карту с руки, затем возьмите 3 карты.",
+  "Discard 1 card from your hand.": "Сбросьте 1 карту с руки.",
   "Draw 1 card, or draw 3 cards if you have at least 3 Venus tags.": "Возьмите 1 карту (3 карты, если у вас не менее 3 меток Венеры).",
   "Draw 2 cards.": "Возьмите 2 карты.",
   "Draw 2 prelude cards: play 1 of them and discard the other.": "Возьмите 2 карты прелюдий: разыграйте одну из них, а другую сбросьте.",
@@ -259,5 +259,6 @@
   "They may not be cards that place special tiles.": "Это не могут быть карты, размещающие особые тайлы.",
   "Draw 4 corporation cards.": "Возьмите 4 карты корпораций.",
   "Play one of them and discard the other 3.": "Разыграйте одну из них, а остальные 3 сбросьте.",
-  "Then pay 42 M€.": "Затем заплатите 42 M€."
+  "Pay 42 M€.": "Заплатите 42 М€.",
+  "Pay for and perform 2 standard projects.": "Оплатите и выполните 2 стандартных проекта."
 }

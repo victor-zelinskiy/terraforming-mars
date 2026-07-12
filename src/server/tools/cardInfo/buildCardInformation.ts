@@ -566,7 +566,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         vpTextOverride = entry.text;
         return;
       }
-      const match = entry.tokens !== undefined ? matchGraphic(graphics, entry.tokens, card.metadata.renderData) : {};
+      const match = entry.tokens !== undefined ? graphicOf(matchGraphic(graphics, entry.tokens, card.metadata.renderData)) : {};
       const block: CardInfoBlock = {
         id: `mech:authored.${i}`,
         kind,
@@ -584,14 +584,11 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     const pending = behaviorBlocks(card, notes);
     const hasBespoke = hasBespokePlay(card);
     if (pending !== undefined && pending.length > 0 && !hasBespoke && !notes.includes('behavior-partial')) {
-      immediate = pending.map((p) => ({
-        ...p.block,
-        ...matchGraphic(graphics, p.tokens, card.metadata.renderData),
-      }));
+      immediate = orderBehaviorBlocks(pending, graphics, card.metadata.renderData);
     } else if (pending !== undefined && pending.length > 0) {
       // Declarative part + a bespoke remainder → keep the canonical blocks,
       // flag for curation (the bespoke part is not yet described).
-      immediate = pending.map((p) => ({...p.block, ...matchGraphic(graphics, p.tokens, card.metadata.renderData)}));
+      immediate = orderBehaviorBlocks(pending, graphics, card.metadata.renderData);
       status = 'needs-curation';
     } else {
       // Fully bespoke — seed a single block from the printed description
@@ -717,6 +714,8 @@ function hasBespokePlay(card: ICard): boolean {
 }
 
 type GraphicMatch = {graphicId?: string, graphicNode?: string};
+/** matchGraphic + the RENDER POSITION of the matched node (for block ordering). */
+type GraphicMatchPos = GraphicMatch & {rowIndex?: number, nodeIndex?: number};
 
 /**
  * Match a block's wanted tokens to a graphic ROW, and — within it — to the
@@ -724,8 +723,10 @@ type GraphicMatch = {graphicId?: string, graphicNode?: string};
  * the shared `nodeGraphicToken` derivation). The node is what the fullscreen
  * annotation layer tethers to: a row hosting several mechanics gives each
  * block its own semantic anchor instead of one ambiguous section anchor.
+ * Also returns the matched node's `rowIndex`/`nodeIndex` — the render reading
+ * position `orderBehaviorBlocks` sorts by (never serialized into the block).
  */
-function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatch {
+function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatchPos {
   const root = renderData !== undefined && isICardRenderRoot(renderData) ? renderData : undefined;
   for (const ref of graphics) {
     if (ref.kind !== 'row') {
@@ -733,25 +734,53 @@ function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: Readonly
     }
     for (const wanted of tokens) {
       if (ref.tokens.some((have) => have === wanted || have.startsWith(wanted))) {
-        return {graphicId: ref.id, graphicNode: matchRowNode(root?.rows[ref.rowIndex], wanted)};
+        const {node, nodeIndex} = matchRowNode(root?.rows[ref.rowIndex], wanted);
+        return {graphicId: ref.id, graphicNode: node, rowIndex: ref.rowIndex, nodeIndex};
       }
     }
   }
   return {};
 }
 
+/** Only the serializable half of a match (drops the ordering position). */
+function graphicOf(match: GraphicMatchPos): GraphicMatch {
+  return {graphicId: match.graphicId, graphicNode: match.graphicNode};
+}
+
+/**
+ * Order the behavior-derived immediate blocks by their RENDER reading position
+ * (row, then node within the row) so the sequence the player reads TOP-TO-BOTTOM
+ * matches the card graphic — which is authored to match the real on-play
+ * execution order. The `behaviorBlocks` emission order is a FIXED key order
+ * (spend → production → stock → … → tile) that can disagree with the render;
+ * this sort is the single place that reconciles it. A stable sort keeps
+ * same-position (or unmatched) blocks in their original behavior order.
+ */
+function orderBehaviorBlocks(pending: ReadonlyArray<Pending>, graphics: ReadonlyArray<GraphicBlockRef>, renderData: ICard['metadata']['renderData']): Array<CardInfoBlock> {
+  const positioned = pending.map((p) => {
+    const m = matchGraphic(graphics, p.tokens, renderData);
+    return {
+      block: {...p.block, ...graphicOf(m)},
+      row: m.rowIndex ?? Number.MAX_SAFE_INTEGER,
+      node: m.nodeIndex ?? Number.MAX_SAFE_INTEGER,
+    };
+  });
+  positioned.sort((a, b) => (a.row - b.row) || (a.node - b.node));
+  return positioned.map((p) => p.block);
+}
+
 /** The first row node whose token matches — same rule as the row match. */
-function matchRowNode(row: ReadonlyArray<ItemType> | undefined, wanted: string): string | undefined {
+function matchRowNode(row: ReadonlyArray<ItemType> | undefined, wanted: string): {node?: string, nodeIndex?: number} {
   if (row === undefined) {
-    return undefined;
+    return {};
   }
-  for (const node of row) {
-    const token = nodeGraphicToken(node);
+  for (let i = 0; i < row.length; i++) {
+    const token = nodeGraphicToken(row[i]);
     if (token !== undefined && (token === wanted || token.startsWith(wanted))) {
-      return token;
+      return {node: token, nodeIndex: i};
     }
   }
-  return undefined;
+  return {};
 }
 
 /* ── artifacts ──────────────────────────────────────────────────────── */
