@@ -22,6 +22,16 @@
  * lighting. Never an infinite animation.
  */
 
+/* The «any player» / «{all}» accent — a warm, desaturated crimson-copper,
+   NOT an alarm red: it flags «this element / rule counts for every player»
+   as a premium bezel, not a negative effect. Defined at :root so BOTH the
+   card face (the icon bezel + the requirements bar) AND the fullscreen
+   annotation layer (the accented «any player» words) read the SAME hue. */
+:root {
+  --pcard-any: #cf7a63;
+  --pcard-any-rgb: 207, 122, 99;
+}
+
 .pcard {
   /* ── geometry tokens ─────────────────────────────────────────────── */
   --pcard-w: 320px;
@@ -405,10 +415,13 @@
   font-size: 12.5px;
   text-shadow: 0 1px 1px rgba(60, 28, 8, 0.8);
 }
+/* «any player» requirement — the copper band shifts toward the warm crimson
+   accent (a calm tint over the copper, NOT a harsh red plate), pairing with
+   the accented «(any player)» words in the requirement rule text. */
 .pcard__reqs--all {
   background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 220, 210, 0.06) 48%, transparent 56%),
-    linear-gradient(180deg, #a53f2b 0%, #82301e 52%, #611f13 100%);
+    linear-gradient(112deg, transparent 40%, rgba(255, 224, 210, 0.07) 48%, transparent 56%),
+    linear-gradient(180deg, #a85238 0%, #833c22 52%, #5f2917 100%);
 }
 .pcard-req {
   display: inline-flex;
@@ -651,11 +664,16 @@
   color: #2f2008;
   text-shadow: 0 1px 0 rgba(255, 244, 205, 0.4);
 }
-/* red ring — «any player» */
+/* «any player» bezel — a crafted crimson-copper ring (dark seat + accent
+   kant + a soft glow), NOT a flat alarm-red box. Reads as «counts for every
+   player», premium and calm. Same hue as the accented rule words. */
 .pcard-mi--any .pcard-ic,
 .pcard-mi--any .pcard-tile {
-  box-shadow: 0 0 0 1.6px #d04141;
   border-radius: 5px;
+  box-shadow:
+    0 0 0 1px rgba(28, 12, 8, 0.5),
+    0 0 0 1.7px rgba(var(--pcard-any-rgb), 0.72),
+    0 0 5px rgba(var(--pcard-any-rgb), 0.28);
 }
 /* cancelled — red diagonal strike */
 .pcard-mi--cancelled::after,

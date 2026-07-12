@@ -52,8 +52,11 @@
         <span v-if="a.special" class="caanno__star" aria-hidden="true"></span>
       </div>
       <!-- single rule → plain text; composite type → light internal rows
-           (hovering a row accents ITS exact card element) -->
-      <div v-if="a.rows.length === 1" class="caanno__text">{{ a.rows[0].displayText }}</div>
+           (hovering a row accents ITS exact card element). The «any player»
+           words that explain a red «{all}» bezel render in the accent colour. -->
+      <div v-if="a.rows.length === 1" class="caanno__text">
+        <span v-for="(s, si) in a.rows[0].segments" :key="si" :class="{'caanno__any': s.any}">{{ s.text }}</span>
+      </div>
       <div v-else class="caanno__rows">
         <div v-for="r in a.rows"
              :key="r.id"
@@ -61,7 +64,7 @@
              @mouseenter="focusRow(r)"
              @mouseleave="unfocusRow()">
           <span v-if="r.special" class="caanno__row-star" aria-hidden="true"></span>
-          <span class="caanno__row-text">{{ r.displayText }}</span>
+          <span class="caanno__row-text"><span v-for="(s, si) in r.segments" :key="si" :class="{'caanno__any': s.any}">{{ s.text }}</span></span>
         </div>
       </div>
     </div>
@@ -76,12 +79,14 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
-import {buildCardAnnotations, stripKindPrefix, CardAnnotation, CardAnnotationRow} from './annotationModel';
-import {solveAnnotationLayout, AnnotationSide} from './annotationLayout';
+import {buildCardAnnotations, stripKindPrefix, segmentAnyPlayer, CardAnnotation, CardAnnotationRow, AnnotationTextSegment} from './annotationModel';
+import {solveAnnotationLayout, routeTether, AnnotationSide, TetherRect} from './annotationLayout';
 import {AnnotationTraversal, registerAnnotationTraversal, unregisterAnnotationTraversal} from './annotationFocusBus';
 
 type RenderedRow = CardAnnotationRow & {
   displayText: string;
+  /** Text split into plain / accented «any player» segments (see the model). */
+  segments: Array<AnnotationTextSegment>;
 };
 
 type RenderedAnnotation = Omit<CardAnnotation, 'rows'> & {
@@ -378,7 +383,10 @@ export default defineComponent({
       this.measuring = true;
       this.rendered = annotations.map((a) => ({
         ...a,
-        rows: a.rows.map((r) => ({...r, displayText: stripKindPrefix(translateText(r.text))})),
+        rows: a.rows.map((r) => {
+          const displayText = stripKindPrefix(translateText(r.text));
+          return {...r, displayText, segments: this.textSegments(displayText, r.anyPlayer)};
+        }),
         label: translateText(a.labelKey),
         side: 'left' as AnnotationSide,
         x: 0,
@@ -462,6 +470,10 @@ export default defineComponent({
     },
 
     buildLines(anchors: Map<string, DOMRect>) {
+      // Keep every trace off the card's bottom-left service elements (the
+      // engraved expansion stamp + the resource counter) — the router
+      // detours around them, the pretty elbow stays when the way is clear.
+      const obstacles = this.serviceObstacles();
       const lines: Array<TetherLine> = [];
       for (const a of this.rendered) {
         const rect = anchors.get(a.id);
@@ -471,16 +483,30 @@ export default defineComponent({
         const height = this.fx.blockEls.get(a.id)?.offsetHeight ?? 40;
         const by = a.y + Math.min(height / 2, 30);
         const bx = a.side === 'left' ? a.x + this.width : a.x;
-        // The endpoint sits just OUTSIDE the exact element's near edge — the
-        // anchor dot touches the node it explains, never covers its art.
-        const ax = a.side === 'left' ? rect.left - 4 : rect.right + 4;
-        const ay = rect.top + rect.height / 2;
-        // elbow trace: horizontal run, then a short approach to the anchor
-        const xm = a.side === 'left' ? ax - 16 : ax + 16;
-        const d = `M ${bx} ${by} L ${xm} ${by} L ${ax} ${ay}`;
+        const {d, ax, ay} = routeTether({bx, by, anchor: rect, side: a.side, obstacles});
         lines.push({id: a.id, d, ax, ay, special: a.special});
       }
       this.lines = lines;
+    },
+
+    /** The card's bottom-left service elements a trace must avoid. */
+    serviceObstacles(): Array<TetherRect> {
+      const stage = this.stageCardEl();
+      if (stage === null) {
+        return [];
+      }
+      const rects: Array<TetherRect> = [];
+      for (const sel of ['.pcard__exp', '.pcard__res']) {
+        const el = stage.querySelector<HTMLElement>(sel);
+        if (el === null) {
+          continue;
+        }
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          rects.push({left: r.left, right: r.right, top: r.top, bottom: r.bottom});
+        }
+      }
+      return rects;
     },
 
     /* ── choreography ────────────────────────────────────────────────── */
@@ -778,6 +804,22 @@ export default defineComponent({
       this.rendered = [];
       this.lines = [];
       this.measuring = false;
+    },
+    /**
+     * Split a row's text so the «any player» words that explain the red
+     * «{all}» bezel render in the bezel's accent colour. If the localized
+     * text carries no such phrase, append a colored clarifier so the bezel
+     * is never left unexplained.
+     */
+    textSegments(text: string, anyPlayer: boolean): Array<AnnotationTextSegment> {
+      if (!anyPlayer) {
+        return [{text, any: false}];
+      }
+      const segments = segmentAnyPlayer(text);
+      if (segments.some((s) => s.any)) {
+        return segments;
+      }
+      return [{text: text + ' ', any: false}, {text: translateText('(any player)'), any: true}];
     },
     blockStyle(a: RenderedAnnotation): Record<string, string> {
       return {

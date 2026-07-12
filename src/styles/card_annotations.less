@@ -183,6 +183,15 @@
     color: rgba(224, 233, 242, 0.92);
 }
 
+/* «any player» words — the SAME crimson-copper accent as the card's «{all}»
+   bezel (var --pcard-any, defined at :root in premium_card.less), so the
+   coloured words logically explain what the red bezel on the graphic means. */
+.caanno__any {
+    color: var(--pcard-any, #cf7a63);
+    font-weight: 600;
+    text-shadow: 0 0 7px rgba(var(--pcard-any-rgb, 207, 122, 99), 0.35);
+}
+
 /* ── internal rows (a composite type inside ONE block) ────────────────
  *  Minimal structure, never a table: hairline separators, quiet padding.
  *  Hovering a row rings ITS exact card element (sub-anchor precision). */

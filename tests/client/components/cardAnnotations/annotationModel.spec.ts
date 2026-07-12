@@ -5,7 +5,7 @@ import {ClientCard} from '@/common/cards/ClientCard';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
-import {buildCardAnnotations, stripKindPrefix} from '@/client/components/cardAnnotations/annotationModel';
+import {buildCardAnnotations, stripKindPrefix, segmentAnyPlayer} from '@/client/components/cardAnnotations/annotationModel';
 import {buildPremiumCardViewModel} from '@/client/components/premiumCard/premiumCardViewModel';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import {playZoneStart} from '@/client/components/premiumCard/mechanicsModel';
@@ -212,5 +212,37 @@ describe('annotationModel', () => {
     expect(stripKindPrefix('Эффект: Возьмите карту.')).to.eq('Возьмите карту.');
     expect(stripKindPrefix('Действие: Потратьте 1 титан.')).to.eq('Потратьте 1 титан.');
     expect(stripKindPrefix('Raise the temperature.')).to.eq('Raise the temperature.');
+  });
+
+  it('flags a block whose graphic carries an {all} bezel (Vermin effect city)', () => {
+    // Vermin's effect draws `eb.city({all})` → the effect row is anyPlayer.
+    const anns = buildCardAnnotations(getCardOrThrow(CardName.VERMIN));
+    const effect = anns.find((a) => a.kind === 'effect');
+    expect(effect?.anyPlayer, 'effect anyPlayer').to.eq(true);
+    // the plain animal action row carries no bezel
+    const actions = anns.filter((a) => a.kind === 'action');
+    expect(actions.some((a) => a.anyPlayer), 'no plain action is anyPlayer').to.eq(false);
+  });
+
+  it('segmentAnyPlayer accents the «any player» words, else returns one plain segment', () => {
+    const ru = segmentAnyPlayer('Удалите до 2 растений у любого игрока.');
+    expect(ru.filter((s) => s.any).map((s) => s.text)).to.deep.eq(['у любого игрока']);
+    expect(ru.map((s) => s.text).join('')).to.eq('Удалите до 2 растений у любого игрока.');
+
+    const en = segmentAnyPlayer('Remove up to 2 plants from any player.');
+    expect(en.filter((s) => s.any).map((s) => s.text)).to.deep.eq(['any player']);
+
+    // «любую карту» (any card) is NOT a player phrase — never accented.
+    const card = segmentAnyPlayer('Добавьте 1 микроб на любую карту.');
+    expect(card.some((s) => s.any)).to.eq(false);
+    expect(card).to.have.length(1);
+
+    // the requirement wordings the generator + ru locale produce.
+    const reqPlural = segmentAnyPlayer('Требуется не менее 2 тайлов города (у любых игроков).');
+    expect(reqPlural.filter((s) => s.any).map((s) => s.text)).to.deep.eq(['у любых игроков']);
+    const reqSingle = segmentAnyPlayer('Требуется тайл города (любого игрока) рядом с океаном.');
+    expect(reqSingle.filter((s) => s.any).map((s) => s.text)).to.deep.eq(['любого игрока']);
+    const every = segmentAnyPlayer('Каждый раз, когда любой игрок размещает город.');
+    expect(every.filter((s) => s.any).map((s) => s.text)).to.deep.eq(['любой игрок']);
   });
 });
