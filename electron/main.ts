@@ -22,6 +22,12 @@ import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
+import {addToSteam} from './steamShortcut';
+
+// NSIS finish-page opt-in: `TerraformingMars.exe --add-to-steam` runs a HEADLESS one-shot
+// (no window, no updater, no single-instance lock) that registers the Non-Steam shortcut +
+// artwork, then exits. Detected here so the normal launch flow below is fully skipped.
+const ADD_TO_STEAM = process.argv.includes('--add-to-steam');
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';
 // module top-level runs well before then. Desktop-only; browser build untouched.
@@ -206,13 +212,33 @@ ipcMain.handle('desktop:openExternal', (_event: IpcMainInvokeEvent, url: unknown
   return Promise.resolve();
 });
 
-// The app:// scheme must be registered as privileged BEFORE 'ready'.
-if (APP_LOAD) {
+/** HEADLESS one-shot for the NSIS finish-page checkbox: register the Steam shortcut + art
+ *  and exit. Never opens a window, never touches the updater / single-instance lock. */
+function runAddToSteam(): void {
+  void app.whenReady().then(async () => {
+    try {
+      const result = await addToSteam();
+      // eslint-disable-next-line no-console
+      console.log(`[steam] add-to-steam result: ${JSON.stringify(result)}`);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[steam] add-to-steam failed', err);
+    } finally {
+      app.exit(0);
+    }
+  });
+}
+
+// The app:// scheme must be registered as privileged BEFORE 'ready' — but never for the
+// headless Steam one-shot (it opens no window).
+if (APP_LOAD && !ADD_TO_STEAM) {
   registerAppScheme();
 }
 
 // Single-instance: focus the existing window instead of opening a second one.
-if (!app.requestSingleInstanceLock()) {
+if (ADD_TO_STEAM) {
+  runAddToSteam();
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {

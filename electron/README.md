@@ -154,6 +154,41 @@ used (a custom icon is a polish item).
 (default `http://localhost:8080`). Run your server there (or set the env before launch);
 a persistent server-selector UI is a later phase.
 
+## Windows — Add to Steam library (Non-Steam Game)
+
+The Windows installer's **finish page** has an opt-in checkbox **"Add to Steam library
+(with artwork)"** (default unchecked). It is the Windows analogue of the Steam Deck
+installer (`scripts/steamdeck/install-steamdeck.sh`) — but only the parts that make sense on
+Windows: it registers a **Non-Steam Game** shortcut in Steam's `shortcuts.vdf` with a
+deterministic appid and drops the shared `assets/steamdeck/*.png` artwork into
+`userdata/<id>/config/grid/` (the only reliable way to attach custom art to a non-Steam
+game). The Deck-only steps — downloading an AppImage and writing the restart-loop launcher —
+have no Windows analogue (the NSIS installer already placed the `.exe`, and electron-updater
+self-restarts, so no wrapper is needed).
+
+- **Gated on Steam being installed.** Checking the box launches `"<App>.exe" --add-to-steam`,
+  a HEADLESS one-shot (`electron/steamShortcut.ts` — no window, no updater, no
+  single-instance lock) that does nothing when Steam isn't found. So an unchecked box, or a
+  machine without Steam, changes nothing.
+- **Idempotent.** Re-running replaces the existing entry instead of duplicating it (upsert by
+  Exe / appid), and every `shortcuts.vdf` is backed up before the write.
+- **Safe write.** Steam rewrites `shortcuts.vdf` on exit, so — like the Deck installer — the
+  one-shot gracefully closes Steam (`steam.exe -shutdown`, bounded poll) before writing and
+  relaunches it after, per logged-in profile.
+
+Files:
+- `electron/steamVdf.ts` — PURE crc32 / appid / binary-VDF reader-writer / entry template
+  (unit-tested: `tests/electron/steamVdf.spec.ts`).
+- `electron/steamShortcut.ts` — Windows IO: registry Steam detection, art copy, Steam
+  shutdown/relaunch, the `addToSteam()` orchestrator. `main.ts` runs it on `--add-to-steam`.
+- `electron/build-resources/installer.nsh` — the custom NSIS finish page (auto-included by
+  electron-builder because it is named `installer.nsh` in the buildResources dir). Reproduces
+  the default "run after install" checkbox and adds the Steam checkbox.
+
+An in-app "Add to Steam" menu entry (for re-adding after a fresh Steam login) is a natural
+follow-up — it would reuse `addToSteam()` behind a new IPC — but is intentionally out of
+scope here (the finish-page checkbox was the chosen surface).
+
 ## Security model
 
 The `BrowserWindow` uses the safe modern defaults, enforced explicitly:
@@ -223,15 +258,37 @@ error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
   reconnection can unblock, a still-required client re-arms the download, and a feed
   error re-attempts.
 
-**To finish wiring auto-download (deployment, your part):**
-1. Deploy the server (with `src/server/server/cors.ts` + `ApiDesktopVersion`) — the
-   Heroku default already allows the `app://bundle` Origin.
-2. Set the real update feed in `electron-builder.yml` `publish` (GitHub Releases
-   recommended — see the comment there) and host `latest.yml` + the installer there.
-3. Optionally set the server's `TM_DESKTOP_*` env (min version, download URL, notes).
+### Is the Windows updater actually live? (runbook)
 
-Until the feed is real, the compatibility gate + premium UI + the manual-download
-fallback all work; only the in-app auto-download needs the hosted feed.
+**The whole loop is code-complete and SELF-DRIVING** — no per-release env twiddling:
+
+1. **Feed (automatic).** `.github/workflows/release.yml` runs on **every push to `main`** (not
+   only on a `v*` tag) and publishes ONE GitHub Release under
+   `victor-zelinskiy/terraforming-mars`, versioned `1.1.<run_number>`, carrying the Windows
+   `.exe` + `latest.yml` + `.blockmap` (and the Linux AppImage). The repo is public, so
+   electron-updater reads the feed with no token.
+2. **Gate (automatic).** `GET /api/desktop/version` (`ApiDesktopVersion`) reads the newest
+   release LIVE from the GitHub API (`TM_DESKTOP_REQUIRE_LATEST` defaults on, 2-min cache) and
+   tells any client below it `updateRequired: true`. So a new push → older clients are
+   required to update, with **no env change**. `TM_DESKTOP_*` env only OVERRIDES this
+   (force-update, a pinned min-version, custom download URL / notes); it is optional.
+3. **Delivery (automatic on Windows).** A packaged client checks the gate on launch; when an
+   update is required, the premium `DesktopUpdateOverlay` shows the progress bar and
+   electron-updater downloads the new NSIS installer and installs + auto-relaunches
+   (`quitAndInstall(false, true)`).
+
+**The ONE remaining dependency is deployment, not code:**
+- The server the packaged client points at (`TM_SERVER_BASE`, default the Heroku URL in
+  `main.ts`) must be running the CURRENT server code so `/api/desktop/version` is served.
+- The packaged client must target that server (the default already does).
+
+That's it — no feed to "make real" anymore (it's the auto-publishing release workflow). To
+verify by hand: `curl "https://<server>/api/desktop/version?platform=win32&current=1.0.0"` —
+it should return `latestVersion: "1.1.<n>"` and `updateRequired: true`. To force everyone to
+update immediately (e.g. a protocol break), set the server env `TM_DESKTOP_FORCE_UPDATE=1`.
+
+**Not yet done (separate sub-phase):** Windows **code signing** — until then SmartScreen
+warns on the first manual install (the silent auto-update itself still installs fine).
 
 ## Linux / Steam Deck builds & updates
 

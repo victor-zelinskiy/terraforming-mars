@@ -88,6 +88,12 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: TerraformingMars-Setup-${version}-${arch}.${ext}
+  # The finish page adds an opt-in "Add to Steam library" checkbox. Its custom NSIS is
+  # electron/build-resources/installer.nsh — auto-included because it is named installer.nsh
+  # in the configured buildResources dir (no `include:` line needed). Checking the box runs
+  # `<App>.exe --add-to-steam` (electron/steamShortcut.ts), which registers a Non-Steam Game
+  # shortcut + artwork; it no-ops when Steam isn't installed. The artwork it copies is the
+  # shared assets/steamdeck/*.png set, which ships via the `assets/**/*` files entry above.
 
 # Linux / Steam Deck (SteamOS) — x64 AppImage. electron-builder emits the AppImage +
 # latest-linux.yml (+ .blockmap) so electron-updater's Linux feed works exactly like the
