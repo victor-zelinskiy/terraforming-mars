@@ -15,7 +15,10 @@
           </div>
           <div class="con-start__title">{{ headTitle }}</div>
 
-          <!-- Wizard chrome: the step rail + the live budget capsule. -->
+          <!-- Wizard chrome: ONE rail row = steps + pick counter + budget.
+               The counter used to be its own line below the rail — merged
+               here so the premium 320×460 cards get that height back AND
+               the focused card can never collide with it. -->
           <div v-if="mode === 'wizard'" class="con-start__railrow">
             <div class="con-start__steps" aria-hidden="true">
               <span v-for="(chip, i) in stepChips" :key="chip.id"
@@ -25,6 +28,11 @@
                 <span>{{ $t(chip.label) }}</span>
               </span>
             </div>
+            <!-- Card-step pick counter (wizard). -->
+            <span v-if="currentStep !== undefined" class="con-start__count" :class="{'con-start__count--ready': currentStepComplete}">
+              {{ $t('Selected') }}: <b>{{ picksHere.length }}</b> /
+              {{ currentStep.input.min === currentStep.input.max ? currentStep.input.max : currentStep.input.min + '–' + currentStep.input.max }}
+            </span>
             <!-- P15/P17: the economy capsule reads as labelled columns —
                  never a bare «40 −7 × 3» math string. ONE megacredit
                  language: the ICON marks every money value (no М€ text
@@ -52,14 +60,6 @@
                   <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
             </div>
-          </div>
-
-          <!-- Card-step pick counter (wizard). -->
-          <div v-if="mode === 'wizard' && currentStep !== undefined" class="con-start__pickline">
-            <span class="con-start__count" :class="{'con-start__count--ready': currentStepComplete}">
-              {{ $t('Selected') }}: <b>{{ picksHere.length }}</b> /
-              {{ currentStep.input.min === currentStep.input.max ? currentStep.input.max : currentStep.input.min + '–' + currentStep.input.max }}
-            </span>
           </div>
         </header>
 
@@ -292,13 +292,11 @@
           </div>
         </div>
 
-        <!-- ── Footer: the command contract ────────────────────────── -->
-        <footer class="con-start__foot" aria-hidden="true">
-          <span v-for="(hint, i) in footHints" :key="i" class="con-start__foot-item" :class="{'con-start__foot-item--off': hint.enabled === false}">
-            <GamepadGlyph :control="hint.control" />
-            <span>{{ $t(hint.label) }}</span>
-          </span>
-        </footer>
+        <!-- The command contract lives in the shell's command bar ONLY
+             (footHints → setConsoleStartCommands). The old inline footer
+             duplicated it UNDER the bar (z 11700 covers the frame bottom)
+             — removed, its height goes to the cards; the frame's bottom
+             padding keeps the body clear of the bar. -->
       </div>
     </transition>
 
@@ -417,13 +415,17 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
-      /** Single-row wizard-card fit (sets --con-cards-zoom so the row always
-       *  fits → never scrolls on focus). Observers run it on resize; never per focus. */
+      /** Wizard-card fit (sets --con-cards-zoom / --con-cards-grid-zoom so the
+       *  cards always fit BOTH axes → never scroll/clip on focus). Observers
+       *  run it on resize; never per focus. */
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopStripObs: undefined as (() => void) | undefined,
       stopResize: undefined as (() => void) | undefined,
       fitScheduled: false,
       fitRetries: 0,
+      /** The post-frame-swap re-verify fit (out-in leaves no strip to measure
+       *  at the watcher's nextTick). */
+      fitTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -723,6 +725,15 @@ export default defineComponent({
         this.scrollFocusedIntoView();
         this.fitCardStrip();
       });
+      // Re-verify once after the out-in frame swap (160ms) has settled —
+      // belt-and-braces for a stale/absent strip ref at the nextTick fit.
+      if (this.fitTimer !== undefined) {
+        window.clearTimeout(this.fitTimer);
+      }
+      this.fitTimer = window.setTimeout(() => {
+        this.fitTimer = undefined;
+        this.fitCardStrip();
+      }, motionMs(240));
     },
     /** Pre-flush: arm the deal HOLD before the new card set paints (the
      *  real cards mount hidden — zero first-frame flash). */
@@ -764,6 +775,9 @@ export default defineComponent({
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
       window.clearTimeout(this.dealLaunchTimer);
+    }
+    if (this.fitTimer !== undefined) {
+      window.clearTimeout(this.fitTimer);
     }
     this.deal.dispose();
     resetConsoleStartUi();
@@ -1015,33 +1029,78 @@ export default defineComponent({
         this.fitCardStrip();
       });
     },
+    /** The vertical allowance the verdict bar will take under the strip.
+     *  Deterministic (a CSS var — the bar's height is PINNED to it in
+     *  console.less), because the bar is v-if'd off mid-deal: measuring the
+     *  live element would make the post-deal layout jump. */
+    verdictReserve(): number {
+      const raw = parseFloat(window.getComputedStyle(this.$el as HTMLElement).getPropertyValue('--con-start-verdict-h'));
+      return Number.isFinite(raw) && raw > 0 ? raw : 46;
+    },
+    /** The height the strip may occupy inside the scrollable body: the
+     *  body's allocated height minus the verdict bar + the .con-cards gap. */
+    stripAvailHeight(strip: HTMLElement): number {
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined || body === null) {
+        return strip.clientHeight;
+      }
+      const cards = strip.parentElement;
+      const gap = cards !== null ? (parseFloat(window.getComputedStyle(cards).rowGap) || 10) : 10;
+      return Math.max(180, body.clientHeight - gap - this.verdictReserve());
+    },
     /**
-     * Size the SINGLE-ROW wizard card strip so N cards ALWAYS fit its width —
-     * it then never overflows, never scrolls on focus, and there is no per-focus
-     * smooth-scroll churn (Steam Deck). Mirrors ConsoleTaskHost.fitCardStrip:
-     * sets `--con-cards-zoom` (a layout `zoom` on each non-grid slot); the focus
-     * `transform: scale` rides on top (visual, no reflow). Runs on mount / step /
-     * grid / resize — NEVER per focus. Grid mode keeps its wrapping zoom; the
-     * ceremony candidate strip (no ref) keeps its tuned `__cands` zoom.
+     * Size the wizard card strip so N cards ALWAYS fit — BOTH axes (the
+     * premium 320×460 face made height the binding constraint). The strip
+     * then never overflows, never scrolls on focus, and there is no
+     * per-focus smooth-scroll churn (Steam Deck).
+     *  - single ROW (≤6 cards): `--con-cards-zoom` = min(width-fit,
+     *    height-fit, 1) — the corp/prelude steps now EARN a bigger card
+     *    when the viewport allows it;
+     *  - GRID (>6 cards, the 10-card project buy): a balanced rows×cols
+     *    search (the played-tableau planner idea) maximizes the zoom that
+     *    fits width AND the body height → `--con-cards-grid-zoom` + a
+     *    max-width cap so flex-wrap breaks at the PLANNED column count
+     *    (5+5, never 6+4).
+     * Runs on mount / step / grid / resize — NEVER per focus. The ceremony
+     * candidate strip (no ref) keeps its tuned `__cands` zoom.
      */
     fitCardStrip(): void {
       const strip = this.$refs.cardStrip as HTMLElement | undefined;
-      if (strip === undefined) {
+      if (strip === undefined || strip === null) {
+        // The keyed frame swaps `out-in` — a fresh step's strip mounts only
+        // after the 160ms leave. Retry briefly so the fit lands on the NEW
+        // strip instead of leaving the CSS fallback zoom.
+        if (this.mode === 'wizard' && this.currentStep !== undefined && this.fitRetries < 30) {
+          this.fitRetries++;
+          requestAnimationFrame(() => this.fitCardStrip());
+        } else {
+          this.fitRetries = 0;
+        }
         return;
       }
-      if (this.mode !== 'wizard' || this.wizardGrid) {
+      if (this.mode !== 'wizard') {
         strip.style.removeProperty('--con-cards-zoom');
+        strip.style.removeProperty('--con-cards-grid-zoom');
+        strip.style.removeProperty('max-width');
         return;
       }
       const n = strip.children.length;
       if (n === 0) {
         strip.style.removeProperty('--con-cards-zoom');
+        strip.style.removeProperty('--con-cards-grid-zoom');
+        strip.style.removeProperty('max-width');
         return;
       }
-      strip.style.setProperty('--con-cards-zoom', '1');
-      // offsetWidth ignores the focused card's transform: scale.
-      const slotW = (strip.children[0] as HTMLElement).offsetWidth;
-      if (slotW <= 0) {
+      const grid = this.wizardGrid;
+      // Probe the natural slot size at zoom 1 (offsetWidth/Height ignore the
+      // focused card's transform: scale AND report the UNZOOMED box).
+      strip.style.setProperty(grid ? '--con-cards-grid-zoom' : '--con-cards-zoom', '1');
+      strip.style.removeProperty(grid ? '--con-cards-zoom' : '--con-cards-grid-zoom');
+      strip.style.removeProperty('max-width');
+      const probe = strip.children[0] as HTMLElement;
+      const slotW = probe.offsetWidth;
+      const slotH = probe.offsetHeight;
+      if (slotW <= 0 || slotH <= 0) {
         if (this.fitRetries < 20) {
           this.fitRetries++;
           requestAnimationFrame(() => this.fitCardStrip());
@@ -1051,11 +1110,35 @@ export default defineComponent({
       this.fitRetries = 0;
       const cs = window.getComputedStyle(strip);
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const rowGap = parseFloat(cs.rowGap) || colGap;
       const availW = strip.clientWidth - padX;
-      // `zoom` scales the slots but not the flex gap; 0.96 leaves scale(1.08) headroom.
-      const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * gap) / (n * slotW)));
-      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+      const availH = this.stripAvailHeight(strip) - padY;
+      if (!grid) {
+        // `zoom` scales the slots but not the flex gap; 0.96 leaves scale(1.08) headroom.
+        const widthZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
+        const heightZoom = availH / slotH;
+        const zoom = Math.min(1, Math.max(0.5, Math.min(widthZoom, heightZoom)));
+        strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+        return;
+      }
+      // GRID: pick the balanced rows×cols with the LARGEST zoom fitting both axes.
+      let best = {zoom: 0, cols: Math.ceil(n / 2)};
+      for (let rows = 1; rows <= Math.min(3, n); rows++) {
+        const cols = Math.ceil(n / rows);
+        const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
+        const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
+        const zoom = Math.min(1, wZoom, hZoom);
+        if (zoom > best.zoom) {
+          best = {zoom, cols};
+        }
+      }
+      const zoom = Math.max(0.4, best.zoom);
+      strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
+      // Cap the content width at the planned columns — leftover width from a
+      // height-governed zoom must not let flex-wrap unbalance the rows.
+      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX) + 2}px`;
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
     // RT(nextTab) continue, LB/RB(prev/nextSection) wizard step, B(back) minimize.

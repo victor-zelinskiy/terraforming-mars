@@ -100,7 +100,7 @@ import {buildPremiumCardViewModel} from './premiumCardViewModel';
 import {MechDensity} from './mechanicsModel';
 import PremiumCard from './PremiumCard.vue';
 
-const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude'];
+const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares'];
 
 type CuratedCase = {label: string, model: CardModel};
 
@@ -133,6 +133,10 @@ export default defineComponent({
         {label: 'vermin VP', model: this.modelOf(CardName.VERMIN)},
         {label: 'нет арта (fallback)', model: this.modelOf(CardName.DONATION)},
         {label: 'без механик (VP-only)', model: this.modelOf(CardName.DUST_SEALS)},
+        {label: 'Столица (база)', model: this.modelOf(CardName.CAPITAL)},
+        {label: 'Столица (Ares-тайл)', model: this.modelOf(CardName.CAPITAL_ARES)},
+        {label: 'Торг. район (Ares-тайл)', model: this.modelOf(CardName.COMMERCIAL_DISTRICT_ARES)},
+        {label: 'Deimos Down (Ares-тайл)', model: this.modelOf(CardName.DEIMOS_DOWN_ARES)},
       ];
     },
     densityBuckets(): Array<{density: MechDensity, total: number, samples: Array<CardName>}> {

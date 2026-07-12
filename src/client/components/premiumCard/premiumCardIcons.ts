@@ -114,6 +114,7 @@ function warnUnmapped(kind: string): void {
 
 const SPECIAL_TILE = `${TILES}/special.png`;
 const TILE_SYMBOLS = 'assets/tiles/special_tile_icons';
+const CUSTOM_TILES = 'assets/custom_tiles';
 
 export type TileIconSpec = {
   /** The tile canvas image. */
@@ -122,36 +123,111 @@ export type TileIconSpec = {
   symbol?: string;
 };
 
+/**
+ * Per-tile art for the premium face — mirrors the legacy renderer's three
+ * slots (`CardRenderTileComponent`'s `TILE_CLASSES`) so the two never diverge:
+ *   - `full`   — the normal full-tile art (legacy `tile:`).
+ *   - `variant`— per-VARIANT full-tile art, selected by a flag the render node
+ *                itself carries. Today the only variant is `ares` (legacy
+ *                `aresTile:`); it WINS over `full`/`symbol` when the node is
+ *                authored as the Ares variant of a tile (`.tile(type, false,
+ *                /* isAres * / true)`), so an Ares override of a tile shared
+ *                with base/promo — Capital, Deimos Down, Commercial District,
+ *                Great Dam … — shows the Ares art rather than the plain one.
+ *   - `symbol` — inner pictogram over the generic special-tile canvas, for the
+ *                non-variant "canvas + symbol" look (legacy `symbol:`, gated on
+ *                the node's `hasSymbol`).
+ *
+ * A NEW render node flag is the whole point of the `variant` map: when a future
+ * expansion introduces its own tile-art variant (e.g. a hypothetical `isPromo`
+ * tile), give the node a flag, add a `variant.<key>` slot here, and slot the
+ * key into `TILE_VARIANT_PRIORITY` below. Ares stays first, so its override
+ * always wins a shared card.
+ */
+type TileVisual = {
+  full?: string;
+  variant?: Partial<Record<TileVariantKey, string>>;
+  symbol?: string;
+};
+
+/** Render-node-selectable tile-art variants, in resolution priority order. */
+type TileVariantKey = 'ares';
+const TILE_VARIANT_PRIORITY: ReadonlyArray<{key: TileVariantKey, active: (t: ICardRenderTile) => boolean}> = [
+  {key: 'ares', active: (t) => t.isAres === true},
+];
+
 /** In-scope tile pictograms (base + special tiles of the covered modules). */
-const TILE_ICON: Partial<Record<TileType, TileIconSpec>> = {
-  [TileType.OCEAN]: {base: `${TILES}/ocean.png`},
-  [TileType.CITY]: {base: `${TILES}/city.png`},
-  [TileType.GREENERY]: {base: `${TILES}/greenery_no_O2.png`},
-  [TileType.CAPITAL]: {base: `${TILES}/city.png`},
-  [TileType.COMMERCIAL_DISTRICT]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/commerical_district.png`},
-  [TileType.DEIMOS_DOWN]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/deimos.png`},
-  [TileType.GREAT_DAM]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/great_dam.png`},
-  [TileType.ECOLOGICAL_ZONE]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/ecological_zone.png`},
-  [TileType.INDUSTRIAL_CENTER]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/industrial_center.png`},
-  [TileType.LAVA_FLOWS]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/lava_flows.png`},
-  [TileType.MAGNETIC_FIELD_GENERATORS]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/magnetic_field_gen.png`},
-  [TileType.MINING_AREA]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/mining_area.png`},
-  [TileType.MINING_RIGHTS]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/mining_area.png`},
-  [TileType.MOHOLE_AREA]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/mohole_area.png`},
-  [TileType.NATURAL_PRESERVE]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/natural_preserve.png`},
-  [TileType.NUCLEAR_ZONE]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/nuclear_zone.png`},
-  [TileType.RESTRICTED_AREA]: {base: SPECIAL_TILE, symbol: `${TILE_SYMBOLS}/restricted_area.png`},
-  [TileType.MINING_STEEL_BONUS]: {base: SPECIAL_TILE, symbol: `${RES}/steel.png`},
-  [TileType.MINING_TITANIUM_BONUS]: {base: SPECIAL_TILE, symbol: `${RES}/titanium.png`},
-  [TileType.NEW_HOLLAND]: {base: `${TILES}/new_holland.png`},
+const TILE_VISUAL: Partial<Record<TileType, TileVisual>> = {
+  // Basic tiles — always the plain full art.
+  [TileType.OCEAN]: {full: `${TILES}/ocean.png`},
+  [TileType.CITY]: {full: `${TILES}/city.png`},
+  [TileType.GREENERY]: {full: `${TILES}/greenery_no_O2.png`},
+  [TileType.NEW_HOLLAND]: {full: `${TILES}/new_holland.png`},
+
+  // Variant-capable tiles — a base/promo look (full or canvas+symbol) PLUS a
+  // dedicated Ares tile graphic that wins when the node carries `isAres`.
+  [TileType.CAPITAL]: {full: `${TILES}/city.png`, variant: {ares: `${CUSTOM_TILES}/tile_capital_ares.png`}},
+  [TileType.COMMERCIAL_DISTRICT]: {symbol: `${TILE_SYMBOLS}/commerical_district.png`, variant: {ares: `${CUSTOM_TILES}/ares_commercial_district.png`}},
+  [TileType.DEIMOS_DOWN]: {symbol: `${TILE_SYMBOLS}/deimos.png`, variant: {ares: `${CUSTOM_TILES}/ares_deimos_down.png`}},
+  [TileType.GREAT_DAM]: {symbol: `${TILE_SYMBOLS}/great_dam.png`, variant: {ares: `${CUSTOM_TILES}/ares_great_dam.png`}},
+  [TileType.ECOLOGICAL_ZONE]: {symbol: `${TILE_SYMBOLS}/ecological_zone.png`, variant: {ares: `${CUSTOM_TILES}/ares_ecological_zone.png`}},
+  [TileType.INDUSTRIAL_CENTER]: {symbol: `${TILE_SYMBOLS}/industrial_center.png`, variant: {ares: `${CUSTOM_TILES}/ares_industrial_center.png`}},
+  [TileType.LAVA_FLOWS]: {symbol: `${TILE_SYMBOLS}/lava_flows.png`, variant: {ares: `${CUSTOM_TILES}/ares_lava_flows.png`}},
+  [TileType.MAGNETIC_FIELD_GENERATORS]: {symbol: `${TILE_SYMBOLS}/magnetic_field_gen.png`, variant: {ares: `${CUSTOM_TILES}/ares_magnetic_field_generators.png`}},
+  [TileType.MOHOLE_AREA]: {symbol: `${TILE_SYMBOLS}/mohole_area.png`, variant: {ares: `${CUSTOM_TILES}/ares_mohole_area.png`}},
+  [TileType.NATURAL_PRESERVE]: {symbol: `${TILE_SYMBOLS}/natural_preserve.png`, variant: {ares: `${CUSTOM_TILES}/ares_natural_preserve.png`}},
+  [TileType.NUCLEAR_ZONE]: {symbol: `${TILE_SYMBOLS}/nuclear_zone.png`, variant: {ares: `${CUSTOM_TILES}/ares_nuclear_zone.png`}},
+  [TileType.RESTRICTED_AREA]: {symbol: `${TILE_SYMBOLS}/restricted_area.png`, variant: {ares: `${CUSTOM_TILES}/ares_restricted_area.png`}},
+
+  // Ares-only tiles — never placed as a base/promo tile, so the Ares art is
+  // their only representation (they still author `isAres`).
+  [TileType.BIOFERTILIZER_FACILITY]: {variant: {ares: `${CUSTOM_TILES}/ares_biofertilizer_facility.png`}},
+  [TileType.METALLIC_ASTEROID]: {variant: {ares: `${CUSTOM_TILES}/ares_metallic_asteroid.png`}},
+
+  // Symbol-only tiles — a pictogram over the canvas, no dedicated card art.
+  [TileType.MINING_AREA]: {symbol: `${TILE_SYMBOLS}/mining_area.png`},
+  [TileType.MINING_RIGHTS]: {symbol: `${TILE_SYMBOLS}/mining_area.png`},
+
+  // Ares-module tiles shown whole (they author `isAres` but have no distinct
+  // "plain" variant, so the full art serves every placement).
+  [TileType.MINING_STEEL_BONUS]: {full: `${CUSTOM_TILES}/ares_tile_mining_steel.png`},
+  [TileType.MINING_TITANIUM_BONUS]: {full: `${CUSTOM_TILES}/ares_tile_mining_titanium.png`},
+  [TileType.OCEAN_CITY]: {full: `${CUSTOM_TILES}/ares_ocean_city.png`},
+  [TileType.OCEAN_FARM]: {full: `${CUSTOM_TILES}/ares_ocean_farm.png`},
+  [TileType.OCEAN_SANCTUARY]: {full: `${CUSTOM_TILES}/ares_ocean_sanctuary.png`},
+  [TileType.SOLAR_FARM]: {full: `${CUSTOM_TILES}/ares_solar_farm.png`},
 };
 
 export function tileIcon(tile: ICardRenderTile): TileIconSpec {
-  const spec = TILE_ICON[tile.tile];
-  if (spec !== undefined) {
-    return spec;
+  const visual = TILE_VISUAL[tile.tile];
+  if (visual === undefined) {
+    warnUnmapped(`tile/${TileType[tile.tile]}`);
+    return {base: SPECIAL_TILE};
   }
-  warnUnmapped(`tile/${TileType[tile.tile]}`);
+  // A render-node variant (Ares) WINS — the node authors the flag for a tile's
+  // variant override, so it beats the base/promo art even on a shared card.
+  for (const {key, active} of TILE_VARIANT_PRIORITY) {
+    const art = visual.variant?.[key];
+    if (art !== undefined && active(tile)) {
+      return {base: art};
+    }
+  }
+  if (visual.full !== undefined) {
+    return {base: visual.full};
+  }
+  if (visual.symbol !== undefined) {
+    // The DSL sets `hasSymbol` for the canvas+symbol look; fall back to showing
+    // the symbol anyway if it's the only art we have (never a blank canvas).
+    return {base: SPECIAL_TILE, symbol: visual.symbol};
+  }
+  // A variant-only tile authored WITHOUT its flag — prefer the first variant
+  // art over a bare canvas.
+  for (const {key} of TILE_VARIANT_PRIORITY) {
+    const art = visual.variant?.[key];
+    if (art !== undefined) {
+      return {base: art};
+    }
+  }
   return {base: SPECIAL_TILE};
 }
 

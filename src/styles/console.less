@@ -8172,16 +8172,28 @@ html.con-scale-focus-venus .arc-scale--venus {
         /* GRID mode (>6 candidates): wrap into comparison rows - no
            kilometre horizontal scrolling on the buy/draft steps. P15: the
            slots SHRINK (X fullscreen is the detailed read), so 10 starting
-           projects sit in two calm rows instead of oversized sprawl. */
+           projects sit in two calm rows instead of oversized sprawl.
+           The zoom is FIT-COMPUTED (ConsoleStartScene.fitCardStrip grid
+           branch sizes the premium 320×460 cards to BOTH axes and caps the
+           max-width at the planned column count); the fallback matches the
+           pre-fit static value. `margin auto` centres the capped strip. */
         &--grid {
             flex-wrap: wrap;
             justify-content: center;
             overflow-x: hidden;
             overflow-y: auto;
-            row-gap: 38px; /* P17: second-row pick bands never touch row 1 */
-            column-gap: 22px;
+            margin-left: auto;
+            margin-right: auto;
+            row-gap: 34px; /* P17: second-row pick bands never touch row 1 */
+            column-gap: 18px;
+            padding: 28px 16px 12px;
 
-            > .con-cards__slot { zoom: 0.8; }
+            > .con-cards__slot { zoom: var(--con-cards-grid-zoom, 0.8); }
+            /* Scale-ONLY focus emphasis in the grid: the translateY lift
+               climbed row 1 into the header/pick counter once the premium
+               face grew the rows — the glow ring + the gliding focus frame
+               carry the emphasis instead. Clip-safe within the paddings. */
+            > .con-cards__slot--focused { transform: scale(1.045); }
         }
         /* FEW cards (corporation pick: 2-3 full-size cards): generous
            spacing + extra clip-safe headroom; the focused emphasis is
@@ -8716,12 +8728,19 @@ html.console-mode {
         }
     }
 
+    /* The verdict bar's PINNED height (single line, nowrap) — the fit
+       engine reserves exactly this even while the bar is v-if'd off
+       mid-deal, so the post-deal layout never jumps. */
+    --con-start-verdict-h: 48px;
+
     &__frame {
         position: relative;
         width: min(1680px, 96vw);
         display: flex;
         flex-direction: column;
-        padding: 26px 34px 14px;
+        /* Bottom padding = the shell command bar clearance (52px bar + air)
+           — it replaced the inline footer that used to sit under the bar. */
+        padding: 26px 34px 64px;
         min-height: 0;
     }
 
@@ -8843,7 +8862,8 @@ html.console-mode {
         background-position: center;
         background-size: contain !important;
     }
-    &__pickline { margin-top: 10px; }
+    /* The pick counter lives IN the rail row (steps · counter · budget) —
+       its old standalone line went back to the cards. */
     &__count {
         display: inline-flex;
         align-items: center;
@@ -8876,6 +8896,15 @@ html.console-mode {
         overflow-y: auto;
         padding-right: 6px;
         .con-scrollbars();
+    }
+    /* Pin the verdict bar to the fit engine's reserve (one nowrap line —
+       name ellipsizes, chips never wrap) so its mid-deal absence can't
+       change the strip's computed height. */
+    .con-cards__verdictbar {
+        box-sizing: border-box;
+        height: var(--con-start-verdict-h);
+        flex-wrap: nowrap;
+        overflow: hidden;
     }
     &__section-title {
         font-size: 15px;
@@ -9131,25 +9160,10 @@ html.console-mode {
         animation: con-start-deal calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
     }
 
-    /* ── Footer ────────────────────────────────────────────────────── */
-    &__foot {
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 24px;
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid fade(@con-cyan, 18%);
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: @con-text-dim;
-        font-size: 18px;
-
-        &--off { opacity: 0.42; }
-    }
+    /* The inline footer is GONE — the shell command bar (z 11700, fed by
+       setConsoleStartCommands) is the ONE hint surface; it used to cover
+       the duplicate anyway. The frame's bottom padding keeps the body
+       clear of the bar (see &__frame). */
 }
 
 /* ── REVEAL OVERLAY (CTS T6): drawn cards / deck-check result / viewer ── */
@@ -11580,14 +11594,16 @@ html.con-profile-handheld {
         &__verdict { font-size: 13px; padding: 4px 11px; }
         /* P17 clip-safe at handheld densities: top headroom covers the
            focus lift + scale + the pick band at every slot zoom. */
-        &__strip { gap: 12px; padding: 32px 14px 16px; }
+        &__strip { gap: 12px; padding: 30px 14px 12px; }
         &__strip--few { gap: 26px; padding: 34px 24px 20px; }
         /* Handheld density: non-grid strips shrink a notch (4 preludes
            fit 1280 without scrolling); the >6 grid goes compact - X
-           fullscreen is the detailed read. */
+           fullscreen is the detailed read. Both zooms are fit-computed on
+           the start scene (fallbacks = the pre-fit static values); the
+           grid's scale-only focus needs less headroom than the row's lift. */
         &__strip:not(.con-cards__strip--grid) > .con-cards__slot { zoom: var(--con-cards-zoom, 0.88); }
-        &__strip--grid { row-gap: 32px; column-gap: 14px; }
-        &__strip--grid > .con-cards__slot { zoom: 0.62; }
+        &__strip--grid { row-gap: 26px; column-gap: 12px; padding: 22px 12px 8px; }
+        &__strip--grid > .con-cards__slot { zoom: var(--con-cards-grid-zoom, 0.62); }
         &__pickband { font-size: 11.5px; padding: 2px 10px; top: -10px; }
         &__reason { font-size: 12px; }
     }
@@ -11659,10 +11675,17 @@ html.con-profile-handheld {
 
     /* ── 9/10/11 · the start scene (initial draft / corps / preludes) */
     .con-start {
-        &__frame { width: 97vw; padding: 12px 20px 8px; }
-        &__kicker { font-size: 12px; letter-spacing: 1.6px; }
-        &__title { font-size: 21px; margin-top: 2px; }
-        &__railrow { gap: 10px; margin-top: 6px; }
+        /* Handheld vertical budget (800px): every chrome pixel saved here
+           goes straight into the fit engine's card zoom. */
+        --con-start-verdict-h: 42px;
+
+        &__frame { width: 97vw; padding: 10px 20px 48px; } /* 48 = cmdbar (38) + air */
+        &__head { margin-bottom: 6px; }
+        /* The kicker duplicates the command bar's context label («СТАРТ
+           ПАРТИИ», bottom-left) — dropped on handheld, the title carries. */
+        &__kicker { display: none; }
+        &__title { font-size: 19px; margin-top: 0; }
+        &__railrow { gap: 10px; margin-top: 4px; }
         &__steps { gap: 6px; }
         &__step { padding: 3px 10px; font-size: 11.5px; letter-spacing: 0.8px; gap: 6px; }
         &__step-num { font-size: 10.5px; }
@@ -11671,8 +11694,7 @@ html.con-profile-handheld {
         &__budget-col--strong b { font-size: 16px; }
         &__budget-label { font-size: 9.5px; letter-spacing: 1px; }
         &__mc { width: 16px; height: 16px; }
-        &__pickline { margin-top: 6px; }
-        &__count { font-size: 14px; padding: 2px 10px; b { font-size: 17px; } }
+        &__count { font-size: 13px; padding: 2px 9px; b { font-size: 16px; } }
         &__section-title { font-size: 11.5px; letter-spacing: 1.6px; margin: 2px 0 6px; }
         &__summary { gap: 14px; }
         &__summary-row { gap: 16px; }
@@ -11696,8 +11718,6 @@ html.con-profile-handheld {
         &__prelude-grid { gap: 12px; }
         &__slot-a { font-size: 11.5px; padding: 3px 10px; bottom: -10px; }
         &__cands .con-cards__strip { gap: 10px; }
-        &__foot { gap: 14px; margin-top: 8px; padding-top: 8px; }
-        &__foot-item { font-size: 14px; }
     }
 
     /* ── 12/21 · reveal / play / trade confirms ──────────────────── */
