@@ -152,8 +152,8 @@ describe('card information model', function() {
       for (const group of info(card)?.groups ?? []) {
         for (const block of group.blocks) {
           const id = block.graphicId;
-          if (id === undefined || id.startsWith('req:') || id === 'vp') {
-            continue; // requirements bar / VP badge — their own reserved address spaces
+          if (id === undefined || id.startsWith('req:') || id === 'vp' || id === 'tags') {
+            continue; // requirements bar / VP badge / tag cluster — reserved address spaces
           }
           expect(rowIds.has(id), `${card.name}: block ${block.id} links to unknown graphic ${id}`).to.eq(true);
         }

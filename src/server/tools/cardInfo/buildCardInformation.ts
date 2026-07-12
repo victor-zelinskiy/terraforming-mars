@@ -775,6 +775,12 @@ type GraphicMatchPos = GraphicMatch & {rowIndex?: number, nodeIndex?: number};
  * position `orderBehaviorBlocks` sorts by (never serialized into the block).
  */
 function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatchPos {
+  // RESERVED address `tags` → the card's tag cluster (like `req:*`/`vp`) — for a
+  // rule ABOUT the printed tags that has no mechanic row (Research Coordination's
+  // wild-tag rule points at the wild medallion, not a phantom render row).
+  if (tokens.includes('tags')) {
+    return {graphicId: 'tags'};
+  }
   const root = renderData !== undefined && isICardRenderRoot(renderData) ? renderData : undefined;
   for (const ref of graphics) {
     if (ref.kind !== 'row') {

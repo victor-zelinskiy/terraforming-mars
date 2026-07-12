@@ -252,6 +252,11 @@ export default defineComponent({
       if (graphicId === 'vp') {
         return stage.querySelector<HTMLElement>('.pcard__vp');
       }
+      if (graphicId === 'tags') {
+        // A rule ABOUT the printed tags tethers to the tag cluster (Research
+        // Coordination's wild-tag rule → the wild medallion).
+        return stage.querySelector<HTMLElement>('.pcard__tags');
+      }
       return stage.querySelector<HTMLElement>('.pcard__mech');
     },
     /** A row's EXACT element: its data-graphic-node, else its row. */

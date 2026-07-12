@@ -281,5 +281,6 @@
   "The tile counts as a city as well as an ocean.": "Тайл считается как городом, так и океаном.",
   "The tile counts as a city and an ocean.": "Тайл считается и городом, и океаном.",
   "Place a colony even where you already have a colony.": "Постройте колонию, даже если у вас уже есть колония.",
-  "Other players pay 2 M€ more to place a tile adjacent to it.": "Другие игроки платят на 2 M€ больше, чтобы разместить тайл рядом с ним."
+  "Other players pay 2 M€ more to place a tile adjacent to it.": "Другие игроки платят на 2 M€ больше, чтобы разместить тайл рядом с ним.",
+  "When you perform an action, the wild tag counts as any tag of your choice.": "При выполнении действия универсальная метка считается любой меткой на ваш выбор."
 }
