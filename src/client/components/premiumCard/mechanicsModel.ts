@@ -279,6 +279,26 @@ function isVpTextItem(node: ItemType): boolean {
     node.type === CardRenderItemType.TEXT && node.size === Size.TINY && node.isUppercase === true;
 }
 
+/**
+ * THE PLAY ZONE — the card's on-play mechanics («при розыгрыше») — is the
+ * TRAILING run of plain/production groups (the DSL convention draws
+ * effect/action frames first, immediate mechanics last; guard-tested against
+ * the card-information model in premiumCardViewModel.spec, so a future card
+ * breaking the invariant fails with its name). Returns the index of the
+ * first group of that run, or `groups.length` when the card has no play
+ * zone (pure effect/action cards). The premium face draws the card-native
+ * play-rail accent right before this index; the fullscreen rule overlay
+ * tethers its «При розыгрыше» block to that rail.
+ */
+export function playZoneStart(groups: ReadonlyArray<MechGroup>): number {
+  const isPlayKind = (kind: MechGroupKind) => kind === 'plain' || kind === 'production';
+  let start = groups.length;
+  while (start > 0 && isPlayKind(groups[start - 1].kind)) {
+    start--;
+  }
+  return start;
+}
+
 export type BuildMechanicsOptions = {
   /**
    * Drop the printed VP fine print (the TINY-uppercase vpText items) from

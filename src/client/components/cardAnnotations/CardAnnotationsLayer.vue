@@ -2,21 +2,28 @@
   <!--
     FULLSCREEN CARD ANNOTATION LAYER — the premium rule overlay.
 
-    Floating sci-fi rule blocks in the gutters around the fullscreen card,
-    each tethered by a thin gold trace to the graphic element it explains
-    (data-graphic-id anchors stamped by the premium face). Content comes
-    1:1 from the build-time Card Information Model; placement from the pure
-    annotationLayout solver; choreography is a GSAP timeline that starts on
-    the host's SETTLE nonce (after the card lands / after a slide), never
-    mid-flight — a stage-stability rAF poll additionally guards against a
-    still-transforming stage (the console FLIP open).
+    ONE floating sci-fi rule block per SEMANTIC TYPE in the gutters around
+    the fullscreen card (requirement / effect / action / «При розыгрыше» /
+    VP / special rule), each tethered by a thin gold trace to the graphic
+    element it explains: effect & action frames, the card-native play-rail
+    (the on-play zone opener), the requirements bar, the VP badge. Content
+    comes from the build-time Card Information Model grouped by type;
+    placement from the pure annotationLayout solver; choreography is a GSAP
+    timeline that starts on the host's SETTLE nonce (after the card lands /
+    after a slide), never mid-flight — a stage-stability rAF poll
+    additionally guards against a still-transforming stage (console FLIP).
 
-    The layer is a no-op when the card has no information model, when the
-    gutters are too narrow for readable blocks, or under JSDOM (rects are 0).
+    Targets are NEVER permanently highlighted: a short premium pulse plays
+    exactly when a tether CONNECTS, then the card returns to its calm
+    resting state. Focus (mouse hover / console right stick) re-accents the
+    tether + target temporarily.
+
+    The root is ALWAYS rendered (empty = an inert pointer-transparent div):
+    replay() locates the host <dialog> via $el.closest BEFORE any block
+    exists — a v-if root would be a comment node with no closest. The layer
+    is a no-op when the card has no information model, when the gutters are
+    too narrow for readable blocks, or under JSDOM (rects are 0).
   -->
-  <!-- The root is ALWAYS rendered (empty = an inert pointer-transparent
-       div): replay() locates the host <dialog> via $el.closest BEFORE any
-       block exists — a v-if root would be a comment node with no closest. -->
   <div class="card-annotations"
        :class="{'card-annotations--compact': compact, 'card-annotations--measuring': measuring}">
     <svg v-if="lines.length > 0" class="card-annotations__lines" aria-hidden="true">
@@ -44,7 +51,19 @@
         <span class="caanno__label">{{ a.label }}</span>
         <span v-if="a.special" class="caanno__star" aria-hidden="true"></span>
       </div>
-      <div class="caanno__text">{{ a.displayText }}</div>
+      <!-- single rule → plain text; composite type → light internal rows
+           (hovering a row accents ITS exact card element) -->
+      <div v-if="a.rows.length === 1" class="caanno__text">{{ a.rows[0].displayText }}</div>
+      <div v-else class="caanno__rows">
+        <div v-for="r in a.rows"
+             :key="r.id"
+             class="caanno__row"
+             @mouseenter="focusRow(r)"
+             @mouseleave="unfocusRow()">
+          <span v-if="r.special" class="caanno__row-star" aria-hidden="true"></span>
+          <span class="caanno__row-text">{{ r.displayText }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -57,12 +76,17 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
-import {buildCardAnnotations, stripKindPrefix, CardAnnotation} from './annotationModel';
+import {buildCardAnnotations, stripKindPrefix, CardAnnotation, CardAnnotationRow} from './annotationModel';
 import {solveAnnotationLayout, AnnotationSide} from './annotationLayout';
+import {AnnotationTraversal, registerAnnotationTraversal, unregisterAnnotationTraversal} from './annotationFocusBus';
 
-type RenderedAnnotation = CardAnnotation & {
-  label: string;
+type RenderedRow = CardAnnotationRow & {
   displayText: string;
+};
+
+type RenderedAnnotation = Omit<CardAnnotation, 'rows'> & {
+  rows: Array<RenderedRow>;
+  label: string;
   side: AnnotationSide;
   x: number;
   y: number;
@@ -77,25 +101,26 @@ type TetherLine = {
 };
 
 /**
- * A rule block's resolved card elements. `line` is the EXACT semantic anchor
- * (data-graphic-node / the effect frame / the VP badge) — the tether lands
- * on it and hover-focus rings it. `mark` is the HIGHLIGHT surface: for
- * effects/actions it IS the frame (contour accent, colour identity kept);
- * for on-play/requirement blocks it's the row/bar (block-level treatment).
+ * A rule block's resolved card elements. `line` is the EXACT tether target
+ * (the play-rail / an effect frame / the VP badge / a data-graphic-node);
+ * `mark` is the CONNECTION-PULSE surface. Variants: 'frame' (contour of an
+ * effect/action/VP element — colour identity preserved), 'block' (row/bar
+ * level), 'rail' (the play-rail light sweep).
  */
 type ResolvedAnchor = {
   line?: HTMLElement;
   mark?: HTMLElement;
-  markVariant: 'frame' | 'block';
+  markVariant: 'frame' | 'block' | 'rail';
 };
 
-const EFFECT_KINDS: ReadonlySet<string> = new Set(['effect', 'action', 'action-cost', 'action-result']);
+const PULSE_CLASSES = ['caanno-pulse', 'caanno-pulse--frame', 'caanno-pulse--block', 'caanno-pulse--rail', 'caanno-pulse--special'];
 
 /** Non-reactive per-instance bookkeeping (DOM refs, gsap, poll tokens). */
 type AnnotationFx = {
   blockEls: Map<string, HTMLElement | undefined>;
   pathEls: Map<string, SVGPathElement | undefined>;
   nodeEls: Map<string, SVGCircleElement | undefined>;
+  /** Every card element the layer touched (hotspots / pulses / focus). */
   markedTargets: Set<HTMLElement>;
   /** annotation id → its resolved card elements (computed once per layout). */
   anchors: Map<string, ResolvedAnchor>;
@@ -103,6 +128,12 @@ type AnnotationFx = {
   targetIds: Map<HTMLElement, string>;
   /** the stage element the reverse-hover listeners are attached to. */
   hoverStage?: HTMLElement;
+  /** the element ringed by a ROW-level hover (sub-anchor precision). */
+  rowFocusEl?: HTMLElement;
+  /** pending connection-pulse cleanups. */
+  pulseTimers: Set<number>;
+  /** the registered right-stick traversal handler (console). */
+  traversal?: AnnotationTraversal;
   timeline?: gsap.core.Timeline;
   resizeRaf?: number;
   /** Invalidates an in-flight stage-stability poll (new replay / cleanup). */
@@ -142,6 +173,7 @@ export default defineComponent({
       markedTargets: new Set(),
       anchors: new Map(),
       targetIds: new Map(),
+      pulseTimers: new Set(),
       revealToken: 0,
     };
     return {fx};
@@ -222,23 +254,40 @@ export default defineComponent({
       }
       return stage.querySelector<HTMLElement>('.pcard__mech');
     },
+    /** A row's EXACT element: its data-graphic-node, else its row. */
+    rowAnchorEl(stage: HTMLElement, row: CardAnnotationRow): HTMLElement | null {
+      const host = this.rowEl(stage, row.graphicId);
+      if (host === null) {
+        return null;
+      }
+      if (row.graphicNode !== undefined) {
+        return host.querySelector<HTMLElement>(`[data-graphic-node="${cssEscape(row.graphicNode)}"]`) ?? host;
+      }
+      return host;
+    },
     /**
-     * Resolve the EXACT anchors: the tether target (`line`) and the
-     * highlight surface (`mark`). Effects/actions and the VP badge use
-     * their own frame (contour accent); on-play/requirement blocks keep the
-     * block-level mark on the row/bar while the line lands on the specific
-     * node the text describes (data-graphic-node).
+     * Resolve a GROUP's anchors: the tether target (`line`) and the
+     * connection-pulse surface (`mark`).
+     *  - «При розыгрыше» → the card-native play-rail (the zone opener);
+     *  - effect / action → the frame element (contour semantics);
+     *  - VP → the badge; requirement → the bar; note → floats untethered.
      */
     resolveAnchor(stage: HTMLElement, a: CardAnnotation): ResolvedAnchor {
+      if (a.kind === 'immediate') {
+        const rail = stage.querySelector<HTMLElement>('.pcard-play-rail');
+        if (rail !== null) {
+          return {line: rail, mark: rail, markVariant: 'rail'};
+        }
+      }
       const row = this.rowEl(stage, a.graphicId);
       if (row === null) {
         return {markVariant: 'block'};
       }
-      if (EFFECT_KINDS.has(a.kind)) {
+      if (a.kind === 'effect' || a.kind === 'action') {
         const frame = row.querySelector<HTMLElement>('.pcard-effect') ?? row;
         return {line: frame, mark: frame, markVariant: 'frame'};
       }
-      if (a.graphicId === 'vp' || a.kind === 'victory-points') {
+      if (a.kind === 'victory-points') {
         return {line: row, mark: row, markVariant: 'frame'};
       }
       const node = a.graphicNode !== undefined ?
@@ -324,9 +373,9 @@ export default defineComponent({
       this.measuring = true;
       this.rendered = annotations.map((a) => ({
         ...a,
+        rows: a.rows.map((r) => ({...r, displayText: stripKindPrefix(translateText(r.text))})),
         label: translateText(a.labelKey),
-        displayText: stripKindPrefix(translateText(a.text)),
-        side: 'left',
+        side: 'left' as AnnotationSide,
         x: 0,
         y: 0,
       }));
@@ -365,7 +414,7 @@ export default defineComponent({
           const rect = anchors.get(a.id);
           // Side bias from the EXACT anchor's horizontal position: a block
           // reads best beside the element it explains (short, direct line).
-          // Wide anchors (the full-width reqs bar / whole rows) are 'free'.
+          // Wide anchors (the play-rail / reqs bar / whole rows) are 'free'.
           let bias: 'left' | 'right' | 'free' = 'free';
           if (rect !== undefined && rect.width <= cardRect.width * 0.6) {
             bias = (rect.left + rect.right) / 2 <= cardCenterX ? 'left' : 'right';
@@ -432,11 +481,17 @@ export default defineComponent({
     /* ── choreography ────────────────────────────────────────────────── */
     play(stage: HTMLElement) {
       this.killTimeline();
+      const ordered = [...this.rendered].sort((a, b) => a.order - b.order);
+      // Hover/traversal hotspots are static bookkeeping — arm them upfront.
+      for (const a of ordered) {
+        this.registerTarget(a);
+      }
+      this.armReverseHover(stage);
+      this.armTraversal();
       if (prefersReducedMotion()) {
-        this.applyFinalStates(stage);
+        this.applyFinalStatesInner();
         return;
       }
-      const ordered = [...this.rendered].sort((a, b) => a.order - b.order);
       // Set EVERY initial (hidden) state synchronously, then unveil the layer
       // — no element can flash at its final state before its tween starts.
       for (const a of ordered) {
@@ -457,7 +512,9 @@ export default defineComponent({
       this.measuring = false;
       const tl = gsap.timeline();
       this.fx.timeline = tl;
-      const step = motionMs(70) / 1000;
+      const step = motionMs(90) / 1000;
+      const lineDelay = motionMs(110) / 1000;
+      const lineDur = motionMs(300) / 1000;
       ordered.forEach((a, i) => {
         const block = this.fx.blockEls.get(a.id);
         if (block === undefined) {
@@ -465,21 +522,31 @@ export default defineComponent({
         }
         const at = i * step;
         tl.to(block, {autoAlpha: 1, x: 0, duration: motionMs(240) / 1000, ease: 'power2.out'}, at);
+        const arrive = at + lineDelay + lineDur;
         const path = this.fx.pathEls.get(a.id);
         if (path !== undefined && typeof path.getTotalLength === 'function') {
-          tl.to(path, {strokeDashoffset: 0, duration: motionMs(300) / 1000, ease: 'power1.inOut'}, at + 0.10);
+          tl.to(path, {strokeDashoffset: 0, duration: lineDur, ease: 'power1.inOut'}, at + lineDelay);
         }
         const node = this.fx.nodeEls.get(a.id);
         if (node !== undefined) {
-          tl.to(node, {scale: 1, duration: motionMs(180) / 1000, ease: 'back.out(2.2)'}, at + 0.26);
+          tl.to(node, {scale: 1, duration: motionMs(200) / 1000, ease: 'back.out(2.4)'}, arrive - motionMs(60) / 1000);
         }
-        tl.call(() => this.markTarget(a), undefined, at + 0.24);
+        // THE CONNECTION MOMENT: the tether lands → one short premium pulse
+        // on the target, then the card returns to its calm resting state.
+        tl.call(() => this.pulseTarget(a), undefined, arrive);
       });
-      this.armReverseHover(stage);
     },
 
-    /** Reduced-motion / reposition path: final states, no tweens. */
+    /** Reduced-motion / reposition path: final states, no tweens, no pulses. */
     applyFinalStates(stage: HTMLElement) {
+      for (const a of this.rendered) {
+        this.registerTarget(a);
+      }
+      this.armReverseHover(stage);
+      this.armTraversal();
+      this.applyFinalStatesInner();
+    },
+    applyFinalStatesInner() {
       for (const a of this.rendered) {
         const block = this.fx.blockEls.get(a.id);
         if (block !== undefined) {
@@ -493,36 +560,57 @@ export default defineComponent({
         if (node !== undefined) {
           gsap.set(node, {scale: 1, transformOrigin: 'center'});
         }
-        this.markTarget(a);
       }
       this.measuring = false;
-      this.armReverseHover(stage);
     },
 
-    markTarget(a: RenderedAnnotation) {
+    /**
+     * Static bookkeeping for a group's card elements: reverse-hover
+     * hotspots (visual-less classes) + the element→annotation map. The
+     * VISIBLE accents are only the connection pulse and the focus ring.
+     */
+    registerTarget(a: RenderedAnnotation) {
       const resolved = this.fx.anchors.get(a.id);
       if (resolved === undefined) {
         return;
       }
       const mark = resolved.mark;
       if (mark !== undefined) {
-        mark.classList.add('caanno-target', `caanno-target--${resolved.markVariant}`);
-        if (a.special) {
-          mark.classList.add('caanno-target--special');
-        }
+        mark.classList.add('caanno-hot');
         this.fx.markedTargets.add(mark);
         if (!this.fx.targetIds.has(mark)) {
-          this.fx.targetIds.set(mark, a.id); // a shared row keeps its first block
+          this.fx.targetIds.set(mark, a.id);
         }
       }
-      // The EXACT node is a reverse-hover hotspot of its own (visual-less
-      // class) — pointing at the node accents ITS block, not the row's first.
       const line = resolved.line;
       if (line !== undefined && line !== mark) {
         line.classList.add('caanno-node');
         this.fx.markedTargets.add(line);
         this.fx.targetIds.set(line, a.id);
       }
+    },
+
+    /** The one-shot connection pulse — plays when the tether lands. */
+    pulseTarget(a: RenderedAnnotation) {
+      const resolved = this.fx.anchors.get(a.id);
+      const el = resolved?.mark ?? resolved?.line;
+      if (resolved === undefined || el === undefined) {
+        return;
+      }
+      const classes = ['caanno-pulse', `caanno-pulse--${resolved.markVariant}`];
+      if (a.special) {
+        classes.push('caanno-pulse--special');
+      }
+      // Restart cleanly if a previous pulse is somehow still on (rapid replay).
+      el.classList.remove(...PULSE_CLASSES);
+      void el.offsetWidth; // reflow → the animation restarts
+      el.classList.add(...classes);
+      this.fx.markedTargets.add(el);
+      const timer = window.setTimeout(() => {
+        this.fx.pulseTimers.delete(timer);
+        el.classList.remove(...PULSE_CLASSES);
+      }, motionMs(820));
+      this.fx.pulseTimers.add(timer);
     },
 
     /* ── focus interplay (block ↔ card element, both directions) ─────── */
@@ -532,6 +620,9 @@ export default defineComponent({
       return resolved?.line ?? resolved?.mark;
     },
     setFocus(id: string) {
+      if (this.focusId !== null && this.focusId !== id) {
+        this.clearFocus(this.focusId);
+      }
       this.focusId = id;
       this.focusEl(id)?.classList.add('caanno-target--focus');
     },
@@ -541,7 +632,53 @@ export default defineComponent({
       }
       this.focusEl(id)?.classList.remove('caanno-target--focus');
     },
-    /** Delegated hover on the CARD: pointing at a marked element accents its block. */
+    /** Row-level precision: hovering a row rings ITS exact card element. */
+    focusRow(row: RenderedRow) {
+      this.unfocusRow();
+      const stage = this.stageCardEl();
+      if (stage === null) {
+        return;
+      }
+      const el = this.rowAnchorEl(stage, row);
+      if (el !== null) {
+        el.classList.add('caanno-target--focus');
+        this.fx.markedTargets.add(el);
+        this.fx.rowFocusEl = el;
+      }
+    },
+    unfocusRow() {
+      this.fx.rowFocusEl?.classList.remove('caanno-target--focus');
+      this.fx.rowFocusEl = undefined;
+    },
+
+    /* ── console right-stick traversal (annotationFocusBus) ─────────── */
+    armTraversal() {
+      if (this.fx.traversal === undefined) {
+        this.fx.traversal = {
+          step: (delta: 1 | -1) => this.stepStickFocus(delta),
+          clear: () => {
+            if (this.focusId !== null) {
+              this.clearFocus(this.focusId);
+            }
+          },
+        };
+      }
+      registerAnnotationTraversal(this.fx.traversal);
+    },
+    /** Cycle focus across the blocks in on-screen (top-down) order. */
+    stepStickFocus(delta: 1 | -1) {
+      if (this.rendered.length === 0) {
+        return;
+      }
+      const orderList = [...this.rendered].sort((p, q) => (p.y - q.y) || (p.x - q.x));
+      const current = orderList.findIndex((a) => a.id === this.focusId);
+      const next = current === -1 ?
+        (delta > 0 ? 0 : orderList.length - 1) :
+        (current + delta + orderList.length) % orderList.length;
+      this.setFocus(orderList[next].id);
+    },
+
+    /** Delegated hover on the CARD: pointing at a hotspot accents its block. */
     armReverseHover(stage: HTMLElement) {
       if (this.fx.hoverStage === stage) {
         return;
@@ -560,8 +697,8 @@ export default defineComponent({
       }
     },
     onStageOver(e: Event) {
-      // The exact node hotspot wins over its host row (closest walks up).
-      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-target');
+      // The exact node hotspot wins over its host surface (closest walks up).
+      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-hot');
       if (target === null || target === undefined) {
         return;
       }
@@ -571,7 +708,7 @@ export default defineComponent({
       }
     },
     onStageOut(e: Event) {
-      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-target');
+      const target = (e.target as HTMLElement | null)?.closest?.('.caanno-node, .caanno-hot');
       if (target === null || target === undefined) {
         return;
       }
@@ -607,18 +744,24 @@ export default defineComponent({
       this.fx.revealToken++; // invalidate any in-flight stability poll
       this.killTimeline();
       this.disarmReverseHover();
+      if (this.fx.traversal !== undefined) {
+        unregisterAnnotationTraversal(this.fx.traversal);
+      }
       if (this.fx.resizeRaf !== undefined) {
         window.cancelAnimationFrame(this.fx.resizeRaf);
         this.fx.resizeRaf = undefined;
       }
+      for (const timer of this.fx.pulseTimers) {
+        window.clearTimeout(timer);
+      }
+      this.fx.pulseTimers.clear();
       for (const el of this.fx.markedTargets) {
-        el.classList.remove(
-          'caanno-target', 'caanno-target--frame', 'caanno-target--block',
-          'caanno-target--special', 'caanno-target--focus', 'caanno-node');
+        el.classList.remove('caanno-hot', 'caanno-node', 'caanno-target--focus', ...PULSE_CLASSES);
       }
       this.fx.markedTargets.clear();
       this.fx.anchors.clear();
       this.fx.targetIds.clear();
+      this.fx.rowFocusEl = undefined;
       this.fx.blockEls.clear();
       this.fx.pathEls.clear();
       this.fx.nodeEls.clear();

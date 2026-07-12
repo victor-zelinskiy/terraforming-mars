@@ -140,7 +140,10 @@
               <div v-if="state.corp !== undefined" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('Corporation') }}</div>
                 <div class="con-start__minirow">
-                  <div class="con-start__mini con-start__mini--id con-start__deal" :data-zoom-slot="state.corp">
+                  <div class="con-start__mini con-start__mini--id con-start__deal"
+                       :class="{'con-start__mini--focused': isSummaryFocused(0)}"
+                       :ref="isSummaryFocused(0) ? 'focusedCardSlot' : undefined"
+                       :data-zoom-slot="state.corp">
                     <Card :card="{name: state.corp}" :key="state.corp" lightweight />
                   </div>
                 </div>
@@ -148,7 +151,11 @@
               <div v-if="state.preludes.length > 0" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('Preludes') }}</div>
                 <div class="con-start__minirow">
-                  <div v-for="name in state.preludes" :key="name" class="con-start__mini con-start__mini--id con-start__deal" :data-zoom-slot="name">
+                  <div v-for="(name, i) in state.preludes" :key="name"
+                       class="con-start__mini con-start__mini--id con-start__deal"
+                       :class="{'con-start__mini--focused': isSummaryFocused(summaryPreludeBase + i)}"
+                       :ref="isSummaryFocused(summaryPreludeBase + i) ? 'focusedCardSlot' : undefined"
+                       :data-zoom-slot="name">
                     <Card :card="{name}" :key="name" lightweight />
                   </div>
                 </div>
@@ -156,14 +163,21 @@
               <div v-if="state.ceo !== undefined" class="con-start__summary-block">
                 <div class="con-start__section-title">{{ $t('CEO') }}</div>
                 <div class="con-start__minirow">
-                  <div class="con-start__mini con-start__mini--id" :data-zoom-slot="state.ceo"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
+                  <div class="con-start__mini con-start__mini--id"
+                       :class="{'con-start__mini--focused': isSummaryFocused(summaryCeoIdx)}"
+                       :ref="isSummaryFocused(summaryCeoIdx) ? 'focusedCardSlot' : undefined"
+                       :data-zoom-slot="state.ceo"><Card :card="{name: state.ceo}" :key="state.ceo" lightweight /></div>
                 </div>
               </div>
             </div>
             <div class="con-start__summary-block">
               <div class="con-start__section-title">{{ $t('Projects') }} · {{ state.projects.length }}</div>
               <div v-if="state.projects.length > 0" class="con-start__minirow con-start__minirow--wrap">
-                <div v-for="(name, i) in state.projects" :key="name" class="con-start__mini con-start__deal" :style="dealDelay(i)" :data-zoom-slot="name">
+                <div v-for="(name, i) in state.projects" :key="name"
+                     class="con-start__mini con-start__deal"
+                     :class="{'con-start__mini--focused': isSummaryFocused(summaryProjectBase + i)}"
+                     :ref="isSummaryFocused(summaryProjectBase + i) ? 'focusedCardSlot' : undefined"
+                     :style="dealDelay(i)" :data-zoom-slot="name">
                   <Card :card="{name}" :key="name" lightweight />
                 </div>
               </div>
@@ -293,6 +307,7 @@
          Self-resolving: finds the focused card inside this scene itself. -->
     <ConsoleCardFocusFrame :active="!deal.state.active"
                            selector=".con-cards__slot--focused > :is(.card-container, .pcard),
+                                     .con-start__mini--focused > :is(.card-container, .pcard),
                                      .con-start__corp--focused > :is(.card-container, .pcard),
                                      .con-start__prelude--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
@@ -360,6 +375,7 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {cardsResponse} from '@/client/console/taskResponses';
+import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
@@ -481,7 +497,9 @@ export default defineComponent({
       }
       return this.singlePickStep || this.picksHere.length < step.input.max;
     },
-    /** The whole chosen setup, for the summary's fullscreen browse (X). */
+    /** The whole chosen setup, for the summary's fullscreen browse (X). The
+     *  order (corp → preludes → CEO → projects) matches the summary's DOM row
+     *  order, so a flat focus index maps 1:1 onto the rendered tiles. */
     summaryCards(): ReadonlyArray<CardModel> {
       const names: Array<CardName> = [];
       if (this.state.corp !== undefined) {
@@ -493,6 +511,20 @@ export default defineComponent({
       }
       names.push(...this.state.projects);
       return names.map((name) => ({name}) as CardModel);
+    },
+    /** True on the wizard's final summary (no live step). */
+    onSummary(): boolean {
+      return this.mode === 'wizard' && this.currentStep === undefined;
+    },
+    /** Flat-index offsets so each summary section maps onto `summaryCards`. */
+    summaryPreludeBase(): number {
+      return this.state.corp !== undefined ? 1 : 0;
+    },
+    summaryCeoIdx(): number {
+      return this.summaryPreludeBase + this.state.preludes.length;
+    },
+    summaryProjectBase(): number {
+      return this.summaryCeoIdx + (this.state.ceo !== undefined ? 1 : 0);
     },
     currentStepComplete(): boolean {
       const step = this.currentStep;
@@ -637,12 +669,14 @@ export default defineComponent({
       if (this.mode === 'wizard') {
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
-          const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
-            {control: 'secondary', label: 'Inspect'},
-            {control: 'triggerR', label: 'Begin the game', enabled: this.wizardReady},
-            {control: 'bumperL', label: 'Prev step'},
-            {control: 'back', label: 'Minimize'},
-          ];
+          const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [];
+          if (this.summaryCards.length > 0) {
+            hints.push({control: 'dpad', label: 'Navigate'});
+            hints.push({control: 'secondary', label: 'Inspect'});
+          }
+          hints.push({control: 'triggerR', label: 'Begin the game', enabled: this.wizardReady});
+          hints.push({control: 'bumperL', label: 'Prev step'});
+          hints.push({control: 'back', label: 'Minimize'});
           return hints;
         }
         // P15 grammar: multi-pick → A select/deselect + Y the ONE continue;
@@ -703,9 +737,20 @@ export default defineComponent({
       void this.$nextTick(() => this.fitCardStrip());
     },
     focusables(now: Array<Focusable>) {
-      if (this.focusIdx >= now.length) {
+      // Only clamp the CEREMONY focus cursor here — the wizard summary reuses
+      // focusIdx over summaryCards (focusables is empty there), and this clamp
+      // would otherwise snap it back to 0 on every re-eval.
+      if (this.mode === 'ceremony' && this.focusIdx >= now.length) {
         this.focusIdx = Math.max(0, now.length - 1);
       }
+    },
+    /** Mirror the scene's live contract into the shell's command bar (the bar
+     *  is the ONE hint surface; the inline footer echoes the same list). */
+    footHints: {
+      immediate: true,
+      handler(hints: Array<{control: GlyphControl, label: string, enabled?: boolean}>) {
+        setConsoleStartCommands(hints);
+      },
     },
   },
   mounted() {
@@ -721,6 +766,7 @@ export default defineComponent({
       window.clearTimeout(this.dealLaunchTimer);
     }
     this.deal.dispose();
+    resetConsoleStartUi();
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -735,6 +781,10 @@ export default defineComponent({
     isFocused(kind: Focusable['kind'], name: CardName): boolean {
       const f = this.focusedItem;
       return f !== undefined && f.kind === kind && f.name === name;
+    },
+    /** Summary focus cursor: is the flat-indexed tile the focused one? */
+    isSummaryFocused(idx: number): boolean {
+      return this.onSummary && this.focusIdx === idx;
     },
     disabledCardReason(card: CardModel): string {
       const reason = card.disabledReason;
@@ -800,6 +850,21 @@ export default defineComponent({
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
     },
     onNav(dir: NavDirection): void {
+      // The summary browses the whole chosen setup (corp → preludes → CEO →
+      // projects) as one flat linear list so X inspects the focused card.
+      if (this.onSummary) {
+        const step = dir === 'right' || dir === 'down' ? 1 : -1;
+        const count = this.summaryCards.length;
+        if (count === 0) {
+          return;
+        }
+        const next = Math.min(count - 1, Math.max(0, this.focusIdx + step));
+        if (next !== this.focusIdx) {
+          this.focusIdx = next;
+          void this.$nextTick(() => this.scrollFocusedIntoView());
+        }
+        return;
+      }
       // P13: the wizard GRID jumps rows on up/down (measured, wrap-robust).
       if (this.mode === 'wizard' && this.wizardGrid && (dir === 'up' || dir === 'down')) {
         this.moveFocusRow(dir === 'down' ? 1 : -1);
@@ -857,11 +922,12 @@ export default defineComponent({
           }, undefined, {origin});
           return;
         }
-        // The summary: X reviews the WHOLE chosen setup fullscreen (the mini
+        // The summary: X reviews the WHOLE chosen setup fullscreen, OPENING on
+        // the focused tile and following LB/RB back onto the focus (the mini
         // tiles carry data-zoom-slot too, so the lift/return stays physical).
         if (this.currentStep === undefined && this.summaryCards.length > 0) {
-          openConsoleCardZoom(this.summaryCards, 0, undefined, undefined, {
-            origin: this.zoomOriginFor(this.summaryCards.map((c) => c.name), false),
+          openConsoleCardZoom(this.summaryCards, this.focusIdx, undefined, undefined, {
+            origin: this.zoomOriginFor(this.summaryCards.map((c) => c.name), true),
           });
         }
         return;
@@ -929,7 +995,7 @@ export default defineComponent({
         // sit at a tuned fit zoom → never scroll a row on focus (that shifted
         // neighbours + churned the whole strip every d-pad move = Steam Deck
         // perf). Only the wizard GRID scrolls, and only VERTICALLY to the row.
-        if (this.mode === 'wizard' && this.wizardGrid) {
+        if ((this.mode === 'wizard' && this.wizardGrid) || this.onSummary) {
           el.scrollIntoView({block: 'nearest', behavior: 'smooth'});
         }
         return;

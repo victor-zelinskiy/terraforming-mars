@@ -183,6 +183,46 @@
     color: rgba(224, 233, 242, 0.92);
 }
 
+/* ── internal rows (a composite type inside ONE block) ────────────────
+ *  Minimal structure, never a table: hairline separators, quiet padding.
+ *  Hovering a row rings ITS exact card element (sub-anchor precision). */
+.caanno__rows {
+    display: flex;
+    flex-direction: column;
+}
+.caanno__row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 3px 0;
+    font-size: 12.5px;
+    line-height: 1.42;
+    color: rgba(224, 233, 242, 0.90);
+    transition: color calc(140ms * var(--motion-scale, 1)) ease;
+
+    &:first-child { padding-top: 0; }
+    &:last-child { padding-bottom: 0; }
+    &:hover { color: rgba(238, 244, 250, 1); }
+}
+.caanno__row + .caanno__row {
+    border-top: 1px solid rgba(217, 184, 120, 0.10);
+}
+/* a special row carries its own mini spark (the head star says «somewhere
+   here»; the row star says «this one») */
+.caanno__row-star {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    align-self: center;
+    background: radial-gradient(circle at 50% 42%, @caanno-gold-hi 0%, @caanno-amber 55%, fade(@caanno-amber, 0%) 100%);
+    clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+    filter: drop-shadow(0 0 3px rgba(255, 190, 114, 0.6));
+}
+.caanno__row-text {
+    flex: 1;
+    min-width: 0;
+}
+
 /* special rule block: amber accent takes over the chrome */
 .caanno--special {
     border-color: fade(@caanno-amber, 32%);
@@ -222,66 +262,113 @@
     .caanno__label {
         font-size: 8.5px;
     }
-    .caanno__text {
+    .caanno__text,
+    .caanno__row {
         font-size: 11.5px;
         line-height: 1.38;
     }
+    .caanno__row {
+        padding: 2px 0;
+    }
 }
 
-/* ── target highlight ON the card ──────────────────────────────────────
- *  Two variants, applied by the layer per annotation kind:
+/* ── the CONNECTION PULSE + focus ON the card ─────────────────────────
+ *  Targets are NEVER permanently highlighted: the resting card is calm.
+ *  Exactly when a tether LANDS, the layer plays ONE short premium pulse
+ *  on the target (class added + removed by JS), variant per anchor kind:
  *
- *  --frame  effects / actions / the VP badge — a THIN gold contour accent
- *           hugging the element's own silhouette. No fill, no wash: the
- *           element's colour identity (effect blue / action frame / gold
- *           badge) stays untouched — gold only traces the perimeter.
- *  --block  on-play mechanics + the requirements bar — the allowed
- *           block-level treatment: a calm ring + a barely-there gold wash.
+ *  --frame  effects / actions / the VP badge — a perimeter flash hugging
+ *           the element's own silhouette (no fill: colour identity kept);
+ *  --block  the requirements bar / a mechanics row — a soft ring + a
+ *           barely-there gold wash that breathes in and out;
+ *  --rail   the play-rail — a light sweep along the rail + an emblem glint.
  *
- *  --focus  rides the EXACT node (hover interplay) — crisp and local.
- *  The materialization is a one-shot sweep timed by the GSAP call();
- *  `backwards` fill (never `both`): after the sweep the CASCADE must own
- *  box-shadow again, or the end frame would pin over --special/--focus. */
+ *  `.caanno-hot` / `.caanno-node` are VISUAL-LESS hotspot markers (reverse
+ *  hover); `.caanno-target--focus` is the temporary hover / right-stick
+ *  focus ring. The pulse hue rides `--cap-rgb` (gold; amber for special). */
 
-.caanno-target {
-    transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
+.caanno-pulse {
+    --cap-rgb: 217, 184, 120;
+}
+.caanno-pulse--special {
+    --cap-rgb: 255, 190, 114;
 }
 
-.caanno-target--frame {
-    box-shadow:
-        0 0 0 1px rgba(217, 184, 120, 0.50),
-        0 0 6px rgba(217, 184, 120, 0.12);
-    animation: caanno-frame-in calc(380ms * var(--motion-scale, 1)) ease-out backwards;
+.caanno-pulse--frame {
+    animation: caanno-pulse-frame calc(640ms * var(--motion-scale, 1)) ease-out both;
 }
-
-.caanno-target--block {
-    background-color: rgba(217, 184, 120, 0.05);
-    box-shadow:
-        0 0 0 1px rgba(217, 184, 120, 0.30),
-        0 0 8px rgba(217, 184, 120, 0.14);
-    animation: caanno-block-in calc(460ms * var(--motion-scale, 1)) ease-out backwards;
-}
-
-/* The mechanics rows are square-cornered — soften the halo there; the reqs
-   band / VP badge / effect frames keep their OWN silhouette. */
-.pcard-mech-group.caanno-target {
+.caanno-pulse--block {
     border-radius: 4px;
+    animation: caanno-pulse-block calc(700ms * var(--motion-scale, 1)) ease-out both;
 }
 
-.caanno-target--special.caanno-target--frame {
-    box-shadow:
-        0 0 0 1px rgba(255, 190, 114, 0.60),
-        0 0 8px rgba(255, 183, 90, 0.18);
-}
-.caanno-target--special.caanno-target--block {
-    box-shadow:
-        0 0 0 1px rgba(255, 190, 114, 0.44),
-        0 0 12px rgba(255, 183, 90, 0.20);
+@keyframes caanno-pulse-frame {
+    0% {
+        box-shadow:
+            0 0 0 1px rgba(var(--cap-rgb), 0),
+            0 0 0 rgba(var(--cap-rgb), 0);
+    }
+    30% {
+        box-shadow:
+            0 0 0 1.5px rgba(var(--cap-rgb), 0.78),
+            0 0 14px rgba(var(--cap-rgb), 0.34);
+    }
+    100% {
+        box-shadow:
+            0 0 0 1px rgba(var(--cap-rgb), 0),
+            0 0 0 rgba(var(--cap-rgb), 0);
+    }
 }
 
-/* Focus (hover interplay): a crisp LOCAL ring on the exact anchor — also
-   applied to bare nodes inside a block-marked row, so it must be
-   self-sufficient. Declared last: it wins over the resting variants. */
+@keyframes caanno-pulse-block {
+    0% {
+        background-color: rgba(var(--cap-rgb), 0);
+        box-shadow: 0 0 0 1px rgba(var(--cap-rgb), 0), 0 0 0 rgba(var(--cap-rgb), 0);
+    }
+    35% {
+        background-color: rgba(var(--cap-rgb), 0.07);
+        box-shadow: 0 0 0 1px rgba(var(--cap-rgb), 0.55), 0 0 14px rgba(var(--cap-rgb), 0.26);
+    }
+    100% {
+        background-color: rgba(var(--cap-rgb), 0);
+        box-shadow: 0 0 0 1px rgba(var(--cap-rgb), 0), 0 0 0 rgba(var(--cap-rgb), 0);
+    }
+}
+
+/* The play-rail connection: a light sweep runs the rail, the emblem glints. */
+.pcard-play-rail.caanno-pulse--rail {
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -4px -8px;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(var(--cap-rgb), 0.45), transparent);
+        background-size: 34% 100%;
+        background-repeat: no-repeat;
+        animation: caanno-rail-sweep calc(680ms * var(--motion-scale, 1)) ease-in-out both;
+    }
+    .pcard-play-rail__emblem {
+        animation: caanno-rail-emblem calc(680ms * var(--motion-scale, 1)) ease-out both;
+    }
+}
+
+@keyframes caanno-rail-sweep {
+    0% { background-position: -40% 0; opacity: 0; }
+    18% { opacity: 1; }
+    82% { opacity: 1; }
+    100% { background-position: 140% 0; opacity: 0; }
+}
+
+@keyframes caanno-rail-emblem {
+    0% { box-shadow: 0 0 4px rgba(242, 215, 149, 0.32), inset 0 0 2px rgba(44, 30, 8, 0.8); }
+    45% { box-shadow: 0 0 12px rgba(var(--cap-rgb), 0.85), inset 0 0 2px rgba(44, 30, 8, 0.8); }
+    100% { box-shadow: 0 0 4px rgba(242, 215, 149, 0.32), inset 0 0 2px rgba(44, 30, 8, 0.8); }
+}
+
+/* Focus (hover / right-stick traversal): a crisp LOCAL ring on the exact
+   anchor — temporary by construction (removed on blur/step). */
 .caanno-target--focus {
     border-radius: 4px;
     box-shadow:
@@ -289,52 +376,34 @@
         0 0 12px rgba(217, 184, 120, 0.30);
 }
 
-@keyframes caanno-frame-in {
-    0% {
-        box-shadow:
-            0 0 0 1px rgba(242, 215, 149, 0),
-            0 0 0 rgba(242, 215, 149, 0);
+/* Rail focus: the thin strip reads better through its own parts — brighten
+   the lines + glow the emblem instead of a bar-shaped ring. */
+.pcard-play-rail.caanno-target--focus {
+    box-shadow: none;
+
+    .pcard-play-rail__line--l {
+        background: linear-gradient(90deg, transparent, rgba(242, 215, 149, 0.72));
     }
-    45% {
-        box-shadow:
-            0 0 0 1px rgba(242, 215, 149, 0.72),
-            0 0 12px rgba(242, 215, 149, 0.26);
+    .pcard-play-rail__line--r {
+        background: linear-gradient(90deg, rgba(242, 215, 149, 0.72), transparent);
     }
-    100% {
+    .pcard-play-rail__emblem {
         box-shadow:
-            0 0 0 1px rgba(217, 184, 120, 0.50),
-            0 0 6px rgba(217, 184, 120, 0.12);
+            0 0 10px rgba(242, 215, 149, 0.7),
+            inset 0 0 2px rgba(44, 30, 8, 0.8);
     }
 }
 
-@keyframes caanno-block-in {
-    0% {
-        background-color: rgba(217, 184, 120, 0);
-        box-shadow:
-            0 0 0 1px rgba(242, 215, 149, 0),
-            0 0 0 rgba(242, 215, 149, 0);
-    }
-    45% {
-        box-shadow:
-            0 0 0 1.5px rgba(242, 215, 149, 0.55),
-            0 0 16px rgba(242, 215, 149, 0.30);
-    }
-    100% {
-        background-color: rgba(217, 184, 120, 0.05);
-        box-shadow:
-            0 0 0 1px rgba(217, 184, 120, 0.30),
-            0 0 8px rgba(217, 184, 120, 0.14);
-    }
-}
-
-/* ── reduced motion: static presentation, no sweeps ───────────────────── */
+/* ── reduced motion: static presentation, no sweeps / pulses ──────────── */
 @media (prefers-reduced-motion: reduce) {
     .caanno,
+    .caanno__row,
     .cal-line path,
     .cal-line .cal-line__node,
-    .caanno-target,
-    .caanno-target--frame,
-    .caanno-target--block {
+    .caanno-pulse--frame,
+    .caanno-pulse--block,
+    .pcard-play-rail.caanno-pulse--rail::after,
+    .pcard-play-rail.caanno-pulse--rail .pcard-play-rail__emblem {
         transition: none;
         animation: none;
     }

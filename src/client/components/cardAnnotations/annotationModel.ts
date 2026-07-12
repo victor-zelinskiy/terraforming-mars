@@ -3,55 +3,99 @@
  * overlay (the floating sci-fi rule blocks tethered to the card's graphic
  * elements).
  *
- * NOT a new content source: annotations are a 1:1 projection of the
- * build-time Card Information Model (`ClientCard.metadata.information`) —
- * every block already carries its text (an EN i18n key) and its
- * `graphicId` link into the SHARED `deriveGraphicIds` address space, which
- * the premium face stamps onto its DOM as `data-graphic-id`. No runtime
- * text parsing, no per-card wiring.
+ * NOT a new content source: annotations are a projection of the build-time
+ * Card Information Model (`ClientCard.metadata.information`) — every block
+ * already carries its text (an EN i18n key) and its `graphicId` /
+ * `graphicNode` links into the SHARED derivation address space
+ * (cardGraphicIds.ts), which the premium face stamps onto its DOM. No
+ * runtime text parsing, no per-card wiring.
+ *
+ * GROUPED BY SEMANTIC TYPE: one rule block per type — «Требование» is
+ * always ONE block (composite requirements become internal rows),
+ * «При розыгрыше» is always ONE block (each sub-effect a row, the block
+ * tethers to the card's play-rail), action cost/result fold into ONE
+ * «Действие» block, passive effects merge into ONE «Эффект» block. Rows
+ * keep their own exact anchors (graphicId/graphicNode) for row-level
+ * hover precision; the GROUP carries the tether anchor.
  *
  * The styled «*» (the physical cards' special-rule footnote) is detected
  * from the linked graphic row itself (an ASTERIX symbol anywhere in it) —
- * the annotation block then renders the SAME premium spark marker the face
- * uses, and its target gets the stronger highlight.
+ * a special row renders the premium spark marker, and the group inherits
+ * it for the head chip.
  */
 
 import {ClientCard} from '@/common/cards/ClientCard';
-import {CardInfoBlockKind} from '@/common/cards/CardInformation';
 import {deriveGraphicIds} from '@/common/cards/render/cardGraphicIds';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {ItemType, isICardRenderRoot, isICardRenderSymbol} from '@/common/cards/render/Types';
 
-export type CardAnnotation = {
+/** The semantic TYPE of a grouped rule block (action cost/result folded). */
+export type CardAnnotationKind =
+  | 'requirement'
+  | 'immediate'
+  | 'effect'
+  | 'action'
+  | 'victory-points'
+  | 'note';
+
+export type CardAnnotationRow = {
   /** The information block's stable id (unique within the card). */
   id: string;
-  kind: CardInfoBlockKind;
-  /** The semantic chip label — an EN i18n key. */
-  labelKey: string;
   /** The rule text — an EN i18n key (translate, then stripKindPrefix). */
   text: string;
-  /** The graphic element this block explains (data-graphic-id address). */
+  /** This row's linked graphic row (data-graphic-id address). */
   graphicId?: string;
-  /**
-   * EXACT semantic anchor inside the row (data-graphic-node address) — the
-   * tether line lands on this node, never on the whole section.
-   */
+  /** EXACT node inside the row (data-graphic-node address). */
   graphicNode?: string;
   /** The linked graphic carries the styled «*» special-rule footnote. */
   special: boolean;
+};
+
+export type CardAnnotation = {
+  /** Stable group id (`group:<kind>`, unique within the card). */
+  id: string;
+  kind: CardAnnotationKind;
+  /** The semantic chip label — an EN i18n key. */
+  labelKey: string;
+  /** The block's content rows (≥ 1), in information-model order. */
+  rows: ReadonlyArray<CardAnnotationRow>;
+  /** Any row carries the «*» footnote — the head chip shows the spark. */
+  special: boolean;
+  /** The GROUP tether anchor (first linked row; 'immediate' groups tether
+   *  to the card's play-rail in the layer, this is the fallback). */
+  graphicId?: string;
+  graphicNode?: string;
   order: number;
 };
 
-const LABEL_BY_KIND: Readonly<Record<CardInfoBlockKind, string>> = {
+const LABEL_BY_KIND: Readonly<Record<CardAnnotationKind, string>> = {
   'requirement': 'Requirement',
   'immediate': 'On play',
   'effect': 'Effect',
   'action': 'Action',
-  'action-cost': 'Action',
-  'action-result': 'Action',
   'victory-points': 'Victory points',
   'note': 'Special rule',
 };
+
+/** Reveal / reading order — mirrors the card top-down: requirements bar →
+ *  effect/action frames → the bottom play zone → the VP badge → fine print. */
+const KIND_ORDER: ReadonlyArray<CardAnnotationKind> = [
+  'requirement', 'effect', 'action', 'immediate', 'victory-points', 'note',
+];
+
+/** Fold an information block kind into its semantic group. */
+function groupKindOf(blockKind: string): CardAnnotationKind {
+  switch (blockKind) {
+  case 'requirement': return 'requirement';
+  case 'effect': return 'effect';
+  case 'action':
+  case 'action-cost':
+  case 'action-result': return 'action';
+  case 'victory-points': return 'victory-points';
+  case 'note': return 'note';
+  default: return 'immediate';
+  }
+}
 
 /** Deep scan of a render row for the «*» footnote symbol. */
 function rowHasAsterix(nodes: ReadonlyArray<ItemType>): boolean {
@@ -72,8 +116,9 @@ function rowHasAsterix(nodes: ReadonlyArray<ItemType>): boolean {
 }
 
 /**
- * Build the fullscreen annotations for a card. Empty for cards without the
- * information model (out-of-scope types — the layer simply doesn't appear).
+ * Build the fullscreen annotations for a card — ONE block per semantic
+ * type, rows inside. Empty for cards without the information model
+ * (out-of-scope types — the layer simply doesn't appear).
  */
 export function buildCardAnnotations(clientCard: ClientCard): Array<CardAnnotation> {
   const information = clientCard.metadata.information;
@@ -93,25 +138,47 @@ export function buildCardAnnotations(clientCard: ClientCard): Array<CardAnnotati
   const vpSpecial = vp !== undefined && typeof vp !== 'number' &&
     (vp.asterisk === true || vp.targetOneOrMore === true || vp.vermin === true);
 
-  const annotations: Array<CardAnnotation> = [];
-  let order = 0;
+  const buckets = new Map<CardAnnotationKind, Array<CardAnnotationRow>>();
   for (const group of information.groups) {
     for (const block of group.blocks) {
       const special =
         block.kind === 'note' ||
         (block.graphicId === 'vp' && vpSpecial) ||
         (block.graphicId !== undefined && specialByGraphic.get(block.graphicId) === true);
-      annotations.push({
+      const kind = groupKindOf(block.kind);
+      let rows = buckets.get(kind);
+      if (rows === undefined) {
+        rows = [];
+        buckets.set(kind, rows);
+      }
+      rows.push({
         id: block.id,
-        kind: block.kind,
-        labelKey: LABEL_BY_KIND[block.kind],
         text: block.text,
         graphicId: block.graphicId,
         graphicNode: block.graphicNode,
         special,
-        order: order++,
       });
     }
+  }
+
+  const annotations: Array<CardAnnotation> = [];
+  let order = 0;
+  for (const kind of KIND_ORDER) {
+    const rows = buckets.get(kind);
+    if (rows === undefined || rows.length === 0) {
+      continue;
+    }
+    const anchored = rows.find((r) => r.graphicId !== undefined);
+    annotations.push({
+      id: `group:${kind}`,
+      kind,
+      labelKey: LABEL_BY_KIND[kind],
+      rows,
+      special: rows.some((r) => r.special),
+      graphicId: anchored?.graphicId,
+      graphicNode: anchored?.graphicNode,
+      order: order++,
+    });
   }
   return annotations;
 }

@@ -8506,6 +8506,22 @@ html.console-mode {
     color: @con-text-dim;
     font-size: 15px;
 }
+/* The right-stick DEFLECTION plate (rule-overlay traversal) — bespoke: the
+   glyph set's stickR means R3 (a press), which would mislead here. */
+.con-zoom__rs {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    border: 1px solid fade(@con-text-dim, 55%);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: @con-text-dim;
+}
 /* P17: the context PLAY action (desktop parity) + the «why not» panel for
    an unplayable card - the fullscreen viewer is never mute. */
 .con-zoom__btn--play {
@@ -8911,10 +8927,20 @@ html.console-mode {
     &__mini {
         flex-shrink: 0;
         zoom: 0.62;
+        position: relative;
+        border-radius: 12px;
+        transition: transform var(--con-motion-fast, 140ms) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
         &--id { zoom: 0.7; }
+
+        /* Summary focus cursor: the browsed tile lifts + leads; the gliding
+           ConsoleCardFocusFrame draws the ring around it (X inspects it). */
+        &--focused {
+            transform: translateY(-4px) scale(1.04);
+            z-index: 2;
+        }
     }
     /* P17: >5 bought projects drop the summary one density notch so the
        confirmation screen FITS without scrolling (X = the detailed read). */
