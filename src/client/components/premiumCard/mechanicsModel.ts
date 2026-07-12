@@ -118,6 +118,22 @@ function dropTrailingOr(nodes: ReadonlyArray<ItemType>): Array<ItemType> {
   return (j >= 0 && isOrNode(nodes[j])) ? nodes.slice(0, j) : [...nodes];
 }
 
+/**
+ * An effect node whose CAUSE row draws NOTHING (`eb.empty().startEffect`) — the
+ * idiom where the trigger is drawn as a standalone ROOT row before the effect
+ * box (Viral Enhancers: `b.tag(PLANT).slash().tag(MICROBE).slash().tag(ANIMAL).br;
+ * b.effect(eb => eb.empty().startEffect…)`). Spacer/empty symbols don't count.
+ */
+function emptyCauseEffect(nodes: ReadonlyArray<ItemType>): ICardRenderEffect | undefined {
+  for (const node of nodes) {
+    if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node) &&
+        renderableNodes(node.rows[0] ?? []).every(isSpacerNode)) {
+      return node;
+    }
+  }
+  return undefined;
+}
+
 export function effectParts(node: ICardRenderEffect): EffectParts {
   const rows = node.rows;
   const delimiterRow = rows.length > 1 ? rows[1] : [];
@@ -344,10 +360,24 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
       pendingOr = pendingOr || leadingOr || trailingOr; // an OR-only row
       return;
     }
+    // Viral-Enhancers idiom: the effect's TRIGGER is drawn as a standalone
+    // root row BEFORE an empty-cause effect box. Splice that trigger into the
+    // effect's cause and drop the standalone group so the whole graphic reads
+    // as ONE effect (mirrors effectExtraction.withSplicedCause; the tag row was
+    // rendering as a separate block on the premium face).
+    let effectiveNodes = nodes;
+    const emptyEffect = emptyCauseEffect(nodes);
+    const prev = groups[groups.length - 1];
+    if (emptyEffect !== undefined && prev !== undefined && prev.kind === 'plain' && prev.orJoin !== true) {
+      effectiveNodes = nodes.map((node) => (node === emptyEffect ?
+        {...emptyEffect, rows: [[...prev.nodes], emptyEffect.rows[1], emptyEffect.rows[2]]} :
+        node));
+      groups.pop();
+    }
     const group: MechGroup = {
-      kind: groupKindOf(nodes),
-      nodes,
-      weight: sumNodes(nodes),
+      kind: groupKindOf(effectiveNodes),
+      nodes: effectiveNodes,
+      weight: sumNodes(effectiveNodes),
       graphicId: graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
     };
     if (pendingOr || leadingOr) {

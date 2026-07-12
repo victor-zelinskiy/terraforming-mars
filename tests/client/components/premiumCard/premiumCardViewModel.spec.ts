@@ -325,3 +325,28 @@ describe('premium face coverage guard', () => {
     expect(unexpected, `cards without extractable mechanics changed:\n${unexpected.join('\n')}`).to.deep.eq([]);
   });
 });
+
+describe('empty-cause effect trigger splice (Viral Enhancers idiom)', () => {
+  it('Viral Enhancers reads as ONE effect group with the tag trigger spliced into its cause', () => {
+    // The trigger (plant/microbe/animal tags) is drawn as a standalone ROOT row
+    // before an `eb.empty().startEffect` box; the whole graphic is ONE effect,
+    // so the tag row must NOT render as a separate mech group.
+    const groups = vmOf(CardName.VIRAL_ENHANCERS).mechanics.groups;
+    expect(groups.length, 'the standalone tag row must be merged, not a separate group').to.eq(1);
+    expect(groups[0].kind).to.eq('effect');
+    const effect = groups[0].nodes.find((n) => n !== undefined && typeof n !== 'string' && isICardRenderEffect(n));
+    const cause = effectParts(effect as Parameters<typeof effectParts>[0]).cause;
+    const tags = cause.filter((n) => n !== undefined && typeof n !== 'string' && 'type' in n && n.type === 'tag');
+    expect(tags.length, 'the 3 trigger tags become the effect cause').to.eq(3);
+  });
+
+  it('an empty-cause effect with NO preceding trigger row (Earth Catapult) is left unmerged', () => {
+    const groups = vmOf(CardName.EARTH_CATAPULT).mechanics.groups;
+    expect(groups.length).to.eq(1);
+    expect(groups[0].kind).to.eq('effect');
+    const effect = groups[0].nodes.find((n) => n !== undefined && typeof n !== 'string' && isICardRenderEffect(n));
+    const cause = effectParts(effect as Parameters<typeof effectParts>[0]).cause;
+    // its cause carries only the empty spacer — nothing was wrongly spliced in
+    expect(cause.every((n) => n !== undefined && typeof n !== 'string' && isICardRenderSymbol(n))).to.eq(true);
+  });
+});
