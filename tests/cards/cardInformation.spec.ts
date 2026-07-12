@@ -314,6 +314,31 @@ describe('card information model', function() {
     ).to.deep.eq([]);
   });
 
+  it('the victory-points block carries ONLY the VP rule (no immediate/tile rule crammed in)', () => {
+    // A `vpText` node sometimes BUNDLES a non-VP rule into the VP line
+    // (Ecological Zone:ares crammed «The tile grants an adjacency bonus of 1
+    // animal» in with «1 VP per 2 animals»). Every SENTENCE of a VP block must
+    // be about victory points; a sentence with no VP that states an immediate/
+    // tile rule belongs in an `immediate`/`effect` infoText block instead.
+    const RULE_VERB = /\b(adjacency bonus|place a|place this|placing|you gain|gain \d|raise the|raise your|increase your|decrease your|draw \d|when you play|on top of)\b/i;
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      const vp = (info(card)?.groups ?? []).find((g) => g.kind === 'victory-points');
+      if (vp === undefined) {
+        continue;
+      }
+      for (const block of vp.blocks) {
+        for (const sentence of block.text.split(/[.!?]+/)) {
+          const s = sentence.trim();
+          if (s.length > 0 && !/\bVP\b/i.test(s) && RULE_VERB.test(s)) {
+            offenders.push(`${card.name}: non-VP rule in the VP block → "${s}"`);
+          }
+        }
+      }
+    }
+    expect(offenders, `move the non-VP rule to an immediate/effect infoText block:\n${offenders.join('\n')}`).to.deep.eq([]);
+  });
+
   it('out-of-scope cards carry NO information (scope is explicit)', () => {
     const outside = loadCards().filter((c) => !SCOPE_MODULES.has(c.module) || !SCOPE_TYPES.has(c.type));
     for (const card of outside) {

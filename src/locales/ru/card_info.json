@@ -253,6 +253,8 @@
   "Place a special tile adjacent to a city tile.": "Разместите особый тайл рядом с тайлом города.",
   "The tile grants an adjacency bonus of 1 steel.": "Тайл даёт БОНУС ЗА СОСЕДСТВО в 1 сталь.",
   "The tile grants an adjacency bonus of 2 energy.": "Тайл даёт БОНУС ЗА СОСЕДСТВО в 2 энергии.",
+  "The tile grants an adjacency bonus of 1 animal.": "Тайл даёт БОНУС ЗА СОСЕДСТВО в 1 животное.",
+  "Place a special tile adjacent to any greenery.": "Разместите особый тайл рядом с любым озеленением.",
   "Increase your energy production 1 step for each plant resource on the area where you place the tile.": "Повысьте производство энергии на 1 шаг за каждый символ растения на клетке, где вы размещаете тайл.",
   "If there are tiles adjacent to this ocean tile, you may remove 4 M€ from the owner of one of those tiles.": "Если рядом с этим тайлом океана есть тайлы, вы можете забрать 4 M€ у владельца одного из них.",
   "Return up to 2 of your played event cards to your hand.": "Верните до 2 разыгранных карт событий в руку.",

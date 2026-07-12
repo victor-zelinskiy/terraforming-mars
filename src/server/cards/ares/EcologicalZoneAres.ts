@@ -17,6 +17,14 @@ export class EcologicalZoneAres extends EcologicalZone {
           text: 'Requires that YOU have a greenery tile. Place this tile adjacent to ANY greenery.',
           align: 'left',
         },
+        // The vpText node crams the tile's adjacency bonus INTO the VP line, so
+        // author the split: the adjacency belongs to the on-play tile, the VP
+        // line is only «1 VP per 2 animals». (The effect is auto-extracted.)
+        infoText: [
+          {text: 'Place a special tile adjacent to any greenery.', tokens: ['tile-']},
+          {text: 'The tile grants an adjacency bonus of 1 animal.', tokens: ['tile-']},
+          {kind: 'victory-points', text: '1 VP per 2 animals on this card.'},
+        ],
         cardNumber: 'A08',
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play an animal or plant tag INCLUDING THESE, add an animal to this card.', (eb) => {
