@@ -25,6 +25,11 @@
     <transition name="con-layer">
       <ConsoleLoadingScreen v-if="loadingScreenState.active" />
     </transition>
+    <!-- APP BOOT LOADER: premium launch screen + GPU shader warm-up, shown once
+         per session over everything (its own z=13000), then fades out. -->
+    <transition name="boot-fade">
+      <AppBootLoader v-if="bootWarmupState.active" />
+    </transition>
     <section>
       <dialog id="alert-dialog" class="alert-dialog">
         <form method="dialog">
@@ -362,6 +367,8 @@ const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName:
 const PremiumCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "premium-create-game" */ '@/client/components/create/premium/PremiumCreateGame.vue'));
 import DraftFlowOverlay from '@/client/components/DraftFlowOverlay.vue';
 import StartGameFlowOverlay from '@/client/components/startGameFlow/StartGameFlowOverlay.vue';
+import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
+import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
 import GameExitButton from '@/client/components/GameExitButton.vue';
 import RevealResultOverlay from '@/client/components/actions/RevealResultOverlay.vue';
@@ -542,6 +549,7 @@ export default defineComponent({
     'login-home': LoginHome,
     DraftFlowOverlay,
     StartGameFlowOverlay,
+    AppBootLoader,
     RevealResultOverlay,
     MaCeremonyOverlay,
     EnergyConversionOverlay,
@@ -609,6 +617,9 @@ export default defineComponent({
     },
     loadingScreenState() {
       return loadingScreenState;
+    },
+    bootWarmupState() {
+      return bootWarmupState;
     },
     // True while a non-dismissed reveal batch exists — drives the App-level
     // reveal modal mount. Goes false the instant the last batch is taken
@@ -999,6 +1010,13 @@ export default defineComponent({
   },
   mounted() {
     setDocumentTitle();
+    // Premium launch screen + GPU shader warm-up — ONCE per session (survives the
+    // in-game reloads via sessionStorage). Overlays everything at z=13000 while it
+    // compiles the heavy Graphite pipelines; it does NOT block route/data loading
+    // (the real screen loads underneath and is revealed when the loader fades out).
+    if (shouldRunBootWarmup()) {
+      beginBootWarmup();
+    }
     if (!windowHasHTMLDialogElement()) {
       dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
     }

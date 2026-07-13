@@ -1,4 +1,9 @@
 {
+  "Preparing the game": "Подготовка игры",
+  "Initializing renderer…": "Инициализация рендера…",
+  "Warming up shaders…": "Прогрев шейдеров…",
+  "Preparing animations…": "Подготовка анимаций…",
+  "Almost ready…": "Почти готово…",
   "(any player)": "(любой игрок)",
   "To main menu": "В главное меню",
   "Menu": "Меню",

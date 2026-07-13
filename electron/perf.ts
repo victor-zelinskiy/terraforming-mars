@@ -138,10 +138,14 @@ export function applyPerformanceSwitches(app: App): void {
   // compositor is software (--disable-gpu) so Graphite doesn't apply. Override / roll back:
   //   TM_ELECTRON_FEATURES="SkiaGraphite,RawDraw"  → add features
   //   TM_ELECTRON_FEATURES="none" (or "off")       → disable, fall back to Ganesh (the rollback)
+  // `SkiaGraphitePrecompilation` rides along on Windows: Graphite's built-in up-front pipeline
+  // compilation, aimed at the first-use shader stutter (measured neutral-to-positive on device,
+  // never harmful — an unknown feature name is silently ignored, unlike RawDraw which is
+  // INCOMPATIBLE with gpu-rasterization and white-screens).
   const featuresRaw = (process.env.TM_ELECTRON_FEATURES ?? '').trim();
   let features: string;
   if (featuresRaw === '') {
-    features = process.platform === 'win32' ? 'SkiaGraphite' : '';
+    features = process.platform === 'win32' ? 'SkiaGraphite,SkiaGraphitePrecompilation' : '';
   } else if (featuresRaw.toLowerCase() === 'none' || featuresRaw.toLowerCase() === 'off') {
     features = '';
   } else {

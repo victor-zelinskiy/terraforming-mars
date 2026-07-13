@@ -1,0 +1,209 @@
+/*
+ * APP BOOT LOADER — premium app-launch screen + GPU shader warm-up.
+ * Component: src/client/components/boot/AppBootLoader.vue
+ *
+ * Two layers share one root:
+ *  - `.boot-loader__warm` : a HIDDEN scene (low opacity, behind the opaque
+ *    panel) whose cells carry the game's heavy effects + a running animation,
+ *    so Skia Graphite compiles those pipelines up front (kills the first-anim
+ *    hitch). It must genuinely paint — hence low opacity + animation (a
+ *    composited, animating layer is rasterized even while occluded), NOT
+ *    `display:none`.
+ *  - the visible premium loader (space scene + glass panel + orbital scanner).
+ */
+
+@boot-cyan: rgba(106, 176, 230, 1);
+@boot-cyan-soft: rgba(106, 176, 230, 0.4);
+
+.boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 13000; // above every in-game surface — this is the launch curtain
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05090f;
+  font-family: 'Prototype', 'Orbitron', sans-serif;
+}
+
+/* ── Hidden GPU warm-up scene ─────────────────────────────────────────────── */
+.boot-loader__warm {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.06; // barely visible on its own; the opaque panel scene covers it fully
+  pointer-events: none;
+}
+
+.boot-warm-cell {
+  position: absolute;
+  width: 190px;
+  height: 265px;
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(120, 190, 240, 0.5), transparent 60%),
+    linear-gradient(180deg, #22456a 0%, #12263c 60%, #0c1a2b 100%);
+  animation: boot-warm-run calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+  will-change: transform, filter;
+}
+// Scatter the cells across the viewport so different tiles/positions raster.
+.boot-warm-cell--pcard     { top: 6%;  left: 8%;  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55)); }
+.boot-warm-cell--card      { top: 10%; left: 32%; box-shadow: inset 0 0 0 1px rgba(120, 190, 240, 0.4), 0 10px 26px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.6); }
+.boot-warm-cell--glow      { top: 8%;  left: 58%; filter: drop-shadow(0 0 18px rgba(106, 176, 230, 0.8)); }
+.boot-warm-cell--blur      { top: 12%; left: 80%; filter: blur(3px); }
+.boot-warm-cell--backdrop  { top: 46%; left: 6%;  backdrop-filter: blur(6px); background: rgba(20, 40, 60, 0.4); }
+.boot-warm-cell--grayscale { top: 50%; left: 30%; filter: grayscale(1) brightness(0.7); }
+.boot-warm-cell--clip      { top: 48%; left: 56%; clip-path: polygon(0 0, 100% 0, 100% 86%, 86% 100%, 0 100%); }
+.boot-warm-cell--gradient  { top: 52%; left: 80%; background: conic-gradient(from 200deg at 50% 50%, #2a5680, #12263c, #2a5680); }
+.boot-warm-cell--shadow    { top: 70%; left: 20%; box-shadow: 0 0 0 2px @boot-cyan, 0 0 22px @boot-cyan-soft; }
+.boot-warm-cell--bright    { top: 68%; left: 62%; filter: brightness(1.3) contrast(1.1) saturate(1.2); }
+
+@keyframes boot-warm-run {
+  0%   { transform: translate3d(0, 0, 0) scale(0.9) rotate(-3deg); }
+  50%  { transform: translate3d(0, -14px, 0) scale(1.06) rotate(3deg); filter: hue-rotate(12deg); }
+  100% { transform: translate3d(0, 0, 0) scale(0.9) rotate(-3deg); }
+}
+
+/* ── Visible premium space scene (opaque — hides the warm-up behind it) ────── */
+.boot-loader__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(140% 120% at 50% -10%, #16324e 0%, #0a1725 42%, #05090f 100%);
+}
+.boot-loader__glow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(46% 40% at 50% 32%, rgba(214, 122, 84, 0.22), transparent 70%);
+  mix-blend-mode: screen;
+}
+.boot-loader__grid {
+  position: absolute;
+  inset: -20%;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(106, 176, 230, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(106, 176, 230, 0.06) 1px, transparent 1px);
+  background-size: 46px 46px;
+  transform: perspective(520px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  mask-image: radial-gradient(60% 60% at 50% 60%, #000 30%, transparent 100%);
+}
+.boot-loader__vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(70% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* ── Glass panel ──────────────────────────────────────────────────────────── */
+.boot-loader__panel {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 44px 64px 40px;
+  border-radius: 16px;
+  background:
+    radial-gradient(125% 90% at 50% -8%, rgba(120, 190, 240, 0.10), transparent 60%),
+    linear-gradient(180deg, rgba(18, 28, 42, 0.975) 0%, rgba(9, 16, 26, 0.985) 100%);
+  box-shadow:
+    0 0 0 1px rgba(106, 176, 230, 0.24),
+    inset 0 0 120px rgba(0, 0, 0, 0.34),
+    0 30px 90px rgba(0, 0, 0, 0.6);
+}
+.boot-loader__corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: @boot-cyan;
+  opacity: 0.75;
+  filter: drop-shadow(0 0 6px rgba(106, 176, 230, 0.4));
+}
+.boot-loader__corner--tl { top: -8px; left: -8px;  border-top: 2px solid; border-left: 2px solid; }
+.boot-loader__corner--tr { top: -8px; right: -8px; border-top: 2px solid; border-right: 2px solid; }
+.boot-loader__corner--bl { bottom: -8px; left: -8px;  border-bottom: 2px solid; border-left: 2px solid; }
+.boot-loader__corner--br { bottom: -8px; right: -8px; border-bottom: 2px solid; border-right: 2px solid; }
+
+/* ── Orbital scanner ──────────────────────────────────────────────────────── */
+.boot-loader__scanner {
+  width: 116px;
+  height: 116px;
+  svg { width: 100%; height: 100%; display: block; }
+}
+.boot-loader__orbit { fill: none; stroke: rgba(106, 176, 230, 0.28); stroke-width: 1.4; }
+.boot-loader__orbit--mid { stroke: rgba(106, 176, 230, 0.16); }
+.boot-loader__core {
+  fill: rgba(214, 122, 84, 0.9);
+  filter: drop-shadow(0 0 10px rgba(214, 122, 84, 0.6));
+  animation: boot-core-pulse calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+.boot-loader__sweep {
+  transform-origin: 60px 60px;
+  animation: boot-sweep calc(4200ms * var(--motion-scale, 1)) linear infinite;
+}
+.boot-loader__satellite {
+  fill: @boot-cyan;
+  filter: drop-shadow(0 0 7px rgba(106, 176, 230, 0.85));
+}
+@keyframes boot-sweep { to { transform: rotate(360deg); } }
+@keyframes boot-core-pulse {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 1; }
+}
+
+/* ── Title / stage / progress ─────────────────────────────────────────────── */
+.boot-loader__title {
+  font-size: 22px;
+  letter-spacing: 5px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #eaf4ff 0%, #9fc4e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 22px rgba(106, 176, 230, 0.25);
+}
+.boot-loader__stage {
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: rgba(180, 208, 232, 0.9);
+  text-transform: uppercase;
+  min-height: 16px;
+}
+.boot-loader__progress {
+  width: 260px;
+  height: 4px;
+  border-radius: 3px;
+  background: rgba(106, 176, 230, 0.14);
+  overflow: hidden;
+}
+.boot-loader__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(106, 176, 230, 0.7), #eaf4ff);
+  box-shadow: 0 0 12px rgba(106, 176, 230, 0.7);
+  transition: width calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Stage text swap. */
+.boot-stage-swap-enter-active,
+.boot-stage-swap-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
+.boot-stage-swap-enter-from { opacity: 0; transform: translateY(6px); }
+.boot-stage-swap-leave-to   { opacity: 0; transform: translateY(-6px); }
+
+/* Loader fade-out on unmount (v-if + <transition name="boot-fade">). */
+.boot-fade-leave-active { transition: opacity 420ms ease; }
+.boot-fade-leave-to { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  // Still render the effects (pipelines compile on first paint), but no motion.
+  .boot-warm-cell,
+  .boot-loader__core,
+  .boot-loader__sweep { animation: none; }
+}

@@ -166,11 +166,11 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Windows: enables Skia Graphite by default', () => {
+  it('Windows: enables Skia Graphite (+ precompilation) by default', () => {
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
-      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite'});
+      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite,SkiaGraphitePrecompilation'});
     });
   });
 
