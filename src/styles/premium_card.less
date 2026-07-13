@@ -55,11 +55,12 @@
 
   /* ── requirement copper enamel — the recessed satin-copper WORKING SURFACE
         of the requirement cassette (the housing around it is the card's own
-        dark metal). One semantic palette, shared normal↔{all}↔description. ── */
-  --pcard-req-copper-hi: #7c4a22;    /* recessed enamel — upper (in lip shade) */
-  --pcard-req-copper: #8a5329;       /* satin mid (the pooled light)           */
-  --pcard-req-copper-deep: #4e2d15;  /* lower deep                             */
-  --pcard-req-bevel: rgba(255, 216, 166, 0.34);  /* warm inner lip light       */
+        dark metal). Gradient reads CONCAVE (deep top lip → warm pooled light
+        at the bottom). One palette, shared normal↔{all}↔description. ── */
+  --pcard-req-copper-hi: #895230;    /* warm satin — the pooled light (bottom) */
+  --pcard-req-copper: #6c4320;       /* mid                                    */
+  --pcard-req-copper-deep: #442712;  /* deep — the recessed top-lip shadow     */
+  --pcard-req-bevel: rgba(255, 216, 166, 0.32);  /* warm bottom lip light      */
   --pcard-req-accent: #e8d2a6;       /* operator + port — warm satin metal     */
   --pcard-req-accent-rgb: 232, 210, 166;
 
@@ -507,18 +508,18 @@
   gap: 0 8px;
   margin: 2px 0;
   background:
-    linear-gradient(112deg, transparent 44%, rgba(255, 236, 205, 0.06) 49%, transparent 55%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 6px),
-    linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 56%, var(--pcard-req-copper-deep) 100%);
+    linear-gradient(112deg, transparent 44%, rgba(255, 236, 205, 0.055) 49%, transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, var(--pcard-req-copper-deep) 0%, var(--pcard-req-copper) 46%, var(--pcard-req-copper-hi) 100%);
   box-shadow:
-    inset 0 2px 3px rgba(0, 0, 0, 0.5),            /* recessed top shadow (concave) */
+    inset 0 2.5px 3px rgba(0, 0, 0, 0.55),          /* recessed top shadow (concave) */
     inset 0 -1px 0 var(--pcard-req-bevel),          /* warm bottom lip light         */
     inset 0 0 0 1px rgba(40, 21, 8, 0.5);           /* seated inner rim              */
 }
 .pcard__reqs--multi .pcard__reqs-field { gap: 0 5px; }
 .pcard--tier-thumb .pcard__reqs { filter: none; }
 .pcard--tier-thumb .pcard__reqs-field {
-  background: linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 56%, var(--pcard-req-copper-deep) 100%);
+  background: linear-gradient(180deg, var(--pcard-req-copper-deep) 0%, var(--pcard-req-copper) 46%, var(--pcard-req-copper-hi) 100%);
 }
 
 /* «{all}» / «any player» — the dark HOUSING is UNCHANGED; only the copper FIELD
@@ -527,17 +528,17 @@
    STRUCTURE + hue — never an alarm-red repaint of the whole strip. Shares
    --pcard-any with the fullscreen «any player» highlight. */
 .pcard__reqs--all {
-  --pcard-req-copper-hi: #7a3a26;
-  --pcard-req-copper: #8a4229;
-  --pcard-req-copper-deep: #4e2417;
-  --pcard-req-bevel: rgba(255, 214, 198, 0.34);
+  --pcard-req-copper-hi: #8b4832;    /* warm crimson-copper satin (bottom) */
+  --pcard-req-copper: #6f3020;       /* mid                                */
+  --pcard-req-copper-deep: #3d1c12;  /* deep crimson top-lip shadow        */
+  --pcard-req-bevel: rgba(255, 214, 198, 0.32);
   --pcard-req-accent: #f0b6a2;
   --pcard-op-metal: #f0b6a2;
   --pcard-op-hi: rgba(255, 231, 222, 0.78);
 }
 .pcard__reqs--all .pcard__reqs-field {
   box-shadow:
-    inset 0 2px 3px rgba(0, 0, 0, 0.5),
+    inset 0 2.5px 3px rgba(0, 0, 0, 0.55),
     inset 0 -1px 0 var(--pcard-req-bevel),
     inset 0 0 0 1px rgba(74, 27, 16, 0.6),
     inset 0 0 0 1.7px rgba(var(--pcard-any-rgb), 0.4);   /* crimson inner kant — the structural {all} cue */
