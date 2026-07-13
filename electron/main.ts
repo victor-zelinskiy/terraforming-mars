@@ -55,6 +55,8 @@ if (PERFTEST) {
 if ((process.env.TM_ELECTRON_FEATURES ?? '').trim() === '') {
   if (process.argv.includes('--tm-no-graphite')) {
     process.env.TM_ELECTRON_FEATURES = 'none';
+  } else if (process.argv.includes('--tm-graphite-rawdraw')) {
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,RawDraw';
   } else if (process.argv.includes('--tm-graphite')) {
     process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
   }
@@ -155,6 +157,7 @@ let mainWindow: BrowserWindow | undefined;
  *   F5                 → relaunch small window @ 1:1 scale (Deck-like pixel count → fill-rate test)
  *   F4                 → relaunch forcing Skia Graphite on (it is the Windows DEFAULT now)
  *   F3                 → relaunch with Skia Graphite OFF (legacy Ganesh) to A/B the default
+ *   F2                 → relaunch with Skia Graphite + RawDraw (fewer intermediate rasters — A/B)
  */
 function installDiagnostics(win: BrowserWindow): void {
   win.webContents.on('before-input-event', (_event, input) => {
@@ -197,6 +200,10 @@ function installDiagnostics(win: BrowserWindow): void {
     } else if (key === 'f3') {
       // Restart with Skia Graphite OFF (legacy Ganesh) to compare against the new default.
       app.relaunch({args: ['--tm-no-graphite']});
+      app.exit(0);
+    } else if (key === 'f2') {
+      // Restart with Graphite + RawDraw (fewer intermediate rasterizations) to A/B.
+      app.relaunch({args: ['--tm-graphite-rawdraw']});
       app.exit(0);
     }
   });
