@@ -125,10 +125,11 @@ export class Virus extends Card implements IProjectCard {
       // Nothing actionable. If an opponent's plants are PROTECTED, say so with a
       // warning (a mandatory tab can't be all-disabled, and a silent no-op would
       // leave the player wondering why nothing happened); otherwise nobody had
-      // anything to take and the play is just blank.
+      // anything to take — emit the generic "no valid target" warning (outside
+      // solo) so the modal is never blank about the skipped removal.
       const steps = protectedTargets.length > 0 ?
         [actionPreviews.warningNote('Plants are protected')] :
-        [];
+        [actionPreviews.targetStepOrWarning(player, undefined)];
       return actionPreviews.playPreview(this, player, [], steps);
     }
     const step: TabbedTargetsStep = {kind: 'tabbedTargets'};

@@ -51,7 +51,8 @@ export class HiredRaiders extends Card implements IProjectCard {
   // Built read-only (the steals run only in each option's `andThen`).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
-    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    const step = actionPreviews.targetStepOrWarning(player,
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

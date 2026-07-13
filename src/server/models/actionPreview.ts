@@ -396,12 +396,17 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     }
   }
 
-  // Decrease ANY player's production → a target picker (when a choice is offered).
+  // Decrease ANY player's production → a target picker (when a choice is offered),
+  // ELSE a "no production can be reduced" warning outside solo (nobody's mapped
+  // production/track can drop) so the modal is never mute about the skipped attack.
   if (behavior.decreaseAnyProduction !== undefined) {
     const dap = behavior.decreaseAnyProduction;
     const model = new DecreaseAnyProduction(player, dap.type, {count: dap.count}).previewSelectPlayer();
-    if (model !== undefined) {
-      steps.push({kind: 'input', input: model});
+    const step = actionPreviews.targetStepOrWarning(player,
+      model !== undefined ? {kind: 'input', input: model} : undefined,
+      'No production can be reduced.');
+    if (step !== undefined) {
+      steps.push(step);
     }
   }
 
@@ -426,10 +431,14 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // BEFORE the placement note below, matching that elevated order. The tile then rides
   // PlacementBanner after confirm (it's inherently post-confirm — it CAN'T be
   // pre-collected). See Priority.PLAY_CARD_PLANT_REMOVAL + cardPlayPreviewCoverage.spec.ts.
+  // `undefined` (no opponent has removable plants and none is protected) → a
+  // "no valid target" warning outside solo, so the plant attack is never blank.
   if (behavior.removeAnyPlants !== undefined) {
     const orOptions = new RemoveAnyPlants(player, behavior.removeAnyPlants).previewOptions();
-    if (orOptions !== undefined) {
-      steps.push({kind: 'input', input: orOptions.toModel(player)});
+    const step = actionPreviews.targetStepOrWarning(player,
+      orOptions !== undefined ? {kind: 'input', input: orOptions.toModel(player)} : undefined);
+    if (step !== undefined) {
+      steps.push(step);
     }
   }
 

@@ -191,6 +191,39 @@ export function warningNote(text: string | Message, resource?: CardResource): Ac
   return {kind: 'note', noteKind: 'warning', text, resource: resource !== undefined ? cardResourceIcon(resource) : undefined};
 }
 
+/** The generic "no valid target" warning text — a target-selecting effect that
+ *  hits nobody (every attackable opponent is out of the resource / can't be hit).
+ *  A short, premium sentence the play/action modal shows in place of the missing
+ *  picker. */
+export const NO_TARGET_WARNING = 'No valid target — this effect is skipped.';
+
+/**
+ * A TARGET-picker step, OR — when the picker is absent — an honest "no valid
+ * target" WARNING so the play/action modal is NEVER mute about a skipped attack
+ * (the fork rule: a target-selecting card ALWAYS shows a pre-select OR a warning;
+ * only tile placement is exempt). The attack preview builders
+ * (`RemoveAnyPlants.previewOptions` / `StealResources.previewOptions` /
+ * `DecreaseAnyProduction.previewSelectPlayer`) return `undefined` both in SOLO
+ * mode (where the neutral-opponent nuance means a warning would mislead) and when
+ * there is genuinely nobody to hit (a multiplayer opponent out of the resource, or
+ * a lone MarsBot whose M€-supply proxy is 0). We only convert the ABSENT picker
+ * into a warning OUTSIDE solo mode, so true-solo previews are unchanged and every
+ * multiplayer / MarsBot no-target attack becomes explicit instead of blank.
+ */
+export function targetStepOrWarning(
+  player: IPlayer,
+  step: ActionPreviewStep | undefined,
+  warning: string | Message = NO_TARGET_WARNING,
+): ActionPreviewStep | undefined {
+  if (step !== undefined) {
+    return step;
+  }
+  if (player.game.isSoloMode()) {
+    return undefined;
+  }
+  return warningNote(warning);
+}
+
 /** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */
 export function amountStep(
   title: string | Message,

@@ -58,8 +58,10 @@ export class AsteroidMiningConsortium extends Card implements IProjectCard {
   // A "+1 your titanium production" chip + the SAME target picker the decrease
   // defers, so the player chooses WHOSE titanium production to reduce in the modal.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const step = actionPreviews.inputStep(
-      new DecreaseAnyProduction(player, Resource.TITANIUM, {count: 1, stealing: true}).previewSelectPlayer());
+    const step = actionPreviews.targetStepOrWarning(player,
+      actionPreviews.inputStep(
+        new DecreaseAnyProduction(player, Resource.TITANIUM, {count: 1, stealing: true}).previewSelectPlayer()),
+      'No production can be reduced.');
     return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.TITANIUM, 1)], [step]);
   }
 }

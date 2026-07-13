@@ -50,8 +50,10 @@ export class EnergyTapping extends Card implements IProjectCard {
   // picker the decrease defers, so the player chooses WHOSE energy production to
   // reduce inside the play modal (when a choice is offered).
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const step = actionPreviews.inputStep(
-      new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer());
+    const step = actionPreviews.targetStepOrWarning(player,
+      actionPreviews.inputStep(
+        new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer()),
+      'No production can be reduced.');
     return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.ENERGY, 1)], [step]);
   }
 }

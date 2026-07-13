@@ -54,7 +54,8 @@ export class CometForVenus extends Card implements IProjectCard {
   // player chooses the victim inside the play modal. Built read-only.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
-    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    const step = actionPreviews.targetStepOrWarning(player,
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

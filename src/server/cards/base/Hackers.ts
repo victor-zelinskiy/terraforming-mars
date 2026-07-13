@@ -56,8 +56,10 @@ export class Hackers extends Card implements IProjectCard {
   // production from any player" — so the player chooses WHOSE production to reduce
   // inside the play modal (when a choice is offered). Mirrors EnergyTapping.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const step = actionPreviews.inputStep(
-      new DecreaseAnyProduction(player, Resource.MEGACREDITS, {count: 2, stealing: true}).previewSelectPlayer());
+    const step = actionPreviews.targetStepOrWarning(player,
+      actionPreviews.inputStep(
+        new DecreaseAnyProduction(player, Resource.MEGACREDITS, {count: 2, stealing: true}).previewSelectPlayer()),
+      'No production can be reduced.');
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

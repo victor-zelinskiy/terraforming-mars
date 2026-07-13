@@ -183,13 +183,40 @@ describe('cardPlayPreview', () => {
     expect(branch.steps.some((s) => s.kind === 'input' && s.input.type === 'or'), 'plant-removal OrOptions step').is.true;
   });
 
-  it('Asteroid (declarative): plant-removal rides the follow-up only when NO opponent has plants', () => {
-    const [/* game */, player] = testGame(2); // opponent starts with 0 plants → no target, no choice
+  it('Asteroid (declarative): a "no valid target" WARNING when NO opponent has plants (never a blank result)', () => {
+    const [/* game */, player] = testGame(2); // opponent starts with 0 plants → no removable target
     const branch = cardPlayPreview(player, new Asteroid()).branches[0];
-    // previewOptions() returns undefined (no candidate) → no step, matching the live
-    // path (which prompts nothing). The automatic gains still show as chips.
+    // previewOptions() returns undefined (no candidate) → no INPUT step; instead an
+    // honest "no valid target" WARNING (outside solo) so the modal is never mute
+    // about the skipped plant removal. The automatic gains still show as chips.
     expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-target warning').is.true;
     expect(branch.effects.some((e) => e.icon === 'temperature')).is.true;
+  });
+
+  it('Asteroid (declarative): SOLO mode adds NO warning (the neutral-opponent nuance — unchanged)', () => {
+    const [/* game */, player] = testGame(1);
+    const branch = cardPlayPreview(player, new Asteroid()).branches[0];
+    // previewOptions() short-circuits to undefined in solo; the warning is suppressed
+    // there (a solo "no target" would mislead), so the branch has no removal step at all.
+    expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
+    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning')).is.false;
+  });
+
+  it('EnergyTapping (bespoke): a "no production can be reduced" WARNING when no player has energy production', () => {
+    const [/* game */, player] = testGame(2); // both players start with 0 energy production → no target
+    const branch = cardPlayPreview(player, new EnergyTapping()).branches[0];
+    // The +1 energy production chip still shows; the "decrease any player's energy
+    // production" target has no picker, so a warning takes its place (non-solo).
+    expect(branch.steps.some((s) => s.kind === 'input')).is.false;
+    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-production warning').is.true;
+  });
+
+  it('Virus (bespoke): a "no valid target" WARNING when there is nobody to remove animals/plants from', () => {
+    const [/* game */, player] = testGame(2); // opponent 0 plants, no animal cards anywhere
+    const branch = cardPlayPreview(player, new Virus()).branches[0];
+    expect(branch.steps.some((s) => s.kind === 'tabbedTargets'), 'no target picker').is.false;
+    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-target warning').is.true;
   });
 
   it('Comet (declarative): the plant attack IS pre-collected, the ocean placement noted after', () => {

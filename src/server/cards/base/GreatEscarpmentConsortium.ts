@@ -42,8 +42,10 @@ export class GreatEscarpmentConsortium extends Card implements IProjectCard {
   // A "+1 your steel production" chip + the SAME target picker the decrease
   // defers, so the player chooses WHOSE steel production to reduce in the modal.
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    const step = actionPreviews.inputStep(
-      new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true}).previewSelectPlayer());
+    const step = actionPreviews.targetStepOrWarning(player,
+      actionPreviews.inputStep(
+        new DecreaseAnyProduction(player, Resource.STEEL, {count: 1, stealing: true}).previewSelectPlayer()),
+      'No production can be reduced.');
     return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.STEEL, 1)], [step]);
   }
 }

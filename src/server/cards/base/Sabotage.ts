@@ -56,7 +56,8 @@ export class Sabotage extends Card implements IProjectCard {
   // attacks live in `andThen`).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
-    const step = options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined;
+    const step = actionPreviews.targetStepOrWarning(player,
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 
