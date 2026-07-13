@@ -41,6 +41,24 @@ if (process.argv.includes('--tm-no-perf')) {
 if (process.argv.includes('--tm-gpu-low')) {
   process.env.TM_ELECTRON_GPU = 'low';
 }
+// DIAGNOSTIC: `--tm-perftest` (F5) renders at 1:1 device scale in a small window — reproduces the
+// Steam Deck's PIXEL COUNT (~1280×800) on this 3200×2000 (scale-2) panel to test whether the lag
+// is fill-rate / compositing cost at high DPI. Smooth here ⇒ the culprit is the render RESOLUTION
+// (Layerize/Paint over 6× the pixels), NOT the GPU or the JS.
+const PERFTEST = process.argv.includes('--tm-perftest');
+if (PERFTEST) {
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+}
+// Skia Graphite is ON BY DEFAULT on Windows now (see perf.ts). These relaunch args let you A/B it
+// WITHOUT a terminal: `--tm-graphite` (F4) forces it on, `--tm-no-graphite` (F3) rolls back to the
+// legacy Ganesh rasterizer to compare. Confirm `skia_graphite` in the [TM-DIAG] report / chrome://gpu.
+if ((process.env.TM_ELECTRON_FEATURES ?? '').trim() === '') {
+  if (process.argv.includes('--tm-no-graphite')) {
+    process.env.TM_ELECTRON_FEATURES = 'none';
+  } else if (process.argv.includes('--tm-graphite')) {
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
+  }
+}
 applyPerformanceSwitches(app);
 
 // Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
@@ -134,6 +152,9 @@ let mainWindow: BrowserWindow | undefined;
  *   F8                 → relaunch in VANILLA mode (our GPU switches OFF) to compare the GPU path
  *   F7                 → relaunch rendering on the INTEGRATED GPU (tests cross-adapter cost)
  *   F6                 → relaunch back to the default (discrete GPU, all switches on)
+ *   F5                 → relaunch small window @ 1:1 scale (Deck-like pixel count → fill-rate test)
+ *   F4                 → relaunch forcing Skia Graphite on (it is the Windows DEFAULT now)
+ *   F3                 → relaunch with Skia Graphite OFF (legacy Ganesh) to A/B the default
  */
 function installDiagnostics(win: BrowserWindow): void {
   win.webContents.on('before-input-event', (_event, input) => {
@@ -164,6 +185,18 @@ function installDiagnostics(win: BrowserWindow): void {
     } else if (key === 'f6') {
       // Restart clean (default discrete GPU, all switches on).
       app.relaunch({args: []});
+      app.exit(0);
+    } else if (key === 'f5') {
+      // Restart in the small 1:1-scale window (fill-rate / high-DPI test).
+      app.relaunch({args: ['--tm-perftest']});
+      app.exit(0);
+    } else if (key === 'f4') {
+      // Restart forcing Skia Graphite ON (it is the default now — explicit for A/B).
+      app.relaunch({args: ['--tm-graphite']});
+      app.exit(0);
+    } else if (key === 'f3') {
+      // Restart with Skia Graphite OFF (legacy Ganesh) to compare against the new default.
+      app.relaunch({args: ['--tm-no-graphite']});
       app.exit(0);
     }
   });
@@ -210,13 +243,13 @@ function createWindow(): void {
   const cfg = runtimeConfig();
 
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: PERFTEST ? 1280 : 1440,
+    height: PERFTEST ? 800 : 900,
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
-    fullscreen: FULLSCREEN,
+    fullscreen: FULLSCREEN && !PERFTEST,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -263,7 +296,7 @@ function createWindow(): void {
   // (not leave-full-screen), so there is no loop; the isDestroyed guard avoids
   // fighting window teardown. Alt+Tab / minimize are unaffected (they don't leave
   // fullscreen). Quitting still works normally.
-  if (FULLSCREEN) {
+  if (FULLSCREEN && !PERFTEST) {
     mainWindow.on('leave-full-screen', () => {
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.setFullScreen(true);
@@ -377,6 +410,19 @@ if (ADD_TO_STEAM) {
     createWindow();
     // Confirm hardware acceleration is actually live (one line; see perf.ts).
     logGpuStatus(app);
+    // DIAGNOSTIC: catch a GPU-process exit/crash (the `exit_on_context_lost` workaround makes a
+    // lost D3D device kill + relaunch the GPU process — that reads as a periodic freeze). Surface
+    // it loudly in the renderer console so a hitch can be correlated with a process restart.
+    app.on('child-process-gone', (_event, details) => {
+      const line = `[TM-DIAG] child-process-gone → type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`;
+      // eslint-disable-next-line no-console
+      console.warn(line);
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        void mainWindow.webContents
+          .executeJavaScript(`console.warn(${JSON.stringify('%c' + line)}, 'color:#ef4444;font-weight:bold')`)
+          .catch(() => {/* frame may be gone */});
+      }
+    });
     // Phase 7: packaged builds check the compatibility gate on startup and, if a
     // mandatory update is required, block game flow behind the premium update overlay.
     // No-op in dev (app.isPackaged === false). The renderer pulls the current state on

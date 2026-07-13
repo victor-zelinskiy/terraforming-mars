@@ -129,6 +129,28 @@ export function applyPerformanceSwitches(app: App): void {
     sw('use-angle', angleBackend);
   }
 
+  // ── Chromium rasterization backend: Skia GRAPHITE (ON BY DEFAULT on Windows) ─
+  // The fix for THIS app's jank: a layer-heavy premium UI stutters under the Windows
+  // DirectComposition compositor because the legacy Ganesh/GL rasterizer manages the many
+  // composited layers (50+ during a card deal, 250-350 with an overlay open) poorly. Graphite is
+  // Chrome's next-gen MULTI-THREADED rasterizer on D3D12/Dawn that handles layers far better
+  // (`skia_graphite` was `disabled_off`). Enabled by default on Windows; on Linux/Deck the
+  // compositor is software (--disable-gpu) so Graphite doesn't apply. Override / roll back:
+  //   TM_ELECTRON_FEATURES="SkiaGraphite,RawDraw"  → add features
+  //   TM_ELECTRON_FEATURES="none" (or "off")       → disable, fall back to Ganesh (the rollback)
+  const featuresRaw = (process.env.TM_ELECTRON_FEATURES ?? '').trim();
+  let features: string;
+  if (featuresRaw === '') {
+    features = process.platform === 'win32' ? 'SkiaGraphite' : '';
+  } else if (featuresRaw.toLowerCase() === 'none' || featuresRaw.toLowerCase() === 'off') {
+    features = '';
+  } else {
+    features = featuresRaw;
+  }
+  if (features !== '') {
+    sw('enable-features', features);
+  }
+
   // ── No renderer throttling (fullscreen game) ─────────────────────────────
   // A fullscreen game must stay at full rate when briefly occluded / unfocused
   // (Alt-Tab, an OS notification, a second monitor) — otherwise rAF-driven

@@ -21,6 +21,7 @@ describe('electron/perf', () => {
   const ENV_KEYS = [
     'TM_ELECTRON_UNCAP_FPS', 'TM_ELECTRON_FORCE_GPU',
     'TM_ELECTRON_GPU', 'TM_ELECTRON_ANGLE', 'TM_ELECTRON_GL', 'TM_ELECTRON_NO_PERF',
+    'TM_ELECTRON_FEATURES',
   ] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
@@ -162,6 +163,40 @@ describe('electron/perf', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       expect(app.switches.map((s) => s.key)).to.not.include('use-angle');
+    });
+  });
+
+  it('Windows: enables Skia Graphite by default', () => {
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite'});
+    });
+  });
+
+  it('Linux: does NOT enable Skia Graphite (software compositor)', () => {
+    withPlatform('linux', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches.filter((s) => s.key === 'enable-features')).to.have.length(0);
+    });
+  });
+
+  it('TM_ELECTRON_FEATURES overrides the default feature list', () => {
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,RawDraw';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite,RawDraw'});
+    });
+  });
+
+  it('TM_ELECTRON_FEATURES=none rolls Graphite back (no enable-features)', () => {
+    process.env.TM_ELECTRON_FEATURES = 'none';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches.filter((s) => s.key === 'enable-features')).to.have.length(0);
     });
   });
 
