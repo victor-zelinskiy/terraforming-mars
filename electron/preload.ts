@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('tmRuntimeConfig', readRuntimeConfig());
 // ipcRenderer.invoke/on wrappers backed by electron/update.ts (Phase 7).
 contextBridge.exposeInMainWorld('desktopBridge', {
   desktopMode: true,
+  // Runtime OS (synchronous — no IPC needed) so the renderer can gate platform-specific UI
+  // (e.g. the Windows-only "Add to Steam library" button). 'win32' | 'linux' | 'darwin'.
+  platform: process.platform,
   getVersion: (): Promise<string> => ipcRenderer.invoke('desktop:getVersion'),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('desktop:openExternal', url),
   // Premium updater (Phase 7).
@@ -54,6 +57,9 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   // Steam Deck installer-freshness notice (non-blocking): whether the installed
   // launcher wrapper predates the current install-steamdeck.sh on GitHub.
   getInstallerNotice: (): Promise<unknown> => ipcRenderer.invoke('desktop:getInstallerNotice'),
+  // In-app "Add to Steam library" (Windows) — registers the Non-Steam shortcut + artwork for
+  // the installed exe. Replaces the removed NSIS finish-page checkbox. Returns a result object.
+  addToSteam: (): Promise<unknown> => ipcRenderer.invoke('desktop:addToSteam'),
   // Console-native pre-game shell (P10): the ВЫЙТИ confirm + native
   // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
   quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),

@@ -1,17 +1,22 @@
-# Electron desktop release — builds Windows + Linux and publishes ONE GitHub Release under
-# victor-zelinskiy/terraforming-mars on EVERY push to main. The repo is public, so the
-# built-in GITHUB_TOKEN creates the release and electron-updater reads it with no token.
+# Electron desktop release — builds Windows + Linux with electron-builder (--dir) and publishes
+# ONE GitHub Release under victor-zelinskiy/terraforming-mars on EVERY push to main, using
+# VELOPACK (vpk) for the installers + self-updating packages. The repo is public, so the built-in
+# GITHUB_TOKEN both writes the release and lets the client read the feed with no token.
 #
-# Versioning: each run gets 1.1.<github.run_number> — run_number is unique and monotonically
-# increasing per workflow, and 1.1.x is always above the older 1.0.x line, so electron-updater
-# always treats a fresh build as newer. The version is set ONLY for the build (not committed).
+# Versioning: each run gets 1.1.<github.run_number> — unique + monotonic, and 1.1.x is always above
+# the older 1.0.x line, so the client's compat gate always treats a fresh build as newer. Set ONLY
+# for the build (not committed). The release tag is v<version>; the compat-gate server reads
+# releases/latest's tag as the "latest version".
 #
-# Old releases are pruned to the newest 3 (older releases + their tags are deleted).
+# Delivery: `vpk download github` fetches the previous release so `vpk pack` can build a DELTA
+# (users download only the diff); `vpk upload github --publish` writes the release + the
+# releases.<channel>.json feed the client's UpdateManager reads. Each OS uploads its OWN channel
+# (win / linux) to the SAME tag — so the jobs run SEQUENTIALLY (linux needs windows) to avoid two
+# jobs racing to CREATE the same release. A fixed-URL AppImage alias keeps the Steam Deck
+# bootstrap (scripts/steamdeck/install-steamdeck.sh) working unchanged.
 #
-# Per platform (electron-builder.yml): Windows → NSIS .exe + latest.yml; Linux → x64 AppImage
-# + latest-linux.yml (+ blockmaps). Each platform builds ONLY (--publish never) and uploads a
-# workflow artifact; a single `release` job assembles ONE published release — no cross-job race.
-# Steam Deck: download the AppImage, chmod +x, run, add as a Non-Steam Game.
+# NOTE: vpk is a .NET global tool → setup-dotnet + `dotnet tool install -g vpk` on each runner.
+# Code signing is out of scope for now (unsigned; Windows SmartScreen warns — accepted).
 
 name: Release Electron App
 
@@ -23,27 +28,21 @@ on:
 permissions:
   contents: write
 
-# Coalesce bursts: a newer push cancels an in-flight build so only the LATEST commit is
-# released (you always want the newest on the Deck; saves CI when pushing several commits).
+# Coalesce bursts: a newer push cancels an in-flight release so only the LATEST commit ships.
 concurrency:
   group: release-main
   cancel-in-progress: true
 
+env:
+  VELO_PACK_ID: TerraformingMars
+  VELO_PACK_TITLE: Terraforming Mars
+  VELO_VERSION: 1.1.${{ github.run_number }}
+  VELO_REPO_URL: https://github.com/${{ github.repository }}
+  VELO_TAG: v1.1.${{ github.run_number }}
+
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win
-            script: dist:win
-          - os: ubuntu-latest
-            platform: linux
-            script: dist:linux
-
-    runs-on: ${{ matrix.os }}
-
+  windows:
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,68 +61,135 @@ jobs:
       - name: Unpack Electron runtime
         run: node node_modules/electron/install.js
 
-      # Unique, monotonic version per push so electron-updater always sees a newer build.
-      # Not committed — set only for this build's artifacts / latest*.yml.
-      - name: Set release version
-        run: npm version "1.1.${{ github.run_number }}" --no-git-tag-version --allow-same-version
-
-      - name: Build (${{ matrix.platform }})
-        run: npm run ${{ matrix.script }} -- --publish never
-
-      - name: Upload ${{ matrix.platform }} artifacts
-        uses: actions/upload-artifact@v4
+      - name: Setup .NET (for vpk)
+        uses: actions/setup-dotnet@v4
         with:
-          name: dist-${{ matrix.platform }}
-          path: |
-            dist-desktop/*.exe
-            dist-desktop/*.AppImage
-            dist-desktop/*.blockmap
-            dist-desktop/latest*.yml
-          retention-days: 3
-          if-no-files-found: error
+          dotnet-version: 8.0.x
 
-  release:
-    needs: build
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version 1.2.0
+
+      # Unique, monotonic version per push (not committed — build artifacts only).
+      - name: Set release version
+        run: npm version "${{ env.VELO_VERSION }}" --no-git-tag-version --allow-same-version
+
+      - name: Build unpacked app dir (win)
+        run: npm run pack:dir:win
+
+      # Fetch the previous release into the default Releases/ dir so vpk pack can build a delta.
+      # continue-on-error: the very FIRST release has no prior (404) — that's expected, not a failure.
+      - name: Download previous release (for deltas)
+        continue-on-error: true
+        run: vpk download github --repoUrl "${{ env.VELO_REPO_URL }}"
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pack (win channel)
+        run: >
+          vpk pack
+          --packId "${{ env.VELO_PACK_ID }}"
+          --packVersion "${{ env.VELO_VERSION }}"
+          --packTitle "${{ env.VELO_PACK_TITLE }}"
+          --packDir dist-desktop/win-unpacked
+          --mainExe "Terraforming Mars.exe"
+
+      - name: Upload to GitHub Release (win channel — creates the release)
+        run: >
+          vpk upload github
+          --repoUrl "${{ env.VELO_REPO_URL }}"
+          --publish
+          --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
+          --tag "${{ env.VELO_TAG }}"
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux:
+    needs: windows
     runs-on: ubuntu-latest
     steps:
-      - name: Download all platform artifacts
-        uses: actions/download-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          path: dist
-          merge-multiple: true
+          node-version: 22
+          cache: npm
 
-      - name: List assets
-        run: ls -la dist
+      - name: Install dependencies
+        run: npm ci
 
-      # Stable, UNVERSIONED copies so an install script can always fetch the newest build
-      # from a FIXED url: https://github.com/<repo>/releases/latest/download/<stable-name>.
-      # These are IN ADDITION to the versioned assets electron-updater consumes (via
-      # latest*.yml) — those are left untouched, so the updater is unaffected.
-      - name: Create stable "latest" download aliases
-        run: |
-          cd dist
-          appimage=$(ls TerraformingMars-*-x86_64.AppImage 2>/dev/null | head -1)
-          [ -n "$appimage" ] && cp -f "$appimage" TerraformingMars-x86_64.AppImage && echo "alias: TerraformingMars-x86_64.AppImage -> $appimage"
-          exe=$(ls TerraformingMars-Setup-*-x64.exe 2>/dev/null | head -1)
-          [ -n "$exe" ] && cp -f "$exe" TerraformingMars-Setup-x64.exe && echo "alias: TerraformingMars-Setup-x64.exe -> $exe"
-          ls -la
+      - name: Unpack Electron runtime
+        run: node node_modules/electron/install.js
 
-      - name: Publish GitHub Release
+      - name: Setup .NET (for vpk)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version 1.2.0
+
+      - name: Set release version
+        run: npm version "${{ env.VELO_VERSION }}" --no-git-tag-version --allow-same-version
+
+      - name: Build unpacked app dir (linux)
+        run: npm run pack:dir:linux
+
+      # Fetch the previous LINUX release for the delta. The tag created by the windows job holds
+      # only the win channel; vpk searches back to the prior release that has the linux channel.
+      - name: Download previous release (for deltas)
+        continue-on-error: true
+        run: vpk download github --repoUrl "${{ env.VELO_REPO_URL }}"
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pack (linux channel)
         run: >
-          gh release create "v1.1.${{ github.run_number }}" dist/*
-          --repo "${{ github.repository }}"
-          --target "${{ github.sha }}"
-          --title "Terraforming Mars v1.1.${{ github.run_number }}"
-          --notes "Automated desktop build from ${{ github.sha }} — Windows installer (.exe) + Linux x64 AppImage. Steam Deck: download the AppImage, chmod +x, run it, add it to Steam as a Non-Steam Game."
-          --latest
+          vpk pack
+          --packId "${{ env.VELO_PACK_ID }}"
+          --packVersion "${{ env.VELO_VERSION }}"
+          --packTitle "${{ env.VELO_PACK_TITLE }}"
+          --packDir dist-desktop/linux-unpacked
+          --mainExe terraforming-mars
+          --icon electron/build-resources/linuxIcon.png
+
+      # Adds the linux channel assets to the EXISTING release created by the windows job.
+      - name: Upload to GitHub Release (linux channel)
+        run: >
+          vpk upload github
+          --repoUrl "${{ env.VELO_REPO_URL }}"
+          --publish
+          --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
+          --tag "${{ env.VELO_TAG }}"
+        env:
+          VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Steam Deck bootstrap: a stable, UNVERSIONED copy of the Velopack AppImage at a FIXED url
+      # (releases/latest/download/TerraformingMars-x86_64.AppImage) so install-steamdeck.sh keeps
+      # working UNCHANGED. It's the real Velopack AppImage (self-updates via the feed) — just a
+      # renamed copy; the filename is irrelevant to the in-place update logic.
+      - name: Steam Deck fixed-URL AppImage alias
+        run: |
+          appimage=$(ls Releases/*.AppImage 2>/dev/null | head -1)
+          if [ -z "$appimage" ]; then echo "No AppImage produced by vpk pack" >&2; exit 1; fi
+          cp -f "$appimage" TerraformingMars-x86_64.AppImage
+          gh release upload "${{ env.VELO_TAG }}" TerraformingMars-x86_64.AppImage --repo "${{ github.repository }}" --clobber
+          echo "alias: TerraformingMars-x86_64.AppImage -> $appimage"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Keep only the newest 3 releases; delete older releases AND their tags.
-      - name: Prune old releases (keep newest 3)
+  # Keep only the newest 5 releases (delete older releases AND their tags). ≥5 so a delta chain
+  # (vpk searches back a few releases) always finds a base; a user many versions behind just falls
+  # back to a full download.
+  prune:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prune old releases (keep newest 5)
         run: |
           gh api "repos/${{ github.repository }}/releases?per_page=100" \
-            --jq 'sort_by(.created_at) | reverse | .[3:] | .[].tag_name' \
+            --jq 'sort_by(.created_at) | reverse | .[5:] | .[].tag_name' \
           | while read -r tag; do
               [ -n "$tag" ] || continue
               echo "pruning old release $tag"

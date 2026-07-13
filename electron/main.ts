@@ -23,8 +23,22 @@ import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
 import {addToSteam} from './steamShortcut';
+import {VelopackApp} from 'velopack';
 
-// NSIS finish-page opt-in: `TerraformingMars.exe --add-to-steam` runs a HEADLESS one-shot
+// Velopack update framework — MUST be the FIRST thing to run. On an install/update hook launch
+// it processes the hook args and exits/restarts the process; on a normal launch (and in dev) it
+// no-ops and returns immediately. setAutoApplyOnStartup(false): we apply downloaded updates
+// EXPLICITLY via the premium overlay's "Restart and install" (electron/update.ts), never silently
+// on startup — this keeps the controlled UX and avoids a surprise relaunch escaping the Steam Deck
+// gamescope session. Wrapped defensively so an odd dev/native-load failure can't brick launch.
+try {
+  VelopackApp.build().setAutoApplyOnStartup(false).run();
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.error('[velopack] startup hook failed (continuing normal launch)', err);
+}
+
+// `TerraformingMars.exe --add-to-steam` runs a HEADLESS one-shot
 // (no window, no updater, no single-instance lock) that registers the Non-Steam shortcut +
 // artwork, then exits. Detected here so the normal launch flow below is fully skipped.
 const ADD_TO_STEAM = process.argv.includes('--add-to-steam');
@@ -355,6 +369,17 @@ ipcMain.handle('desktop:openExternal', (_event: IpcMainInvokeEvent, url: unknown
     return shell.openExternal(url);
   }
   return Promise.resolve();
+});
+// In-app "Add to Steam library" (Windows). Replaces the old NSIS finish-page checkbox now that
+// Velopack's Setup.exe has no installer UI: the renderer offers an explicit, opt-in button that
+// registers the Non-Steam shortcut + artwork for the CURRENT installed exe. No-ops off Windows
+// (addToSteam guards the platform). Returns the result object so the UI can confirm / report.
+ipcMain.handle('desktop:addToSteam', async () => {
+  try {
+    return await addToSteam();
+  } catch (err) {
+    return {ok: false, reason: String((err as {message?: string})?.message ?? err)};
+  }
 });
 
 /** HEADLESS one-shot for the NSIS finish-page checkbox: register the Steam shortcut + art

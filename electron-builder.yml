@@ -1,137 +1,79 @@
-# electron-builder — Phase 6 Windows build artifact (NSIS).
+# electron-builder — produces the UNPACKED thin-client app DIRECTORY only (`--dir`). Velopack's
+# `vpk pack` then turns that directory into the installer + self-updating packages (Windows
+# Setup.exe, Linux AppImage, full/delta .nupkg). electron-builder no longer builds installers or
+# an update feed itself — Velopack owns delivery (electron/update.ts + the CI release workflow).
 #
 # Packages the THIN-CLIENT desktop shell only: the Electron main/preload/protocol
 # (build/electron/) + the packaged renderer (build-desktop/) + the shared stylesheet
-# (build/styles.css) + static assets (assets/**). The game SERVER and DATABASE are NOT
-# bundled — the desktop app connects to a server over REST + WebSocket. main.ts imports
-# only `electron` (runtime built-in) + Node built-ins, so NO node_modules ship at runtime.
+# (build/styles.css) + static assets (assets/**) + the velopack runtime (require()d by the main
+# process at runtime). The game SERVER and DATABASE are NOT bundled — the desktop app connects to
+# a server over REST + WebSocket. main.ts imports only `electron` (runtime built-in), Node
+# built-ins, and `velopack`.
 #
-# The app:// handler (electron/protocol.ts) resolves its roots from __dirname, which
-# points inside the asar at <app.asar>/build/electron → root <app.asar>; build-desktop/,
-# build/styles.css and assets/ sit at that root, so it works packaged with no change.
+# The app:// handler (electron/protocol.ts) resolves its roots from __dirname (inside the asar at
+# <app.asar>/build/electron → root <app.asar>); build-desktop/, build/styles.css and assets/ sit
+# at that root, so it works packaged unchanged — INCLUDING inside Velopack's install layout
+# (%LocalAppData%\<packId>\current\resources\app.asar\...), which preserves the same relative depth.
 #
-# Pre-req: `npm run build:desktop` (make:static + DESKTOP_BUILD=1 build:client +
-# electron:build:main). See the `dist:win` / `electron:pack:dir` scripts.
-# Signing is deliberately out of scope (Phase 6 = unsigned dev artifact).
+# Pre-req: `npm run build:desktop`. See the `pack:dir:win` / `pack:dir:linux` scripts.
+# Code signing is deliberately out of scope for now (unsigned artifact; Windows SmartScreen warns).
 
 appId: io.github.victor-zelinskiy.terraforming-mars
 productName: Terraforming Mars
 copyright: © Victor Zelinskiy
 
-# The thin client ships NO node_modules and imports no native modules, so skip the
-# native-dependency rebuild step entirely (it would otherwise try to rebuild the
-# server-only better-sqlite3 against Electron's ABI).
+# The thin client ships NO server node_modules and imports no native SERVER modules, so skip the
+# native-dependency rebuild step entirely (it would otherwise try to rebuild the server-only
+# better-sqlite3 against Electron's ABI). velopack ships prebuilt .node binaries — no rebuild.
 npmRebuild: false
 nodeGypRebuild: false
 
-# Use the ALREADY-UNPACKED Electron 43 runtime from node_modules/electron/dist instead
-# of re-downloading + extracting the zip. This skips electron-builder's
-# extract-to-.tmp → rename step, which on Windows fails with
-#   EPERM: operation not permitted, rename 'win-unpacked.tmp' -> 'win-unpacked'
-# when a scanner/indexer (Defender, Controlled Folder Access, an editor file-watcher,
-# OneDrive, …) briefly holds a handle on the freshly-extracted binaries. Same version
-# (pinned electron@43.0.0), so the artifact is identical — just built reliably.
+# Use the ALREADY-UNPACKED Electron 43 runtime from node_modules/electron/dist instead of
+# re-downloading + extracting the zip. This skips electron-builder's extract-to-.tmp → rename
+# step, which on Windows fails with EPERM when a scanner/indexer briefly holds a handle on the
+# freshly-extracted binaries. Same pinned version (electron@43.0.0) → identical artifact.
 electronDist: node_modules/electron/dist
 
 directories:
   output: dist-desktop
   buildResources: electron/build-resources
 
-# Explicit allowlist — nothing implicit. All node_modules are excluded, then ONLY
-# electron-updater's runtime dependency closure is re-included (the desktop main
-# require()s electron-updater at runtime; the rest of package.json `dependencies`
-# are server/web-only and must NOT ship). Closure computed from electron-updater@6.8.9.
+# Explicit allowlist — nothing implicit. All node_modules are excluded, then ONLY the velopack
+# runtime closure is re-included (the desktop main require()s `velopack` at runtime; the rest of
+# package.json `dependencies` are server/web-only and must NOT ship). velopack bundles EVERY
+# platform's native .node in its own lib/native; @neon-rs/load is its only JS dependency.
 files:
   - build/electron/**/*
   - build-desktop/**/*
   - build/styles.css
   - assets/**/*
   - package.json
-  # Build identity (git head + builtAt) read by the main process (electron/cacheVersion.ts)
-  # to make the immutable asset cache build-scoped — a new build wipes stale art on first launch.
+  # Build identity (git head + builtAt) read by the main process (electron/cacheVersion.ts) to
+  # make the immutable asset cache build-scoped — a new build wipes stale art on first launch.
   - src/genfiles/settings.json
   - '!node_modules/**/*'
-  - node_modules/electron-updater/**/*
-  - node_modules/builder-util-runtime/**/*
-  - node_modules/fs-extra/**/*
-  - node_modules/graceful-fs/**/*
-  - node_modules/jsonfile/**/*
-  - node_modules/universalify/**/*
-  - node_modules/js-yaml/**/*
-  - node_modules/argparse/**/*
-  - node_modules/lazy-val/**/*
-  - node_modules/lodash.escaperegexp/**/*
-  - node_modules/lodash.isequal/**/*
-  - node_modules/semver/**/*
-  - node_modules/tiny-typed-emitter/**/*
-  - node_modules/debug/**/*
-  - node_modules/ms/**/*
-  - node_modules/sax/**/*
-  # PKG-1 (PERFORMANCE_AUDIT.md): drop dead tooling/backup art + source maps from the
-  # installer (grep-verified 0 runtime references; maps only used by DevTools). Shrinks
-  # the artifact by ~120 MB. The REAL generated icons (generated/tags, generated/resources,
-  # generated/custom_tiles, …) are NOT under refs/ and stay bundled.
+  - node_modules/velopack/**/*
+  - node_modules/@neon-rs/**/*
+  # PKG-1 (PERFORMANCE_AUDIT.md): drop dead tooling/backup art + source maps from the artifact
+  # (grep-verified 0 runtime references; maps only used by DevTools). The REAL generated icons
+  # (generated/tags, generated/resources, generated/custom_tiles, …) are NOT under refs/ and stay.
   - '!assets/generated/refs/**/*'
   - '!assets/original/**/*'
   - '!assets/resources/original/**/*'
   - '!**/*.map'
 
 asar: true
+# velopack loads a native .node (velopack/lib/native/*.node) — native modules CANNOT be loaded
+# from inside an asar, so unpack the whole velopack package to app.asar.unpacked/. Electron's
+# require() transparently redirects the .node load to the unpacked copy.
+asarUnpack:
+  - '**/node_modules/velopack/**'
 
-win:
-  target:
-    - nsis
-  # No custom icon in Phase 6 → the default Electron icon is used (a polish item).
+# No installer target — `electron-builder --dir --win` produces win-unpacked/ (exe name =
+# productName "Terraforming Mars.exe"), which vpk packs. No custom icon yet (default Electron
+# icon) — a polish item.
 
-nsis:
-  oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
-  artifactName: TerraformingMars-Setup-${version}-${arch}.${ext}
-  # The finish page adds an opt-in "Add to Steam library" checkbox. Its custom NSIS is
-  # electron/build-resources/installer.nsh — auto-included because it is named installer.nsh
-  # in the configured buildResources dir (no `include:` line needed). Checking the box runs
-  # `<App>.exe --add-to-steam` (electron/steamShortcut.ts), which registers a Non-Steam Game
-  # shortcut + artwork; it no-ops when Steam isn't installed. The artwork it copies is the
-  # shared assets/steamdeck/*.png set, which ships via the `assets/**/*` files entry above.
-
-# Linux / Steam Deck (SteamOS) — x64 AppImage. electron-builder emits the AppImage +
-# latest-linux.yml (+ .blockmap) so electron-updater's Linux feed works exactly like the
-# Windows one. Steam Deck: download the AppImage, `chmod +x`, run, add as a Non-Steam Game.
 linux:
-  target:
-    - target: AppImage
-      arch:
-        - x64
-  category: Game
+  # `electron-builder --dir --linux` produces linux-unpacked/ with the `terraforming-mars`
+  # executable; vpk packs it into a self-updating AppImage (vpk supplies the AppImage icon).
   executableName: terraforming-mars
-  # Committed icon (web favicon upscaled to 512²) so the AppImage + generated .desktop
-  # entry are branded. Windows is unaffected: buildResources has no icon.png, so this
-  # linux-only file only applies to the AppImage.
-  icon: electron/build-resources/linuxIcon.png
-  artifactName: TerraformingMars-${version}-${arch}.${ext}
-
-artifactName: TerraformingMars-${version}-${os}-${arch}.${ext}
-
-# Update-delivery feed (Phase 7). electron-builder bakes this into the app's
-# app-update.yml (read by electron-updater at runtime) and emits latest.yml + .blockmap.
-#
-# Feed = GitHub Releases under the personal account victor-zelinskiy. electron-builder's
-# `--publish always` (the CI release job / `dist:win:publish`) uploads the installer .exe,
-# latest.yml and .blockmap to the release for the pushed tag; electron-updater then reads
-# https://github.com/victor-zelinskiy/terraforming-mars/releases for updates. Requires a
-# GH_TOKEN in CI (GitHub Actions injects secrets.GITHUB_TOKEN automatically).
-#
-# The COMPATIBILITY GATE (GET /api/desktop/version on the server) is independent of this
-# feed; if the feed is ever unreachable, auto-download degrades to the manual-download
-# fallback (the server's TM_DESKTOP_DOWNLOAD_URL).
-publish:
-  provider: github
-  owner: victor-zelinskiy
-  repo: terraforming-mars
-  # DRAFT + explicit publish: electron-builder creates the release as a DRAFT and uploads
-  # every asset to it. The draft code path is retry-safe and avoids the 422 "already_exists"
-  # race that `release` hits when the large (~300 MB) installer upload retries mid-publish.
-  # The workflow's final "Publish the release" step then flips the draft to published, so
-  # the end result is a normal published release with the installer + latest.yml attached.
-  releaseType: draft

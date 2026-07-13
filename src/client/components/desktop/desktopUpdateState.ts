@@ -46,8 +46,19 @@ export interface InstallerNotice {
   installerUrl?: string;
 }
 
+/** Result of the in-app "Add to Steam library" action (mirrors electron/steamShortcut.ts). */
+export interface AddToSteamResult {
+  ok: boolean;
+  reason?: string;
+  profiles?: number;
+  appId?: number;
+}
+
 interface DesktopBridge {
   desktopMode: boolean;
+  /** Runtime OS from the main process ('win32' | 'linux' | 'darwin') — OPTIONAL (older shells
+   *  predate it; the renderer feature-detects). Gates Windows-only UI like Add-to-Steam. */
+  platform?: string;
   getVersion(): Promise<string>;
   openExternal(url: string): Promise<void>;
   getUpdateState(): Promise<DesktopUpdateState | undefined>;
@@ -58,6 +69,10 @@ interface DesktopBridge {
   // Steam Deck installer-freshness notice — OPTIONAL (older installed shells predate it;
   // the renderer feature-detects and simply shows no warning when absent).
   getInstallerNotice?(): Promise<InstallerNotice | undefined>;
+  // In-app "Add to Steam library" (Windows) — OPTIONAL: replaces the removed NSIS finish-page
+  // checkbox. Registers the Non-Steam shortcut + artwork for the installed exe. Absent on older
+  // shells / the web; the renderer feature-detects and hides the button.
+  addToSteam?(): Promise<AddToSteamResult | undefined>;
   // Console-native pre-game shell (P10) — OPTIONAL: an older installed
   // shell may predate them; the renderer feature-detects (runtimeMode.ts)
   // and hides the affordances when absent.

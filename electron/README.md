@@ -120,23 +120,31 @@ the flag.
   with `publicPath: 'app://bundle/'`. The two never collide, so a desktop build cannot
   regress the web bundle. `styles.css` (from `make:css`) stays in `build/` and is shared.
 
-## Packaging — Windows NSIS installer (Phase 6)
+## Packaging — Velopack (Windows Setup.exe + Linux AppImage)
+
+electron-builder now produces ONLY the unpacked app DIRECTORY (`--dir`); **Velopack** (`velopack`
+npm 1.2.0 + the `vpk` .NET tool) turns that directory into the installer + self-updating packages
+(full/delta `.nupkg`). No NSIS, no electron-updater feed — Velopack owns delivery (see `update.ts`
++ `.github/workflows/release.yml`). Squirrel-style: per-user install to `%LocalAppData%`, no admin,
+fast in-place delta apply on restart.
 
 ```bash
-npm run electron:pack:dir   # build:desktop + electron-builder --dir → dist-desktop/win-unpacked/ (no installer; fast sanity check)
-npm run dist:win            # build:desktop + electron-builder --win → the NSIS installer + latest.yml + .blockmap
+npm run electron:pack:dir   # build:desktop + electron-builder --dir → dist-desktop/<host>-unpacked/ (fast sanity check)
+npm run pack:dir:win        # → dist-desktop/win-unpacked/   (input to `vpk pack … --mainExe "Terraforming Mars.exe"`)
+npm run pack:dir:linux      # → dist-desktop/linux-unpacked/ (input to `vpk pack … --mainExe terraforming-mars`)
 ```
 
-Both scripts `rimraf dist-desktop/` first, and the config sets
-`electronDist: node_modules/electron/dist` — it packages the already-unpacked Electron
-runtime instead of re-extracting the zip, which sidesteps the flaky Windows
-`EPERM: … rename 'win-unpacked.tmp' -> 'win-unpacked'` (a scanner/indexer briefly locking
-the freshly-extracted binaries). Same pinned version → identical artifact, built reliably.
+`vpk` is a **.NET global tool** (`dotnet tool install -g vpk --version 1.2.0`) — packing/publishing
+(`vpk download github` → `vpk pack` → `vpk upload github`) runs in CI. All scripts `rimraf
+dist-desktop/` first; `electronDist: node_modules/electron/dist` packages the already-unpacked
+Electron runtime instead of re-extracting the zip, sidestepping the flaky Windows
+`EPERM: … rename 'win-unpacked.tmp' -> 'win-unpacked'` (a scanner/indexer briefly locking the
+freshly-extracted binaries). Same pinned version → identical artifact, built reliably.
 
-Config: `electron-builder.yml`. Output: `dist-desktop/`:
-`TerraformingMars-Setup-<version>-x64.exe` + `.exe.blockmap` (differential updates) +
-`latest.yml` (update-feed metadata for Phase 7). A packaged build (`app.isPackaged`)
-**auto-uses `app://` mode** — no env needed.
+Config: `electron-builder.yml`. The velopack runtime ships in the asar; its native `.node` is
+`asarUnpack`ed to `app.asar.unpacked/` (native modules can't load from inside an asar). A packaged
+build (`app.isPackaged`) **auto-uses `app://` mode** — no env needed. Code signing is out of scope
+for now (unsigned; Windows SmartScreen warns).
 
 The package is a **thin client**: the asar contains only `build/electron/`,
 `build-desktop/`, `build/styles.css`, `assets/**` and `package.json` — **no
@@ -292,71 +300,64 @@ warns on the first manual install (the silent auto-update itself still installs 
 
 ## Linux / Steam Deck builds & updates
 
-The desktop app ships for **Windows (NSIS installer)** and **Linux (x64 AppImage)** from
-the same thin-client renderer. Both are built + published by `.github/workflows/release.yml`
-on a `v*` tag.
+The desktop app ships for **Windows (Velopack Setup.exe)** and **Linux (x64 AppImage)** from
+the same thin-client renderer. electron-builder builds only the unpacked dir (`--dir`); **Velopack**
+(`vpk`) packages + publishes them from `.github/workflows/release.yml` on every push to `main`.
 
-**Release target.** GitHub Releases under **`victor-zelinskiy/terraforming-mars`** (the
-source repo is public). electron-builder publishes with the workflow's built-in
-`GITHUB_TOKEN` — **no separate releases repo and no `GH_RELEASE_TOKEN` secret are needed**,
-and because the repo is public electron-updater reads the feed with no embedded token.
+**Release target.** GitHub Releases under **`victor-zelinskiy/terraforming-mars`** (public repo).
+`vpk upload github` publishes with the workflow's built-in `GITHUB_TOKEN` (passed as `VPK_TOKEN`) —
+**no separate releases repo / `GH_RELEASE_TOKEN` needed**, and the client reads the feed with no
+token. Each OS uploads its OWN channel (win / linux) to the SAME tag; the jobs run SEQUENTIALLY
+(linux `needs: windows`) so they never race to create the release.
 
-**Build locally**
+**Build locally** (the unpacked dir; `vpk pack`/publish needs .NET + normally runs in CI):
 
 ```bash
 # Windows (on Windows):
-npm run dist:win                 # dist-desktop/TerraformingMars-Setup-<ver>-x64.exe (+ latest.yml)
+npm run pack:dir:win     # dist-desktop/win-unpacked/   → vpk pack … --mainExe "Terraforming Mars.exe"
 
 # Linux AppImage (on Linux / Steam Deck / WSL — NOT buildable on Windows):
-npm run dist:linux               # dist-desktop/TerraformingMars-<ver>-x64.AppImage (+ latest-linux.yml)
+npm run pack:dir:linux   # dist-desktop/linux-unpacked/ → vpk pack … --mainExe terraforming-mars
 ```
 
-Add `:publish` (`dist:win:publish` / `dist:linux:publish`) to upload to GitHub Releases —
-this needs a `GH_TOKEN` env var locally; in CI the workflow supplies it. On Windows the
-Linux AppImage can only be built via CI (or WSL/Docker), so it's not verified in a local
-Windows run.
+`vpk` is a .NET global tool (`dotnet tool install -g vpk --version 1.2.0`). The CI flow is
+`vpk download github` (fetch prior release → delta) → `vpk pack` → `vpk upload github --publish`.
 
-**Release both platforms**
-
-```bash
-npm version patch --no-git-tag-version   # e.g. 1.0.2 -> 1.0.3 (package.json + lock)
-git commit -am "chore: release v1.0.3"
-git tag v1.0.3
-git push origin main
-git push origin v1.0.3                    # → builds win + linux, publishes ONE release
-```
-
-The workflow builds the platforms one at a time (`max-parallel: 1`) into a single **draft**
-release, then a final `publish` job flips it to a published release carrying:
-`…-x64.exe`, `latest.yml`, `…-x64.AppImage`, `latest-linux.yml`, and their `.blockmap`s.
+**Cut a release** — just push to `main`. The workflow versions each run `1.1.<run_number>`, packs
+with Velopack, and publishes ONE release tagged `v1.1.<run_number>` carrying the Windows Setup.exe,
+the Linux AppImage, the full/delta `.nupkg`, the `releases.<channel>.json` feed, and a fixed-URL
+`TerraformingMars-x86_64.AppImage` alias for the Steam Deck bootstrap. Old releases are pruned to
+the newest 5 (a delta chain needs the prior full present).
 
 **Steam Deck / SteamOS**
 
-1. Download `TerraformingMars-<ver>-x64.AppImage` from the release.
-2. `chmod +x TerraformingMars-<ver>-x64.AppImage` (or Properties → Permissions → Executable).
+1. Download `TerraformingMars-x86_64.AppImage` (the fixed-URL alias) from the latest release —
+   or just run `scripts/steamdeck/install-steamdeck.sh`, which does everything.
+2. `chmod +x TerraformingMars-x86_64.AppImage` (or Properties → Permissions → Executable).
 3. Run it. Add it to Steam as a **Non-Steam Game** for Game Mode / controller support.
-   (If FUSE is unavailable, run with `./TerraformingMars-<ver>-x64.AppImage --appimage-extract-and-run`.)
+   (If FUSE is unavailable, run with `./TerraformingMars-x86_64.AppImage --appimage-extract-and-run`.)
 
-**How updates work (both platforms)** — same premium overlay + progress bar.
+**How updates work (both platforms)** — Velopack delivery, same premium overlay + progress bar.
 
 - The main process checks the compatibility gate (`GET <server>/api/desktop/version?platform=…`,
-  platform-aware) on launch; a *required* update drives the premium `DesktopUpdateOverlay`.
-- **Windows (NSIS)** self-updates via electron-updater: reads `latest.yml`, downloads (the
-  overlay shows the live **progress bar**), and installs + auto-relaunches on *Restart and install*.
-- **Linux AppImage** downloads the same way (progress bar), but we NEVER use electron-updater's
-  own relaunch — it spawns a **detached** process (no `--no-sandbox`, outside the gamescope
-  session) which makes Steam Deck's Game Mode hang ("infinite loading"). Instead the install
-  replaces the AppImage in place (`quitAndInstall(true, false)` → `APPIMAGE_EXIT_AFTER_INSTALL`)
-  and the RESTART is owned by the launcher:
-  - launched by the **restart-loop wrapper** (the `scripts/steamdeck` installer sets
-    `TM_RESTART_SUPPORTED=1` + `TM_RESTART_MARKER`) → the app writes the marker and exits, and
-    the wrapper — the process Steam/gamescope tracks — **relaunches the updated AppImage in the
-    same session**. A real *Restart and install*, no hang.
-  - old wrapper / direct launch → falls back to *Install and close*: the app installs + quits
-    cleanly (Steam returns to the library) and the player reopens it. `restartSupported` drives
-    which button + hint the overlay shows.
+  platform-aware) on launch; a *required* update drives the premium `DesktopUpdateOverlay`. This
+  gate + the last-known-good policy are UNCHANGED — only the delivery mechanism moved to Velopack.
+- Delivery uses Velopack's `UpdateManager` against the GitHub feed: `checkForUpdatesAsync` →
+  `downloadUpdateAsync` (the overlay shows the live **progress bar** from Velopack's 0..100 percent)
+  → the update is applied on the NEXT exit via `waitExitThenApplyUpdate` (Squirrel-style in-place
+  delta swap; `setAutoApplyOnStartup(false)` keeps apply under our explicit control).
+- **Windows** — *Restart and install* calls `waitExitThenApplyUpdate(upd, true, true)` then
+  `app.quit()`; Velopack applies + relaunches (per-user, no UAC).
+- **Linux AppImage** — we NEVER let Velopack relaunch (`restart=false`): a relaunch it spawns would
+  start OUTSIDE the gamescope session and make Steam Deck's Game Mode hang. Velopack still replaces
+  the AppImage in place, and the RESTART is owned by the launcher:
+  - launched by the **restart-loop wrapper** (`scripts/steamdeck` sets `TM_RESTART_SUPPORTED=1` +
+    `TM_RESTART_MARKER`) → the app writes the marker, applies (no relaunch), exits, and the wrapper —
+    the process Steam/gamescope tracks — **relaunches the updated AppImage in the same session**.
+  - old wrapper / direct launch → *Install and close*: apply + quit cleanly (Steam returns to the
+    library) and the player reopens it. `restartSupported` drives which button the overlay shows.
   - not an AppImage at all (dev/unpacked) → premium **manual-download** fallback (needs `$APPIMAGE`).
-- The main process logs `[updater] provider=github platform=… appImage=… current=… channel=… — <status>`.
+- The main process logs `[updater] provider=velopack-github platform=… appImage=… current=… channel=… — <status>`.
 
 ## Not in this phase (later)
 
