@@ -18,12 +18,15 @@
       <div class="boot-loader__warm-cards">
         <div v-for="(c, i) in warmCards" :key="c.name"
              class="boot-loader__warm-card"
+             :class="warmCardStateClass(i)"
              :style="{animationDelay: (i * 38) + 'ms'}">
           <Card :card="c" />
         </div>
       </div>
-      <!-- Overlay-only effects no card carries (backdrop-filter + heavy blur + glow). -->
+      <!-- Overlay-only effects no card carries (backdrop-filter at both modal
+           radii + heavy blur + glow). -->
       <div class="boot-warm-cell boot-warm-cell--backdrop"></div>
+      <div class="boot-warm-cell boot-warm-cell--backdrop2"></div>
       <div class="boot-warm-cell boot-warm-cell--blur"></div>
       <div class="boot-warm-cell boot-warm-cell--glow"></div>
     </div>
@@ -103,8 +106,12 @@ const WARMUP_CARDS: ReadonlyArray<CardName> = [
   CardName.DONATION, // prelude → premium prelude
 ];
 
-function modelOf(name: CardName): CardModel {
-  return {name, calculatedCost: getCardOrThrow(name).cost};
+function modelOf(name: CardName): CardModel | undefined {
+  try {
+    return {name, calculatedCost: getCardOrThrow(name).cost};
+  } catch {
+    return undefined; // a renamed/out-of-scope card must never break the loader
+  }
 }
 
 export default defineComponent({
@@ -114,7 +121,7 @@ export default defineComponent({
     return {
       // Built in data() so the cards render from the FIRST loader frame (warm-up
       // starts immediately, behind the panel).
-      warmCards: WARMUP_CARDS.map(modelOf),
+      warmCards: WARMUP_CARDS.map(modelOf).filter((c): c is CardModel => c !== undefined),
       phase: 0,
       progress: 8,
       timer: undefined as number | undefined,
@@ -123,6 +130,32 @@ export default defineComponent({
   computed: {
     stageText(): string {
       return STAGES[Math.min(this.phase, STAGES.length - 1)];
+    },
+  },
+  methods: {
+    // Warm the two extra render states a real deal hits: the selected halo/rim
+    // and the unplayable grayscale — otherwise their pipelines compile on the
+    // first pick / first unplayable card.
+    warmCardStateClass(i: number): string {
+      if (i === 0) {
+        return 'boot-loader__warm-card--selected';
+      }
+      if (i === 1) {
+        return 'boot-loader__warm-card--disabled';
+      }
+      return '';
+    },
+    step(perPhase: number): void {
+      this.progress = Math.round(((this.phase + 1) / STAGES.length) * 100);
+      if (this.phase >= STAGES.length - 1) {
+        // Last phase: hold briefly at 100%, then finish + let the fade play.
+        this.timer = window.setTimeout(() => finishBootWarmup(), perPhase);
+        return;
+      }
+      this.timer = window.setTimeout(() => {
+        this.phase += 1;
+        this.step(perPhase);
+      }, perPhase);
     },
   },
   mounted() {
@@ -147,20 +180,6 @@ export default defineComponent({
     if (this.timer !== undefined) {
       window.clearTimeout(this.timer);
     }
-  },
-  methods: {
-    step(perPhase: number): void {
-      this.progress = Math.round(((this.phase + 1) / STAGES.length) * 100);
-      if (this.phase >= STAGES.length - 1) {
-        // Last phase: hold briefly at 100%, then finish + let the fade play.
-        this.timer = window.setTimeout(() => finishBootWarmup(), perPhase);
-        return;
-      }
-      this.timer = window.setTimeout(() => {
-        this.phase += 1;
-        this.step(perPhase);
-      }, perPhase);
-    },
   },
 });
 </script>

@@ -54,6 +54,19 @@
   animation: card-deal-in 360ms cubic-bezier(0.33, 1.22, 0.5, 1) both; // reuses the game's keyframe
   will-change: transform, opacity;
 }
+// Warm the two extra render states a real deal hits — otherwise their pipelines
+// compile on the first pick / first unplayable card.
+.boot-loader__warm-card--selected {
+  box-shadow: 0 0 0 3px rgba(106, 176, 230, 1), 0 0 22px rgba(106, 176, 230, 0.4);
+  animation:
+    card-deal-in 360ms cubic-bezier(0.33, 1.22, 0.5, 1) both,
+    boot-warm-pulse calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+.boot-loader__warm-card--disabled { filter: grayscale(1) brightness(0.72); }
+@keyframes boot-warm-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(106, 176, 230, 0.7), 0 0 18px rgba(106, 176, 230, 0.3); }
+  50%      { box-shadow: 0 0 0 3px rgba(106, 176, 230, 1),   0 0 28px rgba(106, 176, 230, 0.55); }
+}
 
 // A few abstract cells for OVERLAY-only effects no card carries (backdrop blur,
 // heavy blur, glow) — the modal/overlay pipelines.
@@ -66,8 +79,9 @@
   animation: boot-warm-run calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
   will-change: transform, filter;
 }
-.boot-warm-cell--backdrop { top: 8%;    left: 6%;   backdrop-filter: blur(6px); background: rgba(20, 40, 60, 0.4); }
-.boot-warm-cell--blur     { top: 8%;    right: 6%;  filter: blur(3px); }
+.boot-warm-cell--backdrop  { top: 8%;    left: 6%;   backdrop-filter: blur(6px); background: rgba(20, 40, 60, 0.4); }
+.boot-warm-cell--backdrop2 { top: 40%;   left: 6%;   backdrop-filter: blur(2px); background: rgba(20, 40, 60, 0.3); } // modal dim radius
+.boot-warm-cell--blur      { top: 8%;    right: 6%;  filter: blur(3px); }
 .boot-warm-cell--glow     { bottom: 8%; left: 44%;  filter: drop-shadow(0 0 18px rgba(106, 176, 230, 0.8)); }
 
 @keyframes boot-warm-run {
