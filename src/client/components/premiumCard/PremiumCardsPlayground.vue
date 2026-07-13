@@ -20,6 +20,26 @@
       </div>
     </section>
 
+    <!-- requirement cassette — the symbolic ≥/≤ test cases (incl. {all}, which
+         no in-scope card carries → rendered from synthetic requirements) -->
+    <section class="pcpg__section">
+      <h2>Требования: символьная формула ≥ / ≤ (тест-кейсы)</h2>
+      <div class="pcpg__row pcpg__row--baseline">
+        <div v-for="rc in reqCases" :key="rc.label" class="pcpg__case">
+          <div class="pcpg__reqhost">
+            <PremiumRequirementsBar :requirements="rc.reqs" />
+          </div>
+          <span class="pcpg__label">{{ rc.label }}</span>
+        </div>
+      </div>
+      <h3>Уменьшенный масштаб — читаемость на игровом / console scale</h3>
+      <div class="pcpg__row pcpg__row--baseline" style="zoom: 0.6">
+        <div v-for="rc in reqCases" :key="'s' + rc.label" class="pcpg__reqhost">
+          <PremiumRequirementsBar :requirements="rc.reqs" />
+        </div>
+      </div>
+    </section>
+
     <!-- curated edge cases -->
     <section class="pcpg__section">
       <h2>Эталонные кейсы</h2>
@@ -95,18 +115,24 @@ import {ClientCard} from '@/common/cards/ClientCard';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCards, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
+import {Tag} from '@/common/cards/Tag';
+import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
 import {isPremiumFaceType} from './premiumCardTheme';
-import {buildPremiumCardViewModel} from './premiumCardViewModel';
+import {buildPremiumCardViewModel, normalizeRequirement, NormalizedRequirement} from './premiumCardViewModel';
 import {MechDensity} from './mechanicsModel';
 import PremiumCard from './PremiumCard.vue';
+import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 
 const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares'];
 
 type CuratedCase = {label: string, model: CardModel};
+type ReqCase = {label: string, reqs: Array<NormalizedRequirement>};
+/** Build a requirement from a synthetic descriptor (the real normalize path). */
+const req = (d: CardRequirementDescriptor): NormalizedRequirement => normalizeRequirement(d);
 
 export default defineComponent({
   name: 'PremiumCardsPlayground',
-  components: {PremiumCard},
+  components: {PremiumCard, PremiumRequirementsBar},
   data() {
     return {
       moduleFilter: 'base' as GameModule,
@@ -124,6 +150,23 @@ export default defineComponent({
     referenceNames(): Array<CardName> {
       // green / blue / red / prelude — the theme quartet next to the back.
       return [CardName.TREES, CardName.PREDATORS, CardName.COMET, CardName.DONATION];
+    },
+    /** The mandatory requirement acceptance cases (single / max / suffixes /
+     *  tags / multiple / {all}) — rendered from synthetic requirements so every
+     *  shape (incl. the {all} variant, which no in-scope card carries) is here. */
+    reqCases(): Array<ReqCase> {
+      return [
+        {label: 'Океан ≥ 5', reqs: [req({oceans: 5})]},
+        {label: 'Океан ≤ 3 (макс.)', reqs: [req({oceans: 3, max: true})]},
+        {label: 'Кислород ≥ 11%', reqs: [req({oxygen: 11})]},
+        {label: 'Температура ≤ −18°C', reqs: [req({temperature: -18, max: true})]},
+        {label: 'Венера ≥ 12%', reqs: [req({venus: 12})]},
+        {label: 'Наука ≥ 5', reqs: [req({tag: Tag.SCIENCE, count: 5})]},
+        {label: '3 тега ≥ 1', reqs: [req({tag: Tag.PLANT}), req({tag: Tag.ANIMAL}), req({tag: Tag.MICROBE})]},
+        {label: 'Наука ≥ 3 | Кислород ≥ 7%', reqs: [req({tag: Tag.SCIENCE, count: 3}), req({oxygen: 7})]},
+        {label: '{all}: Кислород ≤ 5% (все)', reqs: [req({oxygen: 5, max: true, all: true})]},
+        {label: '{all}: 2 требования (все)', reqs: [req({tag: Tag.JOVIAN, count: 2, all: true}), req({venus: 10, all: true})]},
+      ];
     },
     curated(): Array<CuratedCase> {
       return [
@@ -205,6 +248,25 @@ export default defineComponent({
 .pcpg__row--catalog { zoom: 0.55; gap: 26px; }
 .pcpg__case { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .pcpg__label { font-size: 12px; color: #9fb3c8; }
+/* standalone host for the requirement cassette — provides the (normal) card
+   tokens the strip reads + a card-width box, so the % width renders true to a
+   real card. The {all} variant re-declares its own crimson tokens. */
+.pcpg__reqhost {
+  --pcard-gold-hi: #f2d795;
+  --pcard-gold-deep: #8a6a35;
+  --pcard-req-copper-hi: #c07a3c;
+  --pcard-req-copper: #8d5020;
+  --pcard-req-copper-deep: #5c3111;
+  --pcard-req-bevel: rgba(255, 224, 178, 0.46);
+  --pcard-req-accent: #f2d795;
+  --pcard-req-accent-rgb: 242, 215, 149;
+  display: flex;
+  justify-content: center;
+  width: 286px;
+  padding: 13px 0;
+  background: linear-gradient(180deg, #2a3546, #171f2b);
+  border-radius: 8px;
+}
 .pcpg__back { width: 320px; height: 460px; object-fit: cover; border-radius: 15px; }
 .pcpg__filters { margin-left: 14px; }
 .pcpg__chip {

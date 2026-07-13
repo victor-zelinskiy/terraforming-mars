@@ -53,6 +53,15 @@
   --pcard-ink: #2c1e08;          /* dark engraving on gold */
   --pcard-text: #e9eef4;
 
+  /* ── requirement copper enamel (the ONE requirement semantic palette,
+        shared normal↔{all}↔description-highlight) ───────────────────── */
+  --pcard-req-copper-hi: #c07a3c;    /* enamel top light  */
+  --pcard-req-copper: #8d5020;       /* enamel mid        */
+  --pcard-req-copper-deep: #5c3111;  /* enamel bottom     */
+  --pcard-req-bevel: rgba(255, 224, 178, 0.46);  /* warm gold bevel */
+  --pcard-req-accent: var(--pcard-gold-hi);       /* operator + anchor */
+  --pcard-req-accent-rgb: 242, 215, 149;
+
   /* ── theme variables (overridden by pcard--theme-*) ──────────────── */
   --pcard-body-a: #10161f;
   --pcard-body-b: #1b2534;
@@ -406,88 +415,100 @@
  *             player» signal (hue + crimson operator + crimson edge accent),
  *             NOT an alarm red. */
 .pcard__reqs {
-  --pcard-op-metal: #f7db9e;                    /* operator gold (normal)   */
-  --pcard-op-hi: rgba(255, 249, 226, 0.74);     /* operator emboss highlight */
-  --pcard-req-node: var(--pcard-gold-hi);       /* anchor-port + separator   */
+  --pcard-op-metal: var(--pcard-req-accent);    /* operator metal (normal)   */
+  --pcard-op-hi: rgba(255, 249, 226, 0.8);      /* operator emboss highlight  */
   position: relative;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   align-self: center;
-  gap: 1px 3px;
-  /* content-hugging cassette (clamped) — a deliberate module sized to its
-     formula, centred; NOT a wide banner floating in empty copper */
-  width: max-content;
-  min-width: 42%;
-  max-width: 94%;
+  box-sizing: border-box;
+  gap: 0 8px;
+  /* STABLE wide cassette — a permanent constructive LAYER of the card, sized
+     to a fixed proportion of the card (NOT its content), centred, so the zone
+     reads identically across cards and visually separates the header from the
+     art. A single requirement never collapses this to a floating chip. */
+  width: 74%;
+  height: 30px;
   margin: 0 auto;
-  min-height: 27px;
-  padding: 2px 21px;
-  /* outer gunmetal chassis + gold kant edge (the hex-cut silhouette) */
-  clip-path: polygon(11px 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 11px 100%, 0 50%);
-  background: linear-gradient(180deg, #4a3a24 0%, #2b2013 30%, #1a130b 100%);
+  padding: 0 16px;
+  /* calm chamfered-corner cassette — ONE clean geometric form echoing the
+     nameplate kant, no speech-bubble point, no scattered facets */
+  clip-path: polygon(
+    7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px),
+    calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+  background: linear-gradient(180deg, #46351f 0%, #291d10 34%, #180f08 100%);
   filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.5));
   color: #ffeeda;
   text-shadow: 0 1px 1px rgba(52, 24, 7, 0.85);
 }
+/* width scales CONTROLLED with the requirement count (never auto-width):
+   two → wider, three+ → widest + slightly tighter internals */
+.pcard__reqs--multi { width: 90%; gap: 0 5px; }
+.pcard__reqs--dense { width: 92%; }
 /* the inset BRUSHED-COPPER panel — bevelled, with engraved end rivets */
 .pcard__reqs::before {
   content: '';
   position: absolute;
-  inset: 1.7px;
-  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
+  inset: 1.6px;
+  clip-path: polygon(
+    6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px),
+    calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+  /* satin copper enamel (shared tokens) — a soft diagonal sheen + subtle
+     brushed grain; NO end rivets / decorative dots */
   background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 238, 208, 0.09) 47%, transparent 55%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 5px),
-    radial-gradient(circle at 13px 50%, rgba(255, 227, 182, 0.32) 0 1.3px, transparent 2.2px),
-    radial-gradient(circle at calc(100% - 13px) 50%, rgba(255, 227, 182, 0.32) 0 1.3px, transparent 2.2px),
-    linear-gradient(180deg, #b56d32 0%, #8d5020 52%, #663812 100%);
+    linear-gradient(112deg, transparent 42%, rgba(255, 238, 208, 0.08) 48%, transparent 56%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 52%, var(--pcard-req-copper-deep) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 224, 178, 0.44),      /* top bevel light  */
-    inset 0 -1.6px 2px rgba(38, 16, 4, 0.6),       /* bottom bevel dark */
-    inset 0 0 0 1px rgba(52, 26, 9, 0.6);          /* seated inner rim  */
+    inset 0 1px 0 var(--pcard-req-bevel),          /* warm gold top bevel */
+    inset 0 -1.6px 2px rgba(38, 16, 4, 0.6),        /* bottom bevel dark   */
+    inset 0 0 0 1px rgba(52, 26, 9, 0.58);          /* seated inner rim    */
   z-index: 0;
 }
 .pcard--tier-thumb .pcard__reqs { filter: none; }
-.pcard--tier-thumb .pcard__reqs::before { background: linear-gradient(180deg, #a8622a 0%, #82491c 52%, #643716 100%); }
+.pcard--tier-thumb .pcard__reqs::before {
+  background: linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 52%, var(--pcard-req-copper-deep) 100%);
+}
 
 /* copper «anchor ports» — small faceted nodes pinned at the hex tips; they
    read as the physical connection points for the fullscreen info tether */
+/* ONE calm anchor micro-port — a small chamfered node built into the RIGHT
+   end of the cassette (the predictable connection point the fullscreen info
+   tether reads toward); no second decorative node, no glow at rest */
 .pcard__reqs-node {
   position: absolute;
   top: 50%;
+  right: 3px;
   width: 5px;
   height: 5px;
   transform: translateY(-50%) rotate(45deg);
-  background: linear-gradient(135deg, var(--pcard-req-node), var(--pcard-gold-deep));
+  background: linear-gradient(135deg, var(--pcard-req-accent), var(--pcard-gold-deep));
   box-shadow: 0 0 0 1px rgba(38, 19, 5, 0.75), 0 1px 1px rgba(0, 0, 0, 0.5);
   z-index: 1;
 }
-.pcard__reqs-node--l { left: 4px; }
-.pcard__reqs-node--r { right: 4px; }
 .pcard--tier-thumb .pcard__reqs-node { display: none; }
 
-/* «any player» / «{all}» — the whole cassette shifts to crimson-copper and
-   the operator turns crimson, matching the accented «any player» rule words */
+/* «{all}» / «any player» — the copper enamel shifts to crimson-copper (a token
+   swap, so the panel + operator + anchor recolour together) AND gains an extra
+   crimson INNER KANT, so the variant differs by STRUCTURE, not only hue. NOT an
+   alarm red; shares --pcard-any with the fullscreen «any player» highlight. */
 .pcard__reqs--all {
+  --pcard-req-copper-hi: #b4573c;
+  --pcard-req-copper: #8d4227;
+  --pcard-req-copper-deep: #5c2818;
+  --pcard-req-bevel: rgba(255, 219, 205, 0.42);
+  --pcard-req-accent: #f3b09a;
   --pcard-op-metal: #f3b09a;
-  --pcard-op-hi: rgba(255, 231, 222, 0.8);
-  --pcard-req-node: #eeab92;
-  background: linear-gradient(180deg, #4d3020 0%, #2c1a10 30%, #1a0f0a 100%);
+  --pcard-op-hi: rgba(255, 231, 222, 0.82);
+  background: linear-gradient(180deg, #4a2f1f 0%, #2a190f 34%, #170d09 100%);
 }
 .pcard__reqs--all::before {
-  background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 231, 219, 0.1) 47%, transparent 55%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 5px),
-    radial-gradient(circle at 13px 50%, rgba(255, 214, 196, 0.34) 0 1.3px, transparent 2.2px),
-    radial-gradient(circle at calc(100% - 13px) 50%, rgba(255, 214, 196, 0.34) 0 1.3px, transparent 2.2px),
-    linear-gradient(180deg, #b4573c 0%, #8d4227 52%, #642c19 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 219, 205, 0.42),
+    inset 0 1px 0 var(--pcard-req-bevel),
     inset 0 -1.6px 2px rgba(46, 13, 6, 0.62),
-    inset 0 0 0 1px rgba(74, 27, 16, 0.62),
-    inset 0 0 8px rgba(var(--pcard-any-rgb), 0.3);   /* crimson edge accent */
+    inset 0 0 0 1px rgba(74, 27, 16, 0.66),
+    inset 0 0 0 1.7px rgba(var(--pcard-any-rgb), 0.4);   /* crimson inner kant — the structural {all} cue */
 }
 
 /* content rides ABOVE the copper panel */
@@ -496,47 +517,50 @@
   position: relative;
   z-index: 1;
 }
+/* one requirement SEGMENT — a clear icon → operator → value group, centred,
+   with controlled air; identical paddings/height for every segment */
 .pcard-req {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
+.pcard__reqs--multi .pcard-req { gap: 5px; }
 
-/* recessed icon SOCKET — seats + enlarges the parameter icon for contrast
-   against the copper (a subtle carved seat, never a heavy button) */
+/* compact icon SOCKET — a thin carved seat only slightly larger than the icon
+   (never a button); the icon is a PRIMARY element of the formula */
 .pcard-req__socket {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 25px;
-  height: 25px;
-  border-radius: 8px;
-  background: radial-gradient(118% 118% at 50% 24%, rgba(10, 6, 3, 0.5), rgba(10, 6, 3, 0.14) 60%, transparent 82%);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: radial-gradient(118% 118% at 50% 24%, rgba(8, 5, 2, 0.44), rgba(8, 5, 2, 0.12) 62%, transparent 84%);
   box-shadow:
-    inset 0 1px 1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(0, 0, 0, 0.46),
     inset 0 -1px 0.5px rgba(255, 222, 174, 0.16),
-    inset 0 0 0 1px rgba(40, 21, 8, 0.42);
+    inset 0 0 0 1px rgba(40, 21, 8, 0.4);
 }
-.pcard-req__socket--wide { width: 32px; border-radius: 9px; }
+.pcard-req__socket--wide { width: 33px; }
 .pcard--tier-thumb .pcard-req__socket { box-shadow: inset 0 0 0 1px rgba(40, 21, 8, 0.4); }
 .pcard-req__icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
   filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
 }
-.pcard-req__icon--wide { width: 27px; height: 19px; }
+.pcard-req__icon--wide { width: 29px; height: 20px; }
 
-/* the ≥ / ≤ operator — bespoke SVG glyph, the formula's accent (see
-   PremiumRequirementOperator.vue); metal colour rides the cassette vars.
-   Sized to read almost as strong as the icon, clearly bigger than the digit. */
+/* the ≥ / ≤ operator — the formula's CONNECTOR: expressive + clearly legible,
+   but NOT the heaviest element (~1.2× the digit, optically aligned). See
+   PremiumRequirementOperator.vue; metal colour rides the cassette vars. */
 .pcard-op {
   display: inline-flex;
-  width: 21px;
-  height: 25px;
+  width: 16px;
+  height: 19px;
   flex: 0 0 auto;
 }
 .pcard-op__svg {
@@ -549,55 +573,50 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.pcard-op__shadow path { stroke: rgba(34, 14, 3, 0.85); stroke-width: 4.9; }
-.pcard-op__metal path { stroke: var(--pcard-op-metal, #f7db9e); stroke-width: 3.7; }
-.pcard-op__hi path { stroke: var(--pcard-op-hi, rgba(255, 249, 226, 0.74)); stroke-width: 1.5; }
+.pcard-op__shadow path { stroke: rgba(34, 14, 3, 0.82); stroke-width: 4.4; }
+.pcard-op__metal path { stroke: var(--pcard-op-metal, #f7db9e); stroke-width: 3.1; }
+.pcard-op__hi path { stroke: var(--pcard-op-hi, rgba(255, 249, 226, 0.78)); stroke-width: 1.2; }
 .pcard--tier-thumb .pcard-op__hi { display: none; }
 
+/* the VALUE — high visual priority: bold, tabular, with a readable unit */
 .pcard-req__value {
-  font-size: 16.5px;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   color: #fff3e1;
   text-shadow: 0 1px 1px rgba(48, 20, 5, 0.9), 0 0 3px rgba(0, 0, 0, 0.3);
 }
 .pcard-req__suffix {
-  font-size: 10.5px;
-  margin-left: 0.5px;
-  opacity: 0.82;
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-left: 1px;
+  opacity: 0.92;
 }
 .pcard-req__minus {
   color: #ffd9c9;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 700;
   margin-right: -1px;
   text-shadow: 0 1px 1px rgba(48, 20, 5, 0.9);
 }
+/* three+ requirements — slightly tighter operator + value; icons stay readable */
+.pcard__reqs--dense .pcard-req__value { font-size: 16px; }
+.pcard__reqs--dense .pcard-req__suffix { font-size: 11.5px; }
+.pcard__reqs--dense .pcard-op { width: 14px; height: 17px; }
+.pcard__reqs--dense .pcard-req__socket { width: 24px; height: 24px; }
+.pcard__reqs--dense .pcard-req__icon { width: 20px; height: 20px; }
+.pcard__reqs--dense .pcard-req__icon--wide { width: 26px; height: 18px; }
 
-/* premium separator between requirements — a slim gold facet + diamond notch */
+/* ONE separator language — a slim illuminated vertical divider (no diamond,
+   no rivet; a single consistent form between segments) */
 .pcard-req__sep {
-  width: 10px;
-  height: 17px;
+  width: 1px;
+  height: 18px;
   flex: 0 0 auto;
-}
-.pcard-req__sep::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 1px;
-  bottom: 1px;
-  width: 1.5px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, transparent, rgba(248, 218, 164, 0.55) 24% 76%, transparent);
-}
-.pcard-req__sep::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: linear-gradient(135deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
-  box-shadow: 0 0 0 1px rgba(40, 20, 6, 0.6), 0 1px 1px rgba(0, 0, 0, 0.5);
+  margin: 0 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 228, 180, 0.5) 22% 78%, transparent);
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.26);
 }
 
 /* exotic no-icon requirement / party name — a compact engraved chip so it

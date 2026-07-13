@@ -1,6 +1,5 @@
 <template>
-  <div class="pcard__reqs" :class="{'pcard__reqs--all': hasAll}">
-    <span class="pcard__reqs-node pcard__reqs-node--l" aria-hidden="true"></span>
+  <div class="pcard__reqs" :class="reqClass">
     <template v-for="(req, i) in requirements" :key="i">
       <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
       <span class="pcard-req" :class="{'pcard-req--binary': req.isBinary}">
@@ -25,7 +24,9 @@
         </template>
       </span>
     </template>
-    <span class="pcard__reqs-node pcard__reqs-node--r" aria-hidden="true"></span>
+    <!-- ONE anchor micro-port (right) — the fullscreen info tether's connection
+         point; a single calm node, not a pair of decorative facets. -->
+    <span class="pcard__reqs-node" aria-hidden="true"></span>
   </div>
 </template>
 
@@ -37,15 +38,21 @@ import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
 
 /**
- * The requirements CASSETTE — a structured metallic strip (gunmetal chassis +
- * inset copper panel + faceted hex ends) reading the threshold formula
- * «[parameter socket] ≥ 6». The comparator is a bespoke SVG glyph
- * (`PremiumRequirementOperator`), NOT the shared «от / до» word wording — the
- * premium face deliberately speaks the symbolic ≥/≤ language while the legacy
- * renderer keeps the RU words. Binary requirements (party / chairman /
- * plants-removed) draw icon-only. The «{all}» accent shifts the whole cassette
- * toward the crimson-copper `--pcard-any` hue shared with the fullscreen
- * «any player» rule highlight.
+ * The requirements CASSETTE — a STABLE wide constructive layer of the card (a
+ * gunmetal chassis with a chamfered silhouette + an inset satin-copper enamel
+ * panel + one calm anchor micro-port), not a content-hugging chip. Its width is
+ * a fixed proportion of the card (`--single` → `--multi` → `--dense`), so the
+ * zone reads identically across cards and separates the header from the art.
+ *
+ * Each requirement is a SEGMENT reading «[parameter socket] ≥ 6»: the icon is a
+ * primary element, the value is bold + tabular, and the comparator is a bespoke
+ * SVG glyph (`PremiumRequirementOperator`) sized ~1.2× the digit — expressive
+ * but never dominating. Symbols only (≥/≤), never the legacy «от / до» words.
+ * Multiple requirements are split by ONE slim illuminated divider. Binary
+ * requirements (party / chairman / plants-removed) draw icon-only. The «{all}»
+ * variant swaps the copper enamel to crimson-copper AND adds a crimson inner
+ * kant (a STRUCTURAL cue, not just hue), sharing `--pcard-any` with the
+ * fullscreen «any player» rule highlight.
  */
 export default defineComponent({
   name: 'PremiumRequirementsBar',
@@ -59,6 +66,17 @@ export default defineComponent({
   computed: {
     hasAll(): boolean {
       return this.requirements.some((r) => r.all);
+    },
+    /** Width/density variant — the cassette stays a STABLE wide zone; the width
+     *  scales in controlled steps with the requirement count (single → multi →
+     *  dense), never auto-shrinking to the content. */
+    reqClass(): Record<string, boolean> {
+      const n = this.requirements.length;
+      return {
+        'pcard__reqs--all': this.hasAll,
+        'pcard__reqs--multi': n > 1,
+        'pcard__reqs--dense': n > 2,
+      };
     },
   },
   methods: {
