@@ -68,6 +68,19 @@
   50%      { box-shadow: 0 0 0 3px rgba(106, 176, 230, 1),   0 0 28px rgba(106, 176, 230, 0.55); }
 }
 
+// GAME-UI warm-up elements (board spaces / cubes / arc scales). Only need to
+// paint on the GPU (behind the opaque panel) so pipelines compile — layout doesn't
+// matter; some board children are absolutely positioned and just stack in a corner.
+.boot-loader__warm-game {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px;
+  padding: 24px;
+}
+
 // A few abstract cells for OVERLAY-only effects no card carries (backdrop blur,
 // heavy blur, glow) — the modal/overlay pipelines.
 .boot-warm-cell {

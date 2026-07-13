@@ -33,6 +33,13 @@
 }
 
 .pcard {
+  /* Isolate style + layout recalc to this card, so mounting many cards at once
+     (a deal / opening the hand) doesn't cascade a document-wide recalc — the
+     first-mount long task. Deliberately NOT `paint`: that would clip the cost
+     badge + outer glow that poke ABOVE the card box (the documented badge-clip
+     regression). The card is a fixed-size box, so layout containment is safe. */
+  contain: layout style;
+
   /* ── geometry tokens ─────────────────────────────────────────────── */
   --pcard-w: 320px;
   --pcard-h: 460px;

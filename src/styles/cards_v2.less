@@ -12,6 +12,11 @@
 }
 
 .card-container {
+    /* Isolate style + layout recalc so mounting many cards at once (deal / hand)
+       doesn't cascade a document-wide recalc — the first-mount long task. NOT
+       `paint` (would clip the cost badge poking above the card). Legacy face is a
+       fixed-size box with position:relative already, so this changes no geometry. */
+    contain: layout style;
     .project-icon-expansion-container {
         flex-direction: row;
         display: flex;

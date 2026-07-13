@@ -23,6 +23,21 @@
           <Card :card="c" />
         </div>
       </div>
+      <!-- GAME-UI warm-up: the board elements repeated every game — board
+           spaces WITH tiles (ocean/city/greenery sprites + hex clip-path),
+           player cubes (SVG gradient/3D/shadow), and the global-parameter arc
+           scales (SVG paths + gradients). Same pipelines the first game-entry
+           compiles. Isolated components (not the full Board) to avoid a fragile
+           full mock; errorCaptured() below keeps a warm-up failure from ever
+           crashing the app. -->
+      <div v-if="warmReady" class="boot-loader__warm-game">
+        <board-space v-for="s in warmSpaces" :key="s.id"
+                     :space="s" tileView="show" :aresExtension="false" />
+        <player-cube v-for="c in warmCubes" :key="c" :color="c" :size="21" />
+        <arc-scale v-for="a in warmScales" :key="a.key"
+                   :theme="a.theme" :config="a.config" :value="a.value" />
+      </div>
+
       <!-- Overlay-only effects no card carries (backdrop-filter at both modal
            radii + heavy blur + glow). -->
       <div class="boot-warm-cell boot-warm-cell--backdrop"></div>
@@ -85,6 +100,16 @@ import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {cardArtUrl} from '@/client/cards/cardArt';
 import {finishBootWarmup} from '@/client/components/boot/bootWarmupState';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import BoardSpace from '@/client/components/BoardSpace.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
+import ArcScale from '@/client/components/board/ArcScale.vue';
+import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
+import {OXYGEN_ARC, TEMPERATURE_ARC, VENUS_ARC} from '@/client/components/board/arcScaleConfigs';
+import {SpaceModel} from '@/common/models/SpaceModel';
+import {SpaceType} from '@/common/boards/SpaceType';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {TileType} from '@/common/TileType';
+import {Color} from '@/common/Color';
 
 // English text = i18n key (fork convention). Kept short; one per warm-up phase.
 const STAGES = [
@@ -114,16 +139,38 @@ function modelOf(name: CardName): CardModel | undefined {
   }
 }
 
+// GAME-UI warm-up data. A few representative board spaces (ocean/city/greenery
+// tiles + a cube), cubes of several colours, and the arc scales — enough to
+// compile every board pipeline (tile sprite, hex clip-path, cube SVG, scale SVG);
+// the pipeline depends on the KIND, not the count. `id` must match SpaceId's
+// two-digit shape; these ids are warm-up-only (isolated components, not a game).
+const WARM_SPACES: ReadonlyArray<SpaceModel> = [
+  {id: '61', x: 0, y: 0, spaceType: SpaceType.LAND, bonus: [SpaceBonus.PLANT, SpaceBonus.STEEL]},
+  {id: '62', x: 0, y: 0, spaceType: SpaceType.OCEAN, bonus: [], tileType: TileType.OCEAN},
+  {id: '63', x: 0, y: 0, spaceType: SpaceType.LAND, bonus: [], tileType: TileType.CITY, color: 'blue'},
+  {id: '64', x: 0, y: 0, spaceType: SpaceType.LAND, bonus: [], tileType: TileType.GREENERY, color: 'green'},
+  {id: '65', x: 0, y: 0, spaceType: SpaceType.LAND, bonus: [SpaceBonus.TITANIUM, SpaceBonus.DRAW_CARD]},
+];
+const WARM_CUBES: ReadonlyArray<Color> = ['red', 'green', 'blue', 'yellow', 'black'];
+const WARM_SCALES = [
+  {key: 'oxygen', theme: ARC_SCALE_THEMES.oxygen, config: OXYGEN_ARC, value: 0},
+  {key: 'temperature', theme: ARC_SCALE_THEMES.temperature, config: TEMPERATURE_ARC, value: -30},
+  {key: 'venus', theme: ARC_SCALE_THEMES.venus, config: VENUS_ARC, value: 0},
+];
+
 export default defineComponent({
   name: 'AppBootLoader',
-  components: {Card},
+  components: {Card, BoardSpace, PlayerCube, ArcScale},
   data() {
     return {
       // Built in data() so the cards render from the FIRST loader frame (warm-up
       // starts immediately, behind the panel).
       warmCards: WARMUP_CARDS.map(modelOf).filter((c): c is CardModel => c !== undefined),
-      // The cards render ONLY once GPU compositing is live (see mounted) so their
-      // pipelines compile on Graphite, not the software path during GPU init.
+      warmSpaces: WARM_SPACES,
+      warmCubes: WARM_CUBES,
+      warmScales: WARM_SCALES,
+      // The warm-up elements render ONLY once GPU compositing is live (see mounted)
+      // so their pipelines compile on Graphite, not the software path during init.
       warmReady: false,
       phase: 0,
       progress: 8,
@@ -209,6 +256,13 @@ export default defineComponent({
     if (this.gpuReadyHandler !== undefined) {
       window.removeEventListener('tm-gpu-ready', this.gpuReadyHandler);
     }
+  },
+  errorCaptured(): boolean {
+    // A warm-up render failure (an isolated board component missing some game
+    // context it normally gets from a live game) must NEVER crash the app —
+    // swallow it here. The pipeline it would have warmed just compiles at first
+    // real use instead. The loader itself keeps running.
+    return false;
   },
 });
 </script>
