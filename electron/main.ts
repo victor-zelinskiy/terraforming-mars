@@ -264,6 +264,32 @@ async function printGpuDiag(win: BrowserWindow): Promise<void> {
   }
 }
 
+/**
+ * Poll the GPU feature status until compositing is actually live, then signal the
+ * renderer (window `tm-gpu-ready` event + `__tmGpuReady` flag). The boot warm-up
+ * waits for this before rendering its cards, so their Graphite pipelines compile
+ * on the ready GPU instead of the software path during GPU-process init. Bounded
+ * (~4s cap) and fires exactly once — never hangs the loader.
+ */
+function signalGpuReadyWhenLive(win: BrowserWindow, attempts = 0): void {
+  if (win.isDestroyed()) {
+    return;
+  }
+  let live = false;
+  try {
+    live = app.getGPUFeatureStatus().gpu_compositing === 'enabled';
+  } catch {
+    // getGPUFeatureStatus can throw very early — treat as not-ready yet.
+  }
+  if (live || attempts >= 40) {
+    void win.webContents
+      .executeJavaScript('window.__tmGpuReady = true; window.dispatchEvent(new Event("tm-gpu-ready"));')
+      .catch(() => {/* frame gone */});
+    return;
+  }
+  setTimeout(() => signalGpuReadyWhenLive(win, attempts + 1), 100);
+}
+
 function createWindow(): void {
   const cfg = runtimeConfig();
 
@@ -437,6 +463,13 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     // Confirm hardware acceleration is actually live (one line; see perf.ts).
     logGpuStatus(app);
+    // Tell the renderer WHEN GPU compositing is actually live, so the boot warm-up
+    // renders its cards on the READY GPU (Graphite) — not on the software path
+    // during the ~330ms GPU-process init (else the card pipelines would compile
+    // only at the first REAL deal, the residual first-deal hitch).
+    if (mainWindow !== undefined) {
+      signalGpuReadyWhenLive(mainWindow);
+    }
     // DIAGNOSTIC: catch a GPU-process exit/crash (the `exit_on_context_lost` workaround makes a
     // lost D3D device kill + relaunch the GPU process — that reads as a periodic freeze). Surface
     // it loudly in the renderer console so a hitch can be correlated with a process restart.

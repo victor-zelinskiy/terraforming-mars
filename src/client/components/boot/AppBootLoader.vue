@@ -15,7 +15,7 @@
       NOT display:none.
     -->
     <div class="boot-loader__warm" aria-hidden="true">
-      <div class="boot-loader__warm-cards">
+      <div v-if="warmReady" class="boot-loader__warm-cards">
         <div v-for="(c, i) in warmCards" :key="c.name"
              class="boot-loader__warm-card"
              :class="warmCardStateClass(i)"
@@ -122,9 +122,14 @@ export default defineComponent({
       // Built in data() so the cards render from the FIRST loader frame (warm-up
       // starts immediately, behind the panel).
       warmCards: WARMUP_CARDS.map(modelOf).filter((c): c is CardModel => c !== undefined),
+      // The cards render ONLY once GPU compositing is live (see mounted) so their
+      // pipelines compile on Graphite, not the software path during GPU init.
+      warmReady: false,
       phase: 0,
       progress: 8,
       timer: undefined as number | undefined,
+      readyFallback: undefined as number | undefined,
+      gpuReadyHandler: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -171,14 +176,38 @@ export default defineComponent({
     const reduced = typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
     // Each phase gives Graphite time to compile that phase's pipelines. Reduced
-    // motion shortens the hold but still runs the phases (pipelines still need
-    // compiling — this is not decoration).
+    // motion shortens the hold but still runs the phases (not decoration).
     const perPhase = motionMs(reduced ? 340 : 900);
-    this.step(perPhase);
+    // START the phases ONLY once GPU compositing is live, so (a) the cards render
+    // on Graphite (not the software path during the ~330ms GPU-process init — else
+    // the pipelines compile on software and the real deal recompiles them, the
+    // residual hitch), and (b) the full warm-up hold happens AFTER the cards mount.
+    // main signals `tm-gpu-ready`; fall back after 1.4s if it never arrives.
+    const start = (): void => {
+      if (this.warmReady) {
+        return; // guard: event + fallback must not both start it
+      }
+      this.warmReady = true;
+      this.step(perPhase);
+    };
+    const w = window as {__tmGpuReady?: boolean};
+    if (w.__tmGpuReady === true) {
+      start();
+    } else {
+      this.gpuReadyHandler = start;
+      window.addEventListener('tm-gpu-ready', start, {once: true});
+      this.readyFallback = window.setTimeout(start, 1400);
+    }
   },
   beforeUnmount() {
     if (this.timer !== undefined) {
       window.clearTimeout(this.timer);
+    }
+    if (this.readyFallback !== undefined) {
+      window.clearTimeout(this.readyFallback);
+    }
+    if (this.gpuReadyHandler !== undefined) {
+      window.removeEventListener('tm-gpu-ready', this.gpuReadyHandler);
     }
   },
 });
