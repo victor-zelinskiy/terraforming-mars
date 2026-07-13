@@ -1,10 +1,7 @@
 <template>
   <div class="pcard__reqs" :class="reqClass">
-    <!-- LEFT end cap — the machined bracket that balances the right cap; carries
-         the same milled seam + service port, so both ends read as one finished
-         construction (the tether can land on either end). -->
-    <span class="pcard__reqs-cap pcard__reqs-cap--l" aria-hidden="true"></span>
-    <!-- the recessed copper WORKING SURFACE — the formula lives here, centred -->
+    <!-- the copper SURFACE = the whole symmetric banner (no dark end caps); the
+         formula lives here, centred on the clean copper. -->
     <div class="pcard__reqs-field">
       <template v-for="(req, i) in requirements" :key="i">
         <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
@@ -31,9 +28,6 @@
         </span>
       </template>
     </div>
-    <!-- RIGHT end cap — the canonical anchor: the fullscreen info-tether plugs
-         into its integrated service port (no separate floating diamond). -->
-    <span class="pcard__reqs-cap pcard__reqs-cap--r" aria-hidden="true"></span>
   </div>
 </template>
 
@@ -45,28 +39,28 @@ import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
 
 /**
- * The requirements CASSETTE — a recessed instrument channel MILLED INTO the
- * card's own dark metal, NOT a copper button on top of it. The OUTER HOUSING is
- * the card's gunmetal (flush, a thin gold hairline + the theme contour — the
- * language of the nameplate + gold frame); the copper is ONLY the recessed
- * WORKING SURFACE (`.pcard__reqs-field`) sunk into it between two symmetric
- * machined END CAPS (`.pcard__reqs-cap--l/--r`). Each cap carries a milled seam
- * + one service PORT — the fullscreen info-tether's connection point; the tether
- * can land on either end, so both caps carry it and the two ends read as one
- * finished construction (no free-floating decorative diamond). Its width is a
- * fixed proportion of the card (`--single` → `--multi` → `--dense`), so the zone
- * reads identically across cards and separates the header from the art.
+ * The requirements PLATE — ONE clean, flat copper banner that is part of the
+ * card's graphic design, NOT a raised brown button with black end caps. There
+ * is NO dark gunmetal housing and NO machined brackets: the whole silhouette is
+ * the copper SURFACE (`.pcard__reqs-field`), wrapped by a single thin bronze RIM
+ * (the parent `.pcard__reqs`, which ties it to the card's gold frame). The two
+ * layers share ONE symmetric POINTED-banner clip-path (`--pcard-req-clip` in the
+ * LESS), so the rim wraps every edge — the left and right ends are IDENTICAL.
+ * Its width is a fixed proportion of the card (`--multi` → `--dense`), so the
+ * zone reads identically across cards and separates the header from the art.
+ * The fullscreen info-tether targets the whole `.pcard__reqs` rect, so there is
+ * no visible anchor and the plate stays fully symmetric.
  *
  * Each requirement is a SEGMENT reading «[icon] ≥ 6» as ONE expression: the icon
- * is a lightly-seated primary element (no button socket), the value is bold +
- * tabular, and the comparator is a bespoke SVG glyph (`PremiumRequirementOperator`)
- * tuned to the digit's weight — a connector, not a gold emblem. Symbols only
- * (≥/≤), never the legacy «от / до» words. Multiple requirements are split by
- * ONE slim illuminated divider. Binary requirements (party / chairman /
- * plants-removed) draw icon-only. The «{all}» variant re-enamels ONLY the copper
- * field to crimson-copper AND adds a crimson inner kant (a STRUCTURAL cue, the
- * housing unchanged), sharing `--pcard-any` with the fullscreen «any player»
- * rule highlight.
+ * lies DIRECTLY on the copper (a whisper of contact shade, no button socket),
+ * the value is bold + tabular, and the comparator is a bespoke SVG glyph
+ * (`PremiumRequirementOperator`) tuned to the digit's weight — a connector, not
+ * a gold emblem. Symbols only (≥/≤), never the legacy «от / до» words. Multiple
+ * requirements are split by ONE slim illuminated divider. Binary requirements
+ * (party / chairman / plants-removed) draw icon-only. The «{all}» variant
+ * re-enamels the SAME plate (field + rim) to crimson-copper AND adds a crimson
+ * inner kant (a STRUCTURAL cue), sharing `--pcard-any` with the fullscreen «any
+ * player» rule highlight.
  */
 export default defineComponent({
   name: 'PremiumRequirementsBar',

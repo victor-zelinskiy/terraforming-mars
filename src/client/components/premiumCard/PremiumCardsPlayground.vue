@@ -255,12 +255,17 @@ export default defineComponent({
   --pcard-gold-hi: #f2d795;
   --pcard-gold-deep: #8a6a35;
   --pcard-rim-soft: rgba(125, 142, 163, 0.4);   /* steel theme contour (no themed card here) */
-  --pcard-req-copper-hi: #7c4a22;
-  --pcard-req-copper: #8a5329;
-  --pcard-req-copper-deep: #4e2d15;
-  --pcard-req-bevel: rgba(255, 216, 166, 0.34);
-  --pcard-req-accent: #e8d2a6;
-  --pcard-req-accent-rgb: 232, 210, 166;
+  --pcard-any: #cf7a63;
+  --pcard-any-rgb: 207, 122, 99;                 /* the {all} crimson kant reads here too */
+  --pcard-req-copper-hi: #b87f42;
+  --pcard-req-copper: #a06835;
+  --pcard-req-copper-deep: #8a5730;
+  --pcard-req-rim-hi: #dcb06c;
+  --pcard-req-rim: #9f6f3d;
+  --pcard-req-rim-deep: #5d3b1e;
+  --pcard-req-bevel: rgba(255, 224, 180, 0.3);
+  --pcard-req-accent: #f1daac;
+  --pcard-req-accent-rgb: 241, 218, 172;
   display: flex;
   justify-content: center;
   width: 286px;

@@ -53,16 +53,21 @@
   --pcard-ink: #2c1e08;          /* dark engraving on gold */
   --pcard-text: #e9eef4;
 
-  /* ── requirement copper enamel — the recessed satin-copper WORKING SURFACE
-        of the requirement cassette (the housing around it is the card's own
-        dark metal). Gradient reads CONCAVE (deep top lip → warm pooled light
-        at the bottom). One palette, shared normal↔{all}↔description. ── */
-  --pcard-req-copper-hi: #895230;    /* warm satin — the pooled light (bottom) */
-  --pcard-req-copper: #6c4320;       /* mid                                    */
-  --pcard-req-copper-deep: #442712;  /* deep — the recessed top-lip shadow     */
-  --pcard-req-bevel: rgba(255, 216, 166, 0.32);  /* warm bottom lip light      */
-  --pcard-req-accent: #e8d2a6;       /* operator + port — warm satin metal     */
-  --pcard-req-accent-rgb: 232, 210, 166;
+  /* ── requirement copper — the warm satin-copper SURFACE of the requirement
+        plate + its thin bronze RIM. The plate reads as ONE clean copper object
+        (a symmetric pointed banner) that belongs to the card, NOT a dark
+        gunmetal housing with a copper insert and black end caps. Near-FLAT: a
+        soft central satin sheen + a thin top light + a thin bottom shade —
+        never a convex button gradient. One palette, shared normal↔{all}. ── */
+  --pcard-req-copper-hi: #b87f42;    /* warm gold-copper — upper light         */
+  --pcard-req-copper: #a06835;       /* mid                                    */
+  --pcard-req-copper-deep: #8a5730;  /* lower shade — still warm, not brown    */
+  --pcard-req-rim-hi: #dcb06c;       /* bronze-gold rim, top (ties to frame)   */
+  --pcard-req-rim: #9f6f3d;          /* rim mid                                */
+  --pcard-req-rim-deep: #5d3b1e;     /* rim bottom — dark bronze               */
+  --pcard-req-bevel: rgba(255, 224, 180, 0.3);   /* warm bottom lip light      */
+  --pcard-req-accent: #f1daac;       /* operator — warm satin cream            */
+  --pcard-req-accent-rgb: 241, 218, 172;
 
   /* ── theme variables (overridden by pcard--theme-*) ──────────────── */
   --pcard-body-a: #10161f;
@@ -398,150 +403,111 @@
 }
 .pcard--tier-thumb .pcard-tag { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 
-/* ══ requirements CASSETTE — a recessed instrument channel, not a button ═══
+/* ══ requirements PLATE — one clean copper banner, not a button ═══════════
  *
- * Design intent: the strip reads as a channel MILLED INTO the card's own dark
- * metal body, NOT a copper button sitting on top of it. So the OUTER HOUSING
- * (`.pcard__reqs`) is the card's gunmetal — flush, with a thin gold top
- * hairline + the theme inner contour (the same language as the nameplate and
- * the gold frame) — and the copper is ONLY the recessed WORKING SURFACE
- * (`.pcard__reqs-field`) sunk into it between two symmetric machined END CAPS.
+ * Design intent: the strip reads as ONE flat, symmetric copper object that is
+ * part of the card's graphic design — a pointed banner with identical left &
+ * right ends — NOT a raised brown button with black mechanical end caps. There
+ * is NO dark gunmetal housing and NO end brackets: the whole silhouette is the
+ * copper SURFACE (`.pcard__reqs-field`) wrapped by a single thin bronze RIM
+ * (`.pcard__reqs`, the layer under the field), which ties it to the card's gold
+ * frame. The two layers share ONE pointed-banner clip-path (`--pcard-req-clip`)
+ * so the rim wraps every edge including the tips — perfectly symmetric.
  *
- * Construction, L→R:  [end cap] · [recessed copper field] · [end cap].
- * Both caps are identical dark-metal brackets carrying a milled inner SEAM
- * (the joint to the copper) and one subtle service PORT — the connection point
- * the fullscreen info-tether plugs into. The tether can land on EITHER end, so
- * both caps carry the port; there is NO free-floating decorative diamond, and
- * the two ends read as parts of one finished construction.
+ * The formula reads as ONE expression «[icon] ≥ 6»: the icon lies DIRECTLY on
+ * the copper (a whisper of contact shade, no button socket), a bespoke SVG ≥/≤
+ * glyph tuned to the digit's weight (a connector, never a gold emblem), and a
+ * bold tabular value — one optical height, one shadow language. Symbols only
+ * (≥/≤), never «от/до».
  *
- * The formula reads as ONE expression «[icon] ≥ 6»: a lightly-seated icon (a
- * PRIMARY element, no button socket), a bespoke SVG ≥/≤ glyph tuned to the
- * digit's weight (a connector, never a gold emblem), and a bold tabular value
- * — one optical height, one shadow language. Symbols only (≥/≤), never «от/до».
+ * Depth is deliberately MINIMAL — a thin top light, a thin bottom shade, and a
+ * single soft contact shadow; never a convex 3D button. The info-tether targets
+ * the whole `.pcard__reqs` rect, so no visible anchor is needed and the plate
+ * stays fully symmetric.
  *
- * Colour: normal → warm satin copper; «{all}» → the SAME cassette with only
- * the copper field re-enamelled crimson-copper (`--pcard-any`) + a crimson
- * inner kant — a structural cue, never an alarm-red repaint of the whole strip. */
+ * Colour: normal → warm clean copper; «{all}» → the SAME plate re-enamelled
+ * crimson-copper (`--pcard-any`) with a crimson inner kant — a structural cue,
+ * never an alarm-red repaint. */
 .pcard__reqs {
   --pcard-op-metal: var(--pcard-req-accent);    /* operator metal (normal)   */
-  --pcard-op-hi: rgba(255, 249, 226, 0.72);     /* operator emboss highlight  */
+  --pcard-op-hi: rgba(255, 249, 226, 0.75);     /* operator emboss highlight  */
+  /* the symmetric POINTED-banner silhouette — identical left & right ends;
+     shared by the rim (this layer) and the copper field (inset over it) so the
+     bronze rim wraps the whole shape, tips included. */
+  --pcard-req-clip: polygon(
+    14px 0, calc(100% - 14px) 0, 100% 50%,
+    calc(100% - 14px) 100%, 14px 100%, 0 50%);
   position: relative;
-  display: flex;
-  align-items: stretch;
   align-self: center;
   box-sizing: border-box;
-  /* STABLE wide cassette — a permanent constructive LAYER of the card, sized
-     to a fixed proportion of the card (NOT its content): the dark end caps +
-     the copper margins are the intentional side areas, so a single requirement
-     never collapses it to a floating chip. Lower vertical weight than before. */
-  width: 74%;
-  height: 27px;
+  /* a STABLE wide plate sized to a fixed proportion of the card (NOT content):
+     a permanent constructive LAYER between header and art. Compact height. */
+  width: 82%;
+  height: 26px;
   margin: 0 auto;
-  /* calm chamfered ends echoing the nameplate kant — the caps ARE the ends */
-  clip-path: polygon(
-    6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px),
-    calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
-  /* the OUTER HOUSING = the card's own dark metal (flush, not a raised pill) */
-  background: linear-gradient(180deg, #2b333d 0%, #1a212a 46%, #10151b 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(242, 215, 149, 0.2),        /* thin gold top hairline  */
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.66),          /* bottom bevel dark        */
-    inset 0 0 0 1px var(--pcard-rim-soft);         /* theme inner contour tie  */
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.42));
-  color: #ffeeda;
-  text-shadow: 0 1px 1px rgba(52, 24, 7, 0.85);
+  clip-path: var(--pcard-req-clip);
+  /* the RIM = a thin bronze-gold frame (the copper field is inset over it) —
+     ties to the card's gold frame; NO dark housing, NO end caps. */
+  background: linear-gradient(180deg,
+    var(--pcard-req-rim-hi) 0%, var(--pcard-req-rim) 50%, var(--pcard-req-rim-deep) 100%);
+  /* one soft contact shadow with the card — flat, never a raised button */
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4));
+  color: #fff1de;
+  text-shadow: 0 1px 1px rgba(52, 24, 7, 0.8);
 }
 /* width scales CONTROLLED with the requirement count (never auto-width) */
-.pcard__reqs--multi { width: 89%; }
-.pcard__reqs--dense { width: 91%; }
-/* ── the two END CAPS — identical machined dark-metal brackets ──────────
-   Each carries a milled inner SEAM (the joint to the copper field) and one
-   recessed service PORT. Symmetric, so the cassette reads balanced whichever
-   end the fullscreen info-tether connects to (no free-floating diamond). */
-.pcard__reqs-cap {
-  position: relative;
-  flex: 0 0 14px;
-  background: linear-gradient(180deg, #333c48 0%, #1d242d 58%, #12171e 100%);
-}
-.pcard__reqs--dense .pcard__reqs-cap { flex-basis: 12px; }
-/* the milled SEAM to the copper field (a groove at the cap's inner edge) */
-.pcard__reqs-cap::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  width: 2px;
-  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55) 20% 80%, transparent);
-}
-.pcard__reqs-cap--l::after { right: 0; box-shadow: 1px 0 0 rgba(255, 224, 178, 0.12); }
-.pcard__reqs-cap--r::after { left: 0; box-shadow: -1px 0 0 rgba(255, 224, 178, 0.12); }
-/* the recessed service PORT — a small carved socket; no glow at rest */
-.pcard__reqs-cap::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 32%, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.14) 70%);
-  box-shadow:
-    inset 0 0.5px 0.5px rgba(0, 0, 0, 0.6),
-    0 0.5px 0 rgba(var(--pcard-req-accent-rgb), 0.4);   /* faint warm rim below */
-}
-.pcard--tier-thumb .pcard__reqs-cap::before,
-.pcard--tier-thumb .pcard__reqs-cap::after { display: none; }
-
-/* ── the RECESSED COPPER FIELD — the working surface, sunk into the housing ──
-   Satin-copper enamel with a genuine concave inset (dark at the top lip, warm
-   light pooling toward the bottom) so it reads MILLED-IN, not raised. Framed
-   top/bottom by the housing (its 2px margin) and left/right by the end caps —
-   copper is the working SURFACE, never the whole mass of the object. */
+.pcard__reqs--multi { width: 90%; }
+.pcard__reqs--dense { width: 92%; }
+/* ── the COPPER SURFACE — the whole silhouette, inset 1.4px over the rim so the
+   thin bronze frame shows on EVERY edge (incl. the pointed tips). Near-FLAT: a
+   soft top-centre satin sheen + a faint brushed texture + a thin top light and
+   bottom shade — NOT a recessed channel, NOT a convex button. The formula sits
+   directly on this warm clean copper. */
 .pcard__reqs-field {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
+  position: absolute;
+  inset: 1.4px;
+  clip-path: var(--pcard-req-clip);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0 8px;
-  margin: 2px 0;
   background:
-    linear-gradient(112deg, transparent 44%, rgba(255, 236, 205, 0.055) 49%, transparent 55%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 6px),
-    linear-gradient(180deg, var(--pcard-req-copper-deep) 0%, var(--pcard-req-copper) 46%, var(--pcard-req-copper-hi) 100%);
+    radial-gradient(125% 150% at 50% 30%, rgba(255, 231, 188, 0.14), transparent 62%),
+    linear-gradient(180deg, transparent 34%, rgba(255, 238, 205, 0.05) 50%, transparent 66%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.011) 0 1px, transparent 1px 8px),
+    linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 52%, var(--pcard-req-copper-deep) 100%);
   box-shadow:
-    inset 0 2.5px 3px rgba(0, 0, 0, 0.55),          /* recessed top shadow (concave) */
-    inset 0 -1px 0 var(--pcard-req-bevel),          /* warm bottom lip light         */
-    inset 0 0 0 1px rgba(40, 21, 8, 0.5);           /* seated inner rim              */
+    inset 0 1px 0 rgba(255, 230, 190, 0.22),        /* thin top light  */
+    inset 0 -1.4px 1px rgba(48, 24, 9, 0.4);        /* thin bottom shade */
 }
 .pcard__reqs--multi .pcard__reqs-field { gap: 0 5px; }
 .pcard--tier-thumb .pcard__reqs { filter: none; }
 .pcard--tier-thumb .pcard__reqs-field {
-  background: linear-gradient(180deg, var(--pcard-req-copper-deep) 0%, var(--pcard-req-copper) 46%, var(--pcard-req-copper-hi) 100%);
+  background: linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 52%, var(--pcard-req-copper-deep) 100%);
 }
 
-/* «{all}» / «any player» — the dark HOUSING is UNCHANGED; only the copper FIELD
-   is re-enamelled crimson-copper (a token swap, so field + operator + ports
-   recolour together) AND gains a crimson inner kant, so the variant differs by
-   STRUCTURE + hue — never an alarm-red repaint of the whole strip. Shares
-   --pcard-any with the fullscreen «any player» highlight. */
+/* «{all}» / «any player» — the SAME plate, re-enamelled crimson-copper: both
+   the copper FIELD and the bronze RIM recolour together (one token swap), plus
+   a crimson inner kant — so the variant differs by STRUCTURE + hue, never an
+   alarm-red repaint. Shares --pcard-any with the fullscreen «any player» rule. */
 .pcard__reqs--all {
-  --pcard-req-copper-hi: #8b4832;    /* warm crimson-copper satin (bottom) */
-  --pcard-req-copper: #6f3020;       /* mid                                */
-  --pcard-req-copper-deep: #3d1c12;  /* deep crimson top-lip shadow        */
-  --pcard-req-bevel: rgba(255, 214, 198, 0.32);
-  --pcard-req-accent: #f0b6a2;
-  --pcard-op-metal: #f0b6a2;
-  --pcard-op-hi: rgba(255, 231, 222, 0.78);
+  --pcard-req-copper-hi: #a95536;    /* warm crimson-copper — upper light  */
+  --pcard-req-copper: #8b4029;       /* mid                                */
+  --pcard-req-copper-deep: #6c2f1d;  /* lower crimson shade                */
+  --pcard-req-rim-hi: #cf835f;       /* crimson-bronze rim, top            */
+  --pcard-req-rim: #8a4230;          /* rim mid                            */
+  --pcard-req-rim-deep: #491e13;     /* rim bottom                         */
+  --pcard-req-bevel: rgba(255, 214, 198, 0.3);
+  --pcard-req-accent: #f6cebd;
+  --pcard-req-accent-rgb: 246, 206, 189;
+  --pcard-op-metal: #f6cebd;
+  --pcard-op-hi: rgba(255, 235, 228, 0.8);
 }
 .pcard__reqs--all .pcard__reqs-field {
   box-shadow:
-    inset 0 2.5px 3px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 0 var(--pcard-req-bevel),
-    inset 0 0 0 1px rgba(74, 27, 16, 0.6),
-    inset 0 0 0 1.7px rgba(var(--pcard-any-rgb), 0.4);   /* crimson inner kant — the structural {all} cue */
+    inset 0 1px 0 rgba(255, 224, 210, 0.22),
+    inset 0 -1.4px 1px rgba(48, 18, 12, 0.42),
+    inset 0 0 0 1.4px rgba(var(--pcard-any-rgb), 0.4);   /* crimson inner kant — the structural {all} cue */
 }
 
 /* one requirement SEGMENT — a clear icon → operator → value group, centred,
@@ -553,30 +519,27 @@
 }
 .pcard__reqs--multi .pcard-req { gap: 5px; }
 
-/* the icon SEAT — a soft carved shadow hugging the icon (NOT a rectangular
-   inset button); the icon stays a PRIMARY, prominent element of the formula */
+/* the icon SEAT — NOT a socket/button: just a whisper of contact shade under
+   the icon so it doesn't float, no frame, no inset button shadow. The icon lies
+   DIRECTLY on the copper and stays a PRIMARY, prominent element of the formula. */
 .pcard-req__socket {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 23px;
   height: 22px;
-  border-radius: 7px;
-  background: radial-gradient(120% 120% at 50% 26%, rgba(6, 3, 1, 0.4), rgba(6, 3, 1, 0.08) 66%, transparent 84%);
-  box-shadow:
-    inset 0 0.5px 1px rgba(0, 0, 0, 0.34),
-    inset 0 -0.5px 0 rgba(255, 224, 178, 0.14);
+  background: radial-gradient(62% 54% at 50% 62%, rgba(38, 19, 7, 0.24), transparent 74%);
 }
-.pcard-req__socket--wide { width: 30px; }
-.pcard--tier-thumb .pcard-req__socket { box-shadow: none; }
+.pcard-req__socket--wide { width: 29px; }
+.pcard--tier-thumb .pcard-req__socket { background: none; }
 .pcard-req__icon {
   width: 21px;
   height: 21px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 1px 1.2px rgba(28, 12, 4, 0.55));
 }
 .pcard-req__icon--wide { width: 28px; height: 20px; }
 
@@ -586,8 +549,8 @@
    .vue; metal colour rides the cassette vars (crimson-cream under «{all}»). */
 .pcard-op {
   display: inline-flex;
-  width: 13px;
-  height: 16px;
+  width: 14px;
+  height: 17px;
   flex: 0 0 auto;
 }
 .pcard-op__svg {
@@ -608,18 +571,18 @@
 /* the VALUE — shows the THRESHOLD: bold, tabular, matched to the operator's
    optical weight (one shadow language across icon / operator / value) */
 .pcard-req__value {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  color: #fff3e1;
-  text-shadow: 0 1px 1px rgba(48, 20, 5, 0.85);
+  color: #fff5e6;
+  text-shadow: 0 1px 1px rgba(48, 20, 5, 0.8);
 }
 .pcard-req__suffix {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   margin-left: 1px;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 .pcard-req__minus {
   color: #ffd9c9;
@@ -629,9 +592,9 @@
   text-shadow: 0 1px 1px rgba(48, 20, 5, 0.9);
 }
 /* three+ requirements — slightly tighter operator + value; icons stay readable */
-.pcard__reqs--dense .pcard-req__value { font-size: 15.5px; }
+.pcard__reqs--dense .pcard-req__value { font-size: 16px; }
 .pcard__reqs--dense .pcard-req__suffix { font-size: 11px; }
-.pcard__reqs--dense .pcard-op { width: 12px; height: 15px; }
+.pcard__reqs--dense .pcard-op { width: 13px; height: 16px; }
 .pcard__reqs--dense .pcard-req__socket { width: 22px; height: 21px; }
 .pcard__reqs--dense .pcard-req__icon { width: 19px; height: 19px; }
 .pcard__reqs--dense .pcard-req__icon--wide { width: 25px; height: 18px; }
