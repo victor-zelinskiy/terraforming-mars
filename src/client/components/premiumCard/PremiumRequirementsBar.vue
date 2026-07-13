@@ -1,32 +1,39 @@
 <template>
   <div class="pcard__reqs" :class="reqClass">
-    <template v-for="(req, i) in requirements" :key="i">
-      <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
-      <span class="pcard-req" :class="{'pcard-req--binary': req.isBinary}">
-        <!-- binary requirement (party / chairman / plants-removed): icon-only
-             with an optional «minus» overlay, or a text label for the party. -->
-        <template v-if="req.isBinary">
-          <span v-if="req.negation" class="pcard-req__minus" aria-hidden="true">−</span>
-          <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
-            <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
-          </span>
-          <span v-else class="pcard-req__label">{{ binaryLabel(req) }}</span>
-        </template>
-        <!-- formula requirement: [icon socket] [≥/≤] [value][suffix] -->
-        <template v-else>
-          <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
-            <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
-          </span>
-          <span v-else class="pcard-req__label">{{ req.label }}</span>
-          <PremiumRequirementOperator :comparator="req.comparator" />
-          <span class="pcard-req__value">{{ req.value
-            }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
-        </template>
-      </span>
-    </template>
-    <!-- ONE anchor micro-port (right) — the fullscreen info tether's connection
-         point; a single calm node, not a pair of decorative facets. -->
-    <span class="pcard__reqs-node" aria-hidden="true"></span>
+    <!-- LEFT end cap — the machined bracket that balances the right cap; carries
+         the same milled seam + service port, so both ends read as one finished
+         construction (the tether can land on either end). -->
+    <span class="pcard__reqs-cap pcard__reqs-cap--l" aria-hidden="true"></span>
+    <!-- the recessed copper WORKING SURFACE — the formula lives here, centred -->
+    <div class="pcard__reqs-field">
+      <template v-for="(req, i) in requirements" :key="i">
+        <span v-if="i > 0" class="pcard-req__sep" aria-hidden="true"></span>
+        <span class="pcard-req" :class="{'pcard-req--binary': req.isBinary}">
+          <!-- binary requirement (party / chairman / plants-removed): icon-only
+               with an optional «minus» overlay, or a text label for the party. -->
+          <template v-if="req.isBinary">
+            <span v-if="req.negation" class="pcard-req__minus" aria-hidden="true">−</span>
+            <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
+              <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
+            </span>
+            <span v-else class="pcard-req__label">{{ binaryLabel(req) }}</span>
+          </template>
+          <!-- formula requirement: [icon] [≥/≤] [value][suffix] — one expression -->
+          <template v-else>
+            <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
+              <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
+            </span>
+            <span v-else class="pcard-req__label">{{ req.label }}</span>
+            <PremiumRequirementOperator :comparator="req.comparator" />
+            <span class="pcard-req__value">{{ req.value
+              }}<span v-if="req.suffix" class="pcard-req__suffix">{{ req.suffix }}</span></span>
+          </template>
+        </span>
+      </template>
+    </div>
+    <!-- RIGHT end cap — the canonical anchor: the fullscreen info-tether plugs
+         into its integrated service port (no separate floating diamond). -->
+    <span class="pcard__reqs-cap pcard__reqs-cap--r" aria-hidden="true"></span>
   </div>
 </template>
 
@@ -38,21 +45,28 @@ import {NormalizedRequirement} from './premiumCardViewModel';
 import PremiumRequirementOperator from './PremiumRequirementOperator.vue';
 
 /**
- * The requirements CASSETTE — a STABLE wide constructive layer of the card (a
- * gunmetal chassis with a chamfered silhouette + an inset satin-copper enamel
- * panel + one calm anchor micro-port), not a content-hugging chip. Its width is
- * a fixed proportion of the card (`--single` → `--multi` → `--dense`), so the
- * zone reads identically across cards and separates the header from the art.
+ * The requirements CASSETTE — a recessed instrument channel MILLED INTO the
+ * card's own dark metal, NOT a copper button on top of it. The OUTER HOUSING is
+ * the card's gunmetal (flush, a thin gold hairline + the theme contour — the
+ * language of the nameplate + gold frame); the copper is ONLY the recessed
+ * WORKING SURFACE (`.pcard__reqs-field`) sunk into it between two symmetric
+ * machined END CAPS (`.pcard__reqs-cap--l/--r`). Each cap carries a milled seam
+ * + one service PORT — the fullscreen info-tether's connection point; the tether
+ * can land on either end, so both caps carry it and the two ends read as one
+ * finished construction (no free-floating decorative diamond). Its width is a
+ * fixed proportion of the card (`--single` → `--multi` → `--dense`), so the zone
+ * reads identically across cards and separates the header from the art.
  *
- * Each requirement is a SEGMENT reading «[parameter socket] ≥ 6»: the icon is a
- * primary element, the value is bold + tabular, and the comparator is a bespoke
- * SVG glyph (`PremiumRequirementOperator`) sized ~1.2× the digit — expressive
- * but never dominating. Symbols only (≥/≤), never the legacy «от / до» words.
- * Multiple requirements are split by ONE slim illuminated divider. Binary
- * requirements (party / chairman / plants-removed) draw icon-only. The «{all}»
- * variant swaps the copper enamel to crimson-copper AND adds a crimson inner
- * kant (a STRUCTURAL cue, not just hue), sharing `--pcard-any` with the
- * fullscreen «any player» rule highlight.
+ * Each requirement is a SEGMENT reading «[icon] ≥ 6» as ONE expression: the icon
+ * is a lightly-seated primary element (no button socket), the value is bold +
+ * tabular, and the comparator is a bespoke SVG glyph (`PremiumRequirementOperator`)
+ * tuned to the digit's weight — a connector, not a gold emblem. Symbols only
+ * (≥/≤), never the legacy «от / до» words. Multiple requirements are split by
+ * ONE slim illuminated divider. Binary requirements (party / chairman /
+ * plants-removed) draw icon-only. The «{all}» variant re-enamels ONLY the copper
+ * field to crimson-copper AND adds a crimson inner kant (a STRUCTURAL cue, the
+ * housing unchanged), sharing `--pcard-any` with the fullscreen «any player»
+ * rule highlight.
  */
 export default defineComponent({
   name: 'PremiumRequirementsBar',

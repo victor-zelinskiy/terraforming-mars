@@ -254,12 +254,13 @@ export default defineComponent({
 .pcpg__reqhost {
   --pcard-gold-hi: #f2d795;
   --pcard-gold-deep: #8a6a35;
-  --pcard-req-copper-hi: #c07a3c;
-  --pcard-req-copper: #8d5020;
-  --pcard-req-copper-deep: #5c3111;
-  --pcard-req-bevel: rgba(255, 224, 178, 0.46);
-  --pcard-req-accent: #f2d795;
-  --pcard-req-accent-rgb: 242, 215, 149;
+  --pcard-rim-soft: rgba(125, 142, 163, 0.4);   /* steel theme contour (no themed card here) */
+  --pcard-req-copper-hi: #7c4a22;
+  --pcard-req-copper: #8a5329;
+  --pcard-req-copper-deep: #4e2d15;
+  --pcard-req-bevel: rgba(255, 216, 166, 0.34);
+  --pcard-req-accent: #e8d2a6;
+  --pcard-req-accent-rgb: 232, 210, 166;
   display: flex;
   justify-content: center;
   width: 286px;

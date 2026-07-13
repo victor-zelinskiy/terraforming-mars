@@ -2,17 +2,17 @@
   <span class="pcard-op" :class="'pcard-op--' + comparator" aria-hidden="true">
     <svg class="pcard-op__svg" :viewBox="viewBox" preserveAspectRatio="xMidYMid meet" focusable="false">
       <!-- engraved depth (dark shadow, offset down-right) -->
-      <g class="pcard-op__shadow" transform="translate(0.55 1.4)">
+      <g class="pcard-op__shadow" transform="translate(0.4 0.95)">
         <path :d="chevron"></path>
         <path :d="bar"></path>
       </g>
-      <!-- raised metal glyph (themed copper/gold; crimson under «{all}») -->
+      <!-- raised metal glyph (warm satin metal; crimson-cream under «{all}») -->
       <g class="pcard-op__metal">
         <path :d="chevron"></path>
         <path :d="bar"></path>
       </g>
       <!-- top-left highlight — the emboss -->
-      <g class="pcard-op__hi" transform="translate(-0.35 -0.7)">
+      <g class="pcard-op__hi" transform="translate(-0.25 -0.5)">
         <path :d="chevron"></path>
         <path :d="bar"></path>
       </g>
@@ -29,8 +29,9 @@ import {defineComponent} from 'vue';
  * dedicated ≥/≤ glyph, so a text operator falls back to a thin generic serif
  * form that reads weakly at gameplay/console scale. This draws a deliberate,
  * geometric symbol in THREE stroke layers (dark engrave → themed metal →
- * top highlight) so it reads as an embossed control-plate symbol — the KEY
- * accent of the requirement formula. The metal colour rides CSS vars
+ * top highlight) so it reads as an embossed control-plate symbol — the
+ * CONNECTOR of the requirement formula, tuned to the digit's weight (a warm
+ * satin metal, never a dominating gold emblem). The metal colour rides CSS vars
  * (`--pcard-op-metal` / `--pcard-op-hi`) so the «{all}» crimson-copper variant
  * is a one-line theme swap on the parent cassette.
  *
