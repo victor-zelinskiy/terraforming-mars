@@ -13,6 +13,7 @@ export type DesktopUpdateMode =
   | 'idle'
   | 'checking'
   | 'upToDate'
+  | 'pending'
   | 'required'
   | 'downloading'
   | 'downloaded'
@@ -36,6 +37,8 @@ export interface DesktopUpdateState {
   progress?: {percent: number; transferred: number; total: number; bytesPerSecond: number};
   error?: string;
   downloadUrl?: string;
+  /** In `pending` mode: the version the CI build will publish once it finishes. */
+  pendingVersion?: string;
 }
 
 /** Steam Deck installer-freshness notice, pulled once from the main process. Mirrors

@@ -1,9 +1,14 @@
 <template>
   <div v-if="visible" class="desktop-update" :class="blocking ? 'desktop-update--cover' : 'desktop-update--pill'">
-    <!-- Non-blocking: a quiet corner pill while the startup compatibility check runs. -->
+    <!-- Non-blocking corner pill: the startup compatibility check, or waiting for a CI build to
+         publish (mode 'pending') — the player keeps playing until the release lands. -->
     <div v-if="!blocking" class="desktop-update__pill">
       <span class="desktop-update__spinner"></span>
-      <span v-i18n>Checking for updates…</span>
+      <template v-if="state.mode === 'pending'">
+        <span v-i18n>Update is building — waiting…</span>
+        <span v-if="state.pendingVersion" class="desktop-update__pill-ver">{{ state.pendingVersion }}</span>
+      </template>
+      <span v-else v-i18n>Checking for updates…</span>
     </div>
 
     <!-- Blocking: the full-screen mandatory update gate. -->
@@ -129,7 +134,7 @@ export default defineComponent({
       if (!this.isDesktop) {
         return false;
       }
-      return this.state.mode === 'checking' || updateOverlayBlocking(this.state.mode);
+      return this.state.mode === 'checking' || this.state.mode === 'pending' || updateOverlayBlocking(this.state.mode);
     },
     blocking(): boolean {
       return updateOverlayBlocking(this.state.mode);
@@ -191,6 +196,10 @@ export default defineComponent({
   color: #cfe9f5;
   font-size: 12.5px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+.desktop-update__pill-ver {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
 }
 .desktop-update__spinner {
   width: 12px;

@@ -20,6 +20,8 @@ import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
  *   TM_DESKTOP_FORCE_UPDATE=1   force every client to update
  *   TM_DESKTOP_DOWNLOAD_URL     manual-download installer URL
  *   TM_DESKTOP_RELEASE_NOTES    JSON string array of notes
+ *   TM_DESKTOP_DETECT_BUILDS    (default 1) report a CI build-in-progress so the client waits for
+ *                               the imminent release instead of launching stale; set 0 to disable
  */
 export class ApiDesktopVersion extends Handler {
   public static readonly INSTANCE = new ApiDesktopVersion();
@@ -37,6 +39,12 @@ export class ApiDesktopVersion extends Handler {
     const requireLatest = (process.env.TM_DESKTOP_REQUIRE_LATEST ?? '1') !== '0';
     const githubLatest = requireLatest ? await githubLatestVersion() : undefined;
     const latestVersion = githubLatest ?? process.env.TM_DESKTOP_LATEST_VERSION ?? '1.0.0';
+    // Premium "wait for the building release": when a newer desktop build is currently running on
+    // CI (release.yml) but its release isn't published yet, tell the client so it can enter a
+    // non-blocking waiting mode instead of launching stale. Follows requireLatest; disable with
+    // TM_DESKTOP_DETECT_BUILDS=0. Fail-open (a GitHub blip just means no pending signal).
+    const detectBuilds = requireLatest && (process.env.TM_DESKTOP_DETECT_BUILDS ?? '1') !== '0';
+    const pendingVersion = detectBuilds ? await githubPendingBuildVersion() : undefined;
     const model = computeDesktopVersion({
       latestVersion,
       minSupportedVersion: process.env.TM_DESKTOP_MIN_VERSION ?? '0.0.0',
@@ -48,6 +56,7 @@ export class ApiDesktopVersion extends Handler {
       forceUpdate: (process.env.TM_DESKTOP_FORCE_UPDATE ?? '') === '1',
       currentVersion: emptyToUndefined(q.get('current') ?? undefined),
       requireLatest,
+      pendingVersion,
     });
     responses.writeJson(res, ctx, model);
   }
@@ -86,6 +95,46 @@ async function githubLatestVersion(): Promise<string | undefined> {
     return version;
   } catch {
     return githubLatestCache?.version;
+  }
+}
+
+// The version a release build currently RUNNING on CI will publish, or undefined when none is
+// active. Reads the in-progress/queued runs of the release workflow (public repo, no auth) and
+// derives the version from the run number — the CI versions each run `1.1.<run_number>` (see
+// .github/workflows/release.yml `VELO_VERSION`). Cached briefly (builds change faster than
+// releases). Fail-open (a blip → undefined → no pending signal). `concurrency: cancel-in-progress`
+// means at most one run is active, so the max active run_number is the pending build.
+const GITHUB_RUNS_URL =
+  'https://api.github.com/repos/victor-zelinskiy/terraforming-mars/actions/workflows/release.yml/runs?branch=main&per_page=10';
+const GITHUB_RUNS_TTL_MS = 45_000;
+let githubRunsCache: {version: string | undefined; at: number} | undefined;
+
+async function githubPendingBuildVersion(): Promise<string | undefined> {
+  const now = Date.now();
+  if (githubRunsCache !== undefined && now - githubRunsCache.at < GITHUB_RUNS_TTL_MS) {
+    return githubRunsCache.version;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(GITHUB_RUNS_URL, {
+      signal: controller.signal,
+      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      return githubRunsCache?.version;
+    }
+    const body = await res.json() as {workflow_runs?: Array<{run_number?: number; status?: string}>};
+    // Any run not yet `completed` is active (queued / in_progress / requested / waiting / pending).
+    const maxActiveRun = (body.workflow_runs ?? [])
+      .filter((r) => r.status !== 'completed' && typeof r.run_number === 'number')
+      .reduce((m, r) => Math.max(m, r.run_number ?? 0), 0);
+    const version = maxActiveRun > 0 ? `1.1.${maxActiveRun}` : undefined;
+    githubRunsCache = {version, at: now};
+    return version;
+  } catch {
+    return githubRunsCache?.version;
   }
 }
 

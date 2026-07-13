@@ -78,4 +78,39 @@ describe('common/DesktopVersionModel', () => {
       expect(notes).to.deep.eq(['x']);
     });
   });
+
+  describe('computeDesktopVersion — buildInProgress (waiting for a CI build)', () => {
+    it('reports buildInProgress when a NEWER build is pending and no update is required yet', () => {
+      // current == latest (not required), but a build for a newer version is running.
+      const m = computeDesktopVersion({...BASE, currentVersion: '1.4.0', requireLatest: true, pendingVersion: '1.4.1'});
+      expect(m.updateRequired).to.be.false;
+      expect(m.buildInProgress).to.be.true;
+      expect(m.pendingVersion).to.eq('1.4.1');
+    });
+
+    it('does not report buildInProgress when the pending build is not newer than current', () => {
+      const m = computeDesktopVersion({...BASE, currentVersion: '1.4.0', requireLatest: true, pendingVersion: '1.4.0'});
+      expect(m.buildInProgress).to.be.false;
+      expect(m.pendingVersion).to.be.undefined;
+    });
+
+    it('an already-available required update wins over a pending build (buildInProgress suppressed)', () => {
+      // current < latest → updateRequired; even with a newer pending build, download now.
+      const m = computeDesktopVersion({...BASE, currentVersion: '1.3.0', requireLatest: true, pendingVersion: '1.5.0'});
+      expect(m.updateRequired).to.be.true;
+      expect(m.buildInProgress).to.be.false;
+      expect(m.pendingVersion).to.be.undefined;
+    });
+
+    it('no pendingVersion (no build running) → buildInProgress false', () => {
+      const m = computeDesktopVersion({...BASE, currentVersion: '1.4.0'});
+      expect(m.buildInProgress).to.be.false;
+      expect(m.pendingVersion).to.be.undefined;
+    });
+
+    it('unknown current version → buildInProgress false even with a pending build', () => {
+      const m = computeDesktopVersion({...BASE, pendingVersion: '1.9.0'});
+      expect(m.buildInProgress).to.be.false;
+    });
+  });
 });

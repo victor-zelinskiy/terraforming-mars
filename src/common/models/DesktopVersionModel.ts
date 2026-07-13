@@ -18,6 +18,12 @@ export interface DesktopVersionModel {
   releaseNotes: Array<string>;
   /** Where to obtain the installer (manual-download fallback when auto-update isn't wired). */
   downloadUrl?: string;
+  /** True when a NEWER desktop build is currently building on CI but its release isn't published
+   *  yet — the client enters a non-blocking "waiting" mode and polls until it lands. Never set
+   *  together with `updateRequired` (an already-available update takes precedence). */
+  buildInProgress: boolean;
+  /** The version the in-progress build will publish (e.g. '1.1.231'), when known. */
+  pendingVersion?: string;
 }
 
 /**
@@ -53,6 +59,9 @@ export interface DesktopVersionOptions {
    *  ("always update to the newest release"). Opt-in so the pure default stays min-based
    *  (the route sets it; unit tests keep the historical min-only behaviour). */
   requireLatest?: boolean;
+  /** The version a release build currently running on CI will publish (from the in-progress
+   *  workflow run). Drives `buildInProgress` when it's newer than the caller's `current`. */
+  pendingVersion?: string;
 }
 
 /** Pure builder of the compatibility response (unit-tested). */
@@ -67,14 +76,26 @@ export function computeDesktopVersion(o: DesktopVersionOptions): DesktopVersionM
     o.currentVersion !== undefined &&
     o.currentVersion !== '' &&
     compareVersions(o.currentVersion, o.latestVersion) < 0;
+  const updateRequired = o.forceUpdate === true || belowMin || belowLatest;
+  // A build is "pending" only if it will publish a version NEWER than the caller has, and no
+  // update is already available (an available update always wins — no reason to wait).
+  const buildNewer =
+    o.pendingVersion !== undefined &&
+    o.pendingVersion !== '' &&
+    o.currentVersion !== undefined &&
+    o.currentVersion !== '' &&
+    compareVersions(o.currentVersion, o.pendingVersion) < 0;
+  const buildInProgress = buildNewer && !updateRequired;
   return {
     latestVersion: o.latestVersion,
     minSupportedVersion: o.minSupportedVersion,
     serverProtocolVersion: o.serverProtocolVersion,
-    updateRequired: o.forceUpdate === true || belowMin || belowLatest,
+    updateRequired,
     channel: o.channel,
     platform: o.platform,
     releaseNotes: [...o.releaseNotes],
     downloadUrl: o.downloadUrl,
+    buildInProgress,
+    pendingVersion: buildInProgress ? o.pendingVersion : undefined,
   };
 }

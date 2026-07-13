@@ -25,6 +25,7 @@ export type DesktopUpdateMode =
   | 'idle'
   | 'checking'
   | 'upToDate'
+  | 'pending'
   | 'required'
   | 'downloading'
   | 'downloaded'
@@ -49,6 +50,8 @@ export interface DesktopUpdateState {
   progress?: {percent: number; transferred: number; total: number; bytesPerSecond: number};
   error?: string;
   downloadUrl?: string;
+  /** In `pending` mode: the version the CI build will publish once it finishes. */
+  pendingVersion?: string;
 }
 
 let state: DesktopUpdateState = {
@@ -173,14 +176,36 @@ async function fetchCompat(base: string, timeoutMs = 8000): Promise<CompatSnapsh
       updateRequired: j.updateRequired === true,
       releaseNotes: Array.isArray(j.releaseNotes) ? j.releaseNotes : undefined,
       downloadUrl: typeof j.downloadUrl === 'string' ? j.downloadUrl : undefined,
+      buildInProgress: j.buildInProgress === true,
+      pendingVersion: typeof j.pendingVersion === 'string' ? j.pendingVersion : undefined,
     };
   } catch {
     return undefined;
   }
 }
 
+/** While a CI build is pending, re-check periodically until the release lands (→ normal update
+ *  flow) or the build finishes without a newer version (→ up to date). Non-blocking — the player
+ *  keeps playing meanwhile. */
+const PENDING_POLL_MS = 25_000;
+let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+function clearPendingPoll(): void {
+  if (pendingTimer !== undefined) {
+    clearTimeout(pendingTimer);
+    pendingTimer = undefined;
+  }
+}
+function schedulePendingPoll(): void {
+  clearPendingPoll();
+  pendingTimer = setTimeout(() => {
+    void runCheck();
+  }, PENDING_POLL_MS);
+}
+
 /** Run (or re-run) the compatibility check + decision. Returns true when the game is blocked. */
 async function runCheck(): Promise<boolean> {
+  // Every run cancels the pending poll; the branches below re-arm it only if still pending.
+  clearPendingPoll();
   if (!app.isPackaged) {
     push({mode: 'idle'});
     return false;
@@ -225,7 +250,16 @@ async function runCheck(): Promise<boolean> {
     push({mode: 'offlineBlocked', error: 'Cannot reach the update server.'});
     return true;
   }
-  push({mode: fresh !== undefined ? 'upToDate' : 'idle', error: undefined});
+  // A newer release is building on CI but isn't published yet. Enter a NON-BLOCKING waiting mode
+  // (the player keeps playing) and poll until it lands → the next runCheck sees updateRequired and
+  // runs the normal download flow. Only from a FRESH fetch — a stale offline value is ignored.
+  if (fresh?.buildInProgress === true) {
+    logUpdate(`build in progress — waiting for ${fresh.pendingVersion ?? 'the new release'}`);
+    push({mode: 'pending', error: undefined, pendingVersion: fresh.pendingVersion});
+    schedulePendingPoll();
+    return false;
+  }
+  push({mode: fresh !== undefined ? 'upToDate' : 'idle', error: undefined, pendingVersion: undefined});
   return false;
 }
 

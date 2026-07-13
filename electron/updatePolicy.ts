@@ -15,6 +15,11 @@ export interface CompatSnapshot {
   updateRequired: boolean;
   releaseNotes?: Array<string>;
   downloadUrl?: string;
+  /** A newer release is building on CI but isn't published yet → the client waits for it.
+   *  Only meaningful from a FRESH fetch (a stale offline value is ignored). */
+  buildInProgress?: boolean;
+  /** The version the in-progress build will publish (for the waiting-state message). */
+  pendingVersion?: string;
 }
 
 export type UpdateDecisionMode = 'normal' | 'required' | 'offlineBlocked';
