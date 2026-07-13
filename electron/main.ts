@@ -31,6 +31,11 @@ const ADD_TO_STEAM = process.argv.includes('--add-to-steam');
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';
 // module top-level runs well before then. Desktop-only; browser build untouched.
+// DIAGNOSTIC: a `--tm-no-perf` relaunch arg (F8 hotkey) maps to the perf kill-switch, so the
+// vanilla-Electron GPU path can be compared against ours WITHOUT a terminal / env var.
+if (process.argv.includes('--tm-no-perf')) {
+  process.env.TM_ELECTRON_NO_PERF = '1';
+}
 applyPerformanceSwitches(app);
 
 // Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
@@ -113,6 +118,77 @@ const FULLSCREEN = process.env.TM_ELECTRON_WINDOWED !== '1';
 
 let mainWindow: BrowserWindow | undefined;
 
+/**
+ * DIAGNOSTIC (temporary — remove in the final cleanup). A packaged `.exe` has no visible
+ * stdout, so the GPU report is pushed into the RENDERER DevTools console instead, and DevTools
+ * is reachable by hotkey even in packaged fullscreen (`before-input-event` fires in the
+ * webContents). Non-intrusive for normal play (nothing shows until DevTools is opened):
+ *   F12 / Ctrl+Shift+I → toggle DevTools (docked bottom)
+ *   F10                → load chrome://gpu (full driver report + "Problems Detected")
+ *   F9                 → back to the game
+ *   F8                 → relaunch in VANILLA mode (our GPU switches OFF) to compare the GPU path
+ */
+function installDiagnostics(win: BrowserWindow): void {
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.type !== 'keyDown') {
+      return;
+    }
+    const key = input.key.toLowerCase();
+    const toggleDevtools = key === 'f12' || ((input.control || input.meta) && input.shift && key === 'i');
+    if (toggleDevtools) {
+      if (win.webContents.isDevToolsOpened()) {
+        win.webContents.closeDevTools();
+      } else {
+        win.webContents.openDevTools({mode: 'bottom'});
+      }
+    } else if (key === 'f10') {
+      void win.loadURL('chrome://gpu');
+    } else if (key === 'f9') {
+      void win.loadURL(initialUrl());
+    } else if (key === 'f8') {
+      // Restart the whole app with our performance switches disabled (see the argv check at
+      // module top). The next launch's [TM-DIAG] report is the vanilla-Electron baseline.
+      app.relaunch({args: ['--tm-no-perf']});
+      app.exit(0);
+    }
+  });
+
+  // On each real page load (skip the internal chrome:// report), print the resolved GPU state
+  // into the renderer console so a plain exe run can be inspected + screenshotted.
+  win.webContents.on('did-finish-load', () => {
+    if (win.webContents.getURL().startsWith('chrome://')) {
+      return;
+    }
+    void printGpuDiag(win);
+  });
+}
+
+async function printGpuDiag(win: BrowserWindow): Promise<void> {
+  try {
+    const status = app.getGPUFeatureStatus();
+    let gpuInfo: unknown;
+    try {
+      gpuInfo = await app.getGPUInfo('basic');
+    } catch {
+      // getGPUInfo can reject on some drivers — the feature status alone is still useful.
+    }
+    const mode = process.env.TM_ELECTRON_NO_PERF === '1' ? 'VANILLA (perf switches OFF)' : 'TUNED (our switches)';
+    const diag = {mode, platform: process.platform, version: app.getVersion(), gpuFeatureStatus: status, gpuInfo};
+    const payload = JSON.stringify(JSON.stringify(diag));
+    const enabled = status.gpu_compositing === 'enabled';
+    const verdict = enabled
+      ? `console.log('%c✓ GPU compositing ENABLED — hardware acceleration is live','color:#22c55e;font-weight:bold');`
+      : `console.warn('%c✗ GPU is on the SOFTWARE path. Press F10 → screenshot the red "Problems Detected" block on chrome://gpu','color:#f59e0b;font-weight:bold;font-size:13px');`;
+    await win.webContents.executeJavaScript(
+      `console.log('%c[TM-DIAG] hardware acceleration report','color:#38bdf8;font-weight:bold;font-size:14px');` +
+      `console.log('Open this object, screenshot it, and send it back →', JSON.parse(${payload}));` +
+      verdict,
+    );
+  } catch {
+    // executeJavaScript can throw if the frame is torn down mid-load — ignore.
+  }
+}
+
 function createWindow(): void {
   const cfg = runtimeConfig();
 
@@ -178,7 +254,15 @@ function createWindow(): void {
     });
   }
 
-  void mainWindow.loadURL(initialUrl());
+  // DIAGNOSTIC: TM_ELECTRON_GPUINFO=1 loads chrome://gpu INSTEAD of the game — the full
+  // Chromium GPU report (Graphics Feature Status + "Problems Detected" + the driver /
+  // workaround log) that explains WHY hardware acceleration is or isn't live. Read-only
+  // internal page; no game flow. Just close the window when done.
+  const gpuInfo = process.env.TM_ELECTRON_GPUINFO === '1';
+  void mainWindow.loadURL(gpuInfo ? 'chrome://gpu' : initialUrl());
+
+  // Renderer-console GPU report + DevTools/chrome://gpu hotkeys — works from a plain exe.
+  installDiagnostics(mainWindow);
 
   if (process.env.TM_ELECTRON_DEVTOOLS === '1') {
     mainWindow.webContents.openDevTools({mode: 'detach'});

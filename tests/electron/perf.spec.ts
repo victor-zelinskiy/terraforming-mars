@@ -20,7 +20,7 @@ describe('electron/perf', () => {
   // each test (so a leaked value can't bleed across cases), restore after.
   const ENV_KEYS = [
     'TM_ELECTRON_UNCAP_FPS', 'TM_ELECTRON_FORCE_GPU',
-    'TM_ELECTRON_GPU', 'TM_ELECTRON_ANGLE', 'TM_ELECTRON_GL',
+    'TM_ELECTRON_GPU', 'TM_ELECTRON_ANGLE', 'TM_ELECTRON_GL', 'TM_ELECTRON_NO_PERF',
   ] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
@@ -162,6 +162,20 @@ describe('electron/perf', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       expect(app.switches.map((s) => s.key)).to.not.include('use-angle');
+    });
+  });
+
+  it('TM_ELECTRON_NO_PERF=1 appends NO switches (vanilla-Electron baseline)', () => {
+    process.env.TM_ELECTRON_NO_PERF = '1';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches).to.have.length(0);
+    });
+    withPlatform('linux', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches).to.have.length(0);
     });
   });
 });

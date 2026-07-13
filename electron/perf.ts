@@ -22,6 +22,14 @@ import type {App} from 'electron';
  * Env opt-ins (off by default) for the two aggressive-but-risky flags.
  */
 export function applyPerformanceSwitches(app: App): void {
+  // DIAGNOSTIC kill-switch: TM_ELECTRON_NO_PERF=1 skips ALL of our tuning, so a run can be
+  // compared against the vanilla-Electron GPU path. If the GPU falls back to software ONLY with
+  // our switches on (e.g. an aggressive flag crashes the GPU process on this driver), this run
+  // isolates that — vanilla should then report gpu_compositing: enabled.
+  if (process.env.TM_ELECTRON_NO_PERF === '1') {
+    return;
+  }
+
   const sw = (key: string, value?: string): void => {
     if (value === undefined) {
       app.commandLine.appendSwitch(key);
