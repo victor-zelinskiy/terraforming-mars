@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   // In-app "Add to Steam library" (Windows) — registers the Non-Steam shortcut + artwork for
   // the installed exe. Replaces the removed NSIS finish-page checkbox. Returns a result object.
   addToSteam: (): Promise<unknown> => ipcRenderer.invoke('desktop:addToSteam'),
+  // Steam shortcut state (Windows): {added} = shortcut already registered, {dismissed} = user
+  // said "Not now", {firstRun} = VELOPACK_FIRSTRUN. Drives the first-run prompt + button gating.
+  getSteamState: (): Promise<unknown> => ipcRenderer.invoke('desktop:getSteamState'),
+  // Persist the "Not now" choice so the first-run prompt never returns.
+  dismissSteamPrompt: (): Promise<void> => ipcRenderer.invoke('desktop:dismissSteamPrompt'),
   // Console-native pre-game shell (P10): the ВЫЙТИ confirm + native
   // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
   quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),

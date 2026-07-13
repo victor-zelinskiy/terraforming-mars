@@ -22,8 +22,13 @@ import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
-import {addToSteam} from './steamShortcut';
+import {addToSteam, isAddedToSteam} from './steamShortcut';
+import {getSteamPromptDismissed, setSteamPromptDismissed} from './session';
 import {VelopackApp} from 'velopack';
+
+// Velopack sets VELOPACK_FIRSTRUN when it launches the app for the FIRST time after install.
+// Captured before VelopackApp.run() so the first-run "Add to Steam" prompt fires exactly once.
+const VELOPACK_FIRSTRUN = /^(true|1|yes)$/i.test((process.env.VELOPACK_FIRSTRUN ?? '').trim());
 
 // Velopack update framework — MUST be the FIRST thing to run. On an install/update hook launch
 // it processes the hook args and exits/restarts the process; on a normal launch (and in dev) it
@@ -37,11 +42,6 @@ try {
   // eslint-disable-next-line no-console
   console.error('[velopack] startup hook failed (continuing normal launch)', err);
 }
-
-// `TerraformingMars.exe --add-to-steam` runs a HEADLESS one-shot
-// (no window, no updater, no single-instance lock) that registers the Non-Steam shortcut +
-// artwork, then exits. Detected here so the normal launch flow below is fully skipped.
-const ADD_TO_STEAM = process.argv.includes('--add-to-steam');
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';
 // module top-level runs well before then. Desktop-only; browser build untouched.
@@ -381,34 +381,25 @@ ipcMain.handle('desktop:addToSteam', async () => {
     return {ok: false, reason: String((err as {message?: string})?.message ?? err)};
   }
 });
+// Steam shortcut state for the renderer: whether it's already added (checked live against
+// shortcuts.vdf), whether the user dismissed the first-run prompt, and whether this is the
+// first run after install. Drives the first-run prompt gate + the Add-to-Steam button visibility.
+ipcMain.handle('desktop:getSteamState', () => ({
+  added: isAddedToSteam(),
+  dismissed: getSteamPromptDismissed(),
+  firstRun: VELOPACK_FIRSTRUN,
+}));
+ipcMain.handle('desktop:dismissSteamPrompt', () => {
+  setSteamPromptDismissed(true);
+});
 
-/** HEADLESS one-shot for the NSIS finish-page checkbox: register the Steam shortcut + art
- *  and exit. Never opens a window, never touches the updater / single-instance lock. */
-function runAddToSteam(): void {
-  void app.whenReady().then(async () => {
-    try {
-      const result = await addToSteam();
-      // eslint-disable-next-line no-console
-      console.log(`[steam] add-to-steam result: ${JSON.stringify(result)}`);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[steam] add-to-steam failed', err);
-    } finally {
-      app.exit(0);
-    }
-  });
-}
-
-// The app:// scheme must be registered as privileged BEFORE 'ready' — but never for the
-// headless Steam one-shot (it opens no window).
-if (APP_LOAD && !ADD_TO_STEAM) {
+// The app:// scheme must be registered as privileged BEFORE 'ready'.
+if (APP_LOAD) {
   registerAppScheme();
 }
 
 // Single-instance: focus the existing window instead of opening a second one.
-if (ADD_TO_STEAM) {
-  runAddToSteam();
-} else if (!app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {

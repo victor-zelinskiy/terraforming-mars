@@ -90,6 +90,18 @@
       cancel-label="Cancel"
       @confirm="onQuitConfirm"
       @cancel="quitConfirmOpen = false" />
+
+    <!-- First-run OPT-IN "Add to Steam" prompt (Windows). Reuses the confirm dialog; gated by the
+         shared steamShortcutState — shown once on the first launch after install, and NEVER if
+         the shortcut already exists or the player previously chose "Not now". -->
+    <console-confirm-dialog
+      v-if="showSteamPrompt"
+      title="Add to Steam?"
+      body="Add a Steam shortcut with artwork so you can launch Terraforming Mars from your library."
+      confirm-label="Add to Steam"
+      cancel-label="Not now"
+      @confirm="onSteamAdd"
+      @cancel="onSteamDismiss" />
   </div>
 </template>
 
@@ -107,6 +119,7 @@ import ConsoleConfirmDialog from '@/client/components/console/ConsoleConfirmDial
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
+import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamPromptVisible} from '@/client/components/desktop/steamShortcutState';
 
 type PendingAction = 'create' | 'join' | undefined;
 
@@ -131,12 +144,19 @@ export default defineComponent({
       stubFeature: undefined as string | undefined,
       // What to resume after the player saves an identity they didn't have yet.
       pendingAction: undefined as PendingAction,
+      // Closes the first-run "Add to Steam" prompt the moment the player acts (Add / Not now),
+      // regardless of the async add outcome — so a failed add can't leave it stuck open.
+      steamPromptDone: false,
     };
   },
   computed: {
     /** The ВЫЙТИ item exists ONLY in the Electron shell with the quit bridge. */
     canQuit(): boolean {
       return supportsNativeQuit();
+    },
+    /** First-run "Add to Steam" prompt (Windows, not-added, not-dismissed) — see steamShortcutState. */
+    showSteamPrompt(): boolean {
+      return !this.steamPromptDone && steamPromptVisible();
     },
     initialName(): string {
       return identityState.identity?.displayName ?? '';
@@ -147,8 +167,17 @@ export default defineComponent({
   },
   mounted() {
     ensureIdentityLoaded();
+    initSteamShortcut();
   },
   methods: {
+    onSteamAdd(): void {
+      this.steamPromptDone = true;
+      void addToSteam();
+    },
+    onSteamDismiss(): void {
+      this.steamPromptDone = true;
+      dismissSteamPrompt();
+    },
     onCreate(): void {
       if (identityState.identity !== undefined) {
         this.goCreate();

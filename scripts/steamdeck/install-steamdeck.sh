@@ -96,6 +96,7 @@ curl -fL# -o "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"
 curl -fL# -o "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.png"
 curl -fL# -o "$ART/capsule.png" "$RAW/steam-deck-capsule-1024-1536.png"
 curl -fL# -o "$ART/logo.png"    "$RAW/steam-deck-logo-2048-682.png"
+curl -fL# -o "$ART/icon.png"    "$RAW/steam-deck-icon-512.png"
 
 echo "==> [4/4] Registering the Non-Steam shortcut + artwork…"
 # Steam rewrites shortcuts.vdf on exit, so close it first for the edit to stick.
@@ -172,7 +173,7 @@ def new_entry():
         'AppName': appname,
         'Exe': exe,
         'StartDir': startdir_q,
-        'icon': os.path.join(art, 'header.jpg'),
+        'icon': os.path.join(art, 'icon.png'),
         'ShortcutPath': '',
         'LaunchOptions': '',
         'IsHidden': 0,

@@ -93,6 +93,7 @@ jobs:
           --packTitle "${{ env.VELO_PACK_TITLE }}"
           --packDir dist-desktop/win-unpacked
           --mainExe "Terraforming Mars.exe"
+          --icon electron/build-resources/icon.ico
 
       # --merge: create the release if the tag is new, else merge into it (idempotent on a
       # re-run of the same run_number). The linux job then merges its own channel into this tag.

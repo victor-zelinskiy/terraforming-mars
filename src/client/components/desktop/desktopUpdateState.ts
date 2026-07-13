@@ -54,6 +54,16 @@ export interface AddToSteamResult {
   appId?: number;
 }
 
+/** Steam shortcut state pulled from the main process (mirrors electron/main.ts getSteamState). */
+export interface SteamState {
+  /** The Non-Steam shortcut is already registered in a Steam profile on this machine. */
+  added: boolean;
+  /** The user chose "Not now" on the first-run prompt — never ask again. */
+  dismissed: boolean;
+  /** This is the first launch after install (VELOPACK_FIRSTRUN). */
+  firstRun: boolean;
+}
+
 interface DesktopBridge {
   desktopMode: boolean;
   /** Runtime OS from the main process ('win32' | 'linux' | 'darwin') — OPTIONAL (older shells
@@ -73,6 +83,11 @@ interface DesktopBridge {
   // checkbox. Registers the Non-Steam shortcut + artwork for the installed exe. Absent on older
   // shells / the web; the renderer feature-detects and hides the button.
   addToSteam?(): Promise<AddToSteamResult | undefined>;
+  // Steam shortcut state (added / dismissed / firstRun) — OPTIONAL, Windows-only. Drives the
+  // first-run prompt gate and the button visibility (hidden once added).
+  getSteamState?(): Promise<SteamState | undefined>;
+  // Persist the "Not now" first-run choice so the prompt never returns. OPTIONAL.
+  dismissSteamPrompt?(): Promise<void>;
   // Console-native pre-game shell (P10) — OPTIONAL: an older installed
   // shell may predate them; the renderer feature-detects (runtimeMode.ts)
   // and hides the affordances when absent.

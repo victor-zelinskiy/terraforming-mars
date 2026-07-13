@@ -10,17 +10,17 @@
 
     <div class="pmm-footer__meta">
       <!-- In-app "Add to Steam library" (Windows only) — replaces the removed NSIS installer
-           checkbox now that Velopack's Setup.exe has no finish page. Feature-detected: hidden on
-           Linux/Steam Deck (the install script owns it) and on the web. -->
+           checkbox now that Velopack's Setup.exe has no finish page. Feature-detected + hidden
+           once the shortcut is added (shared steamShortcutState). Off on Linux/Steam Deck (the
+           install script owns it) and on the web. -->
       <button
-        v-if="canAddToSteam"
+        v-if="showSteamButton"
         type="button"
         class="pmm-footer__steam-btn"
-        :class="{'pmm-footer__steam-btn--done': steamStatus === 'added', 'pmm-footer__steam-btn--fail': steamStatus === 'failed'}"
-        :disabled="steamStatus === 'busy'"
+        :class="{'pmm-footer__steam-btn--fail': steamState.result === 'failed'}"
+        :disabled="steamState.busy"
         @click="onAddToSteam">
-        <span v-if="steamStatus === 'added'" v-i18n>Added to Steam</span>
-        <span v-else-if="steamStatus === 'failed'" v-i18n>Could not add to Steam</span>
+        <span v-if="steamState.result === 'failed'" v-i18n>Could not add to Steam</span>
         <span v-else v-i18n>Add to Steam library</span>
       </button>
       <span v-if="installerStale" class="pmm-footer__installer-warn">
@@ -41,6 +41,7 @@ import PremiumLanguageSwitcher from '@/client/components/mainMenu/PremiumLanguag
 import PremiumIdentityChip from '@/client/components/mainMenu/PremiumIdentityChip.vue';
 import raw_settings from '@/genfiles/settings.json';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {addToSteam, initSteamShortcut, steamButtonVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 
 export default defineComponent({
   name: 'PremiumMenuFooter',
@@ -50,9 +51,10 @@ export default defineComponent({
   },
   emits: ['edit-identity'],
   data() {
-    return {desktopVersion: '', installerStale: false, steamStatus: '' as '' | 'busy' | 'added' | 'failed'};
+    return {desktopVersion: '', installerStale: false, steamState: steamShortcutState};
   },
   mounted() {
+    initSteamShortcut();
     // On the desktop shell, prefer the authoritative baked app version (the release version,
     // e.g. 1.1.9). getVersion() is async; the web app has no bridge and uses settings.json.
     const bridge = desktopBridge();
@@ -84,27 +86,14 @@ export default defineComponent({
       const settingsVersion = (raw_settings as {version?: string}).version;
       return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
     },
-    /** Windows desktop shell that exposes the add-to-Steam bridge method. Hidden everywhere else. */
-    canAddToSteam(): boolean {
-      const bridge = desktopBridge();
-      return bridge?.platform === 'win32' && typeof bridge.addToSteam === 'function';
+    /** Windows desktop, shortcut not yet added → show the button (shared steamShortcutState). */
+    showSteamButton(): boolean {
+      return steamButtonVisible();
     },
   },
   methods: {
     onAddToSteam(): void {
-      const bridge = desktopBridge();
-      if (bridge?.addToSteam === undefined || this.steamStatus === 'busy') {
-        return;
-      }
-      this.steamStatus = 'busy';
-      void bridge
-        .addToSteam()
-        .then((result) => {
-          this.steamStatus = result?.ok === true ? 'added' : 'failed';
-        })
-        .catch(() => {
-          this.steamStatus = 'failed';
-        });
+      void addToSteam();
     },
   },
 });

@@ -126,6 +126,22 @@
       </div>
     </div>
 
+    <!-- ── First-run "Add to Steam" prompt (Windows) ───────────────────── -->
+    <div v-if="overlay === 'steam'" class="cm-overlay" role="dialog" :aria-label="$t('Add to Steam?')">
+      <div class="cm-overlay__card">
+        <div class="cm-overlay__title">{{ $t('Add to Steam?') }}</div>
+        <div class="cm-overlay__body">{{ $t('Add a Steam shortcut with artwork so you can launch Terraforming Mars from your library.') }}</div>
+        <div class="cm-confirm__pad">
+          <button type="button" class="cm-confirm__btn" @click="onSteamAdd">
+            <GamepadGlyph control="confirm" /><span>{{ $t('Add to Steam') }}</span>
+          </button>
+          <button type="button" class="cm-confirm__btn" @click="onSteamDismiss">
+            <GamepadGlyph control="back" /><span>{{ $t('Not now') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <footer class="cm-menu__foot">
       <span class="cm-menu__foot-lang"><GamepadGlyph control="inspect" />{{ $t('Language') }}: {{ currentLangCode }}</span>
       <span v-if="version !== ''" class="cm-menu__foot-version">
@@ -183,12 +199,13 @@ import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/exp
 import {Expansion} from '@/common/cards/GameModule';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, steamPromptVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import raw_settings from '@/genfiles/settings.json';
 import {$t} from '@/client/directives/i18n';
 
-type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'quit';
+type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'language' | 'quit' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'language' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
@@ -206,6 +223,7 @@ export default defineComponent({
       overlay: undefined as MenuOverlay,
       offPad: undefined as (() => void) | undefined,
       desktopVersion: '',
+      steamState: steamShortcutState,
     };
   },
   computed: {
@@ -258,6 +276,12 @@ export default defineComponent({
       items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
       items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
       items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
+      // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared
+      // steamShortcutState; disappears once added). steamButtonVisible() reads the reactive
+      // fields, so this computed re-evaluates when they change.
+      if (steamButtonVisible()) {
+        items.push({id: 'steam', labelKey: 'Add to Steam library', subText: '', glyph: '⊕', badge: 0});
+      }
       if (supportsNativeQuit()) {
         items.push({id: 'quit', labelKey: 'Exit', subText: '', glyph: '⏻', badge: 0});
       }
@@ -272,6 +296,9 @@ export default defineComponent({
       }
       if (this.overlay === 'quit') {
         return 'Exit the game?';
+      }
+      if (this.overlay === 'steam') {
+        return 'Add to Steam?';
       }
       return 'Main menu';
     },
@@ -295,6 +322,12 @@ export default defineComponent({
         return [
           {control: 'confirm', label: 'Exit'},
           {control: 'back', label: 'Cancel'},
+        ];
+      }
+      if (this.overlay === 'steam') {
+        return [
+          {control: 'confirm', label: 'Add to Steam'},
+          {control: 'back', label: 'Not now'},
         ];
       }
       if (this.overlay === 'language') {
@@ -321,9 +354,20 @@ export default defineComponent({
     ensureIdentityLoaded();
     hydrateJoinableGames(this.identityName);
   },
+  watch: {
+    // The Steam state loads async (getSteamState). When it arrives, show the first-run prompt
+    // if it's warranted (Windows first launch, not added, not dismissed) and nothing else is open.
+    'steamState.loaded'(loaded: boolean) {
+      if (loaded === true) {
+        this.maybeShowSteamPrompt();
+      }
+    },
+  },
   mounted() {
     setDocumentTitle('Terraforming Mars');
     ensureIdentityLoaded();
+    initSteamShortcut();
+    this.maybeShowSteamPrompt();
     this.offPad = installMenuPad((intent) => this.onIntent(intent));
     const name = this.identityName;
     if (name !== '') {
@@ -386,6 +430,14 @@ export default defineComponent({
         }
         return true;
       }
+      if (this.overlay === 'steam') {
+        if (action === 'primary') {
+          this.onSteamAdd();
+        } else if (action === 'back') {
+          this.onSteamDismiss();
+        }
+        return true;
+      }
       // Root list.
       if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
         this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.items.length);
@@ -438,9 +490,26 @@ export default defineComponent({
       case 'profile':
         this.openProfile();
         break;
+      case 'steam':
+        void addToSteam();
+        break;
       case 'quit':
         this.overlay = 'quit';
         break;
+      }
+    },
+    onSteamAdd(): void {
+      this.overlay = undefined;
+      void addToSteam();
+    },
+    onSteamDismiss(): void {
+      this.overlay = undefined;
+      dismissSteamPrompt();
+    },
+    /** Show the first-run Steam prompt once, if warranted and no other overlay is open. */
+    maybeShowSteamPrompt(): void {
+      if (this.overlay === undefined && steamPromptVisible()) {
+        this.overlay = 'steam';
       }
     },
     openProfile(): void {

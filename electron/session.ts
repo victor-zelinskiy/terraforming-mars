@@ -14,6 +14,9 @@ interface DesktopSession {
   // The app version that last populated Chromium's immutable asset cache. Used by
   // electron/cacheVersion.ts to wipe stale art when the version changes.
   cacheVersion?: string;
+  // True once the user chose "Not now" on the first-run "Add to Steam" prompt — so we never
+  // ask again (Windows only; the in-menu button stays available).
+  steamPromptDismissed?: boolean;
 }
 
 function sessionFile(): string {
@@ -64,5 +67,15 @@ export function getCacheVersion(): string | undefined {
 export function setCacheVersion(version: string): void {
   const session = readSession();
   session.cacheVersion = version;
+  writeSession(session);
+}
+
+export function getSteamPromptDismissed(): boolean {
+  return readSession().steamPromptDismissed === true;
+}
+
+export function setSteamPromptDismissed(dismissed: boolean): void {
+  const session = readSession();
+  session.steamPromptDismissed = dismissed;
   writeSession(session);
 }

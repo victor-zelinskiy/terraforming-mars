@@ -206,3 +206,22 @@ export function findOrNextKey(shortcuts: VdfMap, exeQuoted: string, appId: numbe
     .map((k) => parseInt(k, 10));
   return String(indices.length > 0 ? Math.max(...indices) + 1 : 0);
 }
+
+/**
+ * Whether a shortcut for our app (matching the quoted Exe OR our deterministic appid) already
+ * exists in this shortcuts map. Mirrors findOrNextKey's match, but reports PRESENCE — used to
+ * hide the "Add to Steam" prompt/button once it's already there.
+ */
+export function shortcutExists(shortcuts: VdfMap, exeQuoted: string, appId: number): boolean {
+  for (const v of Object.values(shortcuts)) {
+    if (typeof v === 'object') {
+      const entry = v as VdfMap;
+      const aid = entry.appid;
+      const aidMatches = typeof aid === 'number' && (aid >>> 0) === (appId >>> 0);
+      if (entry.Exe === exeQuoted || aidMatches) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
