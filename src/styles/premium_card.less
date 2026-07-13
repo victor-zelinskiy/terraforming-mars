@@ -387,65 +387,233 @@
 }
 .pcard--tier-thumb .pcard-tag { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 
-/* ── requirements RAIL — the nameplate's thin secondary module ────────
-   Deliberately narrower, thinner and darker than the plate (hierarchy);
-   the hex-cut ends echo the plate's facet motif. Copper stays the
-   requirement colour, but muted — an information rail, not a button. */
+/* ══ requirements CASSETTE — a structured metallic threshold strip ═════
+ *
+ * The nameplate's secondary module, but a PHYSICAL construct, not a flat
+ * ribbon: a dark gunmetal chassis (`.pcard__reqs`) with faceted hex-cut ends
+ * echoing the plate, an INSET brushed-copper panel (`::before`) with gold
+ * bevels + engraved end rivets, and copper «anchor ports» pinned at the tips
+ * (the connection points the fullscreen info-panel tether reads toward).
+ *
+ * The formula reads «[parameter socket] ≥ 6»: a recessed icon SOCKET seats
+ * and enlarges the parameter icon, the bespoke SVG ≥/≤ operator is the KEY
+ * accent, the value is bold + engraved. Multiple requirements are split by a
+ * gold DIAMOND facet (`.pcard-req__sep`), never a slash.
+ *
+ * Colour speaks the same language as the fullscreen rule highlight:
+ *   normal  — warm amber-copper;
+ *   «{all}» — crimson-copper (`--pcard-any`), a stricter «counts for every
+ *             player» signal (hue + crimson operator + crimson edge accent),
+ *             NOT an alarm red. */
 .pcard__reqs {
+  --pcard-op-metal: #f7db9e;                    /* operator gold (normal)   */
+  --pcard-op-hi: rgba(255, 249, 226, 0.74);     /* operator emboss highlight */
+  --pcard-req-node: var(--pcard-gold-hi);       /* anchor-port + separator   */
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   align-self: center;
-  gap: 2px 7px;
-  width: 86%;
+  gap: 1px 3px;
+  /* content-hugging cassette (clamped) — a deliberate module sized to its
+     formula, centred; NOT a wide banner floating in empty copper */
+  width: max-content;
+  min-width: 42%;
+  max-width: 94%;
   margin: 0 auto;
-  min-height: 21px;
-  padding: 1px 14px;
-  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 9px 100%, 0 50%);
-  background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 235, 200, 0.06) 48%, transparent 56%),
-    linear-gradient(180deg, #a8622a 0%, #82491c 52%, #643716 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 220, 170, 0.4),
-    inset 0 -1.5px 2px rgba(45, 20, 5, 0.55),
-    inset 0 0 0 1px rgba(58, 28, 9, 0.7);
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.45));
+  min-height: 27px;
+  padding: 2px 21px;
+  /* outer gunmetal chassis + gold kant edge (the hex-cut silhouette) */
+  clip-path: polygon(11px 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 11px 100%, 0 50%);
+  background: linear-gradient(180deg, #4a3a24 0%, #2b2013 30%, #1a130b 100%);
+  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.5));
   color: #ffeeda;
-  font-size: 12.5px;
-  text-shadow: 0 1px 1px rgba(60, 28, 8, 0.8);
+  text-shadow: 0 1px 1px rgba(52, 24, 7, 0.85);
 }
-/* «any player» requirement — the copper band shifts toward the warm crimson
-   accent (a calm tint over the copper, NOT a harsh red plate), pairing with
-   the accented «(any player)» words in the requirement rule text. */
-.pcard__reqs--all {
+/* the inset BRUSHED-COPPER panel — bevelled, with engraved end rivets */
+.pcard__reqs::before {
+  content: '';
+  position: absolute;
+  inset: 1.7px;
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
   background:
-    linear-gradient(112deg, transparent 40%, rgba(255, 224, 210, 0.07) 48%, transparent 56%),
-    linear-gradient(180deg, #a85238 0%, #833c22 52%, #5f2917 100%);
+    linear-gradient(112deg, transparent 40%, rgba(255, 238, 208, 0.09) 47%, transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 13px 50%, rgba(255, 227, 182, 0.32) 0 1.3px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 13px) 50%, rgba(255, 227, 182, 0.32) 0 1.3px, transparent 2.2px),
+    linear-gradient(180deg, #b56d32 0%, #8d5020 52%, #663812 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 224, 178, 0.44),      /* top bevel light  */
+    inset 0 -1.6px 2px rgba(38, 16, 4, 0.6),       /* bottom bevel dark */
+    inset 0 0 0 1px rgba(52, 26, 9, 0.6);          /* seated inner rim  */
+  z-index: 0;
+}
+.pcard--tier-thumb .pcard__reqs { filter: none; }
+.pcard--tier-thumb .pcard__reqs::before { background: linear-gradient(180deg, #a8622a 0%, #82491c 52%, #643716 100%); }
+
+/* copper «anchor ports» — small faceted nodes pinned at the hex tips; they
+   read as the physical connection points for the fullscreen info tether */
+.pcard__reqs-node {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translateY(-50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--pcard-req-node), var(--pcard-gold-deep));
+  box-shadow: 0 0 0 1px rgba(38, 19, 5, 0.75), 0 1px 1px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+.pcard__reqs-node--l { left: 4px; }
+.pcard__reqs-node--r { right: 4px; }
+.pcard--tier-thumb .pcard__reqs-node { display: none; }
+
+/* «any player» / «{all}» — the whole cassette shifts to crimson-copper and
+   the operator turns crimson, matching the accented «any player» rule words */
+.pcard__reqs--all {
+  --pcard-op-metal: #f3b09a;
+  --pcard-op-hi: rgba(255, 231, 222, 0.8);
+  --pcard-req-node: #eeab92;
+  background: linear-gradient(180deg, #4d3020 0%, #2c1a10 30%, #1a0f0a 100%);
+}
+.pcard__reqs--all::before {
+  background:
+    linear-gradient(112deg, transparent 40%, rgba(255, 231, 219, 0.1) 47%, transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 13px 50%, rgba(255, 214, 196, 0.34) 0 1.3px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 13px) 50%, rgba(255, 214, 196, 0.34) 0 1.3px, transparent 2.2px),
+    linear-gradient(180deg, #b4573c 0%, #8d4227 52%, #642c19 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 219, 205, 0.42),
+    inset 0 -1.6px 2px rgba(46, 13, 6, 0.62),
+    inset 0 0 0 1px rgba(74, 27, 16, 0.62),
+    inset 0 0 8px rgba(var(--pcard-any-rgb), 0.3);   /* crimson edge accent */
+}
+
+/* content rides ABOVE the copper panel */
+.pcard-req,
+.pcard-req__sep {
+  position: relative;
+  z-index: 1;
 }
 .pcard-req {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
-.pcard-req__word { font-size: 12px; letter-spacing: 0.02em; }
-.pcard-req__value { font-size: 13.5px; }
+
+/* recessed icon SOCKET — seats + enlarges the parameter icon for contrast
+   against the copper (a subtle carved seat, never a heavy button) */
+.pcard-req__socket {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  background: radial-gradient(118% 118% at 50% 24%, rgba(10, 6, 3, 0.5), rgba(10, 6, 3, 0.14) 60%, transparent 82%);
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0.5px rgba(255, 222, 174, 0.16),
+    inset 0 0 0 1px rgba(40, 21, 8, 0.42);
+}
+.pcard-req__socket--wide { width: 32px; border-radius: 9px; }
+.pcard--tier-thumb .pcard-req__socket { box-shadow: inset 0 0 0 1px rgba(40, 21, 8, 0.4); }
 .pcard-req__icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.7));
 }
-.pcard-req__icon--wide { width: 22px; }
+.pcard-req__icon--wide { width: 27px; height: 19px; }
+
+/* the ≥ / ≤ operator — bespoke SVG glyph, the formula's accent (see
+   PremiumRequirementOperator.vue); metal colour rides the cassette vars.
+   Sized to read almost as strong as the icon, clearly bigger than the digit. */
+.pcard-op {
+  display: inline-flex;
+  width: 21px;
+  height: 25px;
+  flex: 0 0 auto;
+}
+.pcard-op__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pcard-op__svg path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pcard-op__shadow path { stroke: rgba(34, 14, 3, 0.85); stroke-width: 4.9; }
+.pcard-op__metal path { stroke: var(--pcard-op-metal, #f7db9e); stroke-width: 3.7; }
+.pcard-op__hi path { stroke: var(--pcard-op-hi, rgba(255, 249, 226, 0.74)); stroke-width: 1.5; }
+.pcard--tier-thumb .pcard-op__hi { display: none; }
+
+.pcard-req__value {
+  font-size: 16.5px;
+  letter-spacing: 0.01em;
+  color: #fff3e1;
+  text-shadow: 0 1px 1px rgba(48, 20, 5, 0.9), 0 0 3px rgba(0, 0, 0, 0.3);
+}
+.pcard-req__suffix {
+  font-size: 10.5px;
+  margin-left: 0.5px;
+  opacity: 0.82;
+}
 .pcard-req__minus {
   color: #ffd9c9;
-  font-size: 13.5px;
-  margin-right: -2px;
+  font-size: 15px;
+  margin-right: -1px;
+  text-shadow: 0 1px 1px rgba(48, 20, 5, 0.9);
 }
-.pcard-req__joiner { font-size: 11px; opacity: 0.85; }
-.pcard-req__label { font-size: 10.5px; letter-spacing: 0.02em; }
+
+/* premium separator between requirements — a slim gold facet + diamond notch */
+.pcard-req__sep {
+  width: 10px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+.pcard-req__sep::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  bottom: 1px;
+  width: 1.5px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, rgba(248, 218, 164, 0.55) 24% 76%, transparent);
+}
+.pcard-req__sep::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  box-shadow: 0 0 0 1px rgba(40, 20, 6, 0.6), 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* exotic no-icon requirement / party name — a compact engraved chip so it
+   reads as a seated token, not naked text */
+.pcard-req__label {
+  padding: 1.5px 8px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff3e1;
+  background: linear-gradient(180deg, rgba(12, 7, 3, 0.34), rgba(12, 7, 3, 0.14));
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 224, 178, 0.2),
+    inset 0 0 0 1px rgba(40, 21, 8, 0.42);
+}
 
 /* no requirements → the rail collapses to a hair-thin decorative divider
    (the plate reads finished, the art naturally rises) */
