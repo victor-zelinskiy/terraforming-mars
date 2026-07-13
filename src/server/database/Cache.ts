@@ -151,6 +151,7 @@ export class Cache extends EventEmitter {
       }
     }
     this.evictionSchedule.delete(gameId);
+    this.lastAccess.delete(gameId);
   }
 
   public countLoadedGames(): number {
