@@ -11,8 +11,9 @@
 # Delivery: `vpk download github` fetches the previous release so `vpk pack` can build a DELTA
 # (users download only the diff); `vpk upload github --publish` writes the release + the
 # releases.<channel>.json feed the client's UpdateManager reads. Each OS uploads its OWN channel
-# (win / linux) to the SAME tag — so the jobs run SEQUENTIALLY (linux needs windows) to avoid two
-# jobs racing to CREATE the same release. A fixed-URL AppImage alias keeps the Steam Deck
+# (win / linux) to the SAME tag: the jobs run SEQUENTIALLY (linux needs windows) and pass --merge
+# so the windows job CREATES the release and the linux job MERGES its channel into it (without
+# --merge, vpk fails on the already-existing tag). A fixed-URL AppImage alias keeps the Steam Deck
 # bootstrap (scripts/steamdeck/install-steamdeck.sh) working unchanged.
 #
 # NOTE: vpk is a .NET global tool → setup-dotnet + `dotnet tool install -g vpk` on each runner.
@@ -93,11 +94,14 @@ jobs:
           --packDir dist-desktop/win-unpacked
           --mainExe "Terraforming Mars.exe"
 
-      - name: Upload to GitHub Release (win channel — creates the release)
+      # --merge: create the release if the tag is new, else merge into it (idempotent on a
+      # re-run of the same run_number). The linux job then merges its own channel into this tag.
+      - name: Upload to GitHub Release (win channel — creates/merges the release)
         run: >
           vpk upload github
           --repoUrl "${{ env.VELO_REPO_URL }}"
           --publish
+          --merge
           --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
           --tag "${{ env.VELO_TAG }}"
         env:
@@ -154,12 +158,15 @@ jobs:
           --mainExe terraforming-mars
           --icon electron/build-resources/linuxIcon.png
 
-      # Adds the linux channel assets to the EXISTING release created by the windows job.
-      - name: Upload to GitHub Release (linux channel)
+      # --merge: adds the linux channel (releases.linux.json + AppImage/nupkg) to the EXISTING
+      # release the windows job created for this tag — the win channel files are untouched
+      # (different channel = different releases.<channel>.json), so both platforms coexist.
+      - name: Upload to GitHub Release (linux channel — merges into the release)
         run: >
           vpk upload github
           --repoUrl "${{ env.VELO_REPO_URL }}"
           --publish
+          --merge
           --releaseName "${{ env.VELO_PACK_TITLE }} ${{ env.VELO_TAG }}"
           --tag "${{ env.VELO_TAG }}"
         env:
