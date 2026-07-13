@@ -9,7 +9,9 @@ import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
 import {GameModule} from '@/common/cards/GameModule';
-import {isICardRenderEffect, isICardRenderSymbol} from '@/common/cards/render/Types';
+import {isICardRenderEffect, isICardRenderSymbol, isICardRenderItem} from '@/common/cards/render/Types';
+import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
+import {Size} from '@/common/cards/render/Size';
 import {effectParts} from '@/client/components/premiumCard/mechanicsModel';
 import {buildPremiumCardViewModel, normalizeRequirement, vpVariantOf} from '@/client/components/premiumCard/premiumCardViewModel';
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
@@ -348,5 +350,30 @@ describe('empty-cause effect trigger splice (Viral Enhancers idiom)', () => {
     const cause = effectParts(effect as Parameters<typeof effectParts>[0]).cause;
     // its cause carries only the empty spacer — nothing was wrongly spliced in
     expect(cause.every((n) => n !== undefined && typeof n !== 'string' && isICardRenderSymbol(n))).to.eq(true);
+  });
+});
+
+describe('premium face is ICONS-ONLY: prose plainText never renders', () => {
+  it('no in-scope premium card bakes a prose (plainText) TEXT node onto its face', () => {
+    // `b.plainText(...)` (isBold:false prose — the parenthetical rule restatement
+    // Martian Lumber Corp / AI Central / … draw under the icons) must be DROPPED
+    // — it belongs in the fullscreen info panel. A MEANINGFUL text label
+    // (isBold:true — «X», «+/- 2», whole text-only cards) and the TINY-uppercase
+    // vpText fine print are KEPT.
+    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+    const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      for (const group of buildPremiumCardViewModel(card).mechanics.groups) {
+        for (const node of group.nodes) {
+          if (node !== undefined && typeof node !== 'string' && isICardRenderItem(node) &&
+              node.type === CardRenderItemType.TEXT && node.isBold !== true &&
+              !(node.size === Size.TINY && node.isUppercase === true)) {
+            offenders.push(`${card.name}: «${(node.text ?? '').slice(0, 60)}»`);
+          }
+        }
+      }
+    }
+    expect(offenders, `prose leaked onto the icons-only premium face:\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 });

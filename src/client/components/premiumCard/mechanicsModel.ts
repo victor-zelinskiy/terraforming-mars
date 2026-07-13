@@ -296,6 +296,20 @@ function isVpTextItem(node: ItemType): boolean {
 }
 
 /**
+ * A PROSE description node — `b.plainText(...)` (the parenthetical rule
+ * restatement upstream cards draw under the icons: Martian Lumber Corp,
+ * AI Central, …). Dropped on the ICONS-ONLY premium face — the prose belongs
+ * to the fullscreen info panel, not baked onto the card. `plainText` emits
+ * TEXT with `isBold: false`; a MEANINGFUL text label (`text('X')`, «+/- 2»,
+ * a whole text-only card like Business Contacts) is `isBold: true` and KEPT,
+ * and the TINY-uppercase vpText fine print keeps its own handling.
+ */
+function isProseTextItem(node: ItemType): boolean {
+  return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) &&
+    node.type === CardRenderItemType.TEXT && node.isBold !== true && !isVpTextItem(node);
+}
+
+/**
  * THE PLAY ZONE — the card's on-play mechanics («при розыгрыше») — is the
  * TRAILING run of plain/production groups (the DSL convention draws
  * effect/action frames first, immediate mechanics last; guard-tested against
@@ -348,7 +362,10 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
   const groups: Array<MechGroup> = [];
   let pendingOr = false;
   renderData.rows.forEach((row, rowIndex) => {
-    let rowNodes = renderableNodes(row);
+    // Icons-only face: drop prose `plainText` (a row that was ONLY prose then
+    // collapses and is skipped; a prose node chained onto an icon row — AI
+    // Central — is removed while the icon stays).
+    let rowNodes = renderableNodes(row).filter((node) => !isProseTextItem(node));
     if (options.dropVpText === true) {
       rowNodes = rowNodes.filter((node) => !isVpTextItem(node));
     }
