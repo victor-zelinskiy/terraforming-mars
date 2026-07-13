@@ -122,6 +122,20 @@ export function translateText(englishText: string): string {
     }
   }
 
+  // Variant card ids (`Name:promo` / `Name:venus` / `Name:ares` / …) are keyed
+  // in the dictionary ONLY by their BASE name. Any render path that passes the
+  // raw enum id here (board tiles, popovers, notifications — not just CARD log
+  // tokens routed through translateCardName) would otherwise leak the untranslated
+  // `Name:ares` AND spam `please translate`. A variant suffix is a single
+  // no-space lowercase/digit token at the very end after a colon — this never
+  // matches the sentence keys ("Action: …") which have a space after the colon.
+  if (translatedText === undefined) {
+    const variantMatch = /^(.+):[a-z0-9]+$/.exec(englishText);
+    if (variantMatch !== null) {
+      translatedText = translations[variantMatch[1]];
+    }
+  }
+
   if (translatedText === undefined) {
   // The i18n plugin sends translated strings back here. That means that sometimes this tries to
   // Since the phrase it sends is not English, it can't be found, and this reports an error to the
@@ -136,7 +150,14 @@ export function translateText(englishText: string): string {
         }
       }
     }
-    if (!translated.has(englishText) && !context.playerNames.has(englishText)) {
+    // DEV-only translator hint. In production this fired once per untranslated
+    // fragment — and corporation LOGOS render their name syllable-by-syllable
+    // ("SATURN"/"SYSTEMS"/…), so a corporation deal spammed dozens of console.log
+    // in a single frame. With DevTools open each console.log is a costly sync
+    // write → it inflated the deal's long task. The user never needs this hint, so
+    // gate it out of the packaged build.
+    if (process.env.NODE_ENV !== 'production' &&
+        !translated.has(englishText) && !context.playerNames.has(englishText)) {
       console.log(`${lang} - please translate: "${englishText}"`);
     }
   }

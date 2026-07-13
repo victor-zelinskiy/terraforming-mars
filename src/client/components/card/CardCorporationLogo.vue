@@ -1,5 +1,9 @@
 <template>
-  <div class="card-corporation-logo">
+  <!-- tm-has-i18n stops the v-i18n walker from descending into the stylized
+       brand-name text (SATURN / SYSTEMS / INTERPLANETARY / CINEMATICS / …).
+       Corporation logos are graphic wordmarks, never translated — without this
+       every logo word spammed `please translate: "<WORD>"` to the console. -->
+  <div class="card-corporation-logo" tm-has-i18n="true">
     <template v-if="logos[title] === 'bespoke'">
       <template v-if="title === CardName.AERON_GENOMICS">
         <div class="card-aeron-genomics-logo">
