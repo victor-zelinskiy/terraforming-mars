@@ -37,6 +37,17 @@ never WHICH card / its `current → resulting`. Now they ALWAYS build the `Selec
 scope; fix when they enter it):** `FloaterUrbanism` / `CassiniStation` (pathfinders),
 `DarksideObservatory` (moon) auto-add a card resource to a single candidate.
 
+**Upstream sync (2026-07-13, sync #19) — DELIBERATELY DECLINED, prelude2 frontier:**
+upstream `783f13ed0` (Floating Refinery #8307) + `24db53677` (Floating Trade Hub #8296)
+introduce a `floater2Cards.length === 1 → auto-remove/auto-add without the SelectCard`
+skip — i.e. exactly the single-candidate HIDDEN-TARGET auto-apply this fork forbids.
+Today these `prelude2` cards ALWAYS build the `SelectCard` (target visible even for one
+card); taking upstream would remove that. **NOT taken** — when `prelude2` enters the
+premium scope, the grep audit (`length === 1` near `removeResourceFrom`/`addResourceTo`)
+will flag both, and the fix is the always-shown `SelectCard` + pre-collect (the opposite
+of upstream's skip), NOT upstream's auto-apply. Our render-DSL rework of these two files
+(structured `action()` nodes for the Actions overlay) is unrelated and stays.
+
 **NOT the bug (kept):** `OrOptions.reduce()` auto-resolving the only available OR BRANCH
 is a different concept (no hidden target — the single branch's effect is what the player
 sees); `AddResourcesToCard`'s `autoSelect` is already forced `false` fork-wide.
