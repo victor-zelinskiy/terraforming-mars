@@ -36,7 +36,7 @@ export class OceanCity extends Card implements IProjectCard {
           {text: 'Decrease your energy production 1 step.', tokens: ['production(energy', 'production(']},
           {text: 'Increase your M€ production 3 steps.', tokens: ['production(megacredits', 'production(']},
           {text: 'Place a special tile on top of an existing ocean tile, ignoring normal placement restrictions for cities.', tokens: ['tile-']},
-          {kind: 'note', text: 'The tile counts as a city as well as an ocean.'},
+          {text: 'The tile counts as a city as well as an ocean.', tokens: ['tile-']},
         ],
       },
     });

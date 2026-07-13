@@ -38,7 +38,7 @@ export class NewHolland extends Card implements IProjectCard {
         infoText: [
           {text: 'Increase your M€ production 3 steps.', tokens: ['production(']},
           {text: 'Place a special tile on top of an existing ocean tile, following normal city placement restrictions.', tokens: ['tile-']},
-          {kind: 'note', text: 'The tile counts as a city and an ocean.'},
+          {text: 'The tile counts as a city and an ocean.', tokens: ['tile-']},
         ],
       },
     });

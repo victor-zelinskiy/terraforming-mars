@@ -12,8 +12,8 @@ export class MiningAreaAres extends MiningArea {
         cardNumber: 'A14',
         infoText: [
           {text: 'Place this tile on an area with a steel or titanium placement bonus, adjacent to another of your tiles.', tokens: ['tile-']},
+          {text: 'This tile provides an adjacency bonus of the same resource as the area.', tokens: ['tile-']},
           {text: 'Increase the matching production (steel or titanium) 1 step.', tokens: ['production(']},
-          {kind: 'note', text: 'This tile provides an adjacency bonus of the same resource as the area.'},
         ],
         renderData: CardRenderer.builder((b) => {
           b.tile(TileType.MINING_STEEL_BONUS, false, true);

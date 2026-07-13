@@ -670,9 +670,14 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     groups.push({kind: 'immediate', id: 'immediate', blocks: immediate});
   }
   groups.push(...authoredGroups);
+  // Track EVERY unlinked block, INCLUDING notes — a `note` about the card's own
+  // tile/graphic (New Holland «counts as a city and an ocean») must still tether;
+  // excluding notes hid that class from the audit. Legit graphic-less notes /
+  // sequencing steps stay in the list for review (the guard fails only on a
+  // block that references THIS card's own tile).
   for (const block of [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]) {
-    if (block.graphicId === undefined && block.kind !== 'note') {
-      unlinked.push(block.id);
+    if (block.graphicId === undefined) {
+      unlinked.push(block.kind === 'note' ? `${block.id}(note)` : block.id);
     }
   }
 

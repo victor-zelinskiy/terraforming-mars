@@ -339,6 +339,27 @@ describe('card information model', function() {
     expect(offenders, `move the non-VP rule to an immediate/effect infoText block:\n${offenders.join('\n')}`).to.deep.eq([]);
   });
 
+  it('a block ABOUT the card\'s own tile is TETHERED (never a floating note)', () => {
+    // New Holland's «The tile counts as a city and an ocean» rode as an
+    // unlinked `note` — it points at NOTHING on the card, though it is a
+    // property of the placed tile and belongs tethered to it (inside «При
+    // розыгрыше»). Any block that talks about THIS card's own tile must carry a
+    // graphicId; a graphic-less clarification about something ELSE (a restriction
+    // on which cards, a fallback) is fine and not matched here.
+    const OWN_TILE = /\b(this tile|the tile (counts|grants|provides)|counts as (a |an )?(city|ocean|greenery))\b/i;
+    const offenders: Array<string> = [];
+    for (const card of cards) {
+      for (const group of info(card)?.groups ?? []) {
+        for (const block of group.blocks) {
+          if (block.graphicId === undefined && OWN_TILE.test(block.text)) {
+            offenders.push(`${card.name}: «${block.text}» is about the tile but tethers to nothing — add tokens:['tile-']`);
+          }
+        }
+      }
+    }
+    expect(offenders, offenders.join('\n')).to.deep.eq([]);
+  });
+
   it('out-of-scope cards carry NO information (scope is explicit)', () => {
     const outside = loadCards().filter((c) => !SCOPE_MODULES.has(c.module) || !SCOPE_TYPES.has(c.type));
     for (const card of outside) {
