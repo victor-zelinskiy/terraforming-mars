@@ -55,8 +55,12 @@ if (PERFTEST) {
 if ((process.env.TM_ELECTRON_FEATURES ?? '').trim() === '') {
   if (process.argv.includes('--tm-no-graphite')) {
     process.env.TM_ELECTRON_FEATURES = 'none';
-  } else if (process.argv.includes('--tm-graphite-rawdraw')) {
-    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,RawDraw';
+  } else if (process.argv.includes('--tm-graphite-precompile')) {
+    // Graphite's built-in shader/pipeline PRECOMPILATION — targets the first-animation stutter
+    // (pipelines compiled up front instead of on first use). RawDraw was tried and REMOVED: it is
+    // incompatible with GPU rasterization + Graphite (fails shared-image creation → white screen,
+    // the ProduceSkia "non-existent mailbox" error).
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,SkiaGraphitePrecompilation';
   } else if (process.argv.includes('--tm-graphite')) {
     process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
   }
@@ -157,7 +161,7 @@ let mainWindow: BrowserWindow | undefined;
  *   F5                 → relaunch small window @ 1:1 scale (Deck-like pixel count → fill-rate test)
  *   F4                 → relaunch forcing Skia Graphite on (it is the Windows DEFAULT now)
  *   F3                 → relaunch with Skia Graphite OFF (legacy Ganesh) to A/B the default
- *   F2                 → relaunch with Skia Graphite + RawDraw (fewer intermediate rasters — A/B)
+ *   F2                 → relaunch with Graphite + shader PRECOMPILATION (first-lag test)
  */
 function installDiagnostics(win: BrowserWindow): void {
   win.webContents.on('before-input-event', (_event, input) => {
@@ -202,8 +206,8 @@ function installDiagnostics(win: BrowserWindow): void {
       app.relaunch({args: ['--tm-no-graphite']});
       app.exit(0);
     } else if (key === 'f2') {
-      // Restart with Graphite + RawDraw (fewer intermediate rasterizations) to A/B.
-      app.relaunch({args: ['--tm-graphite-rawdraw']});
+      // Restart with Graphite + shader precompilation (targets the first-animation stutter).
+      app.relaunch({args: ['--tm-graphite-precompile']});
       app.exit(0);
     }
   });
