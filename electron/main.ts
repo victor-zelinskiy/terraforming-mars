@@ -36,6 +36,11 @@ const ADD_TO_STEAM = process.argv.includes('--add-to-steam');
 if (process.argv.includes('--tm-no-perf')) {
   process.env.TM_ELECTRON_NO_PERF = '1';
 }
+// DIAGNOSTIC: a `--tm-gpu-low` relaunch arg (F7 hotkey) renders on the integrated GPU — tests
+// whether forcing the discrete dGPU adds a cross-adapter frame copy on this hybrid laptop.
+if (process.argv.includes('--tm-gpu-low')) {
+  process.env.TM_ELECTRON_GPU = 'low';
+}
 applyPerformanceSwitches(app);
 
 // Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
@@ -127,6 +132,8 @@ let mainWindow: BrowserWindow | undefined;
  *   F10                → load chrome://gpu (full driver report + "Problems Detected")
  *   F9                 → back to the game
  *   F8                 → relaunch in VANILLA mode (our GPU switches OFF) to compare the GPU path
+ *   F7                 → relaunch rendering on the INTEGRATED GPU (tests cross-adapter cost)
+ *   F6                 → relaunch back to the default (discrete GPU, all switches on)
  */
 function installDiagnostics(win: BrowserWindow): void {
   win.webContents.on('before-input-event', (_event, input) => {
@@ -150,6 +157,14 @@ function installDiagnostics(win: BrowserWindow): void {
       // module top). The next launch's [TM-DIAG] report is the vanilla-Electron baseline.
       app.relaunch({args: ['--tm-no-perf']});
       app.exit(0);
+    } else if (key === 'f7') {
+      // Restart rendering on the integrated GPU (cross-adapter test).
+      app.relaunch({args: ['--tm-gpu-low']});
+      app.exit(0);
+    } else if (key === 'f6') {
+      // Restart clean (default discrete GPU, all switches on).
+      app.relaunch({args: []});
+      app.exit(0);
     }
   });
 
@@ -172,7 +187,9 @@ async function printGpuDiag(win: BrowserWindow): Promise<void> {
     } catch {
       // getGPUInfo can reject on some drivers — the feature status alone is still useful.
     }
-    const mode = process.env.TM_ELECTRON_NO_PERF === '1' ? 'VANILLA (perf switches OFF)' : 'TUNED (our switches)';
+    const mode = process.env.TM_ELECTRON_NO_PERF === '1'
+      ? 'VANILLA (perf switches OFF)'
+      : `TUNED (GPU=${process.env.TM_ELECTRON_GPU ?? 'high'})`;
     const diag = {mode, platform: process.platform, version: app.getVersion(), gpuFeatureStatus: status, gpuInfo};
     const payload = JSON.stringify(JSON.stringify(diag));
     const enabled = status.gpu_compositing === 'enabled';
