@@ -171,18 +171,36 @@ export function buildTabbedTargets(step: TabbedTargetsStep): Array<ConsoleTabbed
   const out: Array<ConsoleTabbedTarget> = [];
   if (step.animal !== undefined) {
     const branchIndex = step.animal.branchIndex;
-    for (const card of step.animal.input.cards) {
-      const from = card.resources ?? 0;
+    // CARD animal targets — a card pick nested at branchIndex.
+    if (step.animal.input !== undefined && branchIndex !== undefined) {
+      for (const card of step.animal.input.cards) {
+        const from = card.resources ?? 0;
+        out.push({
+          tab: 'animal',
+          key: 'a' + card.name,
+          label: card.name,
+          impact: `${from} → ${Math.max(0, from - (step.animal.amount ?? 0))}`,
+          icon: step.animal.icon,
+          disabled: card.isDisabled === true,
+          reason: card.isDisabled === true ? (card.disabledReason ?? '') : '',
+          cardName: card.name,
+          response: {type: 'or', index: branchIndex, response: {type: 'card', cards: [card.name]}},
+        });
+      }
+    }
+    // PLAYER animal targets — today MarsBot (its Miranda storage + M€-supply proxy),
+    // a player-row like the plant tab.
+    for (const t of step.animal.targets ?? []) {
       out.push({
         tab: 'animal',
-        key: 'a' + card.name,
-        label: card.name,
-        impact: `${from} → ${Math.max(0, from - (step.animal.amount ?? 0))}`,
+        key: 'ap' + t.color,
+        label: t.name,
+        impact: `${t.current} → ${t.resulting}`,
         icon: step.animal.icon,
-        disabled: card.isDisabled === true,
-        reason: card.isDisabled === true ? (card.disabledReason ?? '') : '',
-        cardName: card.name,
-        response: {type: 'or', index: branchIndex, response: {type: 'card', cards: [card.name]}},
+        disabled: t.disabled === true,
+        reason: t.reason ?? '',
+        playerColor: t.color,
+        response: {type: 'or', index: t.optionIndex, response: {type: 'option'}},
       });
     }
   }

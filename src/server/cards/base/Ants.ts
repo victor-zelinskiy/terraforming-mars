@@ -42,7 +42,9 @@ export class Ants extends Card implements IActionCard, IProjectCard {
     if (player.game.isSoloMode()) {
       return true;
     }
-    return RemoveResourcesFromCard.getAvailableTargetCards(player, CardResource.MICROBE).length > 0;
+    // `hasTarget` (not `getAvailableTargetCards`) so a lone MarsBot — whose microbes
+    // live in its Enceladus storage + M€-supply proxy — keeps the action available.
+    return RemoveResourcesFromCard.hasTarget(player, CardResource.MICROBE);
   }
 
   // Structured reason for the Actions overlay when the action is unavailable.
@@ -50,7 +52,7 @@ export class Ants extends Card implements IActionCard, IProjectCard {
     if (player.game.isSoloMode()) {
       return undefined;
     }
-    if (RemoveResourcesFromCard.getAvailableTargetCards(player, CardResource.MICROBE).length === 0) {
+    if (!RemoveResourcesFromCard.hasTarget(player, CardResource.MICROBE)) {
       return {type: 'target', message: 'No card has a microbe to remove'};
     }
     return undefined;

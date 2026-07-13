@@ -101,4 +101,33 @@ describe('consoleOrChoice — tabbed targets (Virus)', () => {
     expect(plant.icon).to.eq('plants');
     expect(plant.response).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
   });
+
+  it('renders a PLAYER animal target (MarsBot proxy) in the animal tab, alongside cards', () => {
+    const step = {
+      kind: 'tabbedTargets',
+      animal: {
+        label: 'Animals', icon: 'animal', amount: 2, branchIndex: 0,
+        input: {type: 'card', cards: [{name: 'Pets', resources: 3}]},
+        targets: [{color: 'neutral', name: 'MarsBot', current: 4, resulting: 2, optionIndex: 1}],
+      },
+    } as unknown as TabbedTargetsStep;
+    const targets = buildTabbedTargets(step);
+    expect(targets).to.have.length(2); // the Pets card + the MarsBot player-row
+    const bot = targets.find((t) => t.playerColor === 'neutral')!;
+    expect(bot.tab).to.eq('animal');
+    expect(bot.impact).to.eq('4 → 2');
+    expect(bot.icon).to.eq('animal');
+    expect(bot.response).to.deep.eq({type: 'or', index: 1, response: {type: 'option'}});
+  });
+
+  it('handles an animal tab with ONLY a player target (lone bot, no animal cards)', () => {
+    const step = {
+      kind: 'tabbedTargets',
+      animal: {label: 'Animals', icon: 'animal', amount: 2, targets: [{color: 'neutral', name: 'MarsBot', current: 3, resulting: 1, optionIndex: 0}]},
+    } as unknown as TabbedTargetsStep;
+    const targets = buildTabbedTargets(step);
+    expect(targets).to.have.length(1);
+    expect(targets[0].playerColor).to.eq('neutral');
+    expect(targets[0].response).to.deep.eq({type: 'or', index: 0, response: {type: 'option'}});
+  });
 });

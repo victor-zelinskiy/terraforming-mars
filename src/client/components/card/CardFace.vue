@@ -16,7 +16,8 @@
                :robotCard="robotCard"
                :cubeColor="cubeColor"
                :autoTall="autoTall"
-               :lightweight="lightweight">
+               :lightweight="lightweight"
+               :inert="inert">
     <slot/>
   </PremiumCard>
   <Card v-else
@@ -25,7 +26,8 @@
         :robotCard="robotCard"
         :cubeColor="cubeColor"
         :autoTall="autoTall"
-        :lightweight="lightweight">
+        :lightweight="lightweight"
+        :inert="inert">
     <slot/>
   </Card>
 </template>
@@ -68,6 +70,14 @@ export default defineComponent({
       default: false,
     },
     lightweight: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    // Fully passive render (no click→fullscreen). Used by the boot warm-up so its
+    // hidden cards never touch the zoom mechanism. PremiumCard already honours it;
+    // Card (legacy) now does too.
+    inert: {
       type: Boolean,
       required: false,
       default: false,

@@ -1,4 +1,5 @@
 import {Resource} from '../../common/Resource';
+import {CardResource} from '../../common/CardResource';
 import {IPlayer} from '../IPlayer';
 import {TargetImpact, TargetImpactChange} from '../../common/models/TargetImpactModel';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
@@ -55,5 +56,32 @@ export function computeTargetImpact(target: IPlayer, resource: Resource, amount:
   const changes = target.isMarsBot ?
     (scope === 'production' ? botProduction(target, resource, amount) : botStock(target, resource, amount)) :
     (scope === 'production' ? humanProduction(target, resource, amount) : humanStock(target, resource, amount));
+  return {color: target.color, changes};
+}
+
+/**
+ * The `current → resulting` impact of removing a CARD-resource (microbe / animal /
+ * floater) from MarsBot as a PLAYER-target — its shipping-board storage of that
+ * type first (shown as the card-resource itself), then the M€-supply proxy. Only
+ * MarsBot is ever a card-resource PLAYER-target: a human's card-resources live ON
+ * cards (picked via `SelectCard`), so the human branch is empty. Mirrors
+ * `botStock` so the picker renders the SAME storage-row + M€-supply-row breakdown
+ * a standard-resource attack shows.
+ */
+export function computeCardResourceTargetImpact(target: IPlayer, cardResource: CardResource, amount: number): TargetImpact {
+  if (!target.isMarsBot) {
+    return {color: target.color, changes: []};
+  }
+  const p = AutomaTargeting.previewCardResourceLoss(target, cardResource, amount);
+  const changes: Array<TargetImpactChange> = [];
+  // Real Colonies storage of the type — shown as the card-resource (client
+  // `iconClassFor` normalises the raw `CardResource` value to `card-resource-…`).
+  if (p.storageLost > 0) {
+    changes.push({icon: cardResource, from: p.storageFrom, to: p.storageFrom - p.storageLost, scope: 'stock'});
+  }
+  // The M€-supply proxy — the bot's «gold», the common (base-game) case.
+  if (p.supplyLost > 0) {
+    changes.push({icon: Resource.MEGACREDITS, from: p.supplyFrom, to: p.supplyFrom - p.supplyLost, scope: 'stock'});
+  }
   return {color: target.color, changes};
 }

@@ -13,7 +13,14 @@ import {CometForVenus} from '../../src/server/cards/venusNext/CometForVenus';
 import {GalileanWaystation} from '../../src/server/cards/colonies/GalileanWaystation';
 import {SponsoredAcademies} from '../../src/server/cards/venusNext/SponsoredAcademies';
 import {Virus} from '../../src/server/cards/base/Virus';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {Predators} from '../../src/server/cards/base/Predators';
 import {Ceres} from '../../src/server/colonies/Ceres';
+import {CardResource} from '../../src/common/CardResource';
+import {RemoveResourcesFromCard} from '../../src/server/deferredActions/RemoveResourcesFromCard';
+import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {TabbedTargetsStep} from '../../src/common/models/ActionPreviewModel';
+import {OrOptionsModel} from '../../src/common/models/PlayerInputModel';
 import {cast} from '../../src/common/utils/utils';
 import {fakeCard} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
@@ -170,5 +177,69 @@ describe('Automa targeting — the human turn vs MarsBot', () => {
     botOption.cb(undefined);
     expect(game.automa!.shippingStorage[ColonyName.MIRANDA]).eq(0);
     expect(bot.megaCredits).eq(4);
+  });
+});
+
+describe('Automa targeting — CARD-resource removal from MarsBot (Enceladus/Miranda/Titan)', () => {
+  it('attackableCardResourceStock = the matching storage area + the M€-supply proxy', () => {
+    const [game, /* human */, bot] = testAutomaGame({coloniesExtension: true});
+    bot.megaCredits = 4;
+    game.automa!.shippingStorage[ColonyName.ENCELADUS] = 2; // microbes
+    game.automa!.shippingStorage[ColonyName.MIRANDA] = 1; // animals
+    game.automa!.shippingStorage[ColonyName.TITAN] = 3; // floaters
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.MICROBE)).eq(6);
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.ANIMAL)).eq(5);
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.FLOATER)).eq(7);
+  });
+
+  it('without Colonies the M€ supply alone proxies a card-resource', () => {
+    const [/* game */, /* human */, bot] = testAutomaGame();
+    bot.megaCredits = 3;
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.MICROBE)).eq(3);
+    bot.megaCredits = 0;
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.MICROBE)).eq(0);
+  });
+
+  it('RemoveResourcesFromCard(MICROBE) offers MarsBot — Enceladus storage drains first, then M€', () => {
+    const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+    bot.megaCredits = 5;
+    game.automa!.shippingStorage[ColonyName.ENCELADUS] = 1;
+    // A lone bot with no microbe cards → the ONLY target is the bot.
+    const or = cast(new RemoveResourcesFromCard(human, CardResource.MICROBE, 1, {autoselect: false}).execute(), OrOptions);
+    or.options[0].cb(undefined);
+    expect(game.automa!.shippingStorage[ColonyName.ENCELADUS]).eq(0); // storage first
+    expect(bot.megaCredits).eq(5); // M€ untouched (storage covered it)
+  });
+
+  it('Ants / Predators stay AVAILABLE against a lone MarsBot (its storage / M€ is the target)', () => {
+    const [/* game */, human, bot] = testAutomaGame();
+    bot.megaCredits = 2;
+    expect(new Ants().canAct(human)).is.true;
+    expect(new Predators().canAct(human)).is.true;
+    // A broke bot with no storage → genuinely no target.
+    bot.megaCredits = 0;
+    expect(new Ants().canAct(human)).is.false;
+    expect(new Predators().canAct(human)).is.false;
+  });
+
+  it('previewRemovalModel exposes the bot as an OrOptions option (matches the live prompt for the action confirm)', () => {
+    const [/* game */, human, bot] = testAutomaGame();
+    bot.megaCredits = 3;
+    const model = new RemoveResourcesFromCard(human, CardResource.ANIMAL, 1, {autoselect: false}).previewRemovalModel();
+    expect(model?.type).eq('or');
+    const or = model as OrOptionsModel;
+    // The bot option carries the card-resource removal metadata (icon + player impact).
+    const botOpt = or.options.find((o) => o.type === 'option' && o.metadata?.kind === 'resourceRemoval');
+    expect(botOpt, 'bot removal option in the preview').is.not.undefined;
+  });
+
+  it('Virus preview: MarsBot is a player-target in the ANIMAL tab (its Miranda + M€ proxy)', () => {
+    const [game, human, bot] = testAutomaGame({coloniesExtension: true});
+    bot.megaCredits = 4;
+    game.automa!.shippingStorage[ColonyName.MIRANDA] = 1;
+    const preview = cardPlayPreview(human, new Virus());
+    const step = preview.branches[0].steps.find((s) => s.kind === 'tabbedTargets') as TabbedTargetsStep;
+    expect(step, 'tabbedTargets step').is.not.undefined;
+    expect(step.animal?.targets?.some((t) => t.color === bot.color), 'bot in the animal tab').is.true;
   });
 });

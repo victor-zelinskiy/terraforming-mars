@@ -1,4 +1,5 @@
 import {CardName} from '../../common/cards/CardName';
+import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
 import {Tag} from '../../common/cards/Tag';
@@ -28,6 +29,27 @@ export class AutomaTargeting {
     [Resource.HEAT]: ColonyName.IO,
     [Resource.MEGACREDITS]: ColonyName.LUNA,
   };
+
+  /**
+   * Which shipping-board storage area holds a CARD resource (Adding Expansions
+   * p.5 + the shipping board): the bot's Enceladus / Miranda / Titan areas hold
+   * REAL microbes / animals / floaters. So a human "remove/steal X <card-resource>
+   * from any card" effect may take them AS the indicated type — the storage area
+   * first, then the M€-supply proxy — exactly like a standard-resource attack.
+   * A card-resource with no storage area (science, data, …) still proxies through
+   * the M€ supply (the base rule) — `undefined` colony, storage counts as 0.
+   */
+  private static readonly CARD_RESOURCE_STORAGE: Partial<Record<CardResource, ColonyName>> = {
+    [CardResource.MICROBE]: ColonyName.ENCELADUS,
+    [CardResource.ANIMAL]: ColonyName.MIRANDA,
+    [CardResource.FLOATER]: ColonyName.TITAN,
+  };
+
+  /** The storage area a card-resource lives in on MarsBot's shipping board, or
+   *  `undefined` when it has none (then only the M€-supply proxy applies). */
+  public static cardResourceStorageColony(cardResource: CardResource): ColonyName | undefined {
+    return AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
+  }
 
   /** Decrease production → regress this track (rulebook pp.4–5). */
   private static readonly PRODUCTION_TRACK: Record<Resource, number> = {
@@ -139,6 +161,43 @@ export class AutomaTargeting {
   /** How many card-resource-like units MarsBot can lose (for building the option). */
   public static cardResourceLikeStock(game: IGame, storageColony: ColonyName | undefined): number {
     return AutomaTargeting.storageOf(game, storageColony) + marsBotOf(game).megaCredits;
+  }
+
+  /**
+   * The card-resource stock a remove/steal target on MarsBot effectively holds:
+   * the matching storage area (Colonies only) + the M€-supply proxy. The
+   * card-resource analog of `attackableStock` — use it wherever a "remove X
+   * <card-resource> from any card" effect builds its MarsBot target option.
+   */
+  public static attackableCardResourceStock(bot: IPlayer, cardResource: CardResource): number {
+    return AutomaTargeting.storageOf(bot.game, AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource]) + bot.megaCredits;
+  }
+
+  /**
+   * Apply a card-resource removal to MarsBot: the matching storage area first,
+   * the M€ supply tops up the rest. The generalised (resource-keyed) form of
+   * `removeCardResourceLikeFromBot`. Returns the amount removed.
+   */
+  public static removeCardResourceFromBot(game: IGame, cardResource: CardResource, count: number): number {
+    return AutomaTargeting.removeCardResourceLikeFromBot(game, count, AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource]);
+  }
+
+  /**
+   * READ-ONLY preview of a card-resource removal from MarsBot — the storage row
+   * (real Colonies stock of the type) + the M€-supply row, in the SAME order
+   * `removeCardResourceFromBot` drains. Mirrors `previewStockLoss` so the target
+   * picker shows the ACTUAL loss (e.g. "Enceladus microbes 3 → 1" + "M€ 8 → 6")
+   * instead of a static placeholder. Non-mutating.
+   */
+  public static previewCardResourceLoss(bot: IPlayer, cardResource: CardResource, amount: number): {
+    storageColony: ColonyName | undefined, storageFrom: number, storageLost: number, supplyFrom: number, supplyLost: number,
+  } {
+    const storageColony = AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
+    const storageFrom = AutomaTargeting.storageOf(bot.game, storageColony);
+    const storageLost = Math.min(amount, storageFrom);
+    const supplyFrom = bot.megaCredits;
+    const supplyLost = Math.min(amount - storageLost, supplyFrom);
+    return {storageColony, storageFrom, storageLost, supplyFrom, supplyLost};
   }
 
   /**

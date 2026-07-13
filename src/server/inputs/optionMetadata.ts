@@ -5,7 +5,7 @@ import {CardResource} from '../../common/CardResource';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {IPlayer} from '../IPlayer';
-import {computeTargetImpact} from './targetImpact';
+import {computeTargetImpact, computeCardResourceTargetImpact} from './targetImpact';
 
 /**
  * Factory helpers for the OPTIONAL `OptionMetadata` attached to a SelectOption
@@ -106,6 +106,24 @@ export function addResourceToCard(cardResource: CardResource, amount: number = 1
 /** "Remove N <cardResource> from a card" (often to gain something else). */
 export function removeResourceFromCard(cardResource: CardResource, amount: number = 1): OptionMetadata {
   return {kind: 'resourceRemoval', icon: cardResourceIconKey(cardResource), amount};
+}
+
+/**
+ * "Remove N <cardResource> from <player>" as a PLAYER-target — the card-resource
+ * analog of `removeResourceFromPlayer`. Only MarsBot is ever a card-resource
+ * player-target (a human's live on cards): the SERVER-computed `changes` render
+ * the ACTUAL loss (its Colonies storage of the type, e.g. Enceladus microbes,
+ * then the M€-supply proxy), exactly like a standard-resource attack. `current`
+ * is the bot's attackable stock (storage + supply) for the client fallback.
+ */
+export function removeCardResourceFromPlayer(target: IPlayer, cardResource: CardResource, amount: number, current: number): OptionMetadata {
+  return {
+    kind: 'resourceRemoval',
+    icon: cardResourceIconKey(cardResource),
+    amount,
+    player: {color: target.color, current, resulting: Math.max(0, current - amount),
+      changes: computeCardResourceTargetImpact(target, cardResource, amount).changes},
+  };
 }
 
 /** A "do nothing / skip" option. */

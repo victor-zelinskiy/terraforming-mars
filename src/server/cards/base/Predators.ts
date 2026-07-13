@@ -42,7 +42,9 @@ export class Predators extends Card implements IProjectCard, IActionCard {
     if (player.game.isSoloMode()) {
       return true;
     }
-    return RemoveResourcesFromCard.getAvailableTargetCards(player, CardResource.ANIMAL).length > 0;
+    // `hasTarget` (not `getAvailableTargetCards`) so a lone MarsBot — whose animals
+    // live in its Miranda storage + M€-supply proxy — keeps the action available.
+    return RemoveResourcesFromCard.hasTarget(player, CardResource.ANIMAL);
   }
   public actionUnavailableReason() {
     return actionReason.targetReason('No card has an animal to remove');

@@ -14,10 +14,8 @@ import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFrom
 import {CardRenderer} from '../render/CardRenderer';
 import {all, digit} from '../Options';
 import {ActionPreview, TabbedPlantTarget, TabbedTargetsStep} from '../../../common/models/ActionPreviewModel';
+import {SelectCardModel} from '../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../actionPreviews';
-import {AutomaTargeting} from '../../automa/AutomaTargeting';
-import {ColonyName} from '../../../common/colonies/ColonyName';
-import {message} from '../../logs/MessageBuilder';
 
 export class Virus extends Card implements IProjectCard {
   constructor() {
@@ -58,20 +56,29 @@ export class Virus extends Card implements IProjectCard {
   // it mutates nothing. Shared by `bespokePlay` and the read-only `cardPlayPreview`
   // so the live prompt and the pre-collected tabbed step can't drift. Returns
   // undefined when there's nobody to remove from. Structure: [animal SelectCard?,
-  // ...opponent plant SelectOptions, skip].
+  // ...opponent plant SelectOptions, MarsBot animal option?, skip].
   public buildRemovalOptions(player: IPlayer): OrOptions | undefined {
-    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true}).execute() as OrOptions;
-    const removeAnimals = orOptionsAnimals !== undefined ?
-      orOptionsAnimals.options[0] :
+    // Extract the animal-CARD picker by TYPE (execute() may itself bundle a
+    // MarsBot option now — we add the bot animal target separately below via the
+    // shared helper so the tab classifies it cleanly by its 'animal' icon).
+    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true}).execute();
+    const removeAnimals = orOptionsAnimals instanceof OrOptions ?
+      orOptionsAnimals.options.find((o) => o instanceof SelectCard) :
       undefined;
 
-    // The ACTIONABLE opponent plant-removal options directly (no skip/own/disabled to
-    // slice off): this keeps the structure EXACTLY [animal?, ...opponent plants, skip]
-    // so the pre-collected tab indices line up, and is immune to how the shared
-    // RemoveAnyPlants prompt surfaces protected opponents (which is handled below).
+    // The ACTIONABLE opponent plant-removal options directly (includes MarsBot as
+    // a plant target via its M€-supply proxy). Immune to how the shared
+    // RemoveAnyPlants prompt surfaces protected opponents (handled below).
     const removePlants = new RemoveAnyPlants(player, 5).opponentOptions();
 
-    if (removeAnimals === undefined && removePlants.length === 0) {
+    // MarsBot as an ANIMAL target: its Miranda shipping-board storage + the
+    // M€-supply proxy (Automa rulebook, Adding Expansions p.5). The SAME shared
+    // metadata-rich option Ants/Predators use, so the bot reads consistently; the
+    // preview classifies it into the animal tab by its 'animal' icon. Appended
+    // AFTER the plant options so the introspected tab option-indices stay stable.
+    const botAnimals = RemoveResourcesFromCard.marsBotOption(player, CardResource.ANIMAL, 2);
+
+    if (removeAnimals === undefined && removePlants.length === 0 && botAnimals === undefined) {
       return undefined;
     }
 
@@ -80,21 +87,8 @@ export class Virus extends Card implements IProjectCard {
       orOptions.options.push(removeAnimals);
     }
     orOptions.options.push(...removePlants);
-    // MarsBot as an animal target: the Miranda storage animals ("as usual",
-    // Adding Expansions p.5) + the M€-supply proxy (rulebook p.4). Appended
-    // AFTER the plant options so the two-tab preview's introspected indices
-    // for animals/plants stay untouched.
-    const bot = player.opponents.find((p) => p.isMarsBot);
-    if (bot !== undefined) {
-      const removable = Math.min(2, AutomaTargeting.cardResourceLikeStock(player.game, ColonyName.MIRANDA));
-      if (removable > 0) {
-        orOptions.options.push(new SelectOption(
-          message('Remove ${0} animals from ${1}', (b) => b.number(removable).player(bot)), 'Remove animals')
-          .andThen(() => {
-            AutomaTargeting.removeCardResourceLikeFromBot(player.game, removable, ColonyName.MIRANDA);
-            return undefined;
-          }));
-      }
+    if (botAnimals !== undefined) {
+      orOptions.options.push(botAnimals);
     }
     orOptions.options.push(new SelectOption('Skip removal'));
 
@@ -134,28 +128,40 @@ export class Virus extends Card implements IProjectCard {
     }
     const step: TabbedTargetsStep = {kind: 'tabbedTargets'};
     const plantTargets: Array<TabbedPlantTarget> = [];
+    const animalTargets: Array<TabbedPlantTarget> = [];
+    let animalCard: {branchIndex: number, input: SelectCardModel} | undefined;
     orOptions.options.forEach((opt, i) => {
       if (opt instanceof SelectCard) {
-        // The animal removal: a card pick (remove up to 2 from the chosen card).
-        step.animal = {label: 'Animals', icon: 'animal', amount: 2, branchIndex: i, input: opt.toModel(player)};
+        // The animal removal from a CARD: a card pick (remove up to 2 from it).
+        animalCard = {branchIndex: i, input: opt.toModel(player)};
       } else if (opt instanceof SelectOption && opt.metadata?.kind === 'resourceRemoval' && opt.metadata.player !== undefined) {
-        // A plant removal from a specific player.
+        // A player-target removal. Plants (icon 'plants') → the plant tab; MarsBot's
+        // animal proxy (icon 'animal', its Miranda storage + M€ supply) → the animal
+        // tab as a player-row, so the animal target is never silently dropped.
         const pl = opt.metadata.player;
         const target = player.game.players.find((p) => p.color === pl.color);
-        plantTargets.push({
+        const row: TabbedPlantTarget = {
           color: pl.color,
           name: target?.name ?? '',
           current: pl.current ?? 0,
           resulting: pl.resulting ?? 0,
           optionIndex: i,
-        });
+        };
+        (opt.metadata.icon === 'animal' ? animalTargets : plantTargets).push(row);
       }
     });
     // Append PROTECTED opponents as greyed, non-selectable rows, so the player sees
     // them (and won't wonder where a known opponent went / mistarget). The tab still
     // has at least one selectable target (an actionable plant opponent or — via the
-    // animal tab — a card), so the mandatory step is always satisfiable.
+    // animal tab — a card / the bot), so the mandatory step is always satisfiable.
     plantTargets.push(...protectedTargets);
+    if (animalCard !== undefined || animalTargets.length > 0) {
+      step.animal = {
+        label: 'Animals', icon: 'animal', amount: 2,
+        branchIndex: animalCard?.branchIndex, input: animalCard?.input,
+        targets: animalTargets.length > 0 ? animalTargets : undefined,
+      };
+    }
     if (plantTargets.length > 0) {
       step.plant = {label: 'Plants', icon: 'plants', amount: 5, targets: plantTargets};
     }

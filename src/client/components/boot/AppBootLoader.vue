@@ -14,13 +14,17 @@
       animation (a composited animating layer rasterizes even while occluded),
       NOT display:none.
     -->
-    <div class="boot-loader__warm" aria-hidden="true">
+    <!-- `inert`: the warm-up subtree must be fully passive — no clicks, focus,
+         pointer or dialog interaction — so it can never touch the card/console
+         fullscreen zoom mechanism (fixed a bug where the FIRST fullscreen after a
+         warm-up launch didn't open). It only needs to PAINT, never to interact. -->
+    <div class="boot-loader__warm" aria-hidden="true" inert>
       <div v-if="warmReady" class="boot-loader__warm-cards">
         <div v-for="(c, i) in warmCards" :key="c.name"
              class="boot-loader__warm-card"
              :class="warmCardStateClass(i)"
              :style="{animationDelay: (i * 38) + 'ms'}">
-          <Card :card="c" />
+          <Card :card="c" :inert="true" />
         </div>
       </div>
       <!-- GAME-UI warm-up: the board elements repeated every game — board

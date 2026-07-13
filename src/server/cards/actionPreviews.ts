@@ -557,7 +557,10 @@ export function inputStep(model: PlayerInputModel | undefined, amount?: number):
  * the live `action()` mirrors this with `autoselect: false`.
  */
 export function removeAddCardResource(player: IPlayer, card: ActionCard, resource: CardResource): ActionPreview {
-  const model = new RemoveResourcesFromCard(player, resource, 1, {log: true, autoselect: false}).previewSelectCard();
+  // `previewRemovalModel` (NOT `previewSelectCard`) so a MarsBot card-resource
+  // target is pre-collected too — the model is the SAME OrOptions the live action
+  // builds, so the confirm-modal response replays byte-for-byte.
+  const model = new RemoveResourcesFromCard(player, resource, 1, {log: true, autoselect: false}).previewRemovalModel();
   const steps: ReadonlyArray<ActionPreviewStep> = model !== undefined ? [{kind: 'input', input: model}] : [];
   // The gain: the removed resource lands on THIS card (current → resulting). The
   // cost — which card it's taken from — is the picker step above.

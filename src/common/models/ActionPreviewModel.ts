@@ -293,10 +293,19 @@ export type TabbedPlantTarget = {
  */
 export type TabbedTargetsStep = {
   kind: 'tabbedTargets';
-  /** Remove from a CARD (animals) — a card pick hosted by `ActionTargetCard`. The
-   *  chosen card nests into `{type:'or', index: branchIndex, response:{type:'card',
-   *  cards:[name]}}`. */
-  animal?: {label: string | Message, icon: string, amount: number, branchIndex: number, input: SelectCardModel};
+  /**
+   * The "remove animals" tab. Two kinds of target coexist:
+   *  - CARD targets (`input`): the animal-holding cards, a `SelectCard` nested at
+   *    `branchIndex` — the chosen card nests into `{type:'or', index: branchIndex,
+   *    response:{type:'card', cards:[name]}}`.
+   *  - PLAYER targets (`targets`): today only MarsBot, whose animals live in its
+   *    Miranda shipping-board storage + M€-supply proxy (Automa rulebook) — a
+   *    player-row like the plant tab, its `optionIndex` submitting a bare
+   *    `{type:'or', index, response:{type:'option'}}`.
+   * Either may be absent (a lone-bot game has only `targets`; a normal multiplayer
+   * game only `input`).
+   */
+  animal?: {label: string | Message, icon: string, amount: number, branchIndex?: number, input?: SelectCardModel, targets?: ReadonlyArray<TabbedPlantTarget>};
   /** Remove from a PLAYER (plants) — player targets, each its own OrOptions option. */
   plant?: {label: string | Message, icon: string, amount: number, targets: ReadonlyArray<TabbedPlantTarget>};
 };

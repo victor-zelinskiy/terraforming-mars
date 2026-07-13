@@ -4,14 +4,15 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {ICard} from '../cards/ICard';
-import {SelectCardModel} from '../../common/models/PlayerInputModel';
+import {PlayerInputModel, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {UnderworldExpansion} from '../underworld/UnderworldExpansion';
 import {message} from '../logs/MessageBuilder';
 import {CardName} from '../../common/cards/CardName';
-import {skip} from '../inputs/optionMetadata';
+import {skip, removeCardResourceFromPlayer} from '../inputs/optionMetadata';
+import {AutomaTargeting} from '../automa/AutomaTargeting';
 
 export type Source = 'self' | 'opponents' | 'all';
 export type Response = {card: ICard, owner: IPlayer, proceed: boolean} | {card: undefined, owner: undefined, proceed: boolean};
@@ -70,7 +71,16 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
 
     const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
 
-    if (cards.length === 0) {
+    // MarsBot as a card-resource target (Automa rulebook, Adding Expansions p.5):
+    // the bot holds real microbes / animals / floaters in its shipping-board
+    // storage (Enceladus / Miranda / Titan), and its M€ supply proxies any of
+    // them — so a "remove X <card-resource> from any card" effect may take them.
+    // The bot is a PLAYER-target (not a card), so its presence turns the picker
+    // into an OrOptions [card branch?, MarsBot, skip?]. `undefined` for a self
+    // removal / untyped resource / no bot / an empty bot.
+    const botOption = this.botOption(() => this.cb({card: undefined, owner: undefined, proceed: true}));
+
+    if (cards.length === 0 && botOption === undefined) {
       this.cb({card: undefined, owner: undefined, proceed: false});
       return undefined;
     }
@@ -82,7 +92,36 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     // stays the selectable set (auto-select / counts / validation unchanged).
     const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
 
-    const selectCard = new SelectCard(
+    // With a bot target, ALWAYS present an OrOptions so the bot is a conscious,
+    // visible choice alongside the card(s) — never auto-applied behind the picker.
+    if (botOption !== undefined) {
+      const orOptions = new OrOptions().setTitle(this.title);
+      if (cards.length > 0) {
+        orOptions.options.push(this.buildSelectCard(cards, disabledCards));
+      }
+      orOptions.options.push(botOption);
+      if (!this.mandatory) {
+        orOptions.options.push(new SelectOption('Do not remove').withMetadata(skip()));
+      }
+      return orOptions;
+    }
+
+    // No bot involved — the original card-only behaviour, byte-identical.
+    if (this.mandatory) {
+      if (cards.length === 1 && this.autoselect === true) {
+        this.attack(cards[0]);
+        return undefined;
+      }
+      return this.buildSelectCard(cards, disabledCards);
+    }
+
+    return new OrOptions(
+      this.buildSelectCard(cards, disabledCards),
+      new SelectOption('Do not remove').withMetadata(skip()));
+  }
+
+  private buildSelectCard(cards: Array<ICard>, disabledCards: Array<{card: ICard, reason: string}>) {
+    return new SelectCard(
       this.title,
       'Remove resource(s)',
       cards,
@@ -91,18 +130,99 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
         this.attack(card);
         return undefined;
       });
+  }
 
-    if (this.mandatory) {
-      if (cards.length === 1 && this.autoselect === true) {
-        this.attack(cards[0]);
-        return undefined;
-      }
-      return selectCard;
+  /**
+   * The MarsBot target option for a card-resource removal — its shipping-board
+   * storage of the type (Enceladus microbes / Miranda animals / Titan floaters)
+   * FIRST, then the M€-supply proxy (Automa rulebook, Adding Expansions p.5). A
+   * metadata-rich player-target (the storage-row + M€-supply-row `current →
+   * resulting` breakdown, exactly like a standard-resource attack). SHARED by the
+   * generic `execute()` and bespoke callers (Virus) so the bot reads consistently.
+   * `onRemoved` fires after the removal (the deferred's `cb`, when applicable).
+   * Returns `undefined` when there's no MarsBot opponent or it holds nothing.
+   */
+  public static marsBotOption(player: IPlayer, cardResource: CardResource, count: number, onRemoved?: () => void): SelectOption | undefined {
+    const bot = player.opponents.find((p) => p.isMarsBot);
+    if (bot === undefined) {
+      return undefined;
     }
+    const attackable = AutomaTargeting.attackableCardResourceStock(bot, cardResource);
+    const removable = Math.min(count, attackable);
+    if (removable <= 0) {
+      return undefined;
+    }
+    return new SelectOption(
+      message('Remove ${0} ${1} from ${2}', (b) => b.number(removable).cardResource(cardResource).player(bot)),
+      'Remove')
+      .withMetadata(removeCardResourceFromPlayer(bot, cardResource, removable, attackable))
+      .andThen(() => {
+        AutomaTargeting.removeCardResourceFromBot(player.game, cardResource, removable);
+        onRemoved?.();
+        return undefined;
+      });
+  }
 
-    return new OrOptions(
-      selectCard,
-      new SelectOption('Do not remove').withMetadata(skip()));
+  /**
+   * TRUE when a "remove <cardResource> from any card" effect has ANY valid target:
+   * a card holding the resource, OR MarsBot's shipping-board storage / M€-supply
+   * proxy of that type. The bot-aware companion of `getAvailableTargetCards` — a
+   * blue-card action's `canAct` must consult it so the action stays available
+   * against a lone MarsBot (whose "cards" are its storage areas).
+   */
+  public static hasTarget(player: IPlayer, cardResource: CardResource | undefined, source: Source = 'all'): boolean {
+    if (RemoveResourcesFromCard.getAvailableTargetCards(player, cardResource, source).length > 0) {
+      return true;
+    }
+    if (cardResource === undefined || source === 'self') {
+      return false;
+    }
+    const bot = player.opponents.find((p) => p.isMarsBot);
+    return bot !== undefined && AutomaTargeting.attackableCardResourceStock(bot, cardResource) > 0;
+  }
+
+  /** The MarsBot target option for THIS removal (or undefined) — a self / untyped
+   *  removal never targets the bot. */
+  private botOption(onRemoved?: () => void): SelectOption | undefined {
+    if (this.cardResource === undefined || this.source === 'self') {
+      return undefined;
+    }
+    return RemoveResourcesFromCard.marsBotOption(this.player, this.cardResource, this.count, onRemoved);
+  }
+
+  /**
+   * READ-ONLY: the full removal PICKER as a model — a bare `SelectCard` (cards
+   * only) OR, when MarsBot is a valid card-resource target, the combined
+   * `OrOptions` [card branch?, MarsBot, skip?] that `execute()` builds live. Kept
+   * STRUCTURALLY identical to `execute()` so the action-confirm modal pre-collects
+   * a response that replays byte-for-byte against the live prompt. `undefined` when
+   * there's no choice (solo auto-resolve / no target / a lone auto-selected card).
+   */
+  public previewRemovalModel(): PlayerInputModel | undefined {
+    if (this.source !== 'self' && this.player.game.isSoloMode()) {
+      return undefined;
+    }
+    const cards = RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+    const botOption = this.botOption();
+    if (cards.length === 0 && botOption === undefined) {
+      return undefined;
+    }
+    const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
+    if (botOption !== undefined) {
+      const orOptions = new OrOptions().setTitle(this.title);
+      if (cards.length > 0) {
+        orOptions.options.push(this.buildSelectCard(cards, disabledCards));
+      }
+      orOptions.options.push(botOption);
+      if (!this.mandatory) {
+        orOptions.options.push(new SelectOption('Do not remove').withMetadata(skip()));
+      }
+      return orOptions.toModel(this.player);
+    }
+    if (this.mandatory && cards.length === 1 && this.autoselect === true) {
+      return undefined;
+    }
+    return this.buildSelectCard(cards, disabledCards).toModel(this.player);
   }
 
   /**

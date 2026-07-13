@@ -33,15 +33,42 @@
       </button>
     </div>
 
-    <!-- Animals — a card pick (grouped by owner), no auto-select (the OR branch
-         must be a conscious choice). -->
-    <div v-if="activeTab === 'animal' && model.animal" class="virus-tabs__panel">
-      <ActionTargetCard :input="model.animal.input"
+    <!-- Animals — a card pick (grouped by owner) AND/OR player targets (today
+         MarsBot's Miranda storage + M€-supply proxy). No auto-select (the OR
+         branch must be a conscious choice). -->
+    <div v-if="activeTab === 'animal' && model.animal" class="virus-tabs__panel virus-tabs__animals">
+      <ActionTargetCard v-if="model.animal.input"
+                        :input="model.animal.input"
                         :playerView="playerView"
                         :amount="-model.animal.amount"
                         :autoSelect="false"
                         :selectedName="selectedAnimalName"
                         @change="onAnimalChange" />
+      <button v-for="t in (model.animal.targets ?? [])"
+              :key="t.color"
+              type="button"
+              class="virus-plant"
+              :class="{'virus-plant--selected': !t.disabled && selectedOptionIndex === t.optionIndex, 'virus-plant--disabled': t.disabled}"
+              :disabled="t.disabled === true"
+              @click="t.disabled ? undefined : selectPlayerTarget(t.optionIndex)">
+        <span class="virus-plant__id">
+          <span class="virus-plant__dot" :class="'player_bg_color_' + t.color" aria-hidden="true"></span>
+          <span class="virus-plant__name">{{ t.name }}</span>
+        </span>
+        <span v-if="t.disabled" class="virus-plant__reason" v-i18n>{{ text(t.reason ?? '') }}</span>
+        <template v-else>
+          <span class="virus-plant__impact">
+            <span class="virus-plant__icon" :class="iconClass(model.animal.icon)" aria-hidden="true"></span>
+            <span class="virus-plant__cur">{{ t.current }}</span>
+            <span class="virus-plant__arrow" aria-hidden="true">→</span>
+            <span class="virus-plant__res">{{ t.resulting }}</span>
+          </span>
+          <span class="virus-plant__pick" :class="{'virus-plant__pick--on': selectedOptionIndex === t.optionIndex}">
+            <span v-if="selectedOptionIndex === t.optionIndex" class="virus-plant__tick" aria-hidden="true">✓</span>
+            <span v-i18n>{{ selectedOptionIndex === t.optionIndex ? 'Selected' : 'Select' }}</span>
+          </span>
+        </template>
+      </button>
     </div>
 
     <!-- Plants — rich player target rows. A PROTECTED player is shown as a greyed,
@@ -51,9 +78,9 @@
               :key="t.color"
               type="button"
               class="virus-plant"
-              :class="{'virus-plant--selected': !t.disabled && selectedPlantIndex === t.optionIndex, 'virus-plant--disabled': t.disabled}"
+              :class="{'virus-plant--selected': !t.disabled && selectedOptionIndex === t.optionIndex, 'virus-plant--disabled': t.disabled}"
               :disabled="t.disabled === true"
-              @click="t.disabled ? undefined : selectPlant(t.optionIndex)">
+              @click="t.disabled ? undefined : selectPlayerTarget(t.optionIndex)">
         <span class="virus-plant__id">
           <span class="virus-plant__dot" :class="'player_bg_color_' + t.color" aria-hidden="true"></span>
           <span class="virus-plant__name">{{ t.name }}</span>
@@ -66,9 +93,9 @@
             <span class="virus-plant__arrow" aria-hidden="true">→</span>
             <span class="virus-plant__res">{{ t.resulting }}</span>
           </span>
-          <span class="virus-plant__pick" :class="{'virus-plant__pick--on': selectedPlantIndex === t.optionIndex}">
-            <span v-if="selectedPlantIndex === t.optionIndex" class="virus-plant__tick" aria-hidden="true">✓</span>
-            <span v-i18n>{{ selectedPlantIndex === t.optionIndex ? 'Selected' : 'Select' }}</span>
+          <span class="virus-plant__pick" :class="{'virus-plant__pick--on': selectedOptionIndex === t.optionIndex}">
+            <span v-if="selectedOptionIndex === t.optionIndex" class="virus-plant__tick" aria-hidden="true">✓</span>
+            <span v-i18n>{{ selectedOptionIndex === t.optionIndex ? 'Selected' : 'Select' }}</span>
           </span>
         </template>
       </button>
@@ -119,13 +146,14 @@ export default defineComponent({
     };
   },
   computed: {
+    // The animal tab may host a card pick AND/OR player targets (MarsBot).
     animalCount(): number {
-      return this.model.animal?.input.cards.length ?? 0;
+      return (this.model.animal?.input?.cards.length ?? 0) + (this.model.animal?.targets?.length ?? 0);
     },
     // The selected animal card name (when the captured response is the animal branch).
     selectedAnimalName(): CardName | undefined {
       const r = this.selected;
-      if (r?.type === 'or' && this.model.animal !== undefined && r.index === this.model.animal.branchIndex) {
+      if (r?.type === 'or' && this.model.animal?.branchIndex !== undefined && r.index === this.model.animal.branchIndex) {
         const inner = r.response;
         if (inner?.type === 'card' && inner.cards.length > 0) {
           return inner.cards[0];
@@ -133,9 +161,9 @@ export default defineComponent({
       }
       return undefined;
     },
-    // The selected plant target's OrOptions index (when the captured response is a
-    // plant option).
-    selectedPlantIndex(): number | undefined {
+    // The selected PLAYER-target's OrOptions index (a plant player OR the MarsBot
+    // animal proxy — both submit a bare `{type:'option'}` at their optionIndex).
+    selectedOptionIndex(): number | undefined {
       const r = this.selected;
       if (r?.type === 'or' && r.response?.type === 'option') {
         return r.index;
@@ -153,12 +181,14 @@ export default defineComponent({
     // ActionTargetCard emits {type:'card', cards:[name]} — wrap it as the animal
     // OrOptions branch (the SelectCard is nested at branchIndex).
     onAnimalChange(resp: SelectCardResponse): void {
-      if (this.model.animal === undefined) {
+      const branchIndex = this.model.animal?.branchIndex;
+      if (branchIndex === undefined) {
         return;
       }
-      this.$emit('select', {type: 'or', index: this.model.animal.branchIndex, response: resp} as InputResponse);
+      this.$emit('select', {type: 'or', index: branchIndex, response: resp} as InputResponse);
     },
-    selectPlant(optionIndex: number): void {
+    // A player-target pick (plant player OR the MarsBot animal proxy).
+    selectPlayerTarget(optionIndex: number): void {
       this.$emit('select', {type: 'or', index: optionIndex, response: {type: 'option'}} as InputResponse);
     },
   },
@@ -222,7 +252,8 @@ export default defineComponent({
 }
 
 .virus-tabs__panel { min-width: 0; }
-.virus-tabs__plants {
+.virus-tabs__plants,
+.virus-tabs__animals {
   display: flex;
   flex-direction: column;
   gap: 8px;

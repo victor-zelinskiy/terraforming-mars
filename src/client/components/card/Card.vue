@@ -134,6 +134,13 @@ export default defineComponent({
       required: false,
       default: false,
     },
+    // Fully passive render (no click→fullscreen). Used by the boot warm-up so its
+    // hidden cards never touch the zoom mechanism.
+    inert: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   data() {
     return {
@@ -280,6 +287,9 @@ export default defineComponent({
      * reaches this handler.
      */
     onClick() {
+      if (this.inert) {
+        return; // passive render (boot warm-up) — never open the zoom modal
+      }
       if (!getPreferences().fullscreen_cards_on_dblclick) {
         return;
       }
