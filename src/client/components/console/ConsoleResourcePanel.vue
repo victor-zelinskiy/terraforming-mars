@@ -96,6 +96,7 @@ import {CardResource} from '@/common/CardResource';
 import TagCount from '@/client/components/TagCount.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
+import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 
@@ -132,8 +133,19 @@ export default defineComponent({
     boardVisible: {type: Boolean, default: false},
   },
   computed: {
+    /**
+     * The player numbers the panel displays. During the start-of-game setup
+     * reveal (this player's ceremony) the corp bonus + card payment are shown as
+     * staged values, so the AnimatedMetricValue delta chips fire per explicit
+     * step; the canonical `player` otherwise. Spreading over `player` keeps every
+     * non-numeric field (tags, tableau) intact.
+     */
+    effectivePlayer(): PublicPlayerModel {
+      const override = startSetupOverrideFor(this.player.color);
+      return override !== undefined ? {...this.player, ...override} : this.player;
+    },
     rows(): Array<ResourceRow> {
-      const p = this.player;
+      const p = this.effectivePlayer;
       return [
         {key: 'megacredits', value: p.megacredits, production: p.megacreditProduction},
         {key: 'steel', value: p.steel, production: p.steelProduction},

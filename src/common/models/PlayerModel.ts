@@ -16,6 +16,7 @@ import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
 import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
+import {StartingSetupModel} from './StartingSetupModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -165,4 +166,11 @@ export interface PlayerViewModel extends ViewModel {
   // amount). Drives the premium paired "Energy −X → Heat +X" transition
   // animation. Absent whenever no energy was converted. See EnergyHeatConversionModel.
   energyHeatConversion?: EnergyHeatConversionModel;
+  // Self-only, transient (cleared on the next input): the start-of-game setup the
+  // corporation just applied — its starting bonuses + the M€ paid for the bought
+  // project cards, over the pre-corp baseline. Drives the premium start flow's
+  // explicit "apply corporation" / "pay for cards" reveal stages (delta chips on
+  // the left panel). Present only on the ceremony view of generation 1. See
+  // StartingSetupModel.
+  startingSetup?: StartingSetupModel;
 }

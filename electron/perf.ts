@@ -39,13 +39,30 @@ export function applyPerformanceSwitches(app: App): void {
   // actually enable it (opt-in below).
   const linuxGpuTest = process.platform === 'linux' &&
     ((process.env.TM_ELECTRON_OZONE ?? '').trim() !== '' ||
-     (process.env.TM_ELECTRON_GL ?? '').trim() !== '');
+     (process.env.TM_ELECTRON_GL ?? '').trim() !== '' ||
+     (process.env.TM_ELECTRON_ANGLE ?? '').trim() !== '');
   if (process.platform === 'win32' || linuxGpuTest) {
     sw('ignore-gpu-blocklist');         // use the GPU even if the driver is blocklisted
     sw('enable-gpu-rasterization');     // rasterize paint on the GPU (Paint/Commit/GPUTask)
     sw('enable-zero-copy');             // zero-copy texture upload
     sw('enable-accelerated-2d-canvas'); // GPU-accelerate 2D canvas (endgame chart)
-    sw('force_high_performance_gpu');   // discrete GPU on dual-GPU laptops
+
+    // GPU SELECTION on a dual-GPU laptop is SWITCHABLE — the discrete card is NOT always the
+    // right choice. On a hybrid-NVIDIA laptop the panel is usually wired to the iGPU, so forcing
+    // the dGPU adds a cross-adapter frame copy AND can trip NVIDIA's "Background Application Max
+    // Frame Rate" throttle on a PACKAGED .exe (it misclassifies the exe as background and caps it
+    // to ~30 FPS even in focus) — so the iGPU path is sometimes SMOOTHER for a light 2D board
+    // game. A/B it on the target box (confirm which card actually renders in chrome://gpu →
+    // GL_RENDERER):
+    //   TM_ELECTRON_GPU=high (DEFAULT) → force_high_performance_gpu (discrete — prior behaviour)
+    //   TM_ELECTRON_GPU=low            → force_low_power_gpu (integrated)
+    //   TM_ELECTRON_GPU=none           → neither (let the OS/driver decide)
+    const gpuPref = (process.env.TM_ELECTRON_GPU ?? 'high').trim().toLowerCase();
+    if (gpuPref === 'low') {
+      sw('force_low_power_gpu');
+    } else if (gpuPref !== 'none') {
+      sw('force_high_performance_gpu'); // default 'high' (and any unrecognised value)
+    }
   }
 
   // Linux / Steam Deck DEFAULT: skip the GPU entirely. Chromium can't init a GL/EGL context
@@ -79,14 +96,29 @@ export function applyPerformanceSwitches(app: App): void {
       sw('ozone-platform', ozone);
       sw('enable-features', 'UseOzonePlatform');
     }
-    const gl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
-    if (gl !== '') {
-      sw('use-gl', gl);
-    }
-    const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
-    if (angleBackend !== '') {
-      sw('use-angle', angleBackend);
-    }
+  }
+
+  // ── ANGLE backend selection (CROSS-PLATFORM — the key WINDOWS lever) ───────
+  // Windows defaults to ANGLE over D3D11 → DirectComposition → DWM. On a hybrid-NVIDIA /
+  // high-refresh / Win11-24H2 box THAT path is where the stutter lives (DWM+MPO flip-model
+  // thrash on a low-FPS app, the vsync/pacing mismatch). Switching the backend can SIDESTEP the
+  // problematic presentation path — Chrome's own flag notes OpenGL "may result in higher
+  // performance … particularly on NVIDIA GPUs". It is NOT a safe DEFAULT (D3D11 is the most
+  // tested path; a wrong combo silently falls back to D3D11 / software), so it is env-gated for
+  // on-device A/B. ALWAYS confirm it actually took in chrome://gpu before trusting a result:
+  //   TM_ELECTRON_ANGLE=gl        → native OpenGL driver (try FIRST on NVIDIA)
+  //   TM_ELECTRON_ANGLE=vulkan    → Vulkan (lower CPU; can be unstable / blank on Windows)
+  //   TM_ELECTRON_ANGLE=d3d11on12 → D3D11-on-12 presentation path
+  //   TM_ELECTRON_ANGLE=d3d9      → legacy D3D9 (sometimes dodges the MPO jitter on a 2D scene)
+  // TM_ELECTRON_GL is the lower-level gl-implementation knob (e.g. 'angle', 'desktop', 'egl');
+  // usually leave it unset and only set TM_ELECTRON_ANGLE.
+  const glImpl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
+  if (glImpl !== '') {
+    sw('use-gl', glImpl);
+  }
+  const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
+  if (angleBackend !== '') {
+    sw('use-angle', angleBackend);
   }
 
   // ── No renderer throttling (fullscreen game) ─────────────────────────────

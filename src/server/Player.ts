@@ -78,6 +78,7 @@ import {DeltaProjectInput} from './delta/DeltaProjectInput';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {StartingSetupModel, StartingSetupSnapshot} from '../common/models/StartingSetupModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
 import {TRSource} from '../common/cards/TRSource';
@@ -203,6 +204,11 @@ export class Player implements IPlayer {
   // player's production phase (self-only, cleared at the start of the next
   // input). See IPlayer.energyHeatConversion.
   public energyHeatConversion: EnergyHeatConversionModel | undefined = undefined;
+  // Transient snapshot of the start-of-game corporation setup (starting bonuses
+  // + card payment) over the pre-corp baseline (self-only, cleared at the start
+  // of the next input). Drives the premium start flow's explicit reveal stages.
+  // See IPlayer.startingSetup / StartingSetupModel.
+  public startingSetup: StartingSetupModel | undefined = undefined;
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
@@ -1284,6 +1290,15 @@ export class Player implements IPlayer {
   public playCorporationCard(corporationCard: ICorporationCard): void {
     const additionalCorp = this.playedCards.corporations().length > 0;
 
+    // Snapshot the pre-corp baseline for the premium start-of-game reveal — the
+    // resource / production / TR state BEFORE any corp bonus or card payment is
+    // applied (usually all zeros, TR 20). Captured only for the FIRST corp (the
+    // reveal shows ONE setup) and never in testMode (its stock is force-overridden
+    // afterwards). The corp effect + payment below happen in one synchronous pass
+    // — the client REVEALS them as explicit paced stages from this baseline.
+    const setupBaseline = (!additionalCorp && !this.game.gameOptions.testMode) ?
+      this.captureStartingSetupBaseline() : undefined;
+
     this.playedCards.push(corporationCard);
 
     // Update starting MC
@@ -1293,12 +1308,28 @@ export class Player implements IPlayer {
       this.cardCost += corporationCard.cardCost - constants.CARD_COST;
     }
 
+    let cardsBought = 0;
+    let megacreditsPaid = 0;
     if (additionalCorp === false && corporationCard.name !== CardName.BEGINNER_CORPORATION) {
-      const diff = this.cardsInHand.length * this.cardCost;
-      this.stock.deduct(Resource.MEGACREDITS, diff);
-      if (diff > 0) {
+      cardsBought = this.cardsInHand.length;
+      megacreditsPaid = cardsBought * this.cardCost;
+      this.stock.deduct(Resource.MEGACREDITS, megacreditsPaid);
+      if (megacreditsPaid > 0) {
         PathfindersExpansion.addToSolBank(this);
       }
+    }
+
+    // Record the reveal snapshot (self-only, transient; cleared on the next
+    // input). The corp's passive behavior (below, deferred) is included by the
+    // client deriving the corp-bonus stage from the FINAL committed view.
+    if (setupBaseline !== undefined) {
+      this.startingSetup = {
+        corporation: corporationCard.name,
+        before: setupBaseline,
+        cardsBought,
+        megacreditsPaid,
+        generation: this.game.generation,
+      };
     }
     this.game.log('${0} played ${1}', (b) => b.player(this).card(corporationCard));
     // Calculating this before playing the corporation card, which might change the player's hand size.
@@ -1317,6 +1348,28 @@ export class Player implements IPlayer {
     if (!additionalCorp) {
       this.game.playerIsFinishedWithResearchPhase(this);
     }
+  }
+
+  /** Full resource / production / TR snapshot — the pre-corp baseline the
+   *  premium start-of-game reveal counts up from. See StartingSetupModel. */
+  private captureStartingSetupBaseline(): StartingSetupSnapshot {
+    return {
+      megacredits: this.megaCredits,
+      steel: this.steel,
+      titanium: this.titanium,
+      plants: this.plants,
+      energy: this.energy,
+      heat: this.heat,
+      production: {
+        megacredits: this.production.megacredits,
+        steel: this.production.steel,
+        titanium: this.production.titanium,
+        plants: this.production.plants,
+        energy: this.production.energy,
+        heat: this.production.heat,
+      },
+      terraformRating: this.terraformRating,
+    };
   }
 
   public drawCard(count?: number, options?: DrawOptions): undefined {
@@ -2141,6 +2194,9 @@ export class Player implements IPlayer {
     // (For Supercapacitors the conversion is APPLIED inside this very input's
     // deferred callback, which runs after this line, so its snapshot survives.)
     this.energyHeatConversion = undefined;
+    // The start-of-game setup reveal is a one-shot at the ceremony; the player's
+    // next input (their first prelude / corp action) means that moment passed.
+    this.startingSetup = undefined;
     const waitingFor = this.waitingFor;
     const waitingForCb = this.waitingForCb;
     const waitingForContext = this.waitingForContext;

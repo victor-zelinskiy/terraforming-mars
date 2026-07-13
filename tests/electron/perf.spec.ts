@@ -16,18 +16,28 @@ function fakeApp() {
 }
 
 describe('electron/perf', () => {
-  const savedUncap = process.env.TM_ELECTRON_UNCAP_FPS;
-  const savedForce = process.env.TM_ELECTRON_FORCE_GPU;
-  afterEach(() => {
-    if (savedUncap === undefined) {
-      delete process.env.TM_ELECTRON_UNCAP_FPS;
-    } else {
-      process.env.TM_ELECTRON_UNCAP_FPS = savedUncap;
+  // Every TM_ELECTRON_* knob the switch builder reads — snapshot before the suite, CLEAR before
+  // each test (so a leaked value can't bleed across cases), restore after.
+  const ENV_KEYS = [
+    'TM_ELECTRON_UNCAP_FPS', 'TM_ELECTRON_FORCE_GPU',
+    'TM_ELECTRON_GPU', 'TM_ELECTRON_ANGLE', 'TM_ELECTRON_GL',
+  ] as const;
+  const saved: Record<string, string | undefined> = {};
+  for (const k of ENV_KEYS) {
+    saved[k] = process.env[k];
+  }
+  beforeEach(() => {
+    for (const k of ENV_KEYS) {
+      delete process.env[k];
     }
-    if (savedForce === undefined) {
-      delete process.env.TM_ELECTRON_FORCE_GPU;
-    } else {
-      process.env.TM_ELECTRON_FORCE_GPU = savedForce;
+  });
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) {
+        delete process.env[k];
+      } else {
+        process.env[k] = saved[k];
+      }
     }
   });
 
@@ -102,6 +112,57 @@ describe('electron/perf', () => {
     const keys = app.switches.map((s) => s.key);
     expect(keys).to.include('disable-frame-rate-limit');
     expect(keys).to.include('disable-software-rasterizer');
+  });
+
+  it('Windows: TM_ELECTRON_GPU=low forces the integrated GPU (not the discrete one)', () => {
+    process.env.TM_ELECTRON_GPU = 'low';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      expect(keys).to.include('force_low_power_gpu');
+      expect(keys).to.not.include('force_high_performance_gpu');
+    });
+  });
+
+  it('Windows: TM_ELECTRON_GPU=none forces neither GPU (OS/driver decides)', () => {
+    process.env.TM_ELECTRON_GPU = 'none';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      expect(keys).to.not.include('force_low_power_gpu');
+      expect(keys).to.not.include('force_high_performance_gpu');
+      // still GPU-accelerated — only the SELECTION knob changed
+      expect(keys).to.include('enable-gpu-rasterization');
+    });
+  });
+
+  it('Windows: default (no TM_ELECTRON_GPU) keeps forcing the discrete GPU', () => {
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      expect(keys).to.include('force_high_performance_gpu');
+      expect(keys).to.not.include('force_low_power_gpu');
+    });
+  });
+
+  it('Windows: TM_ELECTRON_ANGLE=gl selects the OpenGL ANGLE backend', () => {
+    process.env.TM_ELECTRON_ANGLE = 'gl';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches).to.deep.include({key: 'use-angle', value: 'gl'});
+    });
+  });
+
+  it('does not select an ANGLE backend by default', () => {
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches.map((s) => s.key)).to.not.include('use-angle');
+    });
   });
 });
 

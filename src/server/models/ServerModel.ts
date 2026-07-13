@@ -220,6 +220,10 @@ export class Server {
       // this player's production phase, for the premium paired transition
       // animation. Already a serialized EnergyHeatConversionModel (or undefined).
       energyHeatConversion: player.energyHeatConversion,
+      // Self-only + transient: the start-of-game corporation setup (starting
+      // bonuses + card payment) for the premium start-flow reveal stages.
+      // Already a serialized StartingSetupModel (or undefined).
+      startingSetup: player.startingSetup,
     };
     return rv;
   }

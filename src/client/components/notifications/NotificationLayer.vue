@@ -89,6 +89,7 @@ import {
   resetTerraformingCelebration,
   terraformingCelebrationState,
 } from '@/client/components/gameProgress/terraformingCelebration';
+import {resetStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
 import {scaleBonusRewardKey} from '@/client/components/board/scaleBonusZones';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
@@ -343,6 +344,7 @@ export default defineComponent({
         resetNotifications();
         resetTerraformingCelebration(); // same boundary — a different game opened in-session
         resetMaCeremony();
+        resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
         resetMarsBotArchive(); // stale turn scripts belong to the previous game
         resetBotStaging(); // a stale staging window must not swallow the new game's commits
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game

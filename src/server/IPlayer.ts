@@ -31,6 +31,7 @@ import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel'
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {StartingSetupModel} from '../common/models/StartingSetupModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
 import {Message} from '../common/logs/Message';
@@ -157,6 +158,16 @@ export interface IPlayer {
    * EnergyHeatConversionModel.
    */
   energyHeatConversion: EnergyHeatConversionModel | undefined;
+  /**
+   * Transient (NOT serialized) snapshot of the start-of-game setup applied by
+   * this player's corporation — its starting bonuses + the M€ paid for the
+   * bought project cards, over the pre-corp baseline. Set in
+   * `playCorporationCard`, serialized self-only in the player model, cleared at
+   * the start of the next input (Player.process). Drives the premium start
+   * flow's explicit "apply corporation" / "pay for cards" reveal stages. See
+   * StartingSetupModel.
+   */
+  startingSetup: StartingSetupModel | undefined;
   playedCards: PlayedCards;
   cardCost: number;
   // This will eventually replace playedCards.

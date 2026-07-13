@@ -127,6 +127,7 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {SelectInitialCardsResponse, InputResponse} from '@/common/inputs/InputResponse';
 import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
+import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {shouldPreserveCardPickModal} from '@/client/components/draftWaitState';
 import {initialDraftSharedState, isInitialDraftAwaiting} from '@/client/components/initialDraft/initialDraftSharedState';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -745,6 +746,10 @@ export default defineComponent({
              * подтвердивший игрок), идём по стандартному playerkey++ path —
              * overlay снимается мгновенно.
              */
+            // Prime the start-of-game setup reveal BEFORE committing — the
+            // final initial-cards confirm lands the ceremony view here, so the
+            // panel shows the pre-corp baseline without a flash. Idempotent.
+            primeStartSetupReveal(root.playerView, newPlayerView);
             // Structural sharing (viewSnapshotShare.ts): unchanged branches
             // keep their references; root identity changes.
             const applied = nextViewSnapshot(root.playerView, newPlayerView);

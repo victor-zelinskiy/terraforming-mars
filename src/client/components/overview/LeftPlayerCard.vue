@@ -197,6 +197,7 @@ import {
 } from './playerStatusPresenter';
 import PlayerStatusGlyph from './PlayerStatusGlyph.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -401,7 +402,10 @@ export default defineComponent({
       return this.player.victoryPointsBreakdown.total;
     },
     tr(): number {
-      return this.player.terraformRating;
+      // During the start-of-game setup reveal, show the staged TR (a corp that
+      // grants starting TR animates its delta chip like the resources do).
+      const override = startSetupOverrideFor(this.player.color);
+      return override !== undefined ? override.terraformRating : this.player.terraformRating;
     },
     // 1-based label для бэйджа «N-й ход». i18n берёт параметризованный
     // ключ «Turn ${0}» (см. ru/ui.json), CSS уже добавит cyan-glass

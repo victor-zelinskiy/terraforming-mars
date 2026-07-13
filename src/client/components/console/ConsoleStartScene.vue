@@ -217,17 +217,31 @@
                  :data-zoom-slot="corp.name"
                  :class="{
                    'con-start__corp--focused': isFocused('corp', corp.name),
-                   'con-start__corp--ready': corp.status === 'ready',
-                   'con-start__corp--done': corp.status === 'done',
-                   'con-start__corp--pending': corp.status !== 'done' && corp.status !== 'ready',
+                   'con-start__corp--reveal': setupRevealActive && corp.name === setupRevealCorp,
+                   'con-start__corp--ready': !setupRevealActive && corp.status === 'ready',
+                   'con-start__corp--done': !setupRevealActive && corp.status === 'done',
+                   'con-start__corp--pending': !setupRevealActive && corp.status !== 'done' && corp.status !== 'ready',
                  }">
               <Card :card="{name: corp.name}" :key="corp.name" />
-              <span v-if="corp.status === 'done'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Effect applied') }}</span>
-              <span v-else-if="corp.status !== 'ready'" class="con-cards__pickband con-cards__pickband--awaiting">{{ $t('Awaiting') }}</span>
-              <div v-if="corp.status === 'ready'" class="con-cards__verdict con-cards__verdict--ok">
-                <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
-                <span>{{ $t('Apply effect') }}</span>
-              </div>
+              <!-- Start-of-game setup reveal: the corporation's starting bonuses
+                   (and the card payment) are applied as EXPLICIT A-presses here,
+                   before the first-turn effect badges below ever matter. Each
+                   press animates the left resource panel with delta chips. -->
+              <template v-if="setupRevealActive && corp.name === setupRevealCorp">
+                <div class="con-cards__verdict con-cards__verdict--ok con-start__corp-reveal-cta">
+                  <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
+                  <span v-if="setupRevealStage === 'baseline'">{{ $t('Apply corporation') }}</span>
+                  <span v-else class="con-start__corp-pay">{{ $t('Pay for bought cards') }}: −{{ setupPaymentAmount }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                </div>
+              </template>
+              <template v-else>
+                <span v-if="corp.status === 'done'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Effect applied') }}</span>
+                <span v-else-if="corp.status !== 'ready'" class="con-cards__pickband con-cards__pickband--awaiting">{{ $t('Awaiting') }}</span>
+                <div v-if="corp.status === 'ready'" class="con-cards__verdict con-cards__verdict--ok">
+                  <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
+                  <span>{{ $t('Apply effect') }}</span>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -264,7 +278,9 @@
               </div>
             </div>
 
-            <!-- The prelude progress rail (context + hand-mode targets). -->
+            <!-- The prelude progress rail (context + hand-mode targets). While
+                 the setup reveal runs the preludes wait (dimmed) — they become
+                 playable only after the corp bonus + payment are applied. -->
             <div v-if="preludeRail.length > 0" class="con-start__preludes">
               <div class="con-start__section-title">{{ $t('Preludes') }}</div>
               <div class="con-start__prelude-grid">
@@ -275,8 +291,9 @@
                      :class="{
                        'con-start__prelude--focused': isFocused('prelude', entry.name),
                        'con-start__prelude--played': entry.status === 'played',
-                       'con-start__prelude--playable': entry.status === 'playable' && !entry.blocked,
+                       'con-start__prelude--playable': !setupRevealActive && entry.status === 'playable' && !entry.blocked,
                        'con-start__prelude--awaiting': entry.status === 'awaiting' || entry.blocked,
+                       'con-start__prelude--reveal-wait': setupRevealActive && entry.status !== 'played',
                      }">
                   <Card :card="{name: entry.name}" :key="entry.name" lightweight />
                   <!-- P18: the played prelude wears the unified «Разыграна»
@@ -372,6 +389,10 @@ import {
   startFlowCorpPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
+import {
+  advanceStartSetupReveal, startSetupCorporation, startSetupPaymentAmount, startSetupRevealState,
+} from '@/client/components/startGameFlow/startSetupRevealState';
+import {StartSetupStage} from '@/client/components/startGameFlow/startSetupRevealModel';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -576,6 +597,26 @@ export default defineComponent({
     preludeRail(): ReadonlyArray<PreludeEntry> {
       return this.mode === 'ceremony' ? preludeEntries(this.playerView) : [];
     },
+    // ── start-of-game setup reveal ───────────────────────────────────
+    /** The explicit "apply corporation" / "pay for cards" reveal is running for
+     *  THIS player's ceremony — the preludes wait until it completes. */
+    setupRevealActive(): boolean {
+      return this.mode === 'ceremony' &&
+        startSetupRevealState.active &&
+        startSetupRevealState.color !== '' &&
+        startSetupRevealState.color === this.playerView.thisPlayer?.color;
+    },
+    setupRevealStage(): StartSetupStage {
+      return startSetupRevealState.stage;
+    },
+    /** The corporation being revealed (the base corp — its setup drove the snapshot). */
+    setupRevealCorp(): CardName | undefined {
+      return startSetupCorporation() ?? this.corps[0]?.name;
+    },
+    /** M€ paid for the bought project cards (for the payment-stage affordance). */
+    setupPaymentAmount(): number {
+      return startSetupPaymentAmount();
+    },
     /** The live pick prompt (draw-1-of-N / Double Down copy / Merger corp). */
     candidatePrompt(): SelectCardModel | undefined {
       if (this.mode !== 'ceremony') {
@@ -610,6 +651,16 @@ export default defineComponent({
     focusables(): Array<Focusable> {
       const out: Array<Focusable> = [];
       if (this.mode !== 'ceremony') {
+        return out;
+      }
+      // During the setup reveal the ONLY actionable item is the corporation card
+      // — A applies its starting bonuses, then (if cards were bought) pays for
+      // them. The preludes are shown dimmed and become playable only after.
+      if (this.setupRevealActive) {
+        const corp = this.setupRevealCorp;
+        if (corp !== undefined) {
+          out.push({kind: 'corp', name: corp, disabled: false});
+        }
         return out;
       }
       if (this.candidatePrompt !== undefined) {
@@ -700,6 +751,13 @@ export default defineComponent({
         hints.push({control: 'back', label: 'Minimize'});
         return hints;
       }
+      // Setup reveal: the ONE press applies the corp bonus, then pays for cards.
+      if (this.setupRevealActive) {
+        return [
+          {control: 'confirm', label: this.setupRevealStage === 'baseline' ? 'Apply corporation' : 'Pay for bought cards'},
+          {control: 'back', label: 'Minimize'},
+        ];
+      }
       return [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Select', enabled: this.focusables.length > 0},
@@ -763,14 +821,27 @@ export default defineComponent({
         setConsoleStartCommands(hints);
       },
     },
+    /** In CEREMONY mode the scene yields the left rail (+ top HUD) so the player
+     *  watches the corp bonus / card payment land with delta chips. */
+    mode: {
+      immediate: true,
+      handler() {
+        void this.$nextTick(() => this.syncCeremonyLayout());
+      },
+    },
   },
   mounted() {
-    void this.$nextTick(() => this.fitCardStrip());
+    void this.$nextTick(() => {
+      this.fitCardStrip();
+      this.syncCeremonyLayout();
+    });
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
   },
   beforeUnmount() {
+    document.body.classList.remove('con-start-ceremony');
+    document.body.style.removeProperty('--con-start-rail-inset');
     this.stopStripObs?.();
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
@@ -1018,6 +1089,29 @@ export default defineComponent({
       const focused = body?.querySelector('.con-start__corp--focused, .con-start__prelude--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     },
+    /**
+     * CEREMONY layout: yield the left resource panel (+ top HUD) so the start
+     * reveal's delta chips are visible. Toggles the body class (which lifts the
+     * rail / status strip above the scene in console.less) and measures the
+     * rail's right edge into `--con-start-rail-inset` (robust across profiles) so
+     * the scene's frame + backdrop start just after it. The wizard (card
+     * selection) keeps the full width — the reveal stages live in the ceremony.
+     */
+    syncCeremonyLayout(): void {
+      const isCeremony = this.mode === 'ceremony';
+      document.body.classList.toggle('con-start-ceremony', isCeremony);
+      if (!isCeremony) {
+        document.body.style.removeProperty('--con-start-rail-inset');
+        return;
+      }
+      const rail = document.querySelector('.con-res-host');
+      if (rail !== null) {
+        const right = rail.getBoundingClientRect().right;
+        if (right > 0) {
+          document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 14)}px`);
+        }
+      }
+    },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -1027,6 +1121,7 @@ export default defineComponent({
       requestAnimationFrame(() => {
         this.fitScheduled = false;
         this.fitCardStrip();
+        this.syncCeremonyLayout();
       });
     },
     /** The vertical allowance the verdict bar will take under the strip.
@@ -1347,8 +1442,16 @@ export default defineComponent({
         this.state.stepIdx = this.railPos - 1;
       }
     },
-    /** Ceremony A: play a prelude / apply the corp effect / pick a candidate. */
+    /** Ceremony A: advance the setup reveal / play a prelude / apply the corp
+     *  effect / pick a candidate. */
     actOnFocused(): void {
+      // The setup reveal is a client-side staged animation (the server already
+      // applied the corp bonus + payment): A steps baseline → corp → done, each
+      // step firing the left-panel delta chips. No server round-trip.
+      if (this.setupRevealActive) {
+        advanceStartSetupReveal();
+        return;
+      }
       const item = this.focusedItem;
       if (item !== undefined) {
         this.actByName(item.name);

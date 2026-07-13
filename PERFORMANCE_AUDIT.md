@@ -215,3 +215,34 @@ The trace's remaining cost is rendering/compositing, so the highest-value deskto
 `UpdateLayoutTree` 8269 ms (card-mount style recalc) + the 494 ms overlay-open JS task — both need reducing the number of cards styled/mounted at once (windowing/virtualization in the Played/Hand/CardSelection overlays) — a larger, riskier change. `contain`/`content-visibility` were considered and deferred (`content-visibility` corrupts the fit-loop `scrollHeight`; `contain: paint` clips card badges — the documented atmosphere-edge regression class). The `filter:`×549 continuous cost is now GPU-rasterized in Electron.
 
 Verified clean (do NOT re-investigate): `realtimeService`/`realtimeSync`/`realtimePoller` teardown + coalescing (RT6/7/8), `useBoardAutoScale` (B7 applied), `will-change` discipline, `aresMarkerGlide` rAF self-termination, VP overlay + Journal (no fit thrash), no deep-watch storm on `playerView`, no `JSON`/`structuredClone` in hot paths, `core-js` not bundled.
+
+---
+
+## Iteration 3 — Windows smoothness: the GPU/DWM path, not the hardware (2026-07-13)
+
+**The symptom:** the Electron client is noticeably SMOOTHER on a Steam Deck (weak APU, Linux) than on a much more powerful Windows laptop. This is a rendering-PATH problem, not a compute one — and the trace already proved the remaining cost is compositing, not JS.
+
+**Root-cause framing (why the Deck wins):** our own `perf.ts` runs the Deck on `--disable-gpu` + multi-threaded SOFTWARE raster — a clean, predictable compositor with NO DWM. Windows goes through the full GPU path (Chromium GPU proc → ANGLE **D3D11** → **DirectComposition** → **DWM**), which on the target box hits ALL THREE known Windows potholes at once:
+- **A. NVIDIA packaged-`.exe` throttle** — the driver misclassifies a packaged Electron `.exe` as a background app and caps it (often ~30 FPS) EVEN in focus (electron/electron#50469). We ship a packaged `.exe`. Explains "smooth in `electron .` dev, choppy in the installer".
+- **B. DWM + MPO flip-model thrash** — MPO dynamically flips `Composed: Flip` ↔ `Hardware Composed: Independent Flip` for LOW-FPS apps (a board game IS one). Mass-reported on **Win11 24H2**. Fix: `HKLM\SOFTWARE\Microsoft\Windows\Dwm\OverlayMinFPS`(DWORD)`=0` + restart `dwm.exe`.
+- **C/D. Wrong-GPU + high-refresh pacing** — `force_high_performance_gpu` is unreliable AND, on a hybrid-NVIDIA laptop whose panel is wired to the iGPU, forcing the dGPU adds a cross-adapter copy that can WORSEN pacing on a 120–165 Hz screen. Our prior unconditional force may have been hurting.
+
+Confirmed target config: **hybrid NVIDIA + iGPU · 120–165 Hz · Win11 24H2** = the perfect storm of A + B + C/D simultaneously.
+
+### SHIPPED — env-gated A/B knobs in `electron/perf.ts` (default behaviour UNCHANGED, measure-first)
+No default is changed blind (§17). Two switches became env-configurable so the causes can be isolated on-device WITHOUT a logic rebuild:
+- **`TM_ELECTRON_GPU=high|low|none`** — GPU SELECTION is now switchable (was a hardcoded `force_high_performance_gpu`). `high` (DEFAULT) = prior behaviour (discrete); `low` = `force_low_power_gpu` (integrated — often smoother for a light 2D app on a laptop, and sidesteps the NVIDIA background-throttle if it's the dGPU being throttled); `none` = let the OS/driver decide. GPU rasterization/zero-copy/2d-canvas stay on regardless.
+- **`TM_ELECTRON_ANGLE=gl|vulkan|d3d11on12|d3d9`** (+ lower-level `TM_ELECTRON_GL`) — ANGLE backend selection was Linux-ONLY (gated inside `if (platform==='linux')`), so Windows could not test OpenGL at all. Now CROSS-PLATFORM. `gl` = native OpenGL (Chrome's own flag: "higher performance … particularly on NVIDIA"); can SIDESTEP the D3D11→DirectComposition→DWM path that carries the MPO/pacing jank. NOT a safe default (D3D11 is the most-tested path; a wrong combo silently falls back) — env-gated, always confirm in `chrome://gpu`. On Linux, setting `TM_ELECTRON_ANGLE` now also flips `linuxGpuTest` on (so `use-angle` isn't dead under the default `--disable-gpu`).
+- Already-present aggressive opt-ins reused for this box: `TM_ELECTRON_UNCAP_FPS=1` (drop the 60-cap on a high-refresh panel), `TM_ELECTRON_FORCE_GPU=1` (remove the software fallback — verify only).
+
+Guarded by `tests/electron/perf.spec.ts` (12 passing: GPU=low→`force_low_power_gpu`, GPU=none→neither, default→discrete, ANGLE=gl→`use-angle=gl`, none-by-default). `electron:build:main` (tsc) clean.
+
+### On-device test matrix (for the target laptop — change ONE knob at a time, compare via PresentMon / DevTools FPS)
+1. **Diagnose first:** `chrome://gpu` (`GL_RENDERER` = which card? `gpu_compositing` = hw vs software?) + our `logGpuStatus()` startup line + PresentMon (`Presentation Mode` — is it thrashing off `Independent Flip`? actual FPS/jitter).
+2. `OverlayMinFPS=0` registry + restart dwm.exe (targets B directly — the community's preferred fix over disabling HW accel/MPO).
+3. NVIDIA Control Panel → "Background Application Max Frame Rate" = Off (targets A).
+4. `TM_ELECTRON_GPU=low` (iGPU) vs `none` vs default `high` — which pacing is smoothest for our 2D scene.
+5. `TM_ELECTRON_ANGLE=gl` (then `d3d11on12`, `vulkan`) — sidestep the DirectComposition path; confirm it took in `chrome://gpu`.
+6. `TM_ELECTRON_UNCAP_FPS=1` — high-refresh pointer/scroll smoothness.
+
+Once the winning combo is known on-device, promote it to a Windows default (guarded, look-preserving) — that is the follow-up after the user's A/B run.

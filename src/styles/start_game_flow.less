@@ -522,6 +522,28 @@
         0 0 24px rgba(95, 214, 166, 0.24),
         0 10px 26px rgba(0, 0, 0, 0.45);
 }
+/* Start-of-game setup reveal → mint attention glow (a positive gain step: apply
+   the corp bonus, then pay for the bought cards). */
+.start-game-flow__corp-item .start-game-flow__card-thumb--reveal {
+    box-shadow:
+        0 0 0 1px rgba(108, 240, 172, 0.6),
+        0 0 30px rgba(95, 214, 166, 0.30),
+        0 10px 26px rgba(0, 0, 0, 0.45);
+    animation: start-game-flow-card-glow 2.8s ease-in-out infinite;
+}
+/* The payment affordance names the exact cost (−N M€) before the player clicks. */
+.start-game-flow__pay-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    .resource_icon--megacredits { width: 18px; height: 18px; }
+}
+/* The preludes WAIT (dimmed, non-interactive) while the corp bonus / card
+   payment reveal runs — they become playable only after it completes. */
+.start-game-flow__prelude--reveal-wait .start-game-flow__card-thumb {
+    opacity: 0.5;
+    filter: saturate(0.55) brightness(0.82);
+}
 
 /* Corp status caption — a premium pill badge, not bare text. */
 .start-game-flow__corp-status {

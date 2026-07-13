@@ -8695,6 +8695,22 @@ html.console-mode {
    the shared .con-cards inspector/filmstrip, the corp column and prelude
    progress rail. Deliberately CINEMATIC but calm: one dealt-in stagger on
    entry, cross-fades between steps, no looping motion. */
+/* ── Start-of-game setup reveal: yield the left resource panel + top HUD ──
+   In CEREMONY mode (the corp-bonus / card-payment reveal + preludes) the scene
+   steps aside for the left rail and the top status strip so the player WATCHES
+   the delta chips land — it occupies everything to the RIGHT of the rail. The
+   rail + strip are lifted above the scene (z 11480), and the scene's frame +
+   backdrop are inset by the measured rail width (`--con-start-rail-inset`, set
+   by ConsoleStartScene.syncCeremonyLayout — robust across profiles). The wizard
+   (card selection) is untouched: it keeps the full width. */
+body.con-start-ceremony {
+    .con-status { position: relative; z-index: 11490; }
+    .con-res-host { z-index: 11490; }
+    /* Padding shifts BOTH the centred frame AND the absolute backdrop (its
+       containing block is the padding box), so the rail strip stays clean. */
+    .con-start { padding-left: var(--con-start-rail-inset, 0); }
+}
+
 .con-start {
     position: fixed;
     inset: 0;
@@ -9066,6 +9082,12 @@ html.console-mode {
         &--ready {
             box-shadow: inset 0 0 0 1px fade(@con-cyan, 35%);
         }
+        /* Start-of-game setup reveal: the corp is the ONE actionable card (apply
+           bonus → pay for cards). A calm mint aura — it's a positive gain step,
+           not a hostile prompt — and the body stays FULL brightness. */
+        &--reveal {
+            box-shadow: inset 0 0 0 1px fade(@con-mint, 40%), 0 0 22px fade(@con-mint, 12%);
+        }
         &--focused {
             box-shadow: 0 0 0 2px fade(@con-cyan, 85%), 0 0 26px fade(@con-cyan, 25%);
         }
@@ -9080,6 +9102,18 @@ html.console-mode {
             opacity: 0.55;
             filter: saturate(0.6) brightness(0.85);
         }
+    }
+    /* The setup-reveal affordance under the corp card (apply / pay). Reuses the
+       verdict pill; the payment line carries the −N M€ so the player sees the
+       exact cost BEFORE pressing A. */
+    &__corp-reveal-cta {
+        margin-top: 2px;
+    }
+    &__corp-pay {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        .con-start__mc { width: 17px; height: 17px; }
     }
     &__right {
         flex: 1;
@@ -9119,6 +9153,12 @@ html.console-mode {
         &--awaiting > :is(.card-container, .pcard) {
             opacity: 0.6;
             filter: saturate(0.6) brightness(0.85);
+        }
+        /* The preludes WAIT while the corp bonus / card payment reveal runs —
+           dimmed + non-interactive (not in the focus ring) until it completes. */
+        &--reveal-wait > :is(.card-container, .pcard) {
+            opacity: 0.5;
+            filter: saturate(0.5) brightness(0.8);
         }
         &--focused {
             transform: translateY(-4px);

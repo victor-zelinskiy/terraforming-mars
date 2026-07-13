@@ -55,6 +55,7 @@ import {Message} from '@/common/logs/Message';
 import {translateText} from '@/client/directives/i18n';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
+import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {vueRoot} from '@/client/components/vueRoot';
 import {
   draftWaitState,
@@ -394,6 +395,10 @@ export default defineComponent({
      */
     applyPlayerViewUpdate(newPlayerView: PlayerViewModel): void {
       const root = vueRoot(this);
+      // Prime the start-of-game setup reveal BEFORE committing (the initial-cards
+      // submit lands the ceremony view here on desktop). Idempotent with the
+      // poll / WaitingFor paths.
+      primeStartSetupReveal(root.playerView, newPlayerView);
       // Structural sharing (viewSnapshotShare.ts): unchanged branches keep
       // their references (children skip re-render); root identity changes.
       const applied = nextViewSnapshot(root.playerView, newPlayerView);

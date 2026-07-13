@@ -124,28 +124,50 @@
                    :data-test="'start-game-flow-corp-' + corp.name">
                 <div class="start-game-flow__card-thumb"
                      :class="{
-                       'start-game-flow__card-thumb--ready': corp.status === 'ready',
-                       'start-game-flow__card-thumb--applied': corp.status === 'done' && corpHadAction(corp.name),
+                       'start-game-flow__card-thumb--reveal': setupRevealActive && corp.name === setupRevealCorp,
+                       'start-game-flow__card-thumb--ready': !setupRevealActive && corp.status === 'ready',
+                       'start-game-flow__card-thumb--applied': !setupRevealActive && corp.status === 'done' && corpHadAction(corp.name),
                      }">
                   <Card :card="{name: corp.name}" />
-                  <span v-if="corp.status === 'done' && corpHadAction(corp.name)"
+                  <span v-if="!setupRevealActive && corp.status === 'done' && corpHadAction(corp.name)"
                         class="start-game-flow__played-check start-game-flow__played-check--corp"
                         aria-hidden="true">✓</span>
                 </div>
-                <div v-if="corpStatusLabelFor(corp) !== ''"
-                     class="start-game-flow__corp-status"
-                     :class="'start-game-flow__corp-status--' + corp.status">
-                  <span class="start-game-flow__corp-status-dot"></span>
-                  <span v-i18n>{{ corpStatusLabelFor(corp) }}</span>
-                </div>
-                <div v-else class="start-game-flow__corp-status-reserve" aria-hidden="true"></div>
-                <button v-if="corp.status === 'ready'"
-                        class="start-game-flow__apply-btn"
-                        @click="applyCorpEffect(corp.name)"
-                        :data-test="'start-game-flow-apply-' + corp.name">
-                  <span v-i18n>Apply effect</span>
-                </button>
-                <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
+                <!--
+                  Start-of-game setup reveal: the corporation's starting bonuses
+                  (M€ + resources + production + TR) and the M€ paid for the bought
+                  project cards are applied as EXPLICIT clicks here, each animating
+                  the left panel with delta chips — before the first-turn effect
+                  ('Apply effect') below ever matters (goal: inform the player).
+                -->
+                <template v-if="setupRevealActive && corp.name === setupRevealCorp">
+                  <div class="start-game-flow__corp-status start-game-flow__corp-status--ready">
+                    <span class="start-game-flow__corp-status-dot"></span>
+                    <span v-i18n>{{ setupRevealStage === 'baseline' ? 'Apply corporation' : 'Pay for bought cards' }}</span>
+                  </div>
+                  <button class="start-game-flow__apply-btn start-game-flow__apply-btn--reveal"
+                          @click="advanceSetupReveal"
+                          data-test="start-game-flow-setup-reveal">
+                    <span v-if="setupRevealStage === 'baseline'" v-i18n>Apply corporation</span>
+                    <span v-else class="start-game-flow__pay-line"><span v-i18n>Pay for bought cards</span>: −{{ setupPaymentAmount }}<i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
+                  </button>
+                </template>
+                <template v-else>
+                  <div v-if="corpStatusLabelFor(corp) !== ''"
+                       class="start-game-flow__corp-status"
+                       :class="'start-game-flow__corp-status--' + corp.status">
+                    <span class="start-game-flow__corp-status-dot"></span>
+                    <span v-i18n>{{ corpStatusLabelFor(corp) }}</span>
+                  </div>
+                  <div v-else class="start-game-flow__corp-status-reserve" aria-hidden="true"></div>
+                  <button v-if="corp.status === 'ready'"
+                          class="start-game-flow__apply-btn"
+                          @click="applyCorpEffect(corp.name)"
+                          :data-test="'start-game-flow-apply-' + corp.name">
+                    <span v-i18n>Apply effect</span>
+                  </button>
+                  <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
+                </template>
               </div>
               <div v-if="mergerReserveActive && corpCards.length < 2"
                    class="start-game-flow__corp-item start-game-flow__corp-item--reserved"
@@ -197,7 +219,10 @@
               <div v-for="entry in preludes"
                    :key="entry.name"
                    class="start-game-flow__prelude"
-                   :class="'start-game-flow__prelude--' + entry.status"
+                   :class="[
+                     'start-game-flow__prelude--' + entry.status,
+                     {'start-game-flow__prelude--reveal-wait': setupRevealActive && entry.status !== 'played'},
+                   ]"
                    :data-test="'start-game-flow-prelude-' + entry.status">
                 <div class="start-game-flow__card-thumb"
                      @click.capture.stop="openZoom(entry.name)">
@@ -208,7 +233,7 @@
                      :class="'start-game-flow__prelude-status--' + entry.status">
                   <span v-i18n>{{ preludeStatusLabel(entry.status) }}</span>
                 </div>
-                <button v-if="entry.status === 'playable' && !entry.blocked"
+                <button v-if="!setupRevealActive && entry.status === 'playable' && !entry.blocked"
                         class="start-game-flow__play-btn"
                         @click="playPrelude(entry.name)"
                         :data-test="'start-game-flow-play-' + entry.name">
@@ -379,6 +404,11 @@ import {statusCode} from '@/common/http/statusCode';
 import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
+import {
+  advanceStartSetupReveal, primeStartSetupReveal, startSetupCorporation,
+  startSetupPaymentAmount, startSetupRevealState,
+} from '@/client/components/startGameFlow/startSetupRevealState';
+import {StartSetupStage} from '@/client/components/startGameFlow/startSetupRevealModel';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import Card from '@/client/components/card/CardFace.vue';
@@ -631,6 +661,25 @@ export default defineComponent({
       }
       return corporationCardNames(view).map((name) => ({name, status: corpStatusFor(view, name)}));
     },
+    // ── start-of-game setup reveal ───────────────────────────────────
+    /** The explicit "apply corporation" / "pay for cards" reveal is running for
+     *  THIS player — the preludes wait until it completes. */
+    setupRevealActive(): boolean {
+      const view = this.playerViewTyped;
+      return view !== undefined &&
+        startSetupRevealState.active &&
+        startSetupRevealState.color !== '' &&
+        startSetupRevealState.color === view.thisPlayer?.color;
+    },
+    setupRevealStage(): StartSetupStage {
+      return startSetupRevealState.stage;
+    },
+    setupRevealCorp(): CardName | undefined {
+      return startSetupCorporation() ?? this.corpCards[0]?.name;
+    },
+    setupPaymentAmount(): number {
+      return startSetupPaymentAmount();
+    },
     // Merger's 'choose a corporation' candidates (disabled = unaffordable).
     corpSelectCandidates(): ReadonlyArray<{name: CardName, disabled: boolean}> {
       const view = this.playerViewTyped;
@@ -847,6 +896,12 @@ export default defineComponent({
       }
       this.onsave({type: 'or', index, response: {type: 'option'}});
     },
+    // Advance the start-of-game setup reveal (baseline → corp → done). A pure
+    // client-side staged animation of what the server already applied — each
+    // step fires the left-panel delta chips. No server round-trip.
+    advanceSetupReveal(): void {
+      advanceStartSetupReveal();
+    },
     // Merger: pick one of the dealt corporations to merge into the tableau.
     selectMergerCorp(name: CardName): void {
       this.onsave({type: 'card', cards: [name]});
@@ -921,6 +976,10 @@ export default defineComponent({
      */
     applyPlayerViewUpdate(newPlayerView: PlayerViewModel): void {
       const root = vueRoot(this);
+      // Prime the start-of-game setup reveal BEFORE committing, so the panel
+      // shows the pre-corp baseline the instant the ceremony view lands (no
+      // flash of the final corp-applied numbers). Idempotent with the poll path.
+      primeStartSetupReveal(root.playerView, newPlayerView);
       // Structural sharing (viewSnapshotShare.ts): unchanged branches keep
       // their references; root identity changes.
       root.playerView = nextViewSnapshot(root.playerView, newPlayerView);

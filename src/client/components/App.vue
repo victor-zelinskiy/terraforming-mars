@@ -374,6 +374,7 @@ import {
   isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {isTradeFleetActive} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
@@ -851,6 +852,16 @@ export default defineComponent({
            * re-entrancy guard above keeps a concurrent poll from committing
            * mid-animation.
            */
+          /*
+           * Start-of-game setup reveal (poll path). In multiplayer the viewer's
+           * corp setup is applied when the LAST player submits their initial
+           * cards, so it lands via this poll — prime the panel override at its
+           * baseline before committing. Non-gating; idempotent (dedup) with the
+           * submit path.
+           */
+          if (path === paths.PLAYER) {
+            primeStartSetupReveal(prevView, model as PlayerViewModel);
+          }
           const conversionEvent = path === paths.PLAYER ?
             detectEnergyConversion(prevView, model as PlayerViewModel) :
             undefined;

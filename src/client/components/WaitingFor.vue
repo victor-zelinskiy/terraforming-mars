@@ -158,6 +158,7 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
+import {primeStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {
   abortTradeFleet,
   detectTradeFleet,
@@ -663,6 +664,15 @@ export default defineComponent({
             })) {
               return;
             }
+            /*
+             * Start-of-game setup reveal. When this submit lands the ceremony
+             * view (the corp just applied its bonuses + card payment), prime the
+             * panel override at its baseline SYNCHRONOUSLY — before the commit —
+             * so the left panel shows the pre-corp numbers, then reveals the corp
+             * bonus + payment as explicit staged A-presses. Non-gating (the
+             * ceremony is interactive); idempotent (dedup) with the poll path.
+             */
+            primeStartSetupReveal(this.playerView, newView);
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,

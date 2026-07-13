@@ -2,16 +2,16 @@
   <div class="resource_items_cont">
     <player-resource
       :type="Resource.MEGACREDITS"
-      :count="player.megacredits"
-      :production="player.megacreditProduction"
+      :count="effectivePlayer.megacredits"
+      :production="effectivePlayer.megacreditProduction"
       :resourceProtection="player.protectedResources.megacredits"
       :productionProtection="player.protectedProduction.megacredits"
       :scopeKey="player.color"
       :epoch="epoch"/>
     <player-resource
       :type="Resource.STEEL"
-      :count="player.steel"
-      :production="player.steelProduction"
+      :count="effectivePlayer.steel"
+      :production="effectivePlayer.steelProduction"
       :value="player.steelValue"
       :resourceProtection="player.protectedResources.steel"
       :productionProtection="player.protectedProduction.steel"
@@ -20,8 +20,8 @@
     <!-- TODO LUNA TRADE FEDERATION -->
     <player-resource
       :type="Resource.TITANIUM"
-      :count="player.titanium"
-      :production="player.titaniumProduction"
+      :count="effectivePlayer.titanium"
+      :production="effectivePlayer.titaniumProduction"
       :value="player.titaniumValue"
       :resourceProtection="player.protectedResources.titanium"
       :productionProtection="player.protectedProduction.titanium"
@@ -66,8 +66,8 @@
          @blur="onConvertLeave">
       <player-resource
         :type="Resource.PLANTS"
-        :count="player.plants"
-        :production="player.plantProduction"
+        :count="effectivePlayer.plants"
+        :production="effectivePlayer.plantProduction"
         :resourceProtection="player.protectedResources.plants"
         :productionProtection="player.protectedProduction.plants"
         :scopeKey="player.color"
@@ -91,8 +91,8 @@
     </div>
     <player-resource
       :type="Resource.ENERGY"
-      :count="player.energy"
-      :production="player.energyProduction"
+      :count="effectivePlayer.energy"
+      :production="effectivePlayer.energyProduction"
       :resourceProtection="player.protectedResources.energy"
       :productionProtection="player.protectedProduction.energy"
       :scopeKey="player.color"
@@ -120,8 +120,8 @@
          @blur="onConvertLeave">
       <player-resource
         :type="Resource.HEAT"
-        :count="player.heat"
-        :production="player.heatProduction"
+        :count="effectivePlayer.heat"
+        :production="effectivePlayer.heatProduction"
         :value="canUseHeatAsMegaCredits ? 1 : 0"
         :resourceProtection="player.protectedResources.heat"
         :productionProtection="player.protectedProduction.heat"
@@ -166,6 +166,7 @@ import PlayerResource from '@/client/components/overview/PlayerResource.vue';
 import StandardProjectPreviewPopover from '@/client/components/journal/StandardProjectPreviewPopover.vue';
 import {Resource} from '@/common/Resource';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
+import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 
 type ConvertResourcesModel = {
   // Which convert button is currently hovered / focused (drives the
@@ -230,6 +231,18 @@ export default defineComponent({
   computed: {
     Resource(): typeof Resource {
       return Resource;
+    },
+    /**
+     * The player numbers the resource rows display. During the start-of-game
+     * setup reveal (this player's ceremony) the corp bonus + card payment are
+     * shown as staged values so the AnimatedMetricValue delta chips fire per
+     * explicit step; the canonical `player` otherwise. Only the numeric stock /
+     * production fields are overridden (spread over `player`), so protection /
+     * value / tableau stay intact.
+     */
+    effectivePlayer(): PublicPlayerModel {
+      const override = startSetupOverrideFor(this.player.color);
+      return override !== undefined ? {...this.player, ...override} : this.player;
     },
     CardName(): typeof CardName {
       return CardName;
