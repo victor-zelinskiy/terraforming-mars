@@ -18,6 +18,7 @@
 import {ViewModel, PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {StartingSetupModel} from '@/common/models/StartingSetupModel';
 import {Color} from '@/common/Color';
+import {Tag} from '@/common/cards/Tag';
 
 /**
  * The reveal stages, in order:
@@ -41,15 +42,28 @@ export type StagedSetupNumbers = Pick<PublicPlayerModel,
   'megacreditProduction' | 'steelProduction' | 'titaniumProduction' |
   'plantProduction' | 'energyProduction' | 'heatProduction' | 'terraformRating'>;
 
+/**
+ * The panel override for a stage — the numbers PLUS the tag counts (so the
+ * corporation's / preludes' tags appear in step with their bonuses, not before).
+ * At baseline the tags are empty (the corp isn't "applied" yet); at corp/done the
+ * tags field is omitted so the panel reads the canonical (real) tags.
+ */
+export type StartSetupOverride = StagedSetupNumbers & {tags?: Partial<Record<Tag, number>>};
+
 /** A fully-resolved setup ready to reveal. */
 export type StartSetupEvent = {
   readonly color: Color;
   readonly generation: number;
-  /** `${color}:${generation}` — the client dedups replays on this. */
+  /** Game session id (runId) — used to seed the change-feedback baselines. */
+  readonly runId: string;
+  /** `${color}:${generation}:${corporation}` — the client dedups replays on this
+   *  (the corp name keeps a Merger 2nd corp distinct from the base corp). */
   readonly dedupeKey: string;
   readonly snapshot: StartingSetupModel;
   /** The committed (final) values — the corp bonus AND payment already applied. */
   readonly final: StagedSetupNumbers;
+  /** The committed (final) tag counts — for seeding the tag baselines on minimize. */
+  readonly finalTags: Partial<Record<Tag, number>>;
 };
 
 function asPlayerView(view: ViewModel | undefined): PlayerViewModel | undefined {
@@ -96,9 +110,11 @@ export function readStartSetupEvent(view: ViewModel | undefined): StartSetupEven
   return {
     color,
     generation: snapshot.generation,
-    dedupeKey: `${color}:${snapshot.generation}`,
+    runId: pv.runId,
+    dedupeKey: `${color}:${snapshot.generation}:${snapshot.corporation}`,
     snapshot,
     final: numbersOf(pv.thisPlayer),
+    finalTags: pv.thisPlayer.tags ?? {},
   };
 }
 
@@ -126,8 +142,8 @@ export function hasPaymentStage(snapshot: StartingSetupModel): boolean {
   return snapshot.cardsBought > 0 && snapshot.megacreditsPaid > 0;
 }
 
-/** The staged numbers for a given reveal stage. */
-export function stagedNumbersFor(event: StartSetupEvent, stage: StartSetupStage): StagedSetupNumbers {
+/** The staged override (numbers + tags) for a given reveal stage. */
+export function stagedNumbersFor(event: StartSetupEvent, stage: StartSetupStage): StartSetupOverride {
   const {snapshot, final} = event;
   if (stage === 'baseline') {
     const b = snapshot.before;
@@ -145,15 +161,17 @@ export function stagedNumbersFor(event: StartSetupEvent, stage: StartSetupStage)
       energyProduction: b.production.energy,
       heatProduction: b.production.heat,
       terraformRating: b.terraformRating,
+      // The corporation isn't "applied" yet — its tags appear at the corp stage.
+      tags: {},
     };
   }
   if (stage === 'corp') {
-    // Corp bonuses applied, payment NOT yet: everything at final EXCEPT M€ raised
-    // back by the payment (paying for the cards is the NEXT step). The payment
-    // only ever touches M€, so no other field diverges from final here.
+    // Corp bonuses applied (incl. its tags → canonical, `tags` omitted), payment
+    // NOT yet: everything at final EXCEPT M€ raised back by the payment (paying
+    // for the cards is the NEXT step). The payment only ever touches M€.
     return {...final, megacredits: final.megacredits + snapshot.megacreditsPaid};
   }
-  // done: the final committed values (corp bonus + payment).
+  // done: the final committed values (corp bonus + payment); tags canonical.
   return final;
 }
 

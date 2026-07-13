@@ -242,7 +242,7 @@ export default defineComponent({
      */
     effectivePlayer(): PublicPlayerModel {
       const override = startSetupOverrideFor(this.player.color);
-      return override !== undefined ? {...this.player, ...override} : this.player;
+      return override !== undefined ? {...this.player, ...override} as PublicPlayerModel : this.player;
     },
     CardName(): typeof CardName {
       return CardName;

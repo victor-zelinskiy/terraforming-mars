@@ -142,7 +142,9 @@ export default defineComponent({
      */
     effectivePlayer(): PublicPlayerModel {
       const override = startSetupOverrideFor(this.player.color);
-      return override !== undefined ? {...this.player, ...override} : this.player;
+      // The override's `tags` is a partial map (baseline = empty); the readers all
+      // fall back to 0 for a missing tag, so the cast is safe.
+      return override !== undefined ? {...this.player, ...override} as PublicPlayerModel : this.player;
     },
     rows(): Array<ResourceRow> {
       const p = this.effectivePlayer;
@@ -156,7 +158,10 @@ export default defineComponent({
       ];
     },
     tagEntries(): Array<{tag: Tag, count: number}> {
-      const counts = this.player.tags;
+      // During the setup reveal the tags stage with the corp bonus (empty at
+      // baseline → the corporation's tags appear when it's applied), like the
+      // resources — the override carries the staged tag counts.
+      const counts = this.effectivePlayer.tags;
       return TAG_ORDER
         .map((tag) => ({tag, count: counts[tag] ?? 0}))
         .filter((e) => e.count > 0);

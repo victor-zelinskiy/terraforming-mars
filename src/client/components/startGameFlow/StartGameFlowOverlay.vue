@@ -405,8 +405,8 @@ import {INVALID_RUN_ID, AppErrorResponse} from '@/common/app/AppErrorId';
 import {vueRoot} from '@/client/components/vueRoot';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {
-  advanceStartSetupReveal, primeStartSetupReveal, startSetupCorporation,
-  startSetupPaymentAmount, startSetupRevealState,
+  advanceStartSetupReveal, primeStartSetupReveal, setStartSetupRevealSuspended,
+  startSetupCorporation, startSetupPaymentAmount, startSetupRevealState,
 } from '@/client/components/startGameFlow/startSetupRevealState';
 import {StartSetupStage} from '@/client/components/startGameFlow/startSetupRevealModel';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -493,6 +493,15 @@ export default defineComponent({
     };
   },
   watch: {
+    // Start-of-game setup reveal: while the overlay is COLLAPSED (minimized to a
+    // pill / a focused sub-action owns the screen) suspend the panel override so
+    // the resource cluster shows the REAL applied state, no staged snapshot.
+    collapsed: {
+      immediate: true,
+      handler(collapsed: boolean): void {
+        setStartSetupRevealSuspended(collapsed);
+      },
+    },
     // Latch activation + derive the minimize state on every view change.
     playerViewTyped: {
       immediate: true,
@@ -543,8 +552,14 @@ export default defineComponent({
       return startGameFlowActive(this.playerViewTyped);
     },
     // Collapsed either automatically (a focused sub-action owns the screen) OR
-    // manually (player pressed ↗ СВЕРНУТЬ).
+    // manually (player pressed ↗ СВЕРНУТЬ). NEVER while the setup reveal is
+    // running — its affordance lives on this overlay and must stay visible even
+    // when the waitingFor is already the next sub-action (Merger's 42 M€ payment
+    // fires as a SelectPaymentDeferred behind the 2nd-corp bonus reveal).
     collapsed(): boolean {
+      if (this.setupRevealActive) {
+        return false;
+      }
       return startGameFlowState.minimized || this.userMinimized;
     },
     showFull(): boolean {
@@ -740,7 +755,9 @@ export default defineComponent({
     },
     allDone(): boolean {
       const view = this.playerViewTyped;
-      return view !== undefined && startGameFlowAllDone(view);
+      // The setup reveal must complete first — never offer "begin the game"
+      // while the corp bonus / payment is still being revealed.
+      return view !== undefined && !this.setupRevealActive && startGameFlowAllDone(view);
     },
     // Server is processing / waiting on other players: no prompt for us, but the
     // flow isn't finished (otherwise we'd show the begin-game footer).

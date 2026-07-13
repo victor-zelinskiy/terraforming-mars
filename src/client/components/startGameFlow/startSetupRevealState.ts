@@ -21,10 +21,11 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
+import {changeFeedbackManager} from '@/client/components/feedback/changeFeedbackManager';
 import {startGameFlowEligible} from './startGameFlowState';
 import {
-  StagedSetupNumbers,
   StartSetupEvent,
+  StartSetupOverride,
   StartSetupStage,
   hasPaymentStage,
   nextStartSetupStage,
@@ -33,6 +34,23 @@ import {
   stagedNumbersFor,
 } from './startSetupRevealModel';
 
+/** Staged-field → AnimatedMetricValue metric-key, for baseline seeding. */
+const SEED_METRICS: ReadonlyArray<[keyof StartSetupOverride, string]> = [
+  ['megacredits', 'megacredits.stock'],
+  ['steel', 'steel.stock'],
+  ['titanium', 'titanium.stock'],
+  ['plants', 'plants.stock'],
+  ['energy', 'energy.stock'],
+  ['heat', 'heat.stock'],
+  ['megacreditProduction', 'megacredits.production'],
+  ['steelProduction', 'steel.production'],
+  ['titaniumProduction', 'titanium.production'],
+  ['plantProduction', 'plants.production'],
+  ['energyProduction', 'energy.production'],
+  ['heatProduction', 'heat.production'],
+  ['terraformRating', 'score.tr'],
+];
+
 type StartSetupRevealState = {
   /** True from `beginStartSetupReveal` until the reveal completes / resets. */
   active: boolean;
@@ -40,8 +58,14 @@ type StartSetupRevealState = {
   color: Color | '';
   /** The current reveal stage. */
   stage: StartSetupStage;
-  /** The numbers the panels display for `color` while active (the current stage). */
-  staged: StagedSetupNumbers | undefined;
+  /** The numbers + tags the panels display for `color` while active (the stage). */
+  staged: StartSetupOverride | undefined;
+  /**
+   * True while the ceremony is MINIMIZED / DEFERRED — the override is suspended
+   * so the panel shows the REAL (final) applied state for board inspection, with
+   * no chip animation (the baselines are seeded on the transition).
+   */
+  suspended: boolean;
   /** Bumped on each begin so any observer can re-key. */
   nonce: number;
 };
@@ -51,6 +75,7 @@ export const startSetupRevealState = reactive<StartSetupRevealState>({
   color: '',
   stage: 'baseline',
   staged: undefined,
+  suspended: false,
   nonce: 0,
 });
 
@@ -124,7 +149,52 @@ export function beginStartSetupReveal(event: StartSetupEvent): void {
   startSetupRevealState.color = event.color;
   startSetupRevealState.stage = 'baseline';
   startSetupRevealState.staged = stagedNumbersFor(event, 'baseline');
+  startSetupRevealState.suspended = false;
   startSetupRevealState.nonce++;
+}
+
+/** Seed the change-feedback baselines to `numbers` so a subsequent panel value
+ *  swap to those numbers fires NO delta chip (mirrors energyConversion's seed). */
+function seedRevealBaselines(numbers: StartSetupOverride): void {
+  const event = currentEvent;
+  if (event === undefined) {
+    return;
+  }
+  const scope = `${event.runId}|${event.color}`;
+  for (const [field, key] of SEED_METRICS) {
+    changeFeedbackManager.setBaseline(scope, key, numbers[field] as number);
+  }
+  // Tags too (the desktop tag cluster chips): the override carries them only at
+  // baseline (empty); otherwise the panel shows the canonical (final) tags.
+  const staged = numbers.tags as Record<string, number> | undefined;
+  const finalTags = event.finalTags as Record<string, number>;
+  for (const tag of Object.keys(finalTags)) {
+    const value = staged !== undefined ? (staged[tag] ?? 0) : (finalTags[tag] ?? 0);
+    changeFeedbackManager.setBaseline(scope, `tag.${tag}`, value);
+  }
+}
+
+/**
+ * Minimize / restore the reveal. While suspended the panel shows the REAL (final)
+ * applied state — the player minimized to inspect the game, so they must see
+ * accurate values, not a mid-reveal staged snapshot. The baselines are seeded on
+ * each transition so neither the suspend nor the restore fires a chip.
+ */
+export function setStartSetupRevealSuspended(v: boolean): void {
+  const s = startSetupRevealState;
+  if (!s.active || s.suspended === v) {
+    return;
+  }
+  if (v) {
+    // → real state: seed to the final numbers so staged→final is silent.
+    if (currentEvent !== undefined) {
+      seedRevealBaselines(currentEvent.final);
+    }
+  } else if (s.staged !== undefined) {
+    // → back to the staged step: seed to it so final→staged is silent.
+    seedRevealBaselines(s.staged);
+  }
+  s.suspended = v;
 }
 
 /**
@@ -156,6 +226,7 @@ export function endStartSetupReveal(): void {
   startSetupRevealState.active = false;
   startSetupRevealState.color = '';
   startSetupRevealState.staged = undefined;
+  startSetupRevealState.suspended = false;
   currentEvent = undefined;
 }
 
@@ -167,6 +238,7 @@ export function resetStartSetupReveal(): void {
   startSetupRevealState.color = '';
   startSetupRevealState.stage = 'baseline';
   startSetupRevealState.staged = undefined;
+  startSetupRevealState.suspended = false;
   startSetupRevealState.nonce = 0;
 }
 
@@ -176,9 +248,9 @@ export function resetStartSetupReveal(): void {
  * so both the displayed value AND the AnimatedMetricValue `:value` track the
  * stage (the chips fire from the value watcher).
  */
-export function startSetupOverrideFor(color: Color | string): StagedSetupNumbers | undefined {
+export function startSetupOverrideFor(color: Color | string): StartSetupOverride | undefined {
   const s = startSetupRevealState;
-  if (!s.active || s.color === '' || s.color !== color) {
+  if (!s.active || s.suspended || s.color === '' || s.color !== color) {
     return undefined;
   }
   return s.staged;

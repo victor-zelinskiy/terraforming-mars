@@ -32,11 +32,13 @@ function snapshot(overrides: Partial<StartingSetupModel> = {}): StartingSetupMod
 function view(startingSetup: StartingSetupModel | undefined, final: {megacredits?: number, steel?: number, terraformRating?: number} = {}): PlayerViewModel {
   return {
     startingSetup,
+    runId: 'r1',
     thisPlayer: {
       color: 'red',
       megacredits: final.megacredits ?? 21, steel: final.steel ?? 20, titanium: 0, plants: 0, energy: 0, heat: 0,
       megacreditProduction: 0, steelProduction: 0, titaniumProduction: 0, plantProduction: 0, energyProduction: 0, heatProduction: 0,
       terraformRating: final.terraformRating ?? 20,
+      tags: {building: 1},
     },
   } as unknown as PlayerViewModel;
 }
@@ -52,17 +54,25 @@ describe('startSetupRevealModel', () => {
     const event = readStartSetupEvent(view(snapshot()));
     expect(event).is.not.undefined;
     expect(event?.color).eq('red');
-    expect(event?.dedupeKey).eq('red:1');
+    // The corp name keeps a Merger 2nd corp distinct from the base corp.
+    expect(event?.dedupeKey).eq(`red:1:${CardName.INTERPLANETARY_CINEMATICS}`);
+    expect(event?.runId).eq('r1');
     expect(event?.final.megacredits).eq(21);
     expect(event?.final.steel).eq(20);
   });
 
-  it('stagedNumbersFor: baseline = pre-corp, corp = bonus (payment reversed), done = final', () => {
+  it('stagedNumbersFor: baseline = pre-corp (tags empty), corp = bonus (payment reversed, tags canonical), done = final', () => {
     const event = readStartSetupEvent(view(snapshot(), {megacredits: 21, steel: 20}))!;
     const baseline = stagedNumbersFor(event, 'baseline');
     expect(baseline.megacredits).eq(0);
     expect(baseline.steel).eq(0);
     expect(baseline.terraformRating).eq(20);
+    // The corp isn't "applied" at baseline → its tags are not shown yet.
+    expect(baseline.tags).deep.eq({});
+
+    // corp/done read the canonical tags (the override omits `tags`).
+    expect(stagedNumbersFor(event, 'corp').tags).is.undefined;
+    expect(stagedNumbersFor(event, 'done').tags).is.undefined;
 
     const corp = stagedNumbersFor(event, 'corp');
     // Corp bonus applied, payment NOT yet → M€ = final (21) + payment (9) = 30.

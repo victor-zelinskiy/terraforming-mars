@@ -6,7 +6,7 @@
             <div v-if="isEscapeVelocityOn" :class="tooltipCss" :data-tooltip="$t('Escape Velocity penalty')">
               <tag-count tag="escape" :count="escapeVelocityPenalty" :size="'big'" :type="'main'" :showWhenZero="true"/>
             </div>
-            <tag-count tag="tr" :count="player.terraformRating" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch"/>
+            <tag-count tag="tr" :count="effectivePlayer.terraformRating" :size="'big'" :type="'main'" :scopeKey="player.color" :epoch="epoch"/>
             <tag-count v-if="player.handicap !== undefined" :tag="'handicap'" :count="player.handicap" :size="'big'" :type="'main'" :showWhenZero="true"/>
             <div class="tag-and-discount">
               <PlayerTagDiscount v-if="all.discount" :amount="all.discount" :color="player.color"  :data-test="'discount-all'"/>
@@ -48,6 +48,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {vueRoot} from '@/client/components/vueRoot';
 import {CardName} from '@/common/cards/CardName';
+import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 
 type InterfaceTagsType = Tag | SpecialTags | 'separator' | 'all';
 type TagDetail = {
@@ -129,7 +130,9 @@ const getTagCount = (tagName: InterfaceTagsType, player: PublicPlayerModel): num
   case 'all':
     return -1;
   default:
-    return player.tags[tagName];
+    // `?? 0` covers the setup-reveal baseline, whose staged tags map is empty
+    // (a fresh player's real model always carries a full tag count).
+    return player.tags[tagName] ?? 0;
   }
 };
 
@@ -178,6 +181,18 @@ export default defineComponent({
     PointsPerTag,
   },
   computed: {
+    /**
+     * During the start-of-game setup reveal the tags + TR stage with the corp
+     * bonus (empty tags at baseline → the corporation's tags appear when it's
+     * applied), so the tag cluster reveals in step with the resources. Only the
+     * numeric / tag fields are overridden (spread over `player`).
+     */
+    effectivePlayer(): PublicPlayerModel {
+      const override = startSetupOverrideFor(this.player.color);
+      // The override's `tags` is a partial map (baseline = empty); getTagCount
+      // falls back to 0 for a missing tag, so the cast is safe.
+      return override !== undefined ? {...this.player, ...override} as PublicPlayerModel : this.player;
+    },
     /*
      * `tagDetails` rebuilds whenever `player` or `playerView` changes — moved
      * out of `data()` so that swapping the displayed player in LeftPlayerPanel
@@ -189,7 +204,7 @@ export default defineComponent({
 
       const interim = ORDER.map((key) => [
         key,
-        {name: key, discount: 0, points: 0, count: getTagCount(key, this.player), halfPoints: 0, asterisk: false},
+        {name: key, discount: 0, points: 0, count: getTagCount(key, this.effectivePlayer), halfPoints: 0, asterisk: false},
       ]);
       const details: TagDetails = Object.fromEntries(interim);
 

@@ -380,7 +380,13 @@ export function startGameFlowEligible(view: PlayerViewModel | undefined): boolea
     (view.pendingInitialActions ?? []).length > 0 ||
     startFlowCorpPrompt(view) !== undefined ||
     startFlowCorpSelectPrompt(view) !== undefined;
-  return owesPrelude || owesCorp;
+  // A corporation with a fresh starting-setup snapshot but NO preludes / first
+  // action (e.g. Polyphemos, preludes off) still owes an explicit bonus reveal —
+  // keep the ceremony up so its 50 M€ / production / resources are shown, not
+  // applied invisibly. The snapshot is transient (present only on the ceremony
+  // view); sticky activation keeps the flow mounted after it clears.
+  const owesReveal = view.startingSetup !== undefined;
+  return owesPrelude || owesCorp || owesReveal;
 }
 
 /**

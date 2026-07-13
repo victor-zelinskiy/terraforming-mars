@@ -594,6 +594,7 @@ import {playZoomOpen, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSw
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {isStartSetupRevealActive, setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
 import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
@@ -904,7 +905,18 @@ export default defineComponent({
         return undefined;
       }
       const task = taskFor(this.playerView);
-      return task !== undefined && SCENE_KINDS.has(task.kind) ? task : undefined;
+      if (task !== undefined && SCENE_KINDS.has(task.kind)) {
+        return task;
+      }
+      // Keep the start scene up while the corp-bonus reveal runs even when there
+      // is NO prompt ceremony behind it — a corporation with no preludes / first
+      // action (Polyphemos) or a Merger 2nd corp whose next prompt is the 42 M€
+      // payment. The scene shows the corp reveal; when it completes the scene
+      // unmounts and the underlying prompt (action menu / payment) takes over.
+      if (isStartSetupRevealActive()) {
+        return {kind: 'startSequence', prompt: 'corporationInitialAction'};
+      }
+      return undefined;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -2190,6 +2202,12 @@ export default defineComponent({
     },
   },
   watch: {
+    // Start-of-game setup reveal: while the ceremony is DEFERRED (B → inspect the
+    // board), suspend the panel override so the left rail shows the REAL applied
+    // state (not a mid-reveal staged snapshot). Restored on return.
+    'consoleState.task.deferred'(deferred: boolean) {
+      setStartSetupRevealSuspended(deferred);
+    },
     // TRADE-FLEET LAUNCH lifecycle: the composer stays mounted (dissolved via
     // `--launching`) through the whole flight; the trade overlay only fully
     // CLOSES once the ship has DOCKED (success) or the flight was recalled

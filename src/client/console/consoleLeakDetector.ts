@@ -38,6 +38,12 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // shows the drawn card, then the hand section serves the discard). The console
   // reveal is `.con-reveal` (the desktop `.draw-reveal` above is a separate DOM).
   '.con-reveal',
+  // The full-screen START SCENE owns the foreground for the whole opening. It
+  // can stay up while the underlying prompt is already the NEXT step held behind
+  // it — the corp-bonus reveal running over the action menu (Polyphemos, no
+  // preludes) or over Merger's 42 M€ payment. Any such prompt is legitimately
+  // served behind the scene (mirrors `.con-reveal`).
+  '.con-start',
   '.colonies-overlay',
   '.initial-draft-pills', // the initial-draft pipeline's own chrome
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)

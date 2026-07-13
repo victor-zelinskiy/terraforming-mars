@@ -1291,12 +1291,13 @@ export class Player implements IPlayer {
     const additionalCorp = this.playedCards.corporations().length > 0;
 
     // Snapshot the pre-corp baseline for the premium start-of-game reveal — the
-    // resource / production / TR state BEFORE any corp bonus or card payment is
-    // applied (usually all zeros, TR 20). Captured only for the FIRST corp (the
-    // reveal shows ONE setup) and never in testMode (its stock is force-overridden
-    // afterwards). The corp effect + payment below happen in one synchronous pass
-    // — the client REVEALS them as explicit paced stages from this baseline.
-    const setupBaseline = (!additionalCorp && !this.game.gameOptions.testMode) ?
+    // resource / production / TR state BEFORE this corp's bonus (+ card payment
+    // for the base corp) is applied. Captured for the base corp AND a Merger 2nd
+    // corp (each reveals its OWN bonus — the dedup key carries the corp name);
+    // never in testMode (its stock is force-overridden afterwards). The corp
+    // effect + payment below happen in one synchronous pass — the client REVEALS
+    // them as explicit paced stages from this baseline.
+    const setupBaseline = !this.game.gameOptions.testMode ?
       this.captureStartingSetupBaseline() : undefined;
 
     this.playedCards.push(corporationCard);
