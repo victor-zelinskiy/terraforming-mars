@@ -24,6 +24,7 @@
  */
 
 import {gsap} from 'gsap';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   CARD_NATURAL_W, DECK_SCALE, DealTimings, dealTotalMs, flightPlan, HANDOFF_AT, REVEAL_AT,
@@ -119,7 +120,10 @@ export function runCardDealTimeline(args: RunDealArgs): DealHandle {
     // natural-width; height matches the target's aspect so the landed proxy
     // covers the real card exactly.
     const naturalH = rect.height / scaleTo;
-    const startX = deckAnchor.x - (CARD_NATURAL_W * DECK_SCALE) / 2;
+    // The visual deck stack is rem-authored (it grows with the TV profile);
+    // the proxy's departure scale must match or the lift-off pops.
+    const deckScale = DECK_SCALE * conUiScale();
+    const startX = deckAnchor.x - (CARD_NATURAL_W * deckScale) / 2;
     const startY = deckAnchor.y;
 
     gsap.set(proxy, {
@@ -127,7 +131,7 @@ export function runCardDealTimeline(args: RunDealArgs): DealHandle {
       height: naturalH,
       x: startX,
       y: startY,
-      scale: DECK_SCALE,
+      scale: deckScale,
       rotation: plan.rotZFrom,
       autoAlpha: 0,
       transformOrigin: 'top left',

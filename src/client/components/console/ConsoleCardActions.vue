@@ -275,6 +275,7 @@ import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
@@ -790,7 +791,7 @@ export default defineComponent({
     },
     scrollList(dy: number): void {
       // Foundation: right-stick scroll through the ConsoleScrollArea API.
-      (this.$refs.list as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX);
+      (this.$refs.list as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
     },
     scrollFocusedIntoView(): void {
       const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;

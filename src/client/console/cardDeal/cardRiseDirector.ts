@@ -26,6 +26,7 @@
  */
 
 import {gsap} from 'gsap';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   CARD_NATURAL_W, DECK_SCALE, riseFlightDelayMs, RiseTimings, riseTotalMs,
@@ -116,12 +117,14 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
     const naturalH = target.height / scaleOf(target);
     const arriving = arrivalSet.has(i);
+    // Match the rem-authored deck stack's size on the TV profile.
+    const deckScale = DECK_SCALE * conUiScale();
     gsap.set(proxy, {
       width: CARD_NATURAL_W,
       height: naturalH,
-      x: arriving ? deckAnchor.x - (CARD_NATURAL_W * DECK_SCALE) / 2 : source.left,
+      x: arriving ? deckAnchor.x - (CARD_NATURAL_W * deckScale) / 2 : source.left,
       y: arriving ? deckAnchor.y : source.top,
-      scale: arriving ? DECK_SCALE : scaleOf(source),
+      scale: arriving ? deckScale : scaleOf(source),
       rotation: 0,
       autoAlpha: 0,
       transformOrigin: 'top left',

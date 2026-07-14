@@ -26,6 +26,12 @@ export type ConsoleViewport = {
   profile: ComputedRef<ConsoleLayoutProfile>,
   isHandheld: ComputedRef<boolean>,
   isLarge: ComputedRef<boolean>,
+  /** Living-room TV profile (couch distance, 1920×1080 logical space). */
+  isTv: ComputedRef<boolean>,
+  /** The TV logical-space UI scale (1 on every non-tv profile). JS geometry
+   * that must grow with the TV layout (fit ceilings, scroll steps) reads
+   * this — the CSS side consumes the same value via `--con-ui-scale`. */
+  uiScale: ComputedRef<number>,
   /** Portrait posture (a rotated handheld / dev window) — layouts may bail to compact. */
   isPortrait: Ref<boolean>,
   /** Steam-Deck-height class of viewports (≤800px tall) — the tightest budget. */
@@ -41,6 +47,8 @@ const useState = createGlobalState((): ConsoleViewport => {
     profile: computed(() => consoleLayoutState.profile),
     isHandheld: computed(() => consoleLayoutState.profile === 'handheld'),
     isLarge: computed(() => consoleLayoutState.profile === 'large'),
+    isTv: computed(() => consoleLayoutState.profile === 'tv'),
+    uiScale: computed(() => consoleLayoutState.uiScale),
     isPortrait,
     isDeckHeight: computed(() => height.value <= 800),
   };

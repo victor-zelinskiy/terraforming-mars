@@ -16,6 +16,8 @@
  * short, still-legible "launch → arrive → dock" with no arc/trail.
  */
 
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
+
 export type FleetTimings = {
   /** Pre-lift engine charge on the composer (the ship focuses + ignites). */
   chargeMs: number,
@@ -80,7 +82,7 @@ export function launchArcControl(from: Point, to: Point): Point {
   const dist = Math.hypot(dx, dy);
   // The arc bows toward "up" (screen-negative y): a fixed fraction of the
   // travel, clamped so a very short or very long hop both read as an arc.
-  const lift = Math.min(220, Math.max(70, dist * 0.32));
+  const lift = Math.min(220 * conUiScale(), Math.max(70 * conUiScale(), dist * 0.32));
   const midX = from.x + dx * 0.42; // bias the apex toward the launch side
   const midY = Math.min(from.y, to.y) - lift;
   return {x: midX, y: midY};

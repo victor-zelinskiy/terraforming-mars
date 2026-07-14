@@ -96,6 +96,23 @@ interface DesktopBridge {
   // and hides the affordances when absent.
   quitApp?(): Promise<void>;
   setFullscreen?(value: boolean): Promise<void>;
+  // TV display-profile diagnostics (TV-3) — OPTIONAL: the Electron view of
+  // the display the window sits on (bounds / scaleFactor / physical size /
+  // internal-vs-external / fullscreen). The profile heuristic itself runs
+  // on renderer signals (works on the web too); this feeds the System-menu
+  // diagnostics + the decision log with the authoritative panel data.
+  getDisplayInfo?(): Promise<DesktopDisplayInfo | undefined>;
+}
+
+export interface DesktopDisplayInfo {
+  bounds: {x: number, y: number, width: number, height: number};
+  workArea: {x: number, y: number, width: number, height: number};
+  scaleFactor: number;
+  physicalWidth: number;
+  physicalHeight: number;
+  internal: boolean;
+  label: string;
+  fullscreen: boolean;
 }
 
 declare global {

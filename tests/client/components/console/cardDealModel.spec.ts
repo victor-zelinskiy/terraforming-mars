@@ -39,7 +39,9 @@ describe('cardDealModel', () => {
   });
 
   it('geometry constants mirror the card frame', () => {
-    expect(CARD_NATURAL_W).to.eq(300);
+    // The premium `.pcard` face design box (320×460) — the deal targets are
+    // premium project/prelude cards (see cardDealModel's CARD_NATURAL_W doc).
+    expect(CARD_NATURAL_W).to.eq(320);
     expect(DECK_SCALE).to.be.within(0.2, 0.6);
   });
 });

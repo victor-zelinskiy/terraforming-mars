@@ -95,6 +95,7 @@ import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/co
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */
@@ -208,11 +209,16 @@ export default defineComponent({
       const baseH = parseFloat(cs.getPropertyValue('--coltile-base-h')) || 220;
       const cols = Math.min(Math.max(1, colonyGridCols(this.layout, count)), count);
       const rows = Math.max(1, Math.ceil(count / cols));
-      const scaleW = (availW - GRID_PAD_X - (cols - 1) * COL_GAP) / (cols * baseW);
-      const scaleH = (availH - GRID_PAD_Y - (rows - 1) * ROW_GAP) / (rows * baseH);
+      // The CSS grid gaps/padding are rem-authored (they scale with the TV
+      // profile); these constants mirror them, so they must scale too. The
+      // tile scale itself stays relative — baseW/baseH come from the CSS
+      // vars via getComputedStyle, already in scaled px.
+      const s = conUiScale();
+      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s) / (cols * baseW);
+      const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
       const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
       this.tileScale = Math.round(scale * 1000) / 1000;
-      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP + GRID_PAD_X);
+      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP * s + GRID_PAD_X * s);
     },
     scheduleFit(): void {
       if (this.fitRaf !== undefined || typeof window === 'undefined') {

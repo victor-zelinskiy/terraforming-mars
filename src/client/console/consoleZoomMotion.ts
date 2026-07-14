@@ -52,6 +52,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ZoomOrigin} from '@/client/console/consoleCardZoom';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 
 const HOLD_CLASS = 'con-zoom-hold';
 
@@ -198,7 +199,7 @@ export function playZoomOpenFlight(
   if (source === undefined) {
     // Textual / none / unresolvable slot: the inspector rise-from-depth.
     ctx.tween = gsap.fromTo(proxy,
-      {opacity: 0, x: landing.left, y: landing.top + 26, scale: 0.86, transformOrigin: '50% 60%'},
+      {opacity: 0, x: landing.left, y: landing.top + 26 * conUiScale(), scale: 0.86, transformOrigin: '50% 60%'},
       {opacity: 1, x: landing.left, y: landing.top, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
     return;
   }

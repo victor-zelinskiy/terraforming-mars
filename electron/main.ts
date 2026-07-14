@@ -14,7 +14,7 @@
 // Self-contained: imports only from 'electron', Node built-ins, and the sibling
 // protocol module — no @/ path-alias rewriting, a plain `tsc -p` compiles it.
 
-import {app, BrowserWindow, Menu, powerSaveBlocker, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
+import {app, BrowserWindow, Menu, powerSaveBlocker, screen, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
 import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {enforceVersionScopedCache} from './cacheVersion';
@@ -337,6 +337,25 @@ ipcMain.handle('desktop:setFullscreen', (_event: IpcMainInvokeEvent, value: unkn
   if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
     mainWindow.setFullScreen(value === true);
   }
+});
+// The physical display the window sits on — TV-profile diagnostics (the
+// renderer heuristics work from window.screen × devicePixelRatio; this is
+// the authoritative Electron view: bounds, scaleFactor, internal-vs-HDMI).
+ipcMain.handle('desktop:getDisplayInfo', () => {
+  if (mainWindow === undefined || mainWindow.isDestroyed()) {
+    return undefined;
+  }
+  const d = screen.getDisplayMatching(mainWindow.getBounds());
+  return {
+    bounds: d.bounds,
+    workArea: d.workArea,
+    scaleFactor: d.scaleFactor,
+    physicalWidth: Math.round(d.bounds.width * d.scaleFactor),
+    physicalHeight: Math.round(d.bounds.height * d.scaleFactor),
+    internal: d.internal,
+    label: d.label,
+    fullscreen: mainWindow.isFullScreen(),
+  };
 });
 ipcMain.handle('desktop:openExternal', (_event: IpcMainInvokeEvent, url: unknown): Promise<void> => {
   if (typeof url === 'string' && isExternalHttp(url)) {

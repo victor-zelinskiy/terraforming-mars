@@ -49,6 +49,7 @@ import {automaBlockerText} from '@/client/components/create/premium/createGameSt
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {PremiumMapMeta} from '@/client/components/create/premium/createGameMeta';
 import {BoardName} from '@/common/boards/BoardName';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 
 /** Card slot width incl. gap — keep in sync with `.cm-map` in console_menu.less. */
 const CARD_SLOT_PX = 236;
@@ -72,7 +73,7 @@ export default defineComponent({
     stripStyle(): Record<string, string> {
       // The strip's left edge is pinned at the viewport centre (CSS left:50%);
       // shift it left by the cursor card's centre so that card lands centred.
-      const offset = (this.cursor + 0.5) * CARD_SLOT_PX;
+      const offset = (this.cursor + 0.5) * CARD_SLOT_PX * conUiScale();
       return {transform: `translateX(-${offset}px)`};
     },
   },

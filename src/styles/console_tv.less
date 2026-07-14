@@ -1,0 +1,424 @@
+/*
+ * Console TV profile (`html.con-profile-tv`) — the living-room recomposition.
+ *
+ * FLAGSHIP TARGET: LG OLED42C34LA (42" 3840×2160 16:9 OLED) viewed from a
+ * couch at ~1.5–2 m, Electron fullscreen, gamepad-only. Architecturally the
+ * profile fits any ~40–48" 16:9 TV — detection + the scale model live in
+ * consoleLayoutProfile.ts (auto by PHYSICAL panel class, manual via the
+ * System menu display picker / ?consoleProfile=tv).
+ *
+ * THE SCALE MODEL (three layers, no root transform / no browser zoom):
+ *  1. LOGICAL SPACE. Every console-native stylesheet is authored in rem
+ *     (1rem = 20px logical — the project's spectre-set rem base), i.e. a
+ *     1920×1080 logical layout. `html.console-native.con-profile-tv`
+ *     multiplies the rem base by `--con-ui-scale` =
+ *     min(viewportW/1920, viewportH/1080) (owned by consoleLayoutProfile,
+ *     kept in lockstep with JS via consoleLayoutState.uiScale). The SAME
+ *     physical UI size lands on the panel whether the OS maps it as
+ *     3840×2160 (scale 2), 2560×1440 (1.33) or 1920×1080 (1). X/Y stay
+ *     uniform — 16:9 width is used by COMPOSITION, never by stretching.
+ *     JS geometry (GSAP flights, fit engines, ensureVisible) is untouched:
+ *     computed values stay plain px, so measured rects never lie.
+ *  2. EMBEDDED DESKTOP CONTENT (premium card faces, board, journal chips,
+ *     benefit glyphs) is px-authored and already integrated through
+ *     `zoom:` compensations / JS fit engines — those multiply by
+ *     `var(--con-ui-scale)` (fixed zooms here + in console.less; fit
+ *     ceilings in the engines).
+ *  3. THIS FILE — the 10-foot DESIGN pass on top of the uniform scale:
+ *     couch typography calibration, TV safe area, stronger focus, wider
+ *     16:9 compositions, OLED-friendly restraint. All values are LOGICAL
+ *     (rem @ base 20 = logical px / 20).
+ *
+ * TYPE SCALE (logical px @1080): hero 44 / title 36 / section 28–30 /
+ * body 23–24 / secondary 20 / caption 17 / floor 16. Nothing interactive
+ * below the floor. Focus rings ≥ 3–4 logical px + glow. Hit targets ≥64.
+ */
+
+/* ── 0 · The logical-space engine ─────────────────────────────────── */
+
+/* Pin the rem base the console logical space rides on (spectre.css owns
+   the 20px today — this makes the dependency explicit and survivable). */
+html.console-native {
+    font-size: 20px; /* keep-px: THE rem base — never scale this line itself */
+}
+/* The one place the TV scale enters the CSS universe. Gated on
+   console-native so legacy (non-rem) pre-game surfaces and the desktop
+   premium UI can never inherit a scaled rem base. */
+html.console-native.con-profile-tv {
+    font-size: calc(20px * var(--con-ui-scale, 1)); /* keep-px: base × scale */
+}
+
+html.con-profile-tv {
+    /* ── central TV tokens ──
+       Safe area: ~3.2% of the panel each side (clamped) — vw/vh measure the
+       PHYSICAL viewport, the rem clamps scale with the profile, so the
+       inset stays ~3% at 4K, 1440p and 1080p alike. ONE source: root
+       chrome + floating layers consume these; components never add their
+       own second safe inset. */
+    --con-safe-x: ~"clamp(1.2rem, 3.2vw, 4rem)";
+    --con-safe-y: ~"clamp(0.9rem, 3vh, 3rem)";
+    /* Couch type scale (logical px / 20). */
+    --con-t-hero: 2.2rem;      /* 44 — key numeric readouts */
+    --con-t-title: 1.8rem;     /* 36 — screen/panel titles */
+    --con-t-section: 1.45rem;  /* 29 — section heads, hero values */
+    --con-t-body: 1.15rem;     /* 23 — primary reading text */
+    --con-t-secondary: 1rem;   /* 20 — chips, rows, meta */
+    --con-t-caption: 0.85rem;  /* 17 — captions, legends */
+    --con-t-floor: 0.8rem;     /* 16 — the absolute service-text floor */
+    /* Focus & interaction */
+    --con-focus-ring: 0.18rem; /* ~3.5 logical px ring */
+    --con-hit-min: 3.2rem;     /* 64 — minimum interactive height */
+    --con-cta-h: 4.2rem;       /* 84 — key CTAs */
+}
+
+/* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
+html.con-profile-tv {
+    .con-root {
+        padding: var(--con-safe-y) var(--con-safe-x) calc(var(--con-safe-y) * 0.72);
+        gap: 0.55rem;
+    }
+    /* Floating chrome anchored to the old 1.2vh root inset follows the
+       safe area instead (single-source rule). */
+    .con-banner { top: calc(var(--con-safe-y) + 2.9rem); }
+    .con-drafttray { top: calc(var(--con-safe-y) + 3.3rem); }
+    .con-terra-event { top: calc(var(--con-safe-y) + 5.4rem); }
+
+    /* ═══ 2 · STATUS STRIP (top HUD) ══════════════════════════════ */
+    .con-status {
+        padding: 0.45rem 1.1rem;
+        gap: 1.2rem;
+
+        &__icon { width: 2rem; height: 2rem; }
+        &__value { font-size: var(--con-t-section); }
+        &__gen-label { font-size: 0.9rem; }
+        &__player { font-size: var(--con-t-body); }
+        &__terra-pct { font-size: 1.1rem; }
+    }
+
+    /* ═══ 3 · LEFT RESOURCE RAIL ══════════════════════════════════ */
+    .con-res-host {
+        --cr-pad: 0.7rem;
+        --cr-icon: 1.9rem;
+        --cr-row-py: 0.38rem;
+        --cr-rgap: 0.5rem;
+    }
+    .con-res {
+        width: 10.4rem; /* 208 logical — the wider 16:9 canvas affords it */
+
+        &__value { font-size: 1.25rem; }
+        &__prod { font-size: 0.9rem; }
+    }
+    .con-res-aux__value { font-size: 1.05rem; }
+
+    /* ═══ 4 · RIGHT CONTEXT PANEL + DASHBOARD ═════════════════════ */
+    .con-inspector {
+        max-width: 28rem;
+
+        &__name { font-size: 1.35rem; }
+        &__desc { font-size: var(--con-t-secondary); }
+    }
+    .con-home__title { font-size: var(--con-t-caption); }
+    .con-home__value b { font-size: 1.6rem; }
+    .con-home__ma { font-size: var(--con-t-secondary); }
+    .con-home__block--awards { --con-award-cols: ~"minmax(0, 1fr) 3rem 6.2rem"; }
+    .con-award-row { font-size: var(--con-t-secondary); }
+    .con-award__cube { width: 0.85rem; height: 0.85rem; }
+    .con-award__leader-val { font-size: var(--con-t-secondary); }
+    .con-award__legend-span { font-size: 0.7rem; }
+
+    /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
+    .con-cmdbar {
+        height: 3.1rem;
+        padding: 0.5rem 1.3rem;
+        gap: 1.4rem;
+
+        &__context { font-size: var(--con-t-body); }
+        &__label { font-size: var(--con-t-body); }
+        &__badge { min-width: 1.4rem; height: 1.4rem; font-size: 0.85rem; }
+        .gp-glyph {
+            min-width: 1.7rem;
+            height: 1.7rem;
+            font-size: 0.85rem;
+            &--pill { min-width: 2.3rem; }
+        }
+    }
+
+    /* ═══ 6 · RT/LT QUICK WHEELS ══════════════════════════════════ */
+    .con-quick {
+        &__kicker { font-size: 1.3rem; }
+        &__slot { min-height: var(--con-hit-min); min-width: 11rem; }
+        &__slot-label { font-size: 1.1rem; }
+        &__slot-meta { font-size: 0.9rem; }
+        &__slot-glyph { font-size: 1.6rem; }
+        &__slot-icon {
+            .bar-btn-icon { width: 2rem; height: 2rem; }
+            .resource_icon { width: 1.8rem; height: 1.8rem; }
+            .std-icon { width: 2rem; height: 2rem; }
+        }
+    }
+
+    /* ═══ 7 · HAND SECTION ════════════════════════════════════════ */
+    .con-hand {
+        &__title { font-size: 1.3rem; }
+        &__count { font-size: var(--con-t-secondary); }
+        &__playable { font-size: 0.95rem; }
+        &__reason { font-size: var(--con-t-body); }
+        &__empty-text { font-size: var(--con-t-body); }
+    }
+
+    /* ═══ 8 · CARD BROWSER / PICK STRIPS / FULLSCREEN VIEWER ══════ */
+    .con-cards {
+        &__pickband { font-size: var(--con-t-caption); }
+        &__verdict-name { font-size: 1.1rem; }
+        &__verdict { font-size: var(--con-t-caption); }
+        &__reason { font-size: var(--con-t-body); }
+    }
+    .con-zoom {
+        &__name { font-size: var(--con-t-title); }
+        &__type { font-size: var(--con-t-caption); }
+        &__desc { font-size: var(--con-t-body); }
+        &__hint { font-size: var(--con-t-secondary); }
+        &__meta { font-size: var(--con-t-secondary); }
+    }
+
+    /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
+    .con-task {
+        width: min(52rem, 86vw);
+        &--wide { width: min(68rem, 92vw); }
+
+        &__title { font-size: var(--con-t-title); }
+        &__sub { font-size: var(--con-t-body); }
+        &__opt { min-height: var(--con-hit-min); }
+        &__opt-title { font-size: 1.3rem; }
+        &__opt-sub { font-size: var(--con-t-secondary); }
+        &__stepper-value { font-size: var(--con-t-hero); }
+        &__lane-value { font-size: var(--con-t-section); }
+        &__lane-name { font-size: var(--con-t-secondary); }
+    }
+    .con-actconfirm {
+        &__name { font-size: 1.35rem; }
+        &__branch-title { font-size: var(--con-t-body); }
+    }
+
+    /* ═══ 10 · GOVERNMENT SUPPORT (WGT briefing) ══════════════════ */
+    .con-govsupport {
+        &__panel { width: min(66rem, 80vw); }
+        &__title { font-size: var(--con-t-hero); }
+        &__subtitle { font-size: var(--con-t-body); }
+        &__rule { font-size: var(--con-t-secondary); }
+        &__card { min-height: 9.6rem; }
+        &__card-name { font-size: 1.4rem; }
+        &__pv-cur { font-size: 1.4rem; }
+        &__pv-next { font-size: 1.9rem; }
+        &__card-type { font-size: var(--con-t-caption); }
+        &__detail { font-size: var(--con-t-secondary); }
+        &__foot-item { font-size: 1.05rem; }
+    }
+
+    /* ═══ 11 · SHEETS (standard projects / milestones / awards) ═══ */
+    .con-sheet {
+        &__panel { width: min(56rem, 90vw); }
+        &__title { font-size: 1.5rem; }
+        &__row { min-height: var(--con-hit-min); }
+        &__row-name { font-size: var(--con-t-body); }
+        &__row-sub { font-size: var(--con-t-secondary); }
+    }
+
+    /* ═══ 12 · MA STRATEGIC PANEL + CONFIRM + CEREMONY ════════════ */
+    .con-ma {
+        &__panel { width: min(94rem, 96vw); }
+        &__name { font-size: 1.3rem; }
+        &__desc { font-size: var(--con-t-secondary); }
+        &__metric-value { font-size: 1.9rem; }
+        &__stage { width: 9rem; height: 9rem; }
+        &__foot-item { font-size: 1.05rem; }
+    }
+    .con-maconfirm {
+        &__frame { width: min(54rem, 92vw); }
+        &__name { font-size: 1.3rem; }
+        &__racer-score { font-size: 1.3rem; }
+    }
+    .con-mainspect {
+        &__name { font-size: 1.6rem; }
+        &__claimed-name { font-size: 1.3rem; }
+    }
+
+    /* ═══ 13 · HYDRO (Delta Project) ══════════════════════════════ */
+    .con-hydro {
+        &__title { font-size: 1.7rem; }
+        &__sub { font-size: var(--con-t-secondary); max-width: 52rem; }
+        &__chip { font-size: 1.05rem; b { font-size: 1.3rem; } }
+        &__stop { width: 6.6rem; height: 12rem; }
+        &__stop--focused { width: 12.6rem; }
+        &__stop-tag { width: 2.3rem; height: 2.3rem; }
+        &__stop-name { font-size: var(--con-t-secondary); }
+        &__stage-name { font-size: 1.4rem; }
+        &__delta { font-size: 1.15rem; }
+        &__cta { font-size: 1.15rem; padding: 0.8rem 1.2rem; }
+        &__reason { font-size: var(--con-t-secondary); }
+    }
+    .con-hydroconfirm {
+        &__frame { width: min(40rem, 90vw); }
+        &__stage-name { font-size: 1.2rem; }
+        &__spend-num { font-size: 1.3rem; }
+    }
+
+    /* ═══ 14 · COLONIES ═══════════════════════════════════════════ */
+    .con-colonies {
+        --coltile-base-w: 20.6rem;
+        --coltile-base-h: 12.4rem;
+    }
+    .con-coltile {
+        &__name { font-size: var(--con-t-body); }
+        &__cell-num { font-size: 1.1rem; }
+        &__status { font-size: var(--con-t-caption); }
+    }
+    .con-colinspect {
+        &__frame { width: min(62rem, 94vw); }
+        &__name { font-size: 1.6rem; }
+        &__row { font-size: var(--con-t-secondary); }
+    }
+    .con-trade {
+        &__frame { width: min(58rem, 94vw); }
+        &__title { font-size: 1.4rem; }
+        &__payrow { min-height: var(--con-hit-min); }
+        &__row-label { font-size: var(--con-t-secondary); }
+    }
+
+    /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══ */
+    .con-journal {
+        width: min(37rem, 34vw);
+
+        .journal-text, .journal-em { font-size: 0.95rem; }
+        .journal-player { font-size: 0.9rem; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 0.9rem; }
+    }
+    .con-journal__title { font-size: 1.35rem; }
+    .con-journal__gen-label b { font-size: 1.1rem; }
+    .con-journal__filterpop-row { font-size: var(--con-t-secondary); }
+    .con-journal__inspect-name { font-size: 1.35rem; }
+
+    /* ═══ 16 · NOTIFICATIONS ══════════════════════════════════════ */
+    .con-notif {
+        width: 23rem;
+
+        &__type { font-size: var(--con-t-floor); }
+        &__actor { font-size: 0.95rem; }
+        &__body { font-size: 1.05rem; }
+        &__tokens .journal-text { font-size: 0.95rem; }
+    }
+
+    /* ═══ 17 · CONFIRM / NOTICE / SYSTEM / GUARD / QUIT ═══════════ */
+    .con-confirm__card { min-width: 26rem; }
+    .con-confirm__title { font-size: 1.4rem; }
+    .con-confirm__body { font-size: var(--con-t-body); }
+    .con-notice { font-size: var(--con-t-body); }
+    .con-sysmenu {
+        &__item { min-height: var(--con-hit-min); font-size: 1.3rem; }
+        &__title { font-size: var(--con-t-title); }
+    }
+    .con-stranded {
+        &__title { font-size: 1.4rem; }
+        &__body { font-size: var(--con-t-body); }
+    }
+    .con-quit__card { min-width: 24rem; }
+    .con-quit__body { font-size: var(--con-t-body); }
+    .con-load__label { font-size: var(--con-t-body); }
+
+    /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
+    .con-start {
+        --con-start-verdict-h: 3rem;
+        &__frame { width: min(90rem, 96vw); }
+        &__title { font-size: 1.6rem; }
+        &__kicker { font-size: var(--con-t-secondary); }
+        &__verdict-name { font-size: 1.15rem; }
+    }
+    .con-reveal {
+        &__card { width: min(76rem, 94vw); }
+        &__title { font-size: 1.5rem; }
+        &__sub { font-size: var(--con-t-body); }
+    }
+
+    /* ═══ 19 · ACTION CENTER + COMPOSERS ══════════════════════════ */
+    .con-cardactions {
+        &__title { font-size: 1.9rem; }
+        &__detail-name { font-size: 1.6rem; }
+        &__group-name { font-size: 1.3rem; }
+        &__row { min-height: var(--con-hit-min); }
+        &__foot-item { font-size: 1.05rem; }
+        &__verdict-reason { font-size: var(--con-t-secondary); }
+    }
+    .con-composer {
+        &__panel { width: min(58rem, 90vw); }
+        &--play &__panel, &__panel--play { width: min(66rem, 94vw); }
+        &__name { font-size: 1.7rem; }
+        &__opt-name { font-size: 1.1rem; }
+        &__row { min-height: var(--con-hit-min); }
+        &__foot-item { font-size: 1.05rem; }
+        &__cta-label { font-size: 1.15rem; }
+    }
+
+    /* ═══ 20 · INFORMATION MODE (LT) ══════════════════════════════ */
+    .con-info {
+        &__title { font-size: 1.6rem; }
+        &__stat-line { font-size: var(--con-t-body); }
+        &__stat-value { font-size: 1.4rem; }
+        &__section-title { font-size: 1.15rem; }
+    }
+
+    /* ═══ 21 · FOCUS — visible from the couch ═════════════════════
+       The base spotlight states are rem-authored (they scale); the TV
+       pass widens the ring + glow on the primary browse surfaces so a
+       focused element reads instantly at 2 m, without lighting up idle
+       chrome (OLED restraint: glow rides ONLY the focused element). */
+    .con-cards__slot--focused {
+        box-shadow: 0 0 0 var(--con-focus-ring) fade(@con-cyan, 92%), 0 0 1.4rem fade(@con-cyan, 40%);
+        border-radius: 0.6rem;
+    }
+    .con-task__opt--focused,
+    .con-sheet__row--focused,
+    .con-sysmenu__item--focused,
+    .con-trade__payrow--focused,
+    .con-trade__steprow--focused,
+    .con-coltile--focused {
+        box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 1.2rem fade(@con-cyan, 32%);
+    }
+
+    /* ═══ 22 · SCROLLBARS (foundation rail reads at distance) ═════ */
+    .con-scroll__rail { width: 0.35rem; }
+}
+
+/* ═══ 23 · PRE-GAME (console-native .cm-* menu / create) ══════════ */
+html.con-profile-tv {
+    .cm-item { min-height: var(--con-hit-min); }
+    .cm-item__label { font-size: 1.35rem; }
+    .cm-item__sub { font-size: 0.95rem; }
+    .cm-row__name { font-size: 1.15rem; }
+    .cm-row__value { font-size: 1.15rem; }
+    .cm-menu__items { width: min(36rem, 44vw); }
+    .cm-hint, .cm-menu__hint { font-size: var(--con-t-secondary); }
+}
+
+/* ═══ 24 · LIFECYCLE (legacy px surfaces ride their zoom boost) ═══ */
+html.con-profile-tv.console-mode {
+    .premium-main-menu .pmm__actions { zoom: calc(1.18 * var(--con-ui-scale, 1)); }
+    .join-panel__card { zoom: calc(1.12 * var(--con-ui-scale, 1)); }
+    #game-home { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
+    /* Desktop fallback surfaces (px-authored) follow the profile scale the
+       same way the handheld profile compacts them (zoom is the sanctioned
+       integration primitive for non-rem content). */
+    .mandatory-input-modal { zoom: var(--con-ui-scale, 1); }
+    .eg-results { zoom: var(--con-ui-scale, 1); }
+    .fsr { zoom: var(--con-ui-scale, 1); }
+    .rematch-modal { zoom: var(--con-ui-scale, 1); }
+    .desktop-update--cover .desktop-update__panel { zoom: var(--con-ui-scale, 1); }
+}
+
+/* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */
+html.console-mode.con-profile-tv .notifications-layer {
+    top: calc(var(--con-safe-y) + 4.4rem);
+    right: var(--con-safe-x);
+}
+html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {
+    right: calc(min(37rem, 34vw) + var(--con-safe-x) + 0.8rem);
+}

@@ -641,6 +641,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -4456,7 +4457,7 @@ export default defineComponent({
       for (let i = candidates.length - 1; i >= 0; i--) {
         const el = candidates[i];
         if (el.offsetParent !== null && el.scrollHeight > el.clientHeight + 1) {
-          el.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX, behavior: 'auto'});
+          el.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX * conUiScale(), behavior: 'auto'});
           return;
         }
       }
@@ -4469,7 +4470,7 @@ export default defineComponent({
         return false;
       }
       if (Math.abs(dy) >= 0.05) {
-        feed.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX, behavior: 'auto'});
+        feed.scrollBy({top: dy * CONSOLE_SCROLL_STEP_PX * conUiScale(), behavior: 'auto'});
       }
       return true;
     },

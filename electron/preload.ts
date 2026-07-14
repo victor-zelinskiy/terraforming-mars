@@ -69,4 +69,7 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
   quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),
   setFullscreen: (value: boolean): Promise<void> => ipcRenderer.invoke('desktop:setFullscreen', value === true),
+  // TV display profile diagnostics: the Electron view of the current display
+  // (bounds / scaleFactor / physical size / internal-vs-external / fullscreen).
+  getDisplayInfo: (): Promise<unknown> => ipcRenderer.invoke('desktop:getDisplayInfo'),
 });

@@ -226,5 +226,14 @@
     "Type a key": "Ввести",
     "Backspace": "Стереть",
     "Input language": "Язык ввода",
-    "Space bar": "Пробел"
+    "Space bar": "Пробел",
+    "Display": "Дисплей",
+    "Auto": "Авто",
+    "Handheld": "Портативный",
+    "Standard": "Стандартный",
+    "Large": "Крупный",
+    "TV 4K": "ТВ 4K",
+    "Profile": "Профиль",
+    "Panel": "Панель",
+    "manual": "вручную"
 }

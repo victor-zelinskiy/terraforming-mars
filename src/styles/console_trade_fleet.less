@@ -28,32 +28,32 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 15px;
-    height: 15px;
+    width: .75rem;
+    height: .75rem;
     border-radius: 50%;
     opacity: 0; /* the director reveals via autoAlpha once positioned */
     pointer-events: none;
     will-change: transform, opacity; /* scoped: exists only mid-glide */
     /* Owner-hue token (player_bg_color_* sets the background) — a firm ring +
        an aqua conduit glow so it reads as a hydronetwork instrument marker. */
-    box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 10px fade(@con-hydro-aqua, 75%);
+    box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), 0 0 .5rem fade(@con-hydro-aqua, 75%);
 
     /* CHARGE: a bright ready aura before lift. */
-    &--charge { box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 14px fade(@con-hydro-aqua, 95%); }
+    &--charge { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), 0 0 .7rem fade(@con-hydro-aqua, 95%); }
     /* GLIDE: a subtle motion trail behind the travelling token. */
     &--glide::after {
         content: '';
         position: absolute;
-        inset: -1px;
+        inset: -.05rem;
         border-radius: 50%;
-        box-shadow: 0 0 12px 3px fade(@con-hydro-aqua, 45%);
+        box-shadow: 0 0 .6rem .15rem fade(@con-hydro-aqua, 45%);
     }
     /* LOCK / PULSE: the seat — a crisp confirmation ring. */
-    &--lock, &--pulse { box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.95), 0 0 0 3px fade(@con-hydro-aqua, 70%), 0 0 16px fade(@con-hydro-aqua, 80%); }
+    &--lock, &--pulse { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), 0 0 0 .15rem fade(@con-hydro-aqua, 70%), 0 0 .8rem fade(@con-hydro-aqua, 80%); }
 }
 @keyframes con-hydromarker-settle {
-    0% { transform: scale(1.5); box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9), 0 0 0 4px fade(@con-hydro-aqua, 90%), 0 0 18px fade(@con-hydro-aqua, 90%); }
-    100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(8, 14, 22, 0.9), 0 0 8px fade(@con-hydro-aqua, 80%); }
+    0% { transform: scale(1.5); box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.9), 0 0 0 .2rem fade(@con-hydro-aqua, 90%), 0 0 .9rem fade(@con-hydro-aqua, 90%); }
+    100% { transform: scale(1); box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.9), 0 0 .4rem fade(@con-hydro-aqua, 80%); }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-hydro__stop-marker--settle { animation: none; }
@@ -73,15 +73,15 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 46px;
-    height: 46px;
+    width: 2.3rem;
+    height: 2.3rem;
     opacity: 0; /* the director reveals via autoAlpha once positioned */
     pointer-events: none;
     will-change: transform, opacity; /* scoped: the ship exists only mid-flight */
 
     .colony-fleet-icon {
-        width: 46px;
-        height: 46px;
+        width: 2.3rem;
+        height: 2.3rem;
     }
 }
 
@@ -97,7 +97,7 @@
     }
     .con-trade__frame {
         opacity: 0;
-        transform: translateY(-10px) scale(0.985);
+        transform: translateY(-.5rem) scale(0.985);
         transition:
             opacity calc(300ms * var(--motion-scale, 1)) ease,
             transform calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
@@ -115,9 +115,9 @@
         content: '';
         position: absolute;
         left: 50%;
-        bottom: -3px;
-        width: 22px;
-        height: 7px;
+        bottom: -.15rem;
+        width: 1.1rem;
+        height: .35rem;
         transform: translateX(-50%);
         border-radius: 50%;
         background: radial-gradient(ellipse at center, var(--fleet-glow, fade(@con-cyan, 45%)) 0%, transparent 72%);
@@ -142,16 +142,16 @@
     animation: con-fleet-dock-ring calc(560ms * var(--motion-scale, 1)) ease-out;
 }
 @keyframes con-fleet-dock-ring {
-    0% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 2px var(--fleet-fill), 0 0 0 4px var(--fleet-glow); }
-    45% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 3px var(--fleet-fill), 0 0 16px 6px var(--fleet-glow); }
-    100% { box-shadow: inset 0 0 0 1px fade(@con-text, 20%), 0 0 0 2px var(--fleet-fill), 0 0 9px var(--fleet-glow); }
+    0% { box-shadow: inset 0 0 0 .05rem fade(@con-text, 20%), 0 0 0 .1rem var(--fleet-fill), 0 0 0 .2rem var(--fleet-glow); }
+    45% { box-shadow: inset 0 0 0 .05rem fade(@con-text, 20%), 0 0 0 .15rem var(--fleet-fill), 0 0 .8rem .3rem var(--fleet-glow); }
+    100% { box-shadow: inset 0 0 0 .05rem fade(@con-text, 20%), 0 0 0 .1rem var(--fleet-fill), 0 0 .45rem var(--fleet-glow); }
 }
 .con-coltile--just-docked .con-coltile__dock {
     animation: con-fleet-settle calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes con-fleet-settle {
-    0% { transform: translateY(-6px) scale(1.14); }
-    55% { transform: translateY(1px) scale(0.97); }
+    0% { transform: translateY(-.3rem) scale(1.14); }
+    55% { transform: translateY(.05rem) scale(0.97); }
     100% { transform: translateY(0) scale(1); }
 }
 

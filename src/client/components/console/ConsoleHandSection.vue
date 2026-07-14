@@ -162,6 +162,7 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {consoleState} from '@/client/console/consoleRouter';
 import {planHandGrid, stepHandGrid, shortBlockerLabel, HandGridPlan, HandNavDir} from '@/client/components/console/consoleHandGrid';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 
 export type ConsoleHandEntry = {
@@ -323,7 +324,7 @@ export default defineComponent({
       // and the centred content width both fall inside that inset box).
       const w = (this.box.w > 0 ? this.box.w : FALLBACK_W) - EDGE_INSET * 2;
       const h = (this.box.h > 0 ? this.box.h : FALLBACK_H) - EDGE_INSET * 2;
-      return planHandGrid({availW: w, availH: h, count: this.entries.length});
+      return planHandGrid({availW: w, availH: h, count: this.entries.length, uiScale: conUiScale()});
     },
     /** Row indices to render (all when it fits; windowed when it scrolls). The
      *  window is derived even before the first measure (from the fallback box),

@@ -413,6 +413,7 @@ import {
   runDraftPickBeat, skipDraftPickBeat, whenPickBeatDone,
 } from '@/client/console/cardDeal/consoleDraftTray';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
@@ -1436,11 +1437,15 @@ export default defineComponent({
       const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
       const rowGap = parseFloat(cs.rowGap) || colGap;
       const availW = strip.clientWidth - padX;
+      // TV profile: the card face is px-natural (320×460), so its logical
+      // size ceiling scales with the profile; floors follow so cards never
+      // read logically SMALLER on a 4K viewport than on 1080p.
+      const s = conUiScale();
       if (!grid) {
         // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
         // zoom against the width left after the gaps. 0.96 leaves headroom for
         // the focused card's scale(1.08) — the row fits WITH the lift.
-        const zoom = Math.min(1, Math.max(0.5, (0.96 * availW - (n - 1) * colGap) / (n * slotW)));
+        const zoom = Math.min(1 * s, Math.max(0.5 * s, (0.96 * availW - (n - 1) * colGap) / (n * slotW)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }
@@ -1450,19 +1455,19 @@ export default defineComponent({
       // WITH the cards → circular). Pick the balanced rows×cols with the
       // largest zoom that fits both axes; cap the width so flex-wrap breaks at
       // the planned columns (5+5, never 6+4).
-      const CHROME = 220; // header (title/trigger) + verdict bar + modal paddings
-      const availH = Math.max(200, 0.86 * window.innerHeight - CHROME - padY);
+      const CHROME = 220 * s; // header (title/trigger) + verdict bar + modal paddings (rem-authored → scale)
+      const availH = Math.max(200 * s, 0.86 * window.innerHeight - CHROME - padY);
       let best = {zoom: 0, cols: Math.ceil(n / 2)};
       for (let rows = 1; rows <= Math.min(3, n); rows++) {
         const cols = Math.ceil(n / rows);
         const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
         const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
-        const zoom = Math.min(1, wZoom, hZoom);
+        const zoom = Math.min(1 * s, wZoom, hZoom);
         if (zoom > best.zoom) {
           best = {zoom, cols};
         }
       }
-      const zoom = Math.max(0.4, best.zoom);
+      const zoom = Math.max(0.4 * s, best.zoom);
       strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
       strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX) + 2}px`;
     },

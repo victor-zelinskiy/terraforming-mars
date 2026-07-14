@@ -84,7 +84,7 @@ import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/
 import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
-import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
+import {consoleLayoutState, installConsoleLayoutProfile, cycleConsoleProfileOverride, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
@@ -230,7 +230,7 @@ export default defineComponent({
         if (before !== undefined) {
           html.classList.remove(`con-profile-${before}`);
         }
-        for (const p of ['handheld', 'standard', 'large']) {
+        for (const p of ['handheld', 'standard', 'large', 'tv']) {
           html.classList.remove(`con-profile-${p}`);
         }
         html.classList.add(`con-profile-${now}`);
@@ -361,6 +361,12 @@ export default defineComponent({
         case 'controls':
           this.closeSystemMenu();
           this.legendOpen = true;
+          break;
+        case 'display':
+          // Cycle Auto → Handheld → Standard → Large → TV 4K in place —
+          // the change applies instantly (reversible), the menu stays open
+          // so the player sees the relabel + the diag block react.
+          cycleConsoleProfileOverride();
           break;
         case 'exit':
           this.systemMenuConfirmExit = true;

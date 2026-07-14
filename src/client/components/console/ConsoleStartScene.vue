@@ -398,6 +398,7 @@ import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/con
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
@@ -1108,7 +1109,7 @@ export default defineComponent({
       if (rail !== null) {
         const right = rail.getBoundingClientRect().right;
         if (right > 0) {
-          document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 14)}px`);
+          document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 14 * conUiScale())}px`);
         }
       }
     },
@@ -1130,7 +1131,7 @@ export default defineComponent({
      *  live element would make the post-deal layout jump. */
     verdictReserve(): number {
       const raw = parseFloat(window.getComputedStyle(this.$el as HTMLElement).getPropertyValue('--con-start-verdict-h'));
-      return Number.isFinite(raw) && raw > 0 ? raw : 46;
+      return Number.isFinite(raw) && raw > 0 ? raw : 46 * conUiScale();
     },
     /** The height the strip may occupy inside the scrollable body: the
      *  body's allocated height minus the verdict bar + the .con-cards gap. */
@@ -1140,8 +1141,9 @@ export default defineComponent({
         return strip.clientHeight;
       }
       const cards = strip.parentElement;
-      const gap = cards !== null ? (parseFloat(window.getComputedStyle(cards).rowGap) || 10) : 10;
-      return Math.max(180, body.clientHeight - gap - this.verdictReserve());
+      const fallbackGap = 10 * conUiScale();
+      const gap = cards !== null ? (parseFloat(window.getComputedStyle(cards).rowGap) || fallbackGap) : fallbackGap;
+      return Math.max(180 * conUiScale(), body.clientHeight - gap - this.verdictReserve());
     },
     /**
      * Size the wizard card strip so N cards ALWAYS fit — BOTH axes (the
@@ -1210,11 +1212,14 @@ export default defineComponent({
       const rowGap = parseFloat(cs.rowGap) || colGap;
       const availW = strip.clientWidth - padX;
       const availH = this.stripAvailHeight(strip) - padY;
+      // TV profile: the card face is px-natural — its size ceiling/floors
+      // scale with the profile so cards stay couch-readable on 4K.
+      const s = conUiScale();
       if (!grid) {
         // `zoom` scales the slots but not the flex gap; 0.96 leaves scale(1.08) headroom.
         const widthZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
         const heightZoom = availH / slotH;
-        const zoom = Math.min(1, Math.max(0.5, Math.min(widthZoom, heightZoom)));
+        const zoom = Math.min(1 * s, Math.max(0.5 * s, Math.min(widthZoom, heightZoom)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }
@@ -1224,12 +1229,12 @@ export default defineComponent({
         const cols = Math.ceil(n / rows);
         const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
         const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
-        const zoom = Math.min(1, wZoom, hZoom);
+        const zoom = Math.min(1 * s, wZoom, hZoom);
         if (zoom > best.zoom) {
           best = {zoom, cols};
         }
       }
-      const zoom = Math.max(0.4, best.zoom);
+      const zoom = Math.max(0.4 * s, best.zoom);
       strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
       // Cap the content width at the planned columns — leftover width from a
       // height-governed zoom must not let flex-wrap unbalance the rows.

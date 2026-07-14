@@ -44,6 +44,7 @@ import {nextTick} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {cardExitState, flightEl, nextFlightId, removeFlights} from '@/client/console/cardDeal/cardExitState';
@@ -168,7 +169,7 @@ export async function runCardTake(source: ExitSource, onLift: () => void): Promi
   await guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
     // The pick-up beat: the card comes off the table.
-    tl.to(s.el, {y: s.rect.top - 16, rotation: -2.2, scale: `*=1.04`, duration: motionMs(120) / 1000, ease: 'power2.out'});
+    tl.to(s.el, {y: s.rect.top - 16 * conUiScale(), rotation: -2.2, scale: `*=1.04`, duration: motionMs(120) / 1000, ease: 'power2.out'});
     // The dive home.
     tl.to(s.el, {x: s.rect.left + drift, y: p.y, rotation: -7, scale: `*=0.55`, duration: motionMs(380) / 1000, ease: 'power2.in'}, '>-0.02');
     tl.to(s.el, {autoAlpha: 0, duration: motionMs(150) / 1000, ease: 'power1.in'}, '<55%');
@@ -199,7 +200,7 @@ export async function runCardCollect(sources: ReadonlyArray<ExitSource>, onLift:
   }
   const g = gatherPoint();
   const n = spawned.length;
-  const stackScale = 0.6;
+  const stackScale = 0.6 * conUiScale();
   const stackW = CARD_NATURAL_W * stackScale;
   await guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
@@ -208,8 +209,8 @@ export async function runCardCollect(sources: ReadonlyArray<ExitSource>, onLift:
     spawned.forEach((s, i) => {
       const centered = i - (n - 1) / 2;
       tl.to(s.el, {
-        x: g.x - stackW / 2 + centered * 3,
-        y: g.y - (s.rect.height / s.rect.width) * stackW / 2 + centered * 2,
+        x: g.x - stackW / 2 + centered * 3 * conUiScale(),
+        y: g.y - (s.rect.height / s.rect.width) * stackW / 2 + centered * 2 * conUiScale(),
         rotation: centered * 2.6,
         scale: stackScale,
         duration: gather,
@@ -220,7 +221,7 @@ export async function runCardCollect(sources: ReadonlyArray<ExitSource>, onLift:
     // The confirmation pulse — the stack acknowledges the collect.
     tl.to(spawned.map((s) => s.el), {scale: stackScale * 1.06, duration: motionMs(80) / 1000, yoyo: true, repeat: 1, ease: 'power1.inOut'}, gathered + 0.02);
     // The stack goes home as ONE object.
-    tl.to(spawned.map((s) => s.el), {y: '+=420', rotation: '-=3', scale: stackScale * 0.8, duration: motionMs(280) / 1000, ease: 'power2.in'}, gathered + motionMs(210) / 1000);
+    tl.to(spawned.map((s) => s.el), {y: `+=${420 * conUiScale()}`, rotation: '-=3', scale: stackScale * 0.8, duration: motionMs(280) / 1000, ease: 'power2.in'}, gathered + motionMs(210) / 1000);
     tl.to(spawned.map((s) => s.el), {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.in'}, '<45%');
   }, motionMs(300 + 45 * n + 600));
   cleanup(spawned);
@@ -385,7 +386,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       if (rect === undefined) {
         // No believable tray slot — reveal honestly + a quiet dive out.
         land(name);
-        await tween(s.el, {y: '+=26', scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
+        await tween(s.el, {y: `+=${26 * conUiScale()}`, scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
         return;
       }
       // The arc into the pile: lateral ease + a soft vertical launch, the
@@ -516,7 +517,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     const dive = () => {
       touchdown(); // no believable slot — reveal the host state honestly
       const tl = gsap.timeline({onComplete: done});
-      tl.to(s.el, {y: '+=26', scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
+      tl.to(s.el, {y: `+=${26 * conUiScale()}`, scale: '*=0.92', autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in'});
     };
     const poll = () => {
       tries++;
@@ -581,7 +582,7 @@ export async function runCardDepart(source: ExitSource): Promise<void> {
   const s = spawned[0];
   await guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
-    tl.to(s.el, {y: s.rect.top - 110, scale: '*=0.82', rotation: 1.6, duration: motionMs(300) / 1000, ease: 'power2.in'});
+    tl.to(s.el, {y: s.rect.top - 110 * conUiScale(), scale: '*=0.82', rotation: 1.6, duration: motionMs(300) / 1000, ease: 'power2.in'});
     tl.to(s.el, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.in'}, '<40%');
   }, motionMs(650));
   cleanup(spawned);

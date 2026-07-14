@@ -17,6 +17,8 @@
  * follows the fork-wide speed presets.
  */
 
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
+
 /** A plain rect (screen px) — DOMRect-compatible, test-friendly. */
 export type RectLike = {left: number, top: number, width: number, height: number};
 
@@ -108,7 +110,8 @@ export function singleSceneBudgetMs(t: BonusSceneTimings): number {
  * a zoomed-out board still reads, clamped so it never leaves the hex area.
  */
 export function coverLiftRise(coverHeight: number): number {
-  return Math.min(40, Math.max(18, Math.round(coverHeight * 1.35)));
+  const s = conUiScale();
+  return Math.min(40 * s, Math.max(18 * s, Math.round(coverHeight * 1.35)));
 }
 
 /**
@@ -119,7 +122,7 @@ export function coverLiftRise(coverHeight: number): number {
  */
 export function gatherPoint(cover: RectLike, targets: ReadonlyArray<RectLike>): {x: number, y: number} {
   if (targets.length === 0) {
-    return {x: cover.left + cover.width / 2, y: Math.max(120, cover.top - 60)};
+    return {x: cover.left + cover.width / 2, y: Math.max(120 * conUiScale(), cover.top - 60 * conUiScale())};
   }
   let cx = 0;
   let cy = 0;
@@ -133,7 +136,7 @@ export function gatherPoint(cover: RectLike, targets: ReadonlyArray<RectLike>): 
   const coverCy = cover.top + cover.height / 2;
   return {
     x: cx + (coverCx - cx) * 0.22,
-    y: Math.max(120, cy + (coverCy - cy) * 0.22 - 40),
+    y: Math.max(120 * conUiScale(), cy + (coverCy - cy) * 0.22 - 40 * conUiScale()),
   };
 }
 
@@ -146,7 +149,10 @@ export function gatherPoint(cover: RectLike, targets: ReadonlyArray<RectLike>): 
 export function presentationTarget(
   viewportW: number, viewportH: number, naturalW: number, naturalH: number,
 ): {x: number, y: number, scale: number} {
-  const scale = Math.min(0.5, Math.max(0.28, (viewportH * 0.34) / Math.max(1, naturalH)));
+  // TV profile: the pose clamps are 1080-logical — scale them so the card
+  // reads the same physical size on a 4K viewport.
+  const s = conUiScale();
+  const scale = Math.min(0.5 * s, Math.max(0.28 * s, (viewportH * 0.34) / Math.max(1, naturalH)));
   void naturalW; // the card keeps its aspect — only the height drives scale
   return {x: viewportW / 2, y: viewportH * 0.44, scale};
 }

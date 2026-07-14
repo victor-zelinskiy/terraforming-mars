@@ -72,10 +72,23 @@ export function parseExtraSwitches(raw: string): ExtraSwitch[] {
 //    NOTE: mutually exclusive with a `disable-direct-composition` experiment —
 //    that switch tears down the DComp/DXGI presentation path this feature tunes.
 //    DISABLED_BY_DEFAULT in Chromium ~150 (verified ui/gl/gl_switches.cc).
+//  - DXGISwapChainPresentInterval0 — Present with interval 0 (tearing-allowed):
+//    on a VRR display (the TARGET: LG C3 42" OLED over HDMI, G-Sync Compatible
+//    40–120 Hz; the laptop's internal 120–165 Hz panel is likely G-Sync too) a
+//    finished frame is scanned out IMMEDIATELY instead of waiting for the next
+//    vsync tick — exactly our pathology (variable 9–14 ms animation frames on a
+//    fixed 120 Hz cadence jitter between 8.3/16.7 ms). BeginFrames stay
+//    vsync-paced (this is NOT an uncap — no extra heat); the uncap escalation
+//    if pacing still wobbles: TM_ELECTRON_SWITCHES="disable-frame-rate-limit".
+//    Needs the OS side armed (G-SYNC Compatible on for the display incl.
+//    windowed mode, Windows VRR on, TV Game Optimizer/Instant Game Response).
+//    RISK: on a VRR-off display in independent flip this can visibly TEAR —
+//    if that shows on either panel, roll back via TM_ELECTRON_FEATURES.
 const WINDOWS_ENABLED_FEATURES = [
   'SkiaGraphite',
   'SkiaGraphitePrecompilation',
   'DXGIWaitableSwapChain:DXGIWaitableSwapChainMaxQueuedFrames/2',
+  'DXGISwapChainPresentInterval0',
 ].join(',');
 
 // Features disabled on EVERY platform (unknown names are silently ignored, so

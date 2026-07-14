@@ -77,6 +77,12 @@ export interface HandGridInput {
   count: number;
   naturalCardW?: number;
   naturalCardH?: number;
+  /** The console TV logical-space scale (conUiScale()). The px inputs here
+   * (gaps, slack, zoom floors/ceilings) are authored for the 1080p logical
+   * space; the TV profile multiplies them so cards keep growing on a 4K
+   * viewport instead of hitting the 1080-tuned MAX_ZOOM ceiling. 1 (or
+   * absent) on every non-tv profile → byte-identical plans. */
+  uiScale?: number;
 }
 
 function clamp(lo: number, hi: number, v: number): number {
@@ -113,13 +119,22 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   const naturalH = input.naturalCardH ?? CARD_NATURAL_H;
   const count = Math.max(0, Math.floor(input.count));
   const {availW, availH} = input;
+  // TV logical-space scale: px-authored knobs grow with the profile. The CSS
+  // row gap is rem-authored (scales with the root font), so the planner MUST
+  // scale its mirror of it too or the width math drifts.
+  const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
+  const gapX = GAP_X * s;
+  const gapY = GAP_Y * s;
+  const rowSlack = ROW_SLACK * s;
+  const minZoom = MIN_ZOOM * s;
+  const maxZoom = MAX_ZOOM * s;
 
   if (count <= 0 || availW <= 0 || availH <= 0) {
-    const z = MAX_ZOOM;
+    const z = maxZoom;
     return {
       cols: 1, rows: 0, cardZoom: z,
-      slotW: naturalW * z, slotH: naturalH * z, rowStride: naturalH * z + GAP_Y,
-      gapX: GAP_X, gapY: GAP_Y, contentW: 0, contentH: 0, scrolls: false, visibleRows: 0,
+      slotW: naturalW * z, slotH: naturalH * z, rowStride: naturalH * z + gapY,
+      gapX, gapY, contentW: 0, contentH: 0, scrolls: false, visibleRows: 0,
     };
   }
 
@@ -128,39 +143,39 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   // last row is never a lone card (the 5+1 → 3+3 trick, like cardSelectionFit).
   const colsAt = (zoom: number): number => {
     const slotW = naturalW * zoom;
-    const widthCols = Math.floor((availW - ROW_SLACK + GAP_X) / (slotW + GAP_X));
+    const widthCols = Math.floor((availW - rowSlack + gapX) / (slotW + gapX));
     const cols = clamp(1, Math.min(MAX_COLS, count), widthCols);
     const rows = Math.ceil(count / cols);
     return Math.max(1, Math.ceil(count / rows));
   };
 
-  let zoom = clamp(MIN_ZOOM, MAX_ZOOM, baseZoom(count));
+  let zoom = clamp(minZoom, maxZoom, baseZoom(count) * s);
   let cols = colsAt(zoom);
   let rows = Math.ceil(count / cols);
-  let rowStride = naturalH * zoom + GAP_Y;
-  let visibleRows = Math.max(1, Math.floor((availH + GAP_Y) / rowStride));
+  let rowStride = naturalH * zoom + gapY;
+  let visibleRows = Math.max(1, Math.floor((availH + gapY) / rowStride));
 
   // If it scrolls but fewer than MIN_VISIBLE_ROWS fit, shrink the zoom (floored
   // at MIN_ZOOM) so at least MIN_VISIBLE_ROWS readable rows are on screen — a
   // smaller zoom also widens the columns, which lowers the row count too.
   if (rows > visibleRows && visibleRows < MIN_VISIBLE_ROWS) {
-    const fitZoom = (availH - (MIN_VISIBLE_ROWS - 1) * GAP_Y) / (MIN_VISIBLE_ROWS * naturalH);
-    zoom = clamp(MIN_ZOOM, zoom, fitZoom);
+    const fitZoom = (availH - (MIN_VISIBLE_ROWS - 1) * gapY) / (MIN_VISIBLE_ROWS * naturalH);
+    zoom = clamp(minZoom, zoom, fitZoom);
     cols = colsAt(zoom);
     rows = Math.ceil(count / cols);
-    rowStride = naturalH * zoom + GAP_Y;
-    visibleRows = Math.max(1, Math.floor((availH + GAP_Y) / rowStride));
+    rowStride = naturalH * zoom + gapY;
+    visibleRows = Math.max(1, Math.floor((availH + gapY) / rowStride));
   }
 
   const slotW = naturalW * zoom;
   const slotH = naturalH * zoom;
-  const contentH = rows * slotH + (rows - 1) * GAP_Y;
-  const contentW = Math.min(availW, cols * slotW + (cols - 1) * GAP_X);
+  const contentH = rows * slotH + (rows - 1) * gapY;
+  const contentW = Math.min(availW, cols * slotW + (cols - 1) * gapX);
   const scrolls = contentH > availH + 0.5;
 
   return {
     cols, rows, cardZoom: zoom, slotW, slotH, rowStride,
-    gapX: GAP_X, gapY: GAP_Y, contentW, contentH, scrolls,
+    gapX, gapY, contentW, contentH, scrolls,
     visibleRows: Math.min(rows, visibleRows),
   };
 }
