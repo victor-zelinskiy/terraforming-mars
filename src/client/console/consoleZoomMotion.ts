@@ -55,101 +55,6 @@ import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 
 const HOLD_CLASS = 'con-zoom-hold';
 
-// TEMPORARY first-open diagnostics (see DIAGNOSTIC_CLEANUP.md) — traces the
-// zoom-open choreography so a broken first open can be pinpointed from the
-// user's console instead of guessed.
-function zlog(msg: string): void {
-  console.warn(`%c[TM-DIAG zoom] ${msg}`, 'color:#38bdf8');
-}
-
-/**
- * TEMPORARY decisive dump (see DIAGNOSTIC_CLEANUP.md): ~1.3s after an open —
- * i.e. AFTER the FLIP has finished — snapshot the full VISUAL state of the
- * dialog/stage/card. Separates "element invisible by style" (our bug, fixable)
- * from "styles perfect but pixels not painted" (compositor bug).
- */
-export function zdump(dialog: HTMLElement): void {
-  try {
-    const stage = stageEl(dialog);
-    const card = stage?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
-    const cs = (el: Element | null) => {
-      if (el === null) {
-        return 'null';
-      }
-      const s = getComputedStyle(el);
-      const r = (el as HTMLElement).getBoundingClientRect();
-      return `rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}` +
-        ` opacity=${s.opacity} visibility=${s.visibility} display=${s.display} transform=${s.transform}` +
-        ` zIndex=${s.zIndex} filter=${s.filter} clipPath=${s.clipPath} contain=${s.contain}`;
-    };
-    const cx = Math.round(window.innerWidth / 2);
-    const cy = Math.round(window.innerHeight / 2);
-    const atCenter = document.elementFromPoint(cx, cy);
-
-    // ANCESTOR SCAN — the earlier dump missed this: an `opacity: 0` (or a
-    // hiding class like con-deal-hold / con-zoom-hold) on ANY ANCESTOR hides
-    // the whole card while the card's own computed opacity still reads "1".
-    // Walk card → <html> and report every ancestor that is not plainly
-    // visible + every ancestor carrying a class list (to spot a stray hold).
-    const suspects: Array<string> = [];
-    let el: HTMLElement | null = card;
-    while (el !== null) {
-      const s = getComputedStyle(el);
-      const cls = String(el.className);
-      const hidingClass = /con-deal-hold|con-zoom-hold|con-deal|veil|--flight|--closing/.exec(cls)?.[0];
-      // v3: also catch the PAINT-level hiders the first scan missed — an
-      // ancestor rotated ~180° with backface-visibility:hidden hides every
-      // descendant (3D flip mechanics exist in the deal/zoom!), and
-      // content-visibility skips the subtree's paint entirely.
-      const cv = (s as CSSStyleDeclaration & {contentVisibility?: string}).contentVisibility ?? 'visible';
-      if (s.opacity !== '1' || s.visibility !== 'visible' || s.display === 'none' ||
-          s.maskImage !== 'none' || hidingClass !== undefined ||
-          s.transform !== 'none' || s.backfaceVisibility !== 'visible' ||
-          (cv !== 'visible' && cv !== 'auto') || s.perspective !== 'none' ||
-          s.mixBlendMode !== 'normal' || s.isolation !== 'auto') {
-        suspects.push(`${el.tagName}.${cls.slice(0, 90)} → op=${s.opacity} vis=${s.visibility} disp=${s.display}` +
-          ` mask=${s.maskImage !== 'none'} tf=${s.transform} bfv=${s.backfaceVisibility} cv=${cv}` +
-          ` persp=${s.perspective} blend=${s.mixBlendMode} iso=${s.isolation} hit=${hidingClass ?? '-'}`);
-      }
-      el = el.parentElement;
-    }
-
-    // TOP-LAYER: every open <dialog> in document order (later = on top).
-    // `:modal` is the CRITICAL bit: open=true does NOT prove the dialog is in
-    // the top layer — only a successful showModal() puts it there. A non-modal
-    // dialog paints IN FLOW and can be covered by ordinary layers.
-    const openDialogs = Array.from(document.querySelectorAll('dialog[open]'))
-      .map((d) => `${d.className || d.tagName} modal=${d.matches(':modal')} rect=${(() => {
-        const r = (d as HTMLElement).getBoundingClientRect();
-        return `${Math.round(r.width)}x${Math.round(r.height)}`;
-      })()}`);
-
-    // STUCK DEAL: the "wrong big card" on every bug screenshot (Robinson/UNMI/
-    // Vitor — a different one each time, never matching the band) looks like a
-    // STUCK deal-cinematic proxy (pointer-events:none → invisible to hit-test).
-    // Enumerate every live deal element + its visibility.
-    const dealBits = Array.from(document.querySelectorAll('.con-deal-layer, .con-deal-proxy, .con-exit-proxy, .con-deal-deck'))
-      .map((d) => {
-        const s = getComputedStyle(d);
-        const r = (d as HTMLElement).getBoundingClientRect();
-        return `${d.className} rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} op=${s.opacity} vis=${s.visibility}`;
-      });
-
-    console.warn(
-      `%c[TM-DIAG zoom DUMP]\n` +
-      `dialog.open=${(dialog as HTMLDialogElement).open} | dialog: ${cs(dialog)}\n` +
-      `stage: ${cs(stage)} | stage.classList=${String(stage?.className ?? '')}\n` +
-      `card: ${cs(card)} | cardChildren=${card?.childElementCount ?? -1} | card.classList=${String(card?.className ?? '')}\n` +
-      `ANCESTOR SUSPECTS (${suspects.length}):\n${suspects.join('\n') || '(none — every ancestor fully visible)'}\n` +
-      `OPEN DIALOGS (${openDialogs.length}, last=topmost): ${openDialogs.join(' | ')}\n` +
-      `LIVE DEAL ELEMENTS (${dealBits.length}):\n${dealBits.join('\n') || '(none — deal fully finished)'}\n` +
-      `elementFromPoint(center ${cx},${cy})=${atCenter !== null ? atCenter.tagName + '.' + String((atCenter as HTMLElement).className).slice(0, 80) : 'null'}`,
-      'color:#f472b6;font-weight:bold');
-  } catch (err) {
-    console.warn('[TM-DIAG zoom DUMP] failed', err);
-  }
-}
-
 type ZoomMotionCtx = {
   tween?: gsap.core.Tween | gsap.core.Timeline,
   heldSlot?: HTMLElement,
@@ -287,20 +192,17 @@ export function playZoomOpenFlight(
   // Safety: a stalled rAF / killed tween can never leave the dialog unshown.
   ctx.openSafety = window.setTimeout(finish, motionMs(420) + 600);
   if (proxy === undefined) {
-    zlog('open flight: no proxy element — vanilla show');
-    finish();
+    finish(); // no proxy element — vanilla show
     return;
   }
   if (source === undefined) {
     // Textual / none / unresolvable slot: the inspector rise-from-depth.
-    zlog('open flight: rise-from-depth');
     ctx.tween = gsap.fromTo(proxy,
       {opacity: 0, x: landing.left, y: landing.top + 26, scale: 0.86, transformOrigin: '50% 60%'},
       {opacity: 1, x: landing.left, y: landing.top, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
     return;
   }
   // FLIP: the proxy lifts out of the slot and expands onto the landing rect.
-  zlog(`open flight: FLIP from slot ${Math.round(source.width)}x${Math.round(source.height)} → ${Math.round(landing.width)}x${Math.round(landing.height)}`);
   holdSlot(sourceCardEl(ctx.origin ?? {kind: 'none'}, index));
   const scale = source.width / landing.width;
   ctx.tween = gsap.fromTo(proxy,

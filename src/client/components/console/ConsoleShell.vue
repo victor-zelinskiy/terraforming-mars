@@ -613,7 +613,7 @@ import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
-import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion, zdump} from '@/client/console/consoleZoomMotion';
+import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
@@ -2344,7 +2344,6 @@ export default defineComponent({
           const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
           const el = zoom?.$el as HTMLElement | undefined;
           if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
-            console.warn(`%c[TM-DIAG zoom] tryOpen attempt=${attempt}: ref not ready (zoom=${zoom !== undefined} el=${el !== undefined})`, 'color:#f59e0b');
             if (attempt < 10) {
               requestAnimationFrame(() => tryOpen(attempt + 1));
             } else {
@@ -4165,26 +4164,7 @@ export default defineComponent({
         return; // closed / reopened while measuring — that sequence owns state
       }
       const index = this.consoleCardZoom.index;
-      console.warn(`%c[TM-DIAG zoom] open: card=${String(this.consoleCardZoom.card?.name)} origin=${origin.kind} landing=${landing !== undefined ? Math.round(landing.rect.width) + 'x' + Math.round(landing.rect.height) + '@' + landing.zoom.toFixed(2) : 'none'}`, 'color:#38bdf8');
-      // TEMPORARY (DIAGNOSTIC_CLEANUP.md): decisive visual dump ~1.2s in.
-      const dialogEl = zoom.$el as HTMLElement | undefined;
-      if (dialogEl !== undefined) {
-        window.setTimeout(() => {
-          if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
-            zdump(dialogEl);
-          }
-        }, motionMs(380) + 800);
-      }
-      // TEMPORARY on-device probe (DIAGNOSTIC_CLEANUP.md): tm_zoom_vanilla=1
-      // forces the vanilla open (no proxy flight) — isolates the choreography
-      // in one relaunch if the first-open bug ever resurfaces.
-      let vanillaProbe = false;
-      try {
-        vanillaProbe = window.localStorage.getItem('tm_zoom_vanilla') === '1';
-      } catch {
-        vanillaProbe = false;
-      }
-      if (landing === undefined || vanillaProbe || consoleReducedMotionActive()) {
+      if (landing === undefined || consoleReducedMotionActive()) {
         // VANILLA open (also the reduced-motion / JSDOM / degenerate-layout
         // path): show immediately — first frame final and fully visible.
         zoom.show();
