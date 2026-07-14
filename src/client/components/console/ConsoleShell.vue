@@ -2306,7 +2306,6 @@ export default defineComponent({
           const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
           const el = zoom?.$el as HTMLElement | undefined;
           if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
-            // eslint-disable-next-line no-console
             console.warn(`%c[TM-DIAG zoom] tryOpen attempt=${attempt}: ref not ready (zoom=${zoom !== undefined} el=${el !== undefined})`, 'color:#f59e0b');
             if (attempt < 10) {
               requestAnimationFrame(() => tryOpen(attempt + 1));
@@ -2315,7 +2314,7 @@ export default defineComponent({
             }
             return;
           }
-          // eslint-disable-next-line no-console
+
           console.warn(`%c[TM-DIAG zoom] tryOpen OK (attempt=${attempt}) card=${String(this.consoleCardZoom.card?.name)} → show()`, 'color:#38bdf8');
           zoom.show?.();
           playZoomOpen(el, this.consoleCardZoom.index, this.consoleCardZoom.origin, () => {

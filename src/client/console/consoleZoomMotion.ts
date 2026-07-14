@@ -38,7 +38,6 @@ const HOLD_CLASS = 'con-zoom-hold';
 // zoom-open choreography so a broken first open can be pinpointed from the
 // user's console instead of guessed.
 function zlog(msg: string): void {
-  // eslint-disable-next-line no-console
   console.warn(`%c[TM-DIAG zoom] ${msg}`, 'color:#38bdf8');
 }
 
@@ -65,7 +64,7 @@ function zdump(dialog: HTMLElement): void {
     const cx = Math.round(window.innerWidth / 2);
     const cy = Math.round(window.innerHeight / 2);
     const atCenter = document.elementFromPoint(cx, cy);
-    // eslint-disable-next-line no-console
+
     console.warn(
       `%c[TM-DIAG zoom DUMP]\n` +
       `dialog.open=${(dialog as HTMLDialogElement).open} | dialog: ${cs(dialog)}\n` +
@@ -74,7 +73,6 @@ function zdump(dialog: HTMLElement): void {
       `elementFromPoint(center ${cx},${cy})=${atCenter !== null ? atCenter.tagName + '.' + String((atCenter as HTMLElement).className).slice(0, 80) : 'null'}`,
       'color:#f472b6;font-weight:bold');
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[TM-DIAG zoom DUMP] failed', err);
   }
 }
@@ -212,62 +210,62 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
       void stage.offsetHeight; // force the re-layerize before the next commit
     }
     requestAnimationFrame(() => {
-    if (ctx.closing) {
-      zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
-      return; // closed before it ever opened — close path owns cleanup
-    }
-    const finish = () => {
-      ctx.tween = undefined;
-      onSettled();
-      // Graphite content-raster workaround (see invalidateCardRaster): force a
-      // fresh content rasterization right after the card lands, and once more
-      // shortly after (an image decode may still have been in flight the first
-      // time). Cheap (one card re-raster) and invisible (same-task jiggle).
-      requestAnimationFrame(() => {
-        if (!ctx.closing) {
-          invalidateCardRaster(stage, 'post-land');
-        }
-      });
-      setTimeout(() => {
-        if (!ctx.closing) {
-          invalidateCardRaster(stage, 'late');
-        }
-      }, motionMs(600));
-    };
-    if (reduced) {
-      ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
-      return;
-    }
-    const target = stage.getBoundingClientRect();
-    const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
-    zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
-    if (source === undefined || target.width < 10) {
+      if (ctx.closing) {
+        zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
+        return; // closed before it ever opened — close path owns cleanup
+      }
+      const finish = () => {
+        ctx.tween = undefined;
+        onSettled();
+        // Graphite content-raster workaround (see invalidateCardRaster): force a
+        // fresh content rasterization right after the card lands, and once more
+        // shortly after (an image decode may still have been in flight the first
+        // time). Cheap (one card re-raster) and invisible (same-task jiggle).
+        requestAnimationFrame(() => {
+          if (!ctx.closing) {
+            invalidateCardRaster(stage, 'post-land');
+          }
+        });
+        setTimeout(() => {
+          if (!ctx.closing) {
+            invalidateCardRaster(stage, 'late');
+          }
+        }, motionMs(600));
+      };
+      if (reduced) {
+        ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
+        return;
+      }
+      const target = stage.getBoundingClientRect();
+      const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
+      zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
+      if (source === undefined || target.width < 10) {
       // Textual / none / unresolvable slot: the inspector rise-from-depth.
-      zlog('open path: rise-from-depth fallback');
+        zlog('open path: rise-from-depth fallback');
+        ctx.tween = gsap.fromTo(stage,
+          {autoAlpha: 0, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
+          {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
+        return;
+      }
+      // FLIP: start the fullscreen stage transformed onto the slot's rect.
+      zlog('open path: FLIP from slot');
+      holdSlot(sourceCardEl(origin, index));
+      const scale = source.width / target.width;
       ctx.tween = gsap.fromTo(stage,
-        {autoAlpha: 0, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
-        {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
-      return;
-    }
-    // FLIP: start the fullscreen stage transformed onto the slot's rect.
-    zlog('open path: FLIP from slot');
-    holdSlot(sourceCardEl(origin, index));
-    const scale = source.width / target.width;
-    ctx.tween = gsap.fromTo(stage,
-      {
-        autoAlpha: 1,
-        x: source.left - target.left,
-        y: source.top - target.top,
-        scale,
-        rotation: -1.6,
-        transformOrigin: 'top left',
-      },
-      {
-        x: 0, y: 0, scale: 1, rotation: 0,
-        duration: motionMs(380) / 1000,
-        ease: 'expo.out',
-        onComplete: finish,
-      });
+        {
+          autoAlpha: 1,
+          x: source.left - target.left,
+          y: source.top - target.top,
+          scale,
+          rotation: -1.6,
+          transformOrigin: 'top left',
+        },
+        {
+          x: 0, y: 0, scale: 1, rotation: 0,
+          duration: motionMs(380) / 1000,
+          ease: 'expo.out',
+          onComplete: finish,
+        });
     });
   });
 }
