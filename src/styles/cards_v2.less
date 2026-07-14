@@ -71,7 +71,15 @@
         background-position: -12px -4px;
         filter: grayscale(0.2);
     }
+}
 
+/* The corporation wordmark system is shared by the LEGACY face
+   (.card-container) and the PREMIUM corporation face's identity zone
+   (.pcard-corp-stage — see PremiumCorpIdentity.vue). Deliberately NOT the
+   literal `card-container` class inside .pcard: hosts zoom
+   `:is(.card-container, .pcard)` descendants, so a nested .card-container
+   would be zoomed twice. */
+:is(.card-container, .pcard-corp-stage) {
     .card-corporation-logo {
         position: absolute;
         width: 100%;
@@ -1310,6 +1318,9 @@
             left: -8px;
         }
     }
+}
+
+.card-container {
     .card-content-corporation {
         top: -30px;
         height: 310px !important;

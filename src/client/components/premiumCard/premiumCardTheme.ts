@@ -2,9 +2,10 @@
  * PREMIUM CARD THEME — CardType → visual theme, and the ONE scope gate.
  *
  * The premium card face (this fork's from-scratch card renderer) covers
- * PROJECT cards (automated / active / event) and PRELUDES. Corporations,
+ * PROJECT cards (automated / active / event), PRELUDES and CORPORATIONS
+ * (identity zone = the existing wordmark logo system instead of art).
  * CEOs and standard projects stay on the legacy renderer until their own
- * premium pass (the corporation logo system is a separate project).
+ * premium pass.
  *
  * EVERY routing point (CardFace facade, CardZoomModal face, the console
  * FaceLite proxy) must consult `isPremiumFaceCard` — never re-derive the
@@ -18,13 +19,14 @@ import {CardType} from '@/common/cards/CardType';
  * inner rim, glow, mechanics panel tint) via `pcard--theme-<t>` CSS classes
  * in premium_card.less — gold frame / cost / VP elements stay shared.
  */
-export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude';
+export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude' | 'corporation';
 
 const THEME_BY_TYPE: Partial<Record<CardType, PremiumTheme>> = {
   [CardType.AUTOMATED]: 'emerald',
   [CardType.ACTIVE]: 'azure',
   [CardType.EVENT]: 'crimson',
   [CardType.PRELUDE]: 'prelude',
+  [CardType.CORPORATION]: 'corporation',
 };
 
 export function premiumThemeFor(type: CardType): PremiumTheme | undefined {

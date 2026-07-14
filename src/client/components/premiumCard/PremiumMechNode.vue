@@ -53,7 +53,8 @@
     </span>
   </span>
 
-  <!-- CORP BOX (defensive — corporations are out of premium scope today) -->
+  <!-- CORP BOX (defensive — mechanicsModel flattens corp boxes into root
+       groups, so this branch is normally unreachable) -->
   <span v-else-if="corpBoxNode !== undefined" class="pcard-effect">
     <template v-for="(row, ri) in corpBoxNode.rows" :key="ri">
       <PremiumMechNode v-for="(child, ci) in renderable(row)" :key="ri + '-' + ci" :node="child" />

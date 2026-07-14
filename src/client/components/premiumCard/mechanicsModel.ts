@@ -23,6 +23,9 @@ import {Size} from '@/common/cards/render/Size';
 import {deriveGraphicIds} from '@/common/cards/render/cardGraphicIds';
 import {
   ItemType,
+  ICardRenderCorpBoxAction,
+  ICardRenderCorpBoxEffect,
+  ICardRenderCorpBoxEffectAction,
   ICardRenderEffect,
   ICardRenderSymbol,
   isICardRenderCorpBoxAction,
@@ -289,6 +292,75 @@ export function densityAtLeast(density: MechDensity, threshold: MechDensity): bo
   return DENSITY_ORDER.indexOf(density) >= DENSITY_ORDER.indexOf(threshold);
 }
 
+type CorpBoxNode = ICardRenderCorpBoxEffect | ICardRenderCorpBoxAction | ICardRenderCorpBoxEffectAction;
+
+function isCorpBoxNode(node: ItemType): node is CorpBoxNode {
+  return node !== undefined && typeof node !== 'string' &&
+    (isICardRenderCorpBoxEffect(node) || isICardRenderCorpBoxAction(node) || isICardRenderCorpBoxEffectAction(node));
+}
+
+/**
+ * CORPORATION BOX FLATTENING — the legacy corp box (`b.corpBox('effect'|
+ * 'action'|'effect-action', …)`) is pure legacy-face CHROME (a framed zone
+ * with an "effect"/"action" caption). On the premium face its content becomes
+ * ordinary root rows: each effect/action frame inside gets its OWN engraved
+ * group (arrow vs colon classification, «ИЛИ» joins, prose dropping — the
+ * same pipeline as project cards). The corp builders chain several frames
+ * into ONE row (`ce.action(…); ce.effect(…)` with no `br` — StormCraft), so
+ * a corp-box row is additionally SPLIT at every effect frame; the loose
+ * nodes between frames (vSpace runs, connector ORs) keep their own row and
+ * resolve through the normal spacer / or-only handling. Expanded rows carry
+ * NO rowIndex (corp cards are outside the card-information scope) and a
+ * `fromCorpBox` marker — the Viral-Enhancers trigger splice must never fire
+ * for them (`startEffect`/`startAction` inside a corp box is a genuinely
+ * empty cause, NOT a trigger drawn on the preceding row; the splice was
+ * eating the corp's starting-resources row).
+ */
+type SourceRow = {row: ReadonlyArray<ItemType>, rowIndex: number | undefined, fromCorpBox?: boolean};
+
+function corpBoxSourceRows(box: CorpBoxNode): Array<SourceRow> {
+  const result: Array<SourceRow> = [];
+  for (const boxRow of box.rows) {
+    let pending: Array<ItemType> = [];
+    const flush = () => {
+      if (pending.length > 0) {
+        result.push({row: pending, rowIndex: undefined, fromCorpBox: true});
+        pending = [];
+      }
+    };
+    for (const node of boxRow) {
+      if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) {
+        flush();
+        result.push({row: [node], rowIndex: undefined, fromCorpBox: true});
+      } else {
+        pending.push(node);
+      }
+    }
+    flush();
+  }
+  return result;
+}
+
+function flattenCorpBoxRows(rows: ReadonlyArray<ReadonlyArray<ItemType>>): Array<SourceRow> {
+  const result: Array<SourceRow> = [];
+  rows.forEach((row, rowIndex) => {
+    if (!row.some(isCorpBoxNode)) {
+      result.push({row, rowIndex});
+      return;
+    }
+    const rest = row.filter((node) => !isCorpBoxNode(node));
+    if (renderableNodes(rest).length > 0) {
+      result.push({row: rest, rowIndex});
+    }
+    for (const node of row) {
+      if (isCorpBoxNode(node)) {
+        result.push(...corpBoxSourceRows(node));
+      }
+    }
+  });
+  return result;
+}
+
 /** The vpText fine-print marker: `b.vpText()` emits TEXT at TINY, uppercase. */
 function isVpTextItem(node: ItemType): boolean {
   return node !== undefined && typeof node !== 'string' && isICardRenderItem(node) &&
@@ -361,7 +433,7 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
    */
   const groups: Array<MechGroup> = [];
   let pendingOr = false;
-  renderData.rows.forEach((row, rowIndex) => {
+  for (const {row, rowIndex, fromCorpBox} of flattenCorpBoxRows(renderData.rows)) {
     // Icons-only face: drop prose `plainText` (a row that was ONLY prose then
     // collapses and is skipped; a prose node chained onto an icon row — AI
     // Central — is removed while the icon stays).
@@ -369,13 +441,13 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     if (options.dropVpText === true) {
       rowNodes = rowNodes.filter((node) => !isVpTextItem(node));
     }
-    if (rowNodes.length === 0) {
-      return; // a description-only / spacer / dropped-fine-print row
+    if (rowNodes.length === 0 || rowNodes.every(isSpacerNode)) {
+      continue; // a description-only / spacer-only / dropped-fine-print row
     }
     const {nodes, leadingOr, trailingOr} = orEdges(rowNodes);
     if (nodes.length === 0) {
       pendingOr = pendingOr || leadingOr || trailingOr; // an OR-only row
-      return;
+      continue;
     }
     // Viral-Enhancers idiom: the effect's TRIGGER is drawn as a standalone
     // root row BEFORE an empty-cause effect box. Splice that trigger into the
@@ -383,7 +455,7 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     // as ONE effect (mirrors effectExtraction.withSplicedCause; the tag row was
     // rendering as a separate block on the premium face).
     let effectiveNodes = nodes;
-    const emptyEffect = emptyCauseEffect(nodes);
+    const emptyEffect = fromCorpBox === true ? undefined : emptyCauseEffect(nodes);
     const prev = groups[groups.length - 1];
     if (emptyEffect !== undefined && prev !== undefined && prev.kind === 'plain' && prev.orJoin !== true) {
       effectiveNodes = nodes.map((node) => (node === emptyEffect ?
@@ -395,14 +467,14 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
       kind: groupKindOf(effectiveNodes),
       nodes: effectiveNodes,
       weight: sumNodes(effectiveNodes),
-      graphicId: graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
+      graphicId: rowIndex === undefined ? undefined : graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
     };
     if (pendingOr || leadingOr) {
       group.orJoin = true;
     }
     pendingOr = trailingOr;
     groups.push(group);
-  });
+  }
 
   for (let i = 1; i < groups.length; i++) {
     if (groups[i].kind === 'action' && groups[i - 1].kind === 'action' && groups[i].orJoin !== true) {

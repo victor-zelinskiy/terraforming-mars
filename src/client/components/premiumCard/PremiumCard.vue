@@ -31,8 +31,9 @@
       <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
       <span v-else class="pcard__divider" aria-hidden="true"></span>
 
-      <!-- art viewport -->
-      <PremiumCardArt :art="vm.art" />
+      <!-- art viewport; corporations render the brand wordmark instead of art -->
+      <PremiumCorpIdentity v-if="isCorporation" :name="vm.name" />
+      <PremiumCardArt v-else-if="vm.art !== undefined" :art="vm.art" />
 
       <!-- ── LOWER SECTION ────────────────────────────────────────────
            Mechanics content + ANCHORED service elements (no footer row).
@@ -78,6 +79,7 @@ import {defineComponent, nextTick} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
+import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
@@ -92,6 +94,7 @@ import PremiumCostBadge from './PremiumCostBadge.vue';
 import PremiumTagRail from './PremiumTagRail.vue';
 import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 import PremiumCardArt from './PremiumCardArt.vue';
+import PremiumCorpIdentity from './PremiumCorpIdentity.vue';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
 
@@ -109,7 +112,7 @@ const TITLE_SAFE_TAG_GAP = 18;
 
 /**
  * PREMIUM CARD FACE — the fork's from-scratch card renderer (project cards +
- * preludes; scope gate = premiumCardTheme.isPremiumFaceType). Mirrors the
+ * preludes + corporations; scope gate = premiumCardTheme.isPremiumFaceType). Mirrors the
  * legacy <Card> host contract: `card` (CardModel), `actionUsed`, `robotCard`,
  * `cubeColor`, `lightweight`; click opens the shared fullscreen viewer behind
  * the same preference. `name`-only mode renders the pristine printed face for
@@ -124,6 +127,7 @@ export default defineComponent({
     PremiumTagRail,
     PremiumRequirementsBar,
     PremiumCardArt,
+    PremiumCorpIdentity,
     PremiumMechanicsPanel,
     PremiumVpBadge,
   },
@@ -229,6 +233,9 @@ export default defineComponent({
     },
     interactive(): boolean {
       return !this.inert;
+    },
+    isCorporation(): boolean {
+      return this.vm.type === CardType.CORPORATION;
     },
     rootClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {

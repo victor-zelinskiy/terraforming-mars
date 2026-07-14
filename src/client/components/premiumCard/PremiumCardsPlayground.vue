@@ -8,7 +8,7 @@
   <div class="pcpg">
     <header class="pcpg__head">
       <h1>PREMIUM CARDS — SHOWCASE</h1>
-      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude)</span>
+      <span class="pcpg__hint">?premiumCardsPlayground · {{ scopeCards.length }} карт в скоупе (project + prelude + corporation)</span>
     </header>
 
     <!-- reference strip -->
@@ -45,6 +45,17 @@
       <h2>Эталонные кейсы</h2>
       <div class="pcpg__row">
         <div v-for="c in curated" :key="c.label" class="pcpg__case">
+          <PremiumCard :card="c.model" />
+          <span class="pcpg__label">{{ c.label }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- corporations: identity zone hosts the wordmark logo instead of art -->
+    <section class="pcpg__section">
+      <h2>Корпорации (identity-зона = вордмарк, без арта)</h2>
+      <div class="pcpg__row">
+        <div v-for="c in corpCases" :key="c.label" class="pcpg__case">
           <PremiumCard :card="c.model" />
           <span class="pcpg__label">{{ c.label }}</span>
         </div>
@@ -180,6 +191,18 @@ export default defineComponent({
         {label: 'Столица (Ares-тайл)', model: this.modelOf(CardName.CAPITAL_ARES)},
         {label: 'Торг. район (Ares-тайл)', model: this.modelOf(CardName.COMMERCIAL_DISTRICT_ARES)},
         {label: 'Deimos Down (Ares-тайл)', model: this.modelOf(CardName.DEIMOS_DOWN_ARES)},
+      ];
+    },
+    /** Corporation showcase: css / bespoke / image / text-fallback wordmarks,
+     *  effect-action box, live resources, a long brand name. */
+    corpCases(): Array<CuratedCase> {
+      return [
+        {label: 'css-вордмарк (Helion)', model: this.modelOf(CardName.HELION)},
+        {label: 'bespoke SVG + effect-action + ресурсы', model: this.modelOf(CardName.STORMCRAFT_INCORPORATED, {resources: 4})},
+        {label: 'длинное имя (Interplanetary Cinematics)', model: this.modelOf(CardName.INTERPLANETARY_CINEMATICS)},
+        {label: 'действие корпорации (UNMI)', model: this.modelOf(CardName.UNITED_NATIONS_MARS_INITIATIVE)},
+        {label: 'плата за карты (Polyphemos)', model: this.modelOf(CardName.POLYPHEMOS)},
+        {label: 'text-fallback (Beginner)', model: this.modelOf(CardName.BEGINNER_CORPORATION)},
       ];
     },
     densityBuckets(): Array<{density: MechDensity, total: number, samples: Array<CardName>}> {

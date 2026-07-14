@@ -9,7 +9,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
 import {GameModule} from '@/common/cards/GameModule';
-import {isICardRenderEffect, isICardRenderSymbol, isICardRenderItem} from '@/common/cards/render/Types';
+import {isICardRenderEffect, isICardRenderSymbol, isICardRenderItem, isICardRenderCorpBoxAction, isICardRenderCorpBoxEffect, isICardRenderCorpBoxEffectAction} from '@/common/cards/render/Types';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {Size} from '@/common/cards/render/Size';
 import {effectParts} from '@/client/components/premiumCard/mechanicsModel';
@@ -27,16 +27,17 @@ function vmOf(name: CardName, overrides: Partial<CardModel> = {}) {
 }
 
 describe('premiumCardTheme', () => {
-  it('maps project + prelude types, rejects the rest', () => {
+  it('maps project + prelude + corporation types, rejects the rest', () => {
     expect(premiumThemeFor(CardType.AUTOMATED)).to.eq('emerald');
     expect(premiumThemeFor(CardType.ACTIVE)).to.eq('azure');
     expect(premiumThemeFor(CardType.EVENT)).to.eq('crimson');
     expect(premiumThemeFor(CardType.PRELUDE)).to.eq('prelude');
-    expect(premiumThemeFor(CardType.CORPORATION)).to.eq(undefined);
+    expect(premiumThemeFor(CardType.CORPORATION)).to.eq('corporation');
     expect(premiumThemeFor(CardType.CEO)).to.eq(undefined);
     expect(premiumThemeFor(CardType.STANDARD_PROJECT)).to.eq(undefined);
     expect(isPremiumFaceType(CardType.EVENT)).to.eq(true);
-    expect(isPremiumFaceType(CardType.CORPORATION)).to.eq(false);
+    expect(isPremiumFaceType(CardType.CORPORATION)).to.eq(true);
+    expect(isPremiumFaceType(CardType.CEO)).to.eq(false);
   });
 });
 
@@ -59,8 +60,8 @@ describe('cardArt', () => {
 
 describe('buildPremiumCardViewModel', () => {
   it('throws for out-of-scope card types', () => {
-    const corp = getCards((c) => c.type === CardType.CORPORATION)[0];
-    expect(() => buildPremiumCardViewModel(corp)).to.throw(/outside the premium face scope/);
+    const ceo = getCards((c) => c.type === CardType.CEO)[0];
+    expect(() => buildPremiumCardViewModel(ceo)).to.throw(/outside the premium face scope/);
   });
 
   it('builds the cost cluster with a discount delta', () => {
@@ -325,6 +326,54 @@ describe('premium face coverage guard', () => {
       }
     }
     expect(unexpected, `cards without extractable mechanics changed:\n${unexpected.join('\n')}`).to.deep.eq([]);
+  });
+});
+
+describe('corporation premium face', () => {
+  it('builds the corporation VM: theme, no cost badge, no art', () => {
+    const vm = vmOf(CardName.HELION);
+    expect(vm.theme).to.eq('corporation');
+    expect(vm.cost, 'corporations have no play cost — starting M€ lives in the mechanics').to.eq(undefined);
+    expect(vm.art, 'corporations have no card art — the identity zone hosts the wordmark').to.eq(undefined);
+    expect(vm.tags).to.deep.eq([Tag.SPACE]);
+  });
+
+  it('flattens the corp box: rows become ordinary groups, no corp-box node leaks (Helion)', () => {
+    const groups = vmOf(CardName.HELION).mechanics.groups;
+    // starting resources row (production + 42 M€) + the heat-as-M€ effect
+    expect(groups.map((g) => g.kind)).to.deep.eq(['plain', 'effect']);
+    for (const group of groups) {
+      for (const node of group.nodes) {
+        const leaked = node !== undefined && typeof node !== 'string' &&
+          (isICardRenderCorpBoxEffect(node) || isICardRenderCorpBoxAction(node) || isICardRenderCorpBoxEffectAction(node));
+        expect(leaked, 'corp-box node leaked into a mech group').to.eq(false);
+      }
+    }
+  });
+
+  it('an effect-action corp box yields BOTH an effect and an action group (StormCraft)', () => {
+    const kinds = vmOf(CardName.STORMCRAFT_INCORPORATED).mechanics.groups.map((g) => g.kind);
+    expect(kinds).to.include('effect');
+    expect(kinds).to.include('action');
+  });
+
+  // Corporations route by TYPE (module-agnostic — the draft can deal ANY
+  // corp), so EVERY corporation in the manifest must build a VM without
+  // throwing and with extractable mechanics. A corp landing in the pinned
+  // no-mechanics list should be triaged, never silently accepted.
+  const CORP_NO_MECHANICS_ACCEPTED = new Set<string>([]);
+
+  it('builds every corporation across ALL modules', () => {
+    const corps = getCards((c) => c.type === CardType.CORPORATION);
+    expect(corps.length).to.be.greaterThan(50);
+    const unexpected: Array<string> = [];
+    for (const corp of corps) {
+      const vm = buildPremiumCardViewModel(corp);
+      if (vm.mechanics.textOnly && !CORP_NO_MECHANICS_ACCEPTED.has(corp.name)) {
+        unexpected.push(corp.name);
+      }
+    }
+    expect(unexpected, `corporations without extractable mechanics:\n${unexpected.join('\n')}`).to.deep.eq([]);
   });
 });
 

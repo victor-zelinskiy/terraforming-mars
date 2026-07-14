@@ -42,6 +42,17 @@ describe('PremiumCard', () => {
     expect(wrapper.classes()).to.include('pcard--theme-azure');
   });
 
+  it('corporation face: identity zone hosts the wordmark, no art, no cost badge', () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.HELION)}});
+    expect(wrapper.classes()).to.include('pcard--theme-corporation');
+    expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(false);
+    expect(wrapper.findComponent(PremiumCardArt).exists()).to.eq(false);
+    // the identity zone hosts the EXISTING wordmark system inside the stage
+    expect(wrapper.find('.pcard-corp .pcard-corp-stage .card-corporation-logo').exists()).to.eq(true);
+    // the flattened corp box renders as ordinary mech groups (starting row + effect)
+    expect(wrapper.findAll('.pcard-mech-group').length).to.be.greaterThan(1);
+  });
+
   it('static name-only mode renders the pristine printed face', () => {
     const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
     expect(wrapper.classes()).to.include('pcard--theme-crimson');

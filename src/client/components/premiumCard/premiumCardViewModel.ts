@@ -92,7 +92,8 @@ export type PremiumCardVM = {
   tags: ReadonlyArray<Tag>;
   tagCluster: TagClusterPlan;
   requirements: ReadonlyArray<NormalizedRequirement>;
-  art: PremiumCardArt;
+  /** Undefined for corporations — their identity zone hosts the wordmark logo, never art. */
+  art?: PremiumCardArt;
   mechanics: MechanicsVM;
   vp?: PremiumVpVM;
   expansion: GameModule;
@@ -225,6 +226,7 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
   }
   const tags = buildTags(clientCard, model);
   const vp = buildVp(clientCard.metadata);
+  const isCorporation = clientCard.type === CardType.CORPORATION;
   return {
     name: clientCard.name,
     slug: slugOf(clientCard.name),
@@ -235,7 +237,9 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     tags,
     tagCluster: tagClusterPlan(tags.length),
     requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
-    art: premiumCardArt(clientCard.name),
+    // Corporations have no card art by design — the identity zone renders the
+    // existing wordmark logo (CardCorporationLogo) instead.
+    art: isCorporation ? undefined : premiumCardArt(clientCard.name),
     // The printed VP fine print (vpText) leaves the FACE for dynamic-VP
     // cards — the rule is a card-information VP block now (the icons-only
     // face keeps the compact VP badge formula).
