@@ -84,13 +84,15 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Windows: enables Graphite (on Dawn/D3D12) + precompilation + the waitable swap chain by default', () => {
+  it('Windows: enables Graphite (pinned to Dawn/D3D11) + precompilation + the waitable swap chain by default', () => {
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       expect(effectiveValue(app, 'enable-features')).to.equal(
         'SkiaGraphite,SkiaGraphitePrecompilation,DXGIWaitableSwapChain:DXGIWaitableSwapChainMaxQueuedFrames/2');
-      expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('d3d12');
+      // the MEASURED winner on the target box (d3d12 A/B'd worse, 2026-07-14) —
+      // pinned so a future Chromium default flip can't silently move us off it
+      expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('d3d11');
     });
   });
 
