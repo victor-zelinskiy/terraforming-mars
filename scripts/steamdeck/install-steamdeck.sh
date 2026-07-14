@@ -59,19 +59,23 @@ mkdir -p "$(dirname "$TM_RESTART_MARKER")"
 export TM_INSTALLER_URL="@@INSTALLER_URL@@"
 export TM_INSTALLER_SHA="@@INSTALLER_SHA@@"
 # ── Performance tuning ────────────────────────────────────────────────────────
-# The Deck's measured tuning (software rendering + 4 raster threads + the V8
-# young-gen bump) is BUILT INTO the app now — no env needed. The two exports
-# below are kept ONLY so an app version older than the baked-in defaults still
-# picks them up; current builds ignore them (same values are the defaults).
+# The Deck's tuning is BUILT INTO the app now — no env needed. Current default is
+# the GPU path: Skia Graphite on Dawn/VULKAN (RADV) + GL routed through ANGLE's
+# Vulkan backend. (The old "GPU is worse on the Deck" verdict was a GL/EGL
+# failure under XWayland; Vulkan does not use EGL at all.) Verify in this log:
+# the "[electron] GPU feature status" line should say "gpu_compositing":"enabled".
+#
+# ROLLBACK (if the GPU path misbehaves — black screen / churn / worse smoothness):
+# uncomment ONE line to restore the previously measured software path:
+# export TM_ELECTRON_SOFTWARE=1
+#
+# The two exports below are kept ONLY for app versions older than the baked-in
+# defaults; current builds ignore them (same values are built in).
 export TM_ELECTRON_RASTER_THREADS=4
 export TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"
-# GPU stays OFF on purpose — measured on-device, hardware accel under XWayland only makes
-# things WORSE (no usable GL/EGL context → a failing GPU process + churn). The only thing
-# that might enable it is NATIVE Wayland; to experiment, uncomment the two lines below,
-# then check terraforming-mars-steam.log / the in-game F12 console "[TM perf]" line for
-# "gpu_compositing":"enabled" and revert if it isn't there.
-# export TM_ELECTRON_SWITCHES="ozone-platform=wayland;use-angle=vulkan"
-# export TM_ELECTRON_FEATURES=SkiaGraphite
+# Optional experiment on top of the GPU default — NATIVE Wayland (skip XWayland;
+# gamescope is itself a Wayland compositor). Revert if input/display misbehaves:
+# export TM_ELECTRON_SWITCHES="ozone-platform=wayland"
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do

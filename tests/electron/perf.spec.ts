@@ -25,7 +25,9 @@ function effectiveValue(app: ReturnType<typeof fakeApp>, key: string): string | 
 describe('electron/perf', () => {
   // Every env knob the switch builder reads — snapshot before the suite, CLEAR before
   // each test (so a leaked value can't bleed across cases), restore after.
-  const ENV_KEYS = ['TM_ELECTRON_NO_PERF', 'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES'] as const;
+  const ENV_KEYS = [
+    'TM_ELECTRON_NO_PERF', 'TM_ELECTRON_SOFTWARE', 'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES',
+  ] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
     saved[k] = process.env[k];
@@ -45,10 +47,10 @@ describe('electron/perf', () => {
     }
   });
 
-  // Override process.platform so BOTH the Windows (GPU) and Linux/Steam Deck
-  // (software) branches are covered deterministically on ANY CI runner — the
-  // switch set is platform-specific, so a bare assertion would pass on one OS
-  // and fail on the other (which is exactly what broke Linux CI).
+  // Override process.platform so BOTH the Windows and Linux/Steam Deck branches
+  // are covered deterministically on ANY CI runner — the switch set is
+  // platform-specific, so a bare assertion would pass on one OS and fail on
+  // the other (which is exactly what broke Linux CI).
   function withPlatform(platform: string, fn: () => void): void {
     const orig = Object.getOwnPropertyDescriptor(process, 'platform');
     Object.defineProperty(process, 'platform', {value: platform, configurable: true});
@@ -78,6 +80,8 @@ describe('electron/perf', () => {
         expect(keys, expected).to.include(expected);
       }
       expect(keys).to.not.include('disable-gpu');
+      // ANGLE-over-Vulkan is the LINUX EGL sidestep — Windows stays on D3D11 ANGLE
+      expect(keys).to.not.include('use-angle');
       expect(effectiveValue(app, 'force-gpu-mem-available-mb')).to.equal('4096');
       expect(effectiveValue(app, 'force-color-profile')).to.equal('srgb');
       expect(effectiveValue(app, 'js-flags')).to.equal('--max-semi-space-size=64');
@@ -94,6 +98,53 @@ describe('electron/perf', () => {
       // pinned so a future Chromium default flip can't silently move us off it
       expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('d3d11');
     });
+  });
+
+  it('Linux/Steam Deck: GPU path with Graphite on Dawn/Vulkan by default', () => {
+    withPlatform('linux', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      for (const expected of [
+        'ignore-gpu-blocklist', 'enable-gpu-rasterization', 'enable-zero-copy',
+        'enable-accelerated-2d-canvas', 'force-gpu-mem-available-mb',
+        'disable-gpu-process-crash-limit', 'disable-background-networking',
+        'disable-background-timer-throttling', 'disable-renderer-backgrounding',
+        'disable-backgrounding-occluded-windows', 'disable-ipc-flooding-protection',
+      ]) {
+        expect(keys, expected).to.include(expected);
+      }
+      // the EGL sidestep: every GL context is served by ANGLE's Vulkan backend
+      expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
+      expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite,SkiaGraphitePrecompilation');
+      expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('vulkan');
+      // the D3D presentation features + dual-GPU preference are Windows-only
+      expect(effectiveValue(app, 'enable-features')).to.not.include('DXGI');
+      expect(keys).to.not.include('force_high_performance_gpu');
+      // no software-path leftovers
+      expect(keys).to.not.include('disable-gpu');
+      expect(keys).to.not.include('num-raster-threads');
+    });
+  });
+
+  it('TM_ELECTRON_SOFTWARE=1 restores the measured software path (the Deck rollback)', () => {
+    process.env.TM_ELECTRON_SOFTWARE = '1';
+    for (const platform of ['linux', 'win32']) {
+      withPlatform(platform, () => {
+        const app = fakeApp();
+        applyPerformanceSwitches(app as never);
+        const keys = app.switches.map((s) => s.key);
+        expect(keys, platform).to.include('disable-gpu');
+        expect(effectiveValue(app, 'num-raster-threads'), platform).to.equal('4');
+        expect(keys, platform).to.not.include('ignore-gpu-blocklist');
+        expect(keys, platform).to.not.include('use-angle');
+        expect(keys, platform).to.not.include('enable-features');
+        expect(keys, platform).to.not.include('skia-graphite-dawn-backend');
+        // the cross-platform trims still apply
+        expect(keys, platform).to.include('disable-features');
+        expect(keys, platform).to.include('disable-background-timer-throttling');
+      });
+    }
   });
 
   it('disables the occlusion tracker / BFCache / overscroll-nav / background services (one merged list, both platforms)', () => {
@@ -117,25 +168,6 @@ describe('electron/perf', () => {
     }
   });
 
-  it('Linux/Steam Deck: software rendering + raster threads, no GPU switches, no Graphite', () => {
-    withPlatform('linux', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      const keys = app.switches.map((s) => s.key);
-      for (const expected of [
-        'disable-gpu', 'num-raster-threads', 'disable-background-networking',
-        'disable-background-timer-throttling', 'disable-renderer-backgrounding',
-        'disable-backgrounding-occluded-windows', 'disable-ipc-flooding-protection',
-      ]) {
-        expect(keys, expected).to.include(expected);
-      }
-      expect(effectiveValue(app, 'num-raster-threads')).to.equal('4');
-      expect(keys).to.not.include('ignore-gpu-blocklist');
-      expect(keys).to.not.include('enable-features');
-      expect(keys).to.not.include('skia-graphite-dawn-backend');
-    });
-  });
-
   it('leaves the uncap / no-fallback switches OFF (expressible via TM_ELECTRON_SWITCHES)', () => {
     for (const platform of ['win32', 'linux']) {
       withPlatform(platform, () => {
@@ -144,8 +176,8 @@ describe('electron/perf', () => {
         const keys = app.switches.map((s) => s.key);
         expect(keys).to.not.include('disable-frame-rate-limit');
         expect(keys).to.not.include('disable-software-rasterizer');
-        expect(keys).to.not.include('use-angle');
         expect(keys).to.not.include('disable-direct-composition');
+        expect(keys).to.not.include('ozone-platform');
       });
     }
   });
@@ -181,20 +213,17 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Linux: a GL/display switch in TM_ELECTRON_SWITCHES declares a GPU experiment (no disable-gpu)', () => {
-    process.env.TM_ELECTRON_SWITCHES = 'ozone-platform=wayland;use-angle=vulkan';
-    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
+  it('Linux: the native-Wayland experiment rides TM_ELECTRON_SWITCHES on top of the GPU default', () => {
+    process.env.TM_ELECTRON_SWITCHES = 'ozone-platform=wayland';
     withPlatform('linux', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       const keys = app.switches.map((s) => s.key);
-      expect(keys).to.not.include('disable-gpu');
-      expect(keys).to.include('ignore-gpu-blocklist');
       expect(effectiveValue(app, 'ozone-platform')).to.equal('wayland');
+      // the GPU default is untouched by the extra
+      expect(keys).to.include('ignore-gpu-blocklist');
       expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
-      expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite');
-      // the D3D12 Graphite backend is a WINDOWS default — a Linux GPU experiment targets Vulkan
-      expect(keys).to.not.include('skia-graphite-dawn-backend');
+      expect(keys).to.not.include('disable-gpu');
     });
   });
 
