@@ -141,7 +141,36 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
   const reduced = consoleReducedMotionActive();
   // Two rAFs: the fit engine (show() → nextTick → fitCardToViewport) has
   // sized the card by then, so the measured stage rect is final.
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    // GRAPHITE first-commit workaround: on Windows the FIRST commit of this
+    // top-layer stage's texture can hit a Skia Graphite shared-image race
+    // ("ProduceSkia: non-existent mailbox") — the layer then stays EMPTY for
+    // the whole open (logic/DOM/measures all correct; the user's first
+    // fullscreen showed nothing; the second open always worked because its
+    // texture allocation is a fresh one). Force that "second allocation" here:
+    // drop + recreate the stage's layer subtree while it is still INVISIBLE
+    // (autoAlpha 0 until the FLIP), so the flight reveals a freshly-allocated
+    // texture. One hidden reflow per open — imperceptible, perf-neutral.
+    // A/B knob: `localStorage.tm_zoom_kick = '0'` disables the kick, so the
+    // boot warm-up (the zoom-scale legacy-card texture) can be verified as the
+    // actual fix in isolation. Default ON (belt and braces in production).
+    let kickOff = false;
+    try {
+      kickOff = localStorage.getItem('tm_zoom_kick') === '0';
+    } catch {
+      // storage unavailable — keep the kick on
+    }
+    if (kickOff) {
+      zlog('open: layer recreate kick SKIPPED (tm_zoom_kick=0)');
+    } else {
+      zlog('open: layer recreate kick (Graphite first-commit workaround)');
+      const prevDisplay = stage.style.display;
+      stage.style.display = 'none';
+      void stage.offsetHeight; // force the unlayerize
+      stage.style.display = prevDisplay;
+      void stage.offsetHeight; // force the re-layerize before the next commit
+    }
+    requestAnimationFrame(() => {
     if (ctx.closing) {
       zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
       return; // closed before it ever opened — close path owns cleanup
@@ -184,7 +213,8 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
         ease: 'expo.out',
         onComplete: finish,
       });
-  }));
+    });
+  });
 }
 
 /**

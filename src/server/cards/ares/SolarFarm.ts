@@ -10,6 +10,8 @@ import {Tag} from '../../../common/cards/Tag';
 import {CardRenderer} from '../render/CardRenderer';
 import {message} from '../../logs/MessageBuilder';
 import {Units} from '../../../common/Units';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class SolarFarm extends Card implements IProjectCard {
   constructor() {
@@ -59,5 +61,9 @@ export class SolarFarm extends Card implements IProjectCard {
         player.production.adjust(this.productionBox(player), {log: true});
       }));
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile on the board.'});
   }
 }

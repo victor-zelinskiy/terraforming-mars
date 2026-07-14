@@ -60,7 +60,15 @@
          (a dialog must be able to open); pointer-events none + opacity ~0. -->
     <dialog ref="warmDialog" class="boot-loader__warm-dialog" aria-hidden="true" @cancel.prevent @close.prevent>
       <div class="boot-loader__warm-dialog-stage">
-        <Card v-if="warmReady && warmCards.length > 0" :card="warmCards[0]" :inert="true" />
+        <!-- A LEGACY corporation at the REAL zoom scale (fitCardToViewport applies
+             CSS zoom ≈2.5 → a ~765×1200 texture). The first-open-empty bug hit
+             ONLY corporations (legacy face) in the fullscreen zoom: the small
+             warm-up cards covered the normal-size legacy rasterization, but the
+             zoom-scale texture of the legacy face is a DIFFERENT Graphite
+             allocation — warm exactly that one here. -->
+        <div class="boot-loader__warm-dialog-zoom">
+          <Card v-if="warmReady && warmCards.length > 0" :card="warmCards[0]" :inert="true" />
+        </div>
       </div>
     </dialog>
 

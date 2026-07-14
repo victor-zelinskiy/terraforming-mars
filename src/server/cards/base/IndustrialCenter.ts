@@ -12,7 +12,9 @@ import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {CardRenderer} from '../render/CardRenderer';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class IndustrialCenter extends ActionCard implements IProjectCard {
   constructor(
@@ -77,5 +79,9 @@ export class IndustrialCenter extends ActionCard implements IProjectCard {
         },
       }));
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile next to a city.'});
   }
 }

@@ -126,6 +126,14 @@
   animation: boot-warm-run calc(1200ms * var(--motion-scale, 1)) ease-in-out infinite;
   will-change: transform;
 }
+.boot-loader__warm-dialog-zoom {
+  // The REAL fullscreen-zoom scale: fitCardToViewport applies CSS `zoom` (up to
+  // 2.8) to the card element — the zoom-scale rasterization of the LEGACY face
+  // is its own Graphite texture allocation, and the first-open-empty bug hit
+  // exactly it (corporations only; premium was fine). 2.5 matches the typical
+  // fitted zoom on the target display (~765×1200).
+  zoom: 2.5;
+}
 
 /* ── Visible premium space scene (opaque — hides the warm-up behind it) ────── */
 .boot-loader__bg {

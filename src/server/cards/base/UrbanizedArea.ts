@@ -13,7 +13,9 @@ import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {Units} from '../../../common/Units';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class UrbanizedArea extends Card implements IProjectCard {
   constructor() {
@@ -99,5 +101,9 @@ export class UrbanizedArea extends Card implements IProjectCard {
       player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
     });
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the city tile on the board.'});
   }
 }

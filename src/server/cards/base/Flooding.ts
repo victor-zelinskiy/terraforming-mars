@@ -11,6 +11,8 @@ import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {skip} from '../../inputs/optionMetadata';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import * as actionPreviews from '../actionPreviews';
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -32,6 +34,14 @@ export class Flooding extends Card implements IProjectCard {
           {text: 'If there are tiles adjacent to this ocean tile, you may remove 4 M€ from the owner of one of those tiles.', tokens: ['megacredits']},
         ],
       },
+    });
+  }
+
+  // The ocean placement (and the placement-dependent M€ removal that follows) is
+  // bespoke — surface a note so the play modal isn't mute about the board step.
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {
+      text: 'After confirming, place the ocean tile (an adjacent opponent may lose 4 M€).',
     });
   }
 

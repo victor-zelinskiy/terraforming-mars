@@ -60,16 +60,18 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
   // via a `cardPlayPreview` hook (Project Inspection, Robotic Workforce, Stratospheric
   // Birds, the Venus resource-target cards…). Viron's COPY-an-action picker rides the
   // ACTION-confirm modal via its `actionPreview` hook (not a play card).
-  'Ecological Zone': 'follow-up', // greenery placement → PlacementBanner
-  'Immigrant City': 'follow-up', // city placement → PlacementBanner
-  'Industrial Center': 'follow-up', // tile placement → PlacementBanner
-  'Land Claim': 'follow-up', // space placement → PlacementBanner
-  'Mining Rights': 'follow-up', // space placement (+ steel/titanium pick) → PlacementBanner
-  'Mining Area': 'follow-up', // space placement → PlacementBanner
-  'Minority Refuge': 'follow-up', // build a colony → ColoniesOverlay
-  'Pioneer Settlement': 'follow-up', // build a colony → ColoniesOverlay
-  'Market Manipulation': 'follow-up', // two sequential SelectColony track picks → ColoniesOverlay
-  'Flooding': 'follow-up', // ocean placement (PlacementBanner) + a M€-removal OrOptions
+  // ── Board / colony PLACEMENT cards now carry a `cardPlayPreview` hook (via
+  // `actionPreviews.placementPreview`) that emits an honest "after confirming,
+  // place it on the board / build the colony" NOTE — so the play modal is NEVER
+  // mute about the follow-up placement (the tile/colony itself still rides
+  // PlacementBanner / ColoniesOverlay AFTER the batch). No longer dynamic-fallback:
+  //   Ecological Zone, Immigrant City, Industrial Center, Land Claim, Mining Rights,
+  //   Mining Area (MiningCard base), Minority Refuge, Pioneer Settlement, Flooding,
+  //   Mars Nomads, Urbanized Area, Kaguya Tech, Lava Tube Settlement, Great Dam
+  //   (:promo, :ares inherits), Solar Farm, Desperate Measures — plus every Ares
+  //   variant that EXTENDS a hooked base class (Mining Rights:ares, Mining Area:ares,
+  //   Ecological Zone:ares, Industrial Center:ares) inherits the hook.
+  'Market Manipulation': 'follow-up', // two sequential SelectColony TRACK picks (NOT a placement) → ColoniesOverlay
   // 'Virus' now has a cardPlayPreview hook — a TWO-TAB (animals / plants) removal
   // picker, the OR indices introspected from the shared buildRemovalOptions.
   // 'Astra Mechanica' now has a cardPlayPreview hook — two card-target SLOTS over
@@ -81,19 +83,8 @@ const ACCEPTED_DYNAMIC: Partial<Record<CardName, 'automatic' | 'follow-up'>> = {
   // loss) + the floater spend are pre-collected; +5 M€ / −1 floater result chips.
   // 'Sponsored Academies' now has a cardPlayPreview hook — the discard-1 hand pick
   // pre-collected; −1 card / +3 cards result chips.
-  'Mars Nomads': 'follow-up', // place the nomad marker on a land space → PlacementBanner
   // 'Productive Outpost' now has a cardPlayPreview hook — it aggregates every owned
   // colony's FIXED metadata.colony bonus into result chips; interactive bonuses note.
-
-  // ── Ares ── all are tile/space placements → PlacementBanner (the premium
-  // hazard/adjacency board explainability lives in the BoardInformation hover +
-  // active-placement preview, not crammed into the play modal).
-  'Ecological Zone:ares': 'follow-up', // special tile placed adjacent to a greenery → PlacementBanner
-  'Industrial Center:ares': 'follow-up', // special tile placed adjacent to a city → PlacementBanner
-  'Mining Area:ares': 'follow-up', // tile on a steel/titanium bonus space → PlacementBanner (+ steel/titanium prod follows placement)
-  'Mining Rights:ares': 'follow-up', // tile on a steel/titanium bonus space → PlacementBanner (+ steel/titanium prod follows placement)
-  'Solar Farm': 'follow-up', // tile on land → PlacementBanner; energy production is placement-driven (= plant bonuses on the space), shown by the board preview
-  'Desperate Measures': 'follow-up', // SelectSpace among unprotected hazards → PlacementBanner; the protected hazard's type (dust storm → +O₂ / erosion → +temp) is the board pick, surfaced by the hazard-cell board info
 };
 
 /**
@@ -118,15 +109,14 @@ const BEHAVIOR_BESPOKE_NO_HIDDEN_RESULT: Partial<Record<CardName, string>> = {
   // 'Cyberia Systems' now has a cardPlayPreview hook (both copy targets pre-collected
   // as two card-target steps with cross-step de-dup) — no longer a follow-up.
   'Established Methods': 'use a standard project → follow-up; +30 M€ in behavior',
-  'Great Dam:promo': 'tile placement → PlacementBanner; +2 energy production in behavior',
   // 'Hackers' now has a cardPlayPreview hook (the M€-production steal target picker
   // pre-collected) — no longer a follow-up; behavior shows −1 energy / +2 M€ prod.
-  'Urbanized Area': 'city placement → PlacementBanner; +2 M€ production in behavior',
-  'Kaguya Tech': 'convert a greenery to a city = a board placement choice → PlacementBanner; +2 M€ production + draw in behavior',
+  // Great Dam(:promo/:ares), Urbanized Area, Kaguya Tech, Lava Tube Settlement now
+  // carry a cardPlayPreview hook (placement note via `placementPreview`) that ALSO
+  // auto-includes their behavior chips — so the placement is surfaced AND the fixed
+  // production isn't hidden. No longer here.
   'Martian Lumber Corp': 'sets the canUsePlantsAsMegacredits ABILITY flag (no immediate result, like Helion); +1 plant production in behavior',
-  'Lava Tube Settlement': 'city placement on a volcanic space → PlacementBanner; −1 energy / +2 M€ production in behavior',
   // ── Ares ──
-  'Great Dam:ares': 'tile placement → PlacementBanner; +2 energy production in behavior (mirrors Great Dam:promo)',
   'Butterfly Effect': 'shifts the hazard-constraint thresholds (ShiftAresGlobalParametersDeferred — a board/rule choice) → follow-up; +1 TR in behavior',
 };
 

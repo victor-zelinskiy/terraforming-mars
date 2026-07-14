@@ -15,7 +15,9 @@ import {Phase} from '../../../common/Phase';
 import {Board} from '../../boards/Board';
 import {ICard} from '../ICard';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class EcologicalZone extends Card implements IProjectCard {
   constructor(
@@ -98,5 +100,9 @@ export class EcologicalZone extends Card implements IProjectCard {
         },
       }));
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the greenery tile on the board.'});
   }
 }

@@ -9,7 +9,9 @@ import {BuildColony} from '../../deferredActions/BuildColony';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class MinorityRefuge extends Card implements IProjectCard {
   constructor() {
@@ -84,5 +86,9 @@ export class MinorityRefuge extends Card implements IProjectCard {
         }))
       .andThen(() => player.production.add(Resource.MEGACREDITS, -2));
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {kind: 'colony'});
   }
 }

@@ -13,7 +13,9 @@ import {PlaceTile} from '../../deferredActions/PlaceTile';
 import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {message} from '../../logs/MessageBuilder';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class GreatDamPromo extends Card implements IProjectCard {
   constructor(
@@ -78,6 +80,10 @@ export class GreatDamPromo extends Card implements IProjectCard {
         },
       }));
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile next to an ocean.'});
   }
 
   private getAvailableSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): Array<Space> {

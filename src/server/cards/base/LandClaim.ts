@@ -8,7 +8,9 @@ import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class LandClaim extends Card implements IProjectCard {
   constructor() {
@@ -55,5 +57,9 @@ export class LandClaim extends Card implements IProjectCard {
         LogHelper.logBoardTileAction(player, space, 'land claim');
         return undefined;
       });
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, choose a space to reserve.'});
   }
 }

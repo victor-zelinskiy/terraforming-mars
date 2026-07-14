@@ -15,7 +15,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export class ImmigrantCity extends Card implements IProjectCard {
   constructor() {
@@ -85,5 +87,9 @@ export class ImmigrantCity extends Card implements IProjectCard {
       player.game.defer(new LoseProduction(player, Resource.MEGACREDITS, {count: 2}));
     });
     return undefined;
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the city tile on the board.'});
   }
 }

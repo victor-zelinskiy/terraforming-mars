@@ -13,6 +13,7 @@ import {Space} from '../../boards/Space';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 export class MarsNomads extends Card implements IActionCard {
   /*
@@ -76,6 +77,10 @@ export class MarsNomads extends Card implements IActionCard {
         player.game.nomadSpace = space.id;
         return undefined;
       });
+  }
+
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the nomads on a land space.'});
   }
 
   private canAffordPlacementBonus(player: IPlayer, space: Space): boolean {
