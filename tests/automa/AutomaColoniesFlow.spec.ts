@@ -55,6 +55,16 @@ describe('Automa Colonies', () => {
       // Keep it simpler: 11 = two exchanges, remainder 1.
       expect(automa.shippingStorage[ColonyName.LUNA]).eq(1);
     });
+
+    it('Titan routes to the single automa.floaters counter (usable), NOT the inert Titan storage', () => {
+      const [game] = testAutomaGame({coloniesExtension: true});
+      const automa = game.automa!;
+      AutomaColonies.addToStorage(game, ColonyName.TITAN, 2);
+      expect(automa.floaters).eq(2); // the pool the research spend / Hoverlord read
+      expect(automa.shippingStorage[ColonyName.TITAN] ?? 0).eq(0); // NOT the dead storage map
+      AutomaColonies.addToStorage(game, ColonyName.TITAN, 4); // floaters never 5-exchange
+      expect(automa.floaters).eq(6);
+    });
   });
 
   describe('building colonies', () => {

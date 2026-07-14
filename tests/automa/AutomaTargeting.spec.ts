@@ -180,16 +180,41 @@ describe('Automa targeting — the human turn vs MarsBot', () => {
   });
 });
 
-describe('Automa targeting — CARD-resource removal from MarsBot (Enceladus/Miranda/Titan)', () => {
-  it('attackableCardResourceStock = the matching storage area + the M€-supply proxy', () => {
+describe('Automa targeting — CARD-resource removal from MarsBot (microbes/animals storage, floaters counter)', () => {
+  it('microbe / animal = the matching storage area + the M€-supply proxy', () => {
     const [game, /* human */, bot] = testAutomaGame({coloniesExtension: true});
     bot.megaCredits = 4;
     game.automa!.shippingStorage[ColonyName.ENCELADUS] = 2; // microbes
     game.automa!.shippingStorage[ColonyName.MIRANDA] = 1; // animals
-    game.automa!.shippingStorage[ColonyName.TITAN] = 3; // floaters
     expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.MICROBE)).eq(6);
     expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.ANIMAL)).eq(5);
-    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.FLOATER)).eq(7);
+  });
+
+  it('FLOATER reads the automa.floaters counter (NOT the dead Titan storage) — correct WITH or WITHOUT Venus Next', () => {
+    // Colonies-only: floaters live in automa.floaters, and the shippingStorage[TITAN]
+    // map is a write-only dead pool → it MUST be ignored.
+    const [game, /* human */, bot] = testAutomaGame({coloniesExtension: true});
+    bot.megaCredits = 4;
+    game.automa!.floaters = 3;
+    game.automa!.shippingStorage[ColonyName.TITAN] = 9; // dead pool — must NOT count
+    expect(AutomaTargeting.attackableCardResourceStock(bot, CardResource.FLOATER)).eq(7); // 3 counter + 4 M€
+
+    // WITH Venus Next the Titan storage area isn't used for floaters at all; the
+    // counter is still the bot's floater pool, so the number is Venus-agnostic.
+    const [g2, /* h2 */, bot2] = testAutomaGame({venusNextExtension: true});
+    bot2.megaCredits = 2;
+    g2.automa!.floaters = 5;
+    expect(AutomaTargeting.attackableCardResourceStock(bot2, CardResource.FLOATER)).eq(7); // 5 counter + 2 M€
+  });
+
+  it('removeCardResourceFromBot(FLOATER) drains the automa.floaters counter first, then M€', () => {
+    const [game, /* human */, bot] = testAutomaGame({venusNextExtension: true});
+    bot.megaCredits = 5;
+    game.automa!.floaters = 1;
+    const removed = AutomaTargeting.removeCardResourceFromBot(game, CardResource.FLOATER, 3);
+    expect(removed).eq(3);
+    expect(game.automa!.floaters).eq(0); // counter drained first
+    expect(bot.megaCredits).eq(3); // then 2 from the M€ proxy
   });
 
   it('without Colonies the M€ supply alone proxies a card-resource', () => {

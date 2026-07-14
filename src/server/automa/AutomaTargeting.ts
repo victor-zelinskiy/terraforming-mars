@@ -31,25 +31,25 @@ export class AutomaTargeting {
   };
 
   /**
-   * Which shipping-board storage area holds a CARD resource (Adding Expansions
-   * p.5 + the shipping board): the bot's Enceladus / Miranda / Titan areas hold
-   * REAL microbes / animals / floaters. So a human "remove/steal X <card-resource>
-   * from any card" effect may take them AS the indicated type — the storage area
-   * first, then the M€-supply proxy — exactly like a standard-resource attack.
-   * A card-resource with no storage area (science, data, …) still proxies through
-   * the M€ supply (the base rule) — `undefined` colony, storage counts as 0.
+   * Which shipping-board STORAGE AREA holds a CARD resource (Adding Expansions
+   * p.5): the bot's Enceladus / Miranda areas hold REAL microbes / animals. So a
+   * human "remove/steal X <card-resource> from any card" effect may take them AS
+   * the indicated type — the storage area first, then the M€-supply proxy —
+   * exactly like a standard-resource attack.
+   *
+   * FLOATERS are deliberately NOT here: the bot keeps them in the single
+   * `automa.floaters` counter (the pool the research-phase spend + Hoverlord
+   * read), NOT the Titan storage map — which is `shippingStorage[TITAN]`, a
+   * write-only dead pool never read back. Using the counter is correct WITH or
+   * WITHOUT Venus Next (with Venus the physical Titan storage area isn't used for
+   * floaters at all; the counter is still the bot's floater pool). See
+   * `botCardResourcePool`. A card-resource with neither (science, data, …) proxies
+   * through the M€ supply alone.
    */
   private static readonly CARD_RESOURCE_STORAGE: Partial<Record<CardResource, ColonyName>> = {
     [CardResource.MICROBE]: ColonyName.ENCELADUS,
     [CardResource.ANIMAL]: ColonyName.MIRANDA,
-    [CardResource.FLOATER]: ColonyName.TITAN,
   };
-
-  /** The storage area a card-resource lives in on MarsBot's shipping board, or
-   *  `undefined` when it has none (then only the M€-supply proxy applies). */
-  public static cardResourceStorageColony(cardResource: CardResource): ColonyName | undefined {
-    return AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
-  }
 
   /** Decrease production → regress this track (rulebook pp.4–5). */
   private static readonly PRODUCTION_TRACK: Record<Resource, number> = {
@@ -131,24 +131,57 @@ export class AutomaTargeting {
   }
 
   /**
-   * The composite removal for CARD-resource attacks on MarsBot (Virus's
-   * animals): the matching storage area (Miranda / Enceladus) first, then the
-   * M€ proxy. Returns the amount removed.
+   * MarsBot's NON-M€ pool of a card-resource — the stock a remove/steal drains
+   * BEFORE the M€-supply proxy. Microbes / animals live in the matching
+   * shipping-board storage area (Enceladus / Miranda, Colonies only). FLOATERS are
+   * the exception: the bot keeps them in the single `automa.floaters` counter (the
+   * one the research-phase spend + Hoverlord read), NOT the `shippingStorage[TITAN]`
+   * map — so this is correct WITH or WITHOUT Venus Next. A resource with neither
+   * pool proxies through M€ alone (returns 0 here).
    */
-  public static removeCardResourceLikeFromBot(game: IGame, count: number, storageColony: ColonyName | undefined): number {
+  private static botCardResourcePool(game: IGame, cardResource: CardResource): number {
+    if (cardResource === CardResource.FLOATER) {
+      return game.automa?.floaters ?? 0;
+    }
+    return AutomaTargeting.storageOf(game, AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource]);
+  }
+
+  /**
+   * The card-resource stock a remove/steal target on MarsBot effectively holds:
+   * its dedicated pool of the type (storage area / floater counter) + the
+   * M€-supply proxy. The card-resource analog of `attackableStock` — use it
+   * wherever a "remove X <card-resource> from any card" effect builds its MarsBot
+   * target option.
+   */
+  public static attackableCardResourceStock(bot: IPlayer, cardResource: CardResource): number {
+    return AutomaTargeting.botCardResourcePool(bot.game, cardResource) + bot.megaCredits;
+  }
+
+  /**
+   * Apply a card-resource removal to MarsBot: its dedicated pool of the type first
+   * (the Enceladus / Miranda storage area, or the `automa.floaters` counter for
+   * floaters), then the M€ supply tops up the rest. Returns the amount removed.
+   */
+  public static removeCardResourceFromBot(game: IGame, cardResource: CardResource, count: number): number {
     const bot = marsBotOf(game);
     const automa = game.automa;
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
     let removed = 0;
-    const available = AutomaTargeting.storageOf(game, storageColony);
-    const fromStorage = Math.min(available, count);
-    if (fromStorage > 0 && storageColony !== undefined) {
-      automa.shippingStorage[storageColony] = available - fromStorage;
-      game.log('${0} lost ${1} resource(s) from its ${2} storage area', (b) =>
-        b.player(bot).number(fromStorage).string(storageColony));
-      removed += fromStorage;
+    const available = AutomaTargeting.botCardResourcePool(game, cardResource);
+    const fromPool = Math.min(available, count);
+    if (fromPool > 0) {
+      if (cardResource === CardResource.FLOATER) {
+        automa.floaters -= fromPool;
+      } else {
+        const colony = AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
+        if (colony !== undefined) {
+          automa.shippingStorage[colony] = (automa.shippingStorage[colony] ?? 0) - fromPool;
+        }
+      }
+      game.log('${0} lost ${1} ${2}', (b) => b.player(bot).number(fromPool).cardResource(cardResource));
+      removed += fromPool;
     }
     const fromSupply = Math.min(bot.megaCredits, count - removed);
     if (fromSupply > 0) {
@@ -158,46 +191,21 @@ export class AutomaTargeting {
     return removed;
   }
 
-  /** How many card-resource-like units MarsBot can lose (for building the option). */
-  public static cardResourceLikeStock(game: IGame, storageColony: ColonyName | undefined): number {
-    return AutomaTargeting.storageOf(game, storageColony) + marsBotOf(game).megaCredits;
-  }
-
   /**
-   * The card-resource stock a remove/steal target on MarsBot effectively holds:
-   * the matching storage area (Colonies only) + the M€-supply proxy. The
-   * card-resource analog of `attackableStock` — use it wherever a "remove X
-   * <card-resource> from any card" effect builds its MarsBot target option.
-   */
-  public static attackableCardResourceStock(bot: IPlayer, cardResource: CardResource): number {
-    return AutomaTargeting.storageOf(bot.game, AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource]) + bot.megaCredits;
-  }
-
-  /**
-   * Apply a card-resource removal to MarsBot: the matching storage area first,
-   * the M€ supply tops up the rest. The generalised (resource-keyed) form of
-   * `removeCardResourceLikeFromBot`. Returns the amount removed.
-   */
-  public static removeCardResourceFromBot(game: IGame, cardResource: CardResource, count: number): number {
-    return AutomaTargeting.removeCardResourceLikeFromBot(game, count, AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource]);
-  }
-
-  /**
-   * READ-ONLY preview of a card-resource removal from MarsBot — the storage row
-   * (real Colonies stock of the type) + the M€-supply row, in the SAME order
-   * `removeCardResourceFromBot` drains. Mirrors `previewStockLoss` so the target
-   * picker shows the ACTUAL loss (e.g. "Enceladus microbes 3 → 1" + "M€ 8 → 6")
+   * READ-ONLY preview of a card-resource removal from MarsBot — the pool row (its
+   * stock of the type, shown as the card-resource) + the M€-supply row, in the
+   * SAME order `removeCardResourceFromBot` drains. Mirrors `previewStockLoss` so
+   * the picker shows the ACTUAL loss (e.g. "microbes 3 → 1" + "M€ 8 → 6")
    * instead of a static placeholder. Non-mutating.
    */
   public static previewCardResourceLoss(bot: IPlayer, cardResource: CardResource, amount: number): {
-    storageColony: ColonyName | undefined, storageFrom: number, storageLost: number, supplyFrom: number, supplyLost: number,
+    storageFrom: number, storageLost: number, supplyFrom: number, supplyLost: number,
   } {
-    const storageColony = AutomaTargeting.CARD_RESOURCE_STORAGE[cardResource];
-    const storageFrom = AutomaTargeting.storageOf(bot.game, storageColony);
+    const storageFrom = AutomaTargeting.botCardResourcePool(bot.game, cardResource);
     const storageLost = Math.min(amount, storageFrom);
     const supplyFrom = bot.megaCredits;
     const supplyLost = Math.min(amount - storageLost, supplyFrom);
-    return {storageColony, storageFrom, storageLost, supplyFrom, supplyLost};
+    return {storageFrom, storageLost, supplyFrom, supplyLost};
   }
 
   /**

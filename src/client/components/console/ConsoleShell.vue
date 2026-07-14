@@ -2294,13 +2294,31 @@ export default defineComponent({
         // background focus chrome (slot rings, «A …» chips, the gliding
         // frame) goes quiet while the viewer is open.
         document.body.classList.add('con-zoom-open');
-        void this.$nextTick(() => {
+        // Bounded-retry open: on a heavy first-open frame (cold session — chunk
+        // eval / style recalc in the same tick) the ref/$el may not be ready at
+        // nextTick yet; a silent no-op here left the zoom state stuck open over
+        // NOTHING (the "first fullscreen shows nothing" bug). Retry a few
+        // frames; give up cleanly by rolling the zoom state back.
+        const tryOpen = (attempt: number) => {
+          if (this.consoleCardZoom.card === undefined) {
+            return; // closed before it ever opened
+          }
           const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
-          zoom?.show?.();
-          playZoomOpen(zoom?.$el as HTMLElement | undefined, this.consoleCardZoom.index, this.consoleCardZoom.origin, () => {
+          const el = zoom?.$el as HTMLElement | undefined;
+          if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
+            if (attempt < 10) {
+              requestAnimationFrame(() => tryOpen(attempt + 1));
+            } else {
+              this.onCardZoomClosed(); // never strand an open-but-empty zoom state
+            }
+            return;
+          }
+          zoom.show?.();
+          playZoomOpen(el, this.consoleCardZoom.index, this.consoleCardZoom.origin, () => {
             this.zoomFlight = false;
           });
-        });
+        };
+        void this.$nextTick(() => tryOpen(0));
       }
     },
     // The play composer owns the ideological focus while open — the hand's

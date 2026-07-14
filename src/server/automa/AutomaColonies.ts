@@ -1,5 +1,6 @@
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
+import {CardResource} from '../../common/CardResource';
 import {shippingAreaFor} from '../../common/automa/ShippingBoardData';
 import {GiveColonyBonus} from '../deferredActions/GiveColonyBonus';
 import {IColony} from '../colonies/IColony';
@@ -44,8 +45,9 @@ export class AutomaColonies {
    * Add resources to a shipping-board storage area, then run the exchange:
    * "If at any point during MarsBot's Turn, MarsBot has 5 (or more) resources
    * in a storage area, remove 5 resources from that area and advance the
-   * indicated track by one space." Titan (floaters) and Europa (never stores)
-   * cannot reach here.
+   * indicated track by one space." Europa (never stores) throws before here;
+   * Titan (floaters) is routed to the single `automa.floaters` counter and
+   * returns before the exchange (floaters never exchange to a track).
    */
   public static addToStorage(game: IGame, colonyName: ColonyName, count: number): void {
     const automa = game.automa;
@@ -56,12 +58,26 @@ export class AutomaColonies {
     if (area === undefined || colonyName === ColonyName.EUROPA) {
       throw new Error(`${colonyName} has no MarsBot storage area`);
     }
+
+    // Titan's "storage area" IS the bot's single floater pool — `automa.floaters`,
+    // the one the research-phase spend + Hoverlord read. Routing it to the
+    // `shippingStorage` map (like the other colonies) would make these floaters
+    // INERT: nothing ever reads `shippingStorage[TITAN]`. Floaters never exchange
+    // to a track (Adding Expansions p.2/p.5), so we're done. Correct WITH or
+    // WITHOUT Venus Next — the counter is the bot's floater pool either way.
+    if (colonyName === ColonyName.TITAN) {
+      automa.floaters += count;
+      game.log('${0} gained ${1} ${2}', (b) =>
+        b.player(marsBotOf(game)).number(count).cardResource(CardResource.FLOATER));
+      return;
+    }
+
     automa.shippingStorage[colonyName] = (automa.shippingStorage[colonyName] ?? 0) + count;
     game.log('${0} gained ${1} resource(s) in its ${2} storage area', (b) =>
       b.player(marsBotOf(game)).number(count).colony(AutomaColonies.colonyOrThrow(game, colonyName)));
 
     if (area.exchangeTag === undefined) {
-      return; // The Titan/floater area never exchanges.
+      return; // Defensive: any other non-exchanging area (none today besides Titan/Europa).
     }
     const trackIndex = automa.board.getTrackIndexForTag(area.exchangeTag);
     if (trackIndex === undefined) {

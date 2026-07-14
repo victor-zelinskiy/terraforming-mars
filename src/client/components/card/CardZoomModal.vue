@@ -323,6 +323,9 @@ export default defineComponent({
       // next frames until the element appears + measures, then apply the fit.
       fitRetryHandle: 0,
       fitRetries: 0,
+      // Bounded retry budget for show() when the dialog ref isn't mounted yet
+      // (heavy first-open frame) — see show().
+      showRetries: 0,
     };
   },
   computed: {
@@ -423,6 +426,18 @@ export default defineComponent({
   },
   methods: {
     show() {
+      // Robustness on a heavy first-open frame: if the dialog ref hasn't
+      // mounted yet, retry on the next frame (bounded) instead of throwing
+      // inside showModal(undefined) — which aborted the open and stranded the
+      // caller's state ("first fullscreen shows nothing").
+      if (this.typedRefs.dialog === undefined) {
+        if (this.showRetries < 10) {
+          this.showRetries++;
+          requestAnimationFrame(() => this.show());
+        }
+        return;
+      }
+      this.showRetries = 0;
       this.currentIndex = this.computeStartIndex();
       this.slideDir = '';
       // Fresh fit-retry budget for this open (the persistent-instance reuse case).

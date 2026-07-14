@@ -106,8 +106,21 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
       onSettledRaw();
     }
   };
-  setTimeout(onSettled, motionMs(380) + 700);
   const stage = dialog !== undefined ? stageEl(dialog) : null;
+  // SAFETY: settle the chrome AND force the stage visible. The open path hides
+  // the stage (`autoAlpha: 0`) and only restores it inside the tween after two
+  // rAFs — if anything derails in between (a bail, a killed tween, a zero
+  // measure on a heavy first-open frame), the dialog would stay OPEN over an
+  // INVISIBLE card forever (the "first fullscreen shows an empty viewer" bug).
+  // The timer runs once per open; by then any real tween has already finished
+  // (or will finish at autoAlpha 1 anyway), so the restore is idempotent.
+  setTimeout(() => {
+    if (!settled && stage !== null && !ctx.closing) {
+      killTween();
+      gsap.set(stage, {clearProps: 'opacity,visibility,transform'});
+    }
+    onSettled();
+  }, motionMs(380) + 700);
   if (stage === null || typeof requestAnimationFrame !== 'function') {
     onSettled();
     return;
