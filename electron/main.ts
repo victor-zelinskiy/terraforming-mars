@@ -16,6 +16,8 @@
 
 import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
 import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
@@ -223,6 +225,22 @@ function installDiagnostics(win: BrowserWindow): void {
       // Restart with Graphite + shader precompilation (targets the first-animation stutter).
       app.relaunch({args: ['--tm-graphite-precompile']});
       app.exit(0);
+    } else if (key === 'f1') {
+      // RENDERER-SIDE SCREENSHOT: capturePage() grabs the renderer's composited
+      // output BEFORE it travels to the window/DWM. The decisive split for the
+      // "zoom stage paints nothing" bug: if the card IS in this PNG, the
+      // renderer paints fine and the pixels are lost on the way to the screen
+      // (window surface / DWM); if it is NOT, the renderer itself skips it.
+      void win.webContents.capturePage().then((img) => {
+        const file = path.join(os.tmpdir(), 'tm-zoom-shot.png');
+        fs.writeFileSync(file, img.toPNG());
+        const line = `[TM-DIAG] capturePage saved → ${file}`;
+        // eslint-disable-next-line no-console
+        console.log(line);
+        void win.webContents
+          .executeJavaScript(`console.warn(${JSON.stringify('%c' + line)}, 'color:#22c55e;font-weight:bold')`)
+          .catch(() => {/* frame gone */});
+      });
     }
   });
 
