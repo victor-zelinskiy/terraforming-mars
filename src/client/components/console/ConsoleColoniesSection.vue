@@ -119,6 +119,13 @@ const COL_GAP = 18;
 const ROW_GAP = 16;
 const GRID_PAD_X = 36; // 18 each side
 const GRID_PAD_Y = 26; // 10 top + 16 bottom
+/** Rounding room (logical px): CSS `zoom` quantizes every tile to whole
+ *  device pixels, so a planned N-across row can render 2–3px wider than
+ *  `N × baseW × scale` — without slack the LAST tile flex-wraps to an
+ *  unplanned extra row that overflows the section (the 5-colony 2+2+1
+ *  regression on 4K). Taken off the width fit AND added to the grid cap,
+ *  same defense as cardSelectionFit.FIT_ROW_SLACK / handGrid.ROW_SLACK. */
+const FIT_SLACK = 12;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
@@ -218,11 +225,15 @@ export default defineComponent({
       // tile scale itself stays relative — baseW/baseH come from the CSS
       // vars via getComputedStyle, already in scaled px.
       const s = conUiScale();
-      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s) / (cols * baseW);
+      const slack = FIT_SLACK * s;
+      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
       const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
       const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
       this.tileScale = Math.round(scale * 1000) / 1000;
-      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP * s + GRID_PAD_X * s);
+      // The cap gets the SAME slack on top — zoom-rounded tiles need the
+      // room, and a whole extra column would need ~baseW, so the planned
+      // column count still holds.
+      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP * s + GRID_PAD_X * s + slack);
     },
     scheduleFit(): void {
       if (this.fitRaf !== undefined || typeof window === 'undefined') {

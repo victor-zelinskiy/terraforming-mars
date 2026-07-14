@@ -26,7 +26,8 @@ describe('electron/perf', () => {
   // Every env knob the switch builder reads — snapshot before the suite, CLEAR before
   // each test (so a leaked value can't bleed across cases), restore after.
   const ENV_KEYS = [
-    'TM_ELECTRON_NO_PERF', 'TM_ELECTRON_SOFTWARE', 'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES',
+    'TM_ELECTRON_NO_PERF', 'TM_ELECTRON_SOFTWARE',
+    'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES',
   ] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
@@ -100,7 +101,7 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Linux/Steam Deck: GPU path with Graphite on Dawn/Vulkan by default', () => {
+  it('Linux/Steam Deck: DEFAULTS to the GPU path with the full ANGLE-Vulkan + Graphite recipe', () => {
     withPlatform('linux', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
@@ -108,26 +109,30 @@ describe('electron/perf', () => {
       for (const expected of [
         'ignore-gpu-blocklist', 'enable-gpu-rasterization', 'enable-zero-copy',
         'enable-accelerated-2d-canvas', 'force-gpu-mem-available-mb',
-        'disable-gpu-process-crash-limit', 'disable-background-networking',
-        'disable-background-timer-throttling', 'disable-renderer-backgrounding',
-        'disable-backgrounding-occluded-windows', 'disable-ipc-flooding-protection',
+        'disable-gpu-process-crash-limit',
       ]) {
         expect(keys, expected).to.include(expected);
       }
-      // the EGL sidestep: every GL context is served by ANGLE's Vulkan backend
+      // the ANGLE-Vulkan switch pair (X11/XWayland — NOT native Wayland)
+      expect(effectiveValue(app, 'use-gl')).to.equal('angle');
       expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
-      expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite,SkiaGraphitePrecompilation');
+      // the FULL recipe: DefaultANGLEVulkan/VulkanFromANGLE were the missing
+      // pieces that made ANGLE's EGL config selection use Vulkan
+      expect(effectiveValue(app, 'enable-features')).to.equal(
+        'Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,SkiaGraphite,SkiaGraphitePrecompilation');
       expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('vulkan');
       // the D3D presentation features + dual-GPU preference are Windows-only
       expect(effectiveValue(app, 'enable-features')).to.not.include('DXGI');
       expect(keys).to.not.include('force_high_performance_gpu');
+      // NOT native Wayland (Vulkan is incompatible with --ozone-platform=wayland)
+      expect(keys).to.not.include('ozone-platform');
       // no software-path leftovers
       expect(keys).to.not.include('disable-gpu');
       expect(keys).to.not.include('num-raster-threads');
     });
   });
 
-  it('TM_ELECTRON_SOFTWARE=1 restores the measured software path (the Deck rollback)', () => {
+  it('TM_ELECTRON_SOFTWARE=1 forces the software path (the rollback) on either platform', () => {
     process.env.TM_ELECTRON_SOFTWARE = '1';
     for (const platform of ['linux', 'win32']) {
       withPlatform(platform, () => {
@@ -213,13 +218,13 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Linux: the native-Wayland experiment rides TM_ELECTRON_SWITCHES on top of the GPU default', () => {
-    process.env.TM_ELECTRON_SWITCHES = 'ozone-platform=wayland';
+  it('Linux: TM_ELECTRON_SWITCHES extras ride on top of the GPU default', () => {
+    process.env.TM_ELECTRON_SWITCHES = 'disable-gpu-vsync';
     withPlatform('linux', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       const keys = app.switches.map((s) => s.key);
-      expect(effectiveValue(app, 'ozone-platform')).to.equal('wayland');
+      expect(keys).to.include('disable-gpu-vsync');
       // the GPU default is untouched by the extra
       expect(keys).to.include('ignore-gpu-blocklist');
       expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');

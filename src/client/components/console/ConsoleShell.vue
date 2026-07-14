@@ -351,6 +351,7 @@
                    :index="consoleCardZoom.index"
                    :selected="zoomSelected"
                    :dismissable="!consoleCardZoom.mandatory"
+                   :closing="zoomClosing"
                    :consoleMotion="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">

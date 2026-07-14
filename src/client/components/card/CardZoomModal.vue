@@ -295,6 +295,20 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /*
+     * CONSOLE close signal (opt-in; the shell binds `:closing="zoomClosing"`).
+     * The console close plays a ~340ms flight BEFORE the dialog actually
+     * closes, so the rule-overlay's usual clear (on the dialog 'close' event)
+     * would leave the annotation panels hanging through the whole flight and
+     * vanishing at the end. Flipping this true the instant the close begins
+     * drops settleNonce to 0 → the annotation layer dismisses FIRST (a quick
+     * fade), then the card flies away clean. Desktop never binds it → default
+     * false → the annotations clear on 'close' exactly as before.
+     */
+    closing: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['close', 'navigate', 'update:index'],
   data() {
@@ -422,6 +436,18 @@ export default defineComponent({
      */
     'activeCard.name'() {
       this.scheduleSettle(prefersReducedMotion() ? 80 : motionMs(360));
+    },
+    /*
+     * The console close began — dismiss the rule overlay BEFORE the card's
+     * close flight (see the `closing` prop). Dropping settleNonce to 0 drives
+     * CardAnnotationsLayer's dismiss; cancelling any pending settle stops a
+     * late reveal from re-arming mid-close.
+     */
+    closing(now: boolean) {
+      if (now) {
+        this.cancelSettle();
+        this.settleNonce = 0;
+      }
     },
   },
   methods: {

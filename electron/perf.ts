@@ -7,11 +7,11 @@
 //
 //   TM_ELECTRON_NO_PERF=1     — vanilla Electron, NOTHING below is applied (the
 //                               baseline for any "is it our tuning?" comparison).
-//   TM_ELECTRON_SOFTWARE=1    — force the SOFTWARE rendering path (the pre-GPU
-//                               Steam Deck default: --disable-gpu + parallel
-//                               raster threads). The one-line rollback for the
-//                               Deck's Graphite/Vulkan default; also a Windows
-//                               diagnostic.
+//   TM_ELECTRON_SOFTWARE=1    — force the SOFTWARE rendering path (--disable-gpu
+//                               + parallel raster threads). The rollback if the
+//                               Steam Deck's GPU/Vulkan default misbehaves
+//                               (measured-good software path); also a Windows
+//                               diagnostic to isolate a GPU-path problem.
 //   TM_ELECTRON_FEATURES=...  — REPLACES the default --enable-features list
 //                               ("none"/"off" → no list at all). This is the
 //                               Graphite / waitable-swap-chain rollback.
@@ -95,11 +95,30 @@ const WINDOWS_ENABLED_FEATURES = [
   'DXGISwapChainPresentInterval0',
 ].join(',');
 
-// The default --enable-features list on the Linux/Steam Deck GPU path: Graphite
-// on Dawn/VULKAN (RADV) + its precompilation. The D3D presentation features
-// (waitable swap chain / present interval) are Windows-only concepts — under
-// gamescope, frame pacing belongs to gamescope itself.
+// The --enable-features list for the Linux/Steam Deck GPU path — the FULL,
+// research-grounded ANGLE-Vulkan recipe (the AMD/RADV known-good set), on
+// X11/XWayland. The first Deck attempt logged `gl_surface_egl.cc: No suitable
+// EGL configs found` and fell to software because the set was INCOMPLETE:
+//  - Vulkan — Chromium's Vulkan backend for the display compositor
+//    (SkiaRenderer-on-Vulkan): present via the Vulkan swapchain (gamescope's
+//    WSI already accepts it) with NO GL/EGL surface. (kVulkan)
+//  - DefaultANGLEVulkan — makes ANGLE DEFAULT to its Vulkan backend. THE piece
+//    that was missing: `--use-angle=vulkan` alone didn't route ANGLE's EGL
+//    config selection through Vulkan, so it tried native EGL (no configs under
+//    XWayland) → the fatal fallback. (kDefaultANGLEVulkan, DISABLED_BY_DEFAULT.)
+//  - VulkanFromANGLE — shares ONE Vulkan device/queue between Chromium's
+//    compositor and ANGLE, so they don't init two conflicting devices.
+//    (kVulkanFromANGLE, DISABLED_BY_DEFAULT.)
+//  - SkiaGraphite + SkiaGraphitePrecompilation — Graphite on Dawn/Vulkan (RADV).
+// STAY ON X11/XWayland — Vulkan is INCOMPATIBLE with `--ozone-platform=wayland`
+// (Chromium: "Vulkan is not compatible with the Wayland platform"), so native
+// Wayland is NOT the lever here; it would force GL and drop Vulkan/Graphite.
+// The D3D presentation features (waitable swap chain / present interval) are
+// Windows-only concepts — under gamescope, frame pacing belongs to gamescope.
 const LINUX_ENABLED_FEATURES = [
+  'Vulkan',
+  'DefaultANGLEVulkan',
+  'VulkanFromANGLE',
   'SkiaGraphite',
   'SkiaGraphitePrecompilation',
 ].join(',');
@@ -166,18 +185,17 @@ export function applyPerformanceSwitches(app: App): string[] {
   };
 
   const extras = parseExtraSwitches(process.env.TM_ELECTRON_SWITCHES ?? '');
-  const software = process.env.TM_ELECTRON_SOFTWARE === '1';
+  const forceSoftware = process.env.TM_ELECTRON_SOFTWARE === '1';
+  // BOTH Windows and the Steam Deck default to the GPU path. The Deck's recipe
+  // is the full ANGLE-Vulkan set (LINUX_ENABLED_FEATURES) on X11/XWayland — the
+  // earlier software-fallback was a missing-flags bug (DefaultANGLEVulkan /
+  // VulkanFromANGLE), not a platform limit. TM_ELECTRON_SOFTWARE=1 forces the
+  // software path (the graceful rollback if the GPU recipe ever misbehaves).
+  const useGpu = !forceSoftware &&
+    (process.platform === 'win32' || process.platform === 'linux');
 
-  if (!software) {
-    // ── GPU path — BOTH platforms ───────────────────────────────────────────
-    // Steam Deck default since 2026-07: Graphite via Dawn/VULKAN. The earlier
-    // on-device verdict "GPU on the Deck is worse" was a GL/EGL failure under
-    // XWayland ("No suitable EGL configs found") — VULKAN (RADV) does not use
-    // EGL at all, and `use-angle=vulkan` routes the remaining GL paths through
-    // Vulkan too, so nothing touches the broken native-GL stack. UNVERIFIED
-    // on-device until the first Deck run: check the wrapper log / [TM perf]
-    // for `gpu_compositing: enabled`; if it misbehaves, ONE line restores the
-    // measured software path: TM_ELECTRON_SOFTWARE=1.
+  if (useGpu) {
+    // ── GPU path ──────────────────────────────────────────────────────────
     sw('ignore-gpu-blocklist');         // use the GPU even if the driver is blocklisted
     sw('enable-gpu-rasterization');     // rasterize paint on the GPU (Paint/Commit/GPUTask)
     sw('enable-zero-copy');             // zero-copy texture upload
@@ -201,12 +219,15 @@ export function applyPerformanceSwitches(app: App): string[] {
       sw('force_high_performance_gpu');
     }
     if (process.platform === 'linux') {
-      // GL over Vulkan (ANGLE): WebGL / any residual GL context is served by
-      // ANGLE's Vulkan backend instead of the broken native EGL/GL path.
+      // The ANGLE-Vulkan switch pair (paired with the DefaultANGLEVulkan /
+      // VulkanFromANGLE features above): route GL through ANGLE, ANGLE through
+      // Vulkan. Together they make ANGLE's EGL config selection use Vulkan
+      // instead of the native EGL path that has no configs under XWayland.
+      sw('use-gl', 'angle');
       sw('use-angle', 'vulkan');
     }
-  } else {
-    // ── Software path (TM_ELECTRON_SOFTWARE=1 — the former Deck default) ────
+  } else if (forceSoftware) {
+    // ── Software path (TM_ELECTRON_SOFTWARE=1 — the rollback) ───────────────
     // A clean software compositor, skipping the GPU process entirely, with the
     // software rasterizer given explicit worker threads so tile raster runs in
     // parallel (4 = the Deck's physical cores; measured best on-device).
@@ -218,7 +239,7 @@ export function applyPerformanceSwitches(app: App): string[] {
   const featuresRaw = (process.env.TM_ELECTRON_FEATURES ?? '').trim();
   let features: string;
   if (featuresRaw === '') {
-    if (software) {
+    if (!useGpu) {
       features = ''; // Graphite is meaningless without the GPU process
     } else if (process.platform === 'win32') {
       features = WINDOWS_ENABLED_FEATURES;
@@ -237,7 +258,7 @@ export function applyPerformanceSwitches(app: App): string[] {
   }
   sw('disable-features', DISABLED_FEATURES.join(','));
 
-  if (!software) {
+  if (useGpu) {
     if (process.platform === 'win32') {
       // Graphite is PINNED to Dawn's D3D11 backend — the MEASURED winner on the
       // target box (2026-07-14 A/B: d3d12 ran WORSE than d3d11; stock Chrome's

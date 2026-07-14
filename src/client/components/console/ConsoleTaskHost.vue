@@ -1469,7 +1469,9 @@ export default defineComponent({
       }
       const zoom = Math.max(0.4 * s, best.zoom);
       strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
-      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX) + 2}px`;
+      // Zoom quantizes tiles to device px — give the row rounding room so the
+      // planned column count can't flex-wrap into an unplanned extra row.
+      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
     },
     // ── card browser helpers (T2) ────────────────────────────────────
     isPicked(name: CardName): boolean {

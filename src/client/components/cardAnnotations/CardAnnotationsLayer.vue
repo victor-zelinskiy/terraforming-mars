@@ -201,7 +201,12 @@ export default defineComponent({
       if (value > 0) {
         this.replay();
       } else {
-        this.clearRendered();
+        // nonce → 0 = the viewer is CLOSING. Fade the rule blocks + tethers
+        // out FIRST (a quick premium dismiss), so they're gone before the
+        // card's close flight — never lingering through the flight and
+        // vanishing at the end. (`cardName` change stays an instant clear —
+        // the old card's blocks must not bleed into the new card's reveal.)
+        this.dismiss();
       }
     },
     // The stage card changed (browse slide started / host re-pointed the
@@ -804,6 +809,28 @@ export default defineComponent({
       this.rendered = [];
       this.lines = [];
       this.measuring = false;
+    },
+    /**
+     * CLOSE dismiss — fade every rule block + tether out quickly, THEN drop
+     * them. Used when the viewer starts closing (nonce → 0) so the overlay
+     * leaves BEFORE the card's close flight, never during/after it. Falls
+     * back to an instant clear under reduced motion / no content / no rAF.
+     */
+    dismiss() {
+      const blocks = [...this.fx.blockEls.values()].filter((b): b is HTMLElement => b !== undefined);
+      const paths = [...this.fx.pathEls.values()].filter((p): p is SVGPathElement => p !== undefined);
+      const nodes = [...this.fx.nodeEls.values()].filter((n): n is SVGCircleElement => n !== undefined);
+      const targets: Array<HTMLElement | SVGElement> = [...blocks, ...paths, ...nodes];
+      if (targets.length === 0 || prefersReducedMotion() || typeof requestAnimationFrame !== 'function') {
+        this.clearRendered();
+        return;
+      }
+      // Stop any in-flight reveal poll / timeline so the fade isn't fought.
+      this.fx.revealToken++;
+      this.killTimeline();
+      const tl = gsap.timeline({onComplete: () => this.clearRendered()});
+      this.fx.timeline = tl;
+      tl.to(targets, {autoAlpha: 0, duration: motionMs(120) / 1000, ease: 'power1.in'});
     },
     /**
      * Split a row's text so the «any player» words that explain the red

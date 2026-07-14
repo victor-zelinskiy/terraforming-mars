@@ -90,23 +90,21 @@ mkdir -p "$(dirname "$TM_RESTART_MARKER")"
 export TM_INSTALLER_URL="@@INSTALLER_URL@@"
 export TM_INSTALLER_SHA="@@INSTALLER_SHA@@"
 # ── Performance tuning ────────────────────────────────────────────────────────
-# The Deck's tuning is BUILT INTO the app now — no env needed. Current default is
-# the GPU path: Skia Graphite on Dawn/VULKAN (RADV) + GL routed through ANGLE's
-# Vulkan backend. (The old "GPU is worse on the Deck" verdict was a GL/EGL
-# failure under XWayland; Vulkan does not use EGL at all.) Verify in this log:
-# the "[electron] GPU feature status" line should say "gpu_compositing":"enabled".
+# The Deck DEFAULTS to the GPU path — Skia Graphite on Dawn/Vulkan via the full
+# ANGLE-Vulkan recipe (Vulkan,DefaultANGLEVulkan,VulkanFromANGLE) on X11/XWayland
+# — all built into the app (no env needed). Confirm it's live in THIS log:
+#   "[electron] GPU feature status" → "gpu_compositing":"enabled"  (+ vulkan/graphite on)
+# The first session after an update compiles the Vulkan pipelines (a few one-off
+# micro-stutters); it's cached from the second session on.
 #
-# ROLLBACK (if the GPU path misbehaves — black screen / churn / worse smoothness):
-# uncomment ONE line to restore the previously measured software path:
+# ROLLBACK — if the GPU path ever misbehaves (black screen / worse than before),
+# uncomment ONE line to force the previously measured software path:
 # export TM_ELECTRON_SOFTWARE=1
 #
 # The two exports below are kept ONLY for app versions older than the baked-in
 # defaults; current builds ignore them (same values are built in).
 export TM_ELECTRON_RASTER_THREADS=4
 export TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"
-# Optional experiment on top of the GPU default — NATIVE Wayland (skip XWayland;
-# gamescope is itself a Wayland compositor). Revert if input/display misbehaves:
-# export TM_ELECTRON_SWITCHES="ozone-platform=wayland"
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do

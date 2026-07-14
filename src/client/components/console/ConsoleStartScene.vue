@@ -1241,7 +1241,8 @@ export default defineComponent({
       strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
       // Cap the content width at the planned columns — leftover width from a
       // height-governed zoom must not let flex-wrap unbalance the rows.
-      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX) + 2}px`;
+      // Zoom quantizes tiles to device px — rounding room (see TaskHost).
+      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
     // RT(nextTab) continue, LB/RB(prev/nextSection) wizard step, B(back) minimize.
