@@ -94,11 +94,25 @@ function zdump(dialog: HTMLElement): void {
     }
 
     // TOP-LAYER: every open <dialog> in document order (later = on top).
+    // `:modal` is the CRITICAL bit: open=true does NOT prove the dialog is in
+    // the top layer — only a successful showModal() puts it there. A non-modal
+    // dialog paints IN FLOW and can be covered by ordinary layers.
     const openDialogs = Array.from(document.querySelectorAll('dialog[open]'))
-      .map((d) => `${d.className || d.tagName} rect=${JSON.stringify((() => {
+      .map((d) => `${d.className || d.tagName} modal=${d.matches(':modal')} rect=${(() => {
         const r = (d as HTMLElement).getBoundingClientRect();
         return `${Math.round(r.width)}x${Math.round(r.height)}`;
-      })())}`);
+      })()}`);
+
+    // STUCK DEAL: the "wrong big card" on every bug screenshot (Robinson/UNMI/
+    // Vitor — a different one each time, never matching the band) looks like a
+    // STUCK deal-cinematic proxy (pointer-events:none → invisible to hit-test).
+    // Enumerate every live deal element + its visibility.
+    const dealBits = Array.from(document.querySelectorAll('.con-deal-layer, .con-deal-proxy, .con-exit-proxy, .con-deal-deck'))
+      .map((d) => {
+        const s = getComputedStyle(d);
+        const r = (d as HTMLElement).getBoundingClientRect();
+        return `${d.className} rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} op=${s.opacity} vis=${s.visibility}`;
+      });
 
     console.warn(
       `%c[TM-DIAG zoom DUMP]\n` +
@@ -107,6 +121,7 @@ function zdump(dialog: HTMLElement): void {
       `card: ${cs(card)} | cardChildren=${card?.childElementCount ?? -1} | card.classList=${String(card?.className ?? '')}\n` +
       `ANCESTOR SUSPECTS (${suspects.length}):\n${suspects.join('\n') || '(none — every ancestor fully visible)'}\n` +
       `OPEN DIALOGS (${openDialogs.length}, last=topmost): ${openDialogs.join(' | ')}\n` +
+      `LIVE DEAL ELEMENTS (${dealBits.length}):\n${dealBits.join('\n') || '(none — deal fully finished)'}\n` +
       `elementFromPoint(center ${cx},${cy})=${atCenter !== null ? atCenter.tagName + '.' + String((atCenter as HTMLElement).className).slice(0, 80) : 'null'}`,
       'color:#f472b6;font-weight:bold');
   } catch (err) {
