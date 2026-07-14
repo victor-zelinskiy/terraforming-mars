@@ -186,6 +186,15 @@ function signalGpuReadyWhenLive(win: BrowserWindow, attempts = 0): void {
     } catch {
       gpu = 'unavailable';
     }
+    // The EARLY logGpuStatus print at 'ready' can be a STALE pre-init snapshot
+    // (a Deck run showed "software" there while gamescope WSI was presenting a
+    // live Vulkan swapchain moments later). This SETTLED line — polled until
+    // compositing is live or ~4s — is the authoritative one; it lands in the
+    // Steam Deck wrapper log, where the renderer-console echo can't be seen.
+    // eslint-disable-next-line no-console
+    console.log(
+      `[electron] GPU feature status (SETTLED${live ? '' : ' — timeout, still not live'} after ~${attempts * 100}ms):`,
+      JSON.stringify(gpu));
     perfEchoPayload = JSON.stringify({switches: appliedPerfSwitches, gpu});
     void win.webContents
       .executeJavaScript(

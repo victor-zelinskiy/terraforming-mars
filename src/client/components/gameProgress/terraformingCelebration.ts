@@ -4,7 +4,7 @@ import {terraformingProgress} from '@/client/components/gameProgress/terraformin
 /**
  * terraformingCelebration — the shared "Terraforming complete / final
  * generation" brain for BOTH modes (desktop notification + sidebar glow,
- * console cinematic banner + HUD rail pulse).
+ * console ceremony cinematic + HUD rail pulse).
  *
  * Module-level reactive (mirrors `journalState` / `notificationState`) so it
  * survives the App-level lifecycles and both surfaces read ONE truth.
@@ -56,7 +56,7 @@ type TerraformingCelebrationStore = {
   /** This generation is authoritatively the game's last one. */
   finalGeneration: boolean;
   /** Bumped exactly once, on the live not-complete → complete transition.
-   *  Surfaces (desktop card / sidebar glow / console banner) watch it. */
+   *  Surfaces (desktop card / sidebar glow / console ceremony) watch it. */
   celebrationNonce: number;
   /** Whether the fresh celebration may honestly claim "this is the final
    *  generation" (captured at the transition moment). */
@@ -90,7 +90,7 @@ export function finalGenerationActive(view: TerraformingObservationView): boolea
 /**
  * Observe one fresh `playerView`. Returns true when THIS observation is the
  * live completion transition (the caller may push the desktop notification);
- * the console banner / sidebar glow react to `celebrationNonce` themselves.
+ * the console ceremony / sidebar glow react to `celebrationNonce` themselves.
  */
 export function observeTerraformingProgress(view: TerraformingObservationView): boolean {
   const state = terraformingCelebrationState;

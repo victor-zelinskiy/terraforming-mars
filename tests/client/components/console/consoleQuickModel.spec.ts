@@ -89,6 +89,14 @@ describe('consoleQuickModel (P27)', () => {
       expect(bySlot.get('right')?.id).to.eq('convertHeat');
     });
 
+    it('every basic action carries a VISUAL (barIcon | iconClass | glyph) — no blank slot', () => {
+      // Skip / Pass had none — blank squares in the wheel (visible on a TV).
+      for (const e of buildLtQuickEntries(ctx())) {
+        const hasVisual = e.barIcon !== undefined || e.iconClass !== undefined || e.glyph !== undefined;
+        expect(hasVisual, `slot '${e.id}' has no visual`).to.eq(true);
+      }
+    });
+
     it('skip turn is distinct from pass and explains its own availability', () => {
       const bySlot = new Map(buildLtQuickEntries(ctx()).map((e) => [e.slot, e]));
       expect(bySlot.get('up')?.available).to.eq(false);

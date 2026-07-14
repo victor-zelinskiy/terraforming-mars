@@ -82,7 +82,10 @@ html.con-profile-tv {
        safe area instead (single-source rule). */
     .con-banner { top: calc(var(--con-safe-y) + 2.7rem); }
     .con-drafttray { top: calc(var(--con-safe-y) + 3.1rem); }
-    .con-terra-event { top: calc(var(--con-safe-y) + 5.1rem); }
+    /* (The terraforming ceremony is a fixed full-screen centre stage —
+       no safe-area anchor needed; couch-scale bump below.) */
+    .con-terracere__name { font-size: 2.4rem; }
+    .con-terracere__sub { font-size: 1.05rem; }
 
     /* ═══ 2 · STATUS STRIP (top HUD) — readable, never board-hungry ═ */
     .con-status {
@@ -252,17 +255,19 @@ html.con-profile-tv {
     }
 
     /* ═══ 13 · HYDRO (Delta Project) ══════════════════════════════ */
+    /* The stop rail holds up to 11 Delta stops in ONE row — its base rem
+       widths already scale with the profile, so a second width bump here
+       overflowed the row off-screen (player feedback). Only typography
+       moves; the stop WIDTH stays on the rem base. */
     .con-hydro {
         &__title { font-size: 1.7rem; }
         &__sub { font-size: var(--con-t-secondary); max-width: 52rem; }
         &__chip { font-size: 1.05rem; b { font-size: 1.3rem; } }
-        &__stop { width: 6.6rem; height: 12rem; }
-        &__stop--focused { width: 12.6rem; }
-        &__stop-tag { width: 2.3rem; height: 2.3rem; }
-        &__stop-name { font-size: var(--con-t-secondary); }
+        &__stop-tag { width: 2rem; height: 2rem; }
+        &__stop-name { font-size: 0.9rem; }
         &__stage-name { font-size: 1.4rem; }
         &__delta { font-size: 1.15rem; }
-        &__cta { font-size: 1.15rem; padding: 0.8rem 1.2rem; }
+        &__cta { font-size: 1.15rem; padding: 0.7rem 1.1rem; }
         &__reason { font-size: var(--con-t-secondary); }
     }
     .con-hydroconfirm {

@@ -91,9 +91,12 @@ export TM_INSTALLER_URL="@@INSTALLER_URL@@"
 export TM_INSTALLER_SHA="@@INSTALLER_SHA@@"
 # ── Performance tuning ────────────────────────────────────────────────────────
 # The Deck DEFAULTS to the GPU path — Skia Graphite on Dawn/Vulkan via the full
-# ANGLE-Vulkan recipe (Vulkan,DefaultANGLEVulkan,VulkanFromANGLE) on X11/XWayland
-# — all built into the app (no env needed). Confirm it's live in THIS log:
-#   "[electron] GPU feature status" → "gpu_compositing":"enabled"  (+ vulkan/graphite on)
+# ANGLE-Vulkan recipe (features Vulkan,DefaultANGLEVulkan,VulkanFromANGLE + the
+# explicit --enable-skia-graphite switch, which bypasses Chromium's Linux
+# platform block) on X11/XWayland — all built into the app (no env needed).
+# Confirm it's live in THIS log — read the SETTLED line (the first status print
+# is an early pre-init snapshot and can falsely say "software"):
+#   "[electron] GPU feature status (SETTLED …)" → "gpu_compositing":"enabled"
 # The first session after an update compiles the Vulkan pipelines (a few one-off
 # micro-stutters); it's cached from the second session on.
 #

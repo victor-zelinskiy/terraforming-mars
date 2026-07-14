@@ -45,10 +45,11 @@
                         :waiting="draftWaitActive" />
     </transition>
 
-    <!-- Terraforming complete — the one-shot console-native cinematic event
-         (pointer-events: none, bounded lifetime; the persistent state lives
-         in the top-HUD rail + generation marker). -->
-    <ConsoleTerraformingBanner />
+    <!-- Terraforming complete — the one-shot console-native CEREMONY (the
+         MA-coronation-grade centre stage: veil + procedural Mars hero +
+         gsap burst; pointer-events: none, bounded lifetime; the persistent
+         state lives in the top-HUD rail + generation marker). -->
+    <ConsoleTerraformingCeremony />
 
     <!-- MarsBot «Разбор хода» — the console-native FULLSCREEN turn review.
          Renders the SAME botTurnReviewState as the desktop overlay (suppressed
@@ -318,12 +319,10 @@
          frame is the final, fully-visible content (the compositor-safe shape;
          see the consoleZoomMotion.ts header). The premium FLIP lift flies
          THIS proxy on a normal fixed layer, like every other console flight
-         (deal / exit / board-bonus). The veil pre-dims the scene so the real
-         ::backdrop (same pixels) taking over at showModal() is seamless. -->
-    <div v-if="zoomOpenProxy !== undefined"
-         class="con-zoom-veil"
-         :class="{'con-zoom-veil--on': zoomVeilOn}"
-         aria-hidden="true"></div>
+         (deal / exit / board-bonus). No dim veil: the flight rides over the
+         live scene and the dialog's static ::backdrop appears in ONE step at
+         showModal() (a separate veil that dimmed then un-mounted a beat later
+         caused the whole background to blink — never reintroduce it). -->
     <div v-if="zoomOpenProxy !== undefined" class="con-zoom-flight-layer" aria-hidden="true">
       <!-- The GSAP-transformed element stays zoom-FREE (CSS zoom on the same
            element would rescale the translate coordinates); the landing zoom
@@ -552,7 +551,7 @@ import SelectSpace from '@/client/components/SelectSpace.vue';
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
-import ConsoleTerraformingBanner from '@/client/components/console/ConsoleTerraformingBanner.vue';
+import ConsoleTerraformingCeremony from '@/client/components/console/ConsoleTerraformingCeremony.vue';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
@@ -695,7 +694,7 @@ export default defineComponent({
   name: 'ConsoleShell',
   components: {
     ConsoleStatusStrip,
-    ConsoleTerraformingBanner,
+    ConsoleTerraformingCeremony,
     ConsoleBotTurnReview,
     ConsoleCommandBar,
     ConsoleSheet,
@@ -758,11 +757,9 @@ export default defineComponent({
       zoomOpening: false,
       /** The open-flight proxy (rendered on `.con-zoom-flight-layer`). */
       zoomOpenProxy: undefined as {card: ZoomCard, zoom: number} | undefined,
-      /** Veil fade-in trigger (armed one frame after the proxy mounts). */
-      zoomVeilOn: false,
       /** Stale-callback fence for the async open sequence (measure/flight). */
       zoomOpenToken: 0,
-      /** Deferred proxy/veil removal after the top layer has covered them. */
+      /** Deferred proxy removal after the top layer has covered it. */
       zoomOpenClearTimer: undefined as number | undefined,
       infoModeState,
       leakDetectorState,
@@ -4187,19 +4184,15 @@ export default defineComponent({
         }, motionMs(140));
         return;
       }
-      // Premium flight: veil in, proxy slot→landing, showModal at touchdown.
+      // Premium flight: proxy flies slot→landing over the live scene,
+      // showModal at touchdown (the dialog's static ::backdrop is the ONLY
+      // dim — a separate fade veil blinked the background, so there is none).
       const source = zoomOpenSourceRect(index);
       this.zoomOpenProxy = {card: this.consoleCardZoom.card, zoom: landing.zoom};
-      this.zoomVeilOn = false;
       await this.$nextTick();
       if (token !== this.zoomOpenToken) {
         return;
       }
-      requestAnimationFrame(() => {
-        if (token === this.zoomOpenToken) {
-          this.zoomVeilOn = true; // transition-in, parallel to the flight
-        }
-      });
       const proxyEl = this.$refs.zoomFlightProxy as HTMLElement | undefined;
       playZoomOpenFlight(proxyEl, index, source, landing.rect, {
         onShow: () => {
@@ -4213,20 +4206,19 @@ export default defineComponent({
           }
           this.zoomOpening = false;
           this.zoomFlight = false; // chrome fades in over the landed card
-          // The top layer covers the proxy/veil now; linger a beat so their
-          // removal can never race the dialog's first paint.
+          // The top layer covers the proxy now; linger a beat so its removal
+          // can never race the dialog's first paint.
           this.zoomOpenClearTimer = window.setTimeout(() => this.clearZoomOpenFlight(), motionMs(220));
         },
       });
     },
-    /** Drop the open-flight proxy + veil (idempotent; any close path). */
+    /** Drop the open-flight proxy (idempotent; any close path). */
     clearZoomOpenFlight(): void {
       if (this.zoomOpenClearTimer !== undefined) {
         window.clearTimeout(this.zoomOpenClearTimer);
         this.zoomOpenClearTimer = undefined;
       }
       this.zoomOpenProxy = undefined;
-      this.zoomVeilOn = false;
     },
     onCardZoomClosed(): void {
       // Any close path (choreographed B, native Esc, backdrop tap): restore

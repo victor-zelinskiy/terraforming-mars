@@ -83,15 +83,12 @@
           :epoch="epoch"
           variant="global-parameter" />
       </span>
+      <!-- The generation carries NO delta chip: its change is announced by
+           the value's own premium flip-swap (and the console suppresses the
+           desktop's "new generation" toast — the HUD tick IS the event). -->
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
         <span class="con-status__gen-label">{{ $t(finalGeneration ? 'FINAL GEN.' : 'GEN.') }}</span>
-        <span class="con-status__value">{{ game.generation }}</span>
-        <AnimatedMetricValue
-          :value="game.generation"
-          metricKey="globals.generation"
-          scopeKey="global"
-          :epoch="epoch"
-          variant="global-parameter" />
+        <ConsoleGenerationFlip :value="game.generation" :final="finalGeneration" />
       </span>
     </div>
   </div>
@@ -123,6 +120,7 @@ import {finalGenerationActive, terraformingCelebrationState} from '@/client/comp
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import ConsoleGenerationFlip from '@/client/components/console/ConsoleGenerationFlip.vue';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -140,7 +138,7 @@ const GLYPH_CHARS: Record<StatusGlyph, string> = {
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
-  components: {AnimatedMetricValue},
+  components: {AnimatedMetricValue, ConsoleGenerationFlip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** playerView.runId — drives the delta-chip feedback ('' disables). */

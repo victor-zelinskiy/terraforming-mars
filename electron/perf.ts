@@ -109,7 +109,15 @@ const WINDOWS_ENABLED_FEATURES = [
 //  - VulkanFromANGLE — shares ONE Vulkan device/queue between Chromium's
 //    compositor and ANGLE, so they don't init two conflicting devices.
 //    (kVulkanFromANGLE, DISABLED_BY_DEFAULT.)
-//  - SkiaGraphite + SkiaGraphitePrecompilation — Graphite on Dawn/Vulkan (RADV).
+//  - SkiaGraphitePrecompilation — Graphite's up-front pipeline compilation
+//    (engages only when Graphite itself is on).
+// NOTE: `SkiaGraphite` is deliberately NOT in this feature list — on Linux the
+// FEATURE-flag path is hard-blocked by Chromium's platform allowlist (the Deck
+// log: "Enabling Graphite on a not-yet-supported platform is disallowed for
+// safety", gpu_finch_features.cc — Linux is not in
+// IsSkiaGraphiteSupportedByDevice). The documented bypass is the EXPLICIT
+// SWITCH `--enable-skia-graphite`, which short-circuits BEFORE the platform
+// check (verified in source) — appended in the Linux GPU branch below.
 // STAY ON X11/XWayland — Vulkan is INCOMPATIBLE with `--ozone-platform=wayland`
 // (Chromium: "Vulkan is not compatible with the Wayland platform"), so native
 // Wayland is NOT the lever here; it would force GL and drop Vulkan/Graphite.
@@ -119,7 +127,6 @@ const LINUX_ENABLED_FEATURES = [
   'Vulkan',
   'DefaultANGLEVulkan',
   'VulkanFromANGLE',
-  'SkiaGraphite',
   'SkiaGraphitePrecompilation',
 ].join(',');
 
@@ -223,8 +230,16 @@ export function applyPerformanceSwitches(app: App): string[] {
       // VulkanFromANGLE features above): route GL through ANGLE, ANGLE through
       // Vulkan. Together they make ANGLE's EGL config selection use Vulkan
       // instead of the native EGL path that has no configs under XWayland.
+      // VERIFIED on-device: with these, the old fatal "No suitable EGL configs"
+      // is gone and gamescope WSI accepts the ANGLE Vulkan swapchain.
       sw('use-gl', 'angle');
       sw('use-angle', 'vulkan');
+      // Graphite via the EXPLICIT switch — the feature-flag path is platform-
+      // blocked on Linux ("disallowed for safety"), but this switch bypasses
+      // the allowlist by design (gpu_finch_features.cc checks it FIRST). If
+      // Graphite init still fails on this Mesa, Chromium falls back to
+      // Ganesh-Vulkan (still GPU) — graceful, not a black screen.
+      sw('enable-skia-graphite');
     }
   } else if (forceSoftware) {
     // ── Software path (TM_ELECTRON_SOFTWARE=1 — the rollback) ───────────────

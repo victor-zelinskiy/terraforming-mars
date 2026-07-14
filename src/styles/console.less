@@ -101,7 +101,7 @@
         letter-spacing: .03rem;
     }
     &__gen {
-        position: relative; // delta-chip anchor
+        position: relative;
         display: inline-flex;
         align-items: baseline;
         gap: .5rem;
@@ -301,15 +301,14 @@
 /* Delta-chip feedback in the top HUD — the SAME number-transition the
    desktop sidebar plays (the keyframes are global, defined in
    right_sidebar.less), triggered by the AnimatedMetricValue host state.
-   Covers the three game-end parameters, Venus, the generation and the
-   total-progress percent. */
+   Covers the three game-end parameters, Venus and the total-progress
+   percent. The GENERATION carries no chip — its change plays the premium
+   flip-swap below instead. */
 .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-.con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
 .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
     animation: global-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-.con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
 .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
     animation: global-num-transition-negative calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -318,13 +317,104 @@
     .con-status__terra--celebrating { animation: none; }
     .con-status__terra-fill { transition: none; }
     .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-    .con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
     .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
     .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-    .con-status__gen:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
     .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
         animation: none;
     }
+}
+
+/* ── Generation flip counter (top HUD) ───────────────────────────────
+   The generation value announces its own swap: a one-shot split-flap
+   tick — the old value folds up and away, the new one unrolls in from
+   below with a small settle — plus a thin scanline flash. It REPLACES
+   the delta chip on this number (and, in console mode, the desktop's
+   "new generation" toast). Premium but calm: ~0.9s, one-shot, cyan by
+   default, gold when the arriving generation is the final one. */
+.con-genflip {
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+
+    &__viewport {
+        position: relative;
+        display: inline-grid;
+        perspective: 9rem;
+    }
+    &__card {
+        grid-area: ~"1 / 1";
+        font-variant-numeric: tabular-nums;
+        backface-visibility: hidden;
+    }
+    /* The outgoing value folds up and away (top-hinged drum roll),
+       catching the light as it turns. */
+    &__card--out {
+        transform-origin: 50% 8%;
+        animation: con-genflip-out calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.6, 0.35) both;
+    }
+    /* The arriving value unrolls from below with a slight overshoot. */
+    &__card--in {
+        transform-origin: 50% 96%;
+        animation:
+            con-genflip-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
+            con-genflip-shine calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1)) both;
+    }
+    /* One thin light line sweeps down the digits — a single pass. */
+    &__flash {
+        position: absolute;
+        top: -.25rem;
+        left: -.45rem;
+        right: -.45rem;
+        height: .14rem;
+        border-radius: .1rem;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent 0%, fade(@con-cyan, 85%) 50%, transparent 100%);
+        box-shadow: 0 0 .5rem fade(@con-cyan, 55%);
+        animation: con-genflip-scan calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.4, 1) calc(120ms * var(--motion-scale, 1)) both;
+    }
+    /* The FINAL generation arrives gold (the persistent gold state lives
+       on con-status__gen--final; this only tints the one-shot beat). */
+    &--final &__flash {
+        background: linear-gradient(90deg, transparent 0%, fade(@con-amber, 90%) 50%, transparent 100%);
+        box-shadow: 0 0 .5rem fade(@con-amber, 60%);
+    }
+    &--final &__card--in {
+        animation:
+            con-genflip-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
+            con-genflip-shine-final calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1)) both;
+    }
+}
+@keyframes con-genflip-out {
+    from { transform: rotateX(0deg); opacity: 1; }
+    to { transform: rotateX(74deg) translateY(-.12rem); opacity: 0; }
+}
+@keyframes con-genflip-in {
+    0% { transform: rotateX(-78deg) translateY(.14rem); opacity: 0; }
+    55% { opacity: 1; }
+    78% { transform: rotateX(6deg) translateY(0); }
+    100% { transform: rotateX(0deg) translateY(0); opacity: 1; }
+}
+/* A brief glow tick on the fresh value (text-shadow only — a tiny area,
+   strictly one-shot). */
+@keyframes con-genflip-shine {
+    0% { text-shadow: 0 0 0 rgba(106, 176, 230, 0); }
+    35% { text-shadow: 0 0 .65rem fade(@con-cyan, 80%); }
+    100% { text-shadow: 0 0 0 rgba(106, 176, 230, 0); }
+}
+@keyframes con-genflip-shine-final {
+    0% { text-shadow: 0 0 0 rgba(242, 193, 78, 0); }
+    35% { text-shadow: 0 0 .7rem fade(@con-amber, 85%); }
+    100% { text-shadow: 0 0 .5rem fade(@con-amber, 35%); }
+}
+@keyframes con-genflip-scan {
+    0% { transform: translateY(0); opacity: 0; }
+    18% { opacity: 1; }
+    100% { transform: translateY(1.9rem); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-genflip__card--out,
+    .con-genflip__flash { display: none; }
+    .con-genflip__card--in { animation: none; }
 }
 
 /* ── Turn / task banner ──────────────────────────────────────────── */
@@ -551,120 +641,171 @@
     }
 }
 
-/* ── Terraforming complete — console cinematic event banner ───────── */
-/* Centred just BELOW the regular turn/task banner band so a live
-   placement / awaiting-decision pill is never covered. pointer-events:
-   none + a bounded lifetime — it announces and leaves; the persistent
-   state lives in the HUD rail + the gold generation marker. */
-.con-terra-event {
-    position: absolute;
-    top: calc(1.2vh + 5.2rem);
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 70;
-    pointer-events: none;
-    display: inline-flex;
+/* ── Terraforming complete — console CEREMONY (ConsoleTerraformingCeremony) ──
+   The single biggest event of the game gets the MA-ceremony-grade
+   centre-stage cinematic (it replaced the small top banner): a soft veil,
+   a procedural terraformed-Mars hero, staged text rises and the shared
+   gsap ceremony burst (accent `terra`). pointer-events: none — the game
+   stays fully playable underneath; bounded lifetime; every animation is
+   ONE-SHOT. The persistent state (gold rail at 100% + «ФИНАЛЬНОЕ ПКЛ.»)
+   lives in the top HUD, which pulses off the SAME celebration nonce. */
+.con-terracere {
+    position: fixed;
+    inset: 0;
+    z-index: 11722; /* a nose above the MA ceremony (11720) — the bigger news wins a collision; under fallback (12000) */
+    display: flex;
     align-items: center;
-    gap: .9rem;
-    padding: .7rem 1.7rem;
-    border-radius: .6rem;
-    overflow: hidden;
-    background: linear-gradient(160deg, rgba(14, 32, 27, 0.94) 0%, rgba(9, 16, 24, 0.93) 58%, rgba(20, 26, 15, 0.94) 100%);
-    box-shadow:
-        inset 0 0 0 .05rem fade(@con-mint, 55%),
-        0 .7rem 2.2rem rgba(0, 0, 0, 0.55),
-        0 0 1.7rem -.3rem fade(@con-mint, 45%);
+    justify-content: center;
+    pointer-events: none;
+    font-family: @con-font;
+    color: @con-text;
 
-    &__tick {
+    &__veil {
         position: absolute;
-        width: .7rem;
-        height: .7rem;
-        border: .1rem solid fade(@con-mint, 80%);
-        pointer-events: none;
-
-        &--tl { top: 0; left: 0; border-right: none; border-bottom: none; }
-        &--br { bottom: 0; right: 0; border-left: none; border-top: none; }
+        inset: 0;
+        background: radial-gradient(ellipse at center, rgba(4, 12, 10, 0.64), rgba(4, 8, 14, 0.22) 58%, transparent 80%);
     }
-    &__glyph {
-        font-size: 1.7rem;
-        line-height: 1;
-        color: @con-mint;
-        text-shadow: 0 0 .8rem fade(@con-mint, 75%);
-        animation: con-terra-event-glyph calc(2400ms * var(--motion-scale, 1)) ease-out 1;
-    }
-    &__text {
+    &__scene {
+        position: relative;
         display: flex;
         flex-direction: column;
-        gap: .2rem;
+        align-items: center;
+        gap: .4rem;
+        animation: con-terracere-rise calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
-    &__title {
-        font-size: 1.2rem;
-        font-weight: 800;
-        letter-spacing: .15rem;
-        text-transform: uppercase;
-        color: #eafff4;
-        text-shadow: 0 0 .7rem fade(@con-mint, 45%);
-        white-space: nowrap;
+    &__stage {
+        position: relative;
+        width: 15rem;
+        height: 15rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    &__subtitle {
-        font-size: .85rem;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: fade(@con-amber, 92%);
-        text-shadow: 0 0 .5rem fade(@con-amber, 30%);
-        white-space: nowrap;
-    }
-    /* One travelling light sweep across the plate — a single pass, no loop. */
-    &__sweep {
+    /* The atmosphere halo breathes out once behind the planet — a TIGHT
+       mint rim (a broad soft band reads as a murky dark disc on the veil). */
+    &__atmo {
         position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 3rem;
-        left: -4rem;
-        background: linear-gradient(100deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.14) 50%,
-            rgba(255, 255, 255, 0) 100%);
-        animation: con-terra-event-sweep calc(1800ms * var(--motion-scale, 1)) ease-out 1 300ms both;
+        inset: -10%;
+        border-radius: 50%;
+        background: radial-gradient(circle, transparent 58%, fade(@con-mint, 28%) 72%, transparent 81%);
+        animation: con-terracere-atmo calc(1600ms * var(--motion-scale, 1)) ease-out both;
+    }
+    /* Procedural terraformed Mars — rust globe, young seas and greenery,
+       a polar cap, a sunlit limb and a mint atmosphere rim. No asset. */
+    &__planet {
+        position: absolute;
+        inset: 13%;
+        border-radius: 50%;
+        background:
+            radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.2), transparent 42%),
+            radial-gradient(circle at 66% 64%, fade(@con-mint, 42%), transparent 44%),
+            radial-gradient(circle at 26% 60%, rgba(47, 143, 106, 0.55), transparent 36%),
+            radial-gradient(circle at 52% 16%, rgba(236, 244, 248, 0.55), transparent 15%),
+            radial-gradient(circle at 50% 50%, #c96b45 0%, #a34a2e 58%, #7c3320 100%);
+        box-shadow:
+            inset -1.1rem -1.4rem 2.6rem rgba(0, 0, 0, 0.55),
+            0 0 2.4rem fade(@con-mint, 32%),
+            0 0 0 .1rem fade(@con-mint, 22%);
+        animation: con-terracere-hero calc(720ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) both;
+    }
+    &__ring {
+        position: absolute;
+        inset: 9%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .1rem fade(@con-mint, 55%), 0 0 1.7rem fade(@con-mint, 28%);
+        animation: con-terracere-ring calc(1300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    &__kicker {
+        font-size: .95rem;
+        letter-spacing: .3rem;
+        text-transform: uppercase;
+        color: fade(@con-mint, 94%);
+        text-shadow: 0 0 .9rem fade(@con-mint, 45%);
+        animation: con-terracere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(180ms * var(--motion-scale, 1)) both;
+    }
+    &__name {
+        font-size: 2.1rem;
+        font-weight: 800;
+        line-height: 1.15;
+        text-align: center;
+        max-width: 70vw;
+        color: #eafff4;
+        text-shadow: 0 .2rem 1.3rem rgba(0, 0, 0, 0.8), 0 0 1.4rem fade(@con-mint, 30%);
+        animation: con-terracere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(280ms * var(--motion-scale, 1)) both;
+    }
+    /* The claim badge: neutral (three parameters complete) by default. */
+    &__sub {
+        display: inline-flex;
+        align-items: center;
+        margin-top: .2rem;
+        padding: .4rem 1.1rem;
+        border-radius: .6rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
+        font-size: .95rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        text-align: center;
+        animation: con-terracere-pop calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.26, 0.44, 1) calc(420ms * var(--motion-scale, 1)) both;
+    }
+    /* The FINAL-GENERATION claim is the headline — gold, like the HUD marker. */
+    &--final &__sub {
+        color: fade(@con-amber, 96%);
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 70%), 0 0 1.5rem fade(@con-amber, 25%);
+        text-shadow: 0 0 .5rem fade(@con-amber, 30%);
     }
 }
-.con-terra-event-enter-active {
-    transition: opacity calc(420ms * var(--motion-scale, 1)) ease-out, transform calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+
+.con-terracere-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease; }
+.con-terracere-leave-active { transition: opacity calc(600ms * var(--motion-scale, 1)) ease; }
+.con-terracere-enter-from,
+.con-terracere-leave-to { opacity: 0; }
+
+@keyframes con-terracere-rise {
+    from { transform: translateY(1.3rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
-.con-terra-event-leave-active {
-    transition: opacity calc(600ms * var(--motion-scale, 1)) ease-in, transform calc(600ms * var(--motion-scale, 1)) ease-in;
+@keyframes con-terracere-atmo {
+    0% { transform: scale(0.6); opacity: 0; }
+    35% { opacity: 1; }
+    100% { transform: scale(1.12); opacity: 0.6; }
 }
-.con-terra-event-enter-from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-.7rem) scale(0.96);
+@keyframes con-terracere-hero {
+    from { transform: translateY(1.1rem) scale(0.82); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
 }
-.con-terra-event-leave-to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-.4rem) scale(0.985);
+@keyframes con-terracere-ring {
+    0% { transform: scale(0.55); opacity: 0; }
+    45% { opacity: 1; }
+    100% { transform: scale(1); opacity: 0.85; }
 }
-@keyframes con-terra-event-glyph {
-    0% { transform: scale(0.4) rotate(-90deg); opacity: 0; }
-    35% { transform: scale(1.25) rotate(8deg); opacity: 1; }
-    60% { transform: scale(0.96) rotate(-2deg); }
-    100% { transform: scale(1) rotate(0deg); }
+@keyframes con-terracere-line {
+    from { transform: translateY(.5rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
-@keyframes con-terra-event-sweep {
-    0% { left: -4rem; }
-    100% { left: calc(100% + 1rem); }
+@keyframes con-terracere-pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
+
 @media (prefers-reduced-motion: reduce) {
-    .con-terra-event__glyph,
-    .con-terra-event__sweep {
-        animation: none;
-    }
-    .con-terra-event-enter-active,
-    .con-terra-event-leave-active {
-        transition: opacity 0.2s ease;
-    }
-    .con-terra-event-enter-from,
-    .con-terra-event-leave-to {
-        transform: translateX(-50%);
-    }
+    .con-terracere__scene,
+    .con-terracere__atmo,
+    .con-terracere__planet,
+    .con-terracere__ring,
+    .con-terracere__kicker,
+    .con-terracere__name,
+    .con-terracere__sub { animation: none; }
+    .con-terracere-enter-active,
+    .con-terracere-leave-active { transition: opacity 120ms ease; }
+}
+
+html.con-profile-handheld .con-terracere {
+    &__stage { width: 11rem; height: 11rem; }
+    &__name { font-size: 1.6rem; }
+    &__kicker { font-size: .8rem; letter-spacing: .225rem; }
+    &__sub { font-size: .8rem; }
 }
 
 /* (The old LB/RB section strip is gone — LB/RB are semantic buttons now,
@@ -2635,12 +2776,52 @@ html.con-profile-handheld .con-mainspect {
     &__foot-item { font-size: .625rem; }
 }
 
+/* ── Ceremony FX layer (gsap-spawned, one-shot) ─────────────────────────
+   Shared by ConsoleMaCeremony + ConsoleTerraformingCeremony: ring
+   shockwaves, radial sparks, a centre flash and one light sweep
+   (ceremonyFx.ts). The layer is transient — created and removed by the
+   director; colours/sizes ride inline from the accent palette; every
+   element is transform/opacity-only. */
+.con-ceremony-fx {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+
+    &__ring,
+    &__spark,
+    &__flash,
+    &__sweep {
+        position: absolute;
+        pointer-events: none;
+    }
+    &__ring { border-radius: 50%; }
+    &__spark {
+        width: .32rem;
+        height: .32rem;
+        border-radius: 50%;
+    }
+    &__flash {
+        inset: -12%;
+        border-radius: 50%;
+    }
+    &__sweep {
+        top: -18%;
+        bottom: -18%;
+        left: 33%;
+        width: 34%;
+        transform: rotate(14deg);
+    }
+}
+
 /* ── Milestones/Awards CEREMONY (ConsoleMaCeremony) ─────────────────────
    The cinematic post-confirm beat: a milestone claim is a CORONATION (the
    player just EARNED 5 VP — gold, ring burst, the strongest moment); an
    award funding is an official SEAL (calmer, medal-toned). Pointer-events
    none — the game stays fully playable underneath; bounded lifetime through
-   motionMs; every animation is ONE-SHOT (never looping). */
+   motionMs; every animation is ONE-SHOT (never looping). The entrance rides
+   CSS keyframes below; the burst layer (rings/sparks/flash/sweep) is the
+   shared gsap ceremonyFx director. */
 .con-macere {
     position: fixed;
     inset: 0;
@@ -3176,6 +3357,17 @@ html.console-mode {
         white-space: nowrap;
         pointer-events: none;
     }
+    /* The focused-card INFO BAR reserves the reason-chip row height so that
+       switching focus between a playable card (no reason) and a blocked one
+       (name + verdict + «why not» chip) NEVER changes the bar height — a
+       height change would re-fit the card grid and shift every card
+       (player feedback). The reason chip below is compact enough to sit in
+       one row with the verdict, so the reserve holds. The `.con-cards`
+       twin sets min-height LATER in the file at equal specificity, so the
+       reserve rides the combined selector to win the cascade. */
+    &__verdictbar.con-cards__verdictbar {
+        min-height: 2.7rem;
+    }
     &__reason {
         padding: .4rem .7rem;
         border-radius: .4rem;
@@ -3184,6 +3376,14 @@ html.console-mode {
         border-left: .15rem solid fade(@con-cyan, 55%);
         font-size: 1rem;
         line-height: 1.4;
+
+        /* Inside the verdict bar: a compact chip that fits the reserved
+           bar height in ONE row (never taller than the verdict chip). */
+        &--bar {
+            padding: .18rem .55rem;
+            font-size: .85rem;
+            line-height: 1.2;
+        }
 
         &--megacredits { border-left-color: @con-amber; }
         &--globalParameter,
@@ -11561,15 +11761,8 @@ html.con-profile-handheld {
     .con-award__legend-glyph.con-award__crown { width: .6rem; height: .5rem; }
     .con-home__foot { margin-top: .3rem; padding-top: .25rem; font-size: .575rem; }
     .con-banner { font-size: .75rem; padding: .25rem .6rem; }
-    .con-terra-event {
-        top: calc(0.8vh + 3.9rem);
-        gap: .6rem;
-        padding: .5rem 1.1rem;
-
-        &__glyph { font-size: 1.3rem; }
-        &__title { font-size: .9rem; letter-spacing: .11rem; }
-        &__subtitle { font-size: .65rem; letter-spacing: .055rem; }
-    }
+    /* (The terraforming ceremony's handheld sizes live next to its own
+       block — see `html.con-profile-handheld .con-terracere`.) */
 
     /* ── 3 · bottom command bar ──────────────────────────────────── */
     .con-cmdbar {

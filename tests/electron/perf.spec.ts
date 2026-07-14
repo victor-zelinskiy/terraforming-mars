@@ -98,6 +98,9 @@ describe('electron/perf', () => {
       // the MEASURED winner on the target box (d3d12 A/B'd worse, 2026-07-14) —
       // pinned so a future Chromium default flip can't silently move us off it
       expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('d3d11');
+      // the Linux-only Graphite bypass switch must NOT leak onto Windows
+      // (there Graphite rides the supported FEATURE path)
+      expect(app.switches.map((s) => s.key)).to.not.include('enable-skia-graphite');
     });
   });
 
@@ -117,9 +120,12 @@ describe('electron/perf', () => {
       expect(effectiveValue(app, 'use-gl')).to.equal('angle');
       expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
       // the FULL recipe: DefaultANGLEVulkan/VulkanFromANGLE were the missing
-      // pieces that made ANGLE's EGL config selection use Vulkan
+      // pieces that made ANGLE's EGL config selection use Vulkan. SkiaGraphite
+      // must NOT be in the FEATURE list on Linux (platform-blocked "for
+      // safety") — it rides the explicit bypass SWITCH instead:
       expect(effectiveValue(app, 'enable-features')).to.equal(
-        'Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,SkiaGraphite,SkiaGraphitePrecompilation');
+        'Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,SkiaGraphitePrecompilation');
+      expect(keys).to.include('enable-skia-graphite');
       expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('vulkan');
       // the D3D presentation features + dual-GPU preference are Windows-only
       expect(effectiveValue(app, 'enable-features')).to.not.include('DXGI');

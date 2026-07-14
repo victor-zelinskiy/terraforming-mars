@@ -183,37 +183,29 @@
    chrome appears only after the card lands. */
 
 /* The table slot whose card is currently in the fullscreen inspector.
-   Same cascade trick as .con-deal-hold: !important beats animations. */
+   `.con-zoom-hold` lives on the INNER card (JS-driven — the wrapper's Vue
+   `:class` would wash a class added to it on the very next browse patch,
+   re-showing the card = two visible copies). This zeroes the card itself. */
 .con-zoom-hold {
     opacity: 0 !important;
 }
 
-/* The open-flight veil: pre-dims the scene UNDER the flying proxy with the
-   exact pixels the dialog's ::backdrop will paint, so the backdrop taking
-   over at showModal() is invisible. Above every console surface incl. the
-   command bar (11700), below the flight layer and the top layer. */
-.con-zoom-veil {
-    position: fixed;
-    inset: 0;
-    z-index: 11890;
-    /* auto, not none: the old top-layer open blocked stray mouse clicks from
-       frame one — the veil keeps that contract during the proxy flight (a
-       click mid-flight must never mutate the scene the card returns to). */
-    pointer-events: auto;
-    .con-backdrop-dim();
-    opacity: 0;
-    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-
-    &--on {
-        opacity: 1;
-    }
+/* …and the WHOLE slot the card lifted from empties — its focus ring /
+   selected outline / glow / pick-band must not linger as a "silhouette" in
+   the gap (worst on modal slots). The rule keys off the inner card's
+   `.con-zoom-hold` (a `:has` on the wrapper), so a wrapper re-render can't
+   break it — unlike a JS class on the wrapper. Covers every slot host:
+   `[data-zoom-slot]` (hand / task host / reveal / start scene) + the
+   composer's direct-resolve slot. */
+:is([data-zoom-slot], .con-composer__playcard):has(.con-zoom-hold) {
+    opacity: 0 !important;
 }
 
 /* The open-flight stage (mirrors .con-exit-layer mechanics). */
 .con-zoom-flight-layer {
     position: fixed;
     inset: 0;
-    z-index: 11900; /* proxy above the veil, both under the top layer */
+    z-index: 11900; /* above every console surface, under the top-layer dialog */
     pointer-events: none;
     overflow: clip;
     contain: layout style;
@@ -262,13 +254,15 @@ dialog.con-zoom {
         }
     }
 
-    /* Backdrop: NO entry animation — the dialog opens at touchdown behind
-       the already-faded `.con-zoom-veil` (same pixels), so the backdrop
-       appearing at full dim is seamless. The keyframe entry animation was
-       REMOVED deliberately: an animated ::backdrop on the very first frame
-       of a fresh top-layer dialog was one of the ingredients of the
-       Graphite first-open unpainted-dialog bug (ZOOM_BUG_HANDOFF.md) —
-       never reintroduce it. Close keeps its fade (the surface is
+    /* Backdrop: NO entry animation — the dialog opens (showModal) at the
+       flight's touchdown and its STATIC ::backdrop appears at full dim in one
+       step, coinciding with the card arriving fullscreen. The keyframe entry
+       animation was REMOVED deliberately: an animated ::backdrop on the very
+       first frame of a fresh top-layer dialog was one of the ingredients of
+       the Graphite first-open unpainted-dialog bug (ZOOM_BUG_HANDOFF.md) —
+       never reintroduce it. (A separate fade-in dim VEIL was also tried and
+       removed: it stacked with the backdrop then un-mounted a beat later,
+       blinking the whole background.) Close keeps its fade (the surface is
        long-established by then). */
     &.con-zoom--closing::backdrop {
         opacity: 0;

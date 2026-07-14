@@ -308,8 +308,9 @@ export default defineComponent({
     // already-terraformed game shows only the persistent markers, never the
     // cinematic) and fired exactly once on the live transition. The shared
     // celebration module also drives the desktop sidebar glow + the console
-    // HUD rail pulse; in CONSOLE mode the cinematic banner (ConsoleShell)
-    // owns the presentation, so the desktop card is not pushed there.
+    // HUD rail pulse; in CONSOLE mode the ceremony cinematic
+    // (ConsoleTerraformingCeremony in ConsoleShell) owns the presentation,
+    // so the desktop card is not pushed there.
     handleTerraformingComplete(now: number): void {
       const fresh = observeTerraformingProgress(this.playerView);
       if (!fresh) {
@@ -355,7 +356,10 @@ export default defineComponent({
       } else if (gen > notificationState.lastGeneration) {
         notificationState.lastGeneration = gen;
         notificationState.passedSeen = new Set<string>(); // passes reset each generation
-        if (canToast) {
+        // Console-native replaces the "new generation" toast with the top-HUD
+        // flip-swap of the generation value itself (ConsoleGenerationFlip) —
+        // the number announces its own change, no card. Desktop keeps the toast.
+        if (canToast && !this.consoleEnabled) {
           pushTransient(buildGenerationNotification(gen, now));
         }
       }

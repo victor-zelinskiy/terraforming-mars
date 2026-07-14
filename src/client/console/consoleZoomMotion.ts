@@ -81,13 +81,16 @@ function clearOpenSafety(): void {
 
 /**
  * Hold a source slot invisible while its card is "in the player's hands".
- * `el` MUST be the slot WRAPPER (not the inner `.card-container`/`.pcard`),
- * so the ENTIRE slot — card + its focus ring / selected outline / glow /
- * pick-band — goes to opacity 0. Holding only the inner card (the earlier
- * bug) zeroed the card but left the wrapper's outline painted, so the gap
- * the card lifted from stayed visibly highlighted (worst on modal slots).
- * This matches how the deal cinematic holds its slots (the wrapper carries
- * `.con-deal-hold`). Geometry is measured separately from `sourceCardEl`.
+ * `el` MUST be the INNER `.card-container`/`.pcard` (`sourceCardEl`), NOT the
+ * slot wrapper: the wrapper carries a Vue `:class` (e.g. the hand's
+ * `--selected` toggles on the browse index), so a JS class added to it is
+ * WASHED the moment Vue re-patches it on LB/RB — the card would reappear on
+ * the board (two visible copies of one card). The inner card is a `:key`ed
+ * `<Card>` Vue does NOT re-patch on browse, so the JS class survives.
+ * The WHOLE slot (card + its focus ring / selected outline / glow) is
+ * emptied by a CSS `:has(.con-zoom-hold)` rule on the wrapper instead
+ * (console_card_deal.less) — that keys off this descendant class, so a
+ * wrapper re-render can't break it either. Geometry is `sourceCardEl` too.
  */
 function holdSlot(el: HTMLElement | null): void {
   if (ctx.heldSlot !== undefined && ctx.heldSlot !== el) {
@@ -219,8 +222,8 @@ export function playZoomOpenFlight(
     return;
   }
   // FLIP: the proxy lifts out of the slot and expands onto the landing rect.
-  // Hold the WRAPPER so the whole source slot (card + ring) empties.
-  holdSlot(sourceSlotEl(ctx.origin ?? {kind: 'none'}, index));
+  // Hold the inner card (CSS :has empties the whole slot — see holdSlot).
+  holdSlot(sourceCardEl(ctx.origin ?? {kind: 'none'}, index));
   const scale = source.width / landing.width;
   ctx.tween = gsap.fromTo(proxy,
     {
@@ -252,7 +255,7 @@ export function retargetZoomHold(index: number): void {
   if (origin === undefined || origin.kind !== 'physical') {
     return;
   }
-  holdSlot(sourceSlotEl(origin, index));
+  holdSlot(sourceCardEl(origin, index));
 }
 
 /**
@@ -298,7 +301,7 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
     }
     // Make sure the LANDING slot is the held (empty) one, so the card
     // visibly returns into a gap — never onto a duplicate of itself.
-    holdSlot(sourceSlotEl(origin, index));
+    holdSlot(sourceCardEl(origin, index));
     const scale = source.width / target.width;
     // RESPONSIVE, DISSOLVE-INTO-SLOT retract (not a slow "fall + hard land"):
     //  - `power2.out` LEAVES fast on the very first frame → the B press reads
@@ -404,9 +407,8 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
         return;
       }
       // The card leaves the table world for the modal world: hold the
-      // MODAL slot WRAPPER (releasing the table slot underneath the
-      // backdrops) — the whole target slot empties, no leftover outline.
-      holdSlot(slot ?? cardEl);
+      // MODAL slot's inner card (CSS :has empties the whole slot).
+      holdSlot(cardEl);
       const scale = rect.width / target.width;
       const tl = gsap.timeline({onComplete: done});
       tl.to(stage, {
