@@ -76,9 +76,19 @@ function zdump(dialog: HTMLElement): void {
       const s = getComputedStyle(el);
       const cls = String(el.className);
       const hidingClass = /con-deal-hold|con-zoom-hold|con-deal|veil|--flight|--closing/.exec(cls)?.[0];
+      // v3: also catch the PAINT-level hiders the first scan missed — an
+      // ancestor rotated ~180° with backface-visibility:hidden hides every
+      // descendant (3D flip mechanics exist in the deal/zoom!), and
+      // content-visibility skips the subtree's paint entirely.
+      const cv = (s as CSSStyleDeclaration & {contentVisibility?: string}).contentVisibility ?? 'visible';
       if (s.opacity !== '1' || s.visibility !== 'visible' || s.display === 'none' ||
-          s.maskImage !== 'none' || hidingClass !== undefined) {
-        suspects.push(`${el.tagName}.${cls.slice(0, 90)} → opacity=${s.opacity} vis=${s.visibility} disp=${s.display} mask=${s.maskImage !== 'none'} hit=${hidingClass ?? '-'}`);
+          s.maskImage !== 'none' || hidingClass !== undefined ||
+          s.transform !== 'none' || s.backfaceVisibility !== 'visible' ||
+          (cv !== 'visible' && cv !== 'auto') || s.perspective !== 'none' ||
+          s.mixBlendMode !== 'normal' || s.isolation !== 'auto') {
+        suspects.push(`${el.tagName}.${cls.slice(0, 90)} → op=${s.opacity} vis=${s.visibility} disp=${s.display}` +
+          ` mask=${s.maskImage !== 'none'} tf=${s.transform} bfv=${s.backfaceVisibility} cv=${cv}` +
+          ` persp=${s.perspective} blend=${s.mixBlendMode} iso=${s.isolation} hit=${hidingClass ?? '-'}`);
       }
       el = el.parentElement;
     }
