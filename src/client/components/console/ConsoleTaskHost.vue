@@ -1275,8 +1275,8 @@ export default defineComponent({
      * the adjacent row whose centre is nearest horizontally.
      */
     moveFocusRow(step: 1 | -1): void {
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
-      if (strip === undefined) {
+      const strip = this.$refs.cardStrip as HTMLElement | null | undefined;
+      if (strip === undefined || strip === null) {
         return;
       }
       const slots = Array.from(strip.children) as Array<HTMLElement>;
@@ -1389,8 +1389,11 @@ export default defineComponent({
      * cost is zero (Steam Deck). Grid mode keeps its own wrapping zoom.
      */
     fitCardStrip(): void {
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
-      if (strip === undefined) {
+      // Vue 3 sets a template ref to `null` (not `undefined`) once its v-if'd
+      // element unmounts — a queued `$nextTick(fitCardStrip)` from a watcher can
+      // fire AFTER the cardStrip left the DOM (task kind changed), so guard both.
+      const strip = this.$refs.cardStrip as HTMLElement | null | undefined;
+      if (strip === undefined || strip === null) {
         return;
       }
       if (this.activeTask.kind !== 'cardSelect') {

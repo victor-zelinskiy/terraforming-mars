@@ -141,7 +141,8 @@ describe('server/cors', () => {
   });
 
   it('scopes eligibility to the game-runtime + create/join surface', () => {
-    for (const p of [paths.API_PLAYER, paths.PLAYER_INPUT, paths.API_WAITING_FOR, paths.API_CREATEGAME, paths.API_GAMES_JOINABLE, paths.API_GAME_REMATCH]) {
+    for (const p of [paths.API_PLAYER, paths.PLAYER_INPUT, paths.API_WAITING_FOR, paths.API_CREATEGAME, paths.API_GAMES_JOINABLE, paths.API_GAME_REMATCH,
+      paths.API_GAME_BOT_TURN_ACK, paths.API_GAME_COLONY_TRADE_PREVIEW]) {
       expect(isCorsEligiblePath(p), p).to.be.true;
     }
     for (const p of [paths.API_GAMES, paths.API_GAME_DELETE, paths.API_PROFILE, paths.LOGIN, paths.API_METRICS, 'admin']) {

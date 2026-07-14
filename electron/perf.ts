@@ -201,6 +201,19 @@ export function applyPerformanceSwitches(app: App): string[] {
   }
   sw('disable-features', DISABLED_FEATURES.join(','));
 
+  // Graphite rides Dawn's D3D12 backend by default (the modern-API path Graphite
+  // is designed around; stock Chrome's Windows bring-up primarily tested D3D11,
+  // with D3D12 documented as functional). Verify on-device that the [TM perf]
+  // echo / chrome://gpu reports `Skia Backend: GraphiteDawnD3D12` with GPU crash
+  // count 0 — a failed init falls back (Ganesh/software) and would show there.
+  // Roll back to the D3D11 backend without a rebuild:
+  //   TM_ELECTRON_SWITCHES="skia-graphite-dawn-backend=d3d11"
+  // (With Graphite off entirely — TM_ELECTRON_FEATURES=none — this is inert.
+  // Windows-only: the Linux/Deck Graphite experiment targets Vulkan instead.)
+  if (process.platform === 'win32') {
+    sw('skia-graphite-dawn-backend', 'd3d12');
+  }
+
   // ── No renderer throttling (fullscreen game) ─────────────────────────────
   // A fullscreen game must stay at full rate when briefly occluded / unfocused
   // (Alt-Tab, an OS notification, a second monitor) — otherwise rAF-driven

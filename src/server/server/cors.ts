@@ -50,6 +50,8 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.ACKNOWLEDGE_DRAW,
   paths.RESET,
   paths.AUTOPASS,
+  // Soft MarsBot-turn ack (best-effort, never authoritative — see BotTurnScheduler).
+  paths.API_GAME_BOT_TURN_ACK,
   // Premium read-only analytics / previews.
   paths.API_GAME_LOGS,
   paths.API_GAME_JOURNAL_EVENTS,
@@ -58,6 +60,7 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_GAME_ENDGAME_FACTS,
   paths.API_GAME_DELTA_PREVIEW,
   paths.API_GAME_BOARD_CELL_PREVIEW,
+  paths.API_GAME_COLONY_TRADE_PREVIEW,
   paths.API_GAME_REMATCH,
   paths.API_ACTION_PREVIEW,
   paths.API_CARD_PLAY_PREVIEW,

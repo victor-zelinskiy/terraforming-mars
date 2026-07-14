@@ -84,12 +84,13 @@ describe('electron/perf', () => {
     });
   });
 
-  it('Windows: enables Graphite + precompilation + the waitable swap chain by default', () => {
+  it('Windows: enables Graphite (on Dawn/D3D12) + precompilation + the waitable swap chain by default', () => {
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       expect(effectiveValue(app, 'enable-features')).to.equal(
         'SkiaGraphite,SkiaGraphitePrecompilation,DXGIWaitableSwapChain:DXGIWaitableSwapChainMaxQueuedFrames/2');
+      expect(effectiveValue(app, 'skia-graphite-dawn-backend')).to.equal('d3d12');
     });
   });
 
@@ -129,6 +130,7 @@ describe('electron/perf', () => {
       expect(effectiveValue(app, 'num-raster-threads')).to.equal('4');
       expect(keys).to.not.include('ignore-gpu-blocklist');
       expect(keys).to.not.include('enable-features');
+      expect(keys).to.not.include('skia-graphite-dawn-backend');
     });
   });
 
@@ -189,6 +191,8 @@ describe('electron/perf', () => {
       expect(effectiveValue(app, 'ozone-platform')).to.equal('wayland');
       expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
       expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite');
+      // the D3D12 Graphite backend is a WINDOWS default — a Linux GPU experiment targets Vulkan
+      expect(keys).to.not.include('skia-graphite-dawn-backend');
     });
   });
 
