@@ -59,6 +59,16 @@
       <path d="M4.6 12h14.8" />
       <path d="M4.6 17.4h9.4" />
     </template>
+    <!-- Skip turn: fast-forward to the bar (end your turn, hand off). -->
+    <template v-else-if="name === 'skip-turn'">
+      <path d="M5 6.5 12 12 5 17.5z" />
+      <path d="M13 6.5 20 12 13 17.5z" />
+    </template>
+    <!-- Pass: a flag (concede the rest of the generation). -->
+    <template v-else-if="name === 'pass'">
+      <path d="M7 3.6V20.4" />
+      <path d="M7 4.6h11l-2.4 3.4L18 11.4H7z" />
+    </template>
   </svg>
 </template>
 

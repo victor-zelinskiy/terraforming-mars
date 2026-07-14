@@ -123,14 +123,14 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       ...turnGate(ctx.stdAvailable, 'Unavailable right now'),
     },
     {
-      // These two have no bar-icon sprite — a text glyph (like Voting's ⚖)
-      // so the slot is never a blank square (visible on a big TV). Skip a
-      // turn = fast-forward; Pass the whole generation = stop/hand-up.
-      id: 'skipTurn', slot: 'up', label: 'Skip turn', glyph: '⏭',
+      // Dedicated line-icons (BarButtonIcon) so the slot matches the other
+      // wheel icons instead of a colour emoji. Skip a turn = fast-forward;
+      // Pass = concede the generation (a flag).
+      id: 'skipTurn', slot: 'up', label: 'Skip turn', barIcon: 'skip-turn',
       ...turnGate(ctx.endTurnAvailable, 'Available after your first action this round'),
     },
     {
-      id: 'pass', slot: 'down', label: 'Pass', glyph: '✋',
+      id: 'pass', slot: 'down', label: 'Pass', barIcon: 'pass',
       ...turnGate(ctx.passAvailable, 'Unavailable right now'),
     },
     {

@@ -9929,6 +9929,13 @@ body.con-start-ceremony {
 html.console-mode .notifications-layer {
     top: 5.4rem;
     right: 1rem;
+    /* The desktop layer is a FIXED 340px box; the console card (.con-notif)
+       is rem-sized and — on the TV profile — scales past that, so a fixed
+       box let the card overflow its right edge off-screen. Hug the card
+       instead (right-anchored max-content), clamped to the viewport. */
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    align-items: flex-end;
 
     .notification-card--action-required,
     .notification-card--your-turn {
