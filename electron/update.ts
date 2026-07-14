@@ -69,10 +69,16 @@ let serverBaseUrl = '';
 let manager: UpdateManager | undefined;
 let pendingUpdate: UpdateInfo | undefined;
 
-/** The GitHub Releases feed the vpk-published packages live in. Velopack's core recognises a
- *  github.com URL and uses its GitHub source (it searches recent releases for the channel's
- *  releases.<channel>.json + the full/delta .nupkg). Public repo → no token needed. */
-const FEED_URL = 'https://github.com/victor-zelinskiy/terraforming-mars';
+/** The Velopack update feed. We point at OUR server's PROXY (`/api/desktop/feed`), NOT github.com
+ *  directly: the proxy serves the channel manifest and 302-redirects the .nupkg packages to the
+ *  GitHub release CDN, so the client never calls the rate-limited GitHub REST API (unauthenticated
+ *  60/hr → 403 under load; the JS binding can't send a token). Falls back to the public GitHub repo
+ *  if the server base is somehow unknown (Velopack's core then uses its GitHub source directly). */
+const GITHUB_FEED_FALLBACK = 'https://github.com/victor-zelinskiy/terraforming-mars';
+function feedUrl(): string {
+  const base = serverBaseUrl.replace(/\/+$/, '');
+  return base !== '' ? `${base}/api/desktop/feed` : GITHUB_FEED_FALLBACK;
+}
 
 function push(next: Partial<DesktopUpdateState>): void {
   state = {...state, ...next};
@@ -141,15 +147,15 @@ function canRestartAfterUpdate(): boolean {
 function logUpdate(msg: string): void {
   // eslint-disable-next-line no-console
   console.log(
-    `[updater] provider=velopack-github platform=${process.platform} appImage=${runningAsAppImage()} ` +
-    `current=${app.getVersion()} channel=${channel()} — ${msg}`,
+    `[updater] provider=velopack-proxy feed=${feedUrl()} platform=${process.platform} ` +
+    `appImage=${runningAsAppImage()} current=${app.getVersion()} channel=${channel()} — ${msg}`,
   );
 }
 
-/** Lazily create (and reuse) the Velopack UpdateManager pointed at the GitHub feed. */
+/** Lazily create (and reuse) the Velopack UpdateManager pointed at our proxy feed. */
 function getManager(): UpdateManager {
   if (manager === undefined) {
-    manager = new UpdateManager(FEED_URL);
+    manager = new UpdateManager(feedUrl());
   }
   return manager;
 }

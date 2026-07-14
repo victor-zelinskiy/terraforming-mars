@@ -36,6 +36,9 @@ export const paths = {
   API_CARD_PLAY_PREVIEW: 'api/card-play-preview',
   // Public desktop (Electron) compatibility + update-metadata endpoint (Phase 7).
   API_DESKTOP_VERSION: 'api/desktop/version',
+  // Velopack update-feed PROXY (prefix). `<base>/api/desktop/feed/<file>` — keeps desktop clients
+  // off the rate-limited GitHub API (see ApiDesktopFeed). Matched by prefix in requestProcessor.
+  API_DESKTOP_FEED: 'api/desktop/feed',
   AUTH_DISCORD_CALLBACK: 'auth/discord/callback',
   AUTOPASS: 'autopass',
   CARDS: 'cards',

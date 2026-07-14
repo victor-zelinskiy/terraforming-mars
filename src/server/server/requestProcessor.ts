@@ -8,6 +8,7 @@ import {GameLoader} from '../database/GameLoader';
 import {ApiCloneableGame} from '../routes/ApiCloneableGame';
 import {ApiCreateGame} from '../routes/ApiCreateGame';
 import {ApiDesktopVersion} from '../routes/ApiDesktopVersion';
+import {ApiDesktopFeed} from '../routes/ApiDesktopFeed';
 import {ApiGame} from '../routes/ApiGame';
 import {ApiGameDelete} from '../routes/ApiGameDelete';
 import {ApiGameHistory} from '../routes/ApiGameHistory';
@@ -172,6 +173,10 @@ function getHandler(pathname: string): IHandler | undefined {
   }
   if (pathname.startsWith('chunks/')) {
     return ServeAsset.INSTANCE;
+  }
+  // Velopack update-feed proxy (prefix): /api/desktop/feed/<file> (see ApiDesktopFeed).
+  if (pathname.startsWith(paths.API_DESKTOP_FEED + '/')) {
+    return ApiDesktopFeed.INSTANCE;
   }
   return undefined;
 }
