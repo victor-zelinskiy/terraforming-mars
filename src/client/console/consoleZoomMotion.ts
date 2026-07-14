@@ -219,6 +219,20 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
     const finish = () => {
       ctx.tween = undefined;
       onSettled();
+      // Graphite content-raster workaround (see invalidateCardRaster): force a
+      // fresh content rasterization right after the card lands, and once more
+      // shortly after (an image decode may still have been in flight the first
+      // time). Cheap (one card re-raster) and invisible (same-task jiggle).
+      requestAnimationFrame(() => {
+        if (!ctx.closing) {
+          invalidateCardRaster(stage, 'post-land');
+        }
+      });
+      setTimeout(() => {
+        if (!ctx.closing) {
+          invalidateCardRaster(stage, 'late');
+        }
+      }, motionMs(600));
     };
     if (reduced) {
       ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
@@ -543,6 +557,39 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
       },
     });
   });
+}
+
+/**
+ * GRAPHITE content-raster workaround. The decisive dump proved the first-open
+ * bug is a CONTENT RASTERIZATION failure: dialog/stage/card all perfectly
+ * visible by style (opacity 1, full-size, elementFromPoint = the card) yet no
+ * pixels — the first rasterization of the big legacy card (its sprite images'
+ * first GPU upload) fails silently; the second open always works because the
+ * images are cached by then. A LAYER recreate does NOT fix it (proven), so
+ * force a CONTENT re-raster instead: jiggle the card's CSS zoom (its actual
+ * scale carrier) inside one task — the renderer never paints the intermediate
+ * state, but the scale change invalidates every content tile → a fresh
+ * rasterization with the now-decoded images. Run after the flight lands, and
+ * once more later (in case an image decode was still in flight).
+ */
+function invalidateCardRaster(stage: HTMLElement, label: string): void {
+  const card = stage.querySelector<HTMLElement>(':is(.card-container, .pcard)');
+  if (card === null) {
+    return;
+  }
+  zlog(`content re-raster (${label})`);
+  const zoom = card.style.zoom;
+  if (zoom !== '' && zoom !== undefined) {
+    card.style.zoom = '1';
+    void card.offsetHeight; // force the relayout at scale 1 (never painted)
+    card.style.zoom = zoom;
+    void card.offsetHeight; // …and back — every content tile re-rasterizes
+  } else {
+    // No zoom applied (fit hasn't run) — a transparent outline toggles paint.
+    card.style.outline = '1px solid transparent';
+    void card.offsetHeight;
+    card.style.outline = '';
+  }
 }
 
 /** Final cleanup — after the dialog actually closed (any path, incl. Esc). */
