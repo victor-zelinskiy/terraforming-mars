@@ -103,6 +103,30 @@
   100% { transform: translate3d(0, 0, 0) scale(0.9); }
 }
 
+/* ── Top-layer warm-up dialog (near-invisible; allocates the Graphite
+      top-layer + transformed-stage textures — see the component comment) ───── */
+.boot-loader__warm-dialog {
+  border: none;
+  padding: 0;
+  background: transparent;
+  opacity: 0.02;           // must PAINT (a 0-alpha layer may be skipped), but is invisible
+  pointer-events: none;    // never intercepts input even while modal
+  outline: none;
+
+  &::backdrop {
+    // Paint a real (near-invisible) backdrop too — the zoom dialog's backdrop
+    // is its own top-layer surface, warm that texture as well.
+    background: rgba(5, 9, 15, 0.02);
+  }
+}
+.boot-loader__warm-dialog-stage {
+  // Mirror the zoom stage: a transformed, animating wrapper around a card —
+  // the same promoted-layer texture path the real fullscreen zoom uses.
+  transform: translate3d(0, 0, 0) scale(0.9);
+  animation: boot-warm-run calc(1200ms * var(--motion-scale, 1)) ease-in-out infinite;
+  will-change: transform;
+}
+
 /* ── Visible premium space scene (opaque — hides the warm-up behind it) ────── */
 .boot-loader__bg {
   position: absolute;

@@ -50,6 +50,20 @@
       <div class="boot-warm-cell boot-warm-cell--glow"></div>
     </div>
 
+    <!-- TOP-LAYER warm-up: a near-invisible native <dialog> opened via
+         showModal() for a moment during warm-up. The FIRST top-layer surface +
+         transformed stage of a session hits a Skia Graphite first-allocation
+         race on Windows ("ProduceSkia: non-existent mailbox") that rendered the
+         first REAL fullscreen zoom EMPTY (dialog open, DOM/measures correct —
+         pixels never painted). Allocating those textures here, behind the
+         loader, moves the race out of gameplay. NOT inside the inert container
+         (a dialog must be able to open); pointer-events none + opacity ~0. -->
+    <dialog ref="warmDialog" class="boot-loader__warm-dialog" aria-hidden="true" @cancel.prevent @close.prevent>
+      <div class="boot-loader__warm-dialog-stage">
+        <Card v-if="warmReady && warmCards.length > 0" :card="warmCards[0]" :inert="true" />
+      </div>
+    </dialog>
+
     <!-- Layered premium scene: deep space → mars glow → grid → vignette. -->
     <div class="boot-loader__bg" aria-hidden="true"></div>
     <div class="boot-loader__glow" aria-hidden="true"></div>
@@ -181,6 +195,7 @@ export default defineComponent({
       timer: undefined as number | undefined,
       readyFallback: undefined as number | undefined,
       gpuReadyHandler: undefined as (() => void) | undefined,
+      warmDialogTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -240,6 +255,24 @@ export default defineComponent({
       }
       this.warmReady = true;
       this.step(perPhase);
+      // Top-layer warm-up (see the template comment): open the near-invisible
+      // dialog for a beat so Graphite allocates the top-layer + transformed-stage
+      // textures NOW instead of at the first real fullscreen zoom.
+      this.$nextTick(() => {
+        const dlg = this.$refs.warmDialog as HTMLDialogElement | undefined;
+        try {
+          dlg?.showModal();
+        } catch {
+          // unsupported / already open — the real zoom then just pays first-use
+        }
+        this.warmDialogTimer = window.setTimeout(() => {
+          try {
+            dlg?.close();
+          } catch {
+            // already closed — fine
+          }
+        }, motionMs(500));
+      });
     };
     const w = window as {__tmGpuReady?: boolean};
     if (w.__tmGpuReady === true) {
@@ -259,6 +292,15 @@ export default defineComponent({
     }
     if (this.gpuReadyHandler !== undefined) {
       window.removeEventListener('tm-gpu-ready', this.gpuReadyHandler);
+    }
+    if (this.warmDialogTimer !== undefined) {
+      window.clearTimeout(this.warmDialogTimer);
+    }
+    // The warm-up dialog must NEVER outlive the loader in the top layer.
+    try {
+      (this.$refs.warmDialog as HTMLDialogElement | undefined)?.close();
+    } catch {
+      // already closed — fine
     }
   },
   errorCaptured(): boolean {

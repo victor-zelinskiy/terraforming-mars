@@ -14,7 +14,9 @@ import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {TileType} from '../../../common/TileType';
 import {SelectResourceTypeDeferred} from '../../deferredActions/SelectResourceTypeDeferred';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
+import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
+import * as actionPreviews from '../actionPreviews';
 
 export abstract class MiningCard extends Card implements IProjectCard {
   public bonusResource: Array<Resource> | undefined;
@@ -50,6 +52,16 @@ export abstract class MiningCard extends Card implements IProjectCard {
       return reason.placementReason(this.placementUnavailableMessage);
     }
     return undefined;
+  }
+
+  // The tile is placed bespoke (a `SelectSpace`, not declarative `behavior.tile`),
+  // so the generic preview walker can't emit the "you'll place a tile" note. Surface
+  // it here so the play modal isn't mute about the board interaction that follows
+  // confirming (the matching steel/titanium production is chosen after placement).
+  public cardPlayPreview(player: IPlayer): ActionPreview {
+    return actionPreviews.placementPreview(this, player, {
+      text: 'After confirming, place the tile on a steel or titanium bonus area.',
+    });
   }
 
   private getAdjacencyBonus(bonusType: SpaceBonus): AdjacencyBonus | undefined {

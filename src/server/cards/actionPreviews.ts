@@ -474,6 +474,29 @@ export function playPreview(
 }
 
 /**
+ * A bespoke on-play PLACEMENT preview: the card's declarative `behavior` chips (if
+ * any) auto-included, PLUS an honest "after confirming, you'll place it on the
+ * board" NOTE — so the play modal is NEVER mute about the board interaction that
+ * follows confirming. Use for a bespoke `bespokePlay` card whose on-play effect is
+ * (or includes) a board tile / ocean / city / greenery / colony placement that the
+ * generic `behavior.tile` walker CAN'T see (the note is auto-derived for DECLARATIVE
+ * placement, but a bespoke `SelectSpace`/`SelectColony` produces no `behavior.tile`
+ * so it needs this hook). Mirrors the declarative placement note on both surfaces.
+ * `opts.steps` (e.g. an attack picker that ALSO fires) come before the note.
+ */
+export function placementPreview(
+  card: ICard,
+  player: IPlayer,
+  opts: {kind?: 'board' | 'colony', text?: string | Message, effects?: ReadonlyArray<ActionEffect>, steps?: ReadonlyArray<ActionPreviewStep | undefined>} = {},
+): ActionPreview {
+  const kind = opts.kind ?? 'board';
+  const note = opts.text ?? (kind === 'colony' ?
+    'After confirming, choose where to build the colony.' :
+    'After confirming, choose where to place the tile on the board.');
+  return playPreview(card, player, opts.effects ?? [], [...(opts.steps ?? []), noteStep(kind, note)]);
+}
+
+/**
  * The escape hatch for actions that resist a static description (Viron copies
  * another player's used action; SelfReplicatingRobots, etc.): a single
  * confirm-only branch with NO steps. The action's own prompts ride the existing
