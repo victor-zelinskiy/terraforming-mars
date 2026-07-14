@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.0.8",
+  "version": "1.1.256",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": "22.x"
@@ -110,7 +110,8 @@
     "dev:server": "cross-env NODE_ENV=development tsx watch src/server/server.ts",
     "electron:build:main": "tsc -p electron/tsconfig.json",
     "electron:dev": "npm run electron:build:main && electron build/electron/main.js",
-    "build:desktop": "npm run make:static && cross-env DESKTOP_BUILD=1 npm run build:client && npm run electron:build:main",
+    "version:sync": "node scripts/sync-version.mjs",
+    "build:desktop": "npm run version:sync && npm run make:static && cross-env DESKTOP_BUILD=1 npm run build:client && npm run electron:build:main",
     "electron:desktop": "npm run build:desktop && cross-env TM_ELECTRON_LOAD=app electron build/electron/main.js",
     "electron:pack:dir": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --config electron-builder.yml",
     "pack:dir:win": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",

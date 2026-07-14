@@ -45,40 +45,7 @@ try {
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';
 // module top-level runs well before then. Desktop-only; browser build untouched.
-// DIAGNOSTIC: a `--tm-no-perf` relaunch arg (F8 hotkey) maps to the perf kill-switch, so the
-// vanilla-Electron GPU path can be compared against ours WITHOUT a terminal / env var.
-if (process.argv.includes('--tm-no-perf')) {
-  process.env.TM_ELECTRON_NO_PERF = '1';
-}
-// DIAGNOSTIC: a `--tm-gpu-low` relaunch arg (F7 hotkey) renders on the integrated GPU — tests
-// whether forcing the discrete dGPU adds a cross-adapter frame copy on this hybrid laptop.
-if (process.argv.includes('--tm-gpu-low')) {
-  process.env.TM_ELECTRON_GPU = 'low';
-}
-// DIAGNOSTIC: `--tm-perftest` (F5) renders at 1:1 device scale in a small window — reproduces the
-// Steam Deck's PIXEL COUNT (~1280×800) on this 3200×2000 (scale-2) panel to test whether the lag
-// is fill-rate / compositing cost at high DPI. Smooth here ⇒ the culprit is the render RESOLUTION
-// (Layerize/Paint over 6× the pixels), NOT the GPU or the JS.
-const PERFTEST = process.argv.includes('--tm-perftest');
-if (PERFTEST) {
-  app.commandLine.appendSwitch('force-device-scale-factor', '1');
-}
-// Skia Graphite is ON BY DEFAULT on Windows now (see perf.ts). These relaunch args let you A/B it
-// WITHOUT a terminal: `--tm-graphite` (F4) forces it on, `--tm-no-graphite` (F3) rolls back to the
-// legacy Ganesh rasterizer to compare. Confirm `skia_graphite` in the [TM-DIAG] report / chrome://gpu.
-if ((process.env.TM_ELECTRON_FEATURES ?? '').trim() === '') {
-  if (process.argv.includes('--tm-no-graphite')) {
-    process.env.TM_ELECTRON_FEATURES = 'none';
-  } else if (process.argv.includes('--tm-graphite-precompile')) {
-    // Graphite's built-in shader/pipeline PRECOMPILATION — targets the first-animation stutter
-    // (pipelines compiled up front instead of on first use). RawDraw was tried and REMOVED: it is
-    // incompatible with GPU rasterization + Graphite (fails shared-image creation → white screen,
-    // the ProduceSkia "non-existent mailbox" error).
-    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,SkiaGraphitePrecompilation';
-  } else if (process.argv.includes('--tm-graphite')) {
-    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
-  }
-}
+// (Behaviour is env-configurable via TM_ELECTRON_* — see perf.ts.)
 applyPerformanceSwitches(app);
 
 // Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
@@ -162,119 +129,6 @@ const FULLSCREEN = process.env.TM_ELECTRON_WINDOWED !== '1';
 let mainWindow: BrowserWindow | undefined;
 
 /**
- * DIAGNOSTIC (temporary — remove in the final cleanup). A packaged `.exe` has no visible
- * stdout, so the GPU report is pushed into the RENDERER DevTools console instead, and DevTools
- * is reachable by hotkey even in packaged fullscreen (`before-input-event` fires in the
- * webContents). Non-intrusive for normal play (nothing shows until DevTools is opened):
- *   F12 / Ctrl+Shift+I → toggle DevTools (docked bottom)
- *   F10                → load chrome://gpu (full driver report + "Problems Detected")
- *   F9                 → back to the game
- *   F8                 → relaunch in VANILLA mode (our GPU switches OFF) to compare the GPU path
- *   F7                 → relaunch rendering on the INTEGRATED GPU (tests cross-adapter cost)
- *   F6                 → relaunch back to the default (discrete GPU, all switches on)
- *   F5                 → relaunch small window @ 1:1 scale (Deck-like pixel count → fill-rate test)
- *   F4                 → relaunch forcing Skia Graphite on (it is the Windows DEFAULT now)
- *   F3                 → relaunch with Skia Graphite OFF (legacy Ganesh) to A/B the default
- *   F2                 → relaunch with Graphite + shader PRECOMPILATION (first-lag test)
- */
-function installDiagnostics(win: BrowserWindow): void {
-  win.webContents.on('before-input-event', (_event, input) => {
-    if (input.type !== 'keyDown') {
-      return;
-    }
-    const key = input.key.toLowerCase();
-    const toggleDevtools = key === 'f12' || ((input.control || input.meta) && input.shift && key === 'i');
-    if (toggleDevtools) {
-      if (win.webContents.isDevToolsOpened()) {
-        win.webContents.closeDevTools();
-      } else {
-        win.webContents.openDevTools({mode: 'bottom'});
-      }
-    } else if (key === 'f10') {
-      void win.loadURL('chrome://gpu');
-    } else if (key === 'f9') {
-      void win.loadURL(initialUrl());
-    } else if (key === 'f8') {
-      // Restart the whole app with our performance switches disabled (see the argv check at
-      // module top). The next launch's [TM-DIAG] report is the vanilla-Electron baseline.
-      app.relaunch({args: ['--tm-no-perf']});
-      app.exit(0);
-    } else if (key === 'f7') {
-      // Restart rendering on the integrated GPU (cross-adapter test).
-      app.relaunch({args: ['--tm-gpu-low']});
-      app.exit(0);
-    } else if (key === 'f6') {
-      // Restart clean (default discrete GPU, all switches on).
-      app.relaunch({args: []});
-      app.exit(0);
-    } else if (key === 'f5') {
-      // Restart in the small 1:1-scale window (fill-rate / high-DPI test).
-      app.relaunch({args: ['--tm-perftest']});
-      app.exit(0);
-    } else if (key === 'f4') {
-      // Restart forcing Skia Graphite ON (it is the default now — explicit for A/B).
-      app.relaunch({args: ['--tm-graphite']});
-      app.exit(0);
-    } else if (key === 'f3') {
-      // Restart with Skia Graphite OFF (legacy Ganesh) to compare against the new default.
-      app.relaunch({args: ['--tm-no-graphite']});
-      app.exit(0);
-    } else if (key === 'f2') {
-      // Restart with Graphite + shader precompilation (targets the first-animation stutter).
-      app.relaunch({args: ['--tm-graphite-precompile']});
-      app.exit(0);
-    } else if (key === 'f1') {
-      // WINDOW REPAINT KICK: capturePage proved the frozen-zoom bug is a
-      // stalled WINDOW-frame pipeline (DOM perfect, rAF alive, yet the window
-      // shows a stale frame; Esc — a window-level event — woke it). invalidate()
-      // schedules a full window repaint — the programmatic equivalent. If this
-      // wakes the frozen zoom, the permanent fix is calling it on zoom open.
-      win.webContents.invalidate();
-      void win.webContents
-        .executeJavaScript(`console.warn('%c[TM-DIAG] window invalidate() kicked', 'color:#22c55e;font-weight:bold')`)
-        .catch(() => {/* frame gone */});
-    }
-  });
-
-  // On each real page load (skip the internal chrome:// report), print the resolved GPU state
-  // into the renderer console so a plain exe run can be inspected + screenshotted.
-  win.webContents.on('did-finish-load', () => {
-    if (win.webContents.getURL().startsWith('chrome://')) {
-      return;
-    }
-    void printGpuDiag(win);
-  });
-}
-
-async function printGpuDiag(win: BrowserWindow): Promise<void> {
-  try {
-    const status = app.getGPUFeatureStatus();
-    let gpuInfo: unknown;
-    try {
-      gpuInfo = await app.getGPUInfo('basic');
-    } catch {
-      // getGPUInfo can reject on some drivers — the feature status alone is still useful.
-    }
-    const mode = process.env.TM_ELECTRON_NO_PERF === '1'
-      ? 'VANILLA (perf switches OFF)'
-      : `TUNED (GPU=${process.env.TM_ELECTRON_GPU ?? 'high'})`;
-    const diag = {mode, platform: process.platform, version: app.getVersion(), gpuFeatureStatus: status, gpuInfo};
-    const payload = JSON.stringify(JSON.stringify(diag));
-    const enabled = status.gpu_compositing === 'enabled';
-    const verdict = enabled
-      ? `console.log('%c✓ GPU compositing ENABLED — hardware acceleration is live','color:#22c55e;font-weight:bold');`
-      : `console.warn('%c✗ GPU is on the SOFTWARE path. Press F10 → screenshot the red "Problems Detected" block on chrome://gpu','color:#f59e0b;font-weight:bold;font-size:13px');`;
-    await win.webContents.executeJavaScript(
-      `console.log('%c[TM-DIAG] hardware acceleration report','color:#38bdf8;font-weight:bold;font-size:14px');` +
-      `console.log('Open this object, screenshot it, and send it back →', JSON.parse(${payload}));` +
-      verdict,
-    );
-  } catch {
-    // executeJavaScript can throw if the frame is torn down mid-load — ignore.
-  }
-}
-
-/**
  * Poll the GPU feature status until compositing is actually live, then signal the
  * renderer (window `tm-gpu-ready` event + `__tmGpuReady` flag). The boot warm-up
  * waits for this before rendering its cards, so their Graphite pipelines compile
@@ -304,13 +158,13 @@ function createWindow(): void {
   const cfg = runtimeConfig();
 
   mainWindow = new BrowserWindow({
-    width: PERFTEST ? 1280 : 1440,
-    height: PERFTEST ? 800 : 900,
+    width: 1440,
+    height: 900,
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
-    fullscreen: FULLSCREEN && !PERFTEST,
+    fullscreen: FULLSCREEN,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -357,7 +211,7 @@ function createWindow(): void {
   // (not leave-full-screen), so there is no loop; the isDestroyed guard avoids
   // fighting window teardown. Alt+Tab / minimize are unaffected (they don't leave
   // fullscreen). Quitting still works normally.
-  if (FULLSCREEN && !PERFTEST) {
+  if (FULLSCREEN) {
     mainWindow.on('leave-full-screen', () => {
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.setFullScreen(true);
@@ -365,15 +219,7 @@ function createWindow(): void {
     });
   }
 
-  // DIAGNOSTIC: TM_ELECTRON_GPUINFO=1 loads chrome://gpu INSTEAD of the game — the full
-  // Chromium GPU report (Graphics Feature Status + "Problems Detected" + the driver /
-  // workaround log) that explains WHY hardware acceleration is or isn't live. Read-only
-  // internal page; no game flow. Just close the window when done.
-  const gpuInfo = process.env.TM_ELECTRON_GPUINFO === '1';
-  void mainWindow.loadURL(gpuInfo ? 'chrome://gpu' : initialUrl());
-
-  // Renderer-console GPU report + DevTools/chrome://gpu hotkeys — works from a plain exe.
-  installDiagnostics(mainWindow);
+  void mainWindow.loadURL(initialUrl());
 
   if (process.env.TM_ELECTRON_DEVTOOLS === '1') {
     mainWindow.webContents.openDevTools({mode: 'detach'});
@@ -480,19 +326,6 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow !== undefined) {
       signalGpuReadyWhenLive(mainWindow);
     }
-    // DIAGNOSTIC: catch a GPU-process exit/crash (the `exit_on_context_lost` workaround makes a
-    // lost D3D device kill + relaunch the GPU process — that reads as a periodic freeze). Surface
-    // it loudly in the renderer console so a hitch can be correlated with a process restart.
-    app.on('child-process-gone', (_event, details) => {
-      const line = `[TM-DIAG] child-process-gone → type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`;
-      // eslint-disable-next-line no-console
-      console.warn(line);
-      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-        void mainWindow.webContents
-          .executeJavaScript(`console.warn(${JSON.stringify('%c' + line)}, 'color:#ef4444;font-weight:bold')`)
-          .catch(() => {/* frame may be gone */});
-      }
-    });
     // Phase 7: packaged builds check the compatibility gate on startup and, if a
     // mandatory update is required, block game flow behind the premium update overlay.
     // No-op in dev (app.isPackaged === false). The renderer pulls the current state on
