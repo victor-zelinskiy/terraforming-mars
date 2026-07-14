@@ -314,15 +314,27 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
+    <!-- The zoom dim VEIL — the ONE dim of the console fullscreen viewer
+         (dialog.con-zoom's ::backdrop paints NOTHING — see the LESS). It
+         fades in from the very first frame of the open (Vue enter
+         transition), persists for the whole fullscreen lifetime, and fades
+         out UNDER the close flight (`--lifted` on zoomClosing) — so the dim
+         is gradual both ways and can never STACK with a backdrop or pop off
+         while visible (the two failure modes of earlier designs: the
+         one-step backdrop dim read abrupt/late; a veil UNDER a dimming
+         backdrop blinked when removed). -->
+    <transition name="con-zoom-veil">
+      <div v-if="consoleCardZoom.card !== undefined"
+           class="con-zoom-veil"
+           :class="{'con-zoom-veil--lifted': zoomClosing}"
+           aria-hidden="true"></div>
+    </transition>
     <!-- Zoom OPEN flight (consoleZoomMotion.playZoomOpenFlight): the dialog
          below opens VANILLA at the flight's touchdown — its first top-layer
          frame is the final, fully-visible content (the compositor-safe shape;
          see the consoleZoomMotion.ts header). The premium FLIP lift flies
          THIS proxy on a normal fixed layer, like every other console flight
-         (deal / exit / board-bonus). No dim veil: the flight rides over the
-         live scene and the dialog's static ::backdrop appears in ONE step at
-         showModal() (a separate veil that dimmed then un-mounted a beat later
-         caused the whole background to blink — never reintroduce it). -->
+         (deal / exit / board-bonus). -->
     <div v-if="zoomOpenProxy !== undefined" class="con-zoom-flight-layer" aria-hidden="true">
       <!-- The GSAP-transformed element stays zoom-FREE (CSS zoom on the same
            element would rescale the translate coordinates); the landing zoom
@@ -4184,9 +4196,9 @@ export default defineComponent({
         }, motionMs(140));
         return;
       }
-      // Premium flight: proxy flies slot→landing over the live scene,
-      // showModal at touchdown (the dialog's static ::backdrop is the ONLY
-      // dim — a separate fade veil blinked the background, so there is none).
+      // Premium flight: proxy flies slot→landing while the veil (the ONE
+      // dim — the dialog's ::backdrop paints nothing) fades in beneath it;
+      // showModal at touchdown adds no visual dim step.
       const source = zoomOpenSourceRect(index);
       this.zoomOpenProxy = {card: this.consoleCardZoom.card, zoom: landing.zoom};
       await this.$nextTick();

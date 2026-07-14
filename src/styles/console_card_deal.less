@@ -201,6 +201,61 @@
     opacity: 0 !important;
 }
 
+/* ── The zoom dim VEIL — the ONE dim of the console fullscreen viewer ──
+   The dialog's ::backdrop paints NOTHING (see the dialog.con-zoom block);
+   this normal-layer veil carries the dim instead, so it can be GRADUAL:
+   fades in from the very first frame of the open flight (Vue enter
+   transition), persists while fullscreen is open, fades out under the
+   close flight (`--lifted`), and the leave transition guards any abrupt
+   unmount path. One dim source ⇒ no stacking, no pop — the two failure
+   modes of the earlier designs (one-step backdrop = abrupt/late; veil
+   UNDER a dimming backdrop = background blink on removal). */
+.con-zoom-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 11890; /* above console chrome incl. the command bar (11700), under the flight layer + top layer */
+    /* auto, not none: swallow stray mouse clicks during the open flight
+       (the top-layer dialog takes over input once shown). */
+    pointer-events: auto;
+    .con-backdrop-dim();
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+
+    &--lifted {
+        opacity: 0;
+    }
+}
+.con-zoom-veil-enter-from,
+.con-zoom-veil-leave-to {
+    opacity: 0;
+}
+.con-zoom-veil-enter-active,
+.con-zoom-veil-leave-active {
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+
+/* ── Perf: freeze the scene beneath while the inspector is open ────────
+   The veil is translucent, so the console scene underneath (the board's
+   pulse animations, verdict glows, banner dots — worst under a task popup
+   floating OVER the board) otherwise keeps rastering EVERY FRAME for the
+   whole inspection + both flights. Pause its CSS animations — the console
+   twin of the desktop `body:has(dialog[open]) #player-home` rule
+   (mandatory_input_modal.less). CSS animations only: GSAP flights, WAAPI
+   browse slides and opacity TRANSITIONS are unaffected. The dialog's own
+   subtree + the flight proxy stay RUNNING (annotation pulses live there). */
+body.con-zoom-open .con-root {
+    &,
+    * {
+        animation-play-state: paused !important;
+    }
+
+    dialog.con-zoom,
+    dialog.con-zoom *,
+    .con-zoom-flight-layer,
+    .con-zoom-flight-layer * {
+        animation-play-state: running !important;
+    }
+}
+
 /* The open-flight stage (mirrors .con-exit-layer mechanics). */
 .con-zoom-flight-layer {
     position: fixed;
@@ -254,19 +309,18 @@ dialog.con-zoom {
         }
     }
 
-    /* Backdrop: NO entry animation — the dialog opens (showModal) at the
-       flight's touchdown and its STATIC ::backdrop appears at full dim in one
-       step, coinciding with the card arriving fullscreen. The keyframe entry
-       animation was REMOVED deliberately: an animated ::backdrop on the very
-       first frame of a fresh top-layer dialog was one of the ingredients of
-       the Graphite first-open unpainted-dialog bug (ZOOM_BUG_HANDOFF.md) —
-       never reintroduce it. (A separate fade-in dim VEIL was also tried and
-       removed: it stacked with the backdrop then un-mounted a beat later,
-       blinking the whole background.) Close keeps its fade (the surface is
-       long-established by then). */
-    &.con-zoom--closing::backdrop {
-        opacity: 0;
-        transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+    /* Backdrop: paints NOTHING — the `.con-zoom-veil` (a normal layer under
+       the top layer) is the ONE dim, fading with the open/close flights.
+       This keeps the Graphite invariant for free (a static, empty backdrop —
+       an animated ::backdrop on a fresh top-layer dialog's first frame was
+       one of the ingredients of the first-open unpainted-dialog bug,
+       ZOOM_BUG_HANDOFF.md) AND makes the dim gradual instead of a one-step
+       pop at showModal. NEVER re-add a dim/animation here — one dim source
+       is the invariant (two stacked dims = the background-blink bug). */
+    &[open]::backdrop {
+        background: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 }
 
@@ -347,7 +401,9 @@ body.con-play-modal-open {
     .con-verdict-swap-enter-active,
     .con-verdict-swap-leave-active { transition: none; }
     .con-focus-frame__tick { filter: none; }
-    dialog.con-zoom[open]::backdrop { animation: none; }
+    .con-zoom-veil,
+    .con-zoom-veil-enter-active,
+    .con-zoom-veil-leave-active { transition: none; }
     dialog.con-zoom .card-zoom-topbar,
     dialog.con-zoom .card-zoom-actions { transition: none; }
     /* Draft tray + table beat: instant states (the directors already
