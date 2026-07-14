@@ -1,0 +1,339 @@
+/*
+ * CONSOLE «РАЗЫГРАНО» — the console-native played-cards tableau overlay
+ * (ConsolePlayedOverlay + piles + the nested events list).
+ *
+ * Design contract (the spec this implements):
+ *  - a bottom-anchored TABLE panel whose height follows the content (a young
+ *    tableau leaves the board visible) up to a cap → then the body scrolls
+ *    inside a ConsoleScrollArea;
+ *  - cards lie in physical PEEK PILES: fixed slot heights from the planner
+ *    (consolePlayedModel), the card overflows its slot and the next slot
+ *    paints above it — focusing a card is transform/z-index ONLY (no
+ *    layout work, no neighbour movement);
+ *  - events lie FACE DOWN in one pile (the canonical sleeve art).
+ *
+ * Authored in REM (1rem = 20px logical — the console rem model); the card
+ * geometry (slot px sizes, zoom) is planner-driven via inline styles.
+ */
+
+.con-played {
+    position: fixed;
+    left: var(--con-safe-x, 1.1rem);
+    right: var(--con-safe-x, 1.1rem);
+    bottom: 4.3rem; /* clear of the command bar (z 11700) */
+    z-index: 11400; /* above board chrome; under the task host (11480) — a mandatory surface closes this overlay first (hard-block watcher) */
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    pointer-events: none; /* only the panel itself is interactive */
+
+    &__panel {
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        max-width: 100%;
+        /* ADAPTIVE HEIGHT: content-driven up to the cap — never a huge empty
+           container over the board when only a corporation is on the table. */
+        max-height: calc(100vh - 9rem);
+        border-radius: .8rem .8rem .4rem .4rem;
+        background: linear-gradient(180deg, rgba(16, 25, 36, 0.94), rgba(8, 13, 19, 0.97));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(120, 155, 190, 0.18),
+            inset 0 1.1rem 2.3rem -1.5rem rgba(120, 180, 240, 0.22),
+            0 -.6rem 2.4rem -1rem rgba(0, 0, 0, 0.75);
+    }
+
+    /* ── header: title · viewed player · total count ─────────────────── */
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        padding: .55rem 1.1rem .5rem;
+        border-bottom: .05rem solid rgba(120, 170, 215, 0.14);
+        flex-shrink: 0;
+    }
+    &__title {
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+        text-shadow: 0 0 .6rem fade(@con-cyan, 30%);
+    }
+    &__seat {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .18rem .65rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.18);
+        font-size: .8rem;
+        color: #dfe9f2;
+        white-space: nowrap;
+    }
+    &__total {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .85rem;
+        color: @con-text-dim;
+        b { color: #eaf3fb; font-size: .95rem; }
+    }
+    &__total-icon {
+        width: 1.1rem;
+        height: 1.1rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    /* ── the scrolling table body ────────────────────────────────────── */
+    &__scroll {
+        min-height: 0; /* the ConsoleScrollArea clips + scrolls */
+    }
+    &__content {
+        padding: .9rem 1.1rem 1.1rem;
+    }
+
+    /* Family blocks flow like zones on a physical table: side by side while
+       they fit, wrapping when they don't — the free width is always used. */
+    &__table {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 1.05rem 1.3rem;
+    }
+    &__family {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    /* Identity zone (corporation / preludes / CEO) — an engraved backdrop
+       separates "who the player is" from the project band. */
+    &__family--identity {
+        padding: .45rem .55rem .55rem;
+        border-radius: .55rem;
+        background: rgba(255, 255, 255, 0.032);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.12);
+    }
+    &__family--event { margin-left: .3rem; }
+
+    /* Minimal zone captions — quiet service text, never a heavy chrome bar. */
+    &__caption {
+        font-size: .68rem;
+        font-weight: 700;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: fade(#9fb8cf, 78%);
+        padding-left: .15rem;
+    }
+    &__family--corporation .con-played__caption { color: fade(#d8c896, 85%); }
+    &__family--prelude .con-played__caption { color: fade(#e8b8d8, 80%); }
+    &__family--active .con-played__caption { color: fade(#8fd0f0, 80%); }
+    &__family--automated .con-played__caption { color: fade(#a8dca0, 80%); }
+    &__family--event .con-played__caption { color: fade(#f0b890, 80%); }
+
+    /* Piles of one family sit beside each other, wrapping as they multiply. */
+    &__piles {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: .8rem;
+    }
+    &__pile {
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    /* ── one pile slot (fixed height from the planner) ───────────────── */
+    &__slot {
+        position: relative; /* z-index ladder comes inline from the pile */
+        cursor: pointer;
+    }
+    &__lift {
+        /* THE focus transform target — transform/opacity only, never layout. */
+        transition: transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    &__face {
+        /* zoom comes inline from the planner; kill the legacy card margin.
+           Resting table shadow via BOX-shadow on the card box (cheap —
+           NEVER per-card `filter`: 50 filter layers is real paint cost). */
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            box-shadow: 0 .18rem .5rem rgba(0, 0, 0, 0.45);
+        }
+    }
+    /* FOCUSED: the card rises a touch out of its pile and paints above its
+       neighbours (inline z-index bump) — nothing else moves. */
+    &__slot--focused .con-played__lift {
+        transform: translateY(-.55rem);
+    }
+    &__slot--focused .con-played__face > :is(.card-container, .pcard) {
+        box-shadow:
+            0 0 0 .1rem fade(@con-cyan, 40%),
+            0 .45rem 1rem rgba(0, 0, 0, 0.6),
+            0 0 .8rem fade(@con-cyan, 26%);
+    }
+
+    /* Live stored-resource counter — a SLOT chip on the card's top-right
+       corner (over the tag cluster's edge; deliberately small). */
+    &__res {
+        position: absolute;
+        top: .18rem;
+        right: -.28rem;
+        min-width: 1.15rem;
+        height: 1.15rem;
+        padding: 0 .25rem;
+        border-radius: .6rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .72rem;
+        font-weight: 800;
+        color: #08131c;
+        background: linear-gradient(180deg, #ffe9a8, #e8b84e);
+        box-shadow: 0 .1rem .35rem rgba(0, 0, 0, 0.55), inset 0 .05rem 0 rgba(255, 255, 255, 0.6);
+        pointer-events: none;
+    }
+
+    /* ── the face-down EVENTS pile ───────────────────────────────────── */
+    &__backstack {
+        position: relative;
+        width: 100%;
+    }
+    &__back {
+        position: absolute;
+        inset: 0;
+        border-radius: .35rem;
+        filter: drop-shadow(0 .18rem .45rem rgba(0, 0, 0, 0.5));
+    }
+    &__back--2 { transform: translate(-.12rem, .14rem) rotate(-1.4deg); opacity: 0.9; }
+    &__back--3 { transform: translate(.14rem, .28rem) rotate(2deg); opacity: 0.75; }
+    &__events-count {
+        position: absolute;
+        right: -.3rem;
+        top: -.3rem;
+        min-width: 1.5rem;
+        height: 1.5rem;
+        padding: 0 .3rem;
+        border-radius: .8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .85rem;
+        font-weight: 800;
+        color: #071018;
+        background: linear-gradient(180deg, #ffd9ae, #ef9e5e);
+        box-shadow: 0 .12rem .4rem rgba(0, 0, 0, 0.6), inset 0 .05rem 0 rgba(255, 255, 255, 0.55);
+    }
+    &__events-hint {
+        display: block;
+        margin-top: .3rem;
+        text-align: center;
+        font-size: .7rem;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(#f0b890, 0%); /* hidden at rest… */
+        transition: color calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    &__slot--events.con-played__slot--focused .con-played__events-hint {
+        color: fade(#f0c8a0, 92%); /* …revealed on focus: «Открыть» */
+    }
+
+    /* ── empty states ────────────────────────────────────────────────── */
+    &__void {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .7rem;
+        padding: 1.4rem 2.6rem;
+        color: @con-text-dim;
+        font-size: .9rem;
+    }
+    &__void-glyph {
+        font-size: 1.3rem;
+        color: fade(@con-cyan, 55%);
+    }
+    &__none {
+        align-self: center;
+        padding: .8rem 1.2rem;
+        color: fade(#9fb8cf, 60%);
+        font-size: .8rem;
+    }
+}
+
+/* ── the nested EVENTS list (over the tableau, inside .con-played) ────── */
+.con-played-events {
+    position: fixed;
+    inset: 0;
+    z-index: 30; /* within the .con-played stacking context (11400 band) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 8, 12, 0.62);
+    }
+    &__panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        max-width: min(88vw, 74rem);
+        max-height: 76vh;
+        min-width: 30rem;
+        border-radius: .8rem;
+        background: linear-gradient(180deg, rgba(20, 28, 40, 0.97), rgba(10, 15, 22, 0.98));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(150, 185, 220, 0.2),
+            0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+    }
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        padding: .6rem 1.1rem .5rem;
+        border-bottom: .05rem solid rgba(240, 184, 144, 0.18);
+        flex-shrink: 0;
+    }
+    &__title {
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(#f0c8a0, 92%);
+    }
+    &__count {
+        font-size: .85rem;
+        font-weight: 800;
+        color: #eaf3fb;
+    }
+    &__scroll {
+        min-height: 0;
+    }
+    &__grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .9rem;
+        padding: 1rem 1.2rem 1.2rem;
+    }
+    &__slot {
+        flex-shrink: 0;
+    }
+}
+
+/* Reduced motion: no lift glide — instant placement (a separate axis from
+   the speed presets, mirrors the rest of the console flow). */
+@media (prefers-reduced-motion: reduce) {
+    .con-played__lift { transition: none; }
+    .con-played__events-hint { transition: none; }
+}

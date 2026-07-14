@@ -357,8 +357,8 @@ export default defineComponent({
         notificationState.lastGeneration = gen;
         notificationState.passedSeen = new Set<string>(); // passes reset each generation
         // Console-native replaces the "new generation" toast with the top-HUD
-        // flip-swap of the generation value itself (ConsoleGenerationFlip) —
-        // the number announces its own change, no card. Desktop keeps the toast.
+        // flip-swap of the generation value itself (ConsoleFlipValue) — the
+        // number announces its own change, no card. Desktop keeps the toast.
         if (canToast && !this.consoleEnabled) {
           pushTransient(buildGenerationNotification(gen, now));
         }

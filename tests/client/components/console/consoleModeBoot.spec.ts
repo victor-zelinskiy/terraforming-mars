@@ -17,11 +17,19 @@ import {isLinuxPlatform} from '@/client/console/runtimeMode';
 type FakeWindow = {location: {search: string}, localStorage?: {getItem(key: string): string | null}};
 
 function withWindow<T>(win: FakeWindow, fn: () => T): T {
+  // RESTORE the original window (mirrors withNavigator) — a bare `delete`
+  // destroyed the shared JSDOM window and poisoned every mount-spec bundled
+  // after this file (the "window is not defined" folder failures).
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
   (globalThis as {window?: unknown}).window = win;
   try {
     return fn();
   } finally {
-    delete (globalThis as {window?: unknown}).window;
+    if (original !== undefined) {
+      Object.defineProperty(globalThis, 'window', original);
+    } else {
+      delete (globalThis as {window?: unknown}).window;
+    }
   }
 }
 

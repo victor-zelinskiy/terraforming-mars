@@ -398,6 +398,21 @@ html.con-profile-tv {
 
     /* ═══ 22 · SCROLLBARS (foundation rail reads at distance) ═════ */
     .con-scroll__rail { width: 0.35rem; }
+
+    /* ═══ 22b · «РАЗЫГРАНО» tableau overlay ═══════════════════════
+       Couch typography only — the card geometry itself is planner-driven
+       (consolePlayedModel multiplies its px knobs by --con-ui-scale). */
+    .con-played {
+        &__title { font-size: var(--con-t-section); }
+        &__seat { font-size: var(--con-t-secondary); }
+        &__caption { font-size: var(--con-t-caption); }
+        &__total { font-size: var(--con-t-secondary); }
+        &__void { font-size: var(--con-t-body); }
+    }
+    .con-played-events {
+        &__title { font-size: var(--con-t-section); }
+        &__count { font-size: var(--con-t-secondary); }
+    }
 }
 
 /* ═══ 23 · PRE-GAME (console-native .cm-* menu / create) ══════════ */

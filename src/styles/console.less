@@ -302,8 +302,10 @@
    desktop sidebar plays (the keyframes are global, defined in
    right_sidebar.less), triggered by the AnimatedMetricValue host state.
    Covers the three game-end parameters, Venus and the total-progress
-   percent. The GENERATION carries no chip — its change plays the premium
-   flip-swap below instead. */
+   percent — each of which ALSO plays the flip-swap below (the chip pops
+   the cell, the flip turns the digits inside it; they compose because
+   they animate different elements). The GENERATION carries no chip — the
+   flip-swap alone is its announcement. */
 .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
 .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
     animation: global-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
@@ -324,17 +326,41 @@
     }
 }
 
-/* ── Generation flip counter (top HUD) ───────────────────────────────
-   The generation value announces its own swap: a one-shot split-flap
-   tick — the old value folds up and away, the new one unrolls in from
-   below with a small settle — plus a thin scanline flash. It REPLACES
-   the delta chip on this number (and, in console mode, the desktop's
-   "new generation" toast). Premium but calm: ~0.9s, one-shot, cyan by
-   default, gold when the arriving generation is the final one. */
-.con-genflip {
+/* ── Flip-swap value (top HUD) ────────────────────────────────────────
+   EVERY global readout (the game-end trio, Venus, the total percent, the
+   generation) announces its own change with a one-shot split-flap tick —
+   the old value folds up and away, the new one unrolls in from below with
+   a small settle — plus a thin scanline flash. Premium but calm (~0.9s).
+
+   LAYERING: the component sits INSIDE `.con-status__value` (never IS it),
+   because the delta-chip `:has()` rules above put an `animation` shorthand
+   on that cell — same element would mean the (more specific) chip rule
+   clobbers the flip. Nested, the two compose: the cell plays the chip's
+   colour/scale pop while the cards fold inside it.
+
+   The ACCENT tints only the one-shot beat (shine + scanline); the readout's
+   persistent colour stays the host's own — which is why the shine keyframe
+   declares ONLY its 35% peak: the implicit start/end are the element's own
+   computed text-shadow, so a persistent glow (the gold `--final` generation)
+   is restored rather than overwritten. */
+.con-flipval {
+    --con-flip-accent: fade(@con-cyan, 80%);
+    --con-flip-scan: fade(@con-cyan, 85%);
+    --con-flip-scan-glow: fade(@con-cyan, 55%);
     position: relative;
     display: inline-flex;
     align-items: baseline;
+
+    &--mint {
+        --con-flip-accent: fade(@con-mint, 82%);
+        --con-flip-scan: fade(@con-mint, 85%);
+        --con-flip-scan-glow: fade(@con-mint, 55%);
+    }
+    &--gold {
+        --con-flip-accent: fade(@con-amber, 85%);
+        --con-flip-scan: fade(@con-amber, 90%);
+        --con-flip-scan-glow: fade(@con-amber, 60%);
+    }
 
     &__viewport {
         position: relative;
@@ -344,20 +370,22 @@
     &__card {
         grid-area: ~"1 / 1";
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
         backface-visibility: hidden;
     }
     /* The outgoing value folds up and away (top-hinged drum roll),
        catching the light as it turns. */
     &__card--out {
         transform-origin: 50% 8%;
-        animation: con-genflip-out calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.6, 0.35) both;
+        animation: con-flipval-out calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.6, 0.35) both;
     }
-    /* The arriving value unrolls from below with a slight overshoot. */
+    /* The arriving value unrolls from below with a slight overshoot. The
+       shine rides fill-mode NONE on purpose (see the block note). */
     &__card--in {
         transform-origin: 50% 96%;
         animation:
-            con-genflip-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
-            con-genflip-shine calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1)) both;
+            con-flipval-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
+            con-flipval-shine calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1));
     }
     /* One thin light line sweeps down the digits — a single pass. */
     &__flash {
@@ -368,53 +396,37 @@
         height: .14rem;
         border-radius: .1rem;
         pointer-events: none;
-        background: linear-gradient(90deg, transparent 0%, fade(@con-cyan, 85%) 50%, transparent 100%);
-        box-shadow: 0 0 .5rem fade(@con-cyan, 55%);
-        animation: con-genflip-scan calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.4, 1) calc(120ms * var(--motion-scale, 1)) both;
-    }
-    /* The FINAL generation arrives gold (the persistent gold state lives
-       on con-status__gen--final; this only tints the one-shot beat). */
-    &--final &__flash {
-        background: linear-gradient(90deg, transparent 0%, fade(@con-amber, 90%) 50%, transparent 100%);
-        box-shadow: 0 0 .5rem fade(@con-amber, 60%);
-    }
-    &--final &__card--in {
-        animation:
-            con-genflip-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.2, 1.25, 0.35, 1) calc(190ms * var(--motion-scale, 1)) both,
-            con-genflip-shine-final calc(940ms * var(--motion-scale, 1)) ease-out calc(190ms * var(--motion-scale, 1)) both;
+        background: linear-gradient(90deg, transparent 0%, var(--con-flip-scan) 50%, transparent 100%);
+        box-shadow: 0 0 .5rem var(--con-flip-scan-glow);
+        animation: con-flipval-scan calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.4, 1) calc(120ms * var(--motion-scale, 1)) both;
     }
 }
-@keyframes con-genflip-out {
+@keyframes con-flipval-out {
     from { transform: rotateX(0deg); opacity: 1; }
     to { transform: rotateX(74deg) translateY(-.12rem); opacity: 0; }
 }
-@keyframes con-genflip-in {
+@keyframes con-flipval-in {
     0% { transform: rotateX(-78deg) translateY(.14rem); opacity: 0; }
     55% { opacity: 1; }
     78% { transform: rotateX(6deg) translateY(0); }
     100% { transform: rotateX(0deg) translateY(0); opacity: 1; }
 }
 /* A brief glow tick on the fresh value (text-shadow only — a tiny area,
-   strictly one-shot). */
-@keyframes con-genflip-shine {
-    0% { text-shadow: 0 0 0 rgba(106, 176, 230, 0); }
-    35% { text-shadow: 0 0 .65rem fade(@con-cyan, 80%); }
-    100% { text-shadow: 0 0 0 rgba(106, 176, 230, 0); }
+   strictly one-shot). ONLY the peak is declared: the implicit start/end
+   are the element's own computed text-shadow, so a persistent glow is
+   restored, never overwritten. */
+@keyframes con-flipval-shine {
+    35% { text-shadow: 0 0 .65rem var(--con-flip-accent); }
 }
-@keyframes con-genflip-shine-final {
-    0% { text-shadow: 0 0 0 rgba(242, 193, 78, 0); }
-    35% { text-shadow: 0 0 .7rem fade(@con-amber, 85%); }
-    100% { text-shadow: 0 0 .5rem fade(@con-amber, 35%); }
-}
-@keyframes con-genflip-scan {
+@keyframes con-flipval-scan {
     0% { transform: translateY(0); opacity: 0; }
     18% { opacity: 1; }
     100% { transform: translateY(1.9rem); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-genflip__card--out,
-    .con-genflip__flash { display: none; }
-    .con-genflip__card--in { animation: none; }
+    .con-flipval__card--out,
+    .con-flipval__flash { display: none; }
+    .con-flipval__card--in { animation: none; }
 }
 
 /* ── Turn / task banner ──────────────────────────────────────────── */

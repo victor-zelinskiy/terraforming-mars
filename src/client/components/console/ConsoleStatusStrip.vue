@@ -33,9 +33,14 @@
            }"
            role="group"
            :aria-label="terraAriaLabel">
+        <!-- Every readout announces its change TWICE over: the premium
+             flip-swap of the value itself (nested INSIDE the value cell —
+             see ConsoleFlipValue's layering note) plus the delta chip. -->
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
-          <span class="con-status__value">{{ game.temperature }}°C</span>
+          <span class="con-status__value">
+            <ConsoleFlipValue :value="game.temperature" :text="`${game.temperature}°C`" />
+          </span>
           <AnimatedMetricValue
             :value="game.temperature"
             metricKey="globals.temperature"
@@ -45,7 +50,9 @@
         </span>
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
-          <span class="con-status__value">{{ game.oxygenLevel }}%</span>
+          <span class="con-status__value">
+            <ConsoleFlipValue :value="game.oxygenLevel" :text="`${game.oxygenLevel}%`" />
+          </span>
           <AnimatedMetricValue
             :value="game.oxygenLevel"
             metricKey="globals.oxygen"
@@ -55,7 +62,9 @@
         </span>
         <span class="con-status__param">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
-          <span class="con-status__value">{{ game.oceans }}/9</span>
+          <span class="con-status__value">
+            <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" />
+          </span>
           <AnimatedMetricValue
             :value="game.oceans"
             metricKey="globals.oceans"
@@ -63,7 +72,12 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <span class="con-status__terra-pct">{{ progress.percent }}%<AnimatedMetricValue
+        <!-- The percent is the trio's own mint readout — its beat follows
+             the rail's colour (gold once terraforming is complete). -->
+        <span class="con-status__terra-pct"><ConsoleFlipValue
+            :value="progress.percent"
+            :text="`${progress.percent}%`"
+            :accent="progress.complete ? 'gold' : 'mint'" /><AnimatedMetricValue
             :value="progress.percent"
             metricKey="globals.terraforming-percent"
             scopeKey="global"
@@ -75,7 +89,9 @@
       </div>
       <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
-        <span class="con-status__value">{{ game.venusScaleLevel }}%</span>
+        <span class="con-status__value">
+          <ConsoleFlipValue :value="game.venusScaleLevel" :text="`${game.venusScaleLevel}%`" />
+        </span>
         <AnimatedMetricValue
           :value="game.venusScaleLevel"
           metricKey="globals.venus"
@@ -83,12 +99,15 @@
           :epoch="epoch"
           variant="global-parameter" />
       </span>
-      <!-- The generation carries NO delta chip: its change is announced by
-           the value's own premium flip-swap (and the console suppresses the
-           desktop's "new generation" toast — the HUD tick IS the event). -->
+      <!-- The generation carries NO delta chip: the flip-swap alone is its
+           announcement (and the console suppresses the desktop's "new
+           generation" toast — the HUD tick IS the event). Its beat goes
+           gold on the final generation, matching the persistent marker. -->
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
         <span class="con-status__gen-label">{{ $t(finalGeneration ? 'FINAL GEN.' : 'GEN.') }}</span>
-        <ConsoleGenerationFlip :value="game.generation" :final="finalGeneration" />
+        <span class="con-status__value">
+          <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" />
+        </span>
       </span>
     </div>
   </div>
@@ -120,7 +139,7 @@ import {finalGenerationActive, terraformingCelebrationState} from '@/client/comp
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
-import ConsoleGenerationFlip from '@/client/components/console/ConsoleGenerationFlip.vue';
+import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -138,7 +157,7 @@ const GLYPH_CHARS: Record<StatusGlyph, string> = {
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
-  components: {AnimatedMetricValue, ConsoleGenerationFlip},
+  components: {AnimatedMetricValue, ConsoleFlipValue},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** playerView.runId — drives the delta-chip feedback ('' disables). */

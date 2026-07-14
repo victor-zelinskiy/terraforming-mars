@@ -185,6 +185,18 @@
                             :disabledPayments="colonyInspectReadonly || tradeColonyContext === undefined ? [] : tradeColonyContext.disabledPayments" />
     </transition>
 
+    <!-- «Разыграно» (X from the board home) — the console-native played-cards
+         TABLE overlay: view-only peek piles + the face-down events pile.
+         Bottom-anchored, height follows the content; closed automatically
+         when a mandatory surface arrives (the journal's hard-block rule). -->
+    <transition name="con-layer">
+      <ConsolePlayedOverlay v-if="playedOpen"
+                            ref="playedOverlay"
+                            :players="playerView.players"
+                            :thisPlayerColor="thisPlayer.color"
+                            @close="closePlayedOverlay" />
+    </transition>
+
     <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
          on an available dashboard item opens this; nothing is submitted
          until the modal's own A — accidental claim/fund is impossible). -->
@@ -613,6 +625,8 @@ import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColony
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
+import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
+import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
@@ -735,6 +749,7 @@ export default defineComponent({
     ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
+    ConsolePlayedOverlay,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -795,6 +810,8 @@ export default defineComponent({
       pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments'], preview?: ColonyTradePreviewModel} | undefined,
       /** X = «Осмотреть» — the read-only colony dossier overlay. */
       colonyInspectOpen: false,
+      /** X on the board home — the «Разыграно» tableau overlay (view-only). */
+      playedOpen: false,
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
       journalColonyInspect: undefined as ColonyName | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
@@ -1717,6 +1734,9 @@ export default defineComponent({
       if (this.journalPanelVisible) {
         return 'Journal';
       }
+      if (this.playedOpen) {
+        return consolePlayedUi.eventsOpen ? 'Played events' : 'Played';
+      }
       if (this.consoleState.quick !== undefined) {
         return this.quickTitle;
       }
@@ -1983,6 +2003,32 @@ export default defineComponent({
         );
         return cmds;
       }
+      if (this.playedOpen) {
+        // «Разыграно»: the tableau grammar, honest to the overlay's live
+        // mirrors (consolePlayedUi). Inside the events list B is a LOCAL
+        // back (closes the list, never the tableau).
+        if (consolePlayedUi.eventsOpen) {
+          return [
+            {control: 'dpad', label: 'Navigate'},
+            {control: 'secondary', label: 'Inspect'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'secondary',
+            label: consolePlayedUi.focusKind === 'events' ? 'Open' : 'Inspect',
+            enabled: consolePlayedUi.focusKind !== 'none'},
+        ];
+        if (consolePlayedUi.canCyclePlayer) {
+          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
+        }
+        cmds.push(
+          {control: 'inspect', label: 'Information'},
+          {control: 'back', label: 'Close'},
+        );
+        return cmds;
+      }
       if (this.consoleState.quick !== undefined) {
         // P27: the bar mirrors the selector's OWN slot map — one source.
         const cmds: Array<ConsoleCommand> = this.quickEntries.map((e) => ({
@@ -2162,6 +2208,7 @@ export default defineComponent({
       // bring the Menu/System indicator back to the bar.
       return [
         {control: 'inspect', label: 'Information'},
+        {control: 'secondary', label: 'Played'},
         {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
           highlight: this.myTurn && (this.cardsPlayableCount + this.actionsAvailableCount) > 0},
         {control: 'triggerL', label: 'Basic actions'},
@@ -2278,6 +2325,11 @@ export default defineComponent({
     journalHardBlocked(now: boolean) {
       if (now && journalState.open) {
         journalState.open = false;
+      }
+      // The «Разыграно» overlay is the same family of board-home VIEW
+      // surface — it yields to a mandatory surface identically.
+      if (now && this.playedOpen) {
+        this.closePlayedOverlay();
       }
     },
     // PRESENTATION FLOW occupancy: while a console mandatory surface (task
@@ -2663,6 +2715,20 @@ export default defineComponent({
         }
         const panel = this.$refs.journalPanel as InstanceType<typeof ConsoleJournalPanel> | undefined;
         panel?.handleIntent(intent);
+        return true;
+      }
+      // «Разыграно» (X from the board home) owns the pad while open — a
+      // VIEW surface (journal family): B closes (inside the events list B is
+      // a LOCAL back), X/A inspect, LB/RB cycle the viewed player, Y keeps
+      // the global Info Mode meaning. A mandatory surface closes it via the
+      // journalHardBlocked watcher — same yield rule as the journal.
+      if (this.playedOpen) {
+        if (action === 'fullscreen') {
+          this.toggleInfoMode();
+          return true;
+        }
+        const overlay = this.$refs.playedOverlay as InstanceType<typeof ConsolePlayedOverlay> | undefined;
+        overlay?.handleIntent(intent);
         return true;
       }
       // P27b: Y = INFORMATION MODE — ALWAYS (every surface's former local
@@ -3196,11 +3262,16 @@ export default defineComponent({
         return true;
       case 'inspect':
         // P13 global rule: X reads the focused object fullscreen — in the
-        // colonies section X = «Осмотреть» (the full colony dossier).
+        // colonies section X = «Осмотреть» (the full colony dossier); on the
+        // BOARD HOME (the main field context only — never mid-placement,
+        // never inside an inspection mode) X opens the «Разыграно» tableau.
         if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
         } else if (this.consoleState.section === 'colonies') {
           this.toggleColonyInspect();
+        } else if (onBoard && !this.placementActive &&
+            !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
+          this.openPlayedOverlay();
         }
         return true;
       case 'back':
@@ -3398,6 +3469,21 @@ export default defineComponent({
       if (this.journalColonyInspect !== undefined) {
         this.closeColonyInspect();
       }
+    },
+    // ── «Разыграно» — the played-cards tableau (X, board home only) ──────
+    openPlayedOverlay(): void {
+      // Board-home-only by the caller's guards; mutually exclusive with the
+      // journal (both replace the player's attention, never each other).
+      if (journalState.open) {
+        this.closeJournal();
+      }
+      this.playedOpen = true;
+    },
+    closePlayedOverlay(): void {
+      this.playedOpen = false;
+      resetConsolePlayedUi();
+      // Focus returns to the board home — the board stays mounted (v-show)
+      // with its own retained cursor state; nothing to restore explicitly.
     },
     // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
     toggleInspection(): void {
@@ -4456,6 +4542,13 @@ export default defineComponent({
       if (this.handScrollActive) {
         const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
         hand?.stickScroll(dy);
+        return;
+      }
+      // The «Разыграно» overlay owns the right stick while open (main table
+      // or the nested events list — the overlay routes internally).
+      if (this.playedOpen) {
+        const played = this.$refs.playedOverlay as InstanceType<typeof ConsolePlayedOverlay> | undefined;
+        played?.stickScroll(dy);
         return;
       }
       const candidates: Array<HTMLElement> = [];
