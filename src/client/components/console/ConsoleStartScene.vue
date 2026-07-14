@@ -399,6 +399,7 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {cssLengthPx} from '@/client/console/cssUnits';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
@@ -1130,8 +1131,10 @@ export default defineComponent({
      *  console.less), because the bar is v-if'd off mid-deal: measuring the
      *  live element would make the post-deal layout jump. */
     verdictReserve(): number {
-      const raw = parseFloat(window.getComputedStyle(this.$el as HTMLElement).getPropertyValue('--con-start-verdict-h'));
-      return Number.isFinite(raw) && raw > 0 ? raw : 46 * conUiScale();
+      // rem-authored var (TV logical space) — resolve, never bare parseFloat.
+      const raw = window.getComputedStyle(this.$el as HTMLElement).getPropertyValue('--con-start-verdict-h');
+      const resolved = cssLengthPx(raw, 0);
+      return resolved > 0 ? resolved : 46 * conUiScale();
     },
     /** The height the strip may occupy inside the scrollable body: the
      *  body's allocated height minus the verdict bar + the .con-cards gap. */

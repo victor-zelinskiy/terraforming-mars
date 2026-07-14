@@ -50,13 +50,14 @@ html.console-native.con-profile-tv {
 
 html.con-profile-tv {
     /* ── central TV tokens ──
-       Safe area: ~3.2% of the panel each side (clamped) — vw/vh measure the
-       PHYSICAL viewport, the rem clamps scale with the profile, so the
-       inset stays ~3% at 4K, 1440p and 1080p alike. ONE source: root
-       chrome + floating layers consume these; components never add their
-       own second safe inset. */
-    --con-safe-x: ~"clamp(1.2rem, 3.2vw, 4rem)";
-    --con-safe-y: ~"clamp(0.9rem, 3vh, 3rem)";
+       Safe area: ~1.8% of the panel each side (clamped) — enough that
+       nothing touches the bezel, WITHOUT wasting board width (player
+       feedback: the first 3.2% pass pushed the side panels visibly off
+       the edges). vw/vh measure the PHYSICAL viewport, the rem clamps
+       scale with the profile. ONE source: root chrome + floating layers
+       consume these; components never add their own second safe inset. */
+    --con-safe-x: ~"clamp(0.9rem, 1.8vw, 2.6rem)";
+    --con-safe-y: ~"clamp(0.7rem, 1.8vh, 2rem)";
     /* Couch type scale (logical px / 20). */
     --con-t-hero: 2.2rem;      /* 44 — key numeric readouts */
     --con-t-title: 1.8rem;     /* 36 — screen/panel titles */
@@ -74,73 +75,80 @@ html.con-profile-tv {
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
 html.con-profile-tv {
     .con-root {
-        padding: var(--con-safe-y) var(--con-safe-x) calc(var(--con-safe-y) * 0.72);
-        gap: 0.55rem;
+        padding: var(--con-safe-y) var(--con-safe-x) calc(var(--con-safe-y) * 0.7);
+        gap: 0.45rem;
     }
     /* Floating chrome anchored to the old 1.2vh root inset follows the
        safe area instead (single-source rule). */
-    .con-banner { top: calc(var(--con-safe-y) + 2.9rem); }
-    .con-drafttray { top: calc(var(--con-safe-y) + 3.3rem); }
-    .con-terra-event { top: calc(var(--con-safe-y) + 5.4rem); }
+    .con-banner { top: calc(var(--con-safe-y) + 2.7rem); }
+    .con-drafttray { top: calc(var(--con-safe-y) + 3.1rem); }
+    .con-terra-event { top: calc(var(--con-safe-y) + 5.1rem); }
 
-    /* ═══ 2 · STATUS STRIP (top HUD) ══════════════════════════════ */
+    /* ═══ 2 · STATUS STRIP (top HUD) — readable, never board-hungry ═ */
     .con-status {
-        padding: 0.45rem 1.1rem;
-        gap: 1.2rem;
+        padding: 0.35rem 1rem;
 
-        &__icon { width: 2rem; height: 2rem; }
-        &__value { font-size: var(--con-t-section); }
-        &__gen-label { font-size: 0.9rem; }
-        &__player { font-size: var(--con-t-body); }
-        &__terra-pct { font-size: 1.1rem; }
+        &__icon { width: 1.9rem; height: 1.9rem; }
+        &__value { font-size: 1.4rem; }
+        &__gen-label { font-size: 0.85rem; }
+        &__player { font-size: 1.15rem; }
+        &__terra-pct { font-size: 1.05rem; }
     }
 
     /* ═══ 3 · LEFT RESOURCE RAIL ══════════════════════════════════ */
     .con-res-host {
-        --cr-pad: 0.7rem;
-        --cr-icon: 1.9rem;
-        --cr-row-py: 0.38rem;
-        --cr-rgap: 0.5rem;
+        --cr-pad: 0.65rem;
+        --cr-icon: 1.75rem;
+        --cr-row-py: 0.35rem;
+        --cr-rgap: 0.45rem;
     }
     .con-res {
-        width: 10.4rem; /* 208 logical — the wider 16:9 canvas affords it */
+        width: 9.8rem; /* 196 logical — a notch wider for the value bump */
 
-        &__value { font-size: 1.25rem; }
-        &__prod { font-size: 0.9rem; }
+        &__value { font-size: 1.15rem; }
+        &__prod { font-size: 0.85rem; }
     }
-    .con-res-aux__value { font-size: 1.05rem; }
+    .con-res-aux__value { font-size: 1rem; }
 
-    /* ═══ 4 · RIGHT CONTEXT PANEL + DASHBOARD ═════════════════════ */
+    /* ═══ 4 · RIGHT CONTEXT PANEL + DASHBOARD ═════════════════════
+       The dashboard's base sizes are already couch-tuned; bumping them
+       overflowed the milestone/award lists on modular-MA games (player
+       feedback) — only the hero value and the smallest legend move. */
     .con-inspector {
-        max-width: 28rem;
+        max-width: 27rem;
 
-        &__name { font-size: 1.35rem; }
-        &__desc { font-size: var(--con-t-secondary); }
+        &__name { font-size: 1.3rem; }
+        &__desc { font-size: 0.95rem; }
     }
-    .con-home__title { font-size: var(--con-t-caption); }
-    .con-home__value b { font-size: 1.6rem; }
-    .con-home__ma { font-size: var(--con-t-secondary); }
-    .con-home__block--awards { --con-award-cols: ~"minmax(0, 1fr) 3rem 6.2rem"; }
-    .con-award-row { font-size: var(--con-t-secondary); }
-    .con-award__cube { width: 0.85rem; height: 0.85rem; }
-    .con-award__leader-val { font-size: var(--con-t-secondary); }
-    .con-award__legend-span { font-size: 0.7rem; }
+    .con-home__value b { font-size: 1.5rem; }
+    .con-award__legend-span { font-size: 0.65rem; }
 
     /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
     .con-cmdbar {
-        height: 3.1rem;
-        padding: 0.5rem 1.3rem;
-        gap: 1.4rem;
+        height: 2.9rem;
 
-        &__context { font-size: var(--con-t-body); }
-        &__label { font-size: var(--con-t-body); }
-        &__badge { min-width: 1.4rem; height: 1.4rem; font-size: 0.85rem; }
+        &__context { font-size: 1.15rem; }
+        &__label { font-size: 1.15rem; }
+        &__badge { min-width: 1.35rem; height: 1.35rem; font-size: 0.8rem; }
         .gp-glyph {
-            min-width: 1.7rem;
-            height: 1.7rem;
-            font-size: 0.85rem;
-            &--pill { min-width: 2.3rem; }
+            min-width: 1.6rem;
+            height: 1.6rem;
+            font-size: 0.8rem;
+            &--pill { min-width: 2.15rem; }
         }
+    }
+
+    /* ═══ 5b · FEEDBACK DELTA CHIPS (px-authored desktop components) ═
+       The AnimatedMetricValue chips anchor inside the console rails/HUD —
+       scale the CHIP, not the host (the host is the positioning anchor).
+       Scoped to the console surfaces; board-internal chips (inside the
+       planet's transform space) keep their own px space. */
+    .con-status .delta-chip,
+    .con-res .delta-chip,
+    .con-res-aux .delta-chip,
+    .con-home .delta-chip,
+    .con-hand .delta-chip {
+        zoom: var(--con-ui-scale, 1);
     }
 
     /* ═══ 6 · RT/LT QUICK WHEELS ══════════════════════════════════ */
@@ -263,11 +271,10 @@ html.con-profile-tv {
         &__spend-num { font-size: 1.3rem; }
     }
 
-    /* ═══ 14 · COLONIES ═══════════════════════════════════════════ */
-    .con-colonies {
-        --coltile-base-w: 20.6rem;
-        --coltile-base-h: 12.4rem;
-    }
+    /* ═══ 14 · COLONIES ═══════════════════════════════════════════
+       The tile base size is rem-authored — it already scales with the
+       profile; a second bump here DOUBLE-scaled the tiles (player
+       feedback: colonies blew up / wrapped). Only typography moves. */
     .con-coltile {
         &__name { font-size: var(--con-t-body); }
         &__cell-num { font-size: 1.1rem; }

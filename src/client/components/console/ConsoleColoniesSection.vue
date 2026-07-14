@@ -96,6 +96,7 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {cssLengthPx} from '@/client/console/cssUnits';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** PICK MODE (T4 — a server SelectColony drives the grid): the shell owns it. */
@@ -205,8 +206,11 @@ export default defineComponent({
         return; // not laid out yet / JSDOM
       }
       const cs = getComputedStyle(root);
-      const baseW = parseFloat(cs.getPropertyValue('--coltile-base-w')) || 366;
-      const baseH = parseFloat(cs.getPropertyValue('--coltile-base-h')) || 220;
+      // The base-size vars are rem-authored (TV logical space) — resolve
+      // them properly; a bare parseFloat would read "18.3rem" as 18.3px
+      // and collapse the whole grid fit.
+      const baseW = cssLengthPx(cs.getPropertyValue('--coltile-base-w'), 366);
+      const baseH = cssLengthPx(cs.getPropertyValue('--coltile-base-h'), 220);
       const cols = Math.min(Math.max(1, colonyGridCols(this.layout, count)), count);
       const rows = Math.max(1, Math.ceil(count / cols));
       // The CSS grid gaps/padding are rem-authored (they scale with the TV

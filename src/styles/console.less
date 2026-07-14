@@ -924,7 +924,7 @@
            content bbox and folds the true-centre offset into these vars
            (ConsoleBoardSection.calibrate; written on the STAGE, inherited).
            The fallback keeps the P27b hand-tuned nudge for the first frame. */
-        > * { transform: translate(var(--con-board-dx, .3rem), var(--con-board-dy, -.2rem)); }
+        > * { transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)); } /* keep-px: JS folds px into these vars */
         /* ⚠ P29c ROOT-CAUSE FIX: GameBoardView is MULTI-ROOT, so .board-cont
            is a DIRECT stage child — the generic translate above (same
            specificity as board.less's `.board-cont`, but LATER in the
@@ -933,7 +933,7 @@
            `transform` never composes across rules — the board child must
            carry BOTH functions in ONE declaration. */
         > .board-cont {
-            transform: translate(var(--con-board-dx, .3rem), var(--con-board-dy, -.2rem)) scale(var(--board-scale, 1));
+            transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)) scale(var(--board-scale, 1)); /* keep-px: JS folds px into these vars */
         }
     }
 }
@@ -944,7 +944,7 @@
 .con-board--live .board-space.con-cell-sel::after {
     content: '';
     position: absolute;
-    inset: -.3rem;
+    inset: -6px; /* keep-px: board px-space */
     background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='rgba(127,216,240,0.12)' stroke='%237FD8F0' stroke-width='2.6' stroke-linejoin='round'/><polygon points='23,5 41.4,15.4 41.4,35.6 23,46 4.6,35.6 4.6,15.4' fill='none' stroke='%23CDEFFB' stroke-opacity='0.5' stroke-width='0.8' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
     filter: drop-shadow(0 0 .45rem fade(@con-cyan, 80%)) drop-shadow(0 0 .1rem fade(@con-cyan, 90%));
     pointer-events: none;
@@ -986,11 +986,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         position: absolute;
         left: 50%;
         top: 50%;
-        width: 1.7rem;
-        height: 1.7rem;
-        margin: -.85rem 0 0 -.85rem;
+        width: 34px; /* keep-px: board px-space */
+        height: 34px; /* keep-px: board px-space */
+        margin: -17px 0 0 -17px; /* keep-px: board px-space */
         border-radius: 50%;
-        border: .12rem dashed fade(@con-amber, 90%);
+        border: 2.4px dashed fade(@con-amber, 90%); /* keep-px: board px-space */
         box-shadow: 0 0 .6rem fade(@con-amber, 55%), inset 0 0 .4rem fade(@con-amber, 25%);
         pointer-events: none;
         animation: con-cell-active calc(1500ms * var(--motion-scale, 1)) ease-in-out infinite;
@@ -2941,17 +2941,17 @@ html.console-mode {
     /* LEFT — the concave arc, exact mirror of the right trio (nudged +6px
        right so Ganymede clears the oxygen rail; Phobos at left 95 is well
        clear of the scale identity mark). */
-    .board-space-02 { margin: 2.2rem 0 0 4.75rem; }    /* Phobos — mirror of Luna */
-    .board-space-69 { margin: 4.3rem 0 0 2.65rem; }    /* Stanford — mirror of Maxwell */
-    .board-space-01 { margin: 6.8rem 0 0 1.1rem; }   /* Ganymede — mirror of Stratopolis */
+    .board-space-02 { margin: 44px 0 0 95px; } /* keep-px: board px-space */    /* Phobos — mirror of Luna */
+    .board-space-69 { margin: 86px 0 0 53px; } /* keep-px: board px-space */    /* Stanford — mirror of Maxwell */
+    .board-space-01 { margin: 136px 0 0 22px; } /* keep-px: board px-space */   /* Ganymede — mirror of Stratopolis */
     /* RIGHT — the concave arc (unchanged; the reference the rest mirrors). */
-    .board-space-70 { margin: 2.2rem 0 0 24.45rem; }   /* Luna */
-    .board-space-73 { margin: 4.3rem 0 0 26.55rem; }   /* Maxwell */
-    .board-space-72 { margin: 6.8rem 0 0 28.2rem; }  /* Stratopolis */
+    .board-space-70 { margin: 44px 0 0 489px; } /* keep-px: board px-space */   /* Luna */
+    .board-space-73 { margin: 86px 0 0 531px; } /* keep-px: board px-space */   /* Maxwell */
+    .board-space-72 { margin: 136px 0 0 564px; } /* keep-px: board px-space */  /* Stratopolis */
     /* Dawn City — mirror of Luna about Maxwell's column (left 531): same
        top 44, left 573 = 531 + 42 (Luna is 531 − 42). Equal 59px arm to
        Maxwell, so Luna↖ and Dawn↗ cap the arc symmetrically. */
-    .board-space-71 { margin: 2.2rem 0 0 28.65rem; }   /* Dawn City — mirror of Luna */
+    .board-space-71 { margin: 44px 0 0 573px; } /* keep-px: board px-space */   /* Dawn City — mirror of Luna */
 }
 
 /* ── Hand section ────────────────────────────────────────────────── */

@@ -33,6 +33,9 @@ describe('consoleLayoutProfile (P12 + TV)', () => {
     expect(resolveProfile(2560, 1440, {devicePixelRatio: 1.5, screenWidth: 2560, screenHeight: 1440})).to.eq('tv');
     // 4K @ OS 200%: viewport 1920×1080, dpr 2 → physical 3840×2160.
     expect(resolveProfile(1920, 1080, {devicePixelRatio: 2, screenWidth: 1920, screenHeight: 1080})).to.eq('tv');
+    // 4K @ OS 300% (ROG Strix XG32UQ case): viewport 1280×720, dpr 3 —
+    // still a 4K panel; the physical gate beats the small-viewport rule.
+    expect(resolveProfile(1280, 720, {devicePixelRatio: 3, screenWidth: 1280, screenHeight: 720})).to.eq('tv');
   });
 
   it('desktop 1440p / ultrawide stay large (gentle boost, not tv)', () => {
@@ -76,8 +79,11 @@ describe('consoleLayoutProfile (P12 + TV)', () => {
     expect(computeTvUiScale(2560, 1440)).to.be.closeTo(4 / 3, 0.001);
     // Uniform X/Y: the tighter axis wins (no anisotropic stretch).
     expect(computeTvUiScale(3840, 1080)).to.eq(1);
-    // Clamps: a dev window under the logical space floors at 0.75…
-    expect(computeTvUiScale(800, 600)).to.eq(0.75);
+    // A 4K panel at 300% OS scale (viewport 1280×720) must scale DOWN
+    // honestly — the logical layout has to fit (the ROG overflow bug).
+    expect(computeTvUiScale(1280, 720)).to.be.closeTo(2 / 3, 0.001);
+    // Clamps: a technical zero-guard at the bottom…
+    expect(computeTvUiScale(500, 400)).to.eq(0.4);
     // …and an absurd report caps at 2.5.
     expect(computeTvUiScale(7680, 4320)).to.eq(2.5);
   });

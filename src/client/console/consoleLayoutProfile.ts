@@ -59,10 +59,13 @@ const PROFILES: ReadonlyArray<ConsoleLayoutProfile> = ['handheld', 'standard', '
  */
 export const TV_LOGICAL_WIDTH = 1920;
 export const TV_LOGICAL_HEIGHT = 1080;
-/** Scale clamps: <1 only happens under a manual override in a small dev
- * window (lets the TV composition be inspected anywhere); 2.5 covers
- * anything up to 5K-class panels without letting a mis-report explode. */
-export const TV_SCALE_MIN = 0.75;
+/** Scale clamps. <1 happens whenever the OS maps the panel to a viewport
+ * SMALLER than the 1920×1080 logical space (e.g. a 4K monitor at 300% OS
+ * scale → viewport 1280×720 → scale 2/3) — the scale must follow honestly
+ * or the logical layout physically cannot fit (the ROG overflow bug); the
+ * floor is a technical zero-guard only. 2.5 covers anything up to
+ * 5K-class panels without letting a mis-report explode. */
+export const TV_SCALE_MIN = 0.4;
 export const TV_SCALE_MAX = 2.5;
 
 /* TV auto-detection thresholds (physical panel, not viewport):
@@ -96,11 +99,6 @@ export type ProfileDecision = {
 
 /** PURE viewport/panel classification (unit-tested). */
 export function explainProfile(width: number, height: number, signals?: DisplaySignals): ProfileDecision {
-  // Small screens are handhelds no matter what panel they physically are —
-  // the compact recomposition wins on any tight budget.
-  if (height <= 860 || width <= 1366) {
-    return {profile: 'handheld', reason: `handheld: small viewport ${width}×${height}`};
-  }
   const dpr = signals?.devicePixelRatio !== undefined && signals.devicePixelRatio > 0 ? signals.devicePixelRatio : 1;
   const screenW = signals?.screenWidth !== undefined && signals.screenWidth > 0 ? signals.screenWidth : width;
   const screenH = signals?.screenHeight !== undefined && signals.screenHeight > 0 ? signals.screenHeight : height;
@@ -108,11 +106,21 @@ export function explainProfile(width: number, height: number, signals?: DisplayS
   const physicalH = Math.round(screenH * dpr);
   const aspect = physicalH > 0 ? physicalW / physicalH : 0;
   const covers = width >= screenW * TV_COVERAGE_MIN && height >= screenH * (TV_COVERAGE_MIN - 0.04);
+  // The PHYSICAL-panel check runs FIRST: a 4K-class 16:9 panel is a
+  // TV-class display even when a high OS scale maps it to a SMALL viewport
+  // (a 4K monitor at 300% → viewport 1280×720 — the tv logical space
+  // scales down to fit). A real handheld (Steam Deck: physical 1280×800)
+  // can never pass the physical-height gate, so the branches don't fight.
   if (physicalH >= TV_MIN_PHYSICAL_HEIGHT && aspect >= TV_ASPECT_MIN && aspect <= TV_ASPECT_MAX && covers) {
     return {
       profile: 'tv',
       reason: `tv: 4K-class 16:9 panel ${physicalW}×${physicalH} (viewport ${width}×${height}, dpr ${dpr})`,
     };
+  }
+  // Small screens are handhelds no matter what panel they physically are —
+  // the compact recomposition wins on any tight budget.
+  if (height <= 860 || width <= 1366) {
+    return {profile: 'handheld', reason: `handheld: small viewport ${width}×${height}`};
   }
   if (width >= 2400) {
     return {profile: 'large', reason: `large: wide viewport ${width}×${height}`};

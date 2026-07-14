@@ -75,7 +75,7 @@ export type SystemMenuItem = {
 
 export const SYSTEM_MENU_ITEMS: ReadonlyArray<SystemMenuItem> = [
   {id: 'controls', label: 'Controls', glyph: '🎮'},
-  {id: 'display', label: 'Display', glyph: '🖵'},
+  {id: 'display', label: 'Display', glyph: '🖥'},
   {id: 'exit', label: 'To main menu', glyph: '⌂'},
   {id: 'return', label: 'Return to game', glyph: '↩'},
 ];
