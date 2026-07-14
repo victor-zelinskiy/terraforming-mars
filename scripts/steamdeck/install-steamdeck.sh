@@ -25,7 +25,6 @@ APP="$APPS/TerraformingMars.AppImage"
 WRAPPER="$APPS/run-terraforming-mars.sh"
 ART="$APPS/terraforming-mars-art"
 RAW="https://raw.githubusercontent.com/$REPO/main/assets/steamdeck"
-LATEST="https://github.com/$REPO/releases/latest/download"
 INSTALLER_URL="https://raw.githubusercontent.com/$REPO/main/scripts/steamdeck/install-steamdeck.sh"
 
 command -v curl   >/dev/null || { echo "!! curl not found"; exit 1; }
@@ -33,8 +32,40 @@ command -v python3 >/dev/null || { echo "!! python3 not found"; exit 1; }
 
 mkdir -p "$APPS" "$ART"
 
-echo "==> [1/4] Downloading the latest AppImage…"
-curl -fL# -o "$APP" "$LATEST/TerraformingMars-x86_64.AppImage"
+echo "==> [1/4] Resolving + downloading the latest AppImage…"
+# Resolve the AppImage URL via the GitHub API instead of the fixed
+# releases/latest/download/… path. WHY: a release is built by TWO sequential CI
+# jobs (windows CREATES the release with only win assets, then linux MERGES its
+# channel + uploads the AppImage). In the window between them, releases/latest
+# already points at the new tag that has NO AppImage yet → the fixed URL 404s
+# and `set -e` aborts the whole install. Walking releases newest-first for the
+# first one that ACTUALLY HAS an AppImage falls back to the previous complete
+# release during that window, and also survives a future asset rename (accepts
+# the fixed-name alias OR any *.AppImage). python3 is already a hard dependency.
+APPIMAGE_URL="$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=10" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for rel in data:                                  # API returns newest-first
+    if rel.get("draft") or rel.get("prerelease"):
+        continue
+    names = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+    if "TerraformingMars-x86_64.AppImage" in names:      # prefer the fixed alias
+        print(names["TerraformingMars-x86_64.AppImage"]); break
+    alt = [u for n, u in names.items() if n.endswith(".AppImage")]  # else any AppImage
+    if alt:
+        print(alt[0]); break
+')" || APPIMAGE_URL=""
+if [ -z "$APPIMAGE_URL" ]; then
+  echo "!! No .AppImage asset found in the latest releases of $REPO." >&2
+  echo "   A release build may still be publishing (the Linux job runs after the Windows one)." >&2
+  echo "   Wait ~5 minutes and re-run this installer." >&2
+  exit 1
+fi
+echo "    $APPIMAGE_URL"
+curl -fL# -o "$APP" "$APPIMAGE_URL"
 chmod +x "$APP"
 
 echo "==> [2/4] Writing the launcher wrapper…"
@@ -94,11 +125,15 @@ chmod +x "$WRAPPER"
 sed -i "s|@@INSTALLER_URL@@|$INSTALLER_URL|g; s|@@INSTALLER_SHA@@|$INSTALLER_SHA|g" "$WRAPPER"
 
 echo "==> [3/4] Downloading Steam artwork…"
-curl -fL# -o "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"
-curl -fL# -o "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.png"
-curl -fL# -o "$ART/capsule.png" "$RAW/steam-deck-capsule-1024-1536.png"
-curl -fL# -o "$ART/logo.png"    "$RAW/steam-deck-logo-2048-682.png"
-curl -fL# -o "$ART/icon.png"    "$RAW/steam-deck-icon-512.png"
+# Artwork is cosmetic — a transient CDN 404/blip on a PNG must NOT abort the
+# install after the AppImage already downloaded (set -e would kill it). Each
+# download is best-effort; a missing file just means Steam shows a default tile.
+dl_art() { curl -fL# -o "$1" "$2" || echo "    (skipped artwork: $2)"; }
+dl_art "$ART/hero.png"    "$RAW/steam-deck-hero-2172-724.png"
+dl_art "$ART/header.jpg"  "$RAW/steam-deck-header-920-430.png"
+dl_art "$ART/capsule.png" "$RAW/steam-deck-capsule-1024-1536.png"
+dl_art "$ART/logo.png"    "$RAW/steam-deck-logo-2048-682.png"
+dl_art "$ART/icon.png"    "$RAW/steam-deck-icon-512.png"
 
 echo "==> [4/4] Registering the Non-Steam shortcut + artwork…"
 # Steam rewrites shortcuts.vdf on exit, so close it first for the edit to stick.
