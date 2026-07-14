@@ -2329,6 +2329,15 @@ export default defineComponent({
       if (card !== undefined && prev === undefined) {
         this.zoomFlight = true;
         this.zoomClosing = false;
+        // Mark opening SYNCHRONOUSLY here (not inside the async runZoomOpen):
+        // from this instant the dialog is rendered-but-CLOSED and the landing
+        // measure runs over several frames. A B press in that window must hit
+        // the `zoomOpening` branch (→ cancel the open) — NOT the normal close
+        // path, which would run playZoomClose over a display:none dialog (rect
+        // 0×0 → dive → zoom.close() no-op → no 'close' event → zoomClosing
+        // stuck true → "B closes only on the second press"). Set it before the
+        // nextTick so no intent can land in the gap.
+        this.zoomOpening = true;
         // The ideological focus moves to the fullscreen inspector: the
         // background focus chrome (slot rings, «A …» chips, the gliding
         // frame) goes quiet while the viewer is open.

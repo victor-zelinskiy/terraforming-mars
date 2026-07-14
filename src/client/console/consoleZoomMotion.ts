@@ -79,6 +79,16 @@ function clearOpenSafety(): void {
   }
 }
 
+/**
+ * Hold a source slot invisible while its card is "in the player's hands".
+ * `el` MUST be the slot WRAPPER (not the inner `.card-container`/`.pcard`),
+ * so the ENTIRE slot — card + its focus ring / selected outline / glow /
+ * pick-band — goes to opacity 0. Holding only the inner card (the earlier
+ * bug) zeroed the card but left the wrapper's outline painted, so the gap
+ * the card lifted from stayed visibly highlighted (worst on modal slots).
+ * This matches how the deal cinematic holds its slots (the wrapper carries
+ * `.con-deal-hold`). Geometry is measured separately from `sourceCardEl`.
+ */
 function holdSlot(el: HTMLElement | null): void {
   if (ctx.heldSlot !== undefined && ctx.heldSlot !== el) {
     ctx.heldSlot.classList.remove(HOLD_CLASS);
@@ -106,9 +116,14 @@ function usableRect(el: HTMLElement | null): DOMRect | undefined {
   return r;
 }
 
+/** The raw slot WRAPPER for `index` — the element the host marks / resolves. */
+function sourceSlotEl(origin: ZoomOrigin, index: number): HTMLElement | null {
+  return origin.resolve?.(index) ?? null;
+}
+
 /** The card slot for `index`, preferring the inner `.card-container`. */
 function sourceCardEl(origin: ZoomOrigin, index: number): HTMLElement | null {
-  const slot = origin.resolve?.(index) ?? null;
+  const slot = sourceSlotEl(origin, index);
   if (slot === null) {
     return null;
   }
@@ -204,7 +219,8 @@ export function playZoomOpenFlight(
     return;
   }
   // FLIP: the proxy lifts out of the slot and expands onto the landing rect.
-  holdSlot(sourceCardEl(ctx.origin ?? {kind: 'none'}, index));
+  // Hold the WRAPPER so the whole source slot (card + ring) empties.
+  holdSlot(sourceSlotEl(ctx.origin ?? {kind: 'none'}, index));
   const scale = source.width / landing.width;
   ctx.tween = gsap.fromTo(proxy,
     {
@@ -236,7 +252,7 @@ export function retargetZoomHold(index: number): void {
   if (origin === undefined || origin.kind !== 'physical') {
     return;
   }
-  holdSlot(sourceCardEl(origin, index));
+  holdSlot(sourceSlotEl(origin, index));
 }
 
 /**
@@ -272,8 +288,9 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
       return;
     }
     const target = stage.getBoundingClientRect();
-    const sourceEl = origin.kind === 'physical' ? sourceCardEl(origin, index) : null;
-    const source = usableRect(sourceEl);
+    // Geometry from the CARD, hold on the WRAPPER (whole slot empties — no
+    // leftover outline behind the returning card).
+    const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
     if (source === undefined || target.width < 10) {
       // No believable slot (textual origin / slot scrolled away): dive.
       ctx.tween = gsap.to(stage, {autoAlpha: 0, y: 18, scale: 0.92, transformOrigin: '50% 60%', duration: motionMs(200) / 1000, ease: 'power2.in', onComplete: done});
@@ -281,18 +298,34 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
     }
     // Make sure the LANDING slot is the held (empty) one, so the card
     // visibly returns into a gap — never onto a duplicate of itself.
-    holdSlot(sourceEl);
+    holdSlot(sourceSlotEl(origin, index));
     const scale = source.width / target.width;
-    ctx.tween = gsap.to(stage, {
+    // RESPONSIVE, DISSOLVE-INTO-SLOT retract (not a slow "fall + hard land"):
+    //  - `power2.out` LEAVES fast on the very first frame → the B press reads
+    //    as instantly effective (a slow-start ease made the press feel dropped,
+    //    so the player pressed B again — "closes on the second press");
+    //  - the stage DECELERATES into the slot and, in the last beat, the real
+    //    slot card is revealed (`holdSlot(null)`) while the stage cross-fades
+    //    over it — the card MATERIALIZES back into its slot (mirroring the deal
+    //    / handoff touchdown) instead of hard-landing then popping, which read
+    //    as the card "falling" onto the table.
+    const flyDur = motionMs(280) / 1000;
+    // Reveal the slot card ~60ms before touchdown, then cross-fade the stage
+    // over it — the two overlap so the card dissolves into its slot.
+    const revealAt = Math.max(0, flyDur - motionMs(60) / 1000);
+    const tl = gsap.timeline({onComplete: done});
+    tl.to(stage, {
       x: source.left - target.left,
       y: source.top - target.top,
       scale,
-      rotation: -1.2,
+      rotation: -1,
       transformOrigin: 'top left',
-      duration: motionMs(320) / 1000,
-      ease: 'power3.inOut',
-      onComplete: done,
-    });
+      duration: flyDur,
+      ease: 'power2.out',
+    }, 0);
+    tl.call(() => holdSlot(null), undefined, revealAt);
+    tl.to(stage, {autoAlpha: 0, duration: motionMs(120) / 1000, ease: 'power1.out'}, revealAt);
+    ctx.tween = tl;
   });
 }
 
@@ -371,8 +404,9 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
         return;
       }
       // The card leaves the table world for the modal world: hold the
-      // MODAL slot (releasing the table slot underneath the backdrops).
-      holdSlot(cardEl);
+      // MODAL slot WRAPPER (releasing the table slot underneath the
+      // backdrops) — the whole target slot empties, no leftover outline.
+      holdSlot(slot ?? cardEl);
       const scale = rect.width / target.width;
       const tl = gsap.timeline({onComplete: done});
       tl.to(stage, {
