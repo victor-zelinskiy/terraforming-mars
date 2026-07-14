@@ -58,22 +58,20 @@ mkdir -p "$(dirname "$TM_RESTART_MARKER")"
 # footer warning if it changed (i.e. you forgot to re-run the install). Filled in by sed below.
 export TM_INSTALLER_URL="@@INSTALLER_URL@@"
 export TM_INSTALLER_SHA="@@INSTALLER_SHA@@"
-# ── Performance tuning (ACTIVE — experimental) ───────────────────────────────
-# The Deck runs SOFTWARE rendering (hardware accel can't init under XWayland). These
-# knobs squeeze the software path; the app reads them at launch. Edit the numbers to
-# taste, or set a var to "" to fall back to the app's built-in default.
-#  • raster threads: parallelize tile rasterization across the Deck's 4 cores.
+# ── Performance tuning ────────────────────────────────────────────────────────
+# The Deck's measured tuning (software rendering + 4 raster threads + the V8
+# young-gen bump) is BUILT INTO the app now — no env needed. The two exports
+# below are kept ONLY so an app version older than the baked-in defaults still
+# picks them up; current builds ignore them (same values are the defaults).
 export TM_ELECTRON_RASTER_THREADS=4
-#  • V8 young-generation size: a bigger scavenge space = fewer minor-GC hitches
-#    mid-game (Vue reactivity churns lots of short-lived objects). 64 MB is a calm bump.
 export TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"
 # GPU stays OFF on purpose — measured on-device, hardware accel under XWayland only makes
-# things WORSE (no usable GL/EGL context → a failing GPU process + churn). Do NOT enable
-# these unless you're deliberately experimenting with NATIVE Wayland; if you do, check
-# terraforming-mars-steam.log for "gpu_compositing":"enabled" and revert if it isn't there.
-# export TM_ELECTRON_OZONE=wayland
-# export TM_ELECTRON_GL=angle
-# export TM_ELECTRON_ANGLE=vulkan
+# things WORSE (no usable GL/EGL context → a failing GPU process + churn). The only thing
+# that might enable it is NATIVE Wayland; to experiment, uncomment the two lines below,
+# then check terraforming-mars-steam.log / the in-game F12 console "[TM perf]" line for
+# "gpu_compositing":"enabled" and revert if it isn't there.
+# export TM_ELECTRON_SWITCHES="ozone-platform=wayland;use-angle=vulkan"
+# export TM_ELECTRON_FEATURES=SkiaGraphite
 cd "$HOME/Applications" || exit 1
 echo "=== launch: $(date) ===" >> "$LOG"
 while true; do

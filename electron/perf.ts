@@ -1,151 +1,196 @@
-// Electron 43 — performance / GPU tuning (main process).
+// Electron 43 (Chromium ~150) — performance / GPU tuning (main process).
 //
-// The desktop shell targets ONE known machine class (a Windows box with a GPU),
-// running a FULLSCREEN game, so we tune aggressively for smoothness — but WITHOUT
-// removing the software fallback by default (that stays env-gated), so a GPU-less
-// or driver-broken machine still boots. These switches affect the ELECTRON client
-// ONLY; the browser build is untouched.
+// The desktop shell targets ONE known machine class per platform — a Windows box
+// with a GPU (fullscreen game) and the Steam Deck (software compositor under
+// gamescope) — so the tuned configuration is the DEFAULT, not an env matrix.
+// The old per-knob "flag zoo" (TM_ELECTRON_GPU / _ANGLE / _GL / _OZONE /
+// _UNCAP_FPS / _FORCE_GPU / _JS_FLAGS / _RASTER_THREADS / _KEEP_GPU) is gone;
+// exactly THREE escape hatches remain:
 //
-// The trace (PERFORMANCE_AUDIT.md) showed the remaining cost is rendering/
-// compositing (Paint / Commit / Layerize / GPUTask), so the highest-value lever is
-// making Chromium push as much of that to the GPU as possible: GPU rasterization,
-// zero-copy texture upload, accelerated 2D canvas, and never throttling the
-// renderer while the game is briefly occluded / unfocused.
+//   TM_ELECTRON_NO_PERF=1     — vanilla Electron, NOTHING below is applied (the
+//                               baseline for any "is it our tuning?" comparison).
+//   TM_ELECTRON_FEATURES=...  — REPLACES the default --enable-features list
+//                               ("none"/"off" → no list at all). This is the
+//                               Graphite / waitable-swap-chain rollback.
+//   TM_ELECTRON_SWITCHES=...  — semicolon-separated raw Chromium switches
+//                               ("key" or "key=value"), appended LAST so they
+//                               override any same-key default. Covers every
+//                               retired knob, e.g.:
+//                                 "disable-direct-composition"
+//                                 "use-angle=d3d9"
+//                                 "js-flags=--max-old-space-size=1024"
+//                                 "ozone-platform=wayland;use-angle=vulkan"
+//                                 "disable-frame-rate-limit;disable-gpu-vsync"
 //
 // Switches MUST be appended BEFORE app 'ready'. Self-contained: imports only the
-// electron types.
+// electron types. Verify what actually took effect via the renderer-console
+// "[TM perf]" echo (main.ts) or chrome://gpu.
 
 import type {App} from 'electron';
 
+/** One parsed `--key[=value]` token from TM_ELECTRON_SWITCHES. */
+export interface ExtraSwitch {
+  key: string;
+  value?: string;
+}
+
 /**
- * Append the GPU / no-throttle command-line switches. Call once, before 'ready'.
- * Env opt-ins (off by default) for the two aggressive-but-risky flags.
+ * Parse the TM_ELECTRON_SWITCHES escape hatch: semicolon-separated Chromium
+ * switches, each `key` or `key=value`. The value may itself contain `=`
+ * (js-flags=--max-old-space-size=1024) — only the FIRST `=` splits. A leading
+ * `--` is tolerated; blank segments are skipped. Pure (unit-tested).
  */
-export function applyPerformanceSwitches(app: App): void {
+export function parseExtraSwitches(raw: string): ExtraSwitch[] {
+  const out: ExtraSwitch[] = [];
+  for (const segment of raw.split(';')) {
+    const token = segment.trim().replace(/^--/, '');
+    if (token === '') {
+      continue;
+    }
+    const eq = token.indexOf('=');
+    if (eq === -1) {
+      out.push({key: token});
+    } else {
+      out.push({key: token.slice(0, eq).trim(), value: token.slice(eq + 1).trim()});
+    }
+  }
+  return out;
+}
+
+// The default --enable-features list on the Windows GPU path:
+//  - SkiaGraphite + SkiaGraphitePrecompilation — the proven big win on this app:
+//    Chrome's next-gen multi-threaded rasterizer (Dawn/D3D11) manages the
+//    layer-heavy premium UI far better than Ganesh/GL under DirectComposition,
+//    plus up-front pipeline compilation against the first-use shader stutter.
+//  - DXGIWaitableSwapChain (MaxQueuedFrames=2) — waitable root swap chain: the
+//    compositor waits for DWM readiness instead of blind-queueing Presents, the
+//    canonical DXGI 1.3 frame-pacing/latency mechanism for games. Targets the
+//    "low-FPS app on a 120–165 Hz hybrid box" pacing wobble. 2 = the feature's
+//    own default: bounded queue with one frame of slack (resilient to per-frame
+//    cost spikes during deal cinematics); drop to /1 via TM_ELECTRON_FEATURES
+//    if input latency ever matters more than spike tolerance.
+//    NOTE: mutually exclusive with a `disable-direct-composition` experiment —
+//    that switch tears down the DComp/DXGI presentation path this feature tunes.
+//    DISABLED_BY_DEFAULT in Chromium ~150 (verified ui/gl/gl_switches.cc).
+const WINDOWS_ENABLED_FEATURES = [
+  'SkiaGraphite',
+  'SkiaGraphitePrecompilation',
+  'DXGIWaitableSwapChain:DXGIWaitableSwapChainMaxQueuedFrames/2',
+].join(',');
+
+// Features disabled on EVERY platform (unknown names are silently ignored, so
+// the Windows-only entries are safe no-ops on Linux). A single list applied in
+// ONE appendSwitch call — appendSwitch REPLACES same-key values, so building
+// the list here (not appending twice) is load-bearing.
+//  - CalculateNativeWinOcclusion — Windows native occlusion tracker; Chromium's
+//    own embedder-dev guidance says to turn it off for embedded Chromium. When
+//    it decides the window is occluded the renderer is treated as background
+//    (freeze/throttle bug class: RDP, lock screen, monitor switches). Our
+//    no-throttle switches cover the CONSEQUENCES; this kills the tracker itself.
+//  - OverscrollHistoryNavigation — a touchpad back-swipe would history.back()
+//    (same-origin → navGuard allows it) = accidental game-boundary reload
+//    mid-game. A game shell has no history UX; off.
+//  - BackForwardCache — the game-boundary full reload must not keep the
+//    previous heavy game document (module singletons, decoded atlases) alive
+//    in a hidden cache; pure memory win for a kiosk-style app.
+//  - IntensiveWakeUpThrottling — belt-and-suspenders next to the no-throttle
+//    switches: never quantize this app's timers to 1/min.
+//  - MediaRouter / DialMediaRouteProvider — Cast/DIAL discovery (periodic mDNS).
+//  - OptimizationHints — Chrome's optimization-guide fetch/eval.
+//  - Translate — page-translation machinery.
+//  - HardwareMediaKeyHandling — don't grab OS media keys (they keep controlling
+//    the user's music player instead of a game with no media UI).
+//  - SpareRendererForSitePerProcess — a pre-warmed SPARE renderer process is
+//    pure waste for a single-window app (a whole process competing for cores).
+const DISABLED_FEATURES = [
+  'CalculateNativeWinOcclusion',
+  'OverscrollHistoryNavigation',
+  'BackForwardCache',
+  'IntensiveWakeUpThrottling',
+  'MediaRouter',
+  'DialMediaRouteProvider',
+  'OptimizationHints',
+  'Translate',
+  'HardwareMediaKeyHandling',
+  'SpareRendererForSitePerProcess',
+];
+
+/**
+ * Append the tuned command-line switches. Call once, before 'ready'. Returns
+ * the applied switches as `--key[=value]` strings (echoed into the renderer
+ * console by main.ts so a packaged build can confirm what took effect).
+ */
+export function applyPerformanceSwitches(app: App): string[] {
   // DIAGNOSTIC kill-switch: TM_ELECTRON_NO_PERF=1 skips ALL of our tuning, so a run can be
   // compared against the vanilla-Electron GPU path. If the GPU falls back to software ONLY with
-  // our switches on (e.g. an aggressive flag crashes the GPU process on this driver), this run
-  // isolates that — vanilla should then report gpu_compositing: enabled.
+  // our switches on (e.g. a flag crashes the GPU process on this driver), this run isolates that.
   if (process.env.TM_ELECTRON_NO_PERF === '1') {
-    return;
+    return [];
   }
 
+  const applied: string[] = [];
   const sw = (key: string, value?: string): void => {
     if (value === undefined) {
       app.commandLine.appendSwitch(key);
+      applied.push(`--${key}`);
     } else {
       app.commandLine.appendSwitch(key, value);
+      applied.push(`--${key}=${value}`);
     }
   };
 
-  // ── GPU acceleration ──────────────────────────────────────────────────────
-  // Applied on WINDOWS (the GPU works there), and on Linux ONLY when a GPU-test opt-in is set
-  // (below). The Steam Deck DEFAULT is clean software rendering: measured on-device, under
-  // XWayland Chromium can't create a usable GL/EGL context ("No suitable EGL configs found"),
-  // so forcing the GPU just spawns a process that fails and falls back to software with extra
-  // churn — it made the Deck WORSE, not better. Native Wayland is the only thing that might
-  // actually enable it (opt-in below).
+  const extras = parseExtraSwitches(process.env.TM_ELECTRON_SWITCHES ?? '');
+
+  // A Linux GPU experiment is declared by passing a GL/display switch through
+  // TM_ELECTRON_SWITCHES (e.g. "ozone-platform=wayland;use-angle=vulkan" — the
+  // documented Steam Deck native-Wayland/Vulkan ladder). Then we must NOT apply
+  // --disable-gpu, and the GPU switch block applies instead.
   const linuxGpuTest = process.platform === 'linux' &&
-    ((process.env.TM_ELECTRON_OZONE ?? '').trim() !== '' ||
-     (process.env.TM_ELECTRON_GL ?? '').trim() !== '' ||
-     (process.env.TM_ELECTRON_ANGLE ?? '').trim() !== '');
+    extras.some((s) => s.key === 'ozone-platform' || s.key === 'use-gl' || s.key === 'use-angle');
+
+  // ── GPU path (Windows default; Linux only under an explicit experiment) ──
+  // The Steam Deck DEFAULT stays clean software rendering: measured on-device,
+  // under XWayland Chromium can't create a usable GL/EGL context, so forcing
+  // the GPU just spawns a process that fails and falls back to software with
+  // extra churn. Native Wayland (via TM_ELECTRON_SWITCHES) is the only thing
+  // that might enable it.
   if (process.platform === 'win32' || linuxGpuTest) {
     sw('ignore-gpu-blocklist');         // use the GPU even if the driver is blocklisted
     sw('enable-gpu-rasterization');     // rasterize paint on the GPU (Paint/Commit/GPUTask)
     sw('enable-zero-copy');             // zero-copy texture upload
     sw('enable-accelerated-2d-canvas'); // GPU-accelerate 2D canvas (endgame chart)
-
-    // GPU SELECTION on a dual-GPU laptop is SWITCHABLE — the discrete card is NOT always the
-    // right choice. On a hybrid-NVIDIA laptop the panel is usually wired to the iGPU, so forcing
-    // the dGPU adds a cross-adapter frame copy AND can trip NVIDIA's "Background Application Max
-    // Frame Rate" throttle on a PACKAGED .exe (it misclassifies the exe as background and caps it
-    // to ~30 FPS even in focus) — so the iGPU path is sometimes SMOOTHER for a light 2D board
-    // game. A/B it on the target box (confirm which card actually renders in chrome://gpu →
-    // GL_RENDERER):
-    //   TM_ELECTRON_GPU=high (DEFAULT) → force_high_performance_gpu (discrete — prior behaviour)
-    //   TM_ELECTRON_GPU=low            → force_low_power_gpu (integrated)
-    //   TM_ELECTRON_GPU=none           → neither (let the OS/driver decide)
-    const gpuPref = (process.env.TM_ELECTRON_GPU ?? 'high').trim().toLowerCase();
-    if (gpuPref === 'low') {
-      sw('force_low_power_gpu');
-    } else if (gpuPref !== 'none') {
-      sw('force_high_performance_gpu'); // default 'high' (and any unrecognised value)
-    }
+    // Discrete GPU preference. NOTE (measured on the target hybrid laptop): this
+    // Chromium preference does NOT override a Windows/driver-level GPU forcing —
+    // the RELIABLE per-exe selector is Windows Settings → Display → Graphics.
+    // Kept because on machines without an OS-level override it picks the right
+    // card for a game, and it's harmless when the OS decides anyway.
+    sw('force_high_performance_gpu');
+    // Raise cc's GPU memory budget: overlays mount 250-350 composited layers and
+    // the board is a huge layer at 3200×2000 — a conservative budget evicts and
+    // re-rasterizes tiles on every overlay open/close. Cheap on the known 8 GB
+    // dGPU / UMA iGPU targets.
+    sw('force-gpu-mem-available-mb', '4096');
+    // The GPU dump showed the `exit_on_context_lost` workaround: a D3D context
+    // loss (monitor hotplug / dock / driver reset) exits the GPU process. By
+    // default Chromium PERMANENTLY falls back to software after a few such
+    // crashes; a long-lived fullscreen session should keep recovering instead.
+    sw('disable-gpu-process-crash-limit');
   }
 
-  // Linux / Steam Deck DEFAULT: skip the GPU entirely. Chromium can't init a GL/EGL context
-  // here (XWayland → "No suitable EGL configs"), so a GPU process would only spawn, fail, and
-  // fall back to software with churn (a failing GPU process + repeated vsync errors).
-  // --disable-gpu goes straight to a clean software compositor. Auto-skipped when a GPU-test
-  // opt-in is set (then we WANT the GPU process); force it back on with TM_ELECTRON_KEEP_GPU=1.
-  if (process.platform === 'linux' && !linuxGpuTest && process.env.TM_ELECTRON_KEEP_GPU !== '1') {
+  // Linux / Steam Deck DEFAULT: skip the GPU entirely (see above) and give the
+  // SOFTWARE rasterizer explicit worker threads so tile raster runs in parallel
+  // across the Deck's 4 physical cores — the single biggest smoothness lever
+  // once the GPU is off. (Previously env-tunable; 4 measured best on-device.)
+  if (process.platform === 'linux' && !linuxGpuTest) {
     sw('disable-gpu');
-    // Software rendering leans on the CPU to rasterize every tile, and --disable-gpu drops the
-    // multi-threaded GPU raster path (the on-device GPU-status log shows
-    // "multiple_raster_threads":"disabled_off"). Give the SOFTWARE rasterizer explicit worker
-    // threads so tile raster runs in parallel across the Deck's cores — the single biggest
-    // smoothness lever once the GPU is off (scrolling, marker glides, board redraws). Default
-    // 4 = the Deck's physical cores; tune via TM_ELECTRON_RASTER_THREADS (0/empty leaves
-    // Chromium's conservative default).
-    const rasterThreads = (process.env.TM_ELECTRON_RASTER_THREADS ?? '4').trim();
-    if (/^[1-9]\d*$/.test(rasterThreads)) {
-      sw('num-raster-threads', rasterThreads);
-    }
+    sw('num-raster-threads', '4');
   }
 
-  // ── Steam Deck GPU experiments (Linux; opt-in, OFF by default) ────────────
-  // The Deck runs under XWayland where EGL config selection fails. Running NATIVELY on Wayland
-  // (gamescope IS Wayland) is the most likely fix — try TM_ELECTRON_OZONE=wayland first.
-  // Optionally add a GL backend: TM_ELECTRON_GL=angle + TM_ELECTRON_ANGLE=vulkan|gl. A wrong
-  // combo just falls back to software (check "gpu_compositing" in the GPU-status log line).
-  if (process.platform === 'linux') {
-    const ozone = (process.env.TM_ELECTRON_OZONE ?? '').trim().toLowerCase();
-    if (ozone !== '') {
-      sw('ozone-platform', ozone);
-      sw('enable-features', 'UseOzonePlatform');
-    }
-  }
-
-  // ── ANGLE backend selection (CROSS-PLATFORM — the key WINDOWS lever) ───────
-  // Windows defaults to ANGLE over D3D11 → DirectComposition → DWM. On a hybrid-NVIDIA /
-  // high-refresh / Win11-24H2 box THAT path is where the stutter lives (DWM+MPO flip-model
-  // thrash on a low-FPS app, the vsync/pacing mismatch). Switching the backend can SIDESTEP the
-  // problematic presentation path — Chrome's own flag notes OpenGL "may result in higher
-  // performance … particularly on NVIDIA GPUs". It is NOT a safe DEFAULT (D3D11 is the most
-  // tested path; a wrong combo silently falls back to D3D11 / software), so it is env-gated for
-  // on-device A/B. ALWAYS confirm it actually took in chrome://gpu before trusting a result:
-  //   TM_ELECTRON_ANGLE=gl        → native OpenGL driver (try FIRST on NVIDIA)
-  //   TM_ELECTRON_ANGLE=vulkan    → Vulkan (lower CPU; can be unstable / blank on Windows)
-  //   TM_ELECTRON_ANGLE=d3d11on12 → D3D11-on-12 presentation path
-  //   TM_ELECTRON_ANGLE=d3d9      → legacy D3D9 (sometimes dodges the MPO jitter on a 2D scene)
-  // TM_ELECTRON_GL is the lower-level gl-implementation knob (e.g. 'angle', 'desktop', 'egl');
-  // usually leave it unset and only set TM_ELECTRON_ANGLE.
-  const glImpl = (process.env.TM_ELECTRON_GL ?? '').trim().toLowerCase();
-  if (glImpl !== '') {
-    sw('use-gl', glImpl);
-  }
-  const angleBackend = (process.env.TM_ELECTRON_ANGLE ?? '').trim().toLowerCase();
-  if (angleBackend !== '') {
-    sw('use-angle', angleBackend);
-  }
-
-  // ── Chromium rasterization backend: Skia GRAPHITE (ON BY DEFAULT on Windows) ─
-  // The fix for THIS app's jank: a layer-heavy premium UI stutters under the Windows
-  // DirectComposition compositor because the legacy Ganesh/GL rasterizer manages the many
-  // composited layers (50+ during a card deal, 250-350 with an overlay open) poorly. Graphite is
-  // Chrome's next-gen MULTI-THREADED rasterizer on D3D12/Dawn that handles layers far better
-  // (`skia_graphite` was `disabled_off`). Enabled by default on Windows; on Linux/Deck the
-  // compositor is software (--disable-gpu) so Graphite doesn't apply. Override / roll back:
-  //   TM_ELECTRON_FEATURES="SkiaGraphite,RawDraw"  → add features
-  //   TM_ELECTRON_FEATURES="none" (or "off")       → disable, fall back to Ganesh (the rollback)
-  // `SkiaGraphitePrecompilation` rides along on Windows: Graphite's built-in up-front pipeline
-  // compilation, aimed at the first-use shader stutter (measured neutral-to-positive on device,
-  // never harmful — an unknown feature name is silently ignored, unlike RawDraw which is
-  // INCOMPATIBLE with gpu-rasterization and white-screens).
+  // ── Feature lists (ONE call each — appendSwitch replaces same-key values) ─
   const featuresRaw = (process.env.TM_ELECTRON_FEATURES ?? '').trim();
   let features: string;
   if (featuresRaw === '') {
-    features = process.platform === 'win32' ? 'SkiaGraphite,SkiaGraphitePrecompilation' : '';
+    features = process.platform === 'win32' ? WINDOWS_ENABLED_FEATURES : '';
   } else if (featuresRaw.toLowerCase() === 'none' || featuresRaw.toLowerCase() === 'off') {
     features = '';
   } else {
@@ -154,6 +199,7 @@ export function applyPerformanceSwitches(app: App): void {
   if (features !== '') {
     sw('enable-features', features);
   }
+  sw('disable-features', DISABLED_FEATURES.join(','));
 
   // ── No renderer throttling (fullscreen game) ─────────────────────────────
   // A fullscreen game must stay at full rate when briefly occluded / unfocused
@@ -163,57 +209,46 @@ export function applyPerformanceSwitches(app: App): void {
   sw('disable-renderer-backgrounding');
   sw('disable-backgrounding-occluded-windows');
 
-  // ── Trim background work (Steam Deck) ─────────────────────────────────────
+  // ── Trim background work (both platforms now) ─────────────────────────────
   // A local, self-hosted game client needs NONE of Chromium's background network
-  // services — safe-browsing list updates, the component/Widevine updater, domain
-  // reliability beacons, field-trial fetches. On a handheld they wake the CPU (and
-  // radio) for nothing and steal cycles from the software rasterizer. Disable the
-  // whole umbrella. Our OWN API/WS traffic + electron-updater are UNAFFECTED — those
-  // are explicit app requests, not Chromium "background networking".
-  if (process.platform === 'linux') {
-    sw('disable-background-networking');
+  // services — safe-browsing list updates, component updater, domain reliability
+  // beacons, field-trial fetches. They wake the CPU for nothing and add timer
+  // jitter. Our OWN API/WS traffic + the updater are UNAFFECTED — those are
+  // explicit app requests, not Chromium "background networking".
+  sw('disable-background-networking');
 
-    // Turn off Chromium subsystems this game NEVER uses — each otherwise keeps a
-    // timer / discovery scan / helper process alive that steals cycles (and memory)
-    // from the software rasterizer on the Deck's 4 cores. All safe to drop for a
-    // local, single-window board game; NONE affect gameplay:
-    //   MediaRouter / DialMediaRouteProvider — Cast/DIAL device discovery (periodic mDNS)
-    //   OptimizationHints                    — Chrome's ML optimization-guide fetch/eval
-    //   Translate                            — page-translation machinery
-    //   HardwareMediaKeyHandling             — OS media-key integration
-    //   SpareRendererForSitePerProcess       — a pre-warmed SPARE renderer PROCESS: pure
-    //                                          waste for a single-window app (a whole
-    //                                          process + its memory competing for cores)
-    sw('disable-features', [
-      'MediaRouter',
-      'DialMediaRouteProvider',
-      'OptimizationHints',
-      'Translate',
-      'HardwareMediaKeyHandling',
-      'SpareRendererForSitePerProcess',
-    ].join(','));
+  // ── Input path ────────────────────────────────────────────────────────────
+  // The IPC flooding protection quantizes dense input bursts — built against
+  // hostile web pages, pointless for trusted content, and the console mode
+  // synthesizes dense gamepad→nav/scroll event streams.
+  sw('disable-ipc-flooding-protection');
+  // No accessibility-tree consumer exists for a personal game shell, but any
+  // external probe (Narrator, TabTip, some AV/overlay tools) can flip the
+  // renderer into a11y mode — building the tree over hundreds of card nodes is
+  // a periodic main-thread jank source that looks like "random freezes".
+  sw('disable-renderer-accessibility');
+
+  // ── Raster / color consistency ────────────────────────────────────────────
+  // The game art is authored sRGB; on wide-gamut/HDR laptop panels Chromium's
+  // color management adds per-frame conversion and can pick costlier surface
+  // formats. Forcing sRGB removes that tax and renders identically everywhere.
+  // (If colors ever look subtly duller than intended on a wide-gamut panel,
+  // this is the switch to revisit — override via TM_ELECTRON_SWITCHES.)
+  sw('force-color-profile', 'srgb');
+
+  // ── V8: calmer young-generation GC ───────────────────────────────────────
+  // Mount bursts (50-card overlays, deal cinematics) churn short-lived objects;
+  // a 64 MB semi-space cuts minor-GC frequency ~4× during them. This was the
+  // Steam Deck wrapper's measured tuning — now the built-in default on both
+  // platforms (the wrapper's TM_ELECTRON_JS_FLAGS export is obsolete/inert).
+  sw('js-flags', '--max-semi-space-size=64');
+
+  // ── TM_ELECTRON_SWITCHES escape hatch — LAST, so same-key extras override ─
+  for (const extra of extras) {
+    sw(extra.key, extra.value);
   }
 
-  // ── Aggressive opt-ins (env-gated; off by default) ───────────────────────
-  // Uncap the frame rate — smoother pointer/scroll, but more GPU/CPU + heat.
-  if (process.env.TM_ELECTRON_UNCAP_FPS === '1') {
-    sw('disable-frame-rate-limit');
-  }
-  // Force the GPU path with NO software rasterizer fallback. Squeezes the most
-  // out of a known-good GPU, but a blank screen if GPU init ever fails — so it's
-  // opt-in, never the default.
-  if (process.env.TM_ELECTRON_FORCE_GPU === '1') {
-    sw('disable-software-rasterizer');
-  }
-  // Pass arbitrary V8 flags through for on-device tuning WITHOUT a rebuild — e.g. GC / heap
-  // experiments to chase mid-session jank:
-  //   TM_ELECTRON_JS_FLAGS="--max-old-space-size=512"   (fewer, bigger GCs)
-  //   TM_ELECTRON_JS_FLAGS="--max-semi-space-size=64"   (larger young-gen → fewer minor GCs)
-  // Off by default; whatever is set is handed to V8 verbatim.
-  const jsFlags = (process.env.TM_ELECTRON_JS_FLAGS ?? '').trim();
-  if (jsFlags !== '') {
-    sw('js-flags', jsFlags);
-  }
+  return applied;
 }
 
 /**

@@ -14,7 +14,7 @@
 // Self-contained: imports only from 'electron', Node built-ins, and the sibling
 // protocol module — no @/ path-alias rewriting, a plain `tsc -p` compiles it.
 
-import {app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
+import {app, BrowserWindow, Menu, powerSaveBlocker, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
 import * as path from 'path';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {enforceVersionScopedCache} from './cacheVersion';
@@ -45,8 +45,10 @@ try {
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';
 // module top-level runs well before then. Desktop-only; browser build untouched.
-// (Behaviour is env-configurable via TM_ELECTRON_* — see perf.ts.)
-applyPerformanceSwitches(app);
+// The tuned set is the DEFAULT; escape hatches are TM_ELECTRON_NO_PERF /
+// TM_ELECTRON_FEATURES / TM_ELECTRON_SWITCHES — see perf.ts. The applied list is
+// kept so it can be echoed into the renderer console for on-device verification.
+const appliedPerfSwitches = applyPerformanceSwitches(app);
 
 // Steam Deck / SteamOS: the Chromium sandbox can't initialize under gamescope, so the game
 // is launched with --no-sandbox by the user's wrapper. Apply it IN-PROCESS on Linux too, so
@@ -128,12 +130,44 @@ const FULLSCREEN = process.env.TM_ELECTRON_WINDOWED !== '1';
 
 let mainWindow: BrowserWindow | undefined;
 
+// The settled "[TM perf]" payload (applied switches + GPU feature status),
+// stringified once when the GPU status settles (signalGpuReadyWhenLive) and
+// re-echoed into the renderer console on every page load — game-boundary
+// reloads clear the DevTools console, and F12 → Console must show the tuning
+// state at any point in the session.
+let perfEchoPayload: string | undefined;
+
+// Display power-save blocker, held only while the game window is focused (see
+// the focus/blur wiring in createWindow). Module-level so 'closed' can release it.
+let displayBlockerId: number | undefined;
+
+function startDisplayBlocker(): void {
+  if (displayBlockerId === undefined) {
+    displayBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+  }
+}
+
+function stopDisplayBlocker(): void {
+  if (displayBlockerId !== undefined) {
+    if (powerSaveBlocker.isStarted(displayBlockerId)) {
+      powerSaveBlocker.stop(displayBlockerId);
+    }
+    displayBlockerId = undefined;
+  }
+}
+
 /**
  * Poll the GPU feature status until compositing is actually live, then signal the
  * renderer (window `tm-gpu-ready` event + `__tmGpuReady` flag). The boot warm-up
  * waits for this before rendering its cards, so their Graphite pipelines compile
  * on the ready GPU instead of the software path during GPU-process init. Bounded
  * (~4s cap) and fires exactly once — never hangs the loader.
+ *
+ * The same terminal signal also echoes a `[TM perf]` line into the RENDERER
+ * console (main-process stdout is invisible in a packaged build): the applied
+ * perf switches + the SETTLED GPU feature status. Deliberately emitted here and
+ * not on did-finish-load — an early read during the ~330ms GPU-process init
+ * reports a misleading "software" status.
  */
 function signalGpuReadyWhenLive(win: BrowserWindow, attempts = 0): void {
   if (win.isDestroyed()) {
@@ -146,8 +180,17 @@ function signalGpuReadyWhenLive(win: BrowserWindow, attempts = 0): void {
     // getGPUFeatureStatus can throw very early — treat as not-ready yet.
   }
   if (live || attempts >= 40) {
+    let gpu: unknown;
+    try {
+      gpu = app.getGPUFeatureStatus();
+    } catch {
+      gpu = 'unavailable';
+    }
+    perfEchoPayload = JSON.stringify({switches: appliedPerfSwitches, gpu});
     void win.webContents
-      .executeJavaScript('window.__tmGpuReady = true; window.dispatchEvent(new Event("tm-gpu-ready"));')
+      .executeJavaScript(
+        'window.__tmGpuReady = true; window.dispatchEvent(new Event("tm-gpu-ready"));' +
+        `console.info('[TM perf]', ${perfEchoPayload});`)
       .catch(() => {/* frame gone */});
     return;
   }
@@ -177,6 +220,15 @@ function createWindow(): void {
       // or unfocused — keeps animations smooth on return (pairs with the
       // disable-*-backgrounding switches in perf.ts).
       backgroundThrottling: false,
+      // No editable game field needs the OS spellchecker — it initializes the
+      // Windows spellcheck service / loads hunspell dictionaries and adds IPC
+      // round-trips on every input field for nothing.
+      spellcheck: false,
+      // Cache V8 bytecode aggressively (default caches only "hot" scripts): the
+      // bundle is large and the game boundary is a FULL reload, so every entry
+      // into a game recompiles it — the bytecode cache cuts that main-thread
+      // cost. cacheVersion.ts clears this cache on a new build (clearCodeCaches).
+      v8CacheOptions: 'bypassHeatCheck',
       // Passed to the sandboxed preload via process.argv (no Node/IPC needed
       // just to read config). apiBase/wsBase are not secrets; participantId is
       // a local dev token only.
@@ -184,7 +236,46 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+    startDisplayBlocker();
+  });
+
+  // Keep the display awake while the game window is focused — a board-game turn
+  // can sit idle past the OS display-sleep timeout. Focus-gated so an alt-tabbed
+  // session doesn't pin the screen on. (On the Deck gamescope owns the display;
+  // the blocker is a harmless no-op there.)
+  mainWindow.on('focus', startDisplayBlocker);
+  mainWindow.on('blur', stopDisplayBlocker);
+
+  // F12 toggles DevTools even in the packaged fullscreen build — the one
+  // accelerator kept after dropping the default application menu. It's how the
+  // on-device "[TM perf]" echo and ?perf=1 long-task logs are read.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F12') {
+      event.preventDefault();
+      const wc = mainWindow?.webContents;
+      if (wc !== undefined) {
+        if (wc.isDevToolsOpened()) {
+          wc.closeDevTools();
+        } else {
+          wc.openDevTools({mode: 'detach'});
+        }
+      }
+    }
+  });
+
+  // Re-echo the settled "[TM perf]" line on every page load — game-boundary
+  // reloads clear the DevTools console, and this keeps the tuning state
+  // inspectable mid-session. (Before the GPU status settles the payload is
+  // undefined and the first echo comes from signalGpuReadyWhenLive instead.)
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (perfEchoPayload !== undefined) {
+      void mainWindow?.webContents
+        .executeJavaScript(`console.info('[TM perf]', ${perfEchoPayload});`)
+        .catch(() => {/* frame gone */});
+    }
+  });
 
   // External links open in the system browser — never as in-window content.
   mainWindow.webContents.setWindowOpenHandler(({url}) => {
@@ -226,6 +317,7 @@ function createWindow(): void {
   }
 
   mainWindow.on('closed', () => {
+    stopDisplayBlocker();
     mainWindow = undefined;
   });
 }
@@ -296,6 +388,13 @@ if (!app.requestSingleInstanceLock()) {
   app.setAppUserModelId('io.github.victor-zelinskiy.terraforming-mars');
 
   void app.whenReady().then(async () => {
+    // Drop the default application menu (Windows/Linux): a game shell needs none
+    // of its accelerators, and the dangerous ones actively hurt — Ctrl+R is an
+    // accidental game-boundary reload mid-game, F11 fights the fullscreen
+    // enforcement. DevTools access is re-provided explicitly via F12 (createWindow).
+    if (process.platform !== 'darwin') {
+      Menu.setApplicationMenu(null);
+    }
     if (APP_LOAD) {
       // Immutable art/font caching only in a packaged build; dev uses a short TTL
       // so edited assets still refresh (see protocol.cacheControl).

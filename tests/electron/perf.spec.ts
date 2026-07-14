@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches} from '../../electron/perf';
+import {applyPerformanceSwitches, parseExtraSwitches} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -15,14 +15,17 @@ function fakeApp() {
   };
 }
 
+// appendSwitch REPLACES same-key values in real Electron — the effective value
+// of a key is the LAST recorded one.
+function effectiveValue(app: ReturnType<typeof fakeApp>, key: string): string | undefined {
+  const hits = app.switches.filter((s) => s.key === key);
+  return hits.length === 0 ? undefined : hits[hits.length - 1].value;
+}
+
 describe('electron/perf', () => {
-  // Every TM_ELECTRON_* knob the switch builder reads — snapshot before the suite, CLEAR before
+  // Every env knob the switch builder reads — snapshot before the suite, CLEAR before
   // each test (so a leaked value can't bleed across cases), restore after.
-  const ENV_KEYS = [
-    'TM_ELECTRON_UNCAP_FPS', 'TM_ELECTRON_FORCE_GPU',
-    'TM_ELECTRON_GPU', 'TM_ELECTRON_ANGLE', 'TM_ELECTRON_GL', 'TM_ELECTRON_NO_PERF',
-    'TM_ELECTRON_FEATURES',
-  ] as const;
+  const ENV_KEYS = ['TM_ELECTRON_NO_PERF', 'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES'] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
     saved[k] = process.env[k];
@@ -58,9 +61,7 @@ describe('electron/perf', () => {
     }
   }
 
-  it('Windows: GPU acceleration + no-throttle switches', () => {
-    delete process.env.TM_ELECTRON_UNCAP_FPS;
-    delete process.env.TM_ELECTRON_FORCE_GPU;
+  it('Windows: GPU + presentation + no-throttle defaults', () => {
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
@@ -68,149 +69,171 @@ describe('electron/perf', () => {
       for (const expected of [
         'ignore-gpu-blocklist', 'enable-gpu-rasterization', 'enable-zero-copy',
         'enable-accelerated-2d-canvas', 'force_high_performance_gpu',
+        'force-gpu-mem-available-mb', 'disable-gpu-process-crash-limit',
         'disable-background-timer-throttling', 'disable-renderer-backgrounding',
-        'disable-backgrounding-occluded-windows',
+        'disable-backgrounding-occluded-windows', 'disable-background-networking',
+        'disable-ipc-flooding-protection', 'disable-renderer-accessibility',
+        'force-color-profile', 'js-flags',
       ]) {
         expect(keys, expected).to.include(expected);
       }
       expect(keys).to.not.include('disable-gpu');
+      expect(effectiveValue(app, 'force-gpu-mem-available-mb')).to.equal('4096');
+      expect(effectiveValue(app, 'force-color-profile')).to.equal('srgb');
+      expect(effectiveValue(app, 'js-flags')).to.equal('--max-semi-space-size=64');
     });
   });
 
-  it('Linux/Steam Deck: software rendering + background trims + no-throttle switches', () => {
-    delete process.env.TM_ELECTRON_UNCAP_FPS;
-    delete process.env.TM_ELECTRON_FORCE_GPU;
+  it('Windows: enables Graphite + precompilation + the waitable swap chain by default', () => {
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(effectiveValue(app, 'enable-features')).to.equal(
+        'SkiaGraphite,SkiaGraphitePrecompilation,DXGIWaitableSwapChain:DXGIWaitableSwapChainMaxQueuedFrames/2');
+    });
+  });
+
+  it('disables the occlusion tracker / BFCache / overscroll-nav / background services (one merged list, both platforms)', () => {
+    for (const platform of ['win32', 'linux']) {
+      withPlatform(platform, () => {
+        const app = fakeApp();
+        applyPerformanceSwitches(app as never);
+        const disabled = effectiveValue(app, 'disable-features');
+        expect(disabled, platform).to.be.a('string');
+        for (const feature of [
+          'CalculateNativeWinOcclusion', 'OverscrollHistoryNavigation', 'BackForwardCache',
+          'IntensiveWakeUpThrottling', 'MediaRouter', 'DialMediaRouteProvider',
+          'OptimizationHints', 'Translate', 'HardwareMediaKeyHandling',
+          'SpareRendererForSitePerProcess',
+        ]) {
+          expect(disabled, `${platform}: ${feature}`).to.include(feature);
+        }
+        // exactly ONE disable-features append — a second call would REPLACE the first
+        expect(app.switches.filter((s) => s.key === 'disable-features')).to.have.length(1);
+      });
+    }
+  });
+
+  it('Linux/Steam Deck: software rendering + raster threads, no GPU switches, no Graphite', () => {
     withPlatform('linux', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
       const keys = app.switches.map((s) => s.key);
       for (const expected of [
-        'disable-gpu', 'num-raster-threads', 'disable-background-networking', 'disable-features',
+        'disable-gpu', 'num-raster-threads', 'disable-background-networking',
         'disable-background-timer-throttling', 'disable-renderer-backgrounding',
-        'disable-backgrounding-occluded-windows',
+        'disable-backgrounding-occluded-windows', 'disable-ipc-flooding-protection',
       ]) {
         expect(keys, expected).to.include(expected);
       }
+      expect(effectiveValue(app, 'num-raster-threads')).to.equal('4');
       expect(keys).to.not.include('ignore-gpu-blocklist');
+      expect(keys).to.not.include('enable-features');
     });
   });
 
-  it('leaves the aggressive switches OFF by default', () => {
-    delete process.env.TM_ELECTRON_UNCAP_FPS;
-    delete process.env.TM_ELECTRON_FORCE_GPU;
-    const app = fakeApp();
-    applyPerformanceSwitches(app as never);
-    const keys = app.switches.map((s) => s.key);
-    expect(keys).to.not.include('disable-frame-rate-limit');
-    expect(keys).to.not.include('disable-software-rasterizer');
-  });
-
-  it('enables the aggressive switches under their env opt-ins', () => {
-    process.env.TM_ELECTRON_UNCAP_FPS = '1';
-    process.env.TM_ELECTRON_FORCE_GPU = '1';
-    const app = fakeApp();
-    applyPerformanceSwitches(app as never);
-    const keys = app.switches.map((s) => s.key);
-    expect(keys).to.include('disable-frame-rate-limit');
-    expect(keys).to.include('disable-software-rasterizer');
-  });
-
-  it('Windows: TM_ELECTRON_GPU=low forces the integrated GPU (not the discrete one)', () => {
-    process.env.TM_ELECTRON_GPU = 'low';
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      const keys = app.switches.map((s) => s.key);
-      expect(keys).to.include('force_low_power_gpu');
-      expect(keys).to.not.include('force_high_performance_gpu');
-    });
-  });
-
-  it('Windows: TM_ELECTRON_GPU=none forces neither GPU (OS/driver decides)', () => {
-    process.env.TM_ELECTRON_GPU = 'none';
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      const keys = app.switches.map((s) => s.key);
-      expect(keys).to.not.include('force_low_power_gpu');
-      expect(keys).to.not.include('force_high_performance_gpu');
-      // still GPU-accelerated — only the SELECTION knob changed
-      expect(keys).to.include('enable-gpu-rasterization');
-    });
-  });
-
-  it('Windows: default (no TM_ELECTRON_GPU) keeps forcing the discrete GPU', () => {
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      const keys = app.switches.map((s) => s.key);
-      expect(keys).to.include('force_high_performance_gpu');
-      expect(keys).to.not.include('force_low_power_gpu');
-    });
-  });
-
-  it('Windows: TM_ELECTRON_ANGLE=gl selects the OpenGL ANGLE backend', () => {
-    process.env.TM_ELECTRON_ANGLE = 'gl';
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches).to.deep.include({key: 'use-angle', value: 'gl'});
-    });
-  });
-
-  it('does not select an ANGLE backend by default', () => {
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches.map((s) => s.key)).to.not.include('use-angle');
-    });
-  });
-
-  it('Windows: enables Skia Graphite (+ precompilation) by default', () => {
-    withPlatform('win32', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite,SkiaGraphitePrecompilation'});
-    });
-  });
-
-  it('Linux: does NOT enable Skia Graphite (software compositor)', () => {
-    withPlatform('linux', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches.filter((s) => s.key === 'enable-features')).to.have.length(0);
-    });
+  it('leaves the uncap / no-fallback switches OFF (expressible via TM_ELECTRON_SWITCHES)', () => {
+    for (const platform of ['win32', 'linux']) {
+      withPlatform(platform, () => {
+        const app = fakeApp();
+        applyPerformanceSwitches(app as never);
+        const keys = app.switches.map((s) => s.key);
+        expect(keys).to.not.include('disable-frame-rate-limit');
+        expect(keys).to.not.include('disable-software-rasterizer');
+        expect(keys).to.not.include('use-angle');
+        expect(keys).to.not.include('disable-direct-composition');
+      });
+    }
   });
 
   it('TM_ELECTRON_FEATURES overrides the default feature list', () => {
-    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite,RawDraw';
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
-      expect(app.switches).to.deep.include({key: 'enable-features', value: 'SkiaGraphite,RawDraw'});
+      expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite');
     });
   });
 
-  it('TM_ELECTRON_FEATURES=none rolls Graphite back (no enable-features)', () => {
+  it('TM_ELECTRON_FEATURES=none rolls the feature list back (other defaults stay)', () => {
     process.env.TM_ELECTRON_FEATURES = 'none';
     withPlatform('win32', () => {
       const app = fakeApp();
       applyPerformanceSwitches(app as never);
-      expect(app.switches.filter((s) => s.key === 'enable-features')).to.have.length(0);
+      const keys = app.switches.map((s) => s.key);
+      expect(keys).to.not.include('enable-features');
+      expect(keys).to.include('disable-features');
+      expect(keys).to.include('enable-gpu-rasterization');
+    });
+  });
+
+  it('TM_ELECTRON_SWITCHES appends extras LAST so they override same-key defaults', () => {
+    process.env.TM_ELECTRON_SWITCHES = 'disable-direct-composition;force-color-profile=display-p3';
+    withPlatform('win32', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      expect(app.switches.map((s) => s.key)).to.include('disable-direct-composition');
+      expect(effectiveValue(app, 'force-color-profile')).to.equal('display-p3');
+    });
+  });
+
+  it('Linux: a GL/display switch in TM_ELECTRON_SWITCHES declares a GPU experiment (no disable-gpu)', () => {
+    process.env.TM_ELECTRON_SWITCHES = 'ozone-platform=wayland;use-angle=vulkan';
+    process.env.TM_ELECTRON_FEATURES = 'SkiaGraphite';
+    withPlatform('linux', () => {
+      const app = fakeApp();
+      applyPerformanceSwitches(app as never);
+      const keys = app.switches.map((s) => s.key);
+      expect(keys).to.not.include('disable-gpu');
+      expect(keys).to.include('ignore-gpu-blocklist');
+      expect(effectiveValue(app, 'ozone-platform')).to.equal('wayland');
+      expect(effectiveValue(app, 'use-angle')).to.equal('vulkan');
+      expect(effectiveValue(app, 'enable-features')).to.equal('SkiaGraphite');
     });
   });
 
   it('TM_ELECTRON_NO_PERF=1 appends NO switches (vanilla-Electron baseline)', () => {
     process.env.TM_ELECTRON_NO_PERF = '1';
+    process.env.TM_ELECTRON_SWITCHES = 'disable-direct-composition';
+    for (const platform of ['win32', 'linux']) {
+      withPlatform(platform, () => {
+        const app = fakeApp();
+        const applied = applyPerformanceSwitches(app as never);
+        expect(app.switches).to.have.length(0);
+        expect(applied).to.have.length(0);
+      });
+    }
+  });
+
+  it('returns the applied switches as --key[=value] strings (the renderer-console echo)', () => {
     withPlatform('win32', () => {
       const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches).to.have.length(0);
+      const applied = applyPerformanceSwitches(app as never);
+      expect(applied).to.have.length(app.switches.length);
+      expect(applied).to.include('--force-color-profile=srgb');
+      expect(applied).to.include('--ignore-gpu-blocklist');
     });
-    withPlatform('linux', () => {
-      const app = fakeApp();
-      applyPerformanceSwitches(app as never);
-      expect(app.switches).to.have.length(0);
+  });
+
+  describe('parseExtraSwitches', () => {
+    it('parses key / key=value tokens, splitting on the FIRST = only', () => {
+      expect(parseExtraSwitches('disable-direct-composition;use-angle=vulkan;js-flags=--max-old-space-size=1024'))
+        .to.deep.equal([
+          {key: 'disable-direct-composition'},
+          {key: 'use-angle', value: 'vulkan'},
+          {key: 'js-flags', value: '--max-old-space-size=1024'},
+        ]);
+    });
+
+    it('tolerates whitespace, blank segments and a leading --', () => {
+      expect(parseExtraSwitches(' --disable-gpu-vsync ; ;use-gl=egl; ')).to.deep.equal([
+        {key: 'disable-gpu-vsync'},
+        {key: 'use-gl', value: 'egl'},
+      ]);
+    });
+
+    it('returns [] for an empty string', () => {
+      expect(parseExtraSwitches('')).to.deep.equal([]);
     });
   });
 });
