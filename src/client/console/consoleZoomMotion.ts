@@ -42,6 +42,43 @@ function zlog(msg: string): void {
   console.warn(`%c[TM-DIAG zoom] ${msg}`, 'color:#38bdf8');
 }
 
+/**
+ * TEMPORARY decisive dump (see DIAGNOSTIC_CLEANUP.md): ~1.3s after an open —
+ * i.e. AFTER the FLIP has finished — snapshot the full VISUAL state of the
+ * dialog/stage/card. Separates "element invisible by style" (our bug, fixable)
+ * from "styles perfect but pixels not painted" (compositor bug).
+ */
+function zdump(dialog: HTMLElement): void {
+  try {
+    const stage = stageEl(dialog);
+    const card = stage?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+    const cs = (el: Element | null) => {
+      if (el === null) {
+        return 'null';
+      }
+      const s = getComputedStyle(el);
+      const r = (el as HTMLElement).getBoundingClientRect();
+      return `rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}` +
+        ` opacity=${s.opacity} visibility=${s.visibility} display=${s.display} transform=${s.transform}` +
+        ` zIndex=${s.zIndex} filter=${s.filter} clipPath=${s.clipPath} contain=${s.contain}`;
+    };
+    const cx = Math.round(window.innerWidth / 2);
+    const cy = Math.round(window.innerHeight / 2);
+    const atCenter = document.elementFromPoint(cx, cy);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `%c[TM-DIAG zoom DUMP]\n` +
+      `dialog.open=${(dialog as HTMLDialogElement).open} | dialog: ${cs(dialog)}\n` +
+      `stage: ${cs(stage)}\n` +
+      `card: ${cs(card)} | cardChildren=${card?.childElementCount ?? -1}\n` +
+      `elementFromPoint(center ${cx},${cy})=${atCenter !== null ? atCenter.tagName + '.' + String((atCenter as HTMLElement).className).slice(0, 80) : 'null'}`,
+      'color:#f472b6;font-weight:bold');
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[TM-DIAG zoom DUMP] failed', err);
+  }
+}
+
 type ZoomMotionCtx = {
   tween?: gsap.core.Tween | gsap.core.Timeline,
   heldSlot?: HTMLElement,
@@ -116,6 +153,10 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
   };
   const stage = dialog !== undefined ? stageEl(dialog) : null;
   zlog(`open: dialog=${dialog !== undefined} stage=${stage !== null} origin=${origin.kind} index=${index}`);
+  // Decisive visual-state dump AFTER the flight has settled (temporary).
+  if (dialog !== undefined) {
+    setTimeout(() => zdump(dialog), motionMs(380) + 900);
+  }
   // SAFETY: settle the chrome AND force the stage visible. The open path hides
   // the stage (`autoAlpha: 0`) and only restores it inside the tween after two
   // rAFs — if anything derails in between (a bail, a killed tween, a zero
