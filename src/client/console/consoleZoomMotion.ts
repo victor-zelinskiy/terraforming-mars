@@ -4,26 +4,47 @@
  * cardDealDirector: GSAP owns the STAGED one-shot transitions, the modal's
  * own WAAPI slide owns the LB/RB browsing, CSS owns the chrome fades.
  *
+ * ── THE OPEN IS PROXY-FIRST, THE DIALOG OPENS VANILLA (load-bearing) ──
+ * The dialog's `showModal()` is called ONLY at the flight's touchdown, so
+ * its very first top-layer frame is the FINAL state: stage fully visible,
+ * untransformed, no animating ::backdrop. The premium lift flies a PROXY
+ * (CardZoomCard hosted by ConsoleShell on `.con-zoom-flight-layer`, a
+ * normal fixed layer) — the same pattern as every other console flight
+ * (deal / exit / board-bonus). This is the fix for the Graphite first-open
+ * bug (ZOOM_BUG_HANDOFF.md): a fresh top-layer dialog whose stage was born
+ * hidden and GSAP-transformed (+ an animated ::backdrop) on its first
+ * frames could come up with a DEAD compositor surface on Windows —
+ * DOM/styles perfect, pixels never presented, unrecoverable by any DOM
+ * nudge. The mouse path (a vanilla static showModal) never hit it; the
+ * console open is now compositor-equivalent to that proven shape. NEVER
+ * reintroduce a transform/opacity reveal of the real stage during the
+ * dialog's first frames, and never re-animate `::backdrop` on open.
+ *
  * Modes (consoleCardZoom.ts → ZoomOrigin):
- *  physical — FLIP lift: the REAL fullscreen stage (`.card-zoom-stage`, the
- *      parent of the persistent card) starts transformed onto the source
- *      slot's rect and expands to identity — the same card, same art, same
- *      title, physically taken off the table. Close plays the reverse
- *      flight into the slot of the card CURRENTLY on screen (re-resolved
- *      live). The slot itself is HELD invisible while its card is "in the
- *      player's hands" (`.con-zoom-hold`), re-targeted on every browse.
- *  textual / none — the inspector rise: scale/translate from depth + fade.
- *      No fake collapse into a nonexistent slot.
+ *  physical — FLIP lift: the proxy starts on the source slot's rect and
+ *      expands onto the measured landing rect (CardZoomModal.measureLanding
+ *      — the closed dialog laid out invisibly, so the fit engine's real
+ *      geometry is known before anything paints); `showModal()` fires on
+ *      touchdown, the top layer covers the proxy, the shell removes it.
+ *      Close plays the reverse flight (on the REAL stage — the surface is
+ *      long-established by then, that path never bugged) into the slot of
+ *      the card CURRENTLY on screen (re-resolved live). The slot itself is
+ *      HELD invisible while its card is "in the player's hands"
+ *      (`.con-zoom-hold`), re-targeted on every browse.
+ *  textual / none — the inspector rise: the proxy scales/translates from
+ *      depth + fades at the landing spot; same touchdown hand-off. No fake
+ *      collapse into a nonexistent slot on close.
  *
  * Contracts:
- *  - transform/opacity only; the flight rides the stage WRAPPER while the
- *    browse slide rides the card CHILD — nested transforms, never a fight;
+ *  - transform/opacity only; the open rides the PROXY, the close rides the
+ *    stage WRAPPER while the browse slide rides the card CHILD — nested
+ *    transforms, never a fight;
  *  - the dialog chrome (counter / arrows / actions panel) is hidden by the
  *    host's `--flight` class during open and fades in only after the card
  *    lands ("fullscreen content appears when visually justified");
  *  - idempotent + zombie-safe: one module-level ctx; a new open/close kills
  *    the previous timeline; `releaseZoomMotion` restores every held slot;
- *  - reduced motion: short fades (≤160ms), no flights;
+ *  - reduced motion: no flights — the dialog opens vanilla immediately;
  *  - all durations resolve through motionMs (speed presets scale in step).
  */
 
@@ -47,7 +68,7 @@ function zlog(msg: string): void {
  * dialog/stage/card. Separates "element invisible by style" (our bug, fixable)
  * from "styles perfect but pixels not painted" (compositor bug).
  */
-function zdump(dialog: HTMLElement): void {
+export function zdump(dialog: HTMLElement): void {
   try {
     const stage = stageEl(dialog);
     const card = stage?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
@@ -134,6 +155,8 @@ type ZoomMotionCtx = {
   heldSlot?: HTMLElement,
   origin?: ZoomOrigin,
   closing: boolean,
+  /** The open flight's stall-safety timer (show+settle must always happen). */
+  openSafety?: number,
 };
 
 const ctx: ZoomMotionCtx = {closing: false};
@@ -141,6 +164,13 @@ const ctx: ZoomMotionCtx = {closing: false};
 function killTween(): void {
   ctx.tween?.kill();
   ctx.tween = undefined;
+}
+
+function clearOpenSafety(): void {
+  if (ctx.openSafety !== undefined) {
+    window.clearTimeout(ctx.openSafety);
+    ctx.openSafety = undefined;
+  }
 }
 
 function holdSlot(el: HTMLElement | null): void {
@@ -183,113 +213,114 @@ function stageEl(dialog: HTMLElement): HTMLElement | null {
   return dialog.querySelector<HTMLElement>('.card-zoom-stage');
 }
 
+/** The landing geometry (viewport px) measured by CardZoomModal.measureLanding. */
+export type ZoomLandingRect = {left: number, top: number, width: number, height: number};
+
 /**
- * OPEN choreography. Called right after the dialog's show(); waits two
- * frames for the fit engine to size the card, then plays. `onSettled`
- * releases the host's `--flight` chrome hold (also on every bail path).
+ * Arm a new OPEN: kill any zombie flight and register the origin so the
+ * close / browse-retarget machinery works even if the player closes while
+ * the landing is still being measured. Called by the shell BEFORE the
+ * (potentially multi-frame) `measureLanding()`.
  */
-export function playZoomOpen(dialog: HTMLElement | undefined, index: number, origin: ZoomOrigin, onSettledRaw: () => void): void {
+export function beginZoomOpen(origin: ZoomOrigin): void {
   killTween();
+  clearOpenSafety();
   ctx.closing = false;
   ctx.origin = origin;
-  // Once-gated settle + a safety timer: a stalled rAF can never leave the
-  // dialog chrome hidden behind the `--flight` hold.
-  let settled = false;
-  const onSettled = () => {
-    if (!settled) {
-      settled = true;
-      onSettledRaw();
-    }
-  };
-  const stage = dialog !== undefined ? stageEl(dialog) : null;
-  zlog(`open: dialog=${dialog !== undefined} stage=${stage !== null} origin=${origin.kind} index=${index}`);
-  // Decisive visual-state dump AFTER the flight has settled (temporary).
-  if (dialog !== undefined) {
-    setTimeout(() => zdump(dialog), motionMs(380) + 900);
+}
+
+/** The armed origin's live slot rect for `index` (physical origins only). */
+export function zoomOpenSourceRect(index: number): DOMRect | undefined {
+  const origin = ctx.origin;
+  if (origin === undefined || origin.kind !== 'physical') {
+    return undefined;
   }
-  // SAFETY: settle the chrome AND force the stage visible. The open path hides
-  // the stage (`autoAlpha: 0`) and only restores it inside the tween after two
-  // rAFs — if anything derails in between (a bail, a killed tween, a zero
-  // measure on a heavy first-open frame), the dialog would stay OPEN over an
-  // INVISIBLE card forever (the "first fullscreen shows an empty viewer" bug).
-  // The timer runs once per open; by then any real tween has already finished
-  // (or will finish at autoAlpha 1 anyway), so the restore is idempotent.
-  setTimeout(() => {
-    if (!settled && stage !== null && !ctx.closing) {
-      zlog(`open SAFETY fired: restoring stage visibility (tween=${ctx.tween !== undefined})`);
-      killTween();
-      gsap.set(stage, {clearProps: 'opacity,visibility,transform'});
+  return usableRect(sourceCardEl(origin, index));
+}
+
+/**
+ * Abort an open whose dialog was never shown (B/X mid-flight): gates the
+ * pending touchdown `show()` and kills the proxy tween. The shell then
+ * unwinds its own state directly (the dialog 'close' event — the normal
+ * unwinder — can never fire for a dialog that was never open).
+ */
+export function cancelZoomOpen(): void {
+  ctx.closing = true;
+  clearOpenSafety();
+  killTween();
+}
+
+/**
+ * OPEN flight — the PROXY choreography (see the module header: the real
+ * dialog opens VANILLA at touchdown, this only flies the stand-in card).
+ *
+ *  - physical + usable slot: FLIP the proxy from the slot rect onto the
+ *    landing rect; the slot is HELD empty from lift-off (`.con-zoom-hold`).
+ *  - otherwise: the inspector rise-from-depth at the landing spot.
+ *
+ * `onShow` (showModal) fires at touchdown, `onDone` right after — both
+ * once-gated, both guaranteed by a stall-safety timer, `onShow` suppressed
+ * when a close raced the flight (`ctx.closing`).
+ */
+export function playZoomOpenFlight(
+  proxy: HTMLElement | undefined,
+  index: number,
+  source: DOMRect | undefined,
+  landing: ZoomLandingRect,
+  cb: {onShow: () => void, onDone: () => void},
+): void {
+  killTween();
+  clearOpenSafety();
+  let finished = false;
+  const finish = () => {
+    if (finished) {
+      return;
     }
-    onSettled();
-  }, motionMs(380) + 700);
-  if (stage === null || typeof requestAnimationFrame !== 'function') {
-    onSettled();
+    finished = true;
+    clearOpenSafety();
+    ctx.tween = undefined;
+    if (!ctx.closing) {
+      cb.onShow();
+    }
+    cb.onDone();
+  };
+  // Safety: a stalled rAF / killed tween can never leave the dialog unshown.
+  ctx.openSafety = window.setTimeout(finish, motionMs(420) + 600);
+  if (proxy === undefined) {
+    zlog('open flight: no proxy element — vanilla show');
+    finish();
     return;
   }
-  // Hide the stage BEFORE the dialog's first paint (this runs in the same
-  // tick as show()) so the full-size card can never flash pre-flight.
-  //
-  // OPACITY-ONLY, deliberately NOT autoAlpha (= opacity + visibility:hidden).
-  // `visibility: hidden` turns the subtree's PAINT off entirely — and when the
-  // stage enters the TOP LAYER unpainted on the dialog's very first frame,
-  // Chromium (Graphite) can get stuck never reviving that paint: the first
-  // console zoom of a session opened with a perfectly-valid DOM but an
-  // invisible card, unrecoverable by any DOM-level nudge. The vanilla card
-  // modal (mouse path) never hides its stage and never hit this. A near-zero
-  // opacity keeps the subtree PAINTED from frame one (textures allocated,
-  // invisible to the eye); the flight then only raises opacity.
-  gsap.set(stage, {opacity: 0.0001});
-  const reduced = consoleReducedMotionActive();
-  // Two rAFs: the fit engine (show() → nextTick → fitCardToViewport) has
-  // sized the card by then, so the measured stage rect is final.
-  // Two rAFs: the fit engine (show() → nextTick → fitCardToViewport) has
-  // sized the card by then, so the measured stage rect is final. NOTE: all
-  // reveals below animate OPACITY, never autoAlpha — visibility must stay
-  // 'visible' the whole time (see the opacity-only comment above).
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (ctx.closing) {
-      zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
-      return; // closed before it ever opened — close path owns cleanup
-    }
-    const finish = () => {
-      ctx.tween = undefined;
-      onSettled();
-    };
-    if (reduced) {
-      ctx.tween = gsap.fromTo(stage, {opacity: 0.0001}, {opacity: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
-      return;
-    }
-    const target = stage.getBoundingClientRect();
-    const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
-    zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
-    if (source === undefined || target.width < 10) {
-      // Textual / none / unresolvable slot: the inspector rise-from-depth.
-      zlog('open path: rise-from-depth fallback');
-      ctx.tween = gsap.fromTo(stage,
-        {opacity: 0.0001, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
-        {opacity: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
-      return;
-    }
-    // FLIP: start the fullscreen stage transformed onto the slot's rect.
-    zlog('open path: FLIP from slot');
-    holdSlot(sourceCardEl(origin, index));
-    const scale = source.width / target.width;
-    ctx.tween = gsap.fromTo(stage,
-      {
-        opacity: 1,
-        x: source.left - target.left,
-        y: source.top - target.top,
-        scale,
-        rotation: -1.6,
-        transformOrigin: 'top left',
-      },
-      {
-        x: 0, y: 0, scale: 1, rotation: 0,
-        duration: motionMs(380) / 1000,
-        ease: 'expo.out',
-        onComplete: finish,
-      });
-  }));
+  if (source === undefined) {
+    // Textual / none / unresolvable slot: the inspector rise-from-depth.
+    zlog('open flight: rise-from-depth');
+    ctx.tween = gsap.fromTo(proxy,
+      {opacity: 0, x: landing.left, y: landing.top + 26, scale: 0.86, transformOrigin: '50% 60%'},
+      {opacity: 1, x: landing.left, y: landing.top, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
+    return;
+  }
+  // FLIP: the proxy lifts out of the slot and expands onto the landing rect.
+  zlog(`open flight: FLIP from slot ${Math.round(source.width)}x${Math.round(source.height)} → ${Math.round(landing.width)}x${Math.round(landing.height)}`);
+  holdSlot(sourceCardEl(ctx.origin ?? {kind: 'none'}, index));
+  const scale = source.width / landing.width;
+  ctx.tween = gsap.fromTo(proxy,
+    {
+      opacity: 1,
+      x: source.left,
+      y: source.top,
+      scale,
+      rotation: -1.6,
+      transformOrigin: 'top left',
+    },
+    {
+      x: landing.left,
+      y: landing.top,
+      scale: 1,
+      rotation: 0,
+      duration: motionMs(380) / 1000,
+      ease: 'expo.out',
+      onComplete: finish,
+    });
 }
 
 /**
@@ -582,6 +613,7 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
 /** Final cleanup — after the dialog actually closed (any path, incl. Esc). */
 export function releaseZoomMotion(): void {
   killTween();
+  clearOpenSafety();
   holdSlot(null);
   ctx.origin = undefined;
   ctx.closing = false;

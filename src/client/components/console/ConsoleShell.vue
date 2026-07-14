@@ -313,6 +313,28 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
+    <!-- Zoom OPEN flight (consoleZoomMotion.playZoomOpenFlight): the dialog
+         below opens VANILLA at the flight's touchdown — its first top-layer
+         frame is the final, fully-visible content (the compositor-safe shape;
+         see the consoleZoomMotion.ts header). The premium FLIP lift flies
+         THIS proxy on a normal fixed layer, like every other console flight
+         (deal / exit / board-bonus). The veil pre-dims the scene so the real
+         ::backdrop (same pixels) taking over at showModal() is seamless. -->
+    <div v-if="zoomOpenProxy !== undefined"
+         class="con-zoom-veil"
+         :class="{'con-zoom-veil--on': zoomVeilOn}"
+         aria-hidden="true"></div>
+    <div v-if="zoomOpenProxy !== undefined" class="con-zoom-flight-layer" aria-hidden="true">
+      <!-- The GSAP-transformed element stays zoom-FREE (CSS zoom on the same
+           element would rescale the translate coordinates); the landing zoom
+           lives on the inner wrapper, whose zoomed layout box sizes the proxy. -->
+      <div ref="zoomFlightProxy" class="con-zoom-flight-proxy">
+        <div class="con-zoom-flight-proxy__zoom" :style="{zoom: String(zoomOpenProxy.zoom)}">
+          <CardZoomCard :card="zoomOpenProxy.card" :selected="zoomSelected" />
+        </div>
+      </div>
+    </div>
+
     <!-- P13/P15: the global "X = fullscreen card" viewer - ONE reused
          CardZoomModal for every console card context (module state).
          P15 makes it CONTROLLER-NATIVE: the shell owns the pad while it is
@@ -587,10 +609,12 @@ import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {playZoomOpen, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
+import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion, zdump} from '@/client/console/consoleZoomMotion';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
@@ -699,6 +723,7 @@ export default defineComponent({
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
     CardZoomModal,
+    CardZoomCard,
     Card,
     ConsoleCardActions,
     ConsoleHydroSection,
@@ -727,6 +752,16 @@ export default defineComponent({
       zoomClosing: false,
       /** Re-entrancy guard for the single-card reveal L3 role swap. */
       zoomSwapping: false,
+      /** The OPEN flight is in progress (dialog not shown yet) — input gated. */
+      zoomOpening: false,
+      /** The open-flight proxy (rendered on `.con-zoom-flight-layer`). */
+      zoomOpenProxy: undefined as {card: ZoomCard, zoom: number} | undefined,
+      /** Veil fade-in trigger (armed one frame after the proxy mounts). */
+      zoomVeilOn: false,
+      /** Stale-callback fence for the async open sequence (measure/flight). */
+      zoomOpenToken: 0,
+      /** Deferred proxy/veil removal after the top layer has covered them. */
+      zoomOpenClearTimer: undefined as number | undefined,
       infoModeState,
       leakDetectorState,
       govScaleFocusState,
@@ -2282,10 +2317,13 @@ export default defineComponent({
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
-    // The open CHOREOGRAPHY (consoleZoomMotion): the chrome is held hidden
-    // (`--flight`, set BEFORE show so it never flashes) while the card
-    // physically lifts out of its source slot / rises from depth; the
-    // settle callback releases the chrome fade-in.
+    // The open CHOREOGRAPHY (consoleZoomMotion): the landing geometry is
+    // measured on the still-CLOSED dialog, the premium lift flies a PROXY
+    // on a normal fixed layer, and `showModal()` fires only at touchdown —
+    // the dialog's first top-layer frame is the final, fully-visible
+    // content (the compositor-safe shape; see consoleZoomMotion.ts header).
+    // The chrome stays hidden (`--flight`, set BEFORE anything renders) and
+    // fades in once the card has landed.
     'consoleCardZoom.card'(card: ZoomCard | undefined, prev: ZoomCard | undefined) {
       if (card !== undefined && prev === undefined) {
         this.zoomFlight = true;
@@ -2314,12 +2352,7 @@ export default defineComponent({
             }
             return;
           }
-
-          console.warn(`%c[TM-DIAG zoom] tryOpen OK (attempt=${attempt}) card=${String(this.consoleCardZoom.card?.name)} → show()`, 'color:#38bdf8');
-          zoom.show?.();
-          playZoomOpen(el, this.consoleCardZoom.index, this.consoleCardZoom.origin, () => {
-            this.zoomFlight = false;
-          });
+          void this.runZoomOpen(zoom);
         };
         void this.$nextTick(() => tryOpen(0));
       }
@@ -4113,13 +4146,107 @@ export default defineComponent({
       retargetZoomHold(pos);
       this.consoleCardZoom.origin.onBrowse?.(pos);
     },
+    /**
+     * The OPEN sequence (see consoleZoomMotion.ts header — load-bearing):
+     * measure the landing on the CLOSED dialog, fly the proxy on a normal
+     * layer, and call `show()` (showModal) only at touchdown so the dialog's
+     * first top-layer frame is final, static, fully-visible content — the
+     * compositor-safe shape the mouse path always had. Every deferred
+     * callback is fenced by `zoomOpenToken` (a close + reopen can never be
+     * touched by a stale flight/safety callback).
+     */
+    async runZoomOpen(zoom: InstanceType<typeof CardZoomModal>): Promise<void> {
+      const token = ++this.zoomOpenToken;
+      this.zoomOpening = true;
+      const origin: ZoomOrigin = this.consoleCardZoom.origin;
+      beginZoomOpen(origin);
+      const landing = await zoom.measureLanding();
+      if (token !== this.zoomOpenToken || this.consoleCardZoom.card === undefined) {
+        return; // closed / reopened while measuring — that sequence owns state
+      }
+      const index = this.consoleCardZoom.index;
+      console.warn(`%c[TM-DIAG zoom] open: card=${String(this.consoleCardZoom.card?.name)} origin=${origin.kind} landing=${landing !== undefined ? Math.round(landing.rect.width) + 'x' + Math.round(landing.rect.height) + '@' + landing.zoom.toFixed(2) : 'none'}`, 'color:#38bdf8');
+      // TEMPORARY (DIAGNOSTIC_CLEANUP.md): decisive visual dump ~1.2s in.
+      const dialogEl = zoom.$el as HTMLElement | undefined;
+      if (dialogEl !== undefined) {
+        window.setTimeout(() => {
+          if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
+            zdump(dialogEl);
+          }
+        }, motionMs(380) + 800);
+      }
+      // TEMPORARY on-device probe (DIAGNOSTIC_CLEANUP.md): tm_zoom_vanilla=1
+      // forces the vanilla open (no proxy flight) — isolates the choreography
+      // in one relaunch if the first-open bug ever resurfaces.
+      let vanillaProbe = false;
+      try {
+        vanillaProbe = window.localStorage.getItem('tm_zoom_vanilla') === '1';
+      } catch {
+        vanillaProbe = false;
+      }
+      if (landing === undefined || vanillaProbe || consoleReducedMotionActive()) {
+        // VANILLA open (also the reduced-motion / JSDOM / degenerate-layout
+        // path): show immediately — first frame final and fully visible.
+        zoom.show();
+        this.zoomOpening = false;
+        window.setTimeout(() => {
+          if (token === this.zoomOpenToken) {
+            this.zoomFlight = false;
+          }
+        }, motionMs(140));
+        return;
+      }
+      // Premium flight: veil in, proxy slot→landing, showModal at touchdown.
+      const source = zoomOpenSourceRect(index);
+      this.zoomOpenProxy = {card: this.consoleCardZoom.card, zoom: landing.zoom};
+      this.zoomVeilOn = false;
+      await this.$nextTick();
+      if (token !== this.zoomOpenToken) {
+        return;
+      }
+      requestAnimationFrame(() => {
+        if (token === this.zoomOpenToken) {
+          this.zoomVeilOn = true; // transition-in, parallel to the flight
+        }
+      });
+      const proxyEl = this.$refs.zoomFlightProxy as HTMLElement | undefined;
+      playZoomOpenFlight(proxyEl, index, source, landing.rect, {
+        onShow: () => {
+          if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
+            zoom.show();
+          }
+        },
+        onDone: () => {
+          if (token !== this.zoomOpenToken) {
+            return;
+          }
+          this.zoomOpening = false;
+          this.zoomFlight = false; // chrome fades in over the landed card
+          // The top layer covers the proxy/veil now; linger a beat so their
+          // removal can never race the dialog's first paint.
+          this.zoomOpenClearTimer = window.setTimeout(() => this.clearZoomOpenFlight(), motionMs(220));
+        },
+      });
+    },
+    /** Drop the open-flight proxy + veil (idempotent; any close path). */
+    clearZoomOpenFlight(): void {
+      if (this.zoomOpenClearTimer !== undefined) {
+        window.clearTimeout(this.zoomOpenClearTimer);
+        this.zoomOpenClearTimer = undefined;
+      }
+      this.zoomOpenProxy = undefined;
+      this.zoomVeilOn = false;
+    },
     onCardZoomClosed(): void {
       // Any close path (choreographed B, native Esc, backdrop tap): restore
       // every held slot + kill the flight, then clear the module state.
       releaseZoomMotion();
+      this.zoomOpenToken++; // fence out any stale open-sequence callback
       this.zoomFlight = false;
       this.zoomClosing = false;
       this.zoomSwapping = false;
+      this.zoomOpening = false;
+      this.clearZoomOpenFlight();
       document.body.classList.remove('con-zoom-open');
       closeConsoleCardZoom();
     },
@@ -4128,6 +4255,17 @@ export default defineComponent({
       // A close/handoff flight is in progress: the card is mid-air — swallow
       // everything (no browsing a departing card, no double execute).
       if (this.zoomClosing) {
+        return true;
+      }
+      // Mid OPEN-flight (dialog not shown yet): only closing is meaningful —
+      // browsing/acting waits for the landing (≤400ms). B/X aborts cleanly.
+      if (this.zoomOpening) {
+        if (intent.kind === 'press' && !this.consoleCardZoom.mandatory) {
+          const action = consoleActionOf(intent);
+          if (action === 'back' || action === 'inspect') {
+            void this.closeZoomViewer();
+          }
+        }
         return true;
       }
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
@@ -4296,9 +4434,18 @@ export default defineComponent({
       if (zoom === undefined) {
         return;
       }
+      const dialogEl = zoom.$el as HTMLDialogElement | undefined;
+      // Closed during the OPEN flight (dialog never shown): abort the flight
+      // and unwind directly — `dialog.close()` would no-op and the 'close'
+      // event (the normal state unwinder) would never fire.
+      if (this.zoomOpening && dialogEl?.open !== true) {
+        cancelZoomOpen();
+        this.onCardZoomClosed();
+        return;
+      }
       this.zoomFlight = true;
       this.zoomClosing = true;
-      await playZoomClose(zoom.$el as HTMLElement | undefined, this.consoleCardZoom.index);
+      await playZoomClose(dialogEl as HTMLElement | undefined, this.consoleCardZoom.index);
       zoom.close();
     },
     /** P17: right-stick scroll for the ACTIVE console scroll container —
@@ -4635,6 +4782,8 @@ export default defineComponent({
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();
+    this.zoomOpenToken++; // fence out any stale open-sequence callback
+    this.clearZoomOpenFlight();
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)

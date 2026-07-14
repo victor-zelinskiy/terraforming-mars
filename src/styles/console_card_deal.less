@@ -174,15 +174,70 @@
 .con-verdict-swap-leave-to { opacity: 0; }
 
 /* ── Fullscreen inspector choreography (consoleZoomMotion.ts) ─────────
-   The console CardZoomModal instance: a physical-origin open lifts the
-   REAL stage out of the source slot (GSAP FLIP on `.card-zoom-stage`);
-   the slot of the card "in the player's hands" is HELD empty; the dialog
+   The console CardZoomModal instance. The OPEN is PROXY-FIRST: the dialog
+   itself opens VANILLA at the flight's touchdown (its first top-layer
+   frame is the final, fully-visible content — the compositor-safe shape;
+   see the consoleZoomMotion.ts header for why this is load-bearing), while
+   the premium lift flies a proxy on `.con-zoom-flight-layer` below. The
+   slot of the card "in the player's hands" is HELD empty; the dialog
    chrome appears only after the card lands. */
 
 /* The table slot whose card is currently in the fullscreen inspector.
    Same cascade trick as .con-deal-hold: !important beats animations. */
 .con-zoom-hold {
     opacity: 0 !important;
+}
+
+/* The open-flight veil: pre-dims the scene UNDER the flying proxy with the
+   exact pixels the dialog's ::backdrop will paint, so the backdrop taking
+   over at showModal() is invisible. Above every console surface incl. the
+   command bar (11700), below the flight layer and the top layer. */
+.con-zoom-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 11890;
+    /* auto, not none: the old top-layer open blocked stray mouse clicks from
+       frame one — the veil keeps that contract during the proxy flight (a
+       click mid-flight must never mutate the scene the card returns to). */
+    pointer-events: auto;
+    .con-backdrop-dim();
+    opacity: 0;
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+
+    &--on {
+        opacity: 1;
+    }
+}
+
+/* The open-flight stage (mirrors .con-exit-layer mechanics). */
+.con-zoom-flight-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11900; /* proxy above the veil, both under the top layer */
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
+/* The flying proxy: a CardZoomCard at the measured landing zoom, GSAP-
+   transformed slot → landing. The OUTER element is transform-only (CSS zoom
+   on the transformed element itself would rescale the translate
+   coordinates); the `__zoom` inner carries the landing zoom inline (set by
+   ConsoleShell) and its zoomed layout box sizes the proxy. The proxy's
+   visual box must equal the CARD's box (the flight maps card-rect →
+   card-rect), so the fullscreen CSS zoom ladder + the legacy margin are
+   neutralized — the inner's inline zoom is the ONE scale source. */
+.con-zoom-flight-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0; /* the director reveals via the tween's from-state */
+    will-change: transform; /* scoped: exists only for the flight */
+
+    :is(.card-container, .pcard, .mb-face) {
+        zoom: 1 !important;
+        margin: 0 !important;
+    }
 }
 
 dialog.con-zoom {
@@ -207,19 +262,18 @@ dialog.con-zoom {
         }
     }
 
-    /* Backdrop: calm fade-in on open; fades OUT under the close flight so
-       the table the card returns to is already visible on landing. */
-    &[open]::backdrop {
-        animation: con-zoom-backdrop-in calc(260ms * var(--motion-scale, 1)) ease both;
-    }
+    /* Backdrop: NO entry animation — the dialog opens at touchdown behind
+       the already-faded `.con-zoom-veil` (same pixels), so the backdrop
+       appearing at full dim is seamless. The keyframe entry animation was
+       REMOVED deliberately: an animated ::backdrop on the very first frame
+       of a fresh top-layer dialog was one of the ingredients of the
+       Graphite first-open unpainted-dialog bug (ZOOM_BUG_HANDOFF.md) —
+       never reintroduce it. Close keeps its fade (the surface is
+       long-established by then). */
     &.con-zoom--closing::backdrop {
         opacity: 0;
         transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
     }
-}
-@keyframes con-zoom-backdrop-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 /* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────

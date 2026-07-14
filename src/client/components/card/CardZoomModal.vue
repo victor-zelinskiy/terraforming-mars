@@ -466,10 +466,74 @@ export default defineComponent({
       this.$nextTick(() => this.fitCardToViewport());
       this.schedulePreloadWarm();
       // Stage 2 of the fullscreen choreography: the rule overlay reveals
-      // after the card has landed. The console FLIP open (consoleZoomMotion,
-      // motionMs(380)) needs the longer beat; the layer's own stage-stability
-      // poll then guards the exact hand-off frame.
-      this.scheduleSettle(prefersReducedMotion() ? 80 : (this.consoleMotion ? motionMs(380) + 160 : motionMs(220)));
+      // after the card has landed. In consoleMotion the proxy flight lands
+      // BEFORE show() is called (consoleZoomMotion — the dialog opens vanilla
+      // at touchdown), so the card is already stationary here; the layer's
+      // own stage-stability poll then guards the exact hand-off frame.
+      this.scheduleSettle(prefersReducedMotion() ? 80 : (this.consoleMotion ? motionMs(200) : motionMs(220)));
+    },
+    /*
+     * CONSOLE OPEN CHOREOGRAPHY (consoleZoomMotion.playZoomOpenFlight):
+     * measure the LANDING geometry of the fullscreen card WITHOUT entering
+     * the top layer. The dialog is still CLOSED here; an inline
+     * `display:flex; visibility:hidden` overrides `dialog:not([open])`'s
+     * display:none, which lays the dialog out EXACTLY as the open state
+     * (the top layer never changes layout — same fixed 100vw×100vh box)
+     * while painting nothing. The fit engine then sizes the card as usual
+     * (priming the natural-size cache, so show()'s own fit is a pure cache
+     * hit) and the card's visual rect + applied zoom feed the proxy flight.
+     *
+     * This exists so `showModal()` can be DEFERRED to the flight's
+     * touchdown: the dialog's very first top-layer frame is then the final,
+     * fully-visible, untransformed content — the compositor-safe shape (see
+     * the consoleZoomMotion.ts header for why this is load-bearing).
+     *
+     * Bounded frame retries cover the async premium face on a first-ever
+     * open; undefined → the caller opens vanilla immediately (JSDOM /
+     * degenerate layout / timeout) and the in-show fit retries take over.
+     */
+    async measureLanding(): Promise<{rect: {left: number, top: number, width: number, height: number}, zoom: number} | undefined> {
+      const dialog = this.typedRefs.dialog;
+      if (dialog === undefined || dialog.open) {
+        return undefined;
+      }
+      // Seed the index so the fit measures the OPENED card, not slot 0 —
+      // show() recomputes the same value later (idempotent).
+      this.currentIndex = this.computeStartIndex();
+      const prev = {display: dialog.style.display, visibility: dialog.style.visibility, pointerEvents: dialog.style.pointerEvents};
+      dialog.style.display = 'flex';
+      dialog.style.visibility = 'hidden';
+      dialog.style.pointerEvents = 'none';
+      try {
+        for (let i = 0; i < FIT_MAX_RETRIES; i++) {
+          this.fitCardToViewport();
+          const cardEl = dialog.querySelector<HTMLElement>(STAGE_CARD_SELECTOR);
+          const r = cardEl?.getBoundingClientRect();
+          if (cardEl !== null && r !== undefined && r.width >= 10 && r.height >= 10) {
+            const zoom = Number(cardEl.style.zoom || '1');
+            return {
+              rect: {left: r.left, top: r.top, width: r.width, height: r.height},
+              zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
+            };
+          }
+          if (typeof requestAnimationFrame !== 'function') {
+            return undefined; // JSDOM — the caller opens vanilla
+          }
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          if (this.typedRefs.dialog !== dialog || dialog.open) {
+            return undefined; // unmounted / shown by someone else mid-measure
+          }
+        }
+        return undefined;
+      } finally {
+        dialog.style.display = prev.display;
+        dialog.style.visibility = prev.visibility;
+        dialog.style.pointerEvents = prev.pointerEvents;
+        // The measure loop may have burned the fit-retry budget on a card
+        // that wasn't measurable yet — show() re-arms it anyway; drop any
+        // stray pending frame so it can't double-fit.
+        this.clearFitRetry();
+      }
     },
     // Warm the neighbour preloads AFTER the open frame has painted, so the
     // initial fullscreen open only renders the one visible card. Self-guards
