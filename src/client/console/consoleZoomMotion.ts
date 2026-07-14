@@ -65,11 +65,38 @@ function zdump(dialog: HTMLElement): void {
     const cy = Math.round(window.innerHeight / 2);
     const atCenter = document.elementFromPoint(cx, cy);
 
+    // ANCESTOR SCAN — the earlier dump missed this: an `opacity: 0` (or a
+    // hiding class like con-deal-hold / con-zoom-hold) on ANY ANCESTOR hides
+    // the whole card while the card's own computed opacity still reads "1".
+    // Walk card → <html> and report every ancestor that is not plainly
+    // visible + every ancestor carrying a class list (to spot a stray hold).
+    const suspects: Array<string> = [];
+    let el: HTMLElement | null = card;
+    while (el !== null) {
+      const s = getComputedStyle(el);
+      const cls = String(el.className);
+      const hidingClass = /con-deal-hold|con-zoom-hold|con-deal|veil|--flight|--closing/.exec(cls)?.[0];
+      if (s.opacity !== '1' || s.visibility !== 'visible' || s.display === 'none' ||
+          s.maskImage !== 'none' || hidingClass !== undefined) {
+        suspects.push(`${el.tagName}.${cls.slice(0, 90)} → opacity=${s.opacity} vis=${s.visibility} disp=${s.display} mask=${s.maskImage !== 'none'} hit=${hidingClass ?? '-'}`);
+      }
+      el = el.parentElement;
+    }
+
+    // TOP-LAYER: every open <dialog> in document order (later = on top).
+    const openDialogs = Array.from(document.querySelectorAll('dialog[open]'))
+      .map((d) => `${d.className || d.tagName} rect=${JSON.stringify((() => {
+        const r = (d as HTMLElement).getBoundingClientRect();
+        return `${Math.round(r.width)}x${Math.round(r.height)}`;
+      })())}`);
+
     console.warn(
       `%c[TM-DIAG zoom DUMP]\n` +
       `dialog.open=${(dialog as HTMLDialogElement).open} | dialog: ${cs(dialog)}\n` +
-      `stage: ${cs(stage)}\n` +
-      `card: ${cs(card)} | cardChildren=${card?.childElementCount ?? -1}\n` +
+      `stage: ${cs(stage)} | stage.classList=${String(stage?.className ?? '')}\n` +
+      `card: ${cs(card)} | cardChildren=${card?.childElementCount ?? -1} | card.classList=${String(card?.className ?? '')}\n` +
+      `ANCESTOR SUSPECTS (${suspects.length}):\n${suspects.join('\n') || '(none — every ancestor fully visible)'}\n` +
+      `OPEN DIALOGS (${openDialogs.length}, last=topmost): ${openDialogs.join(' | ')}\n` +
       `elementFromPoint(center ${cx},${cy})=${atCenter !== null ? atCenter.tagName + '.' + String((atCenter as HTMLElement).className).slice(0, 80) : 'null'}`,
       'color:#f472b6;font-weight:bold');
   } catch (err) {
