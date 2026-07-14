@@ -228,98 +228,68 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
   }
   // Hide the stage BEFORE the dialog's first paint (this runs in the same
   // tick as show()) so the full-size card can never flash pre-flight.
-  gsap.set(stage, {autoAlpha: 0});
+  //
+  // OPACITY-ONLY, deliberately NOT autoAlpha (= opacity + visibility:hidden).
+  // `visibility: hidden` turns the subtree's PAINT off entirely — and when the
+  // stage enters the TOP LAYER unpainted on the dialog's very first frame,
+  // Chromium (Graphite) can get stuck never reviving that paint: the first
+  // console zoom of a session opened with a perfectly-valid DOM but an
+  // invisible card, unrecoverable by any DOM-level nudge. The vanilla card
+  // modal (mouse path) never hides its stage and never hit this. A near-zero
+  // opacity keeps the subtree PAINTED from frame one (textures allocated,
+  // invisible to the eye); the flight then only raises opacity.
+  gsap.set(stage, {opacity: 0.0001});
   const reduced = consoleReducedMotionActive();
   // Two rAFs: the fit engine (show() → nextTick → fitCardToViewport) has
   // sized the card by then, so the measured stage rect is final.
-  requestAnimationFrame(() => {
-    // GRAPHITE first-commit workaround: on Windows the FIRST commit of this
-    // top-layer stage's texture can hit a Skia Graphite shared-image race
-    // ("ProduceSkia: non-existent mailbox") — the layer then stays EMPTY for
-    // the whole open (logic/DOM/measures all correct; the user's first
-    // fullscreen showed nothing; the second open always worked because its
-    // texture allocation is a fresh one). Force that "second allocation" here:
-    // drop + recreate the stage's layer subtree while it is still INVISIBLE
-    // (autoAlpha 0 until the FLIP), so the flight reveals a freshly-allocated
-    // texture. One hidden reflow per open — imperceptible, perf-neutral.
-    // A/B knob: `localStorage.tm_zoom_kick = '0'` disables the kick, so the
-    // boot warm-up (the zoom-scale legacy-card texture) can be verified as the
-    // actual fix in isolation. Default ON (belt and braces in production).
-    let kickOff = false;
-    try {
-      kickOff = localStorage.getItem('tm_zoom_kick') === '0';
-    } catch {
-      // storage unavailable — keep the kick on
+  // Two rAFs: the fit engine (show() → nextTick → fitCardToViewport) has
+  // sized the card by then, so the measured stage rect is final. NOTE: all
+  // reveals below animate OPACITY, never autoAlpha — visibility must stay
+  // 'visible' the whole time (see the opacity-only comment above).
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (ctx.closing) {
+      zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
+      return; // closed before it ever opened — close path owns cleanup
     }
-    if (kickOff) {
-      zlog('open: layer recreate kick SKIPPED (tm_zoom_kick=0)');
-    } else {
-      zlog('open: layer recreate kick (Graphite first-commit workaround)');
-      const prevDisplay = stage.style.display;
-      stage.style.display = 'none';
-      void stage.offsetHeight; // force the unlayerize
-      stage.style.display = prevDisplay;
-      void stage.offsetHeight; // force the re-layerize before the next commit
+    const finish = () => {
+      ctx.tween = undefined;
+      onSettled();
+    };
+    if (reduced) {
+      ctx.tween = gsap.fromTo(stage, {opacity: 0.0001}, {opacity: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
+      return;
     }
-    requestAnimationFrame(() => {
-      if (ctx.closing) {
-        zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
-        return; // closed before it ever opened — close path owns cleanup
-      }
-      const finish = () => {
-        ctx.tween = undefined;
-        onSettled();
-        // Graphite content-raster workaround (see invalidateCardRaster): force a
-        // fresh content rasterization right after the card lands, and once more
-        // shortly after (an image decode may still have been in flight the first
-        // time). Cheap (one card re-raster) and invisible (same-task jiggle).
-        requestAnimationFrame(() => {
-          if (!ctx.closing) {
-            invalidateCardRaster(stage, 'post-land');
-          }
-        });
-        setTimeout(() => {
-          if (!ctx.closing) {
-            invalidateCardRaster(stage, 'late');
-          }
-        }, motionMs(600));
-      };
-      if (reduced) {
-        ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(140) / 1000, ease: 'power1.out', onComplete: finish});
-        return;
-      }
-      const target = stage.getBoundingClientRect();
-      const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
-      zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
-      if (source === undefined || target.width < 10) {
+    const target = stage.getBoundingClientRect();
+    const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
+    zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
+    if (source === undefined || target.width < 10) {
       // Textual / none / unresolvable slot: the inspector rise-from-depth.
-        zlog('open path: rise-from-depth fallback');
-        ctx.tween = gsap.fromTo(stage,
-          {autoAlpha: 0, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
-          {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
-        return;
-      }
-      // FLIP: start the fullscreen stage transformed onto the slot's rect.
-      zlog('open path: FLIP from slot');
-      holdSlot(sourceCardEl(origin, index));
-      const scale = source.width / target.width;
+      zlog('open path: rise-from-depth fallback');
       ctx.tween = gsap.fromTo(stage,
-        {
-          autoAlpha: 1,
-          x: source.left - target.left,
-          y: source.top - target.top,
-          scale,
-          rotation: -1.6,
-          transformOrigin: 'top left',
-        },
-        {
-          x: 0, y: 0, scale: 1, rotation: 0,
-          duration: motionMs(380) / 1000,
-          ease: 'expo.out',
-          onComplete: finish,
-        });
-    });
-  });
+        {opacity: 0.0001, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
+        {opacity: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
+      return;
+    }
+    // FLIP: start the fullscreen stage transformed onto the slot's rect.
+    zlog('open path: FLIP from slot');
+    holdSlot(sourceCardEl(origin, index));
+    const scale = source.width / target.width;
+    ctx.tween = gsap.fromTo(stage,
+      {
+        opacity: 1,
+        x: source.left - target.left,
+        y: source.top - target.top,
+        scale,
+        rotation: -1.6,
+        transformOrigin: 'top left',
+      },
+      {
+        x: 0, y: 0, scale: 1, rotation: 0,
+        duration: motionMs(380) / 1000,
+        ease: 'expo.out',
+        onComplete: finish,
+      });
+  }));
 }
 
 /**
@@ -607,39 +577,6 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
       },
     });
   });
-}
-
-/**
- * GRAPHITE content-raster workaround. The decisive dump proved the first-open
- * bug is a CONTENT RASTERIZATION failure: dialog/stage/card all perfectly
- * visible by style (opacity 1, full-size, elementFromPoint = the card) yet no
- * pixels — the first rasterization of the big legacy card (its sprite images'
- * first GPU upload) fails silently; the second open always works because the
- * images are cached by then. A LAYER recreate does NOT fix it (proven), so
- * force a CONTENT re-raster instead: jiggle the card's CSS zoom (its actual
- * scale carrier) inside one task — the renderer never paints the intermediate
- * state, but the scale change invalidates every content tile → a fresh
- * rasterization with the now-decoded images. Run after the flight lands, and
- * once more later (in case an image decode was still in flight).
- */
-function invalidateCardRaster(stage: HTMLElement, label: string): void {
-  const card = stage.querySelector<HTMLElement>(':is(.card-container, .pcard)');
-  if (card === null) {
-    return;
-  }
-  zlog(`content re-raster (${label})`);
-  const zoom = card.style.zoom;
-  if (zoom !== '' && zoom !== undefined) {
-    card.style.zoom = '1';
-    void card.offsetHeight; // force the relayout at scale 1 (never painted)
-    card.style.zoom = zoom;
-    void card.offsetHeight; // …and back — every content tile re-rasterizes
-  } else {
-    // No zoom applied (fit hasn't run) — a transparent outline toggles paint.
-    card.style.outline = '1px solid transparent';
-    void card.offsetHeight;
-    card.style.outline = '';
-  }
 }
 
 /** Final cleanup — after the dialog actually closed (any path, incl. Esc). */
