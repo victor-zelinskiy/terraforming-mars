@@ -431,6 +431,8 @@ export default defineComponent({
       // inside showModal(undefined) — which aborted the open and stranded the
       // caller's state ("first fullscreen shows nothing").
       if (this.typedRefs.dialog === undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(`%c[TM-DIAG zoom] show(): dialog ref missing, retry ${this.showRetries}`, 'color:#f59e0b');
         if (this.showRetries < 10) {
           this.showRetries++;
           requestAnimationFrame(() => this.show());
@@ -451,6 +453,8 @@ export default defineComponent({
       // primes the natural-size fit cache. (perf B13)
       this.preloadNames = [];
       showModal(this.typedRefs.dialog);
+      // eslint-disable-next-line no-console
+      console.warn(`%c[TM-DIAG zoom] showModal done: open=${this.typedRefs.dialog?.open} activeCard=${String(this.activeCard?.name)}`, 'color:#38bdf8');
       // Sync the parent to the card we actually opened on (the start index may
       // differ from the raw `card` prop, e.g. a list with duplicate names), so
       // the action slot + any index tracking are correct from the first frame.
@@ -748,6 +752,10 @@ export default defineComponent({
       if (cardEl === null || cardEl === undefined) {
         // The card face isn't in the DOM yet — on the first fullscreen open the
         // async premium face is still resolving. Retry on the next frame(s).
+        if (this.fitRetries === 0 || this.fitRetries === FIT_MAX_RETRIES - 1) {
+          // eslint-disable-next-line no-console
+          console.warn(`%c[TM-DIAG zoom] fit: card element NOT FOUND in stage (retry ${this.fitRetries}/${FIT_MAX_RETRIES})`, 'color:#f59e0b');
+        }
         this.scheduleFitRetry();
         return;
       }

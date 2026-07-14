@@ -34,6 +34,14 @@ import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 
 const HOLD_CLASS = 'con-zoom-hold';
 
+// TEMPORARY first-open diagnostics (see DIAGNOSTIC_CLEANUP.md) — traces the
+// zoom-open choreography so a broken first open can be pinpointed from the
+// user's console instead of guessed.
+function zlog(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.warn(`%c[TM-DIAG zoom] ${msg}`, 'color:#38bdf8');
+}
+
 type ZoomMotionCtx = {
   tween?: gsap.core.Tween | gsap.core.Timeline,
   heldSlot?: HTMLElement,
@@ -107,6 +115,7 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
     }
   };
   const stage = dialog !== undefined ? stageEl(dialog) : null;
+  zlog(`open: dialog=${dialog !== undefined} stage=${stage !== null} origin=${origin.kind} index=${index}`);
   // SAFETY: settle the chrome AND force the stage visible. The open path hides
   // the stage (`autoAlpha: 0`) and only restores it inside the tween after two
   // rAFs — if anything derails in between (a bail, a killed tween, a zero
@@ -116,6 +125,7 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
   // (or will finish at autoAlpha 1 anyway), so the restore is idempotent.
   setTimeout(() => {
     if (!settled && stage !== null && !ctx.closing) {
+      zlog(`open SAFETY fired: restoring stage visibility (tween=${ctx.tween !== undefined})`);
       killTween();
       gsap.set(stage, {clearProps: 'opacity,visibility,transform'});
     }
@@ -133,6 +143,7 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
   // sized the card by then, so the measured stage rect is final.
   requestAnimationFrame(() => requestAnimationFrame(() => {
     if (ctx.closing) {
+      zlog('open BAIL: ctx.closing was set between show and the 2nd rAF');
       return; // closed before it ever opened — close path owns cleanup
     }
     const finish = () => {
@@ -145,14 +156,17 @@ export function playZoomOpen(dialog: HTMLElement | undefined, index: number, ori
     }
     const target = stage.getBoundingClientRect();
     const source = origin.kind === 'physical' ? usableRect(sourceCardEl(origin, index)) : undefined;
+    zlog(`open measure: target=${Math.round(target.width)}x${Math.round(target.height)} source=${source !== undefined ? Math.round(source.width) + 'x' + Math.round(source.height) : 'none'} cardInStage=${stage.querySelector(':is(.card-container, .pcard)') !== null}`);
     if (source === undefined || target.width < 10) {
       // Textual / none / unresolvable slot: the inspector rise-from-depth.
+      zlog('open path: rise-from-depth fallback');
       ctx.tween = gsap.fromTo(stage,
         {autoAlpha: 0, y: 26, scale: 0.86, transformOrigin: '50% 60%'},
         {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(300) / 1000, ease: 'expo.out', onComplete: finish});
       return;
     }
     // FLIP: start the fullscreen stage transformed onto the slot's rect.
+    zlog('open path: FLIP from slot');
     holdSlot(sourceCardEl(origin, index));
     const scale = source.width / target.width;
     ctx.tween = gsap.fromTo(stage,
