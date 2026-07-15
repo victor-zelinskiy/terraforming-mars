@@ -3277,7 +3277,9 @@ html.console-mode {
         &--select-disabled > :is(.card-container, .pcard) {
             filter: grayscale(0.5) brightness(0.64);
         }
-        .con-cards__pickband { zoom: 1.15; }
+        /* Small-zoom slot: bump the band back to readable. Keeps the base
+           rule's TV double-scale guard (same property → this would drop it). */
+        .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
     }
     /* Compact blocker chip on an unavailable card (short reason — the full
        requirement lives in the info panel below). */
@@ -8488,6 +8490,20 @@ html.con-scale-focus-venus .arc-scale--venus {
        behind tags/icons; z6 wins the corner ladder). */
     &__pickband {
         position: absolute;
+        /* TV double-scale guard (ONE knob for every host). The band always
+           lives inside a slot whose `zoom` ALREADY carries --con-ui-scale —
+           the fit engines multiply their ceilings by conUiScale()
+           (--con-cards-zoom / --con-cards-grid-zoom / --con-hand-zoom) and
+           the static hosts spell it out (`calc(0.86 * var(--con-ui-scale))`
+           on .con-start__prelude / __corp / __cands). The band's own rem
+           lengths carry the TV scale a SECOND time via the scaled rem base,
+           so on the tv profile it rendered ~s× larger than the card it marks
+           and its `top` overhang outgrew the strip's headroom (clipped).
+           Dividing the scale back out ONCE here keeps a constant band:card
+           ratio on every profile — `zoom` covers the offset, the padding,
+           the type and the rim in one place (percentages are zoom-invariant,
+           so left: 50% + translateX(-50%) still centres exactly). */
+        zoom: calc(1 / var(--con-ui-scale, 1));
         top: -.6rem;
         left: 50%;
         transform: translateX(-50%);
@@ -9347,8 +9363,9 @@ body.con-start-ceremony {
         gap: .9rem;
         padding-top: .7rem; /* P18: headroom for the state band overhang */
     }
-    /* Small-zoom contexts scale the band back up to TV-readable. */
-    &__prelude .con-cards__pickband { zoom: 1.15; }
+    /* Small-zoom contexts scale the band back up to readable. Keeps the base
+       rule's TV double-scale guard (same property → this would drop it). */
+    &__prelude .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
     &__prelude {
         position: relative;
         border-radius: .6rem;

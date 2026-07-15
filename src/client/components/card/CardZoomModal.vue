@@ -886,6 +886,14 @@ export default defineComponent({
       const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
 
       cardEl.style.zoom = String(finalZoom);
+      // Publish the applied zoom so the viewer's OWN chrome can stay
+      // proportional to the card it decorates. The card face is px-authored
+      // and upscaled by this `zoom`; a fixed-px sibling (the "ВЫБРАНА" ribbon)
+      // would read tiny against a 2.8×-upscaled card — and on the console TV
+      // profile, where the zoom runs at the ceiling, unmistakably so.
+      // Inherits to `.card-zoom-card` (the ribbon's host); the off-screen
+      // preload clones carry no chrome, so one var on the dialog is enough.
+      dialog?.style.setProperty('--card-zoom-fit', String(finalZoom));
       // Measured + applied — cancel any pending retry and re-arm the budget.
       this.clearFitRetry();
     },

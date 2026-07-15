@@ -1313,11 +1313,10 @@
  *       on the .card-zoom-card wrapper. Reuses the shared
  *       `card-selected-pulse` keyframes defined in
  *       card_selection.less so the rhythm matches the grid pulse.
- *    3. "ВЫБРАНО" / "SELECTED" ribbon above the card via ::after
- *       on the wrapper — a sci-fi parallelogram with strong cyan
- *       gradient + glow. Scaled larger than the grid ribbon
- *       (16-px font, 32-px tall) so it reads proportionally to the
- *       upscaled card behind it.
+ *    3. "ВЫБРАНО" / "SELECTED" ribbon ON the card's lower edge via
+ *       ::after on the wrapper — a sci-fi trapezoid plate. It tracks
+ *       the card's fit zoom (`--card-zoom-fit`), so it reads
+ *       proportionally to the upscaled card behind it at every zoom.
  *
  *  DRAFT mode never sets `selected=true` (the modal closes before
  *  state could change), so this state only renders during BUY.
@@ -1344,8 +1343,9 @@
      *              together (2.4-s pulse) so the rim has the same
      *              "lit" rhythm as the halo.
      *
-     *   ::after  — the "ВЫБРАНА" status pill above the card.
-     *              Unchanged from v40-u proportions.
+     *   ::after  — the "ВЫБРАНА" status pill, on the card's lower
+     *              edge (see the rule for why that edge, and why it
+     *              scales with the card).
      *
      * Net effect: selected card = full type-colour chassis + cyan
      * rim + cyan halo + status ribbon — strictly brighter and
@@ -1374,34 +1374,55 @@
         z-index: 0;
     }
 
+    /*
+     * The ribbon sits ON the card's LOWER edge, and scales WITH the card.
+     *
+     * Position: it used to float ABOVE the card (`top: -26px`) — which is the
+     * band the nav counter owns (`.card-zoom-topbar`), so in nav mode the two
+     * collided. This restores the layer separation this file documents at
+     * `.card-zoom-topbar`: counter ABOVE the card, "ВЫБРАНА" ON the card,
+     * actions BELOW it. The lower edge is the one edge with no chrome of its
+     * own — the title nameplate owns the top, the VP badge / expansion stamp
+     * sit in the bottom CORNERS, so a centred banner clears all of them. The
+     * small overhang (6px × fit ≤ 17px) stays inside the container's 20px gap
+     * above the actions panel.
+     *
+     * Size: `--card-zoom-fit` is the fit zoom CardZoomModal applied to the card
+     * face (1 → 2.8). A fixed-px ribbon read tiny against an upscaled card
+     * (worst on the console TV profile, where the fit runs at the ceiling);
+     * tracking the same factor keeps the ribbon:card ratio constant at every
+     * zoom — the proportional read this block always intended.
+     */
     &::after {
+        --ribbon-fit: var(--card-zoom-fit, 1);
         content: var(--cab-selected-label, 'SELECTED');
         position: absolute;
-        top: -26px;
+        bottom: calc(-6px * var(--ribbon-fit));
         left: 50%;
         transform: translateX(-50%);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 108px;
-        height: 24px;
-        padding: 0 18px;
+        min-width: calc(108px * var(--ribbon-fit));
+        height: calc(24px * var(--ribbon-fit));
+        padding: 0 calc(18px * var(--ribbon-fit));
         background: linear-gradient(180deg,
             rgba(210, 225, 240, 0.94) 0%,
             rgba(170, 195, 220, 0.92) 50%,
             rgba(130, 165, 195, 0.92) 100%);
         color: #0b1a2a;
         font-family: "Russo One", Prototype, Ubuntu, sans-serif;
-        font-size: 13px;
+        font-size: calc(13px * var(--ribbon-fit));
         font-weight: 700;
-        letter-spacing: 2.8px;
+        letter-spacing: calc(2.8px * var(--ribbon-fit));
         text-transform: uppercase;
         line-height: 1;
-        clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+        /* Flipped: the taper now widens toward the card it sits on. */
+        clip-path: polygon(0% 0%, 100% 0%, 92% 100%, 8% 100%);
         box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.4),
-            0 0 8px rgba(106, 176, 230, 0.24),
-            0 3px 7px rgba(0, 0, 0, 0.55);
+            0 0 calc(8px * var(--ribbon-fit)) rgba(106, 176, 230, 0.24),
+            0 calc(3px * var(--ribbon-fit)) calc(7px * var(--ribbon-fit)) rgba(0, 0, 0, 0.55);
         text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
         white-space: nowrap;
         pointer-events: none;
