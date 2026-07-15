@@ -12,6 +12,7 @@ import {
   playedHeroHolding,
   playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
+import {panelRewardHold, heldStock, heldProduction} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 function viewWithTableau(names: Array<CardName>): PlayerViewModel {
   return {
@@ -114,5 +115,54 @@ describe('consolePlayedHero (the animation transaction)', () => {
     await settle(5);
     expect(playedHeroState.phase).to.eq('idle');
     expect(playedHeroState.revealed).to.be.false;
+  });
+
+  it('the REWARD BEAT: metrics held from the commit gate, released by the transfers, clean end', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, rewards: [
+      {channel: 'stock', resource: 'plants', amount: 3},
+      {channel: 'production', resource: 'plants', amount: 1},
+    ]});
+    expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+    await runPlayedHero(viewWithTableau([CardName.TREES]));
+    // The hold seeded exactly as the commit gate opened: the commit will NOT
+    // fire the reward chips — each transfer's touchdown releases its metric
+    // (stock and production of the same resource held INDEPENDENTLY).
+    expect(panelRewardHold.active).to.be.true;
+    expect(heldStock('plants')).to.eq(3);
+    expect(heldProduction('plants')).to.eq(1);
+    // Under JSDOM the transfers degrade (no measurable geometry) and release
+    // immediately — the scene still walks to a clean idle with nothing held.
+    await endPlayedHero();
+    expect(panelRewardHold.active).to.be.false;
+    expect(heldStock('plants')).to.eq(0);
+    expect(playedHeroState.phase).to.eq('idle');
+    expect(isPlayedHeroActive()).to.be.false;
+  });
+
+  it('abort mid-scene drops the reward hold with the transaction (no stale hold, ever)', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, rewards: [
+      {channel: 'stock', resource: 'megacredits', amount: 5},
+    ]});
+    expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+    await runPlayedHero(viewWithTableau([CardName.TREES]));
+    expect(heldStock('megacredits')).to.eq(5);
+    abortPlayedHero();
+    expect(panelRewardHold.active).to.be.false;
+    expect(heldStock('megacredits')).to.eq(0);
+    await settle(5);
+    expect(playedHeroState.phase).to.eq('idle');
+  });
+
+  it('a card with NO immediate reward seeds no hold and keeps the plain result beat', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false});
+    expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+    await runPlayedHero(viewWithTableau([CardName.TREES]));
+    expect(panelRewardHold.active).to.be.false;
+    const end = endPlayedHero();
+    await settle(30);
+    expect(playedHeroState.phase).to.eq('showing-result');
+    skipPlayedHeroResult();
+    await end;
+    expect(playedHeroState.phase).to.eq('idle');
   });
 });

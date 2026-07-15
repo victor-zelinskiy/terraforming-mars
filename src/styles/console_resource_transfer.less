@@ -1,0 +1,145 @@
+/* ══ CONSOLE RESOURCE TRANSFER — the shared "receiving resources" chips ═══
+   (ConsoleResourceTransferLayer + resourceTransferDirector +
+    consoleResourceTransfer)
+
+   The ONE premium language of a resource physically arriving: a chip built
+   from the game's REAL resource art carries its «+N» from the reward source
+   (the played card / the sale terminal) onto the exact left-panel zone —
+   stock value, brown production zone, or the chosen additional-resource
+   host — where a pointed one-shot contact beat hands the moment to the
+   delta chip.
+
+   Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
+   `transition: all`; `will-change` scoped to elements that exist only for
+   the duration of a flight (the layer is v-if'd on live flights). */
+
+.con-transfer {
+    position: fixed;
+    inset: 0;
+    /* Above the «Разыграно» table (11400) + the sale terminal (11660) — the
+       travelling reward is the topmost object of its beat; under the command
+       bar (11700). */
+    z-index: 11670;
+    pointer-events: none;
+    contain: layout style;
+
+    /* ── the physical chip ───────────────────────────────────────────────
+       A resource token, not a UI plate: the real sprite with depth (drop
+       shadow), a clean silhouette, and the amount seated INTO the token. */
+    &__chip {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 2.7rem;
+        height: 2.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden; /* the director materializes it at the source */
+        filter: drop-shadow(0 .25rem .5rem rgba(0, 0, 0, 0.6));
+        will-change: transform, opacity;
+    }
+    &__icon {
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        display: block;
+        flex-shrink: 0;
+    }
+
+    /* The amount — part of the token itself: a dark metal seat hugging the
+       lower-right edge, thin light rim, crisp tabular digits. Reads on any
+       resource colour (dark blues / purples / greens / textures) because the
+       seat, not the sprite, carries the contrast. */
+    &__amt {
+        position: absolute;
+        right: -.45rem;
+        bottom: -.35rem;
+        min-width: 1.3rem;
+        padding: .08rem .3rem;
+        border-radius: 49.95rem;
+        text-align: center;
+        background: linear-gradient(180deg, rgba(38, 48, 62, 0.98), rgba(14, 20, 28, 0.98));
+        box-shadow:
+            inset 0 0 0 .06rem rgba(190, 215, 240, 0.55),
+            0 .12rem .3rem rgba(0, 0, 0, 0.65);
+        color: #f4f9ff;
+        font-size: .85rem;
+        font-weight: 800;
+        line-height: 1.15;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: .01rem;
+    }
+
+    /* MEGACREDITS — the canonical gold M€ tile IS the chip: the amount is
+       printed on the tile (dark ink on gold, the game's own M€ reading),
+       no extra seat. */
+    &__chip--mc {
+        background: url('./assets/resources/megacredit.png') center / 100% 100% no-repeat;
+        width: 2.9rem;
+        height: 2.9rem;
+    }
+    &__amt--mc {
+        position: static;
+        min-width: 0;
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        color: #2a1f04;
+        font-size: 1.2rem;
+        text-shadow: 0 .05rem 0 rgba(255, 244, 205, 0.55);
+    }
+
+    /* PRODUCTION — the same resource sprite SEATED in the printed brown
+       production plate (the card language): unmistakably production, headed
+       for the brown production zone, never "a stock chip that drifted". */
+    &__chip--production {
+        width: 2.9rem;
+        height: 2.9rem;
+        border-radius: .3rem;
+        background: linear-gradient(180deg, #8a5a30, #6b4322);
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.7),
+            inset 0 .1rem .2rem rgba(255, 224, 180, 0.25);
+        padding: .3rem;
+    }
+    &__chip--production &__icon {
+        filter: drop-shadow(0 .08rem .15rem rgba(0, 0, 0, 0.45));
+    }
+
+    /* CARD RESOURCES — the round token sprite (microbe / animal / floater /
+       science / …), the seat carries the amount. */
+    &__chip--cardres {
+        width: 2.6rem;
+        height: 2.6rem;
+    }
+
+    /* ── the contact beat — a pointed, material halo on the destination ──
+       Short, local, tied to the zone it wakes; no bloom, no bounce. */
+    &__beat {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 3.4rem;
+        height: 3.4rem;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(185, 220, 250, 0.5), transparent 72%);
+        opacity: 0;
+        pointer-events: none;
+        will-change: transform, opacity;
+
+        /* Production arrival glows bronze — the zone's own material. */
+        &--production {
+            background: radial-gradient(50% 50% at 50% 50%, rgba(222, 168, 106, 0.55), transparent 72%);
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* The controller skips flights wholesale under reduced motion; belt-and-
+       braces the decorative halo so a mid-flight preference flip can't play. */
+    .con-transfer__beat { display: none; }
+}

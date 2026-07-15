@@ -41,15 +41,19 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {sellPatentsPayout} from '@/client/components/handCards/sellPatentsState';
 import {
-  PatentSalePhase, SalePoint,
+  PatentSalePhase,
   SALE_LIFT_MS, SALE_GATHER_MS, SALE_GATHER_STAGGER_MS, SALE_INSERT_MS,
-  SALE_PROCESS_MIN_MS, SALE_PAYOUT_MS, SALE_REDUCED_MS, SALE_ARM_SAFETY_MS,
+  SALE_PROCESS_MIN_MS, SALE_REDUCED_MS, SALE_ARM_SAFETY_MS,
   SALE_FLIGHT_CAP,
 } from '@/client/console/patentSale/patentSaleModel';
 import {
   SaleStageEls, SaleSource, placeSaleProxies, playSaleGather, playSaleInsert,
-  startSaleProcessing, playSalePayout, playSaleSettle, killSaleTweens,
+  startSaleProcessing, playSaleDispense, playSaleSettle, killSaleTweens, saleSlitCenter,
 } from '@/client/console/patentSale/patentSaleDirector';
+import {
+  runResourceTransfers, settleResourceTransfers, abortResourceTransfers,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {transferFlightBudgetMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type SaleFlight = {
   id: number,
@@ -176,7 +180,7 @@ export function runPatentSale(): Promise<void> {
     sceneSafety = window.setTimeout(() => {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
-    }, motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + SALE_PAYOUT_MS) + 3000);
+    }, motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000);
     void executePayout().finally(() => freeRunGate());
   });
 }
@@ -192,8 +196,15 @@ export async function endPatentSale(): Promise<void> {
   }
   patentSaleState.phase = 'settling';
   const els = stage?.els();
-  if (els !== undefined && !patentSaleState.reducedMotion) {
-    await playSaleSettle(els, conUiScale());
+  if (!patentSaleState.reducedMotion) {
+    // The framework absorbs the landed M€ chip into the (just updated) row
+    // under its one-shot halo while the terminal retracts into the table.
+    await Promise.all([
+      settleResourceTransfers(),
+      els !== undefined ? playSaleSettle(els, conUiScale()) : Promise.resolve(),
+    ]);
+  } else {
+    await settleResourceTransfers(); // no landed chips under reduced motion
   }
   finish();
 }
@@ -213,6 +224,7 @@ export function abortPatentSale(): void {
   if (els !== undefined) {
     killSaleTweens(els);
   }
+  abortResourceTransfers(); // a mid-flight payout chip unmounts with zero trace
   restoreSources();
   patentSaleState.active = false;
   patentSaleState.phase = 'failed';
@@ -232,8 +244,6 @@ export function abortPatentSale(): void {
 
 /** The shared "slot is empty" cascade rule (cardExitDirector.HOLD_CLASS). */
 const HOLD_CLASS = 'con-deal-hold';
-/** Where a payout chip lands: the resource rail's M€ icon (always on). */
-const MEGACREDITS_ANCHOR = '.con-res__row--megacredits .con-res__icon';
 
 /**
  * The CLIENT LEG (starts at arm): proxies stand over the real cards (which
@@ -315,8 +325,8 @@ async function executePayout(): Promise<void> {
     return;
   }
   const els = stage?.els();
-  const target = measureAnchor();
-  if (patentSaleState.reducedMotion || els === undefined || target === undefined || capturedSources.length === 0) {
+  const slit = saleSlitCenter();
+  if (patentSaleState.reducedMotion || els === undefined || slit === undefined || capturedSources.length === 0) {
     // Degraded: no scene to pace — a minimal controlled beat, then commit.
     patentSaleState.phase = 'paying';
     await wait(patentSaleState.reducedMotion ? 0 : 60);
@@ -331,26 +341,17 @@ async function executePayout(): Promise<void> {
     return;
   }
   patentSaleState.phase = 'paying';
-  await playSalePayout(els, {
-    to: target,
-    uiScale: conUiScale(),
-    durationMs: motionMs(SALE_PAYOUT_MS),
+  // The dispense flash announces the payout, then the SHARED resource-
+  // transfer framework ejects the M€ chip from the slit and arcs it onto the
+  // resource rail's M€ row — `arrival: 'hold'`: the chip RESTS there until
+  // the (gated) commit fires the delta chip and endPatentSale absorbs it.
+  // Resolves at the chip's touchdown — the caller commits right after.
+  playSaleDispense(els);
+  await runResourceTransfers({
+    specs: [{channel: 'stock', resource: 'megacredits', amount: patentSaleState.payout}],
+    source: {point: slit},
+    arrival: 'hold',
   });
-}
-
-function measureAnchor(): SalePoint | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  const el = document.querySelector<HTMLElement>(MEGACREDITS_ANCHOR);
-  if (el === null) {
-    return undefined;
-  }
-  const r = el.getBoundingClientRect();
-  if (r.width < 4 || r.height < 4) {
-    return undefined;
-  }
-  return {x: r.left + r.width / 2, y: r.top + r.height / 2};
 }
 
 function captureSources(cards: ReadonlyArray<CardName>): Array<SaleSource & {holdEl: HTMLElement}> {

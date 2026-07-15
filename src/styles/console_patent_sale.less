@@ -133,52 +133,14 @@
         will-change: opacity;
     }
 
-    /* ── The payout chip — the canonical gold M€ tile with the value ────── */
-    &__chip {
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 3; /* over the well + terminal — the payout is the story now */
-        width: 2.9rem;
-        height: 2.9rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: url('./assets/resources/megacredit.png') center / 100% 100% no-repeat;
-        filter: drop-shadow(0 .25rem .55rem rgba(0, 0, 0, 0.6));
-        opacity: 0;
-        visibility: hidden; /* the director ejects it via autoAlpha */
-        will-change: transform, opacity;
-    }
-    &__chip-value {
-        font-size: 1.25rem;
-        font-weight: 800;
-        line-height: 1;
-        color: #2a1f04;
-        text-shadow: 0 .05rem 0 rgba(255, 244, 205, 0.55);
-        font-variant-numeric: tabular-nums;
-    }
-
-    /* One-shot absorption halo at the chip's landing on the M€ row. */
-    &__halo {
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: 3;
-        width: 3.4rem;
-        height: 3.4rem;
-        border-radius: 50%;
-        background: radial-gradient(50% 50% at 50% 50%, fade(@con-amber, 55%), transparent 72%);
-        opacity: 0;
-        pointer-events: none;
-        will-change: transform, opacity;
-    }
+    /* The payout M€ chip + its absorption halo live on the SHARED
+       resource-transfer stage (console_resource_transfer.less) — one visual
+       language of receiving resources across the whole console UI. */
 }
 
 @media (prefers-reduced-motion: reduce) {
     /* The controller already skips the scene wholesale; belt-and-braces the
        decorative movers so a mid-transition preference flip can't animate. */
     .con-sale-hero__scan,
-    .con-sale-hero__glow,
-    .con-sale-hero__halo { display: none; }
+    .con-sale-hero__glow { display: none; }
 }

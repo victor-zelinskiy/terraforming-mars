@@ -19,7 +19,7 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  SalePoint, saleStackSlot, saleChipPlan, saleChipPoint, saleChipScaleAt,
+  SalePoint, saleStackSlot,
   SALE_STACK_W, SALE_TERMINAL_REVEAL_MS,
 } from '@/client/console/patentSale/patentSaleModel';
 
@@ -46,8 +46,6 @@ export type SaleStageEls = {
   slit: HTMLElement,
   scan: HTMLElement | undefined,
   glow: HTMLElement | undefined,
-  chip: HTMLElement | undefined,
-  halo: HTMLElement | undefined,
   proxies: ReadonlyArray<SaleProxyEls>,
 };
 
@@ -60,8 +58,12 @@ type ProxyGeometry = {
 let geometry = new Map<number, ProxyGeometry>();
 /** The slit mouth centre (the stack target + the chip's launch point). */
 let slitCenter: SalePoint | undefined;
-/** Where the payout chip touched down (the settle halo plays here). */
-let chipLanding: SalePoint | undefined;
+
+/** The payout chip's launch point — the RESOURCE-TRANSFER framework spawns
+ *  the M€ chip here (the sale's reward source is the terminal, not a card). */
+export function saleSlitCenter(): SalePoint | undefined {
+  return slitCenter;
+}
 
 /**
  * Position every proxy pixel-perfect over its captured source rect and the
@@ -72,7 +74,6 @@ let chipLanding: SalePoint | undefined;
  */
 export function placeSaleProxies(els: SaleStageEls, sources: ReadonlyArray<SaleSource>): boolean {
   geometry = new Map();
-  chipLanding = undefined;
   slitCenter = undefined; // never inherit a previous transaction's geometry
   // Measure the slit at its RESTING pose (y 0) — the stack point + clip line
   // key off the final position — THEN wind the terminal to its slide-in start.
@@ -269,91 +270,30 @@ export function startSaleProcessing(els: SaleStageEls): void {
   }
 }
 
-export type SalePayoutOpts = {
-  to: SalePoint,
-  uiScale: number,
-  durationMs: number,
-};
-
 /**
- * The PAYOUT: one bright beat on the slit, then the M€ chip pops out of the
- * mouth and arcs onto the resource rail's M€ icon — ONE progress tween maps
- * the whole flight (position + scale + a slight unwinding tumble) through
- * the model's arc, ending in a two-frame touchdown settle. Resolves at
- * touchdown — the caller commits the view right there.
+ * The DISPENSE flash: the mechanism stops working and announces the payout
+ * with one bright beat on the slit — fired the moment the shared
+ * resource-transfer framework ejects the M€ chip from `saleSlitCenter()`.
+ * Fire-and-forget (the chip's own flight is the awaited beat).
  */
-export function playSalePayout(els: SaleStageEls, opts: SalePayoutOpts): Promise<void> {
-  const from = slitCenter;
-  const chip = els.chip;
-  if (from === undefined || chip === undefined) {
-    return Promise.resolve();
-  }
+export function playSaleDispense(els: SaleStageEls): void {
   stopProcessingTweens(els);
-  chipLanding = opts.to;
-  const plan = saleChipPlan(from, opts.to);
-  const chipW = chip.offsetWidth || 48;
-  const chipH = chip.offsetHeight || 48;
-  const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
-  gsap.set(chip, {
-    x: from.x - chipW / 2,
-    y: from.y - chipH / 2,
-    scale: saleChipScaleAt(0),
-    rotation: -7,
-    transformOrigin: 'center center',
-    autoAlpha: 0,
-  });
-  return guarded((done) => {
-    const tl = gsap.timeline({onComplete: done});
-    // The dispense flash — the mechanism announces the payout.
-    if (els.glow !== undefined) {
-      tl.to(els.glow, {autoAlpha: 0.9, duration: 0.09, ease: 'power1.in'}, 0);
-      tl.to(els.glow, {autoAlpha: 0, duration: 0.3, ease: 'power1.out'}, 0.09);
-    }
-    tl.to(chip, {autoAlpha: 1, duration: 0.1, ease: 'power1.out'}, 0.04);
-    const prog = {q: 0};
-    tl.to(prog, {
-      q: 1,
-      duration: opts.durationMs / 1000,
-      ease: 'power1.inOut',
-      onUpdate: () => {
-        const p = saleChipPoint(plan, prog.q);
-        gsap.set(chip, {
-          x: p.x - chipW / 2,
-          y: p.y - chipH / 2,
-          scale: saleChipScaleAt(prog.q),
-          rotation: -7 * (1 - prog.q), // unwinds — the landing is square
-        });
-      },
-    }, 0.06);
-    // Touchdown: microscopic damped weight — felt, not seen.
-    tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
-    tl.to(chip, {y: `-=${settlePx}`, duration: 0.12, ease: 'power2.out'});
-  }, opts.durationMs + 500);
+  if (els.glow !== undefined) {
+    gsap.timeline()
+      .to(els.glow, {autoAlpha: 0.9, duration: 0.09, ease: 'power1.in'}, 0)
+      .to(els.glow, {autoAlpha: 0, duration: 0.3, ease: 'power1.out'}, 0.09);
+  }
 }
 
 /**
- * The SETTLE (post-commit): the chip is absorbed into the (just updated) M€
- * row under a one-shot halo, and the terminal retracts into the table. The
- * standard delta chip is already ticking beside it — this is the handoff.
+ * The SETTLE (post-commit): the terminal retracts into the table while the
+ * framework absorbs the landed chip into the (just updated) M€ row — the
+ * standard delta chip is already ticking beside it.
  */
 export function playSaleSettle(els: SaleStageEls, uiScale: number): Promise<void> {
   const budget = 480;
   return guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
-    if (els.halo !== undefined && chipLanding !== undefined) {
-      const haloW = els.halo.offsetWidth || 64;
-      gsap.set(els.halo, {
-        x: chipLanding.x - haloW / 2,
-        y: chipLanding.y - haloW / 2,
-        scale: 0.5,
-        autoAlpha: 0.55,
-        transformOrigin: 'center center',
-      });
-      tl.to(els.halo, {scale: 1.6, autoAlpha: 0, duration: 0.42, ease: 'power2.out'}, 0);
-    }
-    if (els.chip !== undefined) {
-      tl.to(els.chip, {scale: 0.55, autoAlpha: 0, duration: 0.22, ease: 'power2.in'}, 0);
-    }
     tl.to(els.terminal, {y: `+=${Math.round(16 * uiScale)}`, autoAlpha: 0, duration: 0.26, ease: 'power2.in'}, 0.05);
   }, budget);
 }
@@ -378,10 +318,4 @@ export function killSaleTweens(els: SaleStageEls): void {
   });
   gsap.killTweensOf(els.terminal);
   stopProcessingTweens(els);
-  if (els.chip !== undefined) {
-    gsap.killTweensOf(els.chip);
-  }
-  if (els.halo !== undefined) {
-    gsap.killTweensOf(els.halo);
-  }
 }

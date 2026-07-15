@@ -41,7 +41,9 @@ export type PatentSalePhase =
   | 'done'
   | 'failed'; // server error / stall — transaction unwound, zero trace
 
-/** Timings (ms @ motion scale 1). The whole scene stays ≈1.8–2.1 s. */
+/** Timings (ms @ motion scale 1). The whole scene stays ≈1.8–2.1 s. The
+ *  PAYOUT leg (the M€ chip's flight onto the resource rail) is owned by the
+ *  shared resource-transfer framework — see resourceTransferModel. */
 export const SALE_LIFT_MS = 130;
 export const SALE_GATHER_MS = 430;
 export const SALE_GATHER_STAGGER_MS = 55;
@@ -50,7 +52,6 @@ export const SALE_TERMINAL_REVEAL_MS = 260;
 export const SALE_INSERT_MS = 320;
 /** The mechanism is SEEN working even when the server answers instantly. */
 export const SALE_PROCESS_MIN_MS = 280;
-export const SALE_PAYOUT_MS = 620;
 export const SALE_SETTLE_MS = 340;
 /** Reduced motion: one short controlled beat (the console 160 ms cap
  *  convention), same commit semantics. Raw ms — reduced motion is its own
@@ -95,67 +96,6 @@ export function saleSummary(count: number, megacredits: number): {count: number,
   return {count, payout, before: megacredits, after: megacredits + payout};
 }
 
-export interface SaleChipPlan {
-  /** Quadratic Bézier: P0 = slit mouth, C = control, P1 = the M€ row icon. */
-  p0: SalePoint;
-  c: SalePoint;
-  p1: SalePoint;
-}
-
-function clamp(lo: number, hi: number, v: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-/**
- * Plan the payout chip's arc: a clean upward parabola from the terminal slit
- * to the resource rail's M€ icon. The apex lift is proportional to the
- * travel, clamped to a calm band — the chip is tossed, never launched.
- */
-export function saleChipPlan(from: SalePoint, to: SalePoint): SaleChipPlan {
-  const dist = Math.hypot(to.x - from.x, to.y - from.y);
-  const lift = clamp(50, 170, dist * 0.32);
-  const apex = {
-    x: (from.x + to.x) / 2,
-    y: Math.min(from.y, to.y) - lift,
-  };
-  // Quadratic control point so the curve PASSES through the apex at t=0.5.
-  return {
-    p0: from,
-    c: {
-      x: 2 * apex.x - (from.x + to.x) / 2,
-      y: 2 * apex.y - (from.y + to.y) / 2,
-    },
-    p1: to,
-  };
-}
-
-/** Point on the chip arc at t ∈ [0,1]. */
-export function saleChipPoint(plan: SaleChipPlan, t: number): SalePoint {
-  const u = 1 - t;
-  return {
-    x: u * u * plan.p0.x + 2 * u * t * plan.c.x + t * t * plan.p1.x,
-    y: u * u * plan.p0.y + 2 * u * t * plan.c.y + t * t * plan.p1.y,
-  };
-}
-
-/**
- * Chip scale along the arc (relative to its natural CSS size): ejected
- * small from the slit, blooms just past the pop so the value is READ at the
- * apex, then settles slightly under natural for the touchdown — approaching
- * the rail, not inflating over it. Monotone within each segment.
- */
-export function saleChipScaleAt(t: number): number {
-  const k = clamp(0, 1, t);
-  if (k <= 0.22) {
-    return 0.45 + (1.14 - 0.45) * easeOut(k / 0.22);
-  }
-  return 1.14 + (0.9 - 1.14) * easeInOut((k - 0.22) / 0.78);
-}
-
-function easeOut(k: number): number {
-  return 1 - (1 - k) * (1 - k);
-}
-
-function easeInOut(k: number): number {
-  return k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-}
+// The payout chip's arc / scale maths moved to the shared resource-transfer
+// framework (resourceTransferModel.transferArcPlan / transferArcPoint /
+// transferChipScaleAt) — the sale is its first client, not its owner.

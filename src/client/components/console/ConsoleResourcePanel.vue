@@ -66,7 +66,7 @@
          + delta-chip keys, first-appearance order, only once a card resource is
          unlocked. -->
     <transition-group v-if="boardVisible && extraGroups.length > 0" tag="div" class="con-res-aux" name="con-extra">
-      <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell">
+      <div v-for="g in extraGroups" :key="g.resource" class="con-res-aux__cell" :data-aux-resource="auxAnchorKey(g.resource)">
         <i class="card-resource con-res-aux__icon" :class="extraIconClass(g.resource)" aria-hidden="true"></i>
         <span class="con-res-aux__value">{{ g.total }}</span>
         <AnimatedMetricValue
@@ -99,6 +99,8 @@ import {energyConversionState} from '@/client/components/feedback/energyConversi
 import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
+import {heldStock, heldProduction, heldCardResource, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 type ResourceRow = {key: string, value: number, production: number};
 
@@ -148,13 +150,21 @@ export default defineComponent({
     },
     rows(): Array<ResourceRow> {
       const p = this.effectivePlayer;
+      // The RESOURCE-TRANSFER reward hold (consoleResourceTransfer): a metric
+      // whose reward chip is still IN FLIGHT displays committed − pending, so
+      // the commit doesn't fire its delta chip early — the chip's touchdown
+      // releases the hold and the value (+ delta chip) land at the contact.
+      // `panelRewardHold.active` is read so the computed tracks releases.
+      const hold = panelRewardHold.active;
+      const stock = (key: string, v: number) => hold ? Math.max(0, v - heldStock(key)) : v;
+      const prod = (key: string, v: number) => hold ? v - heldProduction(key) : v;
       return [
-        {key: 'megacredits', value: p.megacredits, production: p.megacreditProduction},
-        {key: 'steel', value: p.steel, production: p.steelProduction},
-        {key: 'titanium', value: p.titanium, production: p.titaniumProduction},
-        {key: 'plants', value: p.plants, production: p.plantProduction},
-        {key: 'energy', value: p.energy, production: p.energyProduction},
-        {key: 'heat', value: p.heat, production: p.heatProduction},
+        {key: 'megacredits', value: stock('megacredits', p.megacredits), production: prod('megacredits', p.megacreditProduction)},
+        {key: 'steel', value: stock('steel', p.steel), production: prod('steel', p.steelProduction)},
+        {key: 'titanium', value: stock('titanium', p.titanium), production: prod('titanium', p.titaniumProduction)},
+        {key: 'plants', value: stock('plants', p.plants), production: prod('plants', p.plantProduction)},
+        {key: 'energy', value: stock('energy', p.energy), production: prod('energy', p.energyProduction)},
+        {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction)},
       ];
     },
     tagEntries(): Array<{tag: Tag, count: number}> {
@@ -172,7 +182,16 @@ export default defineComponent({
      * stay in lockstep. Empty until the player unlocks a card resource.
      */
     extraGroups(): ReadonlyArray<AdditionalResourceGroup> {
-      return additionalResourceGroups(this.player.tableau);
+      const groups = additionalResourceGroups(this.player.tableau);
+      // Reward hold (see `rows`): an in-flight card-resource reward is
+      // subtracted until its chip lands on the chosen host / this satellite.
+      if (!panelRewardHold.active) {
+        return groups;
+      }
+      return groups.map((g) => {
+        const held = heldCardResource(cardResourceKey(g.resource));
+        return held > 0 ? {...g, total: Math.max(0, g.total - held)} : g;
+      });
     },
     /** The end-of-generation energy→heat transition targets THIS player. */
     conversionActive(): boolean {
@@ -226,6 +245,10 @@ export default defineComponent({
     },
     extraIconClass(resource: CardResource): string {
       return cardResourceCSS[resource];
+    },
+    /** The transfer framework's landing anchor (normalized icon key). */
+    auxAnchorKey(resource: CardResource): string {
+      return cardResourceKey(resource);
     },
     extraMetricKey(resource: CardResource): string {
       return additionalResourceMetricKey(resource);

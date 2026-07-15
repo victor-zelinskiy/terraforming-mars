@@ -41,6 +41,12 @@ import {
 import {
   placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
+import {
+  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  ResourceTransferSpec, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS,
+} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
@@ -83,6 +89,14 @@ let pauseResolve: (() => void) | undefined;
 let followUpPending = false;
 /** The composer card we visually blanked under the proxy (restored on abort). */
 let heldSourceEl: HTMLElement | undefined;
+/**
+ * The play's IMMEDIATE resource gains (composer-extracted from the server
+ * preview) — the REWARD BEAT of the scene: once the card has landed and been
+ * read, these emerge from it as physical chips and land on the exact left-
+ * panel zones; each touchdown releases its metric from the panel reward hold
+ * (seeded just before the commit), firing that delta chip at the contact.
+ */
+let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
 
@@ -132,10 +146,11 @@ export function playedHeroHolding(): boolean {
  * the tableau. `sourceSelector` overrides WHERE the card physically lifts
  * from (default: the play composer's card slot).
  */
-export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string}): void {
+export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>}): void {
   clearTimers();
   claimed = false;
   followUpPending = false;
+  pendingRewards = opts.rewards ?? [];
   sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
   playedHeroState.active = true;
   playedHeroState.phase = 'armed';
@@ -192,8 +207,29 @@ export function runPlayedHero(view: PlayerViewModel): Promise<void> {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
     }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
-    void executeFlight().finally(() => freeRunGate());
+    void executeFlight().finally(() => {
+      // Seed the PANEL REWARD HOLD in the same turn the commit gate opens —
+      // strictly BEFORE updatePlayerView — so the commit shows everything
+      // EXCEPT the reward metrics (payment, TR, …); each reward's delta chip
+      // fires only when its chip physically lands during the reward beat.
+      seedRewardHold();
+      freeRunGate();
+    });
   });
+}
+
+/** Hold the reward metrics back from the imminent commit (no-op when the
+ *  card grants nothing immediately, under reduced motion, or after abort —
+ *  the chips then simply fire with the commit, the honest default). */
+function seedRewardHold(): void {
+  if (!playedHeroState.active || pendingRewards.length === 0) {
+    return;
+  }
+  if (consoleReducedMotionActive()) {
+    pendingRewards = [];
+    return;
+  }
+  beginPanelRewardHold(pendingRewards);
 }
 
 function freeRunGate(): void {
@@ -314,9 +350,44 @@ export async function endPlayedHero(): Promise<void> {
     return;
   }
   playedHeroState.phase = 'showing-result';
-  const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
-    (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : HERO_RESULT_PAUSE_MS);
-  await skippablePause(motionMs(pauseMs));
+  if (pendingRewards.length > 0 && !consoleReducedMotionActive()) {
+    // THE REWARD BEAT — the final chord of the play: the landed card is read
+    // for a quiet moment, then its immediate gains emerge from it as
+    // physical resource chips and land on the exact left-panel zones. Each
+    // touchdown releases its metric from the panel reward hold, firing that
+    // delta chip at the contact — the card is the visible source of the
+    // reward until the last transfer completes.
+    const rewards = pendingRewards;
+    pendingRewards = [];
+    await wait(motionMs(TRANSFER_READ_MS));
+    if (!playedHeroState.active) {
+      return;
+    }
+    const esc = escapeName(playedHeroState.card ?? '');
+    await runResourceTransfers({
+      specs: rewards,
+      source: {selectors: [
+        `.con-played [data-played-key="${esc}"] .con-played__face`,
+        `.con-played [data-played-key="${esc}"]`,
+        // An EVENT lands face-down on the events backstack — its rewards
+        // emerge from the pile (the card's honest on-table location).
+        '.con-played .con-played__family--event .con-played__backstack',
+      ]},
+      arrival: 'auto',
+      onArrive: (spec) => releasePanelRewardHold(spec),
+    });
+    // Belt-and-braces: any hold a degraded transfer left behind snaps to the
+    // committed truth now (its chip fires marginally late, never lost).
+    clearPanelRewardHold();
+    if (!playedHeroState.active) {
+      return;
+    }
+    await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
+  } else {
+    const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
+      (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : HERO_RESULT_PAUSE_MS);
+    await skippablePause(motionMs(pauseMs));
+  }
   if (!playedHeroState.active) {
     return;
   }
@@ -348,6 +419,12 @@ export function abortPlayedHero(): void {
     killHeroTweens(els);
   }
   restoreSource();
+  // The reward beat unwinds with the scene: mid-flight chips unmount with
+  // zero trace and the panel snaps to the committed truth (any released
+  // hold fires its chips in one honest transition — never a stale hold).
+  abortResourceTransfers();
+  clearPanelRewardHold();
+  pendingRewards = [];
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
@@ -367,6 +444,8 @@ export function abortPlayedHero(): void {
 function finish(): void {
   clearTimers();
   restoreSource();
+  clearPanelRewardHold(); // safety — the reward beat leaves it empty
+  pendingRewards = [];
   playedHeroState.active = false;
   playedHeroState.phase = 'idle';
   playedHeroState.card = undefined;
@@ -412,6 +491,11 @@ function restoreSource(): void {
 function currentProxyRect(els: HeroStageEls): HeroRect | undefined {
   const r = els.proxy.getBoundingClientRect();
   return r.width > 2 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+
+function escapeName(name: string): string {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+    CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
 async function awaitTargetRect(): Promise<HeroRect | undefined> {

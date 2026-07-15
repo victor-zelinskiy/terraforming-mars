@@ -293,6 +293,7 @@ import {CardType} from '@/common/cards/CardType';
 import {Message} from '@/common/logs/Message';
 import {SelectProjectCardToPlayModel, SelectAmountModel, SelectCardModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
+import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Payment} from '@/common/inputs/Payment';
@@ -1515,6 +1516,16 @@ export default defineComponent({
         optionResponse: this.capturedOption,
         stepResponses: orderedStepResponses(b, this.captured),
         payment,
+        // The IMMEDIATE resource gains of this play (stock / production /
+        // card-resources with their pre-selected hosts), extracted from the
+        // server-computed preview — the hero scene's reward beat carries
+        // them from the landed card onto the left panel.
+        rewards: extractPlayRewards({
+          cardName: this.cardName,
+          effects: b.effects,
+          steps: b.steps,
+          stepResponses: this.captured,
+        }),
       });
     },
     scrollFocused(): void {

@@ -499,6 +499,12 @@
          (consolePatentSale.ts / patentSaleDirector.ts). -->
     <ConsolePatentSaleLayer />
 
+    <!-- The SHARED RESOURCE-TRANSFER stage — every "receiving resources"
+         chip (the sale's M€ payout, a played card's reward beat) flies
+         here: real resource art + the amount, source → exact panel zone →
+         delta chip (consoleResourceTransfer.ts / resourceTransferDirector). -->
+    <ConsoleResourceTransferLayer />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -679,6 +685,8 @@ import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBon
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
+import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -778,6 +786,7 @@ export default defineComponent({
     ConsolePlayedOverlay,
     ConsolePlayedHeroLayer,
     ConsolePatentSaleLayer,
+    ConsoleResourceTransferLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -3980,7 +3989,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -3998,7 +4007,10 @@ export default defineComponent({
         return;
       }
       const isEvent = getCard(pending.cardName)?.type === CardType.EVENT;
-      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen});
+      // `rewards` = the play's immediate resource gains (composer-extracted
+      // from the server preview) — the hero scene's reward beat carries them
+      // from the landed card onto the left panel, delta chips at contact.
+      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, rewards: payload.rewards});
       const batch = buildPlayCardBatch({
         playPath: action.path,
         cardName: pending.cardName,

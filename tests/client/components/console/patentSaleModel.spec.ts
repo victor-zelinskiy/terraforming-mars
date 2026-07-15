@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  saleSummary, saleStackSlot, saleChipPlan, saleChipPoint, saleChipScaleAt,
+  saleSummary, saleStackSlot,
   SALE_FLIGHT_CAP,
 } from '@/client/console/patentSale/patentSaleModel';
 import {SELL_PATENTS_RATE} from '@/client/components/handCards/sellPatentsState';
@@ -33,36 +33,6 @@ describe('patentSaleModel (pure math of the trade-terminal scene)', () => {
     expect(saleStackSlot(3).dy).to.be.lessThan(saleStackSlot(0).dy);
   });
 
-  it('the chip arc starts at the slit, ends on the M€ row, and lifts through an apex', () => {
-    const from = {x: 640, y: 620};
-    const to = {x: 90, y: 120};
-    const plan = saleChipPlan(from, to);
-    expect(saleChipPoint(plan, 0)).to.deep.eq(from);
-    expect(saleChipPoint(plan, 1)).to.deep.eq(to);
-    // The mid-arc point rides ABOVE the straight chord — a toss, not a slide.
-    const mid = saleChipPoint(plan, 0.5);
-    const chordMidY = (from.y + to.y) / 2;
-    expect(mid.y).to.be.lessThan(chordMidY);
-  });
-
-  it('the apex lift is clamped to a calm band on any travel distance', () => {
-    const short = saleChipPlan({x: 0, y: 100}, {x: 40, y: 90});
-    const long = saleChipPlan({x: 0, y: 2000}, {x: 3000, y: 0});
-    // Apex (t=0.5) never sits more than the clamp above the higher endpoint.
-    const shortApex = saleChipPoint(short, 0.5);
-    const longApex = saleChipPoint(long, 0.5);
-    expect(90 - shortApex.y).to.be.at.least(50 - 0.001);
-    expect(90 - shortApex.y).to.be.at.most(170 + 0.001);
-    expect(0 - longApex.y).to.be.at.most(170 + 0.001);
-  });
-
-  it('the chip scale pops to a readable bloom, then settles under natural for touchdown', () => {
-    expect(saleChipScaleAt(0)).to.be.lessThan(0.6); // ejected small
-    expect(saleChipScaleAt(0.22)).to.be.greaterThan(1); // the readable bloom
-    expect(saleChipScaleAt(1)).to.be.closeTo(0.9, 0.001); // approaches the rail
-    // Bounded everywhere — never a runaway inflate.
-    for (let t = 0; t <= 1; t += 0.05) {
-      expect(saleChipScaleAt(t)).to.be.within(0.4, 1.2);
-    }
-  });
+  // The payout chip's arc / scale maths moved to the shared resource-transfer
+  // framework — covered by resourceTransferModel.spec.ts.
 });

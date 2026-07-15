@@ -9,13 +9,13 @@
 
     Anatomy:
      - the WELL hosts the card proxies (the shared lite-face + flip chassis)
-       and carries the static clip line at the terminal's slit mouth — a
-       sinking card vanishes INTO the table, never fades in mid-air;
+       and carries the clip line at the terminal's slit mouth — a sinking
+       card vanishes INTO the table, never fades in mid-air;
      - the TERMINAL is the slim trade mechanism at the table edge (kicker +
        slit + working scanline + rim glow);
-     - the CHIP is the dispensed megacredit tile (the canonical gold M€
-       square with the payout value) that arcs onto the resource rail;
-     - the HALO is the one-shot absorption pulse at the chip's landing.
+     - the dispensed M€ CHIP flies on the SHARED resource-transfer stage
+       (ConsoleResourceTransferLayer) — the one language of receiving
+       resources — spawned from this terminal's slit.
   -->
   <div v-if="patentSaleState.active" class="con-sale-hero" aria-hidden="true">
     <div ref="well" class="con-sale-hero__well">
@@ -33,6 +33,10 @@
         </div>
       </div>
     </div>
+    <!-- The payout M€ chip itself is NOT here — it flies on the shared
+         resource-transfer stage (ConsoleResourceTransferLayer), spawned
+         from this terminal's slit: one visual language of receiving
+         resources, sale and card play alike. -->
     <div ref="terminal" class="con-sale-hero__terminal">
       <span class="con-sale-hero__kicker" v-i18n>Patent sale</span>
       <div ref="slit" class="con-sale-hero__slit">
@@ -40,10 +44,6 @@
       </div>
       <div ref="glow" class="con-sale-hero__glow"></div>
     </div>
-    <div ref="chip" class="con-sale-hero__chip">
-      <span class="con-sale-hero__chip-value">{{ patentSaleState.payout }}</span>
-    </div>
-    <div ref="halo" class="con-sale-hero__halo"></div>
   </div>
 </template>
 
@@ -105,8 +105,6 @@ export default defineComponent({
           slit,
           scan: this.$refs.scan as HTMLElement | undefined,
           glow: this.$refs.glow as HTMLElement | undefined,
-          chip: this.$refs.chip as HTMLElement | undefined,
-          halo: this.$refs.halo as HTMLElement | undefined,
           proxies,
         };
       },
