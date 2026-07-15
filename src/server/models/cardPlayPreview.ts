@@ -1,8 +1,10 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
+import {isICorporationCard} from '../cards/corporation/ICorporationCard';
 import {Behavior, TitledBehavior} from '../behavior/Behavior';
 import {CardType} from '../../common/cards/CardType';
-import {ActionPreview, ActionPreviewBranch} from '../../common/models/ActionPreviewModel';
+import {Resource} from '../../common/Resource';
+import {ActionEffect, ActionPreview, ActionPreviewBranch} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior, subAvailability} from './actionPreview';
 
 /**
@@ -44,9 +46,27 @@ export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
     cardResource: card.resourceType !== undefined ? {type: card.resourceType, count: card.resourceCount} : undefined,
   };
 
+  // A CORPORATION's starting M€ are applied by `playCorporationCard` OUTSIDE
+  // its behavior (`megaCredits += startingMegaCredits`), so the generic walker
+  // can't see them — they are prepended here. Without this the corporation's
+  // single biggest on-play gain would be missing from its preview.
+  const startingEffects = corporationStartingEffects(player, card);
+
   const behavior = card.behavior;
   if (behavior !== undefined) {
-    return {...base, kind: 'declarative', branches: deriveCardPlayBranches(player, card, behavior)};
+    const branches = deriveCardPlayBranches(player, card, behavior);
+    return {...base, kind: 'declarative', branches: withStartingEffects(branches, startingEffects)};
+  }
+
+  if (startingEffects.length > 0) {
+    // A corporation whose only computable on-play result is its starting M€
+    // (its rule text is a passive effect / a first action — neither is a play
+    // reward). Still declarative: the chip is exact.
+    return {
+      ...base,
+      kind: 'declarative',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: startingEffects, steps: []}],
+    };
   }
 
   // Bespoke `bespokePlay` with no hook: a single confirm-only branch. Whatever
@@ -56,6 +76,34 @@ export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
     kind: 'dynamic',
     branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
   };
+}
+
+/** The corporation's starting M€ as a gain chip (empty for every other card,
+ *  and for a corp that starts at 0 M€). Read-only. */
+function corporationStartingEffects(player: IPlayer, card: ICard): ReadonlyArray<ActionEffect> {
+  if (!isICorporationCard(card) || card.startingMegaCredits <= 0) {
+    return [];
+  }
+  const current = player.megaCredits;
+  return [{
+    direction: 'gain',
+    icon: Resource.MEGACREDITS,
+    amount: card.startingMegaCredits,
+    current,
+    resulting: current + card.startingMegaCredits,
+  }];
+}
+
+/** Prepend the starting chips to every branch (a corp's starting M€ are paid
+ *  whichever on-play branch it takes). */
+function withStartingEffects(
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  startingEffects: ReadonlyArray<ActionEffect>,
+): ReadonlyArray<ActionPreviewBranch> {
+  if (startingEffects.length === 0) {
+    return branches;
+  }
+  return branches.map((b) => ({...b, effects: [...startingEffects, ...b.effects]}));
 }
 
 function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {

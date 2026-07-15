@@ -472,15 +472,16 @@ export default defineComponent({
        *  at the watcher's nextTick). */
       fitTimer: undefined as number | undefined,
       /**
-       * PRE-FETCHED on-play rewards per prelude (the server preview's chips →
-       * transfer specs). The opening ceremony plays a prelude STRAIGHT from
-       * this scene (no play composer to extract them at confirm time), so they
-       * are fetched while the player is still reading the cards and handed to
-       * the hero at arm time — the same premium reward beat as a normal play.
-       * A card with no cached entry simply arms without a beat (its chips then
-       * fire on the commit — the honest default).
+       * PRE-FETCHED on-play rewards per ceremony card — the CORPORATION (its
+       * starting M€ + its own on-play production/stock) and each PRELUDE. The
+       * opening ceremony plays them STRAIGHT from this scene (no play composer
+       * to extract the rewards at confirm time), so they are fetched while the
+       * player is still reading the cards and handed to the hero at arm time —
+       * the same premium reward beat as a normal play. A card with no cached
+       * entry simply arms without a beat (its chips then fire on the commit —
+       * the honest default).
        */
-      preludeRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
+      playRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
       /** In-flight / done prefetches (never re-request the same card). */
       rewardFetched: new Set<CardName>(),
     };
@@ -660,9 +661,9 @@ export default defineComponent({
       }
       return corporationCardNames(this.playerView).map((name) => ({name, played: true}));
     },
-    /** Identity of the pressable prelude set — drives the reward pre-fetch. */
-    preludeRewardKey(): string {
-      return this.preludeRail.map((e) => e.name).join('|');
+    /** Identity of the pressable ceremony set — drives the reward pre-fetch. */
+    playRewardKey(): string {
+      return [this.corpPlayCard?.name ?? '', ...this.preludeRail.map((e) => e.name)].join('|');
     },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
@@ -841,15 +842,16 @@ export default defineComponent({
       },
     },
     /**
-     * The playable prelude set (opening rail + a drew-N winner joining it):
-     * pre-fetch each card's on-play rewards while the player reads them, so
-     * the press arms the hero with its reward beat ready. Non-gating — the
-     * fetch never delays a press (dedup'd by `rewardFetched`).
+     * The pressable ceremony set (the deferred corporation + the prelude rail,
+     * incl. a drew-N winner joining it): pre-fetch each card's on-play rewards
+     * while the player reads them, so the press arms the hero with its reward
+     * beat ready. Non-gating — the fetch never delays a press (dedup'd by
+     * `rewardFetched`).
      */
-    'preludeRewardKey': {
+    'playRewardKey': {
       immediate: true,
       handler() {
-        this.prefetchPreludeRewards();
+        this.prefetchPlayRewards();
       },
     },
     frameKey() {
@@ -1642,28 +1644,37 @@ export default defineComponent({
       armPlayedHero(name, false, {
         manualTableOpen: false,
         sourceSelector: `.con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
-        rewards: this.preludeRewards.get(name),
+        rewards: this.playRewards.get(name),
       });
     },
     /**
-     * Pre-fetch the on-play rewards of every prelude the player can press —
-     * the ceremony has no play composer, so this is where the reward manifest
-     * comes from. Runs while the player reads the cards (never gating the
-     * press): a card whose fetch hasn't landed simply arms without a beat.
+     * Pre-fetch the on-play rewards of every card the player can press in the
+     * ceremony — the chosen CORPORATION (still in the deferred `corporationPlay`
+     * window: its starting M€ + its own production/stock gains) and each
+     * PRELUDE. The ceremony has no play composer, so this is where the reward
+     * manifest comes from. Runs while the player reads the cards (never gating
+     * the press): a card whose fetch hasn't landed simply arms without a beat.
      *
      * Only STOCK / PRODUCTION gains ride the beat here: a card-resource gain
      * needs a pre-selected host card, which the ceremony (with no composer)
      * cannot capture — it stays with the ordinary commit + its own follow-up
      * prompt, never a chip flying at a target the player never chose.
      */
-    prefetchPreludeRewards(): void {
+    prefetchPlayRewards(): void {
       const viewerId = this.playerView.id;
       if (typeof fetch !== 'function') {
         return; // JSDOM / a headless host — the beat degrades honestly
       }
-      for (const entry of this.preludeRail) {
-        const name = entry.name;
-        if (this.rewardFetched.has(name) || entry.status === 'played') {
+      // The corporation is pressable ONLY while its deferred play prompt is
+      // live; a Merger 2nd corp / an already-played corp are not previewed
+      // (the server resolves `pickedCorporationCard` alone).
+      const corpName = this.corpPlayCard?.name;
+      const names: Array<CardName> = [
+        ...(corpName !== undefined ? [corpName] : []),
+        ...this.preludeRail.filter((e) => e.status !== 'played').map((e) => e.name),
+      ];
+      for (const name of names) {
+        if (this.rewardFetched.has(name)) {
           continue;
         }
         this.rewardFetched.add(name);
@@ -1684,7 +1695,7 @@ export default defineComponent({
               stepResponses: {}, // the ceremony pre-collects nothing
             }).filter((spec) => spec.channel !== 'card-resource');
             if (rewards.length > 0) {
-              this.preludeRewards.set(name, rewards);
+              this.playRewards.set(name, rewards);
             }
           })
           .catch(() => {

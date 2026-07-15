@@ -39,6 +39,8 @@ import {CommunityServices} from '../../src/server/cards/colonies/CommunityServic
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {MetalsCompany} from '../../src/server/cards/prelude/MetalsCompany';
+import {EcoLine} from '../../src/server/cards/corporation/Ecoline';
+import {CrediCor} from '../../src/server/cards/corporation/Credicor';
 import {Tag} from '../../src/common/cards/Tag';
 import {Phase} from '../../src/common/Phase';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
@@ -87,6 +89,56 @@ describe('cardPlayPreview', () => {
       expect(chip?.direction).eq('gain');
       expect(chip?.amount).eq(1);
     }
+  });
+
+  // CORPORATIONS preview too: the opening ceremony plays the chosen corp
+  // straight from the start scene (the deferred `corporationPlay` press), and
+  // the console arms its reward beat from this preview. Their starting M€ are
+  // applied OUTSIDE the behavior (`playCorporationCard`), so the preview
+  // prepends them — the corp's single biggest on-play gain.
+  it('Ecoline (a CORPORATION): starting M€ chip PLUS its own behavior gains', () => {
+    const [/* game */, player] = testGame(2);
+    const preview = cardPlayPreview(player, new EcoLine());
+    expect(preview.kind).eq('declarative');
+    expect(preview.isCorporation).is.true;
+    const effects = preview.branches[0].effects;
+
+    // The starting M€ lead the chips, with an honest current → resulting.
+    const mc = effects.find((e) => e.icon === Resource.MEGACREDITS && e.note === undefined);
+    expect(mc, 'expected a starting M€ chip').is.not.undefined;
+    expect(mc?.direction).eq('gain');
+    expect(mc?.amount).eq(36);
+    expect(mc?.current).eq(player.megaCredits);
+    expect(mc?.resulting).eq(player.megaCredits + 36);
+    expect(effects[0]).eq(mc); // prepended — the corp pays it whatever it does
+
+    // …and the behavior's own gains still ride the generic walker.
+    const plantProd = effects.find((e) => e.icon === Resource.PLANTS && e.note === 'production');
+    expect(plantProd?.amount).eq(2);
+    const plantStock = effects.find((e) => e.icon === Resource.PLANTS && e.note === undefined);
+    expect(plantStock?.amount).eq(3);
+  });
+
+  it('Credicor (a CORPORATION with NO behavior): still previews its starting M€', () => {
+    const [/* game */, player] = testGame(2);
+    const preview = cardPlayPreview(player, new CrediCor());
+    // Its rule text is a passive effect — the ONLY on-play result is the M€,
+    // and that is exact, so the preview is declarative (never a mute dynamic).
+    expect(preview.kind).eq('declarative');
+    expect(preview.branches).has.length(1);
+    expect(preview.branches[0].effects).has.length(1);
+    expect(preview.branches[0].effects[0]).to.include({
+      direction: 'gain', icon: Resource.MEGACREDITS, amount: 57,
+    });
+  });
+
+  it('READ-ONLY: previewing a corporation never grants its starting M€', () => {
+    const [/* game */, player] = testGame(2);
+    const before = player.megaCredits;
+    cardPlayPreview(player, new CrediCor());
+    cardPlayPreview(player, new EcoLine());
+    expect(player.megaCredits).eq(before);
+    expect(player.production.plants).eq(0);
   });
 
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {

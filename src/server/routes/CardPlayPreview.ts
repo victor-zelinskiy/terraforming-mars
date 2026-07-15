@@ -21,11 +21,13 @@ import {cardPlayPreview} from '../models/cardPlayPreview';
  * a play preview is for a card the player can play right now. A card that isn't
  * currently playable returns `notFound`, which correctly gates an illegal preview.
  *
- * PRELUDES in the player's own prelude hand resolve too: at the start of the
- * game they are played straight from the opening ceremony (no play modal), and
- * the console's start scene previews them to carry the same premium on-play
- * reward beat. They are the player's OWN cards (the id check above already
- * authorized them) and the preview is read-only, so this leaks nothing.
+ * PRELUDES in the player's own prelude hand resolve too, as does the CHOSEN but
+ * not-yet-played CORPORATION (`pickedCorporationCard` — the deferred
+ * `corporationPlay` window): at the start of the game both are played straight
+ * from the opening ceremony (no play modal), and the console's start scene
+ * previews them to carry the same premium on-play reward beat. All are the
+ * player's OWN cards (the id check above already authorized them) and the
+ * preview is read-only, so this leaks nothing.
  */
 export class CardPlayPreview extends Handler {
   public static readonly INSTANCE = new CardPlayPreview();
@@ -58,9 +60,11 @@ export class CardPlayPreview extends Handler {
       }
       const name = cardName as CardName;
       const playable = player.getPlayableCards().find((c) => c.name === name);
+      const picked = player.pickedCorporationCard;
       const card: ICard | undefined = (playable !== undefined && isIProjectCard(playable)) ?
         playable :
-        player.preludeCardsInHand.find((c) => c.name === name);
+        player.preludeCardsInHand.find((c) => c.name === name) ??
+        (picked?.name === name ? picked : undefined);
       if (card === undefined) {
         responses.notFound(req, res, 'playable card not found');
         return;
