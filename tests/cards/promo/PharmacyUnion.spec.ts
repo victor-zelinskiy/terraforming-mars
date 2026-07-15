@@ -54,6 +54,8 @@ describe('PharmacyUnion', () => {
     pi.options[0].cb([pharmacyUnion]);
     pi.options[1].cb([]);
     pi.cb(undefined);
+    // The explicit corporationPlay press (the deferred-play contract).
+    cast(player.popWaitingFor(), SelectCard).cb([pharmacyUnion]);
 
     expect(pharmacyUnion.resourceCount).to.eq(2);
     // Should not pay for the free Science card

@@ -48,6 +48,14 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
     ]});
     runAllActions(game);
 
+    // DEFERRED corporation play: choosing initial cards does NOT play the corp —
+    // no tableau entry, no starting M€ — until the explicit corporationPlay press.
+    expect(human.playedCards.corporations()).is.empty;
+    expect(human.megaCredits).eq(0);
+    expect(human.getWaitingFor()?.startGamePrompt).to.deep.eq({kind: 'corporationPlay'});
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(game);
+
     // The corporation actually PLAYED (the deadlock left it unplayed at 0 M€).
     expect(human.playedCards.corporations().map(toName)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);
     expect(human.megaCredits).eq(30 - 4 * 3);
@@ -71,6 +79,9 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
       {type: 'card', cards: [CardName.SUPPLY_DROP, CardName.LOAN]},
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]},
     ]});
+    runAllActions(game);
+    // The explicit corporationPlay press (the deferred-play contract).
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
     runAllActions(game);
 
     // Play both preludes through the real prompts.
@@ -102,6 +113,9 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
       {type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]},
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
     ]});
+    runAllActions(game);
+    // The explicit corporationPlay press (the deferred-play contract).
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
     runAllActions(game);
 
     expect(human.playedCards.corporations().map(toName)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);

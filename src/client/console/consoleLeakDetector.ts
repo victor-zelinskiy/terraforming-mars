@@ -75,6 +75,9 @@ const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   colony: ['.con-colonies'],
   // FREE award funding (Vitor) is served by the premium awards MA screen.
   awardFunding: ['.con-ma'],
+  // The corporation's mandatory FIRST ACTION (the player's first turn) is
+  // served by the «Разыграно» table in action mode.
+  corpFirstAction: ['.con-played'],
   // T5: the full-screen start scene serves both opening kinds.
   initialDraft: ['.con-start'],
   startSequence: ['.con-start'],

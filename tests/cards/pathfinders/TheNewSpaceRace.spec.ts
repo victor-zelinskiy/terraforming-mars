@@ -77,6 +77,13 @@ describe('TheNewSpaceRace', () => {
     // This will trigger everything.
     selectInitialCards3.cb(undefined);
 
+    // The explicit corporationPlay presses (the deferred-play contract) — the
+    // research barrier (and with it the TNSR first-player flip) completes
+    // only when every player has PLAYED their chosen corporation.
+    cast(player1.popWaitingFor(), SelectCard).cb([player1.dealtCorporationCards[0]]);
+    cast(player2.popWaitingFor(), SelectCard).cb([player2.dealtCorporationCards[0]]);
+    cast(player3.popWaitingFor(), SelectCard).cb([player3.dealtCorporationCards[0]]);
+
     expect(game.playersInGenerationOrder).deep.eq([player2, player3, player1]);
 
     cast(player1.getWaitingFor(), undefined);

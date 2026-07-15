@@ -15,6 +15,27 @@ import {Helion} from '../../src/server/cards/corporation/Helion';
 import {BeginnerCorporation} from '../../src/server/cards/corporation/BeginnerCorporation';
 
 describe('start-of-game prompt marker (server)', () => {
+  it('marks the deferred corporation play prompt as corporationPlay', () => {
+    const [game, player] = testGame(1, {skipInitialCardSelection: false});
+    runAllActions(game);
+    const initial = player.getWaitingFor();
+    expect(initial?.type).eq('initialCards');
+    const corp = player.dealtCorporationCards[0];
+    player.process({type: 'initialCards', responses: [
+      {type: 'card', cards: [corp.name]},
+      {type: 'card', cards: []},
+    ]});
+    runAllActions(game);
+    // Choosing does NOT play: the explicit corporationPlay press is pending.
+    expect(player.playedCards.corporations()).is.empty;
+    const model = Server.getPlayerModel(player);
+    expect(model.waitingFor?.startGamePrompt).to.deep.eq({kind: 'corporationPlay'});
+    // Answering it performs the REAL play (tableau + starting M€).
+    player.process({type: 'card', cards: [corp.name]});
+    runAllActions(game);
+    expect(player.playedCards.corporations().map((c) => c.name)).deep.eq([corp.name]);
+  });
+
   it('marks the corp first-action OrOptions as corporationInitialAction', () => {
     const [game, player] = testGame(1);
     player.pendingInitialActions.push(new TharsisRepublic());

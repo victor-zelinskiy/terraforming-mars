@@ -179,6 +179,23 @@ export function startFlowAnyPreludePrompt(view: PlayerViewModel | undefined): Se
 }
 
 /**
+ * The DEFERRED 'play your chosen corporation' prompt (marker kind
+ * `corporationPlay`): the server holds the real corporation play (tableau,
+ * starting M€, card payment, effects) until the player answers this — the
+ * corporation is never "already played" before the explicit press.
+ */
+export function startFlowCorpPlayPrompt(view: PlayerViewModel | undefined): SelectCardModel | undefined {
+  if (view === undefined) {
+    return undefined;
+  }
+  const wf = view.waitingFor;
+  if (wf === undefined || wf.type !== 'card') {
+    return undefined;
+  }
+  return wf.startGamePrompt?.kind === 'corporationPlay' ? wf : undefined;
+}
+
+/**
  * The current waitingFor IS the corp first-action OrOptions — detected PURELY
  * via the explicit server marker. Translation-proof; no title/token matching.
  */

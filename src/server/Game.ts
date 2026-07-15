@@ -43,6 +43,7 @@ import {Priority} from './deferredActions/Priority';
 import {DeferredActionsQueue} from './deferredActions/DeferredActionsQueue';
 import {SelectPaymentDeferred} from './deferredActions/SelectPaymentDeferred';
 import {SelectInitialCards} from './inputs/SelectInitialCards';
+import {SelectCard} from './inputs/SelectCard';
 import {PlaceOceanTile} from './deferredActions/PlaceOceanTile';
 import {RemoveColonyFromGame} from './deferredActions/RemoveColonyFromGame';
 import {GainResourcesDeferred} from './deferredActions/GainResourcesDeferred';
@@ -795,14 +796,41 @@ export class Game implements IGame, Logger {
           throw new Error(`pickedCorporationCard is not defined for ${somePlayer.id}`);
         }
         if (this.gameOptions.testMode) {
+          // Test mode keeps the immediate synchronous play (the deferred
+          // press below is a presentation beat, not a rules step).
           this.applyTestModeStartingStock(somePlayer);
-        }
-        somePlayer.playCorporationCard(somePlayer.pickedCorporationCard);
-        if (this.gameOptions.testMode) {
+          somePlayer.playCorporationCard(somePlayer.pickedCorporationCard);
           this.applyTestModeStartingStock(somePlayer);
+        } else {
+          // DEFERRED corporation play: the corporation is NOT played (no
+          // tableau entry, no starting M€, no card payment, no effects)
+          // until the player explicitly presses it on the start screen —
+          // the answer to this prompt runs `playCorporationCard`, which
+          // also releases the RESEARCH barrier per player, so the phase
+          // sequencing is unchanged (corp play still precedes preludes).
+          somePlayer.setWaitingFor(this.playCorporationInput(somePlayer));
         }
       }
     }
+  }
+
+  /**
+   * The explicit "play your chosen corporation" prompt (startGamePrompt kind
+   * `corporationPlay`). `pickedCorporationCard` is already serialized, so the
+   * chosen-but-unplayed window survives a reload (see gotoInitialResearchPhase).
+   */
+  private playCorporationInput(player: IPlayer): PlayerInput {
+    const picked = player.pickedCorporationCard;
+    if (picked === undefined) {
+      throw new Error(`pickedCorporationCard is not defined for ${player.id}`);
+    }
+    return new SelectCard<ICorporationCard>(
+      'Play your corporation', 'Play', [picked], {min: 1, max: 1})
+      .markStartGamePrompt({kind: 'corporationPlay'})
+      .andThen(([corporation]) => {
+        player.playCorporationCard(corporation);
+        return undefined;
+      });
   }
 
   private applyTestModeStartingStock(player: IPlayer): void {
@@ -867,6 +895,16 @@ export class Game implements IGame, Logger {
     for (const player of this.players) {
       if (player.pickedCorporationCard === undefined && player.dealtCorporationCards.length > 0) {
         player.setWaitingFor(this.selectInitialCards(player));
+      } else if (player.pickedCorporationCard !== undefined &&
+          player.playedCards.filter(isICorporationCard).length === 0) {
+        // Reload recovery: the corporation was CHOSEN but not yet PLAYED
+        // (the deferred corporationPlay window) — re-issue the play prompt.
+        player.setWaitingFor(this.playCorporationInput(player));
+      } else if (player.playedCards.filter(isICorporationCard).length > 0) {
+        // Reload recovery for a PARTIAL multiplayer state: this player already
+        // played their corporation — they re-enter the research barrier as
+        // done (the barrier completes when the pending players answer).
+        this.researchedPlayers.add(player.id);
       }
     }
     // MarsBot has no setup decisions (no corporation, no starting hand) — it is

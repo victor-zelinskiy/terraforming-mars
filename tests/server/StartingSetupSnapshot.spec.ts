@@ -30,6 +30,9 @@ describe('Player.startingSetup snapshot', () => {
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
     ]});
     runAllActions(game);
+    // The explicit corporationPlay press (the deferred-play contract).
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(game);
 
     const setup = human.startingSetup;
     expect(setup, 'the snapshot is set after the corp is played').is.not.undefined;
@@ -62,6 +65,8 @@ describe('Player.startingSetup snapshot', () => {
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]},
     ]});
     runAllActions(game);
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(game);
     expect(human.startingSetup).is.not.undefined;
 
     // Playing the first prelude is the player's next input — process() consumes
@@ -78,6 +83,8 @@ describe('Player.startingSetup snapshot', () => {
       {type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]},
       {type: 'card', cards: []},
     ]});
+    runAllActions(game);
+    human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
     runAllActions(game);
 
     const setup = human.startingSetup;

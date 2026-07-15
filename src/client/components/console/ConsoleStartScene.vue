@@ -1,5 +1,5 @@
 <template>
-  <div class="con-start" role="dialog" :aria-label="$t('Start of the game')">
+  <div class="con-start" :class="{'con-start--ceremony': mode === 'ceremony'}" role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
 
     <!-- Keyed frame: step→step / prompt→prompt cross-fade (CTS-3.9). -->
@@ -210,40 +210,27 @@
           <!-- P18: card STATES ride the unified badge system (a bright band
                over a DIMMED card body — the badge itself never dims); the
                under-card chip is reserved for the ACTION affordance only. -->
-          <div class="con-start__corps" v-if="corps.length > 0">
-            <div class="con-start__section-title">{{ $t('Corporation') }}</div>
-            <div v-for="corp in corps" :key="corp.name"
-                 class="con-start__corp"
-                 :data-zoom-slot="corp.name"
-                 :class="{
-                   'con-start__corp--focused': isFocused('corp', corp.name),
-                   'con-start__corp--reveal': setupRevealActive && corp.name === setupRevealCorp,
-                   'con-start__corp--ready': !setupRevealActive && corp.status === 'ready',
-                   'con-start__corp--done': !setupRevealActive && corp.status === 'done',
-                   'con-start__corp--pending': !setupRevealActive && corp.status !== 'done' && corp.status !== 'ready',
-                 }">
-              <Card :card="{name: corp.name}" :key="corp.name" />
-              <!-- Start-of-game setup reveal: the corporation's starting bonuses
-                   (and the card payment) are applied as EXPLICIT A-presses here,
-                   before the first-turn effect badges below ever matter. Each
-                   press animates the left resource panel with delta chips. -->
-              <template v-if="setupRevealActive && corp.name === setupRevealCorp">
-                <div class="con-cards__verdict con-cards__verdict--ok con-start__corp-reveal-cta">
-                  <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
-                  <span v-if="setupRevealStage === 'baseline'">{{ $t('Apply corporation') }}</span>
-                  <span v-else class="con-start__corp-pay">{{ $t('Pay for bought cards') }}: −{{ setupPaymentAmount }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+          <!-- The chosen corporation — shown ONLY while its deferred play is
+               pending (marker `corporationPlay`; the server has NOT played it
+               yet: no tableau entry, no starting M€, no resource sockets).
+               Pressing it runs the hero transaction: the card physically
+               lands on the «Разыграно» table, this column LEAVES (absolute
+               fade) and the preludes FLIP into the freed space. The corp's
+               mandatory FIRST ACTION is deliberately NOT here — it belongs
+               to the player's first TURN (the «Разыграно» action mode). -->
+          <transition name="con-start-corpout">
+            <div class="con-start__corps" v-if="corpPlayCard !== undefined">
+              <div class="con-start__section-title">{{ $t('Corporation') }}</div>
+              <div class="con-start__corp con-start__corp--playable"
+                   :data-zoom-slot="corpPlayCard.name"
+                   :class="{'con-start__corp--focused': isFocused('corp', corpPlayCard.name)}">
+                <Card :card="corpPlayCard" :key="corpPlayCard.name" />
+                <div v-if="isFocused('corp', corpPlayCard.name)" class="con-start__slot-a">
+                  <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
                 </div>
-              </template>
-              <template v-else>
-                <span v-if="corp.status === 'done'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Effect applied') }}</span>
-                <span v-else-if="corp.status !== 'ready'" class="con-cards__pickband con-cards__pickband--awaiting">{{ $t('Awaiting') }}</span>
-                <div v-if="corp.status === 'ready'" class="con-cards__verdict con-cards__verdict--ok">
-                  <GamepadGlyph v-if="isFocused('corp', corp.name)" control="confirm" />
-                  <span>{{ $t('Apply effect') }}</span>
-                </div>
-              </template>
+              </div>
             </div>
-          </div>
+          </transition>
 
           <div class="con-start__right">
             <!-- The live ask (draw-1-of-N / copy / Merger corp pick).
@@ -283,28 +270,28 @@
                  playable only after the corp bonus + payment are applied. -->
             <div v-if="preludeRail.length > 0" class="con-start__preludes">
               <div class="con-start__section-title">{{ $t('Preludes') }}</div>
-              <div class="con-start__prelude-grid">
+              <!-- FLIP-animated: when the corporation column leaves (or a
+                   drawn prelude joins), the cards SLIDE into their new spots
+                   (transition-group move) — never a hard re-layout jump. -->
+              <transition-group name="con-start-shift" tag="div" class="con-start__prelude-grid">
                 <div v-for="(entry, i) in preludeRail" :key="entry.name"
                      class="con-start__prelude con-start__deal"
                      :style="dealDelay(i)"
                      :data-zoom-slot="entry.name"
                      :class="{
                        'con-start__prelude--focused': isFocused('prelude', entry.name),
-                       'con-start__prelude--played': entry.status === 'played',
-                       'con-start__prelude--playable': !setupRevealActive && entry.status === 'playable' && !entry.blocked,
+                       'con-start__prelude--playable': entry.status === 'playable' && !entry.blocked,
                        'con-start__prelude--awaiting': entry.status === 'awaiting' || entry.blocked,
-                       'con-start__prelude--reveal-wait': setupRevealActive && entry.status !== 'played',
                      }">
                   <Card :card="{name: entry.name}" :key="entry.name" lightweight />
-                  <!-- P18: the played prelude wears the unified «Разыграна»
-                       band over a dimmed body — the tiny legacy tick is gone. -->
-                  <span v-if="entry.status === 'played'" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Already played') }}</span>
+                  <!-- A PLAYED prelude leaves the rail entirely (it lives on
+                       the «Разыграно» table now) — no in-place ghost badge. -->
                   <div v-if="entry.blocked" class="con-cards__reason">{{ $t('Play another prelude first') }}</div>
                   <div v-else-if="isFocused('prelude', entry.name)" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
                   </div>
                 </div>
-              </div>
+              </transition-group>
             </div>
           </div>
         </div>
@@ -384,15 +371,11 @@ import {
 } from '@/client/console/consoleStartState';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  corpActionOptionIndexFor, corporationCardNames, corpStatusFor, CorpStatus,
   PreludeEntry, preludeEntries, recordDrawChoice,
-  startFlowCorpPrompt, startFlowCorpSelectPrompt,
+  startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
-import {
-  advanceStartSetupReveal, startSetupCorporation, startSetupPaymentAmount, startSetupRevealState,
-} from '@/client/components/startGameFlow/startSetupRevealState';
-import {StartSetupStage} from '@/client/components/startGameFlow/startSetupRevealModel';
+import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -587,37 +570,22 @@ export default defineComponent({
       return this.steps.every((s) => stepComplete(s, this.picks)) && this.budgetOk;
     },
     // ── ceremony ─────────────────────────────────────────────────────
-    corps(): Array<{name: CardName, status: CorpStatus}> {
+    /** The DEFERRED 'play your corporation' prompt (marker corporationPlay).
+     *  While it is live the corp is genuinely UNPLAYED on the server. */
+    corpPlayPrompt(): SelectCardModel | undefined {
+      return this.mode === 'ceremony' ? startFlowCorpPlayPrompt(this.playerView) : undefined;
+    },
+    corpPlayCard(): CardModel | undefined {
+      return this.corpPlayPrompt?.cards?.[0];
+    },
+    preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
         return [];
       }
-      return corporationCardNames(this.playerView).map((name) => ({
-        name,
-        status: corpStatusFor(this.playerView, name),
-      }));
-    },
-    preludeRail(): ReadonlyArray<PreludeEntry> {
-      return this.mode === 'ceremony' ? preludeEntries(this.playerView) : [];
-    },
-    // ── start-of-game setup reveal ───────────────────────────────────
-    /** The explicit "apply corporation" / "pay for cards" reveal is running for
-     *  THIS player's ceremony — the preludes wait until it completes. */
-    setupRevealActive(): boolean {
-      return this.mode === 'ceremony' &&
-        startSetupRevealState.active &&
-        startSetupRevealState.color !== '' &&
-        startSetupRevealState.color === this.playerView.thisPlayer?.color;
-    },
-    setupRevealStage(): StartSetupStage {
-      return startSetupRevealState.stage;
-    },
-    /** The corporation being revealed (the base corp — its setup drove the snapshot). */
-    setupRevealCorp(): CardName | undefined {
-      return startSetupCorporation() ?? this.corps[0]?.name;
-    },
-    /** M€ paid for the bought project cards (for the payment-stage affordance). */
-    setupPaymentAmount(): number {
-      return startSetupPaymentAmount();
+      // A PLAYED prelude physically MOVED to the «Разыграно» table (the hero
+      // landing) — it leaves the scene rail and the remaining cards FLIP into
+      // the freed space (never a "played" ghost sitting in both places).
+      return preludeEntries(this.playerView).filter((e) => e.status !== 'played');
     },
     /** The live pick prompt (draw-1-of-N / Double Down copy / Merger corp). */
     candidatePrompt(): SelectCardModel | undefined {
@@ -655,14 +623,10 @@ export default defineComponent({
       if (this.mode !== 'ceremony') {
         return out;
       }
-      // During the setup reveal the ONLY actionable item is the corporation card
-      // — A applies its starting bonuses, then (if cards were bought) pays for
-      // them. The preludes are shown dimmed and become playable only after.
-      if (this.setupRevealActive) {
-        const corp = this.setupRevealCorp;
-        if (corp !== undefined) {
-          out.push({kind: 'corp', name: corp, disabled: false});
-        }
+      // The deferred corporation play is the WHOLE decision of its beat —
+      // nothing else is actionable until the corp physically lands.
+      if (this.corpPlayPrompt !== undefined && this.corpPlayCard !== undefined) {
+        out.push({kind: 'corp', name: this.corpPlayCard.name, disabled: false});
         return out;
       }
       if (this.candidatePrompt !== undefined) {
@@ -670,13 +634,6 @@ export default defineComponent({
           out.push({kind: 'candidate', name: c.name, disabled: c.isDisabled === true});
         }
         return out;
-      }
-      if (startFlowCorpPrompt(this.playerView) !== undefined) {
-        for (const corp of this.corps) {
-          if (corp.status === 'ready') {
-            out.push({kind: 'corp', name: corp.name, disabled: false});
-          }
-        }
       }
       if (startFlowPreludePrompt(this.playerView) !== undefined) {
         for (const e of this.preludeRail) {
@@ -713,7 +670,14 @@ export default defineComponent({
       if (this.mode === 'wizard') {
         return `wizard|${this.railPos}`;
       }
-      return `ceremony|${this.wf?.type ?? ''}|${textOf(this.wf?.title)}`;
+      // ONE stable ceremony frame: the start beats (play corporation → play
+      // preludes → draws) update IN PLACE, so the corp column's leave and the
+      // prelude FLIP can actually play — never a full remount between beats.
+      return 'ceremony';
+    },
+    /** The ceremony beat identity — resets the focus cursor without a remount. */
+    ceremonyPromptKey(): string {
+      return this.mode === 'ceremony' ? `${this.wf?.type ?? ''}|${textOf(this.wf?.title)}` : '';
     },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
       // While the deal cinematic runs, selection is NOT interactive yet —
@@ -753,16 +717,9 @@ export default defineComponent({
         hints.push({control: 'back', label: 'Minimize'});
         return hints;
       }
-      // Setup reveal: the ONE press applies the corp bonus, then pays for cards.
-      if (this.setupRevealActive) {
-        return [
-          {control: 'confirm', label: this.setupRevealStage === 'baseline' ? 'Apply corporation' : 'Pay for bought cards'},
-          {control: 'back', label: 'Minimize'},
-        ];
-      }
       return [
         {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Select', enabled: this.focusables.length > 0},
+        {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now', enabled: this.focusables.length > 0},
         {control: 'secondary', label: 'Inspect', enabled: this.focusables.length > 0},
         {control: 'back', label: 'Minimize'},
       ];
@@ -813,6 +770,14 @@ export default defineComponent({
       // would otherwise snap it back to 0 on every re-eval.
       if (this.mode === 'ceremony' && this.focusIdx >= now.length) {
         this.focusIdx = Math.max(0, now.length - 1);
+      }
+    },
+    /** The ceremony frame is ONE stable key now (in-place beats) — the focus
+     *  cursor reseeds on each new BEAT here instead of the old frame remount. */
+    ceremonyPromptKey() {
+      if (this.mode === 'ceremony') {
+        this.focusIdx = 0;
+        void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
     /** Mirror the scene's live contract into the shell's command bar (the bar
@@ -1110,7 +1075,9 @@ export default defineComponent({
       if (rail !== null) {
         const right = rail.getBoundingClientRect().right;
         if (right > 0) {
-          document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 14 * conUiScale())}px`);
+          // +26 (was +14): the focused corp card's ring/CTA glow needs the
+          // extra clearance so it never bleeds into the left resource rail.
+          document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 26 * conUiScale())}px`);
         }
       }
     },
@@ -1451,16 +1418,8 @@ export default defineComponent({
         this.state.stepIdx = this.railPos - 1;
       }
     },
-    /** Ceremony A: advance the setup reveal / play a prelude / apply the corp
-     *  effect / pick a candidate. */
+    /** Ceremony A: play the corporation / a prelude / pick a candidate. */
     actOnFocused(): void {
-      // The setup reveal is a client-side staged animation (the server already
-      // applied the corp bonus + payment): A steps baseline → corp → done, each
-      // step firing the left-panel delta chips. No server round-trip.
-      if (this.setupRevealActive) {
-        advanceStartSetupReveal();
-        return;
-      }
       const item = this.focusedItem;
       if (item !== undefined) {
         this.actByName(item.name);
@@ -1472,31 +1431,46 @@ export default defineComponent({
      *  (ConsoleZoomAction.execute), so a corp sub-action / prelude effect opens
      *  on a clean surface. */
     actByName(name: CardName): void {
+      // A hero transaction is in flight (submit awaiting the server) — the
+      // press is already being honoured; never double-arm/double-submit.
+      if (isPlayedHeroActive()) {
+        return;
+      }
       const item = this.focusables.find((f) => f.name === name);
       if (item === undefined || item.disabled) {
         return;
       }
+      // The deferred CORPORATION play: arm the hero transaction (the card
+      // physically lands on the «Разыграно» table only after the server
+      // proves the play), then submit the corporationPlay answer.
       if (item.kind === 'corp') {
-        const prompt = startFlowCorpPrompt(this.playerView);
-        const index = corpActionOptionIndexFor(prompt, name);
-        if (prompt !== undefined && index !== -1) {
-          this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
+        if (this.corpPlayPrompt !== undefined) {
+          this.armStartHero(name);
+          this.$emit('submit', cardsResponse([name]));
         }
         return;
       }
       // A drew-N-choose-ONE pick is recorded BEFORE submit (the discarded
       // candidates vanish from the view — this is the only capture window).
       const draw = startFlowPreludeDrawPrompt(this.playerView);
+      // Double Down COPIES an already-played prelude — nothing new enters the
+      // tableau, so the hero transaction would (correctly) refuse; it keeps
+      // the legacy hero-pick beat instead.
+      const copyPick = startFlowPreludeCopyPrompt(this.playerView) !== undefined;
       const submit = () => {
         if (item.kind === 'candidate' && draw !== undefined) {
           recordDrawChoice(this.playerView.id, this.candidateCards.map((c) => c.name), name);
         }
+        if (!copyPick) {
+          // Preludes / drawn picks / Merger's corp all LAND in the tableau —
+          // the hero scene carries the pressed card onto the table.
+          this.armStartHero(name);
+        }
         this.$emit('submit', cardsResponse([name]));
       };
-      // CANDIDATE pick (drew-1-of-N / Double Down / Merger): the chosen card
-      // is the HERO; its rivals — genuinely discarded by the rules — tumble
-      // to the discard side under it. Preludes played from the rail keep the
-      // calm in-place status flip (the card stays on the table as «played»).
+      // CANDIDATE pick (drew-1-of-N / Double Down / Merger): the rivals —
+      // genuinely discarded by the rules — tumble to the discard side while
+      // the chosen card runs its hero landing (copy keeps the legacy pick).
       if (item.kind === 'candidate' && !this.deal.state.active) {
         const slot = this.exitSlotFor(name);
         if (slot !== null) {
@@ -1504,11 +1478,23 @@ export default defineComponent({
           const rejects = candStrip !== undefined && candStrip !== null ?
             (Array.from(candStrip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
           applyDiscardExit(rejects, {delayMs: 150});
-          void runHeroPick({name, el: slot}, submit);
-          return;
+          if (copyPick) {
+            void runHeroPick({name, el: slot}, submit);
+            return;
+          }
         }
       }
       submit();
+    },
+    /** Arm the played-card hero for a START-SCENE press: the card lifts out
+     *  of its scene slot (never the play composer). */
+    armStartHero(name: CardName): void {
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+        CSS.escape(name) : name.replace(/"/g, '\\"');
+      armPlayedHero(name, false, {
+        manualTableOpen: false,
+        sourceSelector: `.con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
+      });
     },
     /** The fullscreen A-verb for a ceremony card, or undefined → read-only.
      *  Preludes / drew-N candidates are PLAYABLE from fullscreen (desktop
@@ -1517,9 +1503,11 @@ export default defineComponent({
      *  card viewer). */
     ceremonyZoomLabel(name: CardName): string | undefined {
       const item = this.focusables.find((f) => f.name === name);
-      if (item === undefined || item.disabled || item.kind === 'corp') {
+      if (item === undefined || item.disabled) {
         return undefined;
       }
+      // Every actionable ceremony card — incl. the deferred corporation —
+      // is playable from fullscreen (the viewer closes, then actByName runs).
       return this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now';
     },
   },

@@ -18,6 +18,8 @@ describe('Polyphemos', () => {
     pi.options[0].cb([card]);
     pi.options[1].cb([card2, card2]);
     pi.cb(undefined);
+    // The explicit corporationPlay press (the deferred-play contract).
+    cast(player.popWaitingFor(), SelectCard).cb([card]);
 
     // 50 starting MC - 5 for each card select at the start (total: 10)
     expect(player.megaCredits).to.eq(40);

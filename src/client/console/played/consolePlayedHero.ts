@@ -127,13 +127,16 @@ export function playedHeroHolding(): boolean {
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
 /**
- * Arm BEFORE the submit (the shell's confirm handler). Nothing visual
- * happens until the server proves the play landed in the tableau.
+ * Arm BEFORE the submit (the confirm handler of the composer OR a start-scene
+ * press). Nothing visual happens until the server proves the play landed in
+ * the tableau. `sourceSelector` overrides WHERE the card physically lifts
+ * from (default: the play composer's card slot).
  */
-export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean}): void {
+export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string}): void {
   clearTimers();
   claimed = false;
   followUpPending = false;
+  sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
   playedHeroState.active = true;
   playedHeroState.phase = 'armed';
   playedHeroState.nonce++;
@@ -375,7 +378,9 @@ function finish(): void {
 
 // ── internals ───────────────────────────────────────────────────────────────
 
-const SOURCE_SELECTOR = '.con-composer--play [data-zoom-handoff="play-card"] :is(.card-container, .pcard)';
+const COMPOSER_SOURCE_SELECTOR = '.con-composer--play [data-zoom-handoff="play-card"] :is(.card-container, .pcard)';
+/** WHERE the current transaction's card lifts from (set at arm). */
+let sourceSelector: string = COMPOSER_SOURCE_SELECTOR;
 /** The shared "slot is empty" cascade rule (cardExitDirector.HOLD_CLASS). */
 const HOLD_CLASS = 'con-deal-hold';
 
@@ -383,7 +388,7 @@ function captureSourceRect(): HeroRect | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
-  const el = document.querySelector<HTMLElement>(SOURCE_SELECTOR);
+  const el = document.querySelector<HTMLElement>(sourceSelector);
   if (el === null) {
     return undefined;
   }

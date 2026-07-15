@@ -56,7 +56,14 @@ export type ConsoleTask =
   | {kind: 'colony'}
   | {kind: 'composite'}
   | {kind: 'initialDraft'}
-  | {kind: 'startSequence', prompt: 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection'}
+  | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationSelection' | 'preludeSelection'}
+  /**
+   * The corporation's MANDATORY FIRST ACTION ('Take first action of X') —
+   * it arrives on the player's own FIRST TURN (after the opponent moved),
+   * NOT during the start scene: served by the «Разыграно» overlay in
+   * action mode (A on the corporation card performs the action).
+   */
+  | {kind: 'corpFirstAction'}
   | {kind: 'aresGlobal'}
   /** Out-of-scope / unmapped — renders the honest guard panel, NEVER silence. */
   | {kind: 'unknown', inputType: string};
@@ -74,7 +81,7 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'choice', 'player', 'amount', 'resource', 'distribute',
   'cardSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'awardFunding',
-  'initialDraft', 'startSequence',
+  'initialDraft', 'startSequence', 'corpFirstAction',
 ]);
 
 /** Kinds handled by shell surfaces that need NO task host (detector base). */
@@ -89,7 +96,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'awardFunding']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'awardFunding', 'corpFirstAction']);
 
 /**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`
@@ -139,6 +146,12 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   // START SEQUENCE's, not a generic card pick) — the structural-marker rule.
   const start = wf.startGamePrompt;
   if (start !== undefined) {
+    // The corp FIRST ACTION is a first-TURN prompt, not a start-scene one:
+    // it rides the «Разыграно» overlay's action mode (spec: the mandatory
+    // first action belongs to the player's first turn, after the opponent).
+    if (start.kind === 'corporationInitialAction') {
+      return {kind: 'corpFirstAction'};
+    }
     return {kind: 'startSequence', prompt: start.kind};
   }
 

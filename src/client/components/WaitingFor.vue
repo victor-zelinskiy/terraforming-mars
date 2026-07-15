@@ -176,6 +176,7 @@ import {
   endPlayedHero,
   runPlayedHero,
 } from '@/client/console/played/consolePlayedHero';
+import {consoleModeState} from '@/client/console/consoleModeState';
 import {
   abortHydroMarker,
   detectHydroMarker,
@@ -722,7 +723,12 @@ export default defineComponent({
              * bonus + payment as explicit staged A-presses. Non-gating (the
              * ceremony is interactive); idempotent (dedup) with the poll path.
              */
-            primeStartSetupReveal(this.playerView, newView);
+            // The console retired the client-STAGED setup reveal: the deferred
+            // corporationPlay + the hero landing carry the beat — chips fire
+            // on the (held) commit. Desktop keeps the staged ceremony.
+            if (playedHeroEvent === undefined && !consoleModeState.enabled) {
+              primeStartSetupReveal(this.playerView, newView);
+            }
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,

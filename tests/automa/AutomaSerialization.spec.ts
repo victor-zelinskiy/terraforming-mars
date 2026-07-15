@@ -26,6 +26,9 @@ function reachGen1Action() {
     {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
   ]});
   runAllActions(game);
+  // The explicit corporationPlay press (the deferred-play contract).
+  human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+  runAllActions(game);
   return {game, human, bot};
 }
 
@@ -153,6 +156,32 @@ describe('Automa serialization', () => {
     const restoredHuman = restored.players.find((p) => p.isMarsBot !== true)!;
     expect(restored.phase).eq(Phase.RESEARCH);
     expect(restoredHuman.getWaitingFor(), 'the un-picked human must be re-prompted').is.not.undefined;
+  });
+
+  it('gen-1 reload in the DEFERRED corporationPlay window re-issues the play prompt', () => {
+    const [game, human] = testAutomaGame({keepInitialCardSelection: true});
+    human.dealtCorporationCards.splice(0, human.dealtCorporationCards.length,
+      ...corporationCardsFromJSON([CardName.INTERPLANETARY_CINEMATICS, CardName.HELION]));
+    human.dealtProjectCards.splice(0, 4,
+      ...cardsFromJSON([CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]));
+    human.process({type: 'initialCards', responses: [
+      {type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]},
+      {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
+    ]});
+    runAllActions(game);
+    // The chosen-but-unplayed window: nothing played, nothing granted yet.
+    expect(human.playedCards.corporations()).is.empty;
+
+    const restored = Game.deserialize(structuredClone(game.serialize()));
+    const restoredHuman = restored.players.find((p) => p.isMarsBot !== true)!;
+    expect(restored.phase).eq(Phase.RESEARCH);
+    expect(restoredHuman.getWaitingFor()?.startGamePrompt, 'the corporationPlay prompt must be re-issued')
+      .to.deep.eq({kind: 'corporationPlay'});
+    // Answering AFTER the reload performs the real play and starts the game.
+    restoredHuman.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(restored);
+    expect(restoredHuman.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);
+    expect(restored.phase).eq(Phase.ACTION);
   });
 
   it('the face-down action deck contents never leak into any client model', () => {

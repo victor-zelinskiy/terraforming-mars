@@ -22,6 +22,13 @@
     right: var(--con-safe-x, 1.1rem);
     bottom: 4.3rem; /* clear of the command bar (z 11700) */
     z-index: 11400; /* above board chrome; under the task host (11480) — a mandatory surface closes this overlay first (hard-block watcher) */
+
+    /* HERO mode: the table rises above the start scene (11480) and the play
+       composer (11500) — the landing is always in front of its source scene;
+       under Info Mode (11560) and the proxy stage (11660). */
+    &--hero {
+        z-index: 11520;
+    }
     display: flex;
     justify-content: center;
     align-items: flex-end;
@@ -179,6 +186,15 @@
             0 0 0 .1rem fade(@con-cyan, 40%),
             0 .45rem 1rem rgba(0, 0, 0, 0.6),
             0 0 .8rem fade(@con-cyan, 26%);
+    }
+
+    /* ACTION MODE (the corp's mandatory FIRST ACTION on the player's first
+       turn): a bright mint band leads the card — unmistakably "act on me". */
+    &__actionband {
+        background: linear-gradient(180deg, fade(@con-mint, 92%), fade(@con-mint, 72%));
+        color: #06231a;
+        text-shadow: none;
+        box-shadow: 0 .12rem .5rem rgba(0, 0, 0, 0.5), 0 0 .8rem fade(@con-mint, 35%);
     }
 
     /* Live stored-resource counter — a SLOT chip on the card's top-right

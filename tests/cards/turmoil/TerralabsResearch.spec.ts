@@ -18,6 +18,8 @@ describe('TerralabsResearch', () => {
     pi.options[0].cb([card]);
     pi.options[1].cb([card2, card2]);
     pi.cb(undefined);
+    // The explicit corporationPlay press (the deferred-play contract).
+    cast(player.popWaitingFor(), SelectCard).cb([card]);
 
     // 14 starting MC - 1 for each card select at the start (total: 2)
     expect(player.megaCredits).to.eq(12);

@@ -12307,3 +12307,47 @@ html.con-profile-large {
         &__stage { width: 8.5rem; height: 8.5rem; }
     }
 }
+
+/* ── START SCENE: the deferred-corporation ceremony recomposition ─────────
+   (the corporationPlay rework: the corp column exists only while its play is
+   pending; playing it runs the hero landing and the column LEAVES, the
+   preludes FLIP into the freed space.) */
+.con-start--ceremony .con-start__frame {
+    /* Clear of the lifted top status strip (body.con-start-ceremony raises it
+       above the scene) — the header title never renders behind it. */
+    margin-top: 2.9rem;
+    max-height: calc(100vh - 7.4rem);
+}
+/* The corp column's exit: absolute during leave so the layout frees the
+   space IMMEDIATELY (the prelude FLIP below animates the reflow), while the
+   column itself calmly fades out where it stood. */
+.con-start-corpout-leave-active {
+    position: absolute;
+    transition:
+        opacity calc(220ms * var(--motion-scale, 1)) ease,
+        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-start-corpout-leave-to {
+    opacity: 0;
+    transform: translateX(-1.1rem);
+}
+.con-start-corpout-enter-active {
+    transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+}
+.con-start-corpout-enter-from {
+    opacity: 0;
+}
+/* The prelude cards SLIDE into their new spots (transition-group FLIP). */
+.con-start-shift-move {
+    transition: transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-start-shift-leave-active {
+    /* A leaving prelude (drawn-pick resolution) frees its slot instantly. */
+    position: absolute;
+    opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-start-corpout-leave-active,
+    .con-start-corpout-enter-active,
+    .con-start-shift-move { transition: none; }
+}

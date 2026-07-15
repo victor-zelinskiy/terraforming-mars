@@ -22,6 +22,10 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  * construction and serialized centrally in ServerModel.getWaitingFor. The
  * client routes/labels purely off this — never off the (translatable) title.
  *
+ *  - corporationPlay: 'play your chosen corporation' — the deferred REAL play
+ *    of the picked corporation (tableau + starting M€ + card payment + corp
+ *    effects happen only when the player answers THIS prompt, so the
+ *    corporation is never "already played" before the player presses it).
  *  - corporationInitialAction: the corp first-action OrOptions
  *    ('Take first action of X corporation' + Pass).
  *  - corporationSelection: a 'choose an additional corporation to merge' SelectCard
@@ -34,7 +38,7 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  *               source must stay in the grid (nothing is drawn or discarded).
  */
 export type StartGamePromptMeta = {
-  kind: 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
+  kind: 'corporationPlay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
   preludeMode?: 'hand' | 'draw' | 'copy';
 }
 

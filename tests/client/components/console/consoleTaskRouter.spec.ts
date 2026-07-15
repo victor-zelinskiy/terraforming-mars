@@ -47,7 +47,10 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '18 colony build/select', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, expect: {kind: 'colony'}},
   {row: '20 free award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, expect: {kind: 'awardFunding'}},
   {row: '21 initial draft', wf: {type: 'initialCards', title: 'Select initial cards'}, expect: {kind: 'initialDraft'}},
-  {row: '22 start: corp initial action', wf: {type: 'or', title: 'Take first action of X corporation', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, expect: {kind: 'startSequence', prompt: 'corporationInitialAction'}},
+  // The corp first action is a FIRST-TURN prompt (the «Разыграно» action
+  // mode), not a start-scene beat — see the corporationPlay rework.
+  {row: '22 start: corp initial action', wf: {type: 'or', title: 'Take first action of X corporation', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, expect: {kind: 'corpFirstAction'}},
+  {row: '22b start: deferred corporation play', wf: {type: 'card', title: 'Play your corporation', cards: [], startGamePrompt: {kind: 'corporationPlay'}}, expect: {kind: 'startSequence', prompt: 'corporationPlay'}},
   {row: '22b start: prelude selection', wf: {type: 'card', title: 'Select prelude card to play', cards: [], startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'}}, expect: {kind: 'startSequence', prompt: 'preludeSelection'}},
   {row: '22c start: merger corp selection', wf: {type: 'card', title: 'Select corporation', cards: [], startGamePrompt: {kind: 'corporationSelection'}}, expect: {kind: 'startSequence', prompt: 'corporationSelection'}},
   {row: '23 and composite', wf: {type: 'and', title: 'Choose both', options: []}, expect: {kind: 'composite'}},
@@ -152,8 +155,16 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     for (const kind of SHELL_SECTION_KINDS) {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
-      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' || kind === 'awardFunding').to.eq(true);
+      expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' ||
+        kind === 'awardFunding' || kind === 'corpFirstAction').to.eq(true);
     }
+  });
+
+  it('the corp first action is served by the «Разыграно» table, NOT the host', () => {
+    const corpAction = view({type: 'or', title: 'Take first action of X corporation', options: [], startGamePrompt: {kind: 'corporationInitialAction'}});
+    expect(taskFor(corpAction)?.kind).to.eq('corpFirstAction');
+    expect(taskServedByHost(corpAction)).to.eq(undefined);
+    expect(SHELL_SECTION_KINDS.has('corpFirstAction')).to.eq(true);
   });
 
   it('a MANDATORY hand pick is a shell-section task (hand section), NOT host-served', () => {

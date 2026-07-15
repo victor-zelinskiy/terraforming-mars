@@ -872,7 +872,11 @@ export default defineComponent({
            * submit path.
            */
           if (path === paths.PLAYER) {
-            primeStartSetupReveal(prevView, model as PlayerViewModel);
+            // Console mode retired the staged setup reveal (the deferred
+            // corporationPlay + hero landing carry the beat); desktop keeps it.
+            if (!consoleModeState.enabled) {
+              primeStartSetupReveal(prevView, model as PlayerViewModel);
+            }
           }
           const conversionEvent = path === paths.PLAYER ?
             detectEnergyConversion(prevView, model as PlayerViewModel) :

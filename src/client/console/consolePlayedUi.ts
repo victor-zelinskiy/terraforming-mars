@@ -13,6 +13,8 @@ export const consolePlayedUi = reactive({
   eventsOpen: false,
   /** What the cursor is on: a face-up card / the events pile / nothing. */
   focusKind: 'none' as 'card' | 'events' | 'none',
+  /** The focused object's KEY (card name / #events) — action-mode hints. */
+  focusName: '',
   /** ≥2 participants — LB/RB cycles the viewed player. */
   canCyclePlayer: false,
 });
@@ -20,5 +22,6 @@ export const consolePlayedUi = reactive({
 export function resetConsolePlayedUi(): void {
   consolePlayedUi.eventsOpen = false;
   consolePlayedUi.focusKind = 'none';
+  consolePlayedUi.focusName = '';
   consolePlayedUi.canCyclePlayer = false;
 }
