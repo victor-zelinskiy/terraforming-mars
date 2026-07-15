@@ -1,6 +1,5 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
-import {IProjectCard} from '../cards/IProjectCard';
 import {Behavior, TitledBehavior} from '../behavior/Behavior';
 import {CardType} from '../../common/cards/CardType';
 import {ActionPreview, ActionPreviewBranch} from '../../common/models/ActionPreviewModel';
@@ -28,8 +27,13 @@ import {effectsForBehavior, stepsForBehavior, subAvailability} from './actionPre
  * NOTHING here mutates game state. It never calls `Executor.execute`/`canExecute`
  * — only read-only checks + pure model construction (each step uses a deferred
  * action's read-only `previewSelect*`).
+ *
+ * `card` is a plain `ICard`: everything read here (the hook / type / card
+ * resource / behavior) lives on ICard, and the generic walkers take ICard —
+ * so a PRELUDE previews through the exact same path as a project card (the
+ * route decides WHICH cards may be previewed).
  */
-export function cardPlayPreview(player: IPlayer, card: ICard & IProjectCard): ActionPreview {
+export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
   if (card.cardPlayPreview !== undefined) {
     return card.cardPlayPreview(player);
   }
@@ -54,7 +58,7 @@ export function cardPlayPreview(player: IPlayer, card: ICard & IProjectCard): Ac
   };
 }
 
-function deriveCardPlayBranches(player: IPlayer, card: ICard & IProjectCard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
+function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
   // On-play `behavior.or` → one branch per sub-behavior (uncommon for project
   // cards; the live path defers an OrOptions after play). The runtime OrOptions
   // index is the position among EXECUTABLE subs (Executor.execute filters then

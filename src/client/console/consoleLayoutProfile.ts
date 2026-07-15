@@ -28,11 +28,11 @@
  *    PHYSICAL panel (CSS screen size × devicePixelRatio): a 16:9 panel of
  *    4K class is a TV-class display for the console shell; a bare 1080p
  *    output (physical 1920×1080 — indistinguishable from a desktop
- *    monitor) is NOT auto-promoted — use the in-game System menu display
- *    picker (or `?consoleProfile=tv`) there.
+ *    monitor) is NOT auto-promoted — use the main menu's Options →
+ *    Display picker (or `?consoleProfile=tv`) there.
  *
  * PROFILE SELECTION PRIORITY (highest wins):
- *  1. The user's explicit pick (System menu → Display; persisted to
+ *  1. The user's explicit pick (main menu → Options → Display; persisted to
  *     `tm_console_profile`, the same store the debug override uses).
  *  2. `?consoleProfile=handheld|standard|large|tv` URL override
  *     (persists; `?consoleProfile=auto` clears back to heuristics).
@@ -51,6 +51,17 @@ export type ConsoleLayoutProfile = 'handheld' | 'standard' | 'large' | 'tv';
 
 const STORAGE_KEY = 'tm_console_profile';
 const PROFILES: ReadonlyArray<ConsoleLayoutProfile> = ['handheld', 'standard', 'large', 'tv'];
+
+/** English i18n keys for the picker values (translated at render). Lives
+ * here — next to the profile vocabulary itself — so any surface that shows
+ * a profile (main-menu Options today) names them identically. */
+export const PROFILE_LABELS: Readonly<Record<string, string>> = {
+  auto: 'Auto',
+  handheld: 'Handheld',
+  standard: 'Standard',
+  large: 'Large',
+  tv: 'TV 4K',
+};
 
 /* ── TV logical layout space ──────────────────────────────────────────
  * The TV profile lays out in a 1920×1080 LOGICAL design space; the UI
@@ -230,7 +241,7 @@ export function conUiScale(): number {
 }
 
 /**
- * Set (or clear) the persistent user profile pick — the System-menu
+ * Set (or clear) the persistent user profile pick — the Options
  * display picker rides this. Uses the SAME store as the debug override,
  * so `?consoleProfile=` and the picker can never fight.
  */
@@ -257,7 +268,7 @@ export function setConsoleProfileOverride(profile: ConsoleLayoutProfile | 'auto'
   }
 }
 
-/** The System-menu display picker cycles auto → handheld → standard →
+/** The Options display picker cycles auto → handheld → standard →
  * large → tv → auto. 'auto' = heuristics own the choice again. */
 export function currentProfileOverride(): ConsoleLayoutProfile | 'auto' {
   return consoleLayoutState.forced ? consoleLayoutState.profile : 'auto';
@@ -270,7 +281,7 @@ export function cycleConsoleProfileOverride(): ConsoleLayoutProfile | 'auto' {
   return next;
 }
 
-/** One structured snapshot for the diagnostics surfaces (System menu /
+/** One structured snapshot for the diagnostics surfaces (Options /
  * gamepad debug HUD / console log). */
 export function consoleDisplayDiagnostics() {
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;

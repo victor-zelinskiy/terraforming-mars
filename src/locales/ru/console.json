@@ -243,5 +243,11 @@
     "TV 4K": "ТВ 4K",
     "Profile": "Профиль",
     "Panel": "Панель",
-    "manual": "вручную"
+    "manual": "вручную",
+    "Interface": "Интерфейс",
+    "Console": "Консольный",
+    "Desktop": "Десктопный",
+    "Interface and display settings": "Интерфейс и настройки экрана",
+    "Layout profile for this screen": "Профиль вёрстки для этого экрана",
+    "Controller shell or mouse and keyboard": "Оболочка для геймпада или мыши и клавиатуры"
 }

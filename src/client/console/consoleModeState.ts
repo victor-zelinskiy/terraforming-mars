@@ -5,10 +5,18 @@
  * console-first TV shell.
  *
  * Flag ladder (mirrors the motion/gamepad systems): URL `?console=1|0` wins,
- * then localStorage `tm_console_mode`, default OFF. `?console=0` doubles as
- * the session kill switch. Entry is CONSENTED: the first gamepad input while
- * in desktop mode raises a premium prompt (A = switch) instead of silently
- * swapping the layout.
+ * then localStorage `tm_console_mode`, then the DEFAULT — console ON.
+ *
+ * Console is the default with NO controller attached and no stored pick:
+ * the desktop UI is deprecated (CLAUDE.md — frozen 2026-07-15; the new
+ * desktop will be built FROM the console shell), so the console is simply
+ * "the UI" now, not a posture you opt into when a pad shows up. Desktop is
+ * reachable only through an EXPLICIT choice — the main menu's Options →
+ * Interface, or `?console=0` — which persists as '0' and is honoured by
+ * `consoleModeExplicitlyDisabled()`, so the pad/Electron auto-enable
+ * heuristics can never drag such a player back. The consented entry prompt
+ * (`maybeOfferConsoleMode`) therefore only ever fires for that opted-out
+ * player: it offers the way back in, it no longer guards the way in.
  */
 
 import {reactive} from 'vue';
@@ -29,7 +37,9 @@ function initialEnabled(): boolean {
   if (fromUrl !== undefined) {
     return fromUrl === '1';
   }
-  return storage()?.getItem(STORAGE_KEY) === '1';
+  // Default ON — only an explicit stored opt-out ('0', written by Options →
+  // Interface → Desktop) turns the console shell off.
+  return storage()?.getItem(STORAGE_KEY) !== '0';
 }
 
 /**

@@ -38,6 +38,7 @@ import {IoSulphurResearch} from '../../src/server/cards/venusNext/IoSulphurResea
 import {CommunityServices} from '../../src/server/cards/colonies/CommunityServices';
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
+import {MetalsCompany} from '../../src/server/cards/prelude/MetalsCompany';
 import {Tag} from '../../src/common/cards/Tag';
 import {Phase} from '../../src/common/Phase';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
@@ -71,6 +72,23 @@ import {Pets} from '../../src/server/cards/base/Pets';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 
 describe('cardPlayPreview', () => {
+  // PRELUDES preview through the SAME path as a project card: the opening
+  // ceremony plays them straight from the start scene (no play modal), and
+  // the console arms its premium on-play reward beat from this preview.
+  it('MetalsCompany (a PRELUDE): previews its production gains like any declarative card', () => {
+    const [/* game */, player] = testGame(2);
+    const preview = cardPlayPreview(player, new MetalsCompany());
+    expect(preview.kind).eq('declarative');
+    expect(preview.branches).has.length(1);
+    const effects = preview.branches[0].effects;
+    for (const resource of [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM]) {
+      const chip = effects.find((e) => e.icon === resource && e.note === 'production');
+      expect(chip, `expected a ${resource} production chip`).is.not.undefined;
+      expect(chip?.direction).eq('gain');
+      expect(chip?.amount).eq(1);
+    }
+  });
+
   it('VenusSoils (declarative): venus + plant-production gain chips + a microbe target step', () => {
     const [/* game */, player] = testGame(2);
     // Two microbe-holding cards in play → the "add 2 microbes to ANOTHER card"

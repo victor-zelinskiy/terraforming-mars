@@ -84,7 +84,7 @@ import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/
 import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
-import {consoleLayoutState, installConsoleLayoutProfile, cycleConsoleProfileOverride, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
+import {consoleLayoutState, installConsoleLayoutProfile, ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {consoleState, dispatchConsoleIntent, stepIndex} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
@@ -362,12 +362,6 @@ export default defineComponent({
           this.closeSystemMenu();
           this.legendOpen = true;
           break;
-        case 'display':
-          // Cycle Auto → Handheld → Standard → Large → TV 4K in place —
-          // the change applies instantly (reversible), the menu stays open
-          // so the player sees the relabel + the diag block react.
-          cycleConsoleProfileOverride();
-          break;
         case 'exit':
           this.systemMenuConfirmExit = true;
           break;
@@ -435,8 +429,13 @@ export default defineComponent({
     // boots console-first on EITHER robust signal: a pad already visible
     // OR the Deck posture (LINUX shell + the HANDHELD layout profile —
     // the platform anchor keeps a small-screen Windows laptop out of it).
-    // An explicit player opt-out (?console=0 / hold-Menu → off, stored)
-    // always wins and is never overridden.
+    // An explicit player opt-out (?console=0 / Options → Interface →
+    // Desktop, stored) always wins and is never overridden.
+    //
+    // NOTE: console mode now DEFAULTS on (consoleModeState) — so `!enabled`
+    // here already implies the player opted out, which `explicitlyDisabled`
+    // then vetoes. This whole branch is a dormant safety net kept for the
+    // signals it encodes; it cannot fire under the current default.
     if (isElectronApp() && !this.consoleModeState.enabled && !consoleModeExplicitlyDisabled() &&
         (initialGamepadDetected() || (isLinuxPlatform() && consoleLayoutState.profile === 'handheld'))) {
       setConsoleMode(true);

@@ -110,6 +110,9 @@
     <!-- ── Language picker (Y) ─────────────────────────────────────────── -->
     <ConsoleLanguagePicker v-if="overlay === 'language'" ref="language" @close="closeOverlay" />
 
+    <!-- ── Options (interface + display) ───────────────────────────────── -->
+    <ConsoleOptionsPanel v-if="overlay === 'options'" ref="options" @close="closeOverlay" />
+
     <!-- ── Quit confirm ────────────────────────────────────────────────── -->
     <div v-if="overlay === 'quit'" class="cm-overlay" role="dialog" :aria-label="$t('Exit the game?')">
       <div class="cm-overlay__card">
@@ -189,6 +192,7 @@ import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/Con
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
+import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
@@ -203,13 +207,13 @@ import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, s
 import raw_settings from '@/genfiles/settings.json';
 import {$t} from '@/client/directives/i18n';
 
-type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'steam' | 'quit';
+type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'language' | 'quit' | 'steam' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'language' | 'options' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleLanguagePicker},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -276,6 +280,7 @@ export default defineComponent({
       items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
       items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
       items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
+      items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
       // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared
       // steamShortcutState; disappears once added). steamButtonVisible() reads the reactive
       // fields, so this computed re-evaluates when they change.
@@ -294,6 +299,9 @@ export default defineComponent({
       if (this.overlay === 'profile') {
         return 'Player profile';
       }
+      if (this.overlay === 'options') {
+        return 'Options';
+      }
       if (this.overlay === 'quit') {
         return 'Exit the game?';
       }
@@ -311,7 +319,7 @@ export default defineComponent({
           {control: 'back', label: 'Back'},
         ];
       }
-      if (this.overlay === 'profile') {
+      if (this.overlay === 'profile' || this.overlay === 'options') {
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Change'},
@@ -406,6 +414,10 @@ export default defineComponent({
         const picker = this.$refs.language as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return picker?.handleIntent?.(intent) ?? true;
       }
+      if (this.overlay === 'options') {
+        const options = this.$refs.options as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        return options?.handleIntent?.(intent) ?? true;
+      }
       if (this.overlay === 'games') {
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
           this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
@@ -489,6 +501,9 @@ export default defineComponent({
         break;
       case 'profile':
         this.openProfile();
+        break;
+      case 'options':
+        this.overlay = 'options';
         break;
       case 'steam':
         void addToSteam();

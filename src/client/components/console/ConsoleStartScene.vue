@@ -402,6 +402,10 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
+import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {paths} from '@/common/app/paths';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -467,6 +471,18 @@ export default defineComponent({
       /** The post-frame-swap re-verify fit (out-in leaves no strip to measure
        *  at the watcher's nextTick). */
       fitTimer: undefined as number | undefined,
+      /**
+       * PRE-FETCHED on-play rewards per prelude (the server preview's chips →
+       * transfer specs). The opening ceremony plays a prelude STRAIGHT from
+       * this scene (no play composer to extract them at confirm time), so they
+       * are fetched while the player is still reading the cards and handed to
+       * the hero at arm time — the same premium reward beat as a normal play.
+       * A card with no cached entry simply arms without a beat (its chips then
+       * fire on the commit — the honest default).
+       */
+      preludeRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
+      /** In-flight / done prefetches (never re-request the same card). */
+      rewardFetched: new Set<CardName>(),
     };
   },
   computed: {
@@ -644,6 +660,10 @@ export default defineComponent({
       }
       return corporationCardNames(this.playerView).map((name) => ({name, played: true}));
     },
+    /** Identity of the pressable prelude set — drives the reward pre-fetch. */
+    preludeRewardKey(): string {
+      return this.preludeRail.map((e) => e.name).join('|');
+    },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
         return [];
@@ -818,6 +838,18 @@ export default defineComponent({
         if (input !== undefined) {
           ensureStartWizard(this.playerView.id, initialCardsSignature(input));
         }
+      },
+    },
+    /**
+     * The playable prelude set (opening rail + a drew-N winner joining it):
+     * pre-fetch each card's on-play rewards while the player reads them, so
+     * the press arms the hero with its reward beat ready. Non-gating — the
+     * fetch never delays a press (dedup'd by `rewardFetched`).
+     */
+    'preludeRewardKey': {
+      immediate: true,
+      handler() {
+        this.prefetchPreludeRewards();
       },
     },
     frameKey() {
@@ -1601,14 +1633,65 @@ export default defineComponent({
       submit();
     },
     /** Arm the played-card hero for a START-SCENE press: the card lifts out
-     *  of its scene slot (never the play composer). */
+     *  of its scene slot (never the play composer), carrying the prelude's
+     *  PRE-FETCHED on-play rewards so the landing gets the same premium
+     *  reward beat a composer-played card gets. */
     armStartHero(name: CardName): void {
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
       armPlayedHero(name, false, {
         manualTableOpen: false,
         sourceSelector: `.con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
+        rewards: this.preludeRewards.get(name),
       });
+    },
+    /**
+     * Pre-fetch the on-play rewards of every prelude the player can press —
+     * the ceremony has no play composer, so this is where the reward manifest
+     * comes from. Runs while the player reads the cards (never gating the
+     * press): a card whose fetch hasn't landed simply arms without a beat.
+     *
+     * Only STOCK / PRODUCTION gains ride the beat here: a card-resource gain
+     * needs a pre-selected host card, which the ceremony (with no composer)
+     * cannot capture — it stays with the ordinary commit + its own follow-up
+     * prompt, never a chip flying at a target the player never chose.
+     */
+    prefetchPreludeRewards(): void {
+      const viewerId = this.playerView.id;
+      if (typeof fetch !== 'function') {
+        return; // JSDOM / a headless host — the beat degrades honestly
+      }
+      for (const entry of this.preludeRail) {
+        const name = entry.name;
+        if (this.rewardFetched.has(name) || entry.status === 'played') {
+          continue;
+        }
+        this.rewardFetched.add(name);
+        const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) +
+          '?id=' + encodeURIComponent(viewerId) + '&card=' + encodeURIComponent(name);
+        fetch(url)
+          .then((r) => (r.ok ? r.json() : undefined))
+          .then((p) => {
+            const preview = p as ActionPreview | undefined;
+            const branch = preview?.branches?.[0];
+            if (branch === undefined) {
+              return;
+            }
+            const rewards = extractPlayRewards({
+              cardName: name,
+              effects: branch.effects,
+              steps: branch.steps,
+              stepResponses: {}, // the ceremony pre-collects nothing
+            }).filter((spec) => spec.channel !== 'card-resource');
+            if (rewards.length > 0) {
+              this.preludeRewards.set(name, rewards);
+            }
+          })
+          .catch(() => {
+            // A failed preview is not a game problem — the card just plays
+            // without the reward beat (its chips fire on the commit).
+          });
+      }
     },
     /** The fullscreen A-verb for a ceremony card, or undefined → read-only.
      *  Preludes / drew-N candidates are PLAYABLE from fullscreen (desktop

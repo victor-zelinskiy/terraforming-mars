@@ -5,6 +5,7 @@ import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
+import {ICard} from '../cards/ICard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {cardPlayPreview} from '../models/cardPlayPreview';
 
@@ -16,9 +17,15 @@ import {cardPlayPreview} from '../models/cardPlayPreview';
  * `cardPlayPreview()` only reads + builds plain models.
  *
  * The card is resolved from `getPlayableCards()` (the player's hand PLUS cards
- * hosted on Self-replicating Robots, filtered by `canPlay`), NOT the tableau —
+ * hosted on Self-replicating Robots, filtered by `canPlay`) — NOT the tableau —
  * a play preview is for a card the player can play right now. A card that isn't
  * currently playable returns `notFound`, which correctly gates an illegal preview.
+ *
+ * PRELUDES in the player's own prelude hand resolve too: at the start of the
+ * game they are played straight from the opening ceremony (no play modal), and
+ * the console's start scene previews them to carry the same premium on-play
+ * reward beat. They are the player's OWN cards (the id check above already
+ * authorized them) and the preview is read-only, so this leaks nothing.
  */
 export class CardPlayPreview extends Handler {
   public static readonly INSTANCE = new CardPlayPreview();
@@ -49,8 +56,12 @@ export class CardPlayPreview extends Handler {
         responses.notAuthorized(req, res);
         return;
       }
-      const card = player.getPlayableCards().find((c) => c.name === cardName as CardName);
-      if (card === undefined || !isIProjectCard(card)) {
+      const name = cardName as CardName;
+      const playable = player.getPlayableCards().find((c) => c.name === name);
+      const card: ICard | undefined = (playable !== undefined && isIProjectCard(playable)) ?
+        playable :
+        player.preludeCardsInHand.find((c) => c.name === name);
+      if (card === undefined) {
         responses.notFound(req, res, 'playable card not found');
         return;
       }
