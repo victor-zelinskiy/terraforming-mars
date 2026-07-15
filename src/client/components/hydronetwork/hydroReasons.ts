@@ -22,6 +22,8 @@ export type HydroReasonKind =
   | 'end-of-track'
   | 'used-this-generation'
   | 'not-your-turn'
+  | 'finish-current-action'
+  | 'unavailable'
   | 'missing-tag'
   | 'vp-occupied'
   | 'no-energy'
@@ -40,10 +42,23 @@ export type HydroReason = {
   blocking: boolean;
 };
 
+/**
+ * WHY the action menu isn't offering the advance — the ONLY honest source for a
+ * turn-flavoured reason:
+ *  - 'action-menu'   — the server IS asking the viewer to take an action, so the
+ *                      block is a RULE, never the turn (claiming «не ваш ход»
+ *                      here is a lie the player can see through: their own turn
+ *                      chip says «ДЕЙСТВИЕ»);
+ *  - 'busy'          — the viewer is mid-decision (a nested prompt owns them);
+ *  - 'not-your-turn' — the server isn't waiting on the viewer at all.
+ */
+export type HydroTurnState = 'action-menu' | 'busy' | 'not-your-turn';
+
 export type HydroReasonsInput = {
   model: HydroModel;
   preview: DeltaTrackPreviewModel | undefined;
   actionAvailable: boolean;
+  turnState: HydroTurnState;
   rewardChoice: number | undefined;
   /** Name of the player occupying the selected VP slot (when known). */
   occupantName?: string;
@@ -55,7 +70,7 @@ export type HydroReasonsInput = {
  * passed stage) has no reasons — it is informational, not an action.
  */
 export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroReason> {
-  const {model, preview, actionAvailable, rewardChoice, occupantName} = input;
+  const {model, preview, actionAvailable, turnState, rewardChoice, occupantName} = input;
   if (preview === undefined) {
     return [{kind: 'loading', textKey: 'Loading', blocking: true}];
   }
@@ -74,8 +89,24 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
   // Turn gate FIRST — but only when a legal+affordable move actually exists
   // (the action's absence with maxLegalSteps === 0 is explained by the
   // per-stage reasons below; calling that «не ваш ход» would mislead).
+  //
+  // The reason must match the REAL turn state: the option can be missing while
+  // the viewer is very much on turn, and «Сейчас не ваш ход» over a live
+  // «ДЕЙСТВИЕ 2/2» chip is simply false. On the action menu the withheld option
+  // is a RULE block — the whole-generation / end-of-track / per-stage gates
+  // around this one name it; only a rule NONE of them models degrades to the
+  // honest last-resort «Сейчас недоступно» (never a fabricated turn excuse).
   if (!actionAvailable && preview.maxLegalSteps > 0) {
-    out.push({kind: 'not-your-turn', textKey: 'Not your turn to take any actions', blocking: true});
+    switch (turnState) {
+    case 'not-your-turn':
+      out.push({kind: 'not-your-turn', textKey: 'Not your turn to take any actions', blocking: true});
+      break;
+    case 'busy':
+      out.push({kind: 'finish-current-action', textKey: 'Finish your current action first', blocking: true});
+      break;
+    case 'action-menu':
+      break;
+    }
   }
 
   const d = model.destination;
@@ -102,6 +133,14 @@ export function hydroPlanReasons(input: HydroReasonsInput): ReadonlyArray<HydroR
         });
       }
     }
+  }
+
+  // The action is withheld while the viewer IS on the action menu and NO
+  // modelled rule explains it — the honest last resort. It keeps the CTA from
+  // going mute without inventing a reason (with a fresh preview the gates above
+  // cover every known case, so this should stay unreachable in practice).
+  if (out.length === 0 && !actionAvailable && preview.maxLegalSteps > 0) {
+    out.push({kind: 'unavailable', textKey: 'Unavailable right now', blocking: true});
   }
 
   // To-do gates — only when no hard block stands in the way (a blocked stage

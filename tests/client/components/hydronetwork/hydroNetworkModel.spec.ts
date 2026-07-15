@@ -203,6 +203,25 @@ describe('buildHydroModel (iteration 2)', () => {
     expect(m.targetVisitors.length).eq(0);
   });
 
+  it('the START is never «not reached» — everyone begins there', () => {
+    // Every marker stands on position 0 at setup, so the start can only read
+    // «Сейчас здесь» (still there) or «Пройден» (already advanced past it) —
+    // never «Ещё не достиг», and never «Прошёл мимо — без награды» (the start
+    // grants no reward to miss).
+    const m = buildHydroModel(input({
+      players: [
+        viewer({position: 0}),
+        {color: 'blue', name: 'MarsBot', position: 4, isViewer: false, isMarsBot: true, stops: []},
+      ],
+      selectedPosition: 0, // == current → details mode
+    }));
+    expect(m.mode).eq('details');
+    expect(m.viewerStatusAtDetails).eq('current');
+    const byColor = new Map(m.detailsHistory.map((h) => [h.color, h]));
+    expect(byColor.get('red')?.status).eq('current'); // viewer still at the start
+    expect(byColor.get('blue')?.status).eq('passed'); // departed — never 'not-reached'
+  });
+
   it('the MarsBot (no reward stops) reads its CURRENT position as «current», not «passed»', () => {
     // The bot advanced to 5 without any stop records (it never takes a Delta
     // reward). Its current position must read «Сейчас здесь», and its traversed

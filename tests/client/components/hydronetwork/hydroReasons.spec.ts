@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {buildHydroModel, HydroModelInput, HydroPlayerPos} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
-import {destinationAt, gradeDestination, hydroPlanReasons} from '../../../../src/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, hydroPlanReasons, HydroTurnState} from '../../../../src/client/components/hydronetwork/hydroReasons';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../../../src/common/models/DeltaTrackPreviewModel';
 import {Tag} from '../../../../src/common/cards/Tag';
 import {CardName} from '../../../../src/common/cards/CardName';
@@ -58,13 +58,16 @@ function modelInput(overrides: Partial<HydroModelInput> = {}): HydroModelInput {
   };
 }
 
-function reasonsFor(overrides: Partial<HydroModelInput> = {}, opts: {occupantName?: string} = {}) {
+function reasonsFor(overrides: Partial<HydroModelInput> = {}, opts: {occupantName?: string, turnState?: HydroTurnState} = {}) {
   const input = modelInput(overrides);
   const model = buildHydroModel(input);
   return hydroPlanReasons({
     model,
     preview: input.preview,
     actionAvailable: input.actionAvailable,
+    // The historical assumption of these cases: the action is absent because
+    // the server isn't waiting on the viewer at all.
+    turnState: opts.turnState ?? 'not-your-turn',
     rewardChoice: input.rewardChoice,
     occupantName: opts.occupantName,
   });
@@ -163,6 +166,25 @@ describe('hydroPlanReasons', () => {
       }),
     });
     expect(rs.map((r) => r.kind)).deep.eq(['not-your-turn', 'missing-tag', 'energy-deficit']);
+  });
+
+  it('NEVER blames the turn while the viewer is ON the action menu', () => {
+    // The screenshot case: the action menu is live («ДЕЙСТВИЕ 2/2») but the
+    // server withholds the advance. Blaming «Сейчас не ваш ход» is a lie the
+    // player can see through — the honest reason is the rule that blocks it.
+    const used = reasonsFor(
+      {selectedPosition: 5, actionAvailable: false, preview: fullPreview(3, {usedThisGeneration: true})},
+      {turnState: 'action-menu'});
+    expect(used.map((r) => r.kind)).deep.eq(['used-this-generation']);
+
+    // A rule NONE of the gates models → the honest last resort, still not a
+    // fabricated turn excuse.
+    const unknown = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState: 'action-menu'});
+    expect(unknown.map((r) => r.kind)).deep.eq(['unavailable']);
+
+    // Mid-decision: the open prompt owns the player — say THAT.
+    const busy = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState: 'busy'});
+    expect(busy.map((r) => r.kind)).deep.eq(['finish-current-action']);
   });
 
   it('a clean stage gates on the bonus choice, then the card pick', () => {

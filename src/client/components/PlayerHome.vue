@@ -500,7 +500,7 @@
       :playerView="playerView"
       :viewerId="playerView.id"
       :actionAvailable="hydroActionAvailable"
-      :cacheKey="String(game.generation)"
+      :cacheKey="hydroCacheKey"
       @pick-action="onHydroPickAction"
       @pick-played-card="onHydroPickPlayedCard"
       @confirm="submitHydroAdvance($event)"
@@ -1669,6 +1669,17 @@ export default defineComponent({
     // overlay action-zone's confirm gate.
     hydroActionAvailable(): boolean {
       return this.findHydroActionPath(this.playerView.waitingFor) !== undefined;
+    },
+    /**
+     * The delta-preview refetch scope. The preview mirrors state that moves
+     * WITHIN a generation (track position / usedThisGeneration / energy /
+     * tags), so a generation-only key went STALE the moment the viewer
+     * advanced — the overlay kept planning from the OLD position. `gameAge`
+     * bumps on every logged change and `undoCount` covers a rewind (same
+     * reasoning as the effects overlay's within-generation refetch).
+     */
+    hydroCacheKey(): string {
+      return `${this.game.generation}:${this.game.gameAge}:${this.game.undoCount}`;
     },
     // Colony trade is available right now — drives the Colonies bottom-bar ready
     // cue (mirrors the Гидросеть dot). Reuses the existing trade-context finder.

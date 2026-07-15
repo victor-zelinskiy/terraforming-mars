@@ -141,12 +141,22 @@ function hasStopAt(stops: ReadonlyArray<DeltaStop>, position: number): DeltaStop
 }
 
 function statusFor(player: HydroPlayerPos, position: number): {status: HydroHistoryStatus; choice?: number; generation?: number} {
+  // The START is where EVERY player begins, so nothing there is ever
+  // 'not-reached' (which is what the generic branches below returned for it —
+  // reading as «Ещё не достиг» over a marker that has stood there since setup).
+  // The marker either stands there now, or the player has already advanced past
+  // it. The start carries no reward, so a departure is a plain traversal — the
+  // renderers show 'passed' HERE without the «— без награды» framing (there was
+  // never a reward to miss), exactly like the MarsBot's own traversals.
+  if (position === 0) {
+    return {status: player.position === 0 ? 'current' : 'passed'};
+  }
   // The CURRENT position is always 'current' — it is where the marker stands
   // NOW, never something the player "passed". A human stops (and takes a reward)
   // at its current position, so it also has a stop here; the MarsBot records NO
   // stops (it never collects a Delta reward), so without this its own current
   // position fell through to 'passed' and read the wrong «Прошёл мимо».
-  if (position > 0 && player.position === position) {
+  if (player.position === position) {
     const stop = hasStopAt(player.stops, position);
     return {status: 'current', choice: stop?.choice, generation: stop?.generation};
   }
@@ -154,7 +164,7 @@ function statusFor(player: HydroPlayerPos, position: number): {status: HydroHist
   if (stop !== undefined) {
     return {status: 'rewarded', choice: stop.choice, generation: stop.generation};
   }
-  if (player.position >= position && position > 0) {
+  if (player.position >= position) {
     return {status: 'passed'};
   }
   return {status: 'not-reached'};

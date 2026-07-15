@@ -78,7 +78,7 @@
         <span v-for="v in model.targetVisitors" :key="v.color"
               class="hydro-action__visitor" :class="{'hydro-action__visitor--passed': v.status === 'passed'}">
           <span class="hydro-action__visitor-dot" :class="'player_bg_color_' + v.color" aria-hidden="true"></span>
-          <span class="hydro-action__visitor-name">{{ v.name }}</span>
+          <span class="hydro-action__visitor-name">{{ displayName(v) }}</span>
           <span class="hydro-action__visitor-took">
             <span v-if="v.status === 'passed'" class="hydro-action__visitor-none" v-i18n>{{ v.isMarsBot ? 'Advanced through' : 'Passed through — no reward' }}</span>
             <HydroReward v-else-if="historyReward(v.choice).length > 0" :chips="historyReward(v.choice)" :compact="true" />
@@ -210,7 +210,7 @@
           <div v-for="h in model.detailsHistory" :key="h.color" class="hydro-action__history-row" :class="{'hydro-action__history-row--viewer': h.isViewer}">
             <span class="hydro-action__history-player" :class="'player_translucent_bg_color_' + h.color">
               <span class="hydro-action__history-dot" :class="'player_bg_color_' + h.color" aria-hidden="true"></span>
-              {{ h.name }}
+              {{ displayName(h) }}
             </span>
             <span class="hydro-action__history-status" :class="'hydro-action__history-status--' + h.status">
               <template v-if="h.status === 'rewarded' || h.status === 'current'">
@@ -236,7 +236,8 @@ import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {$t} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {HydroModel} from './hydroNetworkModel';
+import {HydroModel, HydroStageHistoryEntry} from './hydroNetworkModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {HydroStage, HydroRewardChip} from './hydroStages';
 import {buildRewardView, HydroPlayerSnapshot, HydroDeltaLine, HydroRewardView} from './hydroReward';
 import HydroReward from './HydroReward.vue';
@@ -379,6 +380,10 @@ export default defineComponent({
   },
   methods: {
     $t,
+    /** The Automa seat's visible label localizes («Бот»); humans keep their name. */
+    displayName(h: HydroStageHistoryEntry): string {
+      return participantDisplayName(h);
+    },
     deltaIconClass(l: HydroDeltaLine): string {
       if (l.special === 'jovian-tag') {
         return 'resource-tag tag-jovian';

@@ -110,17 +110,17 @@
             <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
           </span>
         </div>
+        <div v-if="startSelected" class="con-hydro__start-note">
+          {{ $t('The starting point of the Hydronetwork track.') }}
+        </div>
         <!-- Who has been here (plan: visitors · details: full history). -->
         <div v-if="historyRows.length > 0" class="con-hydro__history">
           <div class="con-hydro__section-label">{{ $t('Stage history') }}</div>
           <div v-for="h in historyRows" :key="h.color" class="con-hydro__history-row">
             <span class="con-hydro__history-dot" :class="'player_bg_color_' + h.color" aria-hidden="true"></span>
-            <span class="con-hydro__history-name">{{ h.name }}</span>
+            <span class="con-hydro__history-name">{{ displayName(h) }}</span>
             <span class="con-hydro__history-status">{{ $t(historyStatusText(h)) }}</span>
           </div>
-        </div>
-        <div v-else-if="model.mode === 'details' && model.selectedPosition === 0" class="con-hydro__start-note">
-          {{ $t('The starting point of the Hydronetwork track.') }}
         </div>
       </div>
 
@@ -364,17 +364,29 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM, HydroStageHistoryEntry} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
-import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade} from '@/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
+import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
+import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 /** Reason kinds the «Требования» column already shows as red marks — the
  *  CTA zone folds them into one pointer line instead of duplicating. */
 const REQUIREMENT_REASON_KINDS: ReadonlySet<string> = new Set(['missing-tag', 'energy-deficit', 'no-energy']);
+
+/** The prompt title as plain text (i18n rewrites a Message's `.message` in
+ *  place, but never the action-menu OrOptions title — see turnState). */
+function titleText(t: string | Message | undefined): string {
+  if (t === undefined) {
+    return '';
+  }
+  return typeof t === 'string' ? t : t.message;
+}
 
 type RailStop = {
   position: number;
@@ -391,7 +403,9 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     actionAvailable: {type: Boolean, default: false},
-    /** Preview cache scope (the generation) — refetch on change. */
+    /** Preview refetch scope — the host keys it on every signal that can move
+     *  the preview (generation + gameAge + undoCount), NOT the generation
+     *  alone: the delta state changes WITHIN a generation. */
     cacheKey: {type: String, default: ''},
   },
   emits: ['close', 'confirm', 'pick', 'notice'],
@@ -490,9 +504,21 @@ export default defineComponent({
         model: this.model,
         preview: this.preview,
         actionAvailable: this.actionAvailable,
+        turnState: this.turnState,
         rewardChoice: this.rewardChoice,
         occupantName: this.occupantName,
       });
+    },
+    /** The REAL turn state — the only honest source for a turn-flavoured
+     *  reason (the action menu being live means the block is a RULE). */
+    turnState(): HydroTurnState {
+      const wf = this.playerView.waitingFor;
+      if (wf === undefined) {
+        return 'not-your-turn';
+      }
+      // The action-menu OrOptions title is the one title i18n never mutates in
+      // place (the fork's inline action UI relies on the same match).
+      return wf.type === 'or' && ACTION_MENU_TITLES.has(titleText(wf.title)) ? 'action-menu' : 'busy';
     },
     /** Reasons ALREADY visualized in the «Требования» column (red chips). */
     requirementsUnmet(): boolean {
@@ -504,30 +530,40 @@ export default defineComponent({
     },
     occupantName(): string | undefined {
       const pos = this.model.selectedPosition;
-      return this.playerView.players.find((p) =>
-        p.color !== this.viewerColor && (p.deltaProject?.position ?? 0) === pos)?.name;
+      const occupant = this.playerView.players.find((p) =>
+        p.color !== this.viewerColor && (p.deltaProject?.position ?? 0) === pos);
+      return occupant !== undefined ? participantDisplayName(occupant) : undefined;
     },
     /** The whole-screen action state: nothing is mint while the action is gone. */
     globallyActable(): boolean {
       return this.actionAvailable && !this.model.usedThisGeneration && this.preview !== undefined;
     },
-    statusKind(): 'ready' | 'used' | 'waiting' | 'end' {
+    statusKind(): 'ready' | 'used' | 'waiting' | 'end' | 'busy' | 'blocked' {
       if (this.model.usedThisGeneration) {
         return 'used';
       }
       if (this.model.atEndOfTrack) {
         return 'end';
       }
-      if (!this.actionAvailable) {
-        return 'waiting';
+      if (this.actionAvailable) {
+        return 'ready';
       }
-      return 'ready';
+      // The action is gone — say WHY honestly. It is «не ваш ход» only when the
+      // server really isn't waiting on the viewer; on the action menu the block
+      // is a rule (the CTA reasons name it), mid-prompt it's the open decision.
+      switch (this.turnState) {
+      case 'not-your-turn': return 'waiting';
+      case 'busy': return 'busy';
+      default: return 'blocked';
+      }
     },
     statusLabel(): string {
       switch (this.statusKind) {
       case 'used': return 'Already used this generation';
       case 'end': return 'End of the track reached';
       case 'waiting': return 'Not your turn';
+      case 'busy': return 'Finish your current action first';
+      case 'blocked': return 'Unavailable right now';
       default: return 'Reinforcement available';
       }
     },
@@ -599,11 +635,16 @@ export default defineComponent({
     historyRows(): ReadonlyArray<HydroStageHistoryEntry> {
       return this.model.mode === 'plan' ? this.model.targetVisitors : this.model.detailsHistory;
     },
+    /** The inspected stage is the track START — it grants no reward, so nothing
+     *  there can be «не достигнуто» nor «пройдено мимо награды». */
+    startSelected(): boolean {
+      return this.model.mode === 'details' && this.model.selectedPosition === 0;
+    },
     detailsStatusText(): string {
       switch (this.model.viewerStatusAtDetails) {
       case 'current': return $t('Here now');
       case 'rewarded': return $t('Took the reward');
-      case 'passed': return $t('Passed through — no reward');
+      case 'passed': return $t(this.startSelected ? 'Advanced through' : 'Passed through — no reward');
       default: return $t('Not reached yet');
       }
     },
@@ -659,11 +700,18 @@ export default defineComponent({
         translateTextWithParams(r.textKey, r.params.map(String)) :
         translateText(r.textKey);
     },
+    /** The Automa seat's visible label localizes («Бот»); humans keep their name. */
+    displayName(h: HydroStageHistoryEntry): string {
+      return participantDisplayName(h);
+    },
     historyStatusText(h: HydroStageHistoryEntry): string {
       switch (h.status) {
       case 'current': return 'Here now';
       case 'rewarded': return 'Took the reward';
-      case 'passed': return 'Passed through — no reward';
+      // «Прошёл мимо — без награды» only makes sense where a reward was on the
+      // table: the MarsBot never takes one (reference-card rule) and the START
+      // carries none — both read as a plain traversal.
+      case 'passed': return (h.isMarsBot || this.startSelected) ? 'Advanced through' : 'Passed through — no reward';
       default: return 'Not reached yet';
       }
     },

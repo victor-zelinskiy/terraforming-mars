@@ -1233,9 +1233,16 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
             .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: 0 0 .4rem fade(@con-hydro-mint, 80%); }
         }
-        &--waiting {
+        // Timing states (not your turn / mid-decision) — amber: it will pass.
+        &--waiting,
+        &--busy {
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
             .con-hydro__chip-dot { background: @con-amber; }
+        }
+        // A rule block — red, like every hard «нельзя» in the fork.
+        &--blocked {
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%);
+            .con-hydro__chip-dot { background: @con-red; }
         }
         &--used,
         &--end {

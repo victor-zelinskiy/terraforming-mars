@@ -140,7 +140,7 @@
                            ref="hydroSection"
                            :playerView="playerView"
                            :actionAvailable="hydroActionAvailable"
-                           :cacheKey="String(game.generation)"
+                           :cacheKey="hydroCacheKey"
                            @pick="openHydroPickSheet"
                            @notice="showNotice($event)"
                            @confirm="submitHydroAdvance($event)"
@@ -1455,6 +1455,21 @@ export default defineComponent({
     },
     hydroActionAvailable(): boolean {
       return findHydroActionPath(this.playerView.waitingFor) !== undefined;
+    },
+    /**
+     * The delta-preview refetch scope. The preview mirrors state that moves
+     * WITHIN a generation (track position / usedThisGeneration / energy /
+     * tags), so a generation-only key went STALE the moment the viewer
+     * advanced: the screen kept planning from the OLD position, and — since
+     * the stale preview still claimed `usedThisGeneration: false` — the honest
+     * «уже укрепляли в этом поколении» gate never fired and the screen blamed
+     * «Сейчас не ваш ход» on a live turn. `gameAge` bumps on every logged
+     * change and `undoCount` covers a rewind: together they are the honest
+     * "the preview may have moved" signal (same reasoning as the effects
+     * overlay's within-generation refetch).
+     */
+    hydroCacheKey(): string {
+      return `${this.game.generation}:${this.game.gameAge}:${this.game.undoCount}`;
     },
     // ── the console-native journal (View — board home only) ────────────
     /** The journal surface renders (it replaces the right info panel). */
