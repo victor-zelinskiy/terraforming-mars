@@ -202,7 +202,7 @@ import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/expansionMeta';
 import {Expansion} from '@/common/cards/GameModule';
 import {getPreferences} from '@/client/utils/PreferencesManager';
-import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {desktopBridge, startMenuUpdateWatch, stopMenuUpdateWatch} from '@/client/components/desktop/desktopUpdateState';
 import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, steamPromptVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import raw_settings from '@/genfiles/settings.json';
 import {$t} from '@/client/directives/i18n';
@@ -389,10 +389,14 @@ export default defineComponent({
         this.desktopVersion = typeof v === 'string' ? v : '';
       }).catch(() => undefined);
     }
+    // Watch for a new version for as long as the menu is up. The menu is the safe place to be
+    // interrupted, so this is what makes "leave the game to the main menu" the way to update.
+    startMenuUpdateWatch();
   },
   beforeUnmount() {
     this.offPad?.();
     stopJoinPolling();
+    stopMenuUpdateWatch();
   },
   methods: {
     onIntent(intent: GamepadIntent): boolean {

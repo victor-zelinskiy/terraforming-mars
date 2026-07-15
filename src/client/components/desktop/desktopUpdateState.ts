@@ -29,7 +29,9 @@ export interface DesktopUpdateState {
    *  such as the Linux/Steam Deck "reopen from Steam" instruction. Mirrors electron/update.ts. */
   platform?: string;
   /** True when the app installs AND restarts itself (Windows, or Linux via the restart-loop
-   *  wrapper) → "Restart and install"; false → "Install and close". Mirrors electron/update.ts. */
+   *  wrapper) → the main process applies the download automatically and the overlay just reports
+   *  it; false → the app can only close, so the overlay keeps an explicit "Install and close".
+   *  Mirrors electron/update.ts. */
   restartSupported?: boolean;
   latestVersion?: string;
   minSupportedVersion?: string;
@@ -164,6 +166,49 @@ export function initDesktopUpdates(): void {
       }
     })
     .catch(() => undefined);
+}
+
+/**
+ * Re-check for a new version while the MAIN MENU is open — the one place where being interrupted
+ * by the update gate costs the player nothing. The startup check alone means a client that has
+ * been sitting in a long session never notices a release; with this, leaving a game to the menu
+ * is the whole "how do I update?" answer, and the gate takes over from there by itself.
+ *
+ * Deliberately scoped to the menu: an in-game timer would drop the blocking cover over a live
+ * turn. `recheck` is idempotent and cheap (one call to our own server, which caches the GitHub
+ * reads), and the main process ignores it outright once a download is in flight.
+ *
+ * Same shape as joinGamesState's start/stopJoinPolling — call from the menu's mounted /
+ * beforeUnmount. Inert on the web (no bridge) and in an unpackaged dev shell (the main process
+ * short-circuits to `idle`).
+ */
+const MENU_RECHECK_MS = 60_000;
+let menuTimer: number | undefined;
+
+export function startMenuUpdateWatch(intervalMs: number = MENU_RECHECK_MS): void {
+  stopMenuUpdateWatch();
+  const bridge = desktopBridge();
+  if (bridge === undefined) {
+    return;
+  }
+  const check = () => {
+    void bridge.recheck().then((s) => {
+      if (s !== undefined && s !== null) {
+        Object.assign(desktopUpdateState, s);
+      }
+    }).catch(() => undefined);
+  };
+  check(); // on entry: the player who just left a game to update gets it now, not in a minute
+  menuTimer = window.setInterval(check, intervalMs);
+}
+
+export function stopMenuUpdateWatch(): void {
+  if (menuTimer !== undefined) {
+    // window.clearInterval, to pair with the window.setInterval above: a bare clearInterval
+    // resolves to a DIFFERENT timer system under JSDOM and silently leaves the watch running.
+    window.clearInterval(menuTimer);
+    menuTimer = undefined;
+  }
 }
 
 /** True while the overlay must COVER the screen (a mandatory update blocks the game). `pending`

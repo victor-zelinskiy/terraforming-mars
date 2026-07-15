@@ -40,7 +40,7 @@ export function hintsFor(scopeId: string, focusKind: FocusKind, focusVerb?: stri
   }
   // P19: the A-hint is EXACT — a text field says «Enter text», an element
   // with a data-gp-verb says its verb («Create game», «Join game»,
-  // «Restart and install»), a disabled control offers NO A at all.
+  // «Install and close»), a disabled control offers NO A at all.
   const select: HintAction = focusKind === 'text-input' ?
     {control: 'confirm', label: 'Enter text'} :
     (focusVerb !== undefined && focusVerb !== '' ? {control: 'confirm', label: focusVerb} : SELECT);

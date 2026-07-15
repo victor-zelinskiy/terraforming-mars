@@ -51,9 +51,10 @@ export interface DesktopUpdateState {
   /** Runtime platform (main-process `process.platform`) so the overlay can show
    *  platform-specific guidance (e.g. the Linux/Steam Deck "reopen from Steam" step). */
   platform?: string;
-  /** True when the app can INSTALL AND RESTART itself: Windows, or Linux launched by
-   *  a restart-loop wrapper (Steam Deck). When false the overlay offers "install and close"
-   *  (the player reopens the app). Drives the button label + hint. */
+  /** True when the app can INSTALL AND RESTART itself: Windows, or Linux launched by a
+   *  restart-loop wrapper (Steam Deck). This is also the AUTO-APPLY gate — a download that comes
+   *  back on its own is applied without asking, while one that could only CLOSE the game keeps an
+   *  explicit "Install and close" button (an unprompted exit reads as a crash). */
   restartSupported?: boolean;
   latestVersion?: string;
   minSupportedVersion?: string;
@@ -111,6 +112,16 @@ export function updateBlocksGame(): boolean {
     state.mode === 'downloading' || state.mode === 'downloaded' || state.mode === 'installing' ||
     state.mode === 'offlineBlocked' || state.mode === 'manualDownloadRequired' ||
     (state.mode === 'error' && state.error !== undefined);
+}
+
+/** True once the update flow has TAKEN OVER: a package is downloading, is downloaded and about to
+ *  be applied, or is being applied. A re-check must not re-enter it — `beginDownload` would run a
+ *  second time and Velopack takes a GLOBAL update lock, so the concurrent call throws and would
+ *  surface a bogus error over a perfectly healthy download. There is also nothing left to decide:
+ *  the newest package is already in hand. (`error` is deliberately NOT here — retrying out of it
+ *  is exactly what Try-again is for.) */
+function updateInFlight(): boolean {
+  return state.mode === 'downloading' || state.mode === 'downloaded' || state.mode === 'installing';
 }
 
 /** Update channel label. Selects the gate's ?channel= query. Velopack itself uses the channel
@@ -268,6 +279,12 @@ async function runCheck(): Promise<boolean> {
     push({mode: 'idle'});
     return false;
   }
+  // The update flow already owns this run — see `updateInFlight`. Callers fire freely (the main
+  // menu re-checks on a timer), so this guard, not each caller, is what keeps a second download
+  // from being started on top of a live one.
+  if (updateInFlight()) {
+    return true;
+  }
   // NEVER drop a gate that is already blocking down to the non-blocking 'checking' pill: this
   // function re-runs on the waiting poll (every PENDING_POLL_MS) and on Try-again, and each of
   // those would otherwise flash the game screen open — interactive — for the length of the fetch.
@@ -355,11 +372,40 @@ function updateOrManual(err: unknown): void {
   push({mode: 'error', error: message, downloadUrl: state.downloadUrl ?? RELEASES_PAGE_URL});
 }
 
+let downloadActive = false;
+
 /** Check the Velopack feed, download the newest release with progress, and mark it ready to
  *  apply. The download runs in the background; nothing is applied until quitAndInstall. */
 async function beginDownload(): Promise<void> {
+  // ONE download attempt at a time. The MODE cannot stand in for this latch: it stays 'required'
+  // from the moment we decide until Velopack answers the feed check — seconds — and a re-check
+  // landing in that window (the menu watch and the waiting poll are independent timers, so they
+  // do coincide) would start a SECOND download. Velopack takes a global update lock, so that
+  // second call throws and would surface a bogus failure over a healthy download.
+  if (downloadActive) {
+    return;
+  }
+  downloadActive = true;
+  try {
+    await runDownload();
+  } finally {
+    // Always released, including on an unexpected throw: every state this can leave behind
+    // (error / pending / downloaded) must remain retryable or advanceable.
+    downloadActive = false;
+  }
+}
+
+async function runDownload(): Promise<void> {
   logUpdate('beginDownload — checking the Velopack GitHub feed');
-  const mgr = getManager();
+  let mgr: UpdateManager;
+  try {
+    mgr = getManager();
+  } catch (err) {
+    // The manager itself can't be built (e.g. not a Velopack-managed install). No amount of
+    // waiting fixes that, so this is NOT a feed lag — hand over the manual download.
+    updateOrManual(err);
+    return;
+  }
   // PHASE 1 — resolve the package. The gate has already told us we're outdated, so "this channel
   // has nothing newer" is not an answer we accept at face value: it is the EXPECTED window in
   // which the gate legitimately runs ahead of the feed. release.yml creates the release tag in
@@ -400,82 +446,119 @@ async function beginDownload(): Promise<void> {
     pendingUpdate = info;
     logUpdate('download complete — ready to apply on restart');
     push({mode: 'downloaded'});
+    // Nothing left to decide, so don't make the player press a button to get what they are
+    // already locked behind: apply it. A download only ever starts from `required`, i.e. the
+    // blocking gate is on screen and no session is in progress — so this can't interrupt play.
+    // ONLY where the app genuinely comes back on its own, though: where it can merely close
+    // (see canRestartAfterUpdate) an unprompted exit reads as a crash, so that path keeps its
+    // explicit "Install and close" button. The short beat lets "downloaded → installing" be
+    // read rather than flashing past.
+    if (canRestartAfterUpdate()) {
+      logUpdate('auto-applying the update — the app restarts itself');
+      setTimeout(() => applyUpdate(), AUTO_APPLY_DELAY_MS);
+    }
   } catch (err) {
     updateOrManual(err);
   }
+}
+
+/** Beat between "downloaded" and the automatic restart, so the handover is legible. */
+const AUTO_APPLY_DELAY_MS = 1200;
+/** Applying is one-way (the process is about to exit) — never let the auto-path and a stray
+ *  `desktop:quitAndInstall` both fire `waitExitThenApplyUpdate` for the same update. */
+let applying = false;
+
+/**
+ * Apply the downloaded update and exit. Shared by the automatic path above and the explicit
+ * button, so both platforms behave identically no matter which triggered it.
+ */
+function applyUpdate(): void {
+  if (applying) {
+    return;
+  }
+  if (pendingUpdate === undefined || manager === undefined) {
+    updateOrManual('No downloaded update to install');
+    return;
+  }
+  applying = true;
+  const mgr = manager;
+  const upd = pendingUpdate;
+  push({mode: 'installing'});
+  // Velopack applies the update by launching its updater, which waits (≤60s) for THIS process
+  // to exit, swaps the files in place, then optionally relaunches. So every path must exit the
+  // app after calling waitExitThenApplyUpdate. `silent=true` = no updater UI.
+  if (process.platform === 'win32') {
+    logUpdate('installing (Windows/Velopack) — apply + relaunch');
+    setImmediate(() => {
+      try {
+        mgr.waitExitThenApplyUpdate(upd, true, true);
+        app.quit();
+      } catch (err) {
+        applyFailed(err);
+      }
+    });
+    return;
+  }
+  // Linux/AppImage. We NEVER let Velopack relaunch on Linux (restart=false): a relaunch it
+  // spawns would start OUTSIDE gamescope's session, so Steam waits forever on a process it
+  // can't show ("infinite loading"). The updater still replaces the AppImage in place. Two paths:
+  const marker = linuxRestartMarker();
+  if (marker !== undefined) {
+    // Steam Deck via the restart-loop wrapper: drop the marker, apply (no relaunch), exit — the
+    // WRAPPER (the process Steam/gamescope tracks) relaunches the updated AppImage in the SAME
+    // session. A real install-and-restart with no hang.
+    logUpdate('installing (Linux/Velopack) — apply + restart via the wrapper loop');
+    setTimeout(() => {
+      try {
+        fs.writeFileSync(marker, String(Date.now()));
+      } catch (err) {
+        logUpdate('could not write restart marker — ' + String(err));
+      }
+      try {
+        mgr.waitExitThenApplyUpdate(upd, true, false);
+      } catch (err) {
+        applyFailed(err);
+        return;
+      }
+      app.quit();
+      setTimeout(() => app.exit(0), 3000);
+    }, 500);
+    return;
+  }
+  // No restart-loop wrapper (old wrapper / direct launch): apply + quit cleanly and let the
+  // player reopen the app (no relaunch child → Steam returns to the library, no hang).
+  logUpdate('installing (Linux/Velopack) — apply WITHOUT relaunch; reopen manually');
+  setTimeout(() => {
+    try {
+      mgr.waitExitThenApplyUpdate(upd, true, false);
+    } catch (err) {
+      applyFailed(err);
+      return;
+    }
+    app.quit();
+    // Hang-proof: if quit() is ever blocked by a handler, force-exit so the process can never
+    // sit spinning — Steam then cleanly returns to the library.
+    setTimeout(() => app.exit(0), 3000);
+  }, 900);
+}
+
+/** An apply that never got off the ground. Release the one-way latch as well as showing the
+ *  error, otherwise Try-again would download fine and then silently refuse to install. */
+function applyFailed(err: unknown): void {
+  applying = false;
+  updateOrManual(err);
 }
 
 /** Wire the IPC the preload's desktopBridge calls. Call once, after app ready. */
 export function registerUpdateIpc(): void {
   ipcMain.handle('desktop:getUpdateState', () => state);
   // Retry from ANY blocked state: re-runs the whole check (network back → maybe unblock;
-  // still required → re-arm the download; feed error → re-attempt).
+  // still required → re-arm the download; feed error → re-attempt). Also what the main menu
+  // calls on entry + on its timer, so a player can pick an update up just by leaving a game.
   ipcMain.handle('desktop:recheck', () => runCheck().then(() => state));
-  ipcMain.handle('desktop:quitAndInstall', () => {
-    if (pendingUpdate === undefined || manager === undefined) {
-      updateOrManual('No downloaded update to install');
-      return;
-    }
-    const mgr = manager;
-    const upd = pendingUpdate;
-    push({mode: 'installing'});
-    // Velopack applies the update by launching its updater, which waits (≤60s) for THIS process
-    // to exit, swaps the files in place, then optionally relaunches. So every path must exit the
-    // app after calling waitExitThenApplyUpdate. `silent=true` = no updater UI.
-    if (process.platform === 'win32') {
-      logUpdate('installing (Windows/Velopack) — apply + relaunch');
-      setImmediate(() => {
-        try {
-          mgr.waitExitThenApplyUpdate(upd, true, true);
-          app.quit();
-        } catch (err) {
-          updateOrManual(err);
-        }
-      });
-      return;
-    }
-    // Linux/AppImage. We NEVER let Velopack relaunch on Linux (restart=false): a relaunch it
-    // spawns would start OUTSIDE gamescope's session, so Steam waits forever on a process it
-    // can't show ("infinite loading"). The updater still replaces the AppImage in place. Two paths:
-    const marker = linuxRestartMarker();
-    if (marker !== undefined) {
-      // Steam Deck via the restart-loop wrapper: drop the marker, apply (no relaunch), exit — the
-      // WRAPPER (the process Steam/gamescope tracks) relaunches the updated AppImage in the SAME
-      // session. A real install-and-restart with no hang.
-      logUpdate('installing (Linux/Velopack) — apply + restart via the wrapper loop');
-      setTimeout(() => {
-        try {
-          fs.writeFileSync(marker, String(Date.now()));
-        } catch (err) {
-          logUpdate('could not write restart marker — ' + String(err));
-        }
-        try {
-          mgr.waitExitThenApplyUpdate(upd, true, false);
-        } catch (err) {
-          updateOrManual(err);
-          return;
-        }
-        app.quit();
-        setTimeout(() => app.exit(0), 3000);
-      }, 500);
-      return;
-    }
-    // No restart-loop wrapper (old wrapper / direct launch): apply + quit cleanly and let the
-    // player reopen the app (no relaunch child → Steam returns to the library, no hang).
-    logUpdate('installing (Linux/Velopack) — apply WITHOUT relaunch; reopen manually');
-    setTimeout(() => {
-      try {
-        mgr.waitExitThenApplyUpdate(upd, true, false);
-      } catch (err) {
-        updateOrManual(err);
-        return;
-      }
-      app.quit();
-      // Hang-proof: if quit() is ever blocked by a handler, force-exit so the process can never
-      // sit spinning — Steam then cleanly returns to the library.
-      setTimeout(() => app.exit(0), 3000);
-    }, 900);
-  });
+  // The explicit CTA. Restart-capable platforms apply automatically the moment the download
+  // lands, so in practice this serves the install-and-close path (and any impatient press).
+  ipcMain.handle('desktop:quitAndInstall', () => applyUpdate());
   ipcMain.handle('desktop:openDownload', () => {
     if (state.downloadUrl !== undefined) {
       void shell.openExternal(state.downloadUrl);
