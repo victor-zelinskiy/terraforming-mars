@@ -77,13 +77,25 @@ export class EcologyResearch extends Card implements IProjectCard {
       extra.push(actionPreviews.cardResourceGain(CardResource.ANIMAL, 1));
       steps.push(actionPreviews.addToCardStep(player, CardResource.ANIMAL, {count: 1}));
     } else {
-      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.ANIMAL));
+      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
+        resource: CardResource.ANIMAL,
+        skipped: {
+          label: actionPreviews.SKIPPED_LABEL.addToCard,
+          effect: actionPreviews.cardResourceGain(CardResource.ANIMAL, 1),
+        },
+      }));
     }
     if (player.getResourceCards(CardResource.MICROBE).length > 0) {
       extra.push(actionPreviews.cardResourceGain(CardResource.MICROBE, 2));
       steps.push(actionPreviews.addToCardStep(player, CardResource.MICROBE, {count: 2}));
     } else {
-      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.MICROBE));
+      steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
+        resource: CardResource.MICROBE,
+        skipped: {
+          label: actionPreviews.SKIPPED_LABEL.addToCard,
+          effect: actionPreviews.cardResourceGain(CardResource.MICROBE, 2),
+        },
+      }));
     }
     return actionPreviews.playPreview(this, player, extra, steps);
   }

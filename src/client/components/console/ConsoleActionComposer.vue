@@ -190,7 +190,22 @@
 
           <!-- Warnings (no-effect gains at cap). -->
           <div v-for="(w, i) in warnings" :key="'w' + i" class="con-composer__warn">
-            <span aria-hidden="true">!</span><span>{{ $t(w) }}</span>
+            <span class="con-composer__warn-glyph" aria-hidden="true">!</span><span class="con-composer__warn-text">{{ $t(w) }}</span>
+          </div>
+
+          <!-- SKIPPED effects (no valid target) — NAME which effect is lost + the
+               magnitude, then why. Was folded into the "after confirming" list as a
+               bare "⚠ <reason>" line, which said nothing about WHICH effect. -->
+          <div v-for="(w, i) in skippedWarnings" :key="'sw' + i" class="con-composer__warn">
+            <span class="con-composer__warn-glyph" aria-hidden="true">⚠</span>
+            <span class="con-composer__warn-body">
+              <span class="con-composer__warn-head">
+                <span v-if="w.title !== ''" class="con-composer__warn-title">{{ w.title }}</span>
+                <ActionEffectChip v-if="w.effect !== undefined" :effect="w.effect" :skipped="true" />
+                <i v-else-if="w.icon !== ''" class="con-composer__warn-res" :class="w.icon" aria-hidden="true"></i>
+              </span>
+              <span class="con-composer__warn-text">{{ w.reason }}</span>
+            </span>
           </div>
 
           <!-- Honest "after confirming" (board placement / reveal / notes). -->
@@ -260,6 +275,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
@@ -439,6 +455,17 @@ export default defineComponent({
       return this.heroGain.some((e) => e.current !== undefined && e.current === e.resulting) ?
         ['One of the gains has no effect — the value is already at maximum.'] : [];
     },
+    // Skipped-effect warnings for the selected branch, via the SAME shared
+    // derivation the desktop modal + the play composer use.
+    skippedWarnings(): Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> {
+      return skippedEffectViews(this.selectedBranch?.steps).map((w) => ({
+        title: w.title !== '' ? translateText(w.title) : '',
+        reason: translateText(w.reason),
+        effect: w.effect,
+        // Only a chip-less warning needs the bare fallback sprite.
+        icon: w.effect === undefined && w.icon !== '' ? iconClassFor(w.icon) : '',
+      }));
+    },
     afterNotes(): Array<string> {
       const branch = this.selectedBranch;
       if (branch === undefined) {
@@ -453,9 +480,9 @@ export default defineComponent({
           out.push(translateText('Next: place on the board'));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
           out.push(step.text !== undefined ? textOf(step.text) : translateText('Next: an additional choice'));
-        } else if (step.kind === 'note' && step.noteKind === 'warning' && step.text !== undefined) {
-          out.push('⚠ ' + textOf(step.text));
         }
+        // A `warning` is NOT an "after confirming" step (nothing happens) — it has
+        // its own block above (`skippedWarnings`), which names the lost effect.
       }
       return out;
     },

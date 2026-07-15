@@ -10341,9 +10341,52 @@ html.console-mode .notifications-layer {
 .con-banner--deferred {
     top: calc(1.2vh + 4.8rem); /* P21: below the prompt banner (both overlay) */
     box-shadow: inset 0 0 0 .05rem fade(@con-amber, 60%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.4), 0 0 .9rem fade(@con-amber, 14%);
+    /* The chip is now TWO-LEVEL (kind + concrete ask + source card), so it can
+       outgrow the board's clear centre. Bound it and let the ASK ellipsize —
+       the kicker + the B hint must never be the part that gets cut. */
+    max-width: ~"min(58rem, 78vw)"; /* LESS owns min() — escape to keep the CSS one. */
     .con-banner__pulse {
         background: @con-amber;
         box-shadow: 0 0 .5rem fade(@con-amber, 85%);
+    }
+    /* The classification chip — the decision TYPE, read first. */
+    .con-banner__kicker {
+        flex: 0 0 auto;
+        color: @con-amber;
+        font-weight: 700;
+    }
+    /* The concrete ask — the sentence the player actually needs. Sentence
+       case (the band is uppercase by default, which mangles a real prompt). */
+    .con-banner__ask {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding-left: .55rem;
+        border-left: .05rem solid fade(@con-amber, 30%);
+        color: fade(#ffffff, 92%);
+        text-transform: none;
+        letter-spacing: .02rem;
+    }
+    /* WHO asks — the source card the server named. */
+    .con-banner__src {
+        flex: 0 0 auto;
+        max-width: 14rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: .05rem .45rem;
+        border-radius: 49.95rem;
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
+        color: fade(#ffffff, 82%);
+        font-size: .8rem;
+        text-transform: none;
+        letter-spacing: .02rem;
+    }
+    .con-banner__hint {
+        flex: 0 0 auto;
+        border-left-color: fade(@con-amber, 25%);
     }
 }
 
@@ -11498,8 +11541,21 @@ html.console-mode {
     }
 
     &__warn {
-        display: flex; align-items: center; gap: .4rem; padding: .4rem .6rem; border-radius: .4rem; font-size: .8rem;
+        display: flex; align-items: flex-start; gap: .4rem; padding: .4rem .6rem; border-radius: .4rem; font-size: .8rem;
         background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%); color: #ffe6b0;
+
+        /* Two lines: the HEAD names the SKIPPED effect (+ the muted magnitude
+           chip), the text below says why it's skipped — so a card with several
+           effects never leaves the player guessing WHICH one is lost. */
+        &-glyph { flex-shrink: 0; line-height: 1.35; }
+        &-body { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+        &-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+        &-title { font-weight: 800; color: #ffd9a0; letter-spacing: .01em; }
+        &-res {
+            width: .9rem; height: .9rem; display: inline-block;
+            background-size: contain !important; background-repeat: no-repeat; background-position: center;
+        }
+        &-text { line-height: 1.35; color: #f4d3a6; }
     }
     &__next {
         display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: fade(@con-cyan, 92%);

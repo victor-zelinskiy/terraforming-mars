@@ -325,4 +325,31 @@ describe('card-play-preview coverage', () => {
     });
     expect(gaps, `declarative cards silently dropping an addResourcesToAnyCard addition:\n  ${gaps.join('\n  ')}`).to.have.length(0);
   });
+
+  // GUARD: a `warning` says an effect WON'T happen — it must NAME which one. A card
+  // commonly has several effects (Asteroid: temperature + titanium + the plant
+  // attack), and a skipped attack has NO chip in `effects` (it hits an OPPONENT's
+  // pool), so an anonymous "no valid target" leaves the player unable to tell what
+  // they just lost. Every producer must attach `skipped.label`.
+  it('every warning a declarative in-scope card emits NAMES the skipped effect', () => {
+    // 2 players, both at the starting state → every attack/add is target-less, so
+    // this sweep hits the warning path of every card that has one.
+    const [/* game */, player] = testGame(2);
+    const anonymous: Array<string> = [];
+    forEachInScopeProjectCard((card, module) => {
+      const behavior = (card as {behavior?: Behavior}).behavior;
+      if (behavior === undefined) {
+        return;
+      }
+      for (const step of stepsForBehavior(player, card, behavior)) {
+        if (step.kind !== 'note' || step.noteKind !== 'warning') {
+          continue;
+        }
+        if (step.skipped === undefined || step.skipped.label === '') {
+          anonymous.push(`${card.name} [${module}]`);
+        }
+      }
+    });
+    expect(anonymous, `warnings that don't name WHICH effect is skipped:\n  ${anonymous.join('\n  ')}`).to.have.length(0);
+  });
 });

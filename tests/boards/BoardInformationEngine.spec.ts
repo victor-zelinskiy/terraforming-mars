@@ -11,6 +11,7 @@ import {SpaceName} from '../../src/common/boards/SpaceName';
 import {Space} from '../../src/server/boards/Space';
 import {TileType} from '../../src/common/TileType';
 import {CardName} from '../../src/common/cards/CardName';
+import {AresHandler} from '../../src/server/ares/AresHandler';
 
 describe('BoardInformationEngine', () => {
   let game: IGame;
@@ -352,6 +353,28 @@ describe('BoardInformationEngine', () => {
     expect(JSON.stringify(game.board.serialize())).to.eq(before);
     expect(player.megaCredits).to.eq(mc);
     expect(game.deferredActions.length).to.eq(deferred);
+  });
+
+  describe('Ares hazard adjacency', () => {
+    it('placing next to a hazard costs a production the player must reduce', () => {
+      const [aGame, aPlayer] = testGame(2, {aresExtension: true});
+      const target = aGame.board.spaces.find((s) =>
+        s.spaceType === SpaceType.LAND && s.tile === undefined &&
+        aGame.board.getAdjacentSpaces(s).some((a) => AresHandler.hasHazardTile(a)));
+      if (target === undefined) {
+        throw new Error('no empty land space adjacent to a hazard');
+      }
+
+      const preview = boardCellPreview(aPlayer, target, 'greenery');
+
+      // The penalty is a COST (it is paid to place), never a soft warning —
+      // and the console/desktop panels only render it via boardCellPreview.
+      const fact = preview.costFacts.find((f) => f.id === 'cost-production');
+      expect(fact, JSON.stringify(preview.costFacts)).to.not.be.undefined;
+      expect(fact!.category).to.eq('placement-penalty');
+      expect(fact!.severity).to.eq('danger');
+      expect(fact!.recipient.kind).to.eq('current-player');
+    });
   });
 
   describe('Asteroid Deflection Zone (Hollandia)', () => {

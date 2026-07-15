@@ -373,7 +373,20 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
       // the input step's `cardResource`) so `iconClassFor` resolves the sprite —
       // the raw `CardResource` value ('Animal') would yield `card-resource-Animal`,
       // which has no CSS class, so no icon showed. Undefined = any-resource → no icon.
-      steps.push({kind: 'note', noteKind: 'warning', text: 'No eligible card — this resource is not added.', resource: a.type !== undefined ? cardResourceIcon(a.type) : undefined});
+      const icon = a.type !== undefined ? cardResourceIcon(a.type) : 'resources';
+      steps.push({
+        kind: 'note',
+        noteKind: 'warning',
+        text: 'No eligible card — this resource is not added.',
+        resource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
+        // NAME the skipped effect: the gain chip is suppressed above, so without
+        // this the player only learns that "a resource" is lost — ambiguous on a
+        // card that adds several (Imported Nitrogen: microbes AND animals).
+        skipped: {
+          label: actionPreviews.SKIPPED_LABEL.addToCard,
+          effect: {direction: 'gain', icon, amount: count, note: 'to a card'},
+        },
+      });
     } else {
       const model = new AddResourcesToCard(player, a.type, {
         count,
@@ -404,7 +417,11 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     const model = new DecreaseAnyProduction(player, dap.type, {count: dap.count}).previewSelectPlayer();
     const step = actionPreviews.targetStepOrWarning(player,
       model !== undefined ? {kind: 'input', input: model} : undefined,
-      'No production can be reduced.');
+      'No production can be reduced.',
+      {
+        label: actionPreviews.SKIPPED_LABEL.reduceProduction,
+        effect: actionPreviews.skippedAttackChip(dap.type, dap.count, 'production'),
+      });
     if (step !== undefined) {
       steps.push(step);
     }
@@ -436,7 +453,12 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   if (behavior.removeAnyPlants !== undefined) {
     const orOptions = new RemoveAnyPlants(player, behavior.removeAnyPlants).previewOptions();
     const step = actionPreviews.targetStepOrWarning(player,
-      orOptions !== undefined ? {kind: 'input', input: orOptions.toModel(player)} : undefined);
+      orOptions !== undefined ? {kind: 'input', input: orOptions.toModel(player)} : undefined,
+      undefined,
+      {
+        label: actionPreviews.SKIPPED_LABEL.removePlants,
+        effect: actionPreviews.skippedAttackChip(Resource.PLANTS, behavior.removeAnyPlants),
+      });
     if (step !== undefined) {
       steps.push(step);
     }

@@ -381,6 +381,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -579,8 +580,18 @@ export default defineComponent({
       }
       return textOf(this.wf?.title);
     },
+    /**
+     * The classification chip over the title. It names WHAT KIND of decision
+     * this is ("ОПЛАТА" / "ДРАФТ" / "АТАКА") instead of the old context-less
+     * «Ожидает решения» — shared with the deferred chip + the command bar via
+     * `consoleTaskSummary`, so the three surfaces cannot disagree.
+     *
+     * `activeTask` + `wf` are both NESTED-AWARE, so an open wizard step is
+     * classified as ITSELF (the nested payment reads "ОПЛАТА"), and the
+     * client-built payment rides `parentWf`'s `promptOverride`.
+     */
     kickerText(): string {
-      return 'Awaiting decision';
+      return translateText(consoleTaskSummary(this.activeTask, this.playerView, {prompt: this.wf}).kickerKey);
     },
     /** choiceContext trigger sentence (parity with ContextualChoiceContent);
      *  inside a nested step — the PARENT ask as a breadcrumb. */

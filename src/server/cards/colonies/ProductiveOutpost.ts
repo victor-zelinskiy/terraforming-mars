@@ -161,9 +161,19 @@ export class ProductiveOutpost extends Card implements IProjectCard {
       if (amount <= 0) {
         continue;
       }
-      // No card can hold it → the resource is silently lost; warn instead of a fake chip.
+      // No card can hold it → the resource is silently lost; warn instead of a fake
+      // chip. Built via `warningNote` so the icon key is NORMALIZED (a raw
+      // `CardResource` — 'Animal' — yields `card-resource-Animal`, which has no CSS
+      // class, so no icon showed) and the skipped effect is NAMED: this card
+      // aggregates MANY colony bonuses, so an anonymous warning is the worst case.
       if (new AddResourcesToCard(player, resource).getCards().length === 0) {
-        steps.push({kind: 'note', noteKind: 'warning', text: 'No eligible card — this resource is not added.', resource});
+        steps.push(actionPreviews.warningNote('No eligible card — this resource is not added.', {
+          resource,
+          skipped: {
+            label: actionPreviews.SKIPPED_LABEL.addToCard,
+            effect: actionPreviews.cardResourceGain(resource, amount),
+          },
+        }));
       } else {
         effects.push(actionPreviews.cardResourceGain(resource, amount));
       }

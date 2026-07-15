@@ -55,7 +55,12 @@ export class CometForVenus extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
     const step = actionPreviews.targetStepOrWarning(player,
-      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined,
+      undefined,
+      {
+        label: actionPreviews.SKIPPED_LABEL.removeResources,
+        effect: actionPreviews.skippedAttackChip(Resource.MEGACREDITS, 4),
+      });
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

@@ -10,6 +10,7 @@
         :class="['action-effect-chip--' + effect.direction, {
           'action-effect-chip--insufficient': shortfall,
           'action-effect-chip--noeffect': noEffect,
+          'action-effect-chip--skipped': skipped,
         }]">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art. -->
@@ -54,6 +55,13 @@ export default defineComponent({
     effect: {
       type: Object as PropType<ActionEffect>,
       required: true,
+    },
+    // This chip describes an effect that will NOT happen (no valid target) — it is
+    // shown INSIDE a warning block purely to name the magnitude that is lost. Muted
+    // + struck through so it can never be misread as something that applies.
+    skipped: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
@@ -126,6 +134,21 @@ export default defineComponent({
   &--noeffect {
     opacity: 0.62;
     filter: saturate(0.55);
+  }
+  // A SKIPPED effect (shown inside a warning): amber rim to match the warning
+  // block, desaturated, and the value struck through — it names what is lost, so
+  // it must never read as an applied change.
+  &--skipped {
+    --chip-rim: rgba(240, 184, 106, 0.5);
+    --chip-bg: rgba(58, 42, 22, 0.42);
+    --chip-accent: #f4d3a6;
+    filter: saturate(0.7);
+
+    .action-effect-chip__value {
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+      text-decoration-color: rgba(240, 184, 106, 0.75);
+    }
   }
 }
 

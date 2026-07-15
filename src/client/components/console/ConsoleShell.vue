@@ -16,9 +16,14 @@
          P15: the return verb is CONTEXT-AWARE (selection / draft / start
          setup / decision) — never a generic «return to game» while the
          player is already in the game. -->
-    <div v-if="(hostTask !== undefined || shellTask !== undefined || startTask !== undefined) && consoleState.task.deferred" class="con-banner con-banner--deferred">
+    <div v-if="(hostTask !== undefined || shellTask !== undefined || startTask !== undefined) && consoleState.task.deferred" class="con-banner con-banner--deferred" :aria-label="deferKicker + ': ' + deferAsk">
       <span class="con-banner__pulse" aria-hidden="true"></span>
-      <span>{{ $t('Awaiting decision') }}</span>
+      <!-- WHAT KIND of decision (the classification chip) … -->
+      <span class="con-banner__kicker">{{ deferKicker }}</span>
+      <!-- … and the CONCRETE ask — never a bare «ожидает решения». -->
+      <span class="con-banner__ask">{{ deferAsk }}</span>
+      <!-- WHO asks, when the server named a source card. -->
+      <span v-if="deferSourceCard !== undefined" class="con-banner__src">{{ $t(deferSourceCard) }}</span>
       <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
     </div>
 
@@ -80,6 +85,7 @@
       <ConsoleContextPanel v-show="consoleState.section === 'board'"
                            :mode="contextMode"
                            :info="selectedCellInfo"
+                           :preview="selectedCellPreview"
                            :loading="cellInfoLoading"
                            :viewerColor="thisPlayer.color"
                            :players="playerView.players"
@@ -681,6 +687,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
@@ -737,7 +744,8 @@ import {
 import {infoModeState, openInfoMode, closeInfoMode, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {boardInfoState, configureBoardInfo} from '@/client/components/board/boardInfoState';
+import {boardInfoState, configureBoardInfo, fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
+import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {journalState} from '@/client/components/journal/journalState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
@@ -866,6 +874,14 @@ export default defineComponent({
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
       journalColonyInspect: undefined as ColonyName | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
+      /**
+       * The focused cell's PLACEMENT preview (cost / gains / who else receives
+       * / endgame VP). Fetched per focused cell while a placement is active —
+       * `boardInfoState.info` (the hover facts) deliberately carries none of the
+       * placement CONSEQUENCES, so the panel needs this second read.
+       */
+      cellPreview: undefined as BoardPlacementPreview | undefined,
+      cellPreviewToken: 0,
       /** A task's nested space-type option being picked on the board. */
       taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
       /** Prompt identity — a change resets the task defer state. */
@@ -1194,6 +1210,33 @@ export default defineComponent({
       }
       return this.convertPlantsPrompt;
     },
+    /**
+     * The active space prompt NARROWED to the SelectSpace model — the source of
+     * the placement PREVIEW (`placementType` / the concrete tile / a cleared
+     * remove-and-replace target). Covers all three console placement sources:
+     * the server's top-level SelectSpace, the client-side convert-plants picker
+     * and a task's nested space option (the WGT ocean).
+     */
+    placementSpaceModel() {
+      const wf = this.playerView.waitingFor;
+      if (wf?.type === 'space') {
+        return wf;
+      }
+      return this.convertPlantsPrompt ?? this.taskSpacePrompt;
+    },
+    /**
+     * The (cell, tile) the preview is for — the refetch key. '' → no preview
+     * (not placing, no cell focused, or a custom SelectSpace with no kind).
+     */
+    cellPreviewKey(): string {
+      const prompt = this.placementSpaceModel;
+      const id = this.consoleState.boardSpaceId;
+      if (!this.placementActive || prompt === undefined || id === undefined || prompt.placementType === undefined) {
+        return '';
+      }
+      const cleared = (prompt.hiddenTiles ?? []).includes(id as SpaceId) ? 'c' : '';
+      return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}`;
+    },
     placementTitle(): string {
       const t = this.activeSpacePrompt?.title;
       if (t === undefined) {
@@ -1293,6 +1336,14 @@ export default defineComponent({
     selectedCellInfo() {
       const info = boardInfoState.info;
       return info !== undefined && info.space === this.consoleState.boardSpaceId ? info : undefined;
+    },
+    /**
+     * The placement preview, shown only for a LEGAL cell — mirrors the desktop
+     * hover popover (an illegal cell shows the server's reason instead of the
+     * consequences of a placement that cannot happen).
+     */
+    selectedCellPreview(): BoardPlacementPreview | undefined {
+      return this.selectedCellLegal ? this.cellPreview : undefined;
     },
     cellInfoLoading(): boolean {
       return boardInfoState.loading && boardInfoState.spaceId === this.consoleState.boardSpaceId;
@@ -1465,15 +1516,17 @@ export default defineComponent({
         return translateText(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Choose a location on the board');
       }
       if (this.consoleState.fallbackActive) {
-        return translateText('Awaiting decision');
+        // A demoted premium/desktop scope owns the screen. It used to read a
+        // flat «Ожидает решения» — but the prompt behind it is classified, and
+        // the marked ones (Venus bonus / spend heat) are precisely the shapes
+        // no console surface serves. Name the ask; fall back only when the
+        // scope is a lifecycle flow with no pending prompt of its own.
+        return this.deferAsk !== '' ? this.deferAsk : translateText('Awaiting decision');
       }
       // A shell-section task (play-from-hand / std project / colony pick):
       // the banner names the server's ask over the serving section.
       if (this.shellTaskActive) {
-        const t = this.playerView.waitingFor?.title;
-        if (t !== undefined) {
-          return typeof t === 'string' ? translateText(t) : translateMessage(t);
-        }
+        return this.deferAsk;
       }
       return '';
     },
@@ -1818,7 +1871,11 @@ export default defineComponent({
         case 'drawReveal': return 'Cards';
         case 'dialog': return 'Card details';
         case 'colonies': return 'Trading';
-        default: return 'Awaiting decision';
+        // An un-named scope = the desktop modal serving a prompt the console
+        // has no surface for. The classification still names it (Venus bonus,
+        // spend heat, an out-of-scope guard) — only a scope with NO prompt at
+        // all falls through to the honest generic.
+        default: return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
         }
       }
       if (this.draftWaitActive) {
@@ -1834,7 +1891,10 @@ export default defineComponent({
         return 'Government Support';
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        return 'Awaiting decision';
+        // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
+        // "ДРАФТ"), not a generic "awaiting" — the host's own header carries
+        // the full ask right under it.
+        return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
       }
       if (this.pendingPlayCard !== undefined) {
         return 'Play project card';
@@ -2416,19 +2476,52 @@ export default defineComponent({
       }
       return z.action.reasonsFor(z.card.name as CardName);
     },
+    /**
+     * The ONE summary of whatever decision is pending — the shared source of
+     * truth for the deferred chip, the command bar's context and (via its own
+     * computed) the task host's kicker, so the three can never disagree.
+     * `undefined` = nothing is pending on a console-owned surface.
+     *
+     * Precedence mirrors how the surfaces actually mount: the START SCENE
+     * outranks a section task (it owns the whole screen), then the host task,
+     * then the shell-section task.
+     */
+    activeTaskSummary(): ConsoleTaskSummary | undefined {
+      // A CLIENT-built payment's prompt is NOT `waitingFor` (which still holds
+      // the action menu) — hand the summary the real prompt + its source card.
+      const client = this.pendingClientPayment;
+      if (client !== undefined) {
+        return consoleTaskSummary(CLIENT_PAYMENT_TASK, this.playerView, {
+          prompt: client.input,
+          sourceCard: client.cardName as CardName,
+        });
+      }
+      // The RAW classification — deliberately NOT `hostTask ?? shellTask ??
+      // startTask`: a prompt no console surface serves (a `composite` Venus
+      // bonus / spend-heat, an `unknown` guard) is EXACTLY the case that used
+      // to read «Ожидает решения» hardest, and it still deserves a name.
+      const task = taskFor(this.playerView);
+      return task === undefined ? undefined : consoleTaskSummary(task, this.playerView);
+    },
     /** P15: the deferred-chip return verb, by what is actually pending. */
     deferReturnLabel(): string {
-      if (this.startTask !== undefined) {
-        return this.startTask.kind === 'initialDraft' ? 'Return to selection' : 'Resume start setup';
+      return this.activeTaskSummary?.returnKey ?? 'Return to the decision';
+    },
+    /** The deferred chip's classification chip ("ОПЛАТА" / "ДРАФТ"). */
+    deferKicker(): string {
+      return translateText(this.activeTaskSummary?.kickerKey ?? 'Awaiting decision');
+    },
+    /** The deferred chip's CONCRETE ask ("Сбросьте 1 карту") — the whole point. */
+    deferAsk(): string {
+      const ask = this.activeTaskSummary?.ask;
+      if (ask === undefined) {
+        return '';
       }
-      const t = this.hostTask ?? this.shellTask;
-      if (t?.kind === 'handSelect') {
-        return 'Return to selection';
-      }
-      if (t !== undefined && t.kind === 'cardSelect') {
-        return t.mode === 'draft' ? 'Return to the draft' : 'Return to selection';
-      }
-      return 'Return to the decision';
+      return typeof ask === 'string' ? translateText(ask) : translateMessage(ask);
+    },
+    /** The card that ASKS, when the server named one — rendered as a chip. */
+    deferSourceCard(): CardName | undefined {
+      return this.activeTaskSummary?.sourceCard;
     },
   },
   watch: {
@@ -2632,6 +2725,13 @@ export default defineComponent({
         this.clearDepartingPlayCard();
       }
     },
+    /** The focused cell (or the placed tile) changed → refetch its preview. */
+    cellPreviewKey: {
+      immediate: true,
+      handler(): void {
+        this.loadCellPreview();
+      },
+    },
     // Server-driven placement pulls the player to the board (§10: a
     // board-target step changes the active section, the frame persists).
     placementActive(now: boolean) {
@@ -2670,6 +2770,11 @@ export default defineComponent({
           boardName: this.game.gameOptions.boardName,
           players: this.playerView.players,
         });
+        // `configureBoardInfo` just dropped the fact caches because the board
+        // may have moved under us (an opponent's tile landed while we choose) —
+        // the focused cell's preview is stale for the same reason. The key is
+        // unchanged, so the watcher won't fire: refetch here.
+        this.loadCellPreview();
         this.consoleState.handIndex = stepIndex(this.consoleState.handIndex, 0, this.handEntries.length);
         this.consoleState.sheetIndex = this.consoleState.sheet === 'standardProjects' ?
           stepIndex(this.consoleState.sheetIndex, 0, this.stdProjectItems.length) :
@@ -2730,6 +2835,31 @@ export default defineComponent({
   },
   methods: {
     /** Titles of the inner SelectOptions — the server's claimable/fundable set. */
+    /**
+     * Fetch the focused cell's placement preview (the same bounded read-only
+     * `/api/game/board-cell-preview?kind=` the desktop hover popover uses, so
+     * the two surfaces can never diverge). Only `boardCellPreview` carries the
+     * placement CONSEQUENCES — the M€ cost, the Ares hazard-adjacency "reduce a
+     * production" penalty, the adjacency bonuses and who else receives them;
+     * `boardCellInfo` (the hover facts the panel already had) describes the cell
+     * as it stands and would never mention them.
+     */
+    loadCellPreview(): void {
+      const token = ++this.cellPreviewToken;
+      const prompt = this.placementSpaceModel;
+      const id = this.consoleState.boardSpaceId;
+      if (this.cellPreviewKey === '' || prompt?.placementType === undefined || id === undefined) {
+        this.cellPreview = undefined;
+        return;
+      }
+      const spaceId = id as SpaceId;
+      const cleared = (prompt.hiddenTiles ?? []).includes(spaceId);
+      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType).then((preview) => {
+        if (token === this.cellPreviewToken) {
+          this.cellPreview = preview;
+        }
+      });
+    },
     claimableTitles(options: ReadonlyArray<PlayerInputModel> | undefined): Set<string> {
       const set = new Set<string>();
       for (const o of options ?? []) {

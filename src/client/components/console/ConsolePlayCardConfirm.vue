@@ -129,11 +129,18 @@
                 <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
               </div>
 
-              <!-- SILENT-LOSS warnings (verbatim desktop parity). -->
+              <!-- SILENT-LOSS warnings (verbatim desktop parity): NAME the skipped
+                   effect + the magnitude lost, then the reason. -->
               <div v-for="(w, i) in warningSteps" :key="'w' + i" class="con-composer__warn">
-                <span aria-hidden="true">⚠</span>
-                <i v-if="w.icon !== ''" class="con-composer__rescat-glyph" :class="w.icon" aria-hidden="true"></i>
-                <span>{{ w.text }}</span>
+                <span class="con-composer__warn-glyph" aria-hidden="true">⚠</span>
+                <span class="con-composer__warn-body">
+                  <span class="con-composer__warn-head">
+                    <span v-if="w.title !== ''" class="con-composer__warn-title">{{ w.title }}</span>
+                    <ActionEffectChip v-if="w.effect !== undefined" :effect="w.effect" :skipped="true" />
+                    <i v-else-if="w.icon !== ''" class="con-composer__warn-res" :class="w.icon" aria-hidden="true"></i>
+                  </span>
+                  <span class="con-composer__warn-text">{{ w.reason }}</span>
+                </span>
               </div>
 
               <!-- Honest post-confirm follow-up (board placement / notes). -->
@@ -301,6 +308,7 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
+import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -586,19 +594,24 @@ export default defineComponent({
     hasImmediateResult(): boolean {
       return this.branches.some((b) => b.effects.length > 0 || b.reveal !== undefined);
     },
-    warningSteps(): Array<{text: string, icon: string}> {
-      const out: Array<{text: string, icon: string}> = [];
+    // Skipped-effect warnings: WHICH effect is lost (title + muted chip) and why.
+    // Derived by the SAME shared helper the desktop modal uses, then translated —
+    // the two surfaces can never say different things about the same warning.
+    warningSteps(): Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> {
+      const out: Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> = [];
       for (const b of this.branches) {
         if (!b.available && b !== this.selectedBranch) {
           continue;
         }
-        for (const s of b.steps) {
-          if (s.kind === 'note' && s.noteKind === 'warning') {
-            out.push({
-              text: s.text !== undefined ? textOf(s.text) : translateText('No eligible card — this resource is not added.'),
-              icon: s.resource !== undefined ? iconClassFor(s.resource) : '',
-            });
-          }
+        for (const w of skippedEffectViews(b.steps)) {
+          out.push({
+            title: w.title !== '' ? translateText(w.title) : '',
+            reason: translateText(w.reason),
+            effect: w.effect,
+            // Only a chip-less warning needs the bare fallback sprite (the chip
+            // renders its own icon).
+            icon: w.effect === undefined && w.icon !== '' ? iconClassFor(w.icon) : '',
+          });
         }
       }
       return out;

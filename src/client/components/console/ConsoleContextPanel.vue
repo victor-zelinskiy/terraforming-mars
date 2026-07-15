@@ -23,7 +23,15 @@
         <span class="con-context__cell-brief-label">{{ $t('Board cell') }}:</span> {{ cellHeader }}
         <span v-if="!selectedLegal" class="con-context__cell-brief-note">— {{ $t('this tile cannot go here') }}</span>
       </div>
-      <div v-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
+      <!-- The CONSEQUENCES of placing here — cost (incl. the Ares
+           hazard-adjacency production penalty) / gains / who else receives /
+           endgame VP. The SAME component the desktop hover popover + confirm
+           dialog render, so the three can never diverge. The hover facts are
+           the fallback: an illegal cell (no preview) still explains itself. -->
+      <div v-if="preview !== undefined" class="con-inspector__facts">
+        <BoardPlacementPreviewContent :preview="preview" :viewerColor="viewerColor" :players="players" />
+      </div>
+      <div v-else-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
       </div>
 
@@ -250,9 +258,10 @@
  */
 import {defineComponent, PropType} from 'vue';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
+import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {BoardCellInfo} from '@/common/boards/BoardInformationFacts';
+import {BoardCellInfo, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -276,7 +285,7 @@ const MAX_LEADER_CUBES = 2;
 
 export default defineComponent({
   name: 'ConsoleContextPanel',
-  components: {BoardFactGroups, BarButtonIcon, GamepadGlyph},
+  components: {BoardFactGroups, BoardPlacementPreviewContent, BarButtonIcon, GamepadGlyph},
   watch: {
     /** P21: a new inspected cell resets the panel scroll — the placement
      *  STATUS is always the first thing visible. */
@@ -290,6 +299,8 @@ export default defineComponent({
   props: {
     mode: {type: String as PropType<'placement' | 'cell' | 'track' | 'idle'>, required: true},
     info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
+    /** placement mode: the focused LEGAL cell's placement consequences. */
+    preview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
     loading: {type: Boolean, default: false},
     viewerColor: {type: String as PropType<Color>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},

@@ -121,9 +121,12 @@ export class Virus extends Card implements IProjectCard {
       // leave the player wondering why nothing happened); otherwise nobody had
       // anything to take — emit the generic "no valid target" warning (outside
       // solo) so the modal is never blank about the skipped removal.
+      // No chip either way: the removal is an EITHER/OR (up to 2 animals OR 5
+      // plants), so no single magnitude is honest — the label names the effect.
+      const skipped = {label: actionPreviews.SKIPPED_LABEL.removeAnimalsOrPlants};
       const steps = protectedTargets.length > 0 ?
-        [actionPreviews.warningNote('Plants are protected')] :
-        [actionPreviews.targetStepOrWarning(player, undefined)];
+        [actionPreviews.warningNote('Plants are protected', {skipped})] :
+        [actionPreviews.targetStepOrWarning(player, undefined, undefined, skipped)];
       return actionPreviews.playPreview(this, player, [], steps);
     }
     const step: TabbedTargetsStep = {kind: 'tabbedTargets'};

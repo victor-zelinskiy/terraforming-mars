@@ -84,7 +84,10 @@ export class VenusianPlants extends Card implements IProjectCard {
     const cards = this.getResCards(player);
     const step = cards.length >= 1 ?
       actionPreviews.selectCardStep(player, 'Select card to add 1 resource', 'Add resource', cards, {amount: 1}) :
-      actionPreviews.warningNote('No eligible card — this resource is not added.');
+      actionPreviews.warningNote('No eligible card — this resource is not added.',
+        // No chip: the resource is microbe OR animal (the player's choice of card
+        // decides), so no single icon is honest — the label names the effect.
+        {skipped: {label: actionPreviews.SKIPPED_LABEL.addToCard}});
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

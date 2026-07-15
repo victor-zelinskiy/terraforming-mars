@@ -160,12 +160,10 @@ See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
               </div>
               <template v-for="(step, i) in selected.steps" :key="i">
                 <!-- WARNING — an effect with no valid target is SKIPPED; say so up
-                     front (orange) so the player is never surprised by a lost effect. -->
-                <div v-if="step.kind === 'note' && step.noteKind === 'warning'" class="play-confirm__warn">
-                  <span class="play-confirm__warn-glyph" aria-hidden="true">⚠</span>
-                  <span v-if="warnResourceClass(step) !== ''" class="play-confirm__warn-res" :class="warnResourceClass(step)" aria-hidden="true"></span>
-                  <span class="play-confirm__warn-text" v-i18n>{{ placementHint(step) }}</span>
-                </div>
+                     front (orange), NAMING which effect it is (a card commonly has
+                     several) and the magnitude lost, so the player is never
+                     surprised by — or left guessing about — a lost effect. -->
+                <SkippedEffectWarning v-if="isSkippedWarning(step)" :step="step" />
                 <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
                   <span class="play-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
@@ -443,6 +441,8 @@ import SpendHeatContent from '@/client/components/modalInputs/SpendHeatContent.v
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ActionTargetCard from '@/client/components/actions/ActionTargetCard.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
+import {isSkippedWarning} from '@/client/components/actions/skippedEffectView';
+import SkippedEffectWarning from '@/client/components/actions/SkippedEffectWarning.vue';
 import TabbedRemovalPicker from '@/client/components/handCards/TabbedRemovalPicker.vue';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
 
@@ -479,7 +479,7 @@ function stepNeedsResponse(step: ActionPreviewStep): boolean {
  */
 export default defineComponent({
   name: 'HandCardPaymentContent',
-  components: {Card, CardZoomModal, PremiumCardWarnings, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SpendHeatContent, ActionEffectChip, ActionTargetCard, ActionVpProgress, TabbedRemovalPicker, RepeatActionPicker},
+  components: {Card, CardZoomModal, PremiumCardWarnings, SelectProjectCardToPlay, ModalInputHost, ModernPlayerPicker, ModernOptionPicker, SpendHeatContent, ActionEffectChip, ActionTargetCard, ActionVpProgress, SkippedEffectWarning, TabbedRemovalPicker, RepeatActionPicker},
   props: {
     playerView: {
       type: Object as PropType<PlayerViewModel>,
@@ -935,12 +935,9 @@ export default defineComponent({
       default: return 'You will place a tile on the board after confirming.';
       }
     },
-    // The card-resource icon class for a no-target warning, so the player sees
-    // WHICH resource is lost (not an ambiguous "this resource"). '' = no icon.
-    warnResourceClass(step: ActionPreviewStep): string {
-      const res = (step as {resource?: string}).resource;
-      return res !== undefined && res !== '' ? iconClassFor(res) : '';
-    },
+    // Routes a `warning` step to the shared SkippedEffectWarning block (which
+    // effect is lost / how much / why).
+    isSkippedWarning,
     async fetchPreview(): Promise<void> {
       this.loading = true;
       this.capturedPre = {}; // pre-branch responses belong to THIS preview — reset.
@@ -1813,16 +1810,9 @@ export default defineComponent({
   color: #f0b86a;
   line-height: 1.3;
 }
-/* The lost card-resource's icon (global `.card-resource-<key>` sprite), so the
-   player sees WHICH resource won't be added. */
-.play-confirm__warn-res {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
+/* The skipped-effect warning has its OWN component (SkippedEffectWarning, shared
+   with the actions surface); `.play-confirm__warn` now dresses only the
+   "choose all the cards" reminder below. */
 .play-confirm__warn-text {
   font-size: 12.5px;
   line-height: 1.4;

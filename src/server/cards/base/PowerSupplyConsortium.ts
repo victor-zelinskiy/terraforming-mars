@@ -52,7 +52,11 @@ export class PowerSupplyConsortium extends Card implements IProjectCard {
     const step = actionPreviews.targetStepOrWarning(player,
       actionPreviews.inputStep(
         new DecreaseAnyProduction(player, Resource.ENERGY, {count: 1, stealing: true}).previewSelectPlayer()),
-      'No production can be reduced.');
+      'No production can be reduced.',
+      {
+        label: actionPreviews.SKIPPED_LABEL.reduceProduction,
+        effect: actionPreviews.skippedAttackChip(Resource.ENERGY, 1, 'production'),
+      });
     return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.ENERGY, 1)], [step]);
   }
 }

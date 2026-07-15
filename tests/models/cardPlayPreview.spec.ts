@@ -251,6 +251,11 @@ describe('cardPlayPreview', () => {
     // — what `iconClassFor` resolves to the `.card-resource-microbe` sprite), NOT
     // the raw CardResource value ('Microbe'), so the warning shows the icon.
     expect((steps[0] as {resource?: string}).resource).eq('microbe');
+    // ...and the warning NAMES the skipped effect + the magnitude lost, so on a
+    // card that also raises Venus the player knows exactly WHICH effect is dropped.
+    const skipped = (steps[0] as {skipped?: {label: string, effect?: {icon: string, amount: number}}}).skipped;
+    expect(skipped?.label).eq('Add resources to a card');
+    expect(skipped?.effect?.icon).eq('microbe');
     // The Venus parameter chip still describes the on-play impact.
     expect(preview.branches[0].effects.some((e) => e.icon === 'venus')).is.true;
     // The microbe-to-a-card gain chip is SUPPRESSED (no card can hold it).
@@ -315,7 +320,17 @@ describe('cardPlayPreview', () => {
     // honest "no valid target" WARNING (outside solo) so the modal is never mute
     // about the skipped plant removal. The automatic gains still show as chips.
     expect(branch.steps.filter((s) => s.kind === 'input')).has.length(0);
-    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-target warning').is.true;
+    const warn = branch.steps.find((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning');
+    expect(warn, 'no-target warning').is.not.undefined;
+    // The warning NAMES the skipped effect. Asteroid also raises temperature and
+    // gains titanium, so "no valid target" alone would leave the player guessing
+    // WHICH of the three is lost; and the plant attack hits an OPPONENT's pool, so
+    // it has no chip in `effects` — this is its ONLY mention.
+    const skipped = (warn as {skipped?: {label: string, effect?: {icon: string, amount: number, direction: string}}}).skipped;
+    expect(skipped?.label, 'the warning names the skipped effect').eq('Remove plants from another player');
+    expect(skipped?.effect?.icon).eq(Resource.PLANTS);
+    expect(skipped?.effect?.amount).eq(3);
+    expect(skipped?.effect?.direction).eq('cost');
     expect(branch.effects.some((e) => e.icon === 'temperature')).is.true;
   });
 
@@ -334,14 +349,28 @@ describe('cardPlayPreview', () => {
     // The +1 energy production chip still shows; the "decrease any player's energy
     // production" target has no picker, so a warning takes its place (non-solo).
     expect(branch.steps.some((s) => s.kind === 'input')).is.false;
-    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-production warning').is.true;
+    const warn = branch.steps.find((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning');
+    expect(warn, 'no-production warning').is.not.undefined;
+    // Named + quantified: the card's OWN +1 energy production still applies, so the
+    // warning must say it's the OPPONENT-facing decrease that is skipped.
+    const skipped = (warn as {skipped?: {label: string, effect?: {icon: string, amount: number, note?: string}}}).skipped;
+    expect(skipped?.label).eq('Reduce another player\'s production');
+    expect(skipped?.effect?.icon).eq(Resource.ENERGY);
+    expect(skipped?.effect?.amount).eq(1);
+    expect(skipped?.effect?.note, 'marked as a production attack').eq('production');
   });
 
   it('Virus (bespoke): a "no valid target" WARNING when there is nobody to remove animals/plants from', () => {
     const [/* game */, player] = testGame(2); // opponent 0 plants, no animal cards anywhere
     const branch = cardPlayPreview(player, new Virus()).branches[0];
     expect(branch.steps.some((s) => s.kind === 'tabbedTargets'), 'no target picker').is.false;
-    expect(branch.steps.some((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning'), 'no-target warning').is.true;
+    const warn = branch.steps.find((s) => s.kind === 'note' && (s as {noteKind?: string}).noteKind === 'warning');
+    expect(warn, 'no-target warning').is.not.undefined;
+    const skipped = (warn as {skipped?: {label: string, effect?: unknown}}).skipped;
+    expect(skipped?.label).eq('Remove animals or plants from another player');
+    // No chip: the removal is an EITHER/OR (up to 2 animals OR 5 plants), so no
+    // single magnitude would be honest — the label alone names the effect.
+    expect(skipped?.effect, 'no invented magnitude for an either/or removal').is.undefined;
   });
 
   it('Comet (declarative): the plant attack IS pre-collected, the ocean placement noted after', () => {

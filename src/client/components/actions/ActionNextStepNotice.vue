@@ -10,12 +10,9 @@
   -->
   <div v-if="notes.length > 0 || warnings.length > 0">
     <!-- WARNING — an effect that will be SKIPPED for lack of a valid target. Orange,
-         so the player is never surprised by a silently-lost effect. -->
-    <div v-for="(w, i) in warnings" :key="'w' + i" class="action-next__warn">
-      <span class="action-next__warn-glyph" aria-hidden="true">⚠</span>
-      <span v-if="warnResourceClass(w) !== ''" class="action-next__warn-res" :class="warnResourceClass(w)" aria-hidden="true"></span>
-      <span class="action-next__warn-text" v-i18n>{{ text(w.text ?? '') }}</span>
-    </div>
+         and it NAMES which effect (+ the magnitude lost as a muted chip), so the
+         player is never surprised by — nor left guessing about — a lost effect. -->
+    <SkippedEffectWarning v-for="(w, i) in warnings" :key="'w' + i" :step="w" class="action-next__warn" />
     <div v-if="notes.length > 0" class="action-next" :class="'action-next--' + variant">
       <span class="action-next__label" v-i18n>{{ variant === 'next' ? 'Next' : 'After confirming' }}</span>
       <div v-for="(note, i) in notes" :key="i" class="action-next__item">
@@ -30,12 +27,14 @@
 import {defineComponent, PropType} from 'vue';
 import {Message} from '@/common/logs/Message';
 import {ActionPreviewStep} from '@/common/models/ActionPreviewModel';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import SkippedEffectWarning from '@/client/components/actions/SkippedEffectWarning.vue';
+import {isSkippedWarning} from '@/client/components/actions/skippedEffectView';
 
 type NoteStep = {kind: string, placementType?: string, noteKind?: string, text?: string | Message, resource?: string};
 
 export default defineComponent({
   name: 'ActionNextStepNotice',
+  components: {SkippedEffectWarning},
   props: {
     // The branch's steps — only the non-interactive context notes (boardPlacement /
     // note) are surfaced; interactive inputs (payment/target) live elsewhere.
@@ -52,20 +51,17 @@ export default defineComponent({
   computed: {
     // Context notes (placement / colony / board move) — the "what happens next" list.
     notes(): ReadonlyArray<NoteStep> {
-      return (this.steps ?? []).filter((s) => (s.kind === 'boardPlacement' || s.kind === 'note') && (s as NoteStep).noteKind !== 'warning') as ReadonlyArray<NoteStep>;
+      return (this.steps ?? []).filter((s) => (s.kind === 'boardPlacement' || s.kind === 'note') && !isSkippedWarning(s)) as ReadonlyArray<NoteStep>;
     },
-    // Skipped-effect warnings — rendered as a distinct orange block, above the notes.
-    warnings(): ReadonlyArray<NoteStep> {
-      return (this.steps ?? []).filter((s) => s.kind === 'note' && (s as NoteStep).noteKind === 'warning') as ReadonlyArray<NoteStep>;
+    // Skipped-effect warnings — rendered above the notes by the shared
+    // SkippedEffectWarning block, which names WHICH effect is lost.
+    warnings(): ReadonlyArray<ActionPreviewStep> {
+      return (this.steps ?? []).filter(isSkippedWarning);
     },
   },
   methods: {
     text(m: string | Message): string {
       return typeof m === 'string' ? m : m.message;
-    },
-    // The lost card-resource's icon class, so the warning names WHICH resource.
-    warnResourceClass(w: NoteStep): string {
-      return w.resource !== undefined && w.resource !== '' ? iconClassFor(w.resource) : '';
     },
     // Canned copy per step kind + variant. A `note` with an explicit `text`
     // (card-specific, e.g. "After confirming, choose an adjacent space…") overrides

@@ -74,7 +74,13 @@ export class AirScrappingExpedition extends Card implements IProjectCard {
     const extraEffects = hasTarget ? [actionPreviews.cardResourceGain(CardResource.FLOATER, 3)] : [];
     const step = hasTarget ?
       actionPreviews.selectCardStep(player, 'Select card to add 3 floaters', 'Add floaters', cards, {amount: 3}) :
-      actionPreviews.warningNote('No eligible card — this resource is not added.', CardResource.FLOATER);
+      actionPreviews.warningNote('No eligible card — this resource is not added.', {
+        resource: CardResource.FLOATER,
+        skipped: {
+          label: actionPreviews.SKIPPED_LABEL.addToCard,
+          effect: actionPreviews.cardResourceGain(CardResource.FLOATER, 3),
+        },
+      });
     return actionPreviews.playPreview(this, player, extraEffects, [step]);
   }
 }

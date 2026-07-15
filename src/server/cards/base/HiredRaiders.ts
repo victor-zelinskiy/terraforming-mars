@@ -51,8 +51,12 @@ export class HiredRaiders extends Card implements IProjectCard {
   // Built read-only (the steals run only in each option's `andThen`).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
+    // No chip: the steal is an EITHER/OR of different resources (2 steel / 3 M€),
+    // so no single magnitude is honest — the label names the skipped effect.
     const step = actionPreviews.targetStepOrWarning(player,
-      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined,
+      undefined,
+      {label: actionPreviews.SKIPPED_LABEL.stealResources});
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

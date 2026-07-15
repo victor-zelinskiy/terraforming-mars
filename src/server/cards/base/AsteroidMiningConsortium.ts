@@ -61,7 +61,11 @@ export class AsteroidMiningConsortium extends Card implements IProjectCard {
     const step = actionPreviews.targetStepOrWarning(player,
       actionPreviews.inputStep(
         new DecreaseAnyProduction(player, Resource.TITANIUM, {count: 1, stealing: true}).previewSelectPlayer()),
-      'No production can be reduced.');
+      'No production can be reduced.',
+      {
+        label: actionPreviews.SKIPPED_LABEL.reduceProduction,
+        effect: actionPreviews.skippedAttackChip(Resource.TITANIUM, 1, 'production'),
+      });
     return actionPreviews.playPreview(this, player, [actionPreviews.productionChange(player, Resource.TITANIUM, 1)], [step]);
   }
 }

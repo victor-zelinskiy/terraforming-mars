@@ -185,17 +185,55 @@ export function noteStep(noteKind: 'colony' | 'board' | 'generic', text?: string
  * e.g. "add 2 microbes to a card" with no microbe-holding card in play. Mirrors
  * the systemic warning the DECLARATIVE preview builder emits, so a BESPOKE
  * `addResourcesToAnyCard` (EcologyResearch, …) never silently drops the resource
- * without telling the player. `resource` (the icon key) names the lost resource.
+ * without telling the player.
+ *
+ * `opts.resource` (the icon key) names the lost card-resource; `opts.skipped`
+ * NAMES the effect itself (heading + a muted chip) so a card with SEVERAL effects
+ * never leaves the player guessing WHICH one is lost — always pass it.
  */
-export function warningNote(text: string | Message, resource?: CardResource): ActionPreviewStep {
-  return {kind: 'note', noteKind: 'warning', text, resource: resource !== undefined ? cardResourceIcon(resource) : undefined};
+export function warningNote(
+  text: string | Message,
+  opts?: {resource?: CardResource, skipped?: SkippedEffect},
+): ActionPreviewStep {
+  return {
+    kind: 'note',
+    noteKind: 'warning',
+    text,
+    resource: opts?.resource !== undefined ? cardResourceIcon(opts.resource) : undefined,
+    skipped: opts?.skipped,
+  };
 }
+
+/** Identifies WHICH effect a `warning` note is about — see
+ *  `ActionPreviewStep`'s `skipped`. */
+export type SkippedEffect = {label: string | Message, effect?: ActionEffect};
 
 /** The generic "no valid target" warning text — a target-selecting effect that
  *  hits nobody (every attackable opponent is out of the resource / can't be hit).
  *  A short, premium sentence the play/action modal shows in place of the missing
- *  picker. */
+ *  picker. It says only THAT an effect is skipped — ALWAYS pair it with a
+ *  `SkippedEffect` naming WHICH one. */
 export const NO_TARGET_WARNING = 'No valid target — this effect is skipped.';
+
+/** The i18n headings naming a skipped effect. Shared so the wording of "which
+ *  effect is lost" is identical across every card that can skip the same kind of
+ *  attack (and so a typo can't silently produce an untranslated heading). */
+export const SKIPPED_LABEL = {
+  removePlants: 'Remove plants from another player',
+  removeResources: 'Remove resources from another player',
+  stealResources: 'Steal resources from another player',
+  reduceProduction: 'Reduce another player\'s production',
+  removeAnimalsOrPlants: 'Remove animals or plants from another player',
+  addToCard: 'Add resources to a card',
+} as const;
+
+/** The muted chip for a skipped attack on ANOTHER player's pool: it changes
+ *  nobody's value, so there is no `current → resulting` — just the magnitude
+ *  (`−4 plants`) the player would have taken. `scope: 'production'` marks a
+ *  production attack (the note reads "production"). */
+export function skippedAttackChip(icon: string, amount: number, scope?: 'production'): ActionEffect {
+  return {direction: 'cost', icon, amount, note: scope === 'production' ? 'production' : undefined};
+}
 
 /**
  * A TARGET-picker step, OR — when the picker is absent — an honest "no valid
@@ -209,11 +247,16 @@ export const NO_TARGET_WARNING = 'No valid target — this effect is skipped.';
  * a lone MarsBot whose M€-supply proxy is 0). We only convert the ABSENT picker
  * into a warning OUTSIDE solo mode, so true-solo previews are unchanged and every
  * multiplayer / MarsBot no-target attack becomes explicit instead of blank.
+ *
+ * `skipped` NAMES the effect the missing picker belonged to (heading + muted
+ * chip) — pass it always, so the warning is never an anonymous "some effect
+ * won't happen" on a card that has several.
  */
 export function targetStepOrWarning(
   player: IPlayer,
   step: ActionPreviewStep | undefined,
   warning: string | Message = NO_TARGET_WARNING,
+  skipped?: SkippedEffect,
 ): ActionPreviewStep | undefined {
   if (step !== undefined) {
     return step;
@@ -221,7 +264,7 @@ export function targetStepOrWarning(
   if (player.game.isSoloMode()) {
     return undefined;
   }
-  return warningNote(warning);
+  return warningNote(warning, {skipped});
 }
 
 /** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */

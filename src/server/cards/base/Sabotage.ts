@@ -56,8 +56,13 @@ export class Sabotage extends Card implements IProjectCard {
   // attacks live in `andThen`).
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const options = this.buildOptions(player);
+    // No chip: the removal is an EITHER/OR of different resources (3 titanium /
+    // 4 steel / 7 M€), so no single magnitude is honest — the label alone names
+    // which of the card's effects is the one being skipped.
     const step = actionPreviews.targetStepOrWarning(player,
-      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined);
+      options !== undefined ? actionPreviews.orOptionsStep(player, options) : undefined,
+      undefined,
+      {label: actionPreviews.SKIPPED_LABEL.removeResources});
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 

@@ -59,7 +59,11 @@ export class Hackers extends Card implements IProjectCard {
     const step = actionPreviews.targetStepOrWarning(player,
       actionPreviews.inputStep(
         new DecreaseAnyProduction(player, Resource.MEGACREDITS, {count: 2, stealing: true}).previewSelectPlayer()),
-      'No production can be reduced.');
+      'No production can be reduced.',
+      {
+        label: actionPreviews.SKIPPED_LABEL.reduceProduction,
+        effect: actionPreviews.skippedAttackChip(Resource.MEGACREDITS, 2, 'production'),
+      });
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }

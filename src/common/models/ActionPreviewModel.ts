@@ -261,7 +261,23 @@ export type ActionPreviewStep =
      *  the raw `CardResource` value) so `iconClassFor` resolves the sprite and the
      *  modal names WHICH resource is lost via its icon, not an ambiguous "this
      *  resource". */
-    resource?: string}
+    resource?: string,
+    /**
+     * For a `warning`: WHICH of the card's effects is the one being skipped.
+     * `text` alone only says THAT something is skipped — on a card with several
+     * effects (raise temperature AND remove plants AND add a resource) a bare
+     * "no valid target" leaves the player guessing which one is lost, and the
+     * skipped attack has NO chip in `effects` (an attack on someone else isn't a
+     * change to the player's own pools), so the warning is its ONLY mention.
+     *   - `label`  — a short English i18n key NAMING the effect ("Remove plants
+     *                from another player"), shown as the warning's heading.
+     *   - `effect` — the chip the effect WOULD have applied (icon + amount),
+     *                rendered MUTED/struck through so the magnitude is explicit
+     *                ("−4 plants") without ever reading as something that happened.
+     * Set by every producer of a `warning`; a legacy/hand-built warning without it
+     * degrades to the bare reason line.
+     */
+    skipped?: {label: string | Message, effect?: ActionEffect}}
   | TabbedTargetsStep;
 
 /** One player target in the "remove plants" tab of a `TabbedTargetsStep`. */
