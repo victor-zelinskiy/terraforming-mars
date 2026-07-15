@@ -8,6 +8,8 @@ import {daysAgoToSeconds, stringToNumber} from './utils';
 import {GameIdLedger} from './IDatabase';
 import {Session, SessionId} from '../auth/Session';
 import {toID} from '../../common/utils/utils';
+import {parseInterned} from './parseInterned';
+import {LogMessage} from '../../common/logs/LogMessage';
 
 type StoredSerializedGame = Omit<SerializedGame, 'gameOptions' | 'gameLog'> & {logLength: number};
 
@@ -127,14 +129,22 @@ export class PostgreSQL implements IDatabase {
   }
 
   private compose(game: string, log: string, options: string): SerializedGame {
-    const stored: StoredSerializedGame = JSON.parse(game);
+    // One short-lived pool shared by all three parses of the SAME game, so the
+    // state, log and options dedupe against each other (they repeat the same
+    // colours / card names / log templates). It dies with this call — a global
+    // pool would pin every distinct string forever.
+    const pool = new Map<string, string>();
+    const stored: StoredSerializedGame = parseInterned(game, pool);
     const {logLength, ...remainder} = stored;
-    // console.log(log, options, stored.logLength);
-    // TODO(kberg): Remove the outer join, and the else of this conditional by 2025-01-01
+    // The outer join and the else branch keep games saved before the `game`
+    // table / logLength migration loadable. Upstream dropped them (fec2ae48e);
+    // we keep old saves working.
     if (stored.logLength !== undefined) {
-      const gameLog = JSON.parse(log);
+      const gameLog: Array<LogMessage> = parseInterned(log, pool);
+      // If this is part of an undo operation, delete the end
+      // of the array so the log matches the length.
       gameLog.length = logLength;
-      const gameOptions = JSON.parse(options);
+      const gameOptions: GameOptions = parseInterned(options, pool);
       return {...remainder, gameOptions, gameLog};
     } else {
       return remainder as SerializedGame;
