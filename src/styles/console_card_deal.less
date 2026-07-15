@@ -256,6 +256,46 @@ body.con-zoom-open .con-root {
     }
 }
 
+/* ── Console fullscreen: the SELECTED card reads CALM ─────────────────
+   The shared viewer marks a selected card with a breathing halo
+   (`.card-zoom-card--selected::before`, an INFINITE 2.4s pulse — see
+   preferences.less). Under the console inspector — where a picked draft /
+   buy card is the NORMAL case — that pulse is a permanent bright throb
+   around the card: an overloaded, un-premium effect, and it was doubly
+   bright while the flight proxy (which renders the same selected card)
+   still overlapped. The selection is already unmistakable from the
+   «ВЫБРАНА» ribbon (::after) + a rim, so here the halo is STATIC and
+   softened. Applies to the dialog AND the flight proxy so the lift never
+   throbs either. Do NOT re-enable the pulse in the inspector. */
+:is(dialog.con-zoom, .con-zoom-flight-proxy) .card-zoom-card--selected::before {
+    animation: none;
+    background: radial-gradient(ellipse at center,
+        rgba(106, 176, 230, 0.14) 0%,
+        rgba(106, 176, 230, 0.05) 45%,
+        rgba(106, 176, 230, 0) 75%);
+    box-shadow:
+        0 0 0 .1rem fade(@con-cyan, 62%),
+        0 0 1.1rem fade(@con-cyan, 22%);
+}
+
+/* ── The command bar yields to the inspector ──────────────────────────
+   While fullscreen is open the viewer's OWN bar (`.con-zoom__bar` in the
+   dialog) is the single source of button truth, so the game's command bar
+   is redundant. It also sits UNDER the veil (11700 < 11890) and the veil is
+   translucent, so its glass panel washes out while its cyan inset ring +
+   the bright «A» glyph keep ghosting through — reading as a stray
+   "outline with an A and no bar" at the bottom, most visible while the
+   veil fades on close. Fade it out with the veil instead. The transition
+   lives on the BASE (not the state) so it fades BOTH ways — on the state
+   rule alone the bar would snap back the instant the class is dropped. */
+.con-cmdbar {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+body.con-zoom-open .con-cmdbar {
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* The open-flight stage (mirrors .con-exit-layer mechanics). */
 .con-zoom-flight-layer {
     position: fixed;
