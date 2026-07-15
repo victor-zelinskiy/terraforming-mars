@@ -48,7 +48,7 @@
   --pcard-pad-x: 17px;
   --pcard-pad-top: 15px;
   --pcard-pad-bottom: 13px;
-  --pcard-plate-h: 46px;
+  --pcard-plate-h: 50px;
   --pcard-art-min: 96px;
   --pcard-mech-icon: 24px;
   --pcard-mech-font: 15px;
@@ -63,9 +63,10 @@
   /* ── requirement copper — the warm satin-copper SURFACE of the requirement
         plate + its thin bronze RIM. The plate reads as ONE clean copper object
         (a symmetric pointed banner) that belongs to the card, NOT a dark
-        gunmetal housing with a copper insert and black end caps. Near-FLAT: a
-        soft central satin sheen + a thin top light + a thin bottom shade —
-        never a convex button gradient. One palette, shared normal↔{all}. ── */
+        gunmetal housing with a copper insert and black end caps. Shallow satin
+        relief: a controlled crown highlight, engraved inner contour and a
+        restrained lower shade. One palette, shared normal↔{all}; never a
+        glossy web-button gradient. ── */
   --pcard-req-copper-hi: #b87f42;    /* warm gold-copper — upper light         */
   --pcard-req-copper: #a06835;       /* mid                                    */
   --pcard-req-copper-deep: #8a5730;  /* lower shade — still warm, not brown    */
@@ -158,8 +159,9 @@
     radial-gradient(130% 90% at 50% -12%, var(--pcard-body-b) 0%, var(--pcard-body-a) 58%),
     var(--pcard-body-a);
   box-shadow:
-    inset 0 0 26px rgba(0, 0, 0, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 0 30px rgba(0, 0, 0, 0.68),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    inset 0 -12px 22px rgba(0, 0, 0, 0.22);
 }
 /* brushed metal + diagonal sheen (skipped on thumbnails) */
 .pcard__body::before {
@@ -177,9 +179,24 @@
       transparent 58%);
   pointer-events: none;
 }
+.pcard__body::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, var(--pcard-rim-soft), transparent 13% 87%, var(--pcard-rim-soft)) top / 100% 1px no-repeat,
+    radial-gradient(85% 42% at 50% 0%, var(--pcard-band), transparent 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    inset 0 12px 20px rgba(255, 255, 255, 0.018);
+  opacity: 0.7;
+  pointer-events: none;
+}
 .pcard--tier-thumb .pcard__body::before {
   display: none;
 }
+.pcard--tier-thumb .pcard__body::after { display: none; }
 
 .pcard__frame {
   position: absolute;
@@ -199,9 +216,10 @@
   border: 1px solid var(--pcard-rim);
   opacity: 0.75;
   box-shadow:
-    inset 0 0 16px rgba(0, 0, 0, 0.5),
-    inset 0 0 3px var(--pcard-rim-soft),
-    0 0 7px var(--pcard-glow);
+    inset 0 0 20px rgba(0, 0, 0, 0.58),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    inset 0 0 4px var(--pcard-rim-soft),
+    0 0 8px var(--pcard-glow);
   pointer-events: none;
   z-index: 1;
 }
@@ -219,7 +237,7 @@
     auto                                   /* requirements rail / divider */
     minmax(var(--pcard-art-min), 1fr)      /* art */
     auto;                                  /* lower section (mechanics + anchors) */
-  row-gap: 6px;
+  row-gap: 7px;
   z-index: 2;
 }
 
@@ -251,12 +269,26 @@
 .pcard__header::after {
   content: '';
   position: absolute;
-  left: 26px;
-  right: 26px;
-  bottom: -4px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--pcard-rim-soft) 30% 70%, transparent);
-  filter: blur(0.4px);
+  left: 50%;
+  bottom: -5px;
+  width: 7px;
+  height: 7px;
+  background: linear-gradient(135deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  border: 1px solid rgba(38, 25, 8, 0.78);
+  box-shadow: 0 0 5px rgba(242, 215, 149, 0.22);
+  transform: translateX(-50%) rotate(45deg) scale(0.68);
+  transform-origin: center;
+  pointer-events: none;
+}
+.pcard__header::before {
+  content: '';
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: -2px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pcard-rim-soft) 24%, rgba(242, 215, 149, 0.34) 50%, var(--pcard-rim-soft) 76%, transparent);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
 
@@ -276,7 +308,9 @@
     #b5904f 34%,
     var(--pcard-gold-deep) 72%,
     #63481f 100%);
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  filter:
+    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.62))
+    drop-shadow(0 0 3px rgba(217, 184, 120, 0.15));
 }
 .pcard-nameplate__body {
   position: absolute;
@@ -297,14 +331,42 @@
     radial-gradient(circle at 13px 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
     radial-gradient(circle at calc(100% - 13px) 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
     /* the dark metal corpus */
-    linear-gradient(180deg, #29323d 0%, #161c23 46%, #0d1117 100%);
+    radial-gradient(82% 95% at 50% 12%, rgba(255, 255, 255, 0.035), transparent 66%),
+    linear-gradient(180deg, #303a46 0%, #181f28 40%, #0b0f15 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),      /* top bevel light  */
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.75),          /* bottom bevel dark */
-    inset 0 0 0 1px var(--pcard-rim-soft),         /* theme inner contour */
-    inset 0 0 16px rgba(0, 0, 0, 0.6);             /* depth vignette */
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.82),
+    inset 0 0 0 1px var(--pcard-rim-soft),
+    inset 0 0 18px rgba(0, 0, 0, 0.66);
+}
+.pcard-nameplate__body::before,
+.pcard-nameplate__body::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+.pcard-nameplate__body::before {
+  inset: 4px 9px;
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 215, 149, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.pcard-nameplate__body::after {
+  left: 20%;
+  right: 20%;
+  bottom: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pcard-rim-soft), rgba(242, 215, 149, 0.32), var(--pcard-rim-soft), transparent);
 }
 .pcard--tier-thumb .pcard-nameplate { filter: none; }
+.pcard--tier-thumb .pcard-nameplate__body::before,
+.pcard--tier-thumb .pcard-nameplate__body::after,
+.pcard--tier-thumb .pcard__reqs-field::before,
+.pcard--tier-thumb .pcard__reqs-field::after,
+.pcard--tier-thumb .pcard-tag::before {
+  display: none;
+}
 
 /* the title text safe-area — paddings come from the VM-driven vars */
 .pcard-nameplate__text {
@@ -314,8 +376,8 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 3px var(--pcard-title-safe-r, 14px) 5px var(--pcard-title-safe-l, 14px);
-  z-index: 1;
+  padding: 3px var(--pcard-title-safe-r, 14px) 6px var(--pcard-title-safe-l, 14px);
+  z-index: 2;
 }
 .pcard__title span {
   display: -webkit-box;
@@ -324,35 +386,66 @@
   overflow: hidden;
   overflow-wrap: break-word;
   line-height: 1.12;
-  color: #f4f1e6;
+  color: #f7ebc9;
   text-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.9),
-    0 0 6px rgba(0, 0, 0, 0.5);
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    0 2px 3px rgba(0, 0, 0, 0.76),
+    0 0 8px rgba(217, 184, 120, 0.12);
 }
-.pcard__title--t1 span { font-size: 16.5px; text-transform: uppercase; letter-spacing: 0.055em; }
-.pcard__title--t2 span { font-size: 14px; text-transform: uppercase; letter-spacing: 0.035em; }
-.pcard__title--t3 span { font-size: 12.5px; letter-spacing: 0.01em; }
-.pcard__title--t4 span { font-size: 11px; }
+.pcard__title--t1 span { font-size: 17.5px; text-transform: uppercase; letter-spacing: 0.065em; }
+.pcard__title--t2 span { font-size: 14.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pcard__title--t3 span { font-size: 12.8px; letter-spacing: 0.012em; }
+.pcard__title--t4 span { font-size: 11.2px; }
 
 /* ── cost cluster OVERLAY (top-left, pinned over the plate's left end) ── */
 .pcard__cost {
   position: absolute;
   top: -5px;
-  left: -6px;
+  left: -5px;
   display: flex;
   align-items: flex-end;
+  isolation: isolate;
   z-index: 4; /* above the plate AND the gold frame — a pinned physical badge */
 }
 /* the badge IS the game's megacredit tile — instant M€ semantics; premium
    depth comes from the drop shadow + the dark seat ring */
+.pcard__cost::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 52px;
+  height: 52px;
+  clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%);
+  background:
+    linear-gradient(135deg, rgba(255, 246, 211, 0.72), transparent 25% 72%, rgba(74, 48, 13, 0.72)),
+    linear-gradient(145deg, var(--pcard-gold-hi), #9f793a 62%, var(--pcard-gold-deep));
+  box-shadow:
+    0 0 0 1px rgba(31, 20, 6, 0.9),
+    0 4px 8px rgba(0, 0, 0, 0.58),
+    0 0 7px rgba(217, 184, 120, 0.16);
+  z-index: -1;
+}
 .pcard__cost-badge {
   position: relative;
   width: 44px;
   height: 44px;
-  background: url(./assets/resources/megacredit.png) center / contain no-repeat;
-  border-radius: 10px;
-  box-shadow: 0 0 0 1.5px rgba(28, 19, 5, 0.9);
-  filter: drop-shadow(0 2.5px 3.5px rgba(0, 0, 0, 0.6));
+  background: url(./assets/resources/megacredit.png) center / 48px 48px no-repeat;
+  clip-path: polygon(18% 0, 82% 0, 100% 18%, 100% 82%, 82% 100%, 18% 100%, 0 82%, 0 18%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 244, 201, 0.48),
+    inset 0 -3px 5px rgba(80, 51, 10, 0.28);
+  filter: drop-shadow(0 2.5px 3.5px rgba(0, 0, 0, 0.48));
+}
+.pcard__cost-badge::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  clip-path: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(72, 46, 10, 0.44),
+    inset 0 1px 0 rgba(255, 248, 219, 0.34);
+  pointer-events: none;
 }
 .pcard__cost-value {
   position: absolute;
@@ -361,8 +454,13 @@
   align-items: center;
   justify-content: center;
   font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: #3a2708;
-  text-shadow: 0 1px 0 rgba(255, 246, 210, 0.65);
+  text-shadow:
+    0 1px 0 rgba(255, 246, 210, 0.72),
+    0 -1px 0 rgba(70, 44, 7, 0.18);
+  z-index: 1;
 }
 .pcard__cost--three .pcard__cost-value { font-size: 15px; }
 /* discount / surcharge chip — docked to the badge's lower-right, extends the
@@ -374,12 +472,14 @@
   line-height: 14px;
   font-size: 11px;
   border-radius: 0 8px 8px 0;
-  background: rgba(8, 14, 11, 0.88);
-  border: 1px solid var(--pcard-gold-deep);
+  background: linear-gradient(180deg, rgba(18, 29, 24, 0.96), rgba(5, 10, 8, 0.94));
+  border: 1px solid rgba(217, 184, 120, 0.58);
   color: #7de0a8;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 3px rgba(0, 0, 0, 0.58);
 }
 .pcard__cost-delta--surcharge { color: #ff9a8a; }
 .pcard--tier-thumb .pcard__cost-delta { display: none; }
@@ -390,7 +490,7 @@
 .pcard__tags {
   position: absolute;
   top: 50%;
-  right: 4px;
+  right: 3px;
   transform: translateY(-50%);
   display: flex;
   justify-content: flex-end;
@@ -412,18 +512,42 @@
   width: var(--pcard-tag-size, 30px);
   height: var(--pcard-tag-size, 30px);
   border-radius: 50%;
+  isolation: isolate;
+  background-color: #111820;
   background-size: cover;
   background-position: center;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.48);
   /* pinned-medallion depth: sits ON the plate, casts onto it */
-  filter: drop-shadow(0 2px 2.5px rgba(0, 0, 0, 0.65));
+  filter:
+    drop-shadow(0 2.5px 3px rgba(0, 0, 0, 0.72))
+    drop-shadow(0 0 2px rgba(217, 184, 120, 0.22));
+}
+.pcard-tag::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid rgba(181, 143, 78, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(22, 15, 5, 0.9),
+    inset 1px 1px 0 rgba(255, 242, 201, 0.34),
+    inset -1px -1px 0 rgba(48, 31, 8, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.58);
+  z-index: -1;
 }
 .pcard-tag::after {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: -3px;
   background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
+  filter: brightness(1.05) contrast(1.04);
 }
 .pcard--tier-thumb .pcard-tag { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.pcard--tier-thumb .pcard-tag::after { inset: -2px; filter: none; }
 
 /* ══ requirements PLATE — one clean copper banner, not a button ═══════════
  *
@@ -442,10 +566,10 @@
  * bold tabular value — one optical height, one shadow language. Symbols only
  * (≥/≤), never «от/до».
  *
- * Depth is deliberately MINIMAL — a thin top light, a thin bottom shade, and a
- * single soft contact shadow; never a convex 3D button. The info-tether targets
- * the whole `.pcard__reqs` rect, so no visible anchor is needed and the plate
- * stays fully symmetric.
+ * Depth stays shallow and physical: a narrow crown highlight, an engraved
+ * inner contour and a soft contact shadow. The info-tether targets the whole
+ * `.pcard__reqs` rect, so no visible anchor is needed and the plate stays fully
+ * symmetric.
  *
  * Colour: normal → warm clean copper; «{all}» → the SAME plate re-enamelled
  * crimson-copper (`--pcard-any`) with a crimson inner kant — a structural cue,
@@ -457,29 +581,32 @@
      shared by the rim (this layer) and the copper field (inset over it) so the
      bronze rim wraps the whole shape, tips included. */
   --pcard-req-clip: polygon(
-    14px 0, calc(100% - 14px) 0, 100% 50%,
-    calc(100% - 14px) 100%, 14px 100%, 0 50%);
+    16px 0, calc(100% - 16px) 0, 100% 50%,
+    calc(100% - 16px) 100%, 16px 100%, 0 50%);
   position: relative;
   align-self: center;
   box-sizing: border-box;
   /* a STABLE wide plate sized to a fixed proportion of the card (NOT content):
      a permanent constructive LAYER between header and art. Compact height. */
-  width: 82%;
-  height: 26px;
+  width: 86%;
+  height: 29px;
   margin: 0 auto;
   clip-path: var(--pcard-req-clip);
   /* the RIM = a thin bronze-gold frame (the copper field is inset over it) —
      ties to the card's gold frame; NO dark housing, NO end caps. */
-  background: linear-gradient(180deg,
-    var(--pcard-req-rim-hi) 0%, var(--pcard-req-rim) 50%, var(--pcard-req-rim-deep) 100%);
+  background:
+    linear-gradient(90deg, rgba(255, 240, 205, 0.18), transparent 11% 89%, rgba(76, 42, 14, 0.3)),
+    linear-gradient(180deg, var(--pcard-req-rim-hi) 0%, var(--pcard-req-rim) 48%, var(--pcard-req-rim-deep) 100%);
   /* one soft contact shadow with the card — flat, never a raised button */
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4));
+  filter:
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.52))
+    drop-shadow(0 0 3px rgba(217, 184, 120, 0.12));
   color: #fff1de;
   text-shadow: 0 1px 1px rgba(52, 24, 7, 0.8);
 }
 /* width scales CONTROLLED with the requirement count (never auto-width) */
-.pcard__reqs--multi { width: 90%; }
-.pcard__reqs--dense { width: 92%; }
+.pcard__reqs--multi { width: 91%; }
+.pcard__reqs--dense { width: 94%; }
 /* ── the COPPER SURFACE — the whole silhouette, inset 1.4px over the rim so the
    thin bronze frame shows on EVERY edge (incl. the pointed tips). Near-FLAT: a
    soft top-centre satin sheen + a faint brushed texture + a thin top light and
@@ -487,20 +614,43 @@
    directly on this warm clean copper. */
 .pcard__reqs-field {
   position: absolute;
-  inset: 1.4px;
+  inset: 1.5px;
   clip-path: var(--pcard-req-clip);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0 8px;
+  isolation: isolate;
   background:
-    radial-gradient(125% 150% at 50% 30%, rgba(255, 231, 188, 0.14), transparent 62%),
-    linear-gradient(180deg, transparent 34%, rgba(255, 238, 205, 0.05) 50%, transparent 66%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.011) 0 1px, transparent 1px 8px),
-    linear-gradient(180deg, var(--pcard-req-copper-hi) 0%, var(--pcard-req-copper) 52%, var(--pcard-req-copper-deep) 100%);
+    radial-gradient(120% 170% at 50% 15%, rgba(255, 236, 202, 0.24), transparent 56%),
+    linear-gradient(108deg, transparent 34%, rgba(255, 245, 218, 0.09) 46%, transparent 57%),
+    repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 7px),
+    linear-gradient(180deg, var(--pcard-req-rim-hi) 0%, var(--pcard-req-copper-hi) 16%, var(--pcard-req-copper) 56%, var(--pcard-req-copper-deep) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 230, 190, 0.22),        /* thin top light  */
-    inset 0 -1.4px 1px rgba(48, 24, 9, 0.4);        /* thin bottom shade */
+    inset 0 1px 0 rgba(255, 236, 207, 0.38),
+    inset 0 -2px 2px rgba(48, 24, 9, 0.52),
+    inset 0 0 8px rgba(73, 37, 12, 0.14);
+}
+.pcard__reqs-field::before,
+.pcard__reqs-field::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+.pcard__reqs-field::before {
+  inset: 3px 17px;
+  clip-path: var(--pcard-req-clip);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 227, 179, 0.16),
+    inset 0 -1px 0 rgba(55, 28, 9, 0.28);
+}
+.pcard__reqs-field::after {
+  left: 11%;
+  right: 11%;
+  top: 3px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 242, 216, 0.32), transparent);
 }
 .pcard__reqs--multi .pcard__reqs-field { gap: 0 5px; }
 .pcard--tier-thumb .pcard__reqs { filter: none; }
@@ -538,6 +688,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  position: relative;
+  z-index: 1;
 }
 .pcard__reqs--multi .pcard-req { gap: 5px; }
 
@@ -630,6 +782,8 @@
   margin: 0 1px;
   background: linear-gradient(180deg, transparent, rgba(255, 222, 176, 0.5) 22% 78%, transparent);
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.24);
+  position: relative;
+  z-index: 1;
 }
 
 /* exotic no-icon requirement / party name — a compact engraved chip so it
@@ -650,25 +804,52 @@
 /* no requirements → the rail collapses to a hair-thin decorative divider
    (the plate reads finished, the art naturally rises) */
 .pcard__divider {
+  position: relative;
   align-self: center;
   justify-self: center;
-  width: 44%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(217, 184, 120, 0.4) 30% 70%, transparent);
+  width: 52%;
+  height: 1px;
+  margin: 2px 0 1px;
+  background: linear-gradient(90deg, transparent, rgba(217, 184, 120, 0.42) 22%, rgba(242, 215, 149, 0.58) 50%, rgba(217, 184, 120, 0.42) 78%, transparent);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+}
+.pcard__divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  background: linear-gradient(135deg, var(--pcard-gold-hi), var(--pcard-gold-deep));
+  border: 1px solid rgba(43, 28, 8, 0.7);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 /* ── art viewport ───────────────────────────────────────────────────── */
 .pcard__art {
   position: relative;
   min-height: var(--pcard-art-min);
-  border-radius: 8px;
+  border-radius: 9px;
   overflow: hidden;
   background: #090d13;
-  border: 1px solid rgba(217, 184, 120, 0.5);
+  border: 1px solid rgba(217, 184, 120, 0.66);
   box-shadow:
-    inset 0 0 16px rgba(0, 0, 0, 0.65),
-    inset 0 0 2px rgba(217, 184, 120, 0.35),
-    0 1px 3px rgba(0, 0, 0, 0.45);
+    inset 0 0 18px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 2px rgba(15, 11, 5, 0.55),
+    0 0 0 1px rgba(37, 25, 9, 0.72),
+    0 3px 6px rgba(0, 0, 0, 0.5);
+}
+.pcard__art::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(242, 215, 149, 0.24);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 9px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  z-index: 2;
 }
 .pcard__art img {
   position: absolute;
@@ -691,6 +872,7 @@
     linear-gradient(180deg, rgba(6, 8, 12, 0.28) 0%, transparent 18% 72%, rgba(6, 8, 12, 0.42) 100%),
     radial-gradient(120% 60% at 50% 108%, var(--pcard-glow) 0%, transparent 55%);
   opacity: 0.85;
+  z-index: 1;
 }
 /* generic fallback art gets a stronger theme wash so it reads type-coloured */
 .pcard__art--fallback::after {
@@ -1333,8 +1515,8 @@
 /* hover — calm lift (interactive tiers only) */
 .pcard--interactive {
   transition:
-    transform calc(160ms * var(--motion-scale, 1)) ease-out,
-    filter calc(160ms * var(--motion-scale, 1)) ease-out;
+    transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .pcard--interactive:not(.pcard--tier-thumb):hover {
   transform: translateY(-2px);
@@ -1352,6 +1534,14 @@
   filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px var(--pcard-glow));
 }
 .pcard--tier-full .pcard__rim { opacity: 0.95; }
+.pcard--tier-full .pcard-nameplate {
+  filter:
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.66))
+    drop-shadow(0 0 5px rgba(217, 184, 120, 0.2));
+}
+.pcard--tier-full .pcard__art {
+  border-color: rgba(242, 215, 149, 0.76);
+}
 
 /* thumbnails: cheapest paint */
 .pcard--tier-thumb {
