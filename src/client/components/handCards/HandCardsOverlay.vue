@@ -1,3 +1,10 @@
+<!--
+@deprecated Desktop-only UI — FROZEN 2026-07-15. Do not develop further.
+All UI work goes into console native (`?console=1`, ConsoleShell.vue); the next
+desktop UI will be rebuilt from it. Unreachable from ConsoleShell, so changes
+here cannot affect console. Fix only what breaks the shared layer or play.
+See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
+-->
 <template>
   <div class="hand-board-overlay"
        :class="{'hand-board-overlay--mandatory-select': selectActive}"

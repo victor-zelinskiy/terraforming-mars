@@ -1,3 +1,8 @@
+/**
+ * @console-shared LIVE — console native stands on this file, so it is NOT covered
+ * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
+ * Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
+ */
 import {reactive} from 'vue';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
 import {

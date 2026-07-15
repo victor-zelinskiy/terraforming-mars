@@ -1,3 +1,10 @@
+<!--
+@deprecated Desktop-only UI — FROZEN 2026-07-15. Do not develop further.
+All UI work goes into console native (`?console=1`, ConsoleShell.vue); the next
+desktop UI will be rebuilt from it. Unreachable from ConsoleShell, so changes
+here cannot affect console. Fix only what breaks the shared layer or play.
+See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
+-->
 <template>
   <aside class="journal-panel" role="complementary" :aria-label="$t('Journal')">
     <span class="journal-panel__corner journal-panel__corner--tl" aria-hidden="true"></span>

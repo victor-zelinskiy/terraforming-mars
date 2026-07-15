@@ -13,6 +13,21 @@ This is `vize1215`'s personal fork — a private/self-hosted build of the open-s
 
 When a change has trade-offs between these goals and any other consideration (closeness to upstream, code volume, edge cases), favor the goals above unless the user says otherwise.
 
+# ═══════════════════════════════════════════════════════════════════
+# >>> DESKTOP UI IS DEPRECATED (2026-07-15) — READ BEFORE ANY UI WORK <<<
+# ═══════════════════════════════════════════════════════════════════
+
+**The desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN. Do not develop it further.** All UI work goes into **console native mode** (`?console=1` → `ConsoleShell.vue`). Once console native is finished, the NEW desktop UI will be BUILT FROM IT — console-first, then desktop; never the other way round. The desktop goals 1–4 above still describe the *visual taste* the fork wants, but the *surface* they are applied to is console native now.
+
+**What this changes in practice:**
+- **A new UI feature is done when it works in console native.** A desktop counterpart is NOT required and must not block "done". Don't add a feature to a desktop overlay "for parity".
+- **Desktop-only bugs:** fix only if they break the shared layer or make the game unplayable. Cosmetic / polish work on a desktop-only surface — skip it, say so, and move on.
+- **The SHARED layer is NOT deprecated** — console stands on it. Server markers/endpoints, `src/common/` models, pure view-models (`victoryPointsModel`, `effectSummary`, `insightEngine`, `endgameFacts`, `journalView`, …), module reactive state (`journalState`, `notificationState`, `presentationFlow`, …), the premium card face (`.pcard`), `motionTokens` — all keep full quality bars, tests and guards. Every checklist in this file that concerns the server / common / model layer (the EXPANSION ADAPTATION CHECKLIST above all) stays fully in force.
+- **Nothing is deleted.** Desktop keeps working as a fallback until the console-based desktop exists. Removing a desktop-only component is a separate, explicitly-requested task.
+- **Code markers:** desktop-only files carry a `@deprecated Desktop-only UI (frozen 2026-07-15)` header; files used by BOTH modes carry `@console-shared` and are safe to invest in. The full inventory (desktop-only / shared / console-only + which console file imports each shared module) lives in **`DESKTOP_DEPRECATION_AUDIT.md`** — read it before deciding whether a file you're about to touch is frozen or live.
+
+The rest of this file documents desktop subsystems in detail. Treat those sections as a **reference for the shared logic + a design spec for the console port**, not as an invitation to extend the desktop surface.
+
 ## Update model — NO-REMOUNT + structural sharing + unified motion system (the 2026-07 rework)
 
 **The per-response `playerkey` remount is GONE by default** (design + status: `REMOUNT_ANIMATION_REWORK_DESIGN.md`). `<player-home>` / `<spectator-home>` are keyed on the CONSTANT `playerHomeKey` and live for the whole game session; a server response applies the fresh `playerView` reactively. Everything below follows from that:
