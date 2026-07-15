@@ -219,13 +219,21 @@
                mandatory FIRST ACTION is deliberately NOT here — it belongs
                to the player's first TURN (the «Разыграно» action mode). -->
           <transition name="con-start-corpout">
-            <div class="con-start__corps" v-if="corpPlayCard !== undefined">
+            <div class="con-start__corps" v-if="corpColumn.length > 0">
               <div class="con-start__section-title">{{ $t('Corporation') }}</div>
-              <div class="con-start__corp con-start__corp--playable"
-                   :data-zoom-slot="corpPlayCard.name"
-                   :class="{'con-start__corp--focused': isFocused('corp', corpPlayCard.name)}">
-                <Card :card="corpPlayCard" :key="corpPlayCard.name" />
-                <div v-if="isFocused('corp', corpPlayCard.name)" class="con-start__slot-a">
+              <div v-for="corp in corpColumn" :key="corp.name"
+                   class="con-start__corp"
+                   :data-zoom-slot="corp.name"
+                   :class="{
+                     'con-start__corp--playable': !corp.played,
+                     'con-start__corp--done': corp.played,
+                     'con-start__corp--focused': isFocused('corp', corp.name),
+                   }">
+                <Card :card="{name: corp.name}" :key="corp.name" />
+                <!-- CONTEXT corp (assigned / test mode / a pre-rework save):
+                     shown calmly so the player always sees their corporation. -->
+                <span v-if="corp.played" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Already played') }}</span>
+                <div v-else-if="isFocused('corp', corp.name)" class="con-start__slot-a">
                   <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
                 </div>
               </div>
@@ -371,7 +379,7 @@ import {
 } from '@/client/console/consoleStartState';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  PreludeEntry, preludeEntries, recordDrawChoice,
+  corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
   startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
@@ -418,6 +426,11 @@ export default defineComponent({
       focusIdx: 0,
       /** Zero-projects submit armed (second X confirms — the skip warning). */
       armedSkip: false,
+      /** THIS session showed the deferred corporationPlay prompt → a played
+       *  corp has physically moved to the «Разыграно» table (see corpColumn). */
+      sawCorpPlayPrompt: false,
+      /** One-shot dev warn for a corp played with no corporationPlay prompt. */
+      warnedCorpPrompt: false,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
@@ -578,6 +591,32 @@ export default defineComponent({
     corpPlayCard(): CardModel | undefined {
       return this.corpPlayPrompt?.cards?.[0];
     },
+    /**
+     * The corporation column. Two honest shapes:
+     *  - PENDING (`played: false`): the deferred corporationPlay prompt is
+     *    live — the card is actionable and, once pressed, physically LEAVES
+     *    for the «Разыграно» table (the column goes, the preludes FLIP in).
+     *  - CONTEXT (`played: true`): the corp was played WITHOUT the start-scene
+     *    press — a game whose corp is assigned (beginner), test mode, or a
+     *    save from before the deferred-play rework. The scene never staged
+     *    that landing, so it shows the corp calmly instead of hiding it: the
+     *    player must always SEE which corporation they are starting with.
+     *    (`sawCorpPlayPrompt` distinguishes the two: once THIS session staged
+     *    the landing, the played corp belongs to the table, not here.)
+     */
+    corpColumn(): ReadonlyArray<{name: CardName, played: boolean}> {
+      if (this.mode !== 'ceremony') {
+        return [];
+      }
+      const pending = this.corpPlayCard;
+      if (pending !== undefined) {
+        return [{name: pending.name, played: false}];
+      }
+      if (this.sawCorpPlayPrompt) {
+        return []; // the hero carried it to the table — never a ghost twin
+      }
+      return corporationCardNames(this.playerView).map((name) => ({name, played: true}));
+    },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
         return [];
@@ -679,6 +718,13 @@ export default defineComponent({
     ceremonyPromptKey(): string {
       return this.mode === 'ceremony' ? `${this.wf?.type ?? ''}|${textOf(this.wf?.title)}` : '';
     },
+    /** Diagnostic: the corp is on the table but this session never staged its
+     *  landing — an assigned/test-mode corp, or a client newer than the server
+     *  (no corporationPlay prompt). Shown as context; warned once in dev. */
+    corpPlayedWithoutPrompt(): boolean {
+      return this.mode === 'ceremony' && !this.sawCorpPlayPrompt &&
+        this.corpPlayCard === undefined && corporationCardNames(this.playerView).length > 0;
+    },
     footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
       // While the deal cinematic runs, selection is NOT interactive yet —
       // the bar advertises only the skip (any button skips).
@@ -727,7 +773,7 @@ export default defineComponent({
   },
   watch: {
     /** The deal identity pins the wizard picks (module state survival). */
-    wizardInput: {
+    'wizardInput': {
       immediate: true,
       handler(input: SelectInitialCardsModel | undefined) {
         if (input !== undefined) {
@@ -754,7 +800,7 @@ export default defineComponent({
     },
     /** Pre-flush: arm the deal HOLD before the new card set paints (the
      *  real cards mount hidden — zero first-frame flash). */
-    dealSignature: {
+    'dealSignature': {
       immediate: true,
       handler() {
         this.prepareDeal();
@@ -780,9 +826,32 @@ export default defineComponent({
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
+    /** Latch: THIS session staged the corporation's landing, so a played corp
+     *  belongs to the «Разыграно» table (never a ghost twin on the scene). */
+    'corpPlayCard': {
+      immediate: true,
+      handler(card: CardModel | undefined) {
+        if (card !== undefined) {
+          this.sawCorpPlayPrompt = true;
+        }
+      },
+    },
+    /** Dev signal for a genuinely stale pairing: the corporation is already
+     *  played and no corporationPlay prompt ever arrived (a server older than
+     *  this client). The UI degrades honestly (context card) — this names it. */
+    'corpPlayedWithoutPrompt': {
+      immediate: true,
+      handler(now: boolean) {
+        if (now && process.env.NODE_ENV !== 'production' && !this.warnedCorpPrompt) {
+          this.warnedCorpPrompt = true;
+          console.warn('[console-start] the corporation is already played and no `corporationPlay` prompt arrived — ' +
+            'showing it as context. If this is a fresh game, the SERVER is older than this client (restart / rebuild it).');
+        }
+      },
+    },
     /** Mirror the scene's live contract into the shell's command bar (the bar
      *  is the ONE hint surface; the inline footer echoes the same list). */
-    footHints: {
+    'footHints': {
       immediate: true,
       handler(hints: Array<{control: GlyphControl, label: string, enabled?: boolean}>) {
         setConsoleStartCommands(hints);
@@ -790,7 +859,7 @@ export default defineComponent({
     },
     /** In CEREMONY mode the scene yields the left rail (+ top HUD) so the player
      *  watches the corp bonus / card payment land with delta chips. */
-    mode: {
+    'mode': {
       immediate: true,
       handler() {
         void this.$nextTick(() => this.syncCeremonyLayout());

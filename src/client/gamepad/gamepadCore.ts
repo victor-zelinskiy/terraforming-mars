@@ -2,10 +2,25 @@
  * Gamepad core — the DOM shell around the pure poll model
  * (GAMEPAD_SUPPORT_DESIGN.md §4.2).
  *
- * Owns: `gamepadconnected` / `gamepaddisconnected`, the rAF poll loop
- * (runs ONLY while ≥1 pad is connected AND the document is visible), the
+ * Owns: `gamepadconnected` / `gamepaddisconnected`, the poll loop (runs
+ * ONLY while ≥1 pad is connected AND the document is visible), the
  * active-pad election (the last pad that produced activity), and intent
  * fan-out to subscribers (the focus engine, the debug overlay).
+ *
+ * ── THE POLL IS rAF + A TIMER, DELIBERATELY (load-bearing) ────────────
+ * The Gamepad API does NOT buffer input: `getGamepads()` returns the state
+ * AT READ TIME, and an edge is only seen by DIFFING two consecutive reads.
+ * So a press+release that falls entirely BETWEEN two reads is invisible —
+ * the intent is never born. With an rAF-only loop, any frame long enough to
+ * span a tap (heavy raster/compositing on a big scene) silently EATS that
+ * press: the classic "sometimes the first B press does nothing". rAF is
+ * vsync-bound, so exactly when frames stretch is when presses go missing.
+ * A `setInterval` is NOT vsync-bound, so it keeps sampling across a
+ * stretched frame and catches the tap. Both drivers call the same
+ * `pollOnce`, which is IDEMPOTENT (it diffs against the stored snapshot and
+ * updates it), so double-driving can never double-fire an intent; the
+ * hold-repeat cadence is time-based (`now`), not per-frame, so the higher
+ * sample rate does not change its feel. NEVER reduce this back to rAF-only.
  *
  * Perf contract (invariant 8): the loop is DOM-free — it reads
  * `navigator.getGamepads()`, runs the pure model, and early-outs on idle
@@ -51,7 +66,16 @@ export function onGamepadIntent(fn: IntentListener): () => void {
 
 let installed = false;
 let rafId = 0;
+let pollTimer = 0;
 let connectedCount = 0;
+
+/**
+ * The timer poll's period. ~8ms (≈125Hz) — fast enough that no realistic tap
+ * (~60ms+) can fall between two samples even while rAF is stretched, and
+ * cheap because `pollOnce` early-outs at rest (the overwhelmingly common
+ * case). See the module header for why a timer must back the rAF loop.
+ */
+const POLL_INTERVAL_MS = 8;
 const prevSnapshots = new Map<number, GamepadSnapshot>();
 const pollStates = new Map<number, PollState>();
 
@@ -67,7 +91,7 @@ function navigatorPads(): ReadonlyArray<Gamepad | null> {
 }
 
 function loopRunning(): boolean {
-  return rafId !== 0;
+  return rafId !== 0 || pollTimer !== 0;
 }
 
 function startLoop(): void {
@@ -79,14 +103,23 @@ function startLoop(): void {
     pollOnce(now);
   };
   rafId = window.requestAnimationFrame(tick);
+  // The non-vsync driver: keeps sampling while a frame is stretched, so a
+  // tap can never fall between two reads (see the module header).
+  pollTimer = window.setInterval(() => pollOnce(performance.now()), POLL_INTERVAL_MS);
 }
 
 function stopLoop(): void {
   if (!loopRunning() || typeof window === 'undefined') {
     return;
   }
-  window.cancelAnimationFrame(rafId);
-  rafId = 0;
+  if (rafId !== 0) {
+    window.cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+  if (pollTimer !== 0) {
+    window.clearInterval(pollTimer);
+    pollTimer = 0;
+  }
 }
 
 function pollOnce(now: number): void {
