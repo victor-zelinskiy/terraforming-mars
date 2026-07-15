@@ -162,6 +162,12 @@ export type ResourceTransferRun = {
    */
   source: {point?: TransferPoint, selectors?: ReadonlyArray<string>};
   /**
+   * PER-SPEC origin override, aligned with `specs` by index (the tile
+   * placement scene: each printed bonus icon on the field is its own
+   * birth point). An undefined entry falls back to the shared `source`.
+   */
+  origins?: ReadonlyArray<TransferPoint | undefined>;
+  /**
    * `auto` — each chip is absorbed at its destination right after the
    * contact beat (the played-card reward wave);
    * `hold` — landed chips REST on their destination until
@@ -190,33 +196,36 @@ export function isResourceTransferActive(): boolean {
  * reward is announced by its delta chip alone, marginally late, never lost).
  */
 export async function runResourceTransfers(run: ResourceTransferRun): Promise<void> {
-  const specs = run.specs.filter((s) => s.amount > 0);
-  if (specs.length === 0) {
+  // `origins` aligns with `run.specs` by index — pair them BEFORE filtering.
+  const specEntries = run.specs
+    .map((spec, i) => ({spec, origin: run.origins?.[i]}))
+    .filter((e) => e.spec.amount > 0);
+  if (specEntries.length === 0) {
     return;
   }
-  const releaseAll = (list: ReadonlyArray<ResourceTransferSpec>) => {
-    for (const spec of list) {
-      run.onArrive?.(spec);
+  const releaseAll = (list: ReadonlyArray<{spec: ResourceTransferSpec}>) => {
+    for (const e of list) {
+      run.onArrive?.(e.spec);
     }
   };
   if (consoleReducedMotionActive() || typeof document === 'undefined') {
-    releaseAll(specs);
+    releaseAll(specEntries);
     return;
   }
   const sourceRect = resolveSourceRect(run.source);
-  if (sourceRect === undefined) {
-    releaseAll(specs);
+  if (sourceRect === undefined && !specEntries.some((e) => e.origin !== undefined)) {
+    releaseAll(specEntries);
     return;
   }
   // Resolve each spec's destination NOW (the wave flies into real, settled
   // geometry); unresolvable ones release immediately and never fly.
-  const flights: Array<{spec: ResourceTransferSpec, to: TransferPoint}> = [];
-  for (const spec of specs) {
-    const to = targetPointFor(spec);
-    if (to === undefined) {
-      run.onArrive?.(spec);
+  const flights: Array<{spec: ResourceTransferSpec, to: TransferPoint, origin: TransferPoint | undefined}> = [];
+  for (const e of specEntries) {
+    const to = targetPointFor(e.spec);
+    if (to === undefined || (e.origin === undefined && sourceRect === undefined)) {
+      run.onArrive?.(e.spec);
     } else {
-      flights.push({spec, to});
+      flights.push({spec: e.spec, to, origin: e.origin});
     }
   }
   if (flights.length === 0) {
@@ -229,7 +238,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     id: ++flightSeq,
     spec: f.spec,
     to: f.to,
-    from: run.source.point ?? sourceSpawnPoint(sourceRect, i, flights.length),
+    from: f.origin ?? run.source.point ??
+      sourceSpawnPoint(sourceRect ?? {x: 0, y: 0, w: 0, h: 0}, i, flights.length),
     delayMs: motionMs(transferWaveDelayMs(i, flights.length)),
     index: i,
   }));

@@ -1,0 +1,101 @@
+/* ══ CONSOLE TILE PLACEMENT — the premium landing hero scene ══════════════
+   (ConsoleTilePlacementLayer + tilePlacementDirector + consoleTilePlacement)
+
+   The chosen tile physically travels from the table edge onto the picked
+   hex: a twin of the REAL board tile art with visible thickness and a
+   ground shadow that tightens from hover to contact; the real board tile
+   paints silently under the settled proxy. The cell's PRINTED bonus icons
+   are then replayed from their exact captured positions — they rise
+   through the placed tile and hand off to the shared resource-transfer
+   chips (console_resource_transfer.less).
+
+   Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
+   `transition: all`; `will-change` scoped to elements that exist only for
+   the duration of the scene (the layer is v-if'd on the transaction). */
+
+.con-tileplace {
+    position: fixed;
+    inset: 0;
+    /* Above the board chrome / section content; UNDER the resource-transfer
+       chips (11670) — the payout flies over its own source — and the
+       command bar (11700). */
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+
+    /* ── the flying tile — a twin of the real board tile art ───────────── */
+    &__tile {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        visibility: hidden; /* the director materializes it at the pick-up */
+        will-change: transform, opacity;
+        /* Elevation reads from the PNG alpha — a real object over the map. */
+        filter: drop-shadow(0 .3rem .5rem rgba(0, 0, 0, 0.45));
+    }
+    &__art,
+    &__edge {
+        position: absolute;
+        inset: 0;
+        background-size: contain !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+    /* The THICKNESS: the same hex art, darkened, offset down (the director
+       compresses 3px → 1px at contact) — a real underside, not a box. */
+    &__edge {
+        filter: brightness(0.3) saturate(0.6);
+        will-change: transform;
+    }
+    /* The surface-acceptance beat: one quiet brightness pass at contact —
+       clipped to the hex by the art's own silhouette via screen blending. */
+    &__touch {
+        position: absolute;
+        inset: 6%;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(235, 245, 255, 0.9), transparent 74%);
+        mix-blend-mode: screen;
+        opacity: 0;
+        pointer-events: none;
+        will-change: opacity;
+    }
+
+    /* The GROUND SHADOW under the target hex — the altitude cue (wide +
+       faint at height, tight + dark at contact; the director drives it). */
+    &__shadow {
+        position: fixed;
+        top: 0;
+        left: 0;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.7), transparent 70%);
+        opacity: 0;
+        pointer-events: none;
+        will-change: transform, opacity;
+    }
+
+    /* ── the printed-bonus proxies (the reward beat) ─────────────────────
+       Each replays a captured field icon at its EXACT former position (the
+       board sprite class supplies the art) and rises out of the placed
+       tile, gaining body, before handing off to its resource chip. */
+    &__bonus {
+        position: fixed;
+        opacity: 0;
+        visibility: hidden; /* the director lifts it on its wave stagger */
+        background-size: contain !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        border-radius: .1rem;
+        /* "Gains body": the lift's depth cue is a STATIC shadow — the
+           director animates transform/opacity only. */
+        filter: drop-shadow(0 .18rem .3rem rgba(10, 5, 2, 0.55));
+        will-change: transform, opacity;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* The controller degrades the scene wholesale under reduced motion;
+       belt-and-braces the decorative movers. */
+    .con-tileplace__touch,
+    .con-tileplace__shadow { display: none; }
+}

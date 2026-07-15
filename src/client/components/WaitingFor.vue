@@ -15,7 +15,7 @@ Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForTilePlacementHero">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -189,6 +189,12 @@ import {
   endPatentSale,
   runPatentSale,
 } from '@/client/console/patentSale/consolePatentSale';
+import {
+  abortTilePlacement,
+  detectTilePlacement,
+  endTilePlacement,
+  runTilePlacement,
+} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
@@ -386,6 +392,16 @@ type DataModel = {
    */
   holdingForPatentSale: boolean;
   /*
+   * Console TILE-PLACEMENT HERO gate: the commit is held through the tile's
+   * physical flight + touchdown into the picked hex (the real board tile
+   * paints silently under the landed proxy — the generic placement hold then
+   * sees no remaining diff for that space and never double-animates). Gated
+   * on `tilePlacementState.active` (only ever armed by the console-gated
+   * SelectSpace submit), so desktop + every non-space submit are unaffected.
+   * See src/client/console/tilePlacement/consoleTilePlacement.ts.
+   */
+  holdingForTilePlacementHero: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -448,6 +464,7 @@ export default defineComponent({
       holdingForHydroMarker: false,
       holdingForPlayedHero: false,
       holdingForPatentSale: false,
+      holdingForTilePlacementHero: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -720,6 +737,31 @@ export default defineComponent({
               }
             }
             /*
+             * Console TILE-PLACEMENT HERO gate. Detect the ARMED transaction
+             * (undefined on desktop / every non-space submit); the detect
+             * VERIFIES the server actually put a tile on the armed space and
+             * CAPTURES the cell's printed bonus icons while it is still
+             * uncovered. HOLD the commit through the flight + touchdown —
+             * the real tile paints silently under the landed proxy via the
+             * targeted preview, so the generic tile hold below sees no
+             * remaining diff for that space (other fresh tiles in the same
+             * response — a hazard spawning — still ride the existing path).
+             * The printed bonuses commit under the panel reward hold; the
+             * post-commit reward beat (icons rise → chips fly → delta chips
+             * at contact) runs in endTilePlacement on the next tick.
+             */
+            const tileHeroEvent = detectTilePlacement(
+              this.playerView.game?.spaces, newView.game?.spaces,
+              {aresExtension: this.playerView.game?.gameOptions?.expansions?.ares === true});
+            if (tileHeroEvent !== undefined) {
+              this.holdingForTilePlacementHero = true;
+              try {
+                await runTilePlacement(this.playerView.game.spaces, newView.game.spaces);
+              } finally {
+                this.holdingForTilePlacementHero = false;
+              }
+            }
+            /*
              * MarsBot turns (the MAIN path — ending your turn is what lets
              * the bot act, so its resolved turn(s) ride THIS response).
              * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
@@ -754,6 +796,13 @@ export default defineComponent({
               if (patentSaleEvent !== undefined) {
                 nextTick(() => {
                   void endPatentSale();
+                });
+              }
+              // …and the placement reward beat (the landed tile is already
+              // painted; its printed bonuses still pay out honestly).
+              if (tileHeroEvent !== undefined) {
+                nextTick(() => {
+                  void endTilePlacement();
                 });
               }
               return;
@@ -917,6 +966,15 @@ export default defineComponent({
                 void endPatentSale();
               });
             }
+            if (tileHeroEvent !== undefined) {
+              // The REWARD BEAT of the placement: the cell's printed icons
+              // rise through the placed tile, become physical chips and pay
+              // out — each touchdown releases its held metric (delta chip at
+              // the contact). A bonus-less cell finishes instantly.
+              nextTick(() => {
+                void endTilePlacement();
+              });
+            }
             return;
           }
 
@@ -938,6 +996,10 @@ export default defineComponent({
           // return to the hand (un-blanked) and no chip is ever dispensed.
           this.holdingForPatentSale = false;
           abortPatentSale();
+          // …and the tile-placement hero: the placement did NOT happen — no
+          // tile flies, no bonus is ever collected, the board stays intact.
+          this.holdingForTilePlacementHero = false;
+          abortTilePlacement();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -961,6 +1023,8 @@ export default defineComponent({
           abortPlayedHero(); // …and the played-card hero — no ghost card, ever
           this.holdingForPatentSale = false;
           abortPatentSale(); // …and the patent sale — the hand cards un-blank
+          this.holdingForTilePlacementHero = false;
+          abortTilePlacement(); // …and the tile hero — the board stays intact
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })

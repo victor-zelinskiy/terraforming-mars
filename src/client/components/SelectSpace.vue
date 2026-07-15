@@ -53,6 +53,8 @@ import BoardPlacementPreviewPopover from '@/client/components/board/BoardPlaceme
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
 import {fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {consoleModeState} from '@/client/console/consoleModeState';
+import {armTilePlacement} from '@/client/console/tilePlacement/consoleTilePlacement';
 
 /**
  * Marker attribute on cells we annotated with an illegal-reason tooltip.
@@ -365,6 +367,16 @@ export default defineComponent({
       if (this.spaceId === undefined) {
         this.warning = 'Must select a space';
         return;
+      }
+      // CONSOLE PLACEMENT HERO (console-native only — desktop is untouched):
+      // ARM the premium tile-flight transaction BEFORE the submit. Every
+      // console placement source funnels through this ONE headless
+      // SelectSpace (card follow-up / standard project / card action / WGT
+      // ocean / convert-plants), so this is the single arming point. The
+      // WaitingFor gate then verifies the server's word before anything
+      // visual happens — a refused pick unwinds with zero trace.
+      if (consoleModeState.enabled) {
+        armTilePlacement({spaceId: this.spaceId});
       }
       this.onsave({type: 'space', spaceId: this.spaceId});
     },

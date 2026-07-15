@@ -386,6 +386,7 @@ import {isTradeFleetActive} from '@/client/console/colonyFleet/consoleTradeFleet
 import {isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
+import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import BotTurnReviewOverlay from '@/client/components/marsbot/BotTurnReviewOverlay.vue';
 import {
@@ -746,7 +747,7 @@ export default defineComponent({
            * next-phase modal over it). The poll loop keeps running, so the next
            * poll after the animation finishes commits fresh state.
            */
-          if (isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() || isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive()) {
+          if (isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() || isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() || isTilePlacementActive()) {
             return;
           }
           /*

@@ -62,6 +62,10 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // the payout chip's touchdown stays held through the short settle — the
   // sale stage (mounted for the whole transaction) serves it.
   '.con-sale-hero',
+  // The TILE-PLACEMENT hero: a follow-up prompt committed at the landing
+  // stays held through the reward beat (printed bonuses paying out) — the
+  // placement stage serves it for that window.
+  '.con-tileplace',
 ];
 
 /**

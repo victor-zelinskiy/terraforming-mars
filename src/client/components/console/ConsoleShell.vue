@@ -499,10 +499,18 @@
          (consolePatentSale.ts / patentSaleDirector.ts). -->
     <ConsolePatentSaleLayer />
 
+    <!-- The TILE-PLACEMENT HERO stage — the chosen tile physically flies
+         from the table edge into the picked hex (thickness + tightening
+         ground shadow + touchdown settle), then the cell's printed bonus
+         icons rise through it and hand off to the resource chips
+         (consoleTilePlacement.ts / tilePlacementDirector.ts). -->
+    <ConsoleTilePlacementLayer />
+
     <!-- The SHARED RESOURCE-TRANSFER stage — every "receiving resources"
-         chip (the sale's M€ payout, a played card's reward beat) flies
-         here: real resource art + the amount, source → exact panel zone →
-         delta chip (consoleResourceTransfer.ts / resourceTransferDirector). -->
+         chip (the sale's M€ payout, a played card's reward beat, a placed
+         cell's printed bonuses) flies here: real resource art + the amount,
+         source → exact panel zone → delta chip
+         (consoleResourceTransfer.ts / resourceTransferDirector). -->
     <ConsoleResourceTransferLayer />
 
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
@@ -687,6 +695,8 @@ import ConsolePatentSaleLayer from '@/client/components/console/patentSale/Conso
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
+import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -787,6 +797,7 @@ export default defineComponent({
     ConsolePlayedHeroLayer,
     ConsolePatentSaleLayer,
     ConsoleResourceTransferLayer,
+    ConsoleTilePlacementLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -813,6 +824,7 @@ export default defineComponent({
       consoleCardZoom,
       playedHeroState,
       patentSaleState,
+      tilePlacementState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
@@ -997,9 +1009,15 @@ export default defineComponent({
       }
       return {name: playedHeroState.card} as CardModel;
     },
+    /** The tile-placement hero owns the foreground (reactive twin of
+     *  `tilePlacementHolding()` — `tilePlacementState` is in data()). */
+    tilePlacementHolds(): boolean {
+      const p = this.tilePlacementState.phase;
+      return this.tilePlacementState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
-      if (this.presentationHeld || this.playedHeroHolds) {
+      if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds) {
         return undefined;
       }
       return taskServedByHost(this.playerView);
@@ -1064,6 +1082,13 @@ export default defineComponent({
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
+      // The tile-placement hero owns the screen through its landing +
+      // reward beat — a card-draw reveal earned by the SAME placement (a
+      // cell with a resource AND a card) opens right after, never over the
+      // still-flying bonuses (the computed re-evaluates on `done`).
+      if (this.tilePlacementHolds) {
+        return undefined;
+      }
       if (currentRevealEvent() !== undefined) {
         return 'drawn';
       }
@@ -1859,10 +1884,10 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
-      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE:
-      // the animation owns the moment — the pad is inert, the bar advertises
-      // nothing (bounded, plays itself out).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
+      // TILE-PLACEMENT HERO: the animation owns the moment — the pad is
+      // inert, the bar advertises nothing (bounded, plays itself out).
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -2701,12 +2726,15 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
-      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE
-      // own the moment: while the ship flies, the marker glides, the bonus
-      // cover travels or the terminal takes the sold cards in, the pad is
-      // inert (nothing can act on an action that's mid-commit). Bounded by
-      // the animations' safety timers, so it can never stick.
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
+      // TILE-PLACEMENT HERO own the moment: while the ship flies, the marker
+      // glides, the bonus cover travels, the terminal takes the sold cards
+      // in or the tile is landing on Mars, the pad is inert (nothing can act
+      // on an action that's mid-commit). Bounded by the animations' safety
+      // timers, so it can never stick. The placement's `armed` beat does NOT
+      // gate (nothing visual yet — mirrors the played hero's armed policy),
+      // and the pick itself can't double-fire (the arm claims the moment).
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
         return true;
       }
       // PLAYED-CARD HERO owns the moment. While the submit is in flight

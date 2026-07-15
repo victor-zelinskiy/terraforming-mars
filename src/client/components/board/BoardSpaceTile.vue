@@ -114,6 +114,19 @@ const descriptions: Record<TileType, string> = {
   [TileType.NEURAL_INSTANCE]: 'Neural Instance: MarsBot gains VP for adjacent non-human spaces',
 };
 
+/**
+ * The tile-art css suffix (`board-space-tile--<suffix>`) for an EXTERNAL
+ * proxy renderer — the console placement hero flies a twin of the real
+ * tile art (@console-shared: additive export, desktop behaviour untouched).
+ */
+export function tileCssClassOf(tileType: TileType, aresExtension: boolean): string {
+  let cssClass: string | undefined = tileTypeToCssClass[tileType];
+  if (aresExtension && tileTypeToCssClassAresOverride.has(tileType)) {
+    cssClass = tileTypeToCssClassAresOverride.get(tileType);
+  }
+  return cssClass ?? '';
+}
+
 type Data = {
   placementKind: PlacementKind | null;
   placementDurationMs: number;
