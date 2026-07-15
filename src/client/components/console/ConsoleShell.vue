@@ -191,7 +191,7 @@
          Bottom-anchored, height follows the content; closed automatically
          when a mandatory surface arrives (the journal's hard-block rule). -->
     <transition name="con-layer">
-      <ConsolePlayedOverlay v-if="playedOpen || playedHeroState.tableOpen"
+      <ConsolePlayedOverlay v-if="playedTableVisible"
                             ref="playedOverlay"
                             :players="playerView.players"
                             :thisPlayerColor="thisPlayer.color"
@@ -987,12 +987,32 @@ export default defineComponent({
       return playedHeroHolding();
     },
     /**
+     * The «Разыграно» table is the SERVING SURFACE of the corporation's
+     * mandatory first action — so its presence is DERIVED from the prompt,
+     * never opened imperatively: an open/close race with the hard-block
+     * watcher (which closes the table for a mandatory task) used to leave the
+     * prompt with no surface at all (the stranded guard). Deferring (B) hides
+     * it via the deferred flag; answering it clears `shellTask` and the table
+     * closes itself — a manual browse (`playedOpen`) is a separate flag, so
+     * the mandatory beat can never strand the player in a browse surface.
+     * NOTE `shellTask` is suppressed while the hero scene holds the
+     * foreground, so the table simply appears when the landing completes.
+     */
+    corpActionTableOpen(): boolean {
+      return this.shellTask?.kind === 'corpFirstAction' && !this.consoleState.task.deferred;
+    },
+    /** The overlay is up — as a manual browse, the hero stage, or the corp
+     *  first action's serving surface. */
+    playedTableVisible(): boolean {
+      return this.playedOpen || playedHeroState.tableOpen || this.corpActionTableOpen;
+    },
+    /**
      * The «Разыграно» ACTION MODE (kind corpFirstAction): the corporations
      * whose mandatory first action is live RIGHT NOW — A on such a card in
      * the overlay performs it. Empty when the prompt isn't up / is deferred.
      */
     playedCorpActionNames(): ReadonlyArray<CardName> {
-      if (this.shellTask?.kind !== 'corpFirstAction') {
+      if (!this.corpActionTableOpen) {
         return [];
       }
       return corporationCardNames(this.playerView)
@@ -1840,7 +1860,7 @@ export default defineComponent({
       if (this.playedHeroHolds) {
         return 'Played';
       }
-      if (this.playedOpen) {
+      if (this.playedTableVisible) {
         return consolePlayedUi.eventsOpen ? 'Played events' : 'Played';
       }
       if (this.consoleState.quick !== undefined) {
@@ -2114,7 +2134,7 @@ export default defineComponent({
         );
         return cmds;
       }
-      if (this.playedOpen) {
+      if (this.playedTableVisible) {
         // «Разыграно»: the tableau grammar, honest to the overlay's live
         // mirrors (consolePlayedUi). Inside the events list B is a LOCAL
         // back (closes the list, never the tableau).
@@ -2444,10 +2464,12 @@ export default defineComponent({
         journalState.open = false;
       }
       // The «Разыграно» overlay is the same family of board-home VIEW
-      // surface — it yields to a mandatory surface identically. EXCEPT
-      // while the hero scene owns it: the landing/result beat completes
-      // first (the deferred close runs in the phase watcher below).
-      if (now && this.playedOpen && !this.playedHeroHolds) {
+      // surface — it yields to a mandatory surface identically. TWO honest
+      // exceptions: while the hero scene owns it (the landing/result beat
+      // completes first — the deferred close runs in the phase watcher
+      // below), and when the table IS the mandatory surface (the corp's
+      // first action) — closing it there left the prompt with nothing.
+      if (now && this.playedOpen && !this.playedHeroHolds && !this.corpActionTableOpen) {
         this.closePlayedOverlay();
       }
     },
@@ -2912,7 +2934,7 @@ export default defineComponent({
       // a LOCAL back), X/A inspect, LB/RB cycle the viewed player, Y keeps
       // the global Info Mode meaning. A mandatory surface closes it via the
       // journalHardBlocked watcher — same yield rule as the journal.
-      if (this.playedOpen) {
+      if (this.playedTableVisible) {
         if (action === 'fullscreen') {
           this.toggleInfoMode();
           return true;
@@ -4405,10 +4427,11 @@ export default defineComponent({
       }
       if (task.kind === 'corpFirstAction') {
         // The corporation's mandatory FIRST ACTION (the player's first turn):
-        // the «Разыграно» table opens in ACTION MODE — A on the corporation
-        // card performs the action (the overlay seeds focus onto it).
+        // the «Разыграно» table serves it in ACTION MODE — A on the
+        // corporation card performs the action. The table's presence is
+        // DERIVED (corpActionTableOpen), so there is nothing to open here:
+        // only the board must be the section underneath it.
         this.consoleState.section = 'board';
-        this.openPlayedOverlay();
       }
     },
     /** Navigating away from a shell task's surface DEFERS it (amber chip). */
@@ -4783,7 +4806,7 @@ export default defineComponent({
       }
       // The «Разыграно» overlay owns the right stick while open (main table
       // or the nested events list — the overlay routes internally).
-      if (this.playedOpen) {
+      if (this.playedTableVisible) {
         const played = this.$refs.playedOverlay as InstanceType<typeof ConsolePlayedOverlay> | undefined;
         played?.stickScroll(dy);
         return;
