@@ -117,6 +117,7 @@
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
                           :saleSelected="consoleState.sale.selected"
+                          :saleMegacredits="thisPlayer.megacredits"
                           :select="handSelectProps"
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
@@ -492,6 +493,12 @@
          the real received cards (consoleBoardCardBonus.ts). -->
     <ConsoleBoardCardBonusLayer :player-view="playerView" />
 
+    <!-- The PATENT-SALE trade-terminal stage — the sold cards flip to their
+         backs, sink into the terminal's slit, and the dispensed M€ chip
+         arcs onto the resource rail; the commit lands at its touchdown
+         (consolePatentSale.ts / patentSaleDirector.ts). -->
+    <ConsolePatentSaleLayer />
+
     <ConsoleCommandBar :context="commandContext" :commands="commands" />
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -670,6 +677,8 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
+import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -768,6 +777,7 @@ export default defineComponent({
     ConsoleColonyInspect,
     ConsolePlayedOverlay,
     ConsolePlayedHeroLayer,
+    ConsolePatentSaleLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -793,6 +803,7 @@ export default defineComponent({
       consoleState,
       consoleCardZoom,
       playedHeroState,
+      patentSaleState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
@@ -1839,10 +1850,10 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
-      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS: the animation
-      // owns the moment — the pad is inert, the bar advertises nothing
-      // (bounded, plays itself out).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE:
+      // the animation owns the moment — the pad is inert, the bar advertises
+      // nothing (bounded, plays itself out).
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -2439,6 +2450,22 @@ export default defineComponent({
         this.closePlayedOverlay();
       }
     },
+    /*
+     * PATENT-SALE hero staging (consolePatentSale): the sale UI stays up
+     * while the picked cards flip + converge (they lift off LIVE hand
+     * slots); the moment the stack ENTERS the terminal ('inserting') the
+     * hand has physically given the cards away — close the sale mode and
+     * return to the board, where the payout chip lands on the resource
+     * rail. An error BEFORE this point ('failed' while the sale UI is
+     * still open) leaves the player's picks intact — the scene unwinds
+     * with zero trace and the WaitingFor alert explains.
+     */
+    'patentSaleState.phase'(phase: string) {
+      if (phase === 'inserting') {
+        closeConsoleLayers();
+        this.consoleState.section = 'board';
+      }
+    },
     // PRESENTATION FLOW occupancy: while a console mandatory surface (task
     // host / start scene / gov-support panel) is actively presenting, hold a
     // 'mandatory-choice' lease so transient notifications queue instead of
@@ -2665,11 +2692,12 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
-      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS own the moment:
-      // while the ship flies, the marker glides or the bonus cover travels,
-      // the pad is inert (nothing can act on an action that's mid-commit).
-      // Bounded by the animations' safety timers, so it can never stick.
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
+      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE
+      // own the moment: while the ship flies, the marker glides, the bonus
+      // cover travels or the terminal takes the sold cards in, the pad is
+      // inert (nothing can act on an action that's mid-commit). Bounded by
+      // the animations' safety timers, so it can never stick.
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive()) {
         return true;
       }
       // PLAYED-CARD HERO owns the moment. While the submit is in flight
@@ -4189,17 +4217,24 @@ export default defineComponent({
     },
     confirmSale(): void {
       const picked = this.consoleState.sale.selected;
-      if (picked.length === 0) {
-        return;
+      if (picked.length === 0 || isPatentSaleActive()) {
+        return; // the terminal owns the moment — never a double submit
       }
       const action = findSellPatentsAction(this.playerView.waitingFor);
       if (action === undefined) {
         this.showNotice('Not your turn to take any actions');
         return;
       }
-      const cards = [...picked];
-      closeConsoleLayers();
-      this.consoleState.section = 'board';
+      const cards = [...picked] as Array<CardName>;
+      // PREMIUM PATENT SALE: ARM the trade-terminal scene FIRST — the sold
+      // cards' live hand-slot rects are captured in this same synchronous
+      // turn (the hand is still on screen) — THEN submit. The sale UI stays
+      // up while the cards flip + gather; the `patentSaleState.phase`
+      // watcher closes it when the stack enters the terminal, and the
+      // WaitingFor `holdingForPatentSale` gate blocks the commit (new M€ /
+      // delta chip) until the payout chip lands on the resource rail.
+      // Desktop is unaffected (never arms).
+      armPatentSale({cards});
       this.submit(wrapPath(action.path, {type: 'card' as const, cards}));
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {

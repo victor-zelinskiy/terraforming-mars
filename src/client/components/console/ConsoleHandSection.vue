@@ -20,6 +20,26 @@
           <span class="con-hand__filter-count">{{ opt.count }}</span>
         </div>
       </div>
+      <!-- SALE mode: the live financial summary of the current pick — how
+           many cards are chosen, the M€ they pay out, and the before → after
+           wallet. Amber (the sale accent); the gain/total read dim at zero
+           picks so the mechanics are visible before the first selection. -->
+      <div v-if="saleActive" class="con-hand__salebar" role="status" :aria-label="$t('Patent sale')">
+        <span class="con-hand__salebar-item">
+          <span class="con-hand__salebar-label">{{ $t('Selected') }}:</span>
+          <b class="con-hand__salebar-num">{{ sale.count }}</b>
+        </span>
+        <span class="con-hand__salebar-item con-hand__salebar-item--gain" :class="{'con-hand__salebar-item--zero': sale.count === 0}">
+          <b class="con-hand__salebar-num">+{{ sale.payout }}</b>
+          <i class="resource_icon resource_icon--megacredits con-hand__salebar-mc" aria-hidden="true"></i>
+        </span>
+        <span class="con-hand__salebar-item con-hand__salebar-item--total" :class="{'con-hand__salebar-item--zero': sale.count === 0}">
+          <i class="resource_icon resource_icon--megacredits con-hand__salebar-mc" aria-hidden="true"></i>
+          <b class="con-hand__salebar-num">{{ sale.before }}</b>
+          <span class="con-hand__salebar-arrow" aria-hidden="true">→</span>
+          <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ sale.after }}</b>
+        </span>
+      </div>
       <!-- SELECT mode: the "suitable only" filter chip (LT toggles). Shown only
            for a CONDITIONAL prompt where some hand cards can't be picked; a
            plain "pick any card" prompt (e.g. discard 1) has no non-candidates,
@@ -164,6 +184,7 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {planHandGrid, stepHandGrid, shortBlockerLabel, HandGridPlan, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -221,6 +242,8 @@ export default defineComponent({
     /** Sell-patents mode: A toggles picks, RT confirms (shell owns the flow). */
     saleActive: {type: Boolean, default: false},
     saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /** The player's current M€ — drives the sale summary's before → after. */
+    saleMegacredits: {type: Number, default: 0},
     /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
      *  the section is the normal play/browse hand. */
     select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
@@ -270,6 +293,10 @@ export default defineComponent({
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {
       return this.select?.active === true;
+    },
+    /** SALE mode: the live pick summary (count / payout / before → after). */
+    sale(): {count: number, payout: number, before: number, after: number} {
+      return saleSummary(this.saleSelected.length, this.saleMegacredits);
     },
     /** The focused card's per-card «why not» reason (non-selectable only). */
     focusedSelectReason(): string {

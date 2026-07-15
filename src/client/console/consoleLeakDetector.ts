@@ -58,6 +58,10 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // stays intentionally held through the short result beat — the hero stage
   // (mounted for the whole transaction) is the serving surface for it.
   '.con-played-hero',
+  // The PATENT-SALE trade-terminal scene: the follow-up prompt committed at
+  // the payout chip's touchdown stays held through the short settle — the
+  // sale stage (mounted for the whole transaction) serves it.
+  '.con-sale-hero',
 ];
 
 /**

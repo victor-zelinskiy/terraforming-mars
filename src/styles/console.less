@@ -3526,6 +3526,64 @@ html.console-mode {
     /* SELECT mode — the "suitable only" toggle chip (LT flips it). ON = cyan
        (candidates only); OFF ("all cards") = calm neutral. Sits where the tag
        filters would; it's the single always-visible source of truth. */
+    /* SALE mode: the live financial summary beside the header title —
+       «Выбрано: 8 · +8 M€ · 23 → 31». Amber capsules (the sale accent);
+       the gain/total capsules read dim until the first pick. Numbers are
+       tabular so a growing pick never jitters the row. */
+    &__salebar {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        white-space: nowrap;
+    }
+    &__salebar-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .2rem .65rem;
+        border-radius: 49.95rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%);
+        color: @con-text;
+        font-size: .8rem;
+
+        &--gain {
+            background: linear-gradient(180deg, fade(@con-amber, 22%), fade(@con-amber, 10%)), rgba(14, 22, 33, 0.55);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 80%), 0 0 .7rem fade(@con-amber, 18%);
+            color: #ffe9c4;
+        }
+        &--zero {
+            background: rgba(14, 22, 33, 0.5);
+            box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
+            color: @con-text-dim;
+        }
+    }
+    &__salebar-label {
+        font-size: .75rem;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__salebar-num {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+    &__salebar-num--after {
+        color: #ffe9c4;
+    }
+    &__salebar-arrow {
+        color: @con-text-dim;
+        font-size: .75rem;
+    }
+    &__salebar-mc {
+        width: 1rem;
+        height: 1rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex-shrink: 0;
+    }
+
     &__selectfilter {
         display: inline-flex;
         align-items: center;

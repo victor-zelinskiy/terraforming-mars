@@ -1,0 +1,184 @@
+/* ══ CONSOLE PATENT SALE — the trade-terminal hero scene ══════════════════
+   (ConsolePatentSaleLayer + patentSaleDirector + consolePatentSale)
+
+   The picked cards flip to their backs, converge into one neat pile over a
+   slim TRADE TERMINAL that slides open at the table edge, sink through its
+   slit (the well's static clip line swallows them — into the table, never a
+   mid-air fade), the mechanism works a restrained scanline while the server
+   round-trip resolves, then dispenses ONE megacredit chip that arcs onto
+   the resource rail's M€ row — where the commit + delta chip land at its
+   touchdown.
+
+   Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
+   `transition: all`; `will-change` scoped to elements that exist only for
+   the duration of the scene (the whole layer is v-if'd on the transaction). */
+
+.con-sale-hero {
+    position: fixed;
+    inset: 0;
+    /* Above the hand section / board chrome — the sale is the topmost scene
+       of its moment; under the command bar (11700). Same slot as the played
+       hero (11660) — the two transactions can never co-occur. */
+    z-index: 11660;
+    pointer-events: none;
+
+    /* The card well: hosts the flying proxies and carries the clip line at
+       the terminal's slit mouth (armed by the director at INSERT time) — a
+       sinking card vanishes exactly at the line. Paints ABOVE the terminal
+       plate (z2 > z1): the cards slide INTO the slit, never behind the tray. */
+    &__well {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        contain: layout style;
+    }
+    &__proxy {
+        position: fixed;
+        top: 0;
+        left: 0;
+        /* The director places + reveals it pre-paint — never a corner flash. */
+        opacity: 0;
+        visibility: hidden;
+        perspective: 45rem; /* the back-flip chassis (con-deal-proxy__flip) */
+        will-change: transform, opacity;
+    }
+
+    /* ── The trade terminal — a slim mechanism at the table edge ───────────
+       Dark glass tray + an amber-rimmed slit; deliberately quiet chrome so
+       the CARDS stay the story. CSS owns left/bottom; GSAP owns transform
+       (xPercent -50 + the slide/retract), so the two never fight. */
+    &__terminal {
+        position: fixed;
+        left: 50%;
+        bottom: 3.4rem;
+        z-index: 1;
+        width: min(27rem, 60vw);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        padding: .55rem .9rem .7rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, rgba(20, 27, 38, 0.94), rgba(10, 15, 22, 0.97));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(150, 180, 210, 0.16),
+            0 .7rem 1.8rem -.9rem rgba(0, 0, 0, 0.75);
+        opacity: 0;
+        visibility: hidden; /* the director reveals via autoAlpha */
+        will-change: transform, opacity;
+
+        /* HUD corner ticks — the console L-corner language, kept faint. */
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            top: -.15rem;
+            width: .8rem;
+            height: .8rem;
+            border-top: .1rem solid fade(@con-amber, 55%);
+        }
+        &::before {
+            left: -.15rem;
+            border-left: .1rem solid fade(@con-amber, 55%);
+        }
+        &::after {
+            right: -.15rem;
+            border-right: .1rem solid fade(@con-amber, 55%);
+        }
+    }
+    &__kicker {
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@con-amber, 85%);
+    }
+    /* The slit — the mouth the cards sink through and the chip pops from. */
+    &__slit {
+        position: relative;
+        width: 100%;
+        height: .55rem;
+        border-radius: 49.95rem;
+        background: linear-gradient(180deg, rgba(2, 4, 7, 0.98), rgba(8, 12, 18, 0.92));
+        box-shadow:
+            inset 0 .12rem .3rem rgba(0, 0, 0, 0.9),
+            inset 0 0 0 .05rem fade(@con-amber, 45%);
+        overflow: hidden; /* the scanline sweeps inside the mouth only */
+    }
+    /* The working scanline — a narrow amber band the director sweeps across
+       the slit while the mechanism processes (transform-only, killed at
+       payout; bounded by the transaction's safety net). */
+    &__scan {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 34%;
+        background: linear-gradient(90deg, transparent, fade(@con-amber, 65%) 50%, transparent);
+        opacity: 0;
+        will-change: transform, opacity;
+    }
+    /* The rim glow — wakes as cards pass the mouth, breathes while working,
+       flashes once at the dispense (opacity-only on a static gradient). */
+    &__glow {
+        position: absolute;
+        left: .4rem;
+        right: .4rem;
+        bottom: .45rem;
+        height: 1.4rem;
+        border-radius: 49.95rem;
+        background: radial-gradient(60% 100% at 50% 100%, fade(@con-amber, 42%), transparent 75%);
+        opacity: 0;
+        pointer-events: none;
+        will-change: opacity;
+    }
+
+    /* ── The payout chip — the canonical gold M€ tile with the value ────── */
+    &__chip {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 3; /* over the well + terminal — the payout is the story now */
+        width: 2.9rem;
+        height: 2.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: url('./assets/resources/megacredit.png') center / 100% 100% no-repeat;
+        filter: drop-shadow(0 .25rem .55rem rgba(0, 0, 0, 0.6));
+        opacity: 0;
+        visibility: hidden; /* the director ejects it via autoAlpha */
+        will-change: transform, opacity;
+    }
+    &__chip-value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        line-height: 1;
+        color: #2a1f04;
+        text-shadow: 0 .05rem 0 rgba(255, 244, 205, 0.55);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* One-shot absorption halo at the chip's landing on the M€ row. */
+    &__halo {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 3;
+        width: 3.4rem;
+        height: 3.4rem;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, fade(@con-amber, 55%), transparent 72%);
+        opacity: 0;
+        pointer-events: none;
+        will-change: transform, opacity;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* The controller already skips the scene wholesale; belt-and-braces the
+       decorative movers so a mid-transition preference flip can't animate. */
+    .con-sale-hero__scan,
+    .con-sale-hero__glow,
+    .con-sale-hero__halo { display: none; }
+}

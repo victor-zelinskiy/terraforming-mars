@@ -15,7 +15,7 @@ Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -183,6 +183,12 @@ import {
   endHydroMarker,
   runHydroMarker,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
+import {
+  abortPatentSale,
+  detectPatentSale,
+  endPatentSale,
+  runPatentSale,
+} from '@/client/console/patentSale/consolePatentSale';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
@@ -371,6 +377,15 @@ type DataModel = {
    */
   holdingForPlayedHero: boolean;
   /*
+   * Console PATENT-SALE gate: the commit is held until the trade terminal's
+   * payout chip LANDS on the resource rail's M€ row — the new M€ value + the
+   * standard delta chip appear exactly at the touchdown. Gated on
+   * `patentSaleState.active` (only ever true after the console shell arms a
+   * sale), so desktop + every non-sale submit are unaffected. See
+   * src/client/console/patentSale/consolePatentSale.ts.
+   */
+  holdingForPatentSale: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -432,6 +447,7 @@ export default defineComponent({
       holdingForTradeFleet: false,
       holdingForHydroMarker: false,
       holdingForPlayedHero: false,
+      holdingForPatentSale: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -684,6 +700,26 @@ export default defineComponent({
               }
             }
             /*
+             * Console PATENT-SALE gate (the "cards feed the trade terminal"
+             * scene). Detect the ARMED transaction (undefined on desktop /
+             * every non-sale submit — a no-op there); the detect VERIFIES the
+             * server actually removed the sold cards from the hand, so a
+             * refused sale can never fake a payout. HOLD the commit until the
+             * dispensed M€ chip LANDS on the resource rail — the new counter
+             * value + the standard delta chip appear exactly at the touchdown;
+             * the post-commit settle (chip absorbed, terminal retracts) runs
+             * on the next tick, mirroring the trade-fleet / hero gates.
+             */
+            const patentSaleEvent = detectPatentSale(newView);
+            if (patentSaleEvent !== undefined) {
+              this.holdingForPatentSale = true;
+              try {
+                await runPatentSale();
+              } finally {
+                this.holdingForPatentSale = false;
+              }
+            }
+            /*
              * MarsBot turns (the MAIN path — ending your turn is what lets
              * the bot act, so its resolved turn(s) ride THIS response).
              * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
@@ -711,6 +747,13 @@ export default defineComponent({
               if (playedHeroEvent !== undefined) {
                 nextTick(() => {
                   void endPlayedHero();
+                });
+              }
+              // …and the patent-sale settle, so a staged response never
+              // leaves the landed chip / terminal frozen on screen.
+              if (patentSaleEvent !== undefined) {
+                nextTick(() => {
+                  void endPatentSale();
                 });
               }
               return;
@@ -866,6 +909,14 @@ export default defineComponent({
                 void endPlayedHero();
               });
             }
+            if (patentSaleEvent !== undefined) {
+              // Post-commit settle: the M€ counter just ticked + the delta
+              // chip fired under the landed payout chip — absorb the chip
+              // into the row (one-shot halo) and retract the terminal.
+              nextTick(() => {
+                void endPatentSale();
+              });
+            }
             return;
           }
 
@@ -883,6 +934,10 @@ export default defineComponent({
           // open, its CTA re-arms via the shell's 'failed' watcher).
           this.holdingForPlayedHero = false;
           abortPlayedHero();
+          // …and the patent sale: the terminal swallows nothing — the cards
+          // return to the hand (un-blanked) and no chip is ever dispensed.
+          this.holdingForPatentSale = false;
+          abortPatentSale();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -904,6 +959,8 @@ export default defineComponent({
           abortBoardCardBonus('return'); // …and the bonus cover, back onto its cell
           this.holdingForPlayedHero = false;
           abortPlayedHero(); // …and the played-card hero — no ghost card, ever
+          this.holdingForPatentSale = false;
+          abortPatentSale(); // …and the patent sale — the hand cards un-blank
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })
