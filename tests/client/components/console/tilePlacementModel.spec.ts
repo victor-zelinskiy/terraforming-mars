@@ -5,7 +5,8 @@ import {TileType} from '@/common/TileType';
 import {
   placementBonuses, verifyPlacement, applySpacePreview,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
-  TILE_START_SCALE,
+  TILE_START_SCALE, TILE_FLIGHT_MS, TILE_SETTLE_MS,
+  BONUS_PRELIFT_START_T, BONUS_RISE_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 
 function space(id: string, over: Partial<SpaceModel> = {}): SpaceModel {
@@ -117,6 +118,16 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       expect(air.scale).to.be.greaterThan(contact.scale);
       expect(air.alpha).to.be.lessThan(contact.alpha);
       expect(contact.scale).to.be.closeTo(1, 0.001);
+    });
+
+    it('the bonus PRE-LIFT starts on the descent and completes by the settle — the tile always slides UNDER hovering icons', () => {
+      const riseStart = BONUS_PRELIFT_START_T * TILE_FLIGHT_MS;
+      // Starts in the second half of the flight (the displacement reads as
+      // caused by the arriving tile, never a premature float)…
+      expect(BONUS_PRELIFT_START_T).to.be.greaterThan(0.5);
+      // …and the icons are FULLY hovering before the landing settles, so a
+      // bonus is never covered and never pops out from beneath the tile.
+      expect(riseStart + BONUS_RISE_MS).to.be.at.most(TILE_FLIGHT_MS + TILE_SETTLE_MS);
     });
   });
 });

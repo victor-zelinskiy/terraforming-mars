@@ -182,31 +182,56 @@ export function disposeTileProxy(els: TileStageEls, durationMs: number): Promise
   }, durationMs);
 }
 
-export type BonusLiftOpts = {
-  count: number,
-  liftPx: number,
-  liftMs: number,
+/**
+ * Pose the bonus icon proxies at REST — pixel-exact over the printed field
+ * icons, visible from this same synchronous turn. The caller blanks the
+ * REAL icons in the same turn (the `con-deal-hold` swap discipline), so
+ * the takeover is a seamless 1:1 replacement — never a double vision.
+ */
+export function placeBonusProxies(els: TileStageEls): void {
+  els.bonusIcons.forEach((el) => {
+    gsap.set(el, {autoAlpha: 1, y: 0, scale: 1, transformOrigin: 'center center'});
+  });
+}
+
+export type BonusPreLiftOpts = {
+  /** When the rise starts (ms into the flight — the tile is descending). */
+  delayMs: number,
+  riseMs: number,
+  hoverPx: number,
 };
 
 /**
- * The REWARD BEAT's materialization lifts (fire-and-forget — the shared
- * framework's chip wave is the awaited half): each printed icon rises out
- * of the placed tile from its exact captured position, gaining body
- * (scale + shadow via CSS class), on the SAME stagger its transfer chip
- * uses — the chip is then born at the lifted point the moment the lift
- * completes, and the icon dissolves under it (one continuous
- * icon → physical-chip materialization, never a swap).
+ * The DISPLACEMENT rise (fire-and-forget, parallel to the tile flight):
+ * the arriving tile pushes the printed bonuses UP — they rise off the
+ * surface with a hint of carried inertia and HOVER there while the tile
+ * slides underneath and seats. The proxies paint ABOVE the tile proxy
+ * (layer order), so a bonus is never covered and never pops out from
+ * beneath — the tile is revealed sliding UNDER them.
  */
-export function playBonusLift(els: TileStageEls, opts: BonusLiftOpts): void {
+export function playBonusPreLift(els: TileStageEls, opts: BonusPreLiftOpts): void {
+  els.bonusIcons.forEach((el, i) => {
+    gsap.timeline({delay: (opts.delayMs + i * 45) / 1000})
+      .to(el, {
+        y: -opts.hoverPx,
+        scale: 1.18,
+        duration: opts.riseMs / 1000,
+        ease: 'back.out(1.15)', // displaced with inertia — never springy
+      }, 0);
+  });
+}
+
+/**
+ * The HANDOFF (fire-and-forget — the framework's chip wave is the awaited
+ * half): each HOVERING icon dissolves the moment its chip is born at the
+ * hover point, on the SAME wave stagger — one continuous
+ * printed-icon → physical-chip materialization, never a swap.
+ */
+export function playBonusHandoff(els: TileStageEls, opts: {count: number}): void {
   els.bonusIcons.forEach((el, i) => {
     const delay = transferWaveDelayMs(i, opts.count);
-    gsap.set(el, {autoAlpha: 0, y: 0, scale: 1, transformOrigin: 'center center'});
-    gsap.timeline({delay: delay / 1000})
-      .to(el, {autoAlpha: 1, duration: 0.09, ease: 'power1.out'}, 0)
-      .to(el, {y: -opts.liftPx, scale: 1.25, duration: opts.liftMs / 1000, ease: 'power2.out'}, 0)
-      // The chip pops here (liftMs + the framework's own fade-in) — the
-      // icon hands off underneath it.
-      .to(el, {autoAlpha: 0, scale: 1.05, duration: 0.16, ease: 'power1.in'}, opts.liftMs / 1000 + 0.06);
+    gsap.timeline({delay: (delay + 90) / 1000})
+      .to(el, {autoAlpha: 0, scale: 1.05, duration: 0.16, ease: 'power1.in'}, 0);
   });
 }
 

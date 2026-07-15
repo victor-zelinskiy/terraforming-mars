@@ -50,10 +50,11 @@ import {
   TilePlacementPhase, PlacementBonus, TileRect,
   placementBonuses, verifyPlacement, findSpace, applySpacePreview,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
-  BONUS_LIFT_MS, BONUS_LIFT_PX,
+  BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
-  TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy, playBonusLift, killTileTweens,
+  TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
+  placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -92,6 +93,12 @@ let runResolve: (() => void) | undefined;
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
 /** The armed hex's live rect (captured at detect — post pan/zoom truth). */
 let hexRect: TileRect | undefined;
+/** The REAL printed-icon container we blanked under the proxies (the
+ *  `con-deal-hold` swap discipline) — restored on abort/finish. */
+let heldBonusEl: HTMLElement | undefined;
+/** TRUE once the pre-lift ran — the icons already HOVER over the seated
+ *  tile when the reward beat starts (no second rise). */
+let bonusesHovering = false;
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────
 
@@ -132,6 +139,8 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   claimed = false;
   pendingBonuses = [];
   hexRect = undefined;
+  restoreHeldBonuses();
+  bonusesHovering = false;
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
@@ -239,11 +248,28 @@ async function executeApproach(
     await wait(60);
     return;
   }
+  const flightMs = motionMs(TILE_FLIGHT_MS);
+  if (els.bonusIcons.length > 0) {
+    // The "revealed from under the tile" beat: the icon proxies take over
+    // the printed icons 1:1 (the REAL ones blank in this same synchronous
+    // turn — the swap discipline, no double vision), then the arriving
+    // tile DISPLACES them upward — they rise while it descends and HOVER
+    // over the seated tile; a bonus is never covered, never pops out from
+    // beneath. Fire-and-forget: the rise rides the flight in parallel.
+    placeBonusProxies(els);
+    holdRealBonuses();
+    bonusesHovering = true;
+    playBonusPreLift(els, {
+      delayMs: Math.round(flightMs * BONUS_PRELIFT_START_T),
+      riseMs: motionMs(BONUS_RISE_MS),
+      hoverPx: Math.round(BONUS_HOVER_PX * ui),
+    });
+  }
   await playTileFlight(els, {
     hex: hexRect,
     from: supplyPoint(ui),
     uiScale: ui,
-    flightMs: motionMs(TILE_FLIGHT_MS),
+    flightMs,
     settleMs: motionMs(TILE_SETTLE_MS),
   });
   if (!tilePlacementState.active) {
@@ -292,28 +318,27 @@ export async function endTilePlacement(): Promise<void> {
   tilePlacementState.phase = 'rewarding';
   const els = stage?.els();
   const ui = conUiScale();
-  const liftPx = Math.round(BONUS_LIFT_PX * ui);
-  // Each printed icon rises out of the placed tile on the SAME stagger its
-  // chip will use — the chip is then born exactly at the lifted point, the
-  // moment the lift completes (materialization = one continuous beat).
+  const hoverPx = Math.round(BONUS_HOVER_PX * ui);
+  // The icons ALREADY hover over the seated tile (displaced during the
+  // approach) — each chip is born exactly at its hover point, and the icon
+  // dissolves under it on the same wave stagger (the handoff): one
+  // continuous printed-icon → physical-chip materialization.
   const origins: Array<TransferPoint | undefined> = bonuses.map((b) => {
     const proxy = tilePlacementState.bonusProxies.find((p) => p.id === b.bonusIndex);
     if (proxy === undefined) {
       return hexRect !== undefined ?
-        {x: hexRect.x + hexRect.w / 2, y: hexRect.y + hexRect.h / 2 - liftPx} : undefined;
+        {x: hexRect.x + hexRect.w / 2, y: hexRect.y + hexRect.h / 2 - hoverPx} : undefined;
     }
-    return {x: proxy.rect.x + proxy.rect.w / 2, y: proxy.rect.y + proxy.rect.h / 2 - liftPx};
+    return {x: proxy.rect.x + proxy.rect.w / 2, y: proxy.rect.y + proxy.rect.h / 2 - hoverPx};
   });
-  if (els !== undefined) {
-    playBonusLift(els, {
-      count: bonuses.length,
-      liftPx,
-      liftMs: motionMs(BONUS_LIFT_MS),
-    });
-  }
-  await wait(motionMs(BONUS_LIFT_MS));
+  // One calm breath: the player reads the bonuses hovering over the placed
+  // tile (the commit just ticked the non-held metrics), then the wave goes.
+  await wait(motionMs(BONUS_HANDOFF_BREATH_MS));
   if (!tilePlacementState.active) {
     return;
+  }
+  if (els !== undefined && bonusesHovering) {
+    playBonusHandoff(els, {count: bonuses.length});
   }
   await runResourceTransfers({
     specs: bonuses.map((b) => b.spec),
@@ -346,6 +371,8 @@ export function abortTilePlacement(): void {
   }
   abortResourceTransfers();
   clearPanelRewardHold();
+  restoreHeldBonuses(); // the printed icons un-blank — the field is intact
+  bonusesHovering = false;
   pendingBonuses = [];
   hexRect = undefined;
   tilePlacementState.active = false;
@@ -364,6 +391,10 @@ export function abortTilePlacement(): void {
 function finish(): void {
   clearTimers();
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
+  // Un-blank the printed icons: the placed tile's art covers them on the
+  // real board anyway (same as every pre-existing tile) — invisible swap.
+  restoreHeldBonuses();
+  bonusesHovering = false;
   pendingBonuses = [];
   hexRect = undefined;
   tilePlacementState.active = false;
@@ -392,6 +423,26 @@ function supplyPoint(uiScale: number): TransferPoint {
 function escapeId(id: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
     CSS.escape(id) : id.replace(/"/g, '\\"');
+}
+
+/** Blank the REAL printed-icon container the same synchronous turn the
+ *  proxies stand over it (the shared `con-deal-hold` swap discipline) —
+ *  the takeover is 1:1, never a double vision. */
+function holdRealBonuses(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const el = document.querySelector<HTMLElement>(
+    `.board-space[data_space_id="${escapeId(tilePlacementState.spaceId)}"] .board-space-bonuses`);
+  if (el !== null) {
+    heldBonusEl = el;
+    el.classList.add('con-deal-hold');
+  }
+}
+
+function restoreHeldBonuses(): void {
+  heldBonusEl?.classList.remove('con-deal-hold');
+  heldBonusEl = undefined;
 }
 
 function measureHex(spaceId: string): TileRect | undefined {

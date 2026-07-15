@@ -64,11 +64,24 @@ export const TILE_REDUCED_MS = 160;
 /** A submit the server never answers can't strand the scene (arm net). */
 export const TILE_ARM_SAFETY_MS = 12000;
 
-/** The printed icon's materialization: it rises off the field surface and
- *  gains body just as its transfer chip is born at the lifted point. */
-export const BONUS_LIFT_MS = 170;
-/** How far the icon rises (px @ uiScale 1) — out of the placed tile. */
-export const BONUS_LIFT_PX = 12;
+/**
+ * The printed bonuses are DISPLACED UPWARD by the arriving tile — the
+ * "card revealed from under the tile" beat: the icon proxies seamlessly
+ * replace the printed icons (same rects, same sprites), rise off the
+ * surface WHILE the tile descends into the hex (the tile slides UNDER
+ * them — a bonus is never covered and never pops out from beneath), hover
+ * over the seated tile through the commit, and hand off to their chips.
+ */
+/** When the rise starts, as a fraction of the flight (the tile is already
+ *  descending into the hex — the displacement reads as caused by it). */
+export const BONUS_PRELIFT_START_T = 0.52;
+/** The rise duration (finishes ≈ at touchdown — guard-tested). */
+export const BONUS_RISE_MS = 240;
+/** The hover height over the seated tile (px @ uiScale 1). */
+export const BONUS_HOVER_PX = 14;
+/** The breath between the commit and the chip wave — the player reads the
+ *  hovering bonuses over the placed tile for one calm beat. */
+export const BONUS_HANDOFF_BREATH_MS = 90;
 
 /** Departure pose: the tile is picked up CLOSE to the camera… */
 export const TILE_START_SCALE = 1.32;
