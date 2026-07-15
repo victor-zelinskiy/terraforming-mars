@@ -56,8 +56,14 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
     human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
     runAllActions(game);
 
-    // The corporation actually PLAYED (the deadlock left it unplayed at 0 M€).
+    // The corporation actually PLAYED (the deadlock left it unplayed at 0 M€) —
+    // but the bought cards are NOT paid yet: that is its own explicit press.
     expect(human.playedCards.corporations().map(toName)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);
+    expect(human.megaCredits).eq(30);
+    expect(human.getWaitingFor()?.startGamePrompt).to.deep.eq(
+      {kind: 'corporationPay', payment: {megacredits: 4 * 3, cards: 4}});
+    human.process({type: 'option'});
+    runAllActions(game);
     expect(human.megaCredits).eq(30 - 4 * 3);
     expect(human.steel).eq(20);
     expect(human.cardsInHand.map(toName)).deep.eq([CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]);
@@ -80,8 +86,10 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET, CardName.INSULATION]},
     ]});
     runAllActions(game);
-    // The explicit corporationPlay press (the deferred-play contract).
+    // The explicit corporationPlay press + the card payment press.
     human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(game);
+    human.process({type: 'option'});
     runAllActions(game);
 
     // Play both preludes through the real prompts.
@@ -114,8 +122,10 @@ describe('Automa start flow — answering SelectInitialCards for real', () => {
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
     ]});
     runAllActions(game);
-    // The explicit corporationPlay press (the deferred-play contract).
+    // The explicit corporationPlay press + the card payment press.
     human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(game);
+    human.process({type: 'option'});
     runAllActions(game);
 
     expect(human.playedCards.corporations().map(toName)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);

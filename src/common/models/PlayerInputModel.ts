@@ -23,9 +23,15 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  * client routes/labels purely off this — never off the (translatable) title.
  *
  *  - corporationPlay: 'play your chosen corporation' — the deferred REAL play
- *    of the picked corporation (tableau + starting M€ + card payment + corp
- *    effects happen only when the player answers THIS prompt, so the
- *    corporation is never "already played" before the player presses it).
+ *    of the picked corporation (tableau + starting M€ + corp effects happen
+ *    only when the player answers THIS prompt, so the corporation is never
+ *    "already played" before the player presses it).
+ *  - corporationPay: 'pay for the project cards you bought' — the deferred
+ *    card payment of the start (offered only when cards WERE bought). The
+ *    M€ leave the stock only when the player answers it, so the deduction
+ *    is a beat the player performs, never a number that already moved.
+ *    `payment` carries what the press costs (structural — the client never
+ *    parses the title).
  *  - corporationInitialAction: the corp first-action OrOptions
  *    ('Take first action of X corporation' + Pass).
  *  - corporationSelection: a 'choose an additional corporation to merge' SelectCard
@@ -38,8 +44,10 @@ import {ClaimedToken} from '../underworld/UnderworldPlayerData';
  *               source must stay in the grid (nothing is drawn or discarded).
  */
 export type StartGamePromptMeta = {
-  kind: 'corporationPlay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
+  kind: 'corporationPlay' | 'corporationPay' | 'corporationInitialAction' | 'corporationSelection' | 'preludeSelection';
   preludeMode?: 'hand' | 'draw' | 'copy';
+  /** corporationPay: exactly what answering this prompt deducts. */
+  payment?: {megacredits: number, cards: number};
 }
 
 /**

@@ -386,7 +386,13 @@ export interface IPlayer {
   playCard(selectedCard: IProjectCard, payment?: Payment, cardAction?: CardAction): void;
   onCardPlayed(card: ICard): void;
   triggerOnNonCardTagAdded(tag: Tag): void;
-  playCorporationCard(corporationCard: ICorporationCard): void;
+  /**
+   * Play a corporation: tableau + starting M€ + card cost + its effects.
+   * `deferCardPayment` makes the payment for the bought project cards an
+   * explicit follow-up prompt instead of an immediate deduction — used ONLY
+   * by the start screen's deferred play (Game.playCorporationInput).
+   */
+  playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean}): void;
   drawCard(count?: number, options?: DrawOptions): void;
   drawCardKeepSome(count: number, options: AllOptions): void;
   /** Queue a batch of just-drawn cards for the reveal modal. No-op when empty. */

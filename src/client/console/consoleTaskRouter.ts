@@ -56,7 +56,7 @@ export type ConsoleTask =
   | {kind: 'colony'}
   | {kind: 'composite'}
   | {kind: 'initialDraft'}
-  | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationSelection' | 'preludeSelection'}
+  | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'}
   /**
    * The corporation's MANDATORY FIRST ACTION ('Take first action of X') —
    * it arrives on the player's own FIRST TURN (after the opponent moved),

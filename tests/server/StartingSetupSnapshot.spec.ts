@@ -30,7 +30,9 @@ describe('Player.startingSetup snapshot', () => {
       {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
     ]});
     runAllActions(game);
-    // The explicit corporationPlay press (the deferred-play contract).
+    // The explicit corporationPlay press (the deferred-play contract). The
+    // snapshot is read HERE — it is one-shot and the card-payment press below
+    // is the next input, which consumes it.
     human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
     runAllActions(game);
 
@@ -48,8 +50,11 @@ describe('Player.startingSetup snapshot', () => {
     // 3 cards bought at card cost 3.
     expect(setup.cardsBought).eq(3);
     expect(setup.megacreditsPaid).eq(9);
-    // The committed values prove the reveal math: final M€ = 30 − 9 = 21, and the
-    // corp-stage M€ (final + payment) = 30 = startingMegaCredits.
+    // The corp is played but the cards are NOT paid yet — the payment is its
+    // own explicit press, which the snapshot's amounts describe.
+    expect(human.megaCredits).eq(30);
+    human.process({type: 'option'});
+    runAllActions(game);
     expect(human.megaCredits).eq(21);
     expect(human.steel).eq(20);
   });
@@ -69,9 +74,10 @@ describe('Player.startingSetup snapshot', () => {
     runAllActions(game);
     expect(human.startingSetup).is.not.undefined;
 
-    // Playing the first prelude is the player's next input — process() consumes
-    // the one-shot snapshot at its start (like energyHeatConversion / lastReveal).
-    human.process({type: 'card', cards: [CardName.SUPPLY_DROP]});
+    // Paying for the bought cards is the player's next input — process()
+    // consumes the one-shot snapshot at its start (like energyHeatConversion
+    // / lastReveal).
+    human.process({type: 'option'});
     runAllActions(game);
     expect(human.startingSetup, 'the one-shot snapshot is consumed').is.undefined;
   });
@@ -90,5 +96,8 @@ describe('Player.startingSetup snapshot', () => {
     const setup = human.startingSetup;
     expect(setup?.cardsBought).eq(0);
     expect(setup?.megacreditsPaid).eq(0);
+    // Nothing was bought → the payment press is SKIPPED entirely: the game
+    // goes straight on (no corporationPay prompt is ever offered).
+    expect(human.getWaitingFor()?.startGamePrompt?.kind).to.not.eq('corporationPay');
   });
 });

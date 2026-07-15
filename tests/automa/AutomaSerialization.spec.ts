@@ -26,8 +26,10 @@ function reachGen1Action() {
     {type: 'card', cards: [CardName.ANTS, CardName.BIRDS, CardName.COMET]},
   ]});
   runAllActions(game);
-  // The explicit corporationPlay press (the deferred-play contract).
+  // The explicit corporationPlay press + the card payment press.
   human.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+  runAllActions(game);
+  human.process({type: 'option'});
   runAllActions(game);
   return {game, human, bot};
 }
@@ -179,6 +181,8 @@ describe('Automa serialization', () => {
       .to.deep.eq({kind: 'corporationPlay'});
     // Answering AFTER the reload performs the real play and starts the game.
     restoredHuman.process({type: 'card', cards: [CardName.INTERPLANETARY_CINEMATICS]});
+    runAllActions(restored);
+    restoredHuman.process({type: 'option'}); // pay for the bought cards
     runAllActions(restored);
     expect(restoredHuman.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.INTERPLANETARY_CINEMATICS]);
     expect(restored.phase).eq(Phase.ACTION);

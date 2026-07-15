@@ -428,3 +428,54 @@
     .con-played-hero__sweep,
     .con-played-hero__shade { display: none; }
 }
+
+/* ── START SCENE: the card-payment beat ───────────────────────────────
+   The corporation has landed and its starting M€ are already in the panel;
+   THIS press is what spends them on the cards bought at setup (the server
+   holds the deduction behind it — Player.payForBoughtCardsInput). A calm,
+   single-decision plate: what was bought, what it costs, one CTA. Skipped
+   entirely when no cards were bought. */
+.con-start__pay {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    flex: 0 0 auto;
+
+    &-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+        padding: .9rem 1.3rem 1.5rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(24, 34, 48, 0.92), rgba(12, 18, 27, 0.95));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(150, 185, 220, 0.2),
+            0 .6rem 1.6rem -.8rem rgba(0, 0, 0, 0.7);
+
+        &--focused {
+            box-shadow:
+                inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%),
+                0 0 1.2rem fade(@con-cyan, 30%);
+        }
+    }
+    &-cards {
+        font-size: .8rem;
+        color: @con-text-dim;
+        b { color: #eaf3fb; }
+    }
+    &-amount {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: @con-amber;
+        text-shadow: 0 0 .8rem fade(@con-amber, 30%);
+    }
+    &-cta {
+        /* The shared under-card CTA chip geometry (.con-start__slot-a). */
+        bottom: -.7rem;
+    }
+}

@@ -196,6 +196,20 @@ export function startFlowCorpPlayPrompt(view: PlayerViewModel | undefined): Sele
 }
 
 /**
+ * The DEFERRED 'pay for the project cards you bought' prompt (marker kind
+ * `corporationPay`). Offered ONLY when cards were actually bought; the
+ * marker carries the exact cost, so the CTA names it without parsing text.
+ */
+export function startFlowCorpPayPrompt(view: PlayerViewModel | undefined): {megacredits: number, cards: number} | undefined {
+  const wf = view?.waitingFor;
+  if (wf === undefined) {
+    return undefined;
+  }
+  const marker = wf.startGamePrompt;
+  return marker?.kind === 'corporationPay' ? (marker.payment ?? {megacredits: 0, cards: 0}) : undefined;
+}
+
+/**
  * The current waitingFor IS the corp first-action OrOptions — detected PURELY
  * via the explicit server marker. Translation-proof; no title/token matching.
  */

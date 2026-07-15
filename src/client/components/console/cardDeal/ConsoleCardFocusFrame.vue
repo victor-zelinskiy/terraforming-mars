@@ -49,6 +49,7 @@ import {Motion} from 'motion-v';
 import {createFrameGate} from '@/client/components/motion/motionTokens';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
+import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 
 const TICK = 22; // tick box (px) — matches the card chrome scale
 const PAD = 7; // breathing room between the card edge and the frame
@@ -136,6 +137,13 @@ export default defineComponent({
       // measure tick, so no watcher plumbing is needed).
       if (consoleCardZoom.card !== undefined ||
           document.body.classList.contains('con-play-modal-open')) {
+        return null;
+      }
+      // A card is AIRBORNE (the played-card hero scene): the frame would keep
+      // bracketing the empty slot it left (its inner card still measures — it
+      // is only zeroed). The flying card owns the focus until it lands; the
+      // frame returns at the reveal, gliding onto the landed card.
+      if (playedHeroState.active && !playedHeroState.revealed) {
         return null;
       }
       if (this.target !== null) {

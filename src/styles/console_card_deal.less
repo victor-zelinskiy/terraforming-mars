@@ -201,6 +201,20 @@
     opacity: 0 !important;
 }
 
+/* The SAME rule for a card in FLIGHT (`.con-deal-hold` — the hero landing,
+   the hand→composer transfer, a hero pick): the directors zero the inner
+   card, but everything else the slot draws AROUND it — the focus ring, the
+   under-card «Ⓐ РАЗЫГРАТЬ» chip, a state band — kept hanging in the empty
+   gap while the card flew away (reported on the start scene). A slot whose
+   card is airborne is EMPTY: it draws nothing at all.
+   NOTE the `:has` keys off a DESCENDANT: hosts that hold the SLOT itself
+   (the deal cinematic's `.con-cards__slot.con-deal-hold`, the hand's
+   `stagedCard`) are untouched here — the base `.con-deal-hold` rule below
+   already zeroes those, class-on-self never matching this selector. */
+:is([data-zoom-slot], .con-composer__playcard):has(.con-deal-hold) {
+    opacity: 0 !important;
+}
+
 /* ── The zoom dim VEIL — the ONE dim of the console fullscreen viewer ──
    The dialog's ::backdrop paints NOTHING (see the dialog.con-zoom block);
    this normal-layer veil carries the dim instead, so it can be GRADUAL:

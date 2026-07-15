@@ -240,6 +240,24 @@
             </div>
           </transition>
 
+          <!-- The card-payment beat: the corporation landed, its starting M€
+               are IN the panel, and this press is what spends them on the
+               cards bought at setup (the server holds the deduction until
+               it — see Player.payForBoughtCardsInput). Skipped entirely when
+               nothing was bought. -->
+          <transition name="con-start-corpout">
+            <div v-if="corpPayCost !== undefined" class="con-start__pay">
+              <span class="con-start__section-title">{{ $t('Payment') }}</span>
+              <div class="con-start__pay-card" :class="{'con-start__pay-card--focused': isFocused('pay', PAY_KEY)}">
+                <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
+                <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                <div class="con-start__slot-a con-start__pay-cta">
+                  <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+                </div>
+              </div>
+            </div>
+          </transition>
+
           <div class="con-start__right">
             <!-- The live ask (draw-1-of-N / copy / Merger corp pick).
                  P17: the header already states the task — no duplicated
@@ -380,7 +398,7 @@ import {
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
   corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
-  startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
+  startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
@@ -410,7 +428,10 @@ const STEP_LABEL: Record<StartWizardStep['id'], string> = {
   projects: 'Projects',
 };
 
-type Focusable = {kind: 'corp' | 'prelude' | 'candidate', name: CardName, disabled: boolean};
+type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName, disabled: boolean};
+
+/** The card-payment beat's synthetic focus key (it is not a card). */
+const PAY_KEY = '#pay' as CardName;
 
 export default defineComponent({
   name: 'ConsoleStartScene',
@@ -431,6 +452,7 @@ export default defineComponent({
       sawCorpPlayPrompt: false,
       /** One-shot dev warn for a corp played with no corporationPlay prompt. */
       warnedCorpPrompt: false,
+      PAY_KEY,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
@@ -591,6 +613,11 @@ export default defineComponent({
     corpPlayCard(): CardModel | undefined {
       return this.corpPlayPrompt?.cards?.[0];
     },
+    /** The DEFERRED card-payment beat's cost (undefined = nothing to pay:
+     *  the step is skipped entirely, exactly as the rules read). */
+    corpPayCost(): {megacredits: number, cards: number} | undefined {
+      return this.mode === 'ceremony' ? startFlowCorpPayPrompt(this.playerView) : undefined;
+    },
     /**
      * The corporation column. Two honest shapes:
      *  - PENDING (`played: false`): the deferred corporationPlay prompt is
@@ -666,6 +693,11 @@ export default defineComponent({
       // nothing else is actionable until the corp physically lands.
       if (this.corpPlayPrompt !== undefined && this.corpPlayCard !== undefined) {
         out.push({kind: 'corp', name: this.corpPlayCard.name, disabled: false});
+        return out;
+      }
+      // …then paying for the bought cards is the only thing to do.
+      if (this.corpPayCost !== undefined) {
+        out.push({kind: 'pay', name: PAY_KEY, disabled: false});
         return out;
       }
       if (this.candidatePrompt !== undefined) {
@@ -762,6 +794,13 @@ export default defineComponent({
         }
         hints.push({control: 'back', label: 'Minimize'});
         return hints;
+      }
+      // The card-payment beat: ONE press, and it names its own cost.
+      if (this.corpPayCost !== undefined) {
+        return [
+          {control: 'confirm', label: 'Pay'},
+          {control: 'back', label: 'Minimize'},
+        ];
       }
       return [
         {control: 'dpad', label: 'Navigate'},
@@ -1507,6 +1546,12 @@ export default defineComponent({
       }
       const item = this.focusables.find((f) => f.name === name);
       if (item === undefined || item.disabled) {
+        return;
+      }
+      // The card-payment beat: a bare confirm — the server holds the exact
+      // deduction behind it (no hero flight; nothing physical moves).
+      if (item.kind === 'pay') {
+        this.$emit('submit', {type: 'option'});
         return;
       }
       // The deferred CORPORATION play: arm the hero transaction (the card

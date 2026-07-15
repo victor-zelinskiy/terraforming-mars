@@ -836,7 +836,9 @@ export class Game implements IGame, Logger {
       'Play your corporation', 'Play', [picked], {min: 1, max: 1})
       .markStartGamePrompt({kind: 'corporationPlay'})
       .andThen(([corporation]) => {
-        player.playCorporationCard(corporation);
+        // The bought cards are paid by their OWN press right after (skipped
+        // when nothing was bought) — see Player.payForBoughtCardsInput.
+        player.playCorporationCard(corporation, {deferCardPayment: true});
         return undefined;
       });
   }

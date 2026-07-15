@@ -1287,7 +1287,7 @@ export class Player implements IPlayer {
       });
   }
 
-  public playCorporationCard(corporationCard: ICorporationCard): void {
+  public playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean}): void {
     const additionalCorp = this.playedCards.corporations().length > 0;
 
     // Snapshot the pre-corp baseline for the premium start-of-game reveal — the
@@ -1314,10 +1314,28 @@ export class Player implements IPlayer {
     if (additionalCorp === false && corporationCard.name !== CardName.BEGINNER_CORPORATION) {
       cardsBought = this.cardsInHand.length;
       megacreditsPaid = cardsBought * this.cardCost;
+    }
+    const payForBoughtCards = () => {
       this.stock.deduct(Resource.MEGACREDITS, megacreditsPaid);
       if (megacreditsPaid > 0) {
         PathfindersExpansion.addToSolBank(this);
       }
+    };
+    if (megacreditsPaid > 0 && options?.deferCardPayment === true) {
+      // DEFERRED card payment (the start screen's own beat): the M€ leave the
+      // stock only when the player presses «Оплатить» — an act they perform,
+      // never a number that moved behind them (the console names the exact
+      // cost on the CTA via the prompt's marker). Deferred, not prompted
+      // inline, so it queues BEHIND the corporation's own effects; the
+      // `playerIsFinishedWithResearchPhase` below drains that queue, so the
+      // research barrier releases only once the payment is answered and the
+      // preludes still start from a fully-paid setup.
+      // ONLY the deferred-play path opts in (Game.playCorporationInput) —
+      // every direct caller (Merger's 2nd corp, the assigned beginner corp,
+      // test mode) keeps the immediate, synchronous deduction.
+      this.defer(() => this.payForBoughtCardsInput(cardsBought, megacreditsPaid, payForBoughtCards));
+    } else {
+      payForBoughtCards();
     }
 
     // Record the reveal snapshot (self-only, transient; cleared on the next
@@ -1349,6 +1367,23 @@ export class Player implements IPlayer {
     if (!additionalCorp) {
       this.game.playerIsFinishedWithResearchPhase(this);
     }
+  }
+
+  /**
+   * The explicit "pay for the cards you bought" prompt of the start
+   * (startGamePrompt kind `corporationPay`). Mandatory — the marker carries
+   * the exact cost so the client can name it on the CTA without parsing the
+   * title; answering it performs the single deduction.
+   */
+  private payForBoughtCardsInput(cards: number, megacredits: number, pay: () => void): PlayerInput {
+    return new SelectOption(
+      message('Pay ${0} M€ for ${1} project cards', (b) => b.number(megacredits).number(cards)),
+      'Pay')
+      .markStartGamePrompt({kind: 'corporationPay', payment: {megacredits, cards}})
+      .andThen(() => {
+        pay();
+        return undefined;
+      });
   }
 
   /** Full resource / production / TR snapshot — the pre-corp baseline the

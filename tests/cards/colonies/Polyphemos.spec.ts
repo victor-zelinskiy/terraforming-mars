@@ -5,6 +5,7 @@ import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {Polyphemos} from '../../../src/server/cards/colonies/Polyphemos';
 import {SelectInitialCards} from '../../../src/server/inputs/SelectInitialCards';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
+import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {testGame} from '../../TestingUtils';
 import {cast} from '../../../src/common/utils/utils';
 
@@ -18,8 +19,10 @@ describe('Polyphemos', () => {
     pi.options[0].cb([card]);
     pi.options[1].cb([card2, card2]);
     pi.cb(undefined);
-    // The explicit corporationPlay press (the deferred-play contract).
+    // The explicit corporationPlay press + the card-payment press (the
+    // deferred-play contract: the bought cards are paid by their own step).
     cast(player.popWaitingFor(), SelectCard).cb([card]);
+    cast(player.popWaitingFor(), SelectOption).cb(undefined);
 
     // 50 starting MC - 5 for each card select at the start (total: 10)
     expect(player.megaCredits).to.eq(40);
