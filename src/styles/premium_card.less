@@ -93,8 +93,11 @@
   font-family: Prototype, 'Times New Roman', serif;
   color: var(--pcard-text);
   contain: layout style;
-  /* resting depth — the card reads as a physical object on the table */
-  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+  /* resting depth — a tight contact shadow + a soft ambient falloff, so the
+     card reads as a lacquered physical object, not a flat sprite */
+  filter:
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 9px 20px rgba(0, 0, 0, 0.32));
 }
 
 /* ── themes — the colour of the WHOLE corpus system ─────────────────── */
@@ -156,13 +159,18 @@
   inset: 0;
   border-radius: var(--pcard-radius);
   background:
+    /* soft key light from the upper-left — gives the corpus a lit direction */
+    radial-gradient(85% 55% at 20% -6%, rgba(255, 243, 213, 0.045), transparent 58%),
+    /* heavier lacquered base toward the bottom edge */
+    linear-gradient(180deg, transparent 58%, rgba(0, 0, 0, 0.26) 100%),
     radial-gradient(130% 90% at 50% -12%, var(--pcard-body-b) 0%, var(--pcard-body-a) 58%),
     var(--pcard-body-a);
   box-shadow:
-    inset 0 0 26px rgba(0, 0, 0, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 0 30px rgba(0, 0, 0, 0.64),
+    inset 0 0 80px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-/* brushed metal + diagonal sheen (skipped on thumbnails) */
+/* brushed metal weave + diagonal sheen (skipped on thumbnails) */
 .pcard__body::before {
   content: '';
   position: absolute;
@@ -170,8 +178,11 @@
   border-radius: inherit;
   background:
     repeating-linear-gradient(104deg,
-      rgba(255, 255, 255, 0.016) 0 1px,
+      rgba(255, 255, 255, 0.014) 0 1px,
       transparent 1px 3px),
+    repeating-linear-gradient(14deg,
+      rgba(255, 255, 255, 0.01) 0 1px,
+      transparent 1px 7px),
     linear-gradient(118deg,
       transparent 30%,
       rgba(255, 255, 255, 0.045) 44%,
@@ -271,13 +282,18 @@
     100% 9px, 100% calc(100% - 9px),
     calc(100% - 18px) 100%, 18px 100%,
     0 calc(100% - 9px), 0 9px);
-  /* the kant itself — brushed gold, darker toward the bottom edge */
-  background: linear-gradient(180deg,
-    var(--pcard-gold-hi) 0%,
-    #b5904f 34%,
-    var(--pcard-gold-deep) 72%,
-    #63481f 100%);
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  /* the kant itself — polished gold: vertical brushed gradient + a horizontal
+     end-shade so the bar reads bar-of-metal (bright centre, shaded tips) */
+  background:
+    linear-gradient(90deg, rgba(60, 42, 16, 0.5), transparent 9% 91%, rgba(60, 42, 16, 0.5)),
+    linear-gradient(180deg,
+      var(--pcard-gold-hi) 0%,
+      #b5904f 34%,
+      var(--pcard-gold-deep) 72%,
+      #63481f 100%);
+  filter:
+    drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 6px rgba(217, 184, 120, 0.14));
 }
 .pcard-nameplate__body {
   position: absolute;
@@ -290,6 +306,8 @@
   background:
     /* soft theme light pooling behind the name */
     radial-gradient(70% 150% at 50% -40%, var(--pcard-band) 0%, transparent 62%),
+    /* faint warm halo behind the gold title — makes the text sit IN light */
+    radial-gradient(52% 120% at 50% 42%, rgba(242, 215, 149, 0.05), transparent 68%),
     /* directional sheen */
     linear-gradient(112deg, transparent 38%, rgba(255, 255, 255, 0.055) 47%, transparent 56%),
     /* micro tech engraving */
@@ -298,7 +316,7 @@
     radial-gradient(circle at 13px 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
     radial-gradient(circle at calc(100% - 13px) 50%, rgba(242, 215, 149, 0.3) 0 1.4px, transparent 2.2px),
     /* the dark metal corpus */
-    linear-gradient(180deg, #29323d 0%, #161c23 46%, #0d1117 100%);
+    linear-gradient(180deg, #29323d 0%, #151b22 46%, #0b0f14 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),      /* top bevel light  */
     inset 0 -1.5px 0 rgba(0, 0, 0, 0.75),          /* bottom bevel dark */
@@ -329,11 +347,24 @@
   overflow: hidden;
   overflow-wrap: break-word;
   line-height: 1.12;
-  color: #f7ebc9;
-  text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.95),
-    0 2px 3px rgba(0, 0, 0, 0.76),
-    0 0 8px rgba(217, 184, 120, 0.12);
+  /* engraved gold lettering — a vertical metal gradient clipped to the glyphs.
+     NOTE: with a transparent fill a text-shadow would bleed THROUGH the glyphs,
+     so separation rides drop-shadow filters (they shadow the visible pixels). */
+  background: linear-gradient(180deg,
+    #fdf4d4 0%, #f4e1aa 36%, #ddbc7e 60%, #c09a55 86%, #d8b672 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9))
+    drop-shadow(0 1.5px 2.5px rgba(0, 0, 0, 0.55));
+}
+/* thumbnails: solid warm ink, no per-glyph filters */
+.pcard--tier-thumb .pcard__title span {
+  background: none;
+  color: #f2e3b8;
+  filter: none;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 2px 3px rgba(0, 0, 0, 0.7);
 }
 .pcard__title--t1 span { font-size: 17.5px; text-transform: uppercase; letter-spacing: 0.065em; }
 .pcard__title--t2 span { font-size: 14.5px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -358,8 +389,26 @@
   background: url(./assets/resources/megacredit.png) center / contain no-repeat;
   border-radius: 10px;
   box-shadow: 0 0 0 1.5px rgba(28, 19, 5, 0.9);
-  filter: drop-shadow(0 2.5px 3.5px rgba(0, 0, 0, 0.6));
+  filter:
+    drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 3.5px 5px rgba(0, 0, 0, 0.42));
 }
+/* jewelled finish over the tile art (UNDER the printed value — ::before paints
+   below child content): a top-left specular kiss + a lower contact shade */
+.pcard__cost-badge::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 9px;
+  background:
+    linear-gradient(160deg, rgba(255, 252, 233, 0.38) 0%, rgba(255, 250, 226, 0.1) 26%, transparent 47%),
+    radial-gradient(120% 80% at 50% 120%, rgba(62, 38, 8, 0.3), transparent 58%);
+  pointer-events: none;
+}
+.pcard--tier-thumb .pcard__cost-badge {
+  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.55));
+}
+.pcard--tier-thumb .pcard__cost-badge::before { display: none; }
 .pcard__cost-value {
   position: absolute;
   inset: 0 0 1px 0;
@@ -423,6 +472,19 @@
   /* pinned-medallion depth: sits ON the plate, casts onto it */
   filter: drop-shadow(0 2px 2.5px rgba(0, 0, 0, 0.65));
 }
+/* domed enamel finish — a soft top light + lower shade over the tag art
+   (painted UNDER the gold ring ::after), so the medallion reads as a set
+   jewel rather than a flat sprite */
+.pcard-tag::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(78% 52% at 50% 16%, rgba(255, 250, 230, 0.26), transparent 60%),
+    radial-gradient(110% 85% at 50% 118%, rgba(8, 5, 2, 0.4), transparent 58%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
 .pcard-tag::after {
   content: '';
   position: absolute;
@@ -430,6 +492,7 @@
   background: url(./assets/premium-card/medallion-ring.svg) center / contain no-repeat;
 }
 .pcard--tier-thumb .pcard-tag { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.pcard--tier-thumb .pcard-tag::before { display: none; }
 
 /* ══ requirements PLATE — one clean copper banner, not a button ═══════════
  *
@@ -475,14 +538,16 @@
   margin: 0 auto;
   clip-path: var(--pcard-req-clip);
   /* the RIM = a thin bronze-gold frame (the copper field is inset over it) —
-     ties to the card's gold frame; NO dark housing, NO end caps. */
+     ties to the card's gold frame; NO dark housing, NO end caps. Brightest at
+     the top centre, shading toward both tips — polished bar, not a flat fill. */
   background:
-    linear-gradient(90deg, rgba(255, 240, 205, 0.18), transparent 11% 89%, rgba(76, 42, 14, 0.3)),
+    linear-gradient(90deg, rgba(58, 30, 10, 0.42), rgba(255, 240, 205, 0.14) 14% 50%, rgba(255, 240, 205, 0.14) 50% 86%, rgba(58, 30, 10, 0.42)),
     linear-gradient(180deg, var(--pcard-req-rim-hi) 0%, var(--pcard-req-rim) 48%, var(--pcard-req-rim-deep) 100%);
   /* one soft contact shadow with the card — flat, never a raised button */
   filter:
-    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.52))
-    drop-shadow(0 0 3px rgba(217, 184, 120, 0.12));
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 2.5px 3px rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 3px rgba(217, 184, 120, 0.14));
   color: #fff1de;
   text-shadow: 0 1px 1px rgba(52, 24, 7, 0.8);
 }
@@ -504,8 +569,11 @@
   gap: 0 8px;
   isolation: isolate;
   background:
-    radial-gradient(120% 170% at 50% 15%, rgba(255, 236, 202, 0.24), transparent 56%),
-    linear-gradient(108deg, transparent 34%, rgba(255, 245, 218, 0.09) 46%, transparent 57%),
+    /* crown highlight — tighter, sits where the light falls on satin metal */
+    radial-gradient(95% 150% at 50% 8%, rgba(255, 238, 205, 0.28), transparent 54%),
+    /* the pointed tips fall into shade — the banner reads faceted, not flat */
+    linear-gradient(90deg, rgba(64, 33, 11, 0.34), transparent 13% 87%, rgba(64, 33, 11, 0.34)),
+    linear-gradient(108deg, transparent 34%, rgba(255, 245, 218, 0.1) 46%, transparent 57%),
     repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 7px),
     linear-gradient(180deg, var(--pcard-req-rim-hi) 0%, var(--pcard-req-copper-hi) 16%, var(--pcard-req-copper) 56%, var(--pcard-req-copper-deep) 100%);
   box-shadow:
@@ -688,9 +756,13 @@
 .pcard__divider {
   align-self: center;
   justify-self: center;
-  width: 44%;
+  width: 46%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(217, 184, 120, 0.4) 30% 70%, transparent);
+  background: linear-gradient(90deg,
+    transparent, rgba(217, 184, 120, 0.3) 28%,
+    rgba(242, 215, 149, 0.6) 50%,
+    rgba(217, 184, 120, 0.3) 72%, transparent);
+  box-shadow: 0 0 5px rgba(217, 184, 120, 0.22);
 }
 
 /* ── art viewport ───────────────────────────────────────────────────── */
@@ -700,8 +772,9 @@
   border-radius: 8px;
   overflow: hidden;
   background: #090d13;
-  border: 1px solid rgba(217, 184, 120, 0.5);
+  border: 1px solid rgba(222, 190, 128, 0.55);
   box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),          /* top contact — art sits IN the corpus */
     inset 0 0 16px rgba(0, 0, 0, 0.65),
     inset 0 0 2px rgba(217, 184, 120, 0.35),
     0 1px 3px rgba(0, 0, 0, 0.45);
@@ -725,7 +798,9 @@
   pointer-events: none;
   background:
     linear-gradient(180deg, rgba(6, 8, 12, 0.28) 0%, transparent 18% 72%, rgba(6, 8, 12, 0.42) 100%),
+    linear-gradient(90deg, rgba(6, 8, 12, 0.2), transparent 8% 92%, rgba(6, 8, 12, 0.2)),
     radial-gradient(120% 60% at 50% 108%, var(--pcard-glow) 0%, transparent 55%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);  /* glass lip at the top */
   opacity: 0.85;
 }
 /* generic fallback art gets a stronger theme wash so it reads type-coloured */
@@ -819,10 +894,13 @@
   gap: 4px;
   padding: 6px 8px;
   border-radius: 7px;
-  background: linear-gradient(180deg, rgba(4, 7, 11, 0.38), rgba(4, 7, 11, 0.52));
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background:
+    radial-gradient(120% 90% at 50% -30%, rgba(255, 255, 255, 0.035), transparent 55%),
+    linear-gradient(180deg, rgba(3, 6, 10, 0.46), rgba(2, 4, 7, 0.6));
+  border: 1px solid rgba(236, 214, 158, 0.09);   /* warm hairline, quieter than white */
   box-shadow:
     inset 0 0 12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
     inset 0 0 0 1px var(--pcard-band);
   font-size: var(--pcard-mech-font);
 }
@@ -1216,17 +1294,18 @@
   padding: 0 9px;
   border-radius: 10px;
   background:
-    linear-gradient(112deg, transparent 38%, rgba(255, 248, 220, 0.32) 47%, transparent 57%),
-    radial-gradient(90% 70% at 50% 8%, rgba(255, 246, 214, 0.35), transparent 55%),
-    linear-gradient(180deg, #f6e2a4 0%, #d3ac5e 50%, #8f6c2e 100%);
+    linear-gradient(112deg, transparent 36%, rgba(255, 250, 226, 0.38) 46%, transparent 58%),
+    radial-gradient(90% 70% at 50% 6%, rgba(255, 248, 218, 0.42), transparent 56%),
+    linear-gradient(180deg, #f8e6ab 0%, #d3ac5e 50%, #876529 100%);
   border: 1px solid #1c1305;
   box-shadow:
     inset 0 1.5px 0 rgba(255, 246, 212, 0.9),
-    inset 0 -2.5px 4px rgba(70, 48, 14, 0.6),
+    inset 0 -2.5px 4px rgba(70, 48, 14, 0.62),
     inset 0 0 0 2px rgba(120, 90, 40, 0.45),
     inset 0 0 0 3.5px rgba(246, 226, 164, 0.25),
     0 0 0 1px rgba(217, 184, 120, 0.35),
-    0 2.5px 5px rgba(0, 0, 0, 0.6);
+    0 1px 1.5px rgba(0, 0, 0, 0.5),
+    0 3px 6px rgba(0, 0, 0, 0.48);
 }
 .pcard__vp-value {
   font-size: 20px;
@@ -1360,7 +1439,10 @@
   background: rgba(6, 10, 14, 0.32);
 }
 .pcard--selected {
-  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 9px rgba(41, 211, 226, 0.55));
+  filter:
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 9px 20px rgba(0, 0, 0, 0.32))
+    drop-shadow(0 0 9px rgba(41, 211, 226, 0.55));
 }
 .pcard--selected .pcard__state {
   box-shadow: inset 0 0 0 2px #29d3e2;
@@ -1375,7 +1457,8 @@
 .pcard--interactive:not(.pcard--tier-thumb):hover {
   transform: translateY(-2px);
   filter:
-    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4))
     drop-shadow(0 0 10px var(--pcard-glow));
 }
 .pcard:focus-visible {
@@ -1385,7 +1468,10 @@
 
 /* fullscreen tier — richer lighting */
 .pcard--tier-full {
-  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px var(--pcard-glow));
+  filter:
+    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 14px var(--pcard-glow));
 }
 .pcard--tier-full .pcard__rim { opacity: 0.95; }
 
