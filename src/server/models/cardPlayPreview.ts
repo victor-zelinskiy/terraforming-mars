@@ -1,6 +1,9 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
+import {CardName} from '../../common/cards/CardName';
 import {isICorporationCard} from '../cards/corporation/ICorporationCard';
+import {isIProjectCard} from '../cards/IProjectCard';
+import {SelectCard} from '../inputs/SelectCard';
 import {Behavior, TitledBehavior} from '../behavior/Behavior';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
@@ -35,6 +38,46 @@ import {effectsForBehavior, stepsForBehavior, subAvailability} from './actionPre
  * so a PRELUDE previews through the exact same path as a project card (the
  * route decides WHICH cards may be previewed).
  */
+/**
+ * WHICH of the player's OWN cards may be previewed right now (the route's
+ * gate — kept here so it is unit-testable alongside the preview itself):
+ *  - a currently PLAYABLE project card (hand + Self-replicating Robots hosts);
+ *  - a PRELUDE in the player's own prelude hand;
+ *  - the CHOSEN but not-yet-played corporation (the deferred `corporationPlay`
+ *    window — it lives in `pickedCorporationCard`, not the hand/tableau);
+ *  - a corporation OFFERED BY THE LIVE PROMPT (Merger's `corporationSelection`:
+ *    its dealt corps are local to Merger's `bespokePlay`, so the prompt the
+ *    server is showing this player is the only honest handle on them).
+ * Everything else → undefined (the route answers notFound). Read-only.
+ */
+export function previewableCard(player: IPlayer, name: CardName): ICard | undefined {
+  const playable = player.getPlayableCards().find((c) => c.name === name);
+  if (playable !== undefined && isIProjectCard(playable)) {
+    return playable;
+  }
+  const prelude = player.preludeCardsInHand.find((c) => c.name === name);
+  if (prelude !== undefined) {
+    return prelude;
+  }
+  const picked = player.pickedCorporationCard;
+  if (picked?.name === name) {
+    return picked;
+  }
+  return offeredCorporation(player, name);
+}
+
+/** A corporation offered by the player's own live `corporationSelection`
+ *  prompt (Merger). Gated on the explicit marker + the corporation type, so
+ *  an arbitrary prompt's cards can never be previewed through it. */
+function offeredCorporation(player: IPlayer, name: CardName): ICard | undefined {
+  const waitingFor = player.getWaitingFor();
+  if (!(waitingFor instanceof SelectCard) || waitingFor.startGamePrompt?.kind !== 'corporationSelection') {
+    return undefined;
+  }
+  const card = (waitingFor.cards as ReadonlyArray<ICard>).find((c) => c.name === name);
+  return card !== undefined && isICorporationCard(card) ? card : undefined;
+}
+
 export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
   if (card.cardPlayPreview !== undefined) {
     return card.cardPlayPreview(player);

@@ -5,9 +5,7 @@ import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
 import {CardName} from '../../common/cards/CardName';
-import {ICard} from '../cards/ICard';
-import {isIProjectCard} from '../cards/IProjectCard';
-import {cardPlayPreview} from '../models/cardPlayPreview';
+import {cardPlayPreview, previewableCard} from '../models/cardPlayPreview';
 
 /**
  * READ-ONLY preview of PLAYING a project card, fetched by the client when the
@@ -21,13 +19,18 @@ import {cardPlayPreview} from '../models/cardPlayPreview';
  * a play preview is for a card the player can play right now. A card that isn't
  * currently playable returns `notFound`, which correctly gates an illegal preview.
  *
- * PRELUDES in the player's own prelude hand resolve too, as does the CHOSEN but
- * not-yet-played CORPORATION (`pickedCorporationCard` — the deferred
- * `corporationPlay` window): at the start of the game both are played straight
- * from the opening ceremony (no play modal), and the console's start scene
- * previews them to carry the same premium on-play reward beat. All are the
- * player's OWN cards (the id check above already authorized them) and the
- * preview is read-only, so this leaks nothing.
+ * Three START-OF-GAME sources resolve too — all played straight from the
+ * opening ceremony (no play modal), all previewed by the console's start scene
+ * so they carry the same premium on-play reward beat:
+ *   - PRELUDES in the player's own prelude hand;
+ *   - the CHOSEN but not-yet-played CORPORATION (`pickedCorporationCard` — the
+ *     deferred `corporationPlay` window);
+ *   - a corporation OFFERED BY THE LIVE PROMPT (Merger's `corporationSelection`
+ *     — its dealt corps are local to `bespokePlay`, so the ONLY honest handle
+ *     is the prompt the server is showing this player right now).
+ * All are the player's OWN cards (the id check above already authorized them),
+ * the prompt-sourced path is gated on the explicit `corporationSelection`
+ * marker, and the preview is read-only — so this leaks nothing.
  */
 export class CardPlayPreview extends Handler {
   public static readonly INSTANCE = new CardPlayPreview();
@@ -58,13 +61,7 @@ export class CardPlayPreview extends Handler {
         responses.notAuthorized(req, res);
         return;
       }
-      const name = cardName as CardName;
-      const playable = player.getPlayableCards().find((c) => c.name === name);
-      const picked = player.pickedCorporationCard;
-      const card: ICard | undefined = (playable !== undefined && isIProjectCard(playable)) ?
-        playable :
-        player.preludeCardsInHand.find((c) => c.name === name) ??
-        (picked?.name === name ? picked : undefined);
+      const card = previewableCard(player, cardName as CardName);
       if (card === undefined) {
         responses.notFound(req, res, 'playable card not found');
         return;

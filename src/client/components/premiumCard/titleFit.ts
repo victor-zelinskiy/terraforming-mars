@@ -40,9 +40,11 @@ export function titleTierFor(translatedTitle: string): TitleTier {
 }
 
 /* A run the renderer can NEVER break apart — the widest one drives the CSS
- * shrink-to-fit. Whitespace is a legal break; so are hyphens / dashes /
- * slashes (the browser wraps AFTER them), so they end a run. */
-const UNBREAKABLE_SPLIT = /[\s ]+|(?<=[-–—/])/;
+ * shrink-to-fit. Only BREAKABLE whitespace ends a run, plus hyphens / dashes /
+ * slashes (the browser wraps AFTER those). Deliberately NOT `\s`: that also
+ * matches U+00A0, which the browser never wraps at — treating an NBSP as a
+ * break would under-measure the run and let the name clip. */
+const UNBREAKABLE_SPLIT = /[ \t\n\r\f\v]+|(?<=[-–—/])/;
 
 export function longestWordLength(translatedTitle: string): number {
   let longest = 1;

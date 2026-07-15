@@ -661,9 +661,15 @@ export default defineComponent({
       }
       return corporationCardNames(this.playerView).map((name) => ({name, played: true}));
     },
-    /** Identity of the pressable ceremony set — drives the reward pre-fetch. */
+    /** Identity of the pressable ceremony set — drives the reward pre-fetch
+     *  (the deferred corp + Merger's offered corps / drew-N candidates + the
+     *  prelude rail). */
     playRewardKey(): string {
-      return [this.corpPlayCard?.name ?? '', ...this.preludeRail.map((e) => e.name)].join('|');
+      return [
+        this.corpPlayCard?.name ?? '',
+        ...this.candidateCards.map((c) => c.name),
+        ...this.preludeRail.map((e) => e.name),
+      ].join('|');
     },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
@@ -1665,12 +1671,19 @@ export default defineComponent({
       if (typeof fetch !== 'function') {
         return; // JSDOM / a headless host — the beat degrades honestly
       }
-      // The corporation is pressable ONLY while its deferred play prompt is
-      // live; a Merger 2nd corp / an already-played corp are not previewed
-      // (the server resolves `pickedCorporationCard` alone).
+      // Every card the player can press RIGHT NOW: the deferred corporation,
+      // Merger's offered corporations (its `corporationSelection` candidates —
+      // the 2nd corp plays EXACTLY like the first, so it gets the identical
+      // reward beat), and the prelude rail. A drew-N prelude candidate rides
+      // the same list (it lands in the tableau like any prelude); Double Down's
+      // copy candidates are ALREADY-PLAYED preludes — they never re-play, so
+      // the copy prompt is skipped (its press keeps the legacy pick beat).
       const corpName = this.corpPlayCard?.name;
+      const copyPick = startFlowPreludeCopyPrompt(this.playerView) !== undefined;
+      const candidates = copyPick ? [] : this.candidateCards.map((c) => c.name);
       const names: Array<CardName> = [
         ...(corpName !== undefined ? [corpName] : []),
+        ...candidates,
         ...this.preludeRail.filter((e) => e.status !== 'played').map((e) => e.name),
       ];
       for (const name of names) {

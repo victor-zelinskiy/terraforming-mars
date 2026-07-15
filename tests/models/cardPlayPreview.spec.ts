@@ -2,7 +2,13 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {Resource} from '../../src/common/Resource';
 import {CardResource} from '../../src/common/CardResource';
-import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {cardPlayPreview, previewableCard} from '../../src/server/models/cardPlayPreview';
+import {CardName} from '../../src/common/cards/CardName';
+import {Merger} from '../../src/server/cards/promo/Merger';
+import {ArcadianCommunities} from '../../src/server/cards/promo/ArcadianCommunities';
+import {SaturnSystems} from '../../src/server/cards/corporation/SaturnSystems';
+import {TerralabsResearch} from '../../src/server/cards/turmoil/TerralabsResearch';
+import {Polyphemos} from '../../src/server/cards/colonies/Polyphemos';
 import {stepsForBehavior} from '../../src/server/models/actionPreview';
 import {VenusSoils} from '../../src/server/cards/venusNext/VenusSoils';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
@@ -72,6 +78,55 @@ import {ImportedHydrogen} from '../../src/server/cards/base/ImportedHydrogen';
 import {LargeConvoy} from '../../src/server/cards/base/LargeConvoy';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+
+describe('previewableCard (which of the player\'s OWN cards may be previewed)', () => {
+  it('a PRELUDE in the prelude hand (the ceremony plays it with no modal)', () => {
+    const [/* game */, player] = testGame(2);
+    const prelude = new MetalsCompany();
+    player.preludeCardsInHand.push(prelude);
+    expect(previewableCard(player, CardName.METALS_COMPANY)).eq(prelude);
+  });
+
+  it('the CHOSEN but not-yet-played corporation (the deferred corporationPlay window)', () => {
+    const [/* game */, player] = testGame(2);
+    const corp = new EcoLine();
+    player.pickedCorporationCard = corp;
+    // It is in neither the hand nor the tableau — `pickedCorporationCard` is
+    // the only handle during that window.
+    expect(previewableCard(player, CardName.ECOLINE)).eq(corp);
+  });
+
+  it('MERGER: a corporation offered by the LIVE corporationSelection prompt', () => {
+    const [game, player] = testGame(2, {preludeExtension: true});
+    game.corporationDeck.drawPile = [
+      new ArcadianCommunities(), new SaturnSystems(), new TerralabsResearch(), new Polyphemos(),
+    ];
+    player.megaCredits = 60;
+    new Merger().play(player);
+    runAllActions(game);
+    // The dealt corps live ONLY inside Merger's bespokePlay closure — the live
+    // prompt is the honest handle, so the 2nd corp previews exactly like the
+    // first (its press plays it one-for-one like any corporation).
+    const offered = previewableCard(player, CardName.SATURN_SYSTEMS);
+    expect(offered, 'expected the offered corp to be previewable').is.not.undefined;
+    expect(offered?.name).eq(CardName.SATURN_SYSTEMS);
+    // …and it previews its starting M€ like any other corporation.
+    const preview = cardPlayPreview(player, offered!);
+    const mc = preview.branches[0].effects.find((e) => e.icon === Resource.MEGACREDITS);
+    expect(mc?.amount).eq(new SaturnSystems().startingMegaCredits);
+  });
+
+  it('a card the prompt does NOT offer is not previewable (no arbitrary peeking)', () => {
+    const [game, player] = testGame(2, {preludeExtension: true});
+    game.corporationDeck.drawPile = [
+      new ArcadianCommunities(), new SaturnSystems(), new TerralabsResearch(), new Polyphemos(),
+    ];
+    player.megaCredits = 60;
+    new Merger().play(player);
+    runAllActions(game);
+    expect(previewableCard(player, CardName.ECOLINE)).is.undefined;
+  });
+});
 
 describe('cardPlayPreview', () => {
   // PRELUDES preview through the SAME path as a project card: the opening
