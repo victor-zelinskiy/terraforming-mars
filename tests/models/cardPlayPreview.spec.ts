@@ -45,8 +45,8 @@ import {CommunityServices} from '../../src/server/cards/colonies/CommunityServic
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {MetalsCompany} from '../../src/server/cards/prelude/MetalsCompany';
-import {EcoLine} from '../../src/server/cards/corporation/Ecoline';
-import {CrediCor} from '../../src/server/cards/corporation/Credicor';
+import {EcoLine} from '../../src/server/cards/corporation/EcoLine';
+import {CrediCor} from '../../src/server/cards/corporation/CrediCor';
 import {Tag} from '../../src/common/cards/Tag';
 import {Phase} from '../../src/common/Phase';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
