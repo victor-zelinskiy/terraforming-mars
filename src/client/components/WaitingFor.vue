@@ -10,7 +10,7 @@
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -165,6 +165,12 @@ import {
   endTradeFleet,
   runTradeFleet,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
+import {
+  abortPlayedHero,
+  detectPlayedHero,
+  endPlayedHero,
+  runPlayedHero,
+} from '@/client/console/played/consolePlayedHero';
 import {
   abortHydroMarker,
   detectHydroMarker,
@@ -352,6 +358,13 @@ type DataModel = {
    */
   holdingForHydroMarker: boolean;
   /*
+   * Console PLAYED-CARD HERO gate: the commit is held through the pre-commit
+   * half of the "card lands on my tableau" scene (lift → arc → landing) —
+   * delta chips fire only when the card has physically arrived. See
+   * src/client/console/played/consolePlayedHero.ts.
+   */
+  holdingForPlayedHero: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -412,6 +425,7 @@ export default defineComponent({
       holdingForConversion: false,
       holdingForTradeFleet: false,
       holdingForHydroMarker: false,
+      holdingForPlayedHero: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -641,6 +655,29 @@ export default defineComponent({
              * submit while we're previewing.
              */
             /*
+             * Console PLAYED-CARD HERO gate (the "card lands on my tableau"
+             * scene). Detect the ARMED transaction (undefined on desktop /
+             * every non-play submit — a no-op there); the detect VERIFIES the
+             * server actually moved the card into the tableau, so a refused
+             * play can never fake a success. HOLD the commit through the
+             * pre-commit half (lift → overlay swap → arc → landing), so the
+             * delta chips + the committed tableau land on a card that has
+             * PHYSICALLY arrived; the post-commit half (reveal / result beat /
+             * auto-close) runs on the next tick, mirroring the trade-fleet
+             * and hydro-marker gates. Runs BEFORE the bot staging: the bot's
+             * turn (which rides this same response) is presented only after
+             * the player's own card has landed.
+             */
+            const playedHeroEvent = detectPlayedHero(newView);
+            if (playedHeroEvent !== undefined) {
+              this.holdingForPlayedHero = true;
+              try {
+                await runPlayedHero(newView);
+              } finally {
+                this.holdingForPlayedHero = false;
+              }
+            }
+            /*
              * MarsBot turns (the MAIN path — ending your turn is what lets
              * the bot act, so its resolved turn(s) ride THIS response).
              * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
@@ -662,6 +699,14 @@ export default defineComponent({
                 this.updatePlayerView(newView);
               },
             })) {
+              // A staged bot response defers the commit to the bot pipeline —
+              // the hero's post-commit half (reveal / result beat / close)
+              // still runs so the landed card is never left proxy-frozen.
+              if (playedHeroEvent !== undefined) {
+                nextTick(() => {
+                  void endPlayedHero();
+                });
+              }
               return;
             }
             /*
@@ -802,6 +847,14 @@ export default defineComponent({
               // the next tick so it gets the one-shot settle glow.
               nextTick(() => endHydroMarker());
             }
+            if (playedHeroEvent !== undefined) {
+              // Post-commit half of the hero scene: the real slot just painted
+              // under the proxy (identical geometry) — reveal, dissolve the
+              // proxy, play the result beat, close the system-opened table.
+              nextTick(() => {
+                void endPlayedHero();
+              });
+            }
             return;
           }
 
@@ -814,6 +867,11 @@ export default defineComponent({
           this.holdingForHydroMarker = false;
           abortHydroMarker();
           abortBoardCardBonus('return');
+          // …and the played-card hero: the play did NOT happen — the armed
+          // transaction unwinds with zero visual trace (the composer stays
+          // open, its CTA re-arms via the shell's 'failed' watcher).
+          this.holdingForPlayedHero = false;
+          abortPlayedHero();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -833,6 +891,8 @@ export default defineComponent({
           this.holdingForHydroMarker = false;
           abortHydroMarker(); // network failure — recall the marker too
           abortBoardCardBonus('return'); // …and the bonus cover, back onto its cell
+          this.holdingForPlayedHero = false;
+          abortPlayedHero(); // …and the played-card hero — no ghost card, ever
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })

@@ -14,7 +14,7 @@
     consolePlayedUi. Focus is a stable KEY (card name / #events), navigation
     is SPATIAL over the live slot rects — matching what the player sees.
   -->
-  <div class="con-played">
+  <div class="con-played" :class="{'con-played--hero': heroActive}">
     <div class="con-played__panel">
       <div class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>
@@ -41,7 +41,7 @@
             <span class="con-played__caption" v-i18n>Corporation</span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.corporations)" :key="'corp' + pi"
-                                 :cards="pile" :focusKey="focusKey"
+                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -50,7 +50,7 @@
             <span class="con-played__caption" v-i18n>Preludes</span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.preludes)" :key="'prel' + pi"
-                                 :cards="pile" :focusKey="focusKey"
+                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -59,7 +59,7 @@
             <span class="con-played__caption" v-i18n>CEO</span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.ceos)" :key="'ceo' + pi"
-                                 :cards="pile" :focusKey="focusKey"
+                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -70,7 +70,7 @@
             <span class="con-played__caption" v-i18n>Active</span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.active)" :key="'act' + pi"
-                                 :cards="pile" :focusKey="focusKey"
+                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -79,7 +79,7 @@
             <span class="con-played__caption" v-i18n>Automated</span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.automated)" :key="'auto' + pi"
-                                 :cards="pile" :focusKey="focusKey"
+                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -87,10 +87,14 @@
           <!-- Identity-only tableau: an honest quiet note in the band's place. -->
           <div v-if="zones.active.length + zones.automated.length === 0" class="con-played__none" v-i18n>No played projects yet</div>
 
-          <!-- Events — face down, one pile, per the printed rules. -->
+          <!-- Events — face down, one pile, per the printed rules. During the
+               hero scene the pile shows the PRE-play count (the counter ticks
+               only after the landed card is committed), and a first-ever
+               event reserves a HIDDEN pile so the arc has a real target. -->
           <div v-if="zones.events.length > 0" class="con-played__family con-played__family--event">
             <span class="con-played__caption" v-i18n>Events</span>
-            <ConsolePlayedEventsPile :count="zones.events.length"
+            <ConsolePlayedEventsPile :count="displayedEventsCount"
+                                     :reserved="eventsPileReserved"
                                      :focused="focusKey === EVENTS_PILE_KEY"
                                      :slotW="plan.slotW" :cardH="plan.cardH"
                                      @open="openEvents" />
@@ -99,8 +103,9 @@
       </ConsoleScrollArea>
 
       <!-- The gliding selection frame — gated off while the events list owns
-           the pad (it mounts its own) or the fullscreen viewer is up. -->
-      <ConsoleCardFocusFrame selector=".con-played__table .con-played__slot--focused .con-played__focusbox" :active="!eventsOpen" />
+           the pad (it mounts its own), the fullscreen viewer is up, or the
+           hero card is still airborne (it glides to the landed card at reveal). -->
+      <ConsoleCardFocusFrame selector=".con-played__table .con-played__slot--focused .con-played__focusbox" :active="!eventsOpen && (!heroActive || heroRevealed)" />
     </div>
 
     <transition name="con-layer">
@@ -133,6 +138,8 @@ import {
   pickSpatialTarget, EVENTS_PILE_KEY, NavRect, PlayedPlan, PlayedZones, PlayedTarget,
   PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H,
 } from '@/client/components/console/consolePlayedModel';
+import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
+import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
@@ -152,6 +159,18 @@ export default defineComponent({
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},
+    /**
+     * PLAY-ANIMATION mode (the hero scene): the just-played card. The table
+     * renders the +1 layout IMMEDIATELY (appended to the viewer's tableau if
+     * the commit hasn't landed yet — append-only piles make the synthetic
+     * and the committed layout IDENTICAL), with the card's slot reserved
+     * hidden until `heroRevealed`.
+     */
+    heroIncoming: {type: Object as PropType<CardModel | undefined>, default: undefined},
+    /** Landing committed — the reserved slot turns real (under the proxy). */
+    heroRevealed: {type: Boolean, default: false},
+    /** The transaction owns the moment (input inert, frame gated). */
+    heroActive: {type: Boolean, default: false},
   },
   emits: {
     close: () => true,
@@ -169,6 +188,8 @@ export default defineComponent({
       eventsOpen: false,
       eventsFocusKey: '',
       EVENTS_PILE_KEY,
+      /** Hero-scene target-measurer deregistration (play-animation mode). */
+      unregisterHeroTarget: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -178,7 +199,41 @@ export default defineComponent({
         this.players[0];
     },
     zones(): PlayedZones {
-      return buildPlayedZones(this.viewedPlayer?.tableau ?? []);
+      const tableau = this.viewedPlayer?.tableau ?? [];
+      const incoming = this.heroIncoming;
+      // Synthetic +1: BEFORE the commit the incoming card is appended so the
+      // layout is already final (spec: the table never re-arranges around
+      // the landing). After the commit the tableau carries it for real —
+      // the guard prevents a duplicate, keys/positions stay identical.
+      if (incoming !== undefined &&
+          this.viewedPlayer?.color === this.thisPlayerColor &&
+          !tableau.some((c) => c.name === incoming.name)) {
+        return buildPlayedZones([...tableau, incoming]);
+      }
+      return buildPlayedZones(tableau);
+    },
+    /** The hero card is an EVENT (classified structurally via the zones). */
+    heroIncomingIsEvent(): boolean {
+      const incoming = this.heroIncoming;
+      return incoming !== undefined && this.zones.events.some((c) => c.name === incoming.name);
+    },
+    /** The reserved face-up slot stays hidden until the landing commit. */
+    heroHiddenKey(): string | undefined {
+      const incoming = this.heroIncoming;
+      if (incoming === undefined || this.heroRevealed || this.heroIncomingIsEvent) {
+        return undefined;
+      }
+      return incoming.name;
+    },
+    /** The events counter ticks only AFTER the landed card is revealed. */
+    displayedEventsCount(): number {
+      const n = this.zones.events.length;
+      return this.heroIncoming !== undefined && this.heroIncomingIsEvent && !this.heroRevealed ?
+        Math.max(0, n - 1) : n;
+    },
+    /** First-ever event mid-scene: the pile exists as HIDDEN geometry. */
+    eventsPileReserved(): boolean {
+      return this.displayedEventsCount === 0 && this.zones.events.length > 0;
     },
     targets(): ReadonlyArray<PlayedTarget> {
       return buildPlayedTargets(this.zones);
@@ -187,7 +242,10 @@ export default defineComponent({
       return flatFaceUp(this.zones);
     },
     totalCount(): number {
-      return this.faceUp.length + this.zones.events.length;
+      const n = this.faceUp.length + this.zones.events.length;
+      // The header count stays honest mid-scene: the landing card joins the
+      // total only once it is revealed on the table.
+      return this.heroIncoming !== undefined && !this.heroRevealed ? Math.max(0, n - 1) : n;
     },
     plan(): PlayedPlan {
       const s = conUiScale();
@@ -247,8 +305,45 @@ export default defineComponent({
         consolePlayedUi.canCyclePlayer = n > 1;
       },
     },
+    // ── the hero scene (play-animation mode) ───────────────────────────
+    /** The scene always lands on the VIEWER's own tableau — a manually
+     *  open table viewing an opponent snaps to the viewer's seat. */
+    'heroActive': {
+      immediate: true,
+      handler(active: boolean) {
+        if (active) {
+          this.eventsOpen = false;
+          this.viewColor = this.thisPlayerColor;
+        }
+      },
+    },
+    /** The reserved-slot measurer plugs into the transaction while an
+     *  incoming card exists (registered fresh per scene). Focus seeds onto
+     *  the incoming slot IMMEDIATELY — the slot is measured (and the proxy
+     *  lands) in its focused-lift position, so the reveal is pixel-perfect
+     *  and the landed card is already the cursored one. */
+    'heroIncoming': {
+      immediate: true,
+      handler(incoming: CardModel | undefined) {
+        this.unregisterHeroTarget?.();
+        this.unregisterHeroTarget = undefined;
+        if (incoming !== undefined) {
+          this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measureHeroTarget());
+          this.focusKey = this.heroIncomingIsEvent ? EVENTS_PILE_KEY : incoming.name;
+        }
+      },
+    },
+    /** Touchdown committed: the cursor (and the gliding frame) lands on the
+     *  new card — the premium "it is yours now" confirmation. */
+    'heroRevealed'(revealed: boolean) {
+      if (revealed && this.heroIncoming !== undefined) {
+        this.focusKey = this.heroIncomingIsEvent ? EVENTS_PILE_KEY : this.heroIncoming.name;
+      }
+    },
   },
   beforeUnmount() {
+    this.unregisterHeroTarget?.();
+    this.unregisterHeroTarget = undefined;
     resetConsolePlayedUi();
   },
   methods: {
@@ -371,8 +466,13 @@ export default defineComponent({
       this.inspectCard(this.focusKey);
     },
     /** Mouse support (secondary input): click focuses; a second click on the
-     *  already-focused card inspects it. */
+     *  already-focused card inspects it. Inert while the hero scene owns the
+     *  table (the pad chain is already gated in the shell — this closes the
+     *  DOM-click side door). */
     onCardPress(name: string): void {
+      if (this.heroActive) {
+        return;
+      }
       if (this.focusKey === name) {
         this.activateFocused();
       } else {
@@ -380,6 +480,9 @@ export default defineComponent({
       }
     },
     onEventPress(name: string): void {
+      if (this.heroActive) {
+        return;
+      }
       if (this.eventsFocusKey === name) {
         this.inspectEvent();
       } else {
@@ -439,6 +542,54 @@ export default defineComponent({
         },
       );
       openConsoleCardZoom(list, index, undefined, undefined, {origin});
+    },
+    // ── the hero scene: the reserved-slot measurer ──────────────────────
+    /**
+     * Measure the reserved landing geometry for the incoming card: the
+     * hidden face-up slot's card box, or the events backstack. Scrolls the
+     * slot into view first, then waits for the rect to hold still across
+     * frames (the overlay may still be running its enter transition) —
+     * the arc always flies into REAL, settled geometry, never an estimate.
+     */
+    async measureHeroTarget(): Promise<HeroRect | undefined> {
+      const incoming = this.heroIncoming;
+      const root = this.$el as HTMLElement | undefined;
+      if (incoming === undefined || root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      await this.$nextTick();
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+        CSS.escape(incoming.name) : incoming.name.replace(/"/g, '\\"');
+      const el = this.heroIncomingIsEvent ?
+        root.querySelector<HTMLElement>('.con-played__family--event .con-played__backstack') :
+        root.querySelector<HTMLElement>(`[data-played-key="${esc}"] .con-played__face`);
+      if (el === null) {
+        return undefined;
+      }
+      const slot = el.closest<HTMLElement>('.con-played__slot') ?? el;
+      (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined, margin?: number) => void} | undefined)?.ensureVisible?.(slot, 24);
+      // Stability loop: two consecutive frames with the same rect (≤ 30).
+      let last: {x: number, y: number, w: number, h: number} | undefined = undefined;
+      for (let i = 0; i < 30; i++) {
+        await this.heroFrame();
+        const r = el.getBoundingClientRect();
+        if (r.width > 4 && last !== undefined &&
+            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
+            Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
+          return last;
+        }
+        last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+      }
+      return last;
+    },
+    heroFrame(): Promise<void> {
+      return new Promise((resolve) => {
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => resolve());
+        } else {
+          setTimeout(resolve, 16);
+        }
+      });
     },
     // ── viewed player (LB/RB) ───────────────────────────────────────────
     cycleViewedPlayer(step: 1 | -1): void {

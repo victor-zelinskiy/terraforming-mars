@@ -13,7 +13,7 @@
     <div v-for="(card, i) in cards"
          :key="card.name"
          class="con-played__slot"
-         :class="{'con-played__slot--focused': card.name === focusKey}"
+         :class="{'con-played__slot--focused': card.name === focusKey, 'con-played__slot--incoming': card.name === hiddenKey}"
          :style="{height: (i === cards.length - 1 ? cardH : peekH) + 'px', zIndex: card.name === focusKey ? 90 : i + 1}"
          :data-played-key="card.name"
          :data-zoom-slot="card.name"
@@ -41,6 +41,9 @@ export default defineComponent({
   props: {
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
     focusKey: {type: String, required: true},
+    /** The hero scene's RESERVED slot: rendered with full layout but kept
+     *  invisible until the landing commit (the arc flies into it). */
+    hiddenKey: {type: String as PropType<string | undefined>, default: undefined},
     /** Plan metrics (screen px / css zoom) — see consolePlayedModel. */
     zoom: {type: Number, required: true},
     slotW: {type: Number, required: true},

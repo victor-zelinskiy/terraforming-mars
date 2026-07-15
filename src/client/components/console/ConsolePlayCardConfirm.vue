@@ -1,5 +1,5 @@
 <template>
-  <div class="con-composer con-composer--play" role="dialog" :aria-label="titleText">
+  <div class="con-composer con-composer--play" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText">
     <div class="con-composer__backdrop" aria-hidden="true"></div>
 
     <div class="con-composer__panel con-composer__panel--play">
@@ -870,6 +870,15 @@ export default defineComponent({
     resetConsolePlayCardUi();
   },
   methods: {
+    /**
+     * Re-arm the confirm CTA after a REFUSED submit (the played-card hero
+     * transaction keeps this composer open through the server round-trip;
+     * on error the shell calls this so the player can retry or cancel —
+     * a successful play unmounts the composer instead).
+     */
+    resetSubmitting(): void {
+      this.submitting = false;
+    },
     iconClass(icon: string | undefined): string {
       return icon !== undefined ? iconClassFor(icon) : '';
     },

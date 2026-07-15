@@ -331,9 +331,84 @@
     }
 }
 
+/* ── the PLAYED-CARD HERO scene (consolePlayedHero / playedHeroDirector) ──
+   The fixed proxy stage of the "card lands on my tableau" flight. The proxy
+   reuses the shared flip chassis (.con-deal-proxy__flip/__face/__back) so an
+   event's mid-arc turn rides the exact same 90°-swap physics as the deal. */
+.con-played-hero {
+    position: fixed;
+    inset: 0;
+    /* Above the play composer (11500) + the table (11400) — the card is the
+       topmost object of its scene; under the command bar (11700). */
+    z-index: 11660;
+    pointer-events: none;
+
+    &__proxy {
+        position: fixed;
+        top: 0;
+        left: 0;
+        /* The director places + reveals it pre-paint — never a corner flash. */
+        opacity: 0;
+        perspective: 45rem;
+        will-change: transform, opacity;
+    }
+    /* The travelling ground shadow — a soft belly that widens/softens at the
+       apex and snaps back to contact at touchdown (transform/opacity only). */
+    &__shade {
+        position: absolute;
+        left: 5%;
+        right: 5%;
+        bottom: -0.85rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.6), transparent 72%);
+        opacity: 0;
+        will-change: transform, opacity;
+        pointer-events: none;
+    }
+    /* ONE restrained apex light sweep — a gradient gliding INSIDE the card's
+       own clip box (background-position, nothing translates outside). */
+    &__sweep {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        border-radius: .5rem;
+        background: linear-gradient(105deg, transparent 34%, rgba(220, 240, 255, 0.5) 50%, transparent 66%);
+        background-size: 260% 100%;
+        background-repeat: no-repeat;
+        background-position: 130% 0;
+        mix-blend-mode: screen;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+/* The RESERVED landing slot: full layout, no paint — the arc flies into real
+   geometry and the real card materialises here at the commit frame. */
+.con-played__slot--incoming .con-played__lift {
+    visibility: hidden;
+}
+/* Mid-scene the table is scenery, not a browsing surface: the events pile's
+   focused «Открыть» hint stays quiet while the card is landing on it. */
+.con-played--hero .con-played__events-hint {
+    opacity: 0;
+}
+/* First-ever event mid-scene: the whole pile is reserved hidden geometry. */
+.con-played__pile--reserved {
+    visibility: hidden;
+}
+
+/* The play composer while its submit is in flight (the hero keeps it open
+   until the server's word): calm "confirming" dim — no spinner theatre. */
+.con-composer--submitting .con-composer__panel {
+    filter: saturate(0.8) brightness(0.9);
+}
+
 /* Reduced motion: no lift glide — instant placement (a separate axis from
    the speed presets, mirrors the rest of the console flow). */
 @media (prefers-reduced-motion: reduce) {
     .con-played__lift { transition: none; }
     .con-played__events-hint { transition: none; }
+    .con-played-hero__sweep,
+    .con-played-hero__shade { display: none; }
 }

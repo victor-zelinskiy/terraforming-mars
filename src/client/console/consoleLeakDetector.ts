@@ -54,6 +54,10 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // hold off — the holding card / review IS the serving surface for that beat.
   '.con-notif--holding',
   '.con-bot-review',
+  // The PLAYED-CARD HERO scene: a follow-up prompt committed at the landing
+  // stays intentionally held through the short result beat — the hero stage
+  // (mounted for the whole transaction) is the serving surface for it.
+  '.con-played-hero',
 ];
 
 /**

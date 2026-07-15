@@ -190,12 +190,21 @@
          Bottom-anchored, height follows the content; closed automatically
          when a mandatory surface arrives (the journal's hard-block rule). -->
     <transition name="con-layer">
-      <ConsolePlayedOverlay v-if="playedOpen"
+      <ConsolePlayedOverlay v-if="playedOpen || playedHeroState.tableOpen"
                             ref="playedOverlay"
                             :players="playerView.players"
                             :thisPlayerColor="thisPlayer.color"
+                            :heroIncoming="playedHeroIncoming"
+                            :heroRevealed="playedHeroState.revealed"
+                            :heroActive="playedHeroHolds"
                             @close="closePlayedOverlay" />
     </transition>
+
+    <!-- The played-card hero STAGE — the fixed proxy layer of the "card
+         lands on my tableau" scene. Mounted for the whole transaction so
+         the flight survives the composer unmounting beneath it, and the
+         leak detector counts it as the serving surface for the beat. -->
+    <ConsolePlayedHeroLayer />
 
     <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
          on an available dashboard item opens this; nothing is submitted
@@ -491,7 +500,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing"></waiting-for>
+                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -616,7 +625,7 @@ import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/conso
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
-import {runCardTransfer, runCardDepart} from '@/client/console/cardDeal/cardExitDirector';
+import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {
   draftPickBeatActive, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
 } from '@/client/console/cardDeal/consoleDraftTray';
@@ -626,7 +635,12 @@ import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/Cons
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
+import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
+import {
+  abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
+} from '@/client/console/played/consolePlayedHero';
+import {CardType} from '@/common/cards/CardType';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
@@ -750,6 +764,7 @@ export default defineComponent({
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
     ConsolePlayedOverlay,
+    ConsolePlayedHeroLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -774,6 +789,7 @@ export default defineComponent({
     return {
       consoleState,
       consoleCardZoom,
+      playedHeroState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
@@ -898,7 +914,7 @@ export default defineComponent({
      *  BEHIND it and its section is NOT auto-opened; a watcher opens the
      *  serving surface the moment this clears (else it'd be a stranded prompt). */
     consoleForegroundBusy(): boolean {
-      return this.consoleRevealMode !== undefined || this.presentationHeld;
+      return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds;
     },
     /** The visible flow-holding notification (the compact AI-turn card), if any. */
     foregroundHoldingCard(): LiveNotification | undefined {
@@ -930,9 +946,25 @@ export default defineComponent({
         this.startTask !== undefined ||
         this.govSupportActive;
     },
+    /** The played-card hero scene owns the foreground (spec §13: a follow-up
+     *  decision surfaces only after the landing + result beat complete). */
+    playedHeroHolds(): boolean {
+      return playedHeroHolding();
+    },
+    /** The incoming card the «Разыграно» table reserves a slot for (hero). */
+    playedHeroIncoming(): CardModel | undefined {
+      if (!playedHeroState.active || playedHeroState.card === undefined) {
+        return undefined;
+      }
+      const p = playedHeroState.phase;
+      if (p === 'armed' || p === 'idle' || p === 'failed') {
+        return undefined;
+      }
+      return {name: playedHeroState.card} as CardModel;
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
-      if (this.presentationHeld) {
+      if (this.presentationHeld || this.playedHeroHolds) {
         return undefined;
       }
       return taskServedByHost(this.playerView);
@@ -956,7 +988,7 @@ export default defineComponent({
     },
     /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
     shellTask(): ConsoleTask | undefined {
-      if (this.presentationHeld) {
+      if (this.presentationHeld || this.playedHeroHolds) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -1749,6 +1781,9 @@ export default defineComponent({
       if (this.journalPanelVisible) {
         return 'Journal';
       }
+      if (this.playedHeroHolds) {
+        return 'Played';
+      }
       if (this.playedOpen) {
         return consolePlayedUi.eventsOpen ? 'Played events' : 'Played';
       }
@@ -1797,6 +1832,11 @@ export default defineComponent({
       // owns the moment — the pad is inert, the bar advertises nothing
       // (bounded, plays itself out).
       if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
+        return [];
+      }
+      // The played-card hero scene: the bar goes quiet — the card is the
+      // whole story (a press during the result beat quietly skips ahead).
+      if (this.playedHeroHolds) {
         return [];
       }
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
@@ -2342,8 +2382,43 @@ export default defineComponent({
         journalState.open = false;
       }
       // The «Разыграно» overlay is the same family of board-home VIEW
-      // surface — it yields to a mandatory surface identically.
-      if (now && this.playedOpen) {
+      // surface — it yields to a mandatory surface identically. EXCEPT
+      // while the hero scene owns it: the landing/result beat completes
+      // first (the deferred close runs in the phase watcher below).
+      if (now && this.playedOpen && !this.playedHeroHolds) {
+        this.closePlayedOverlay();
+      }
+    },
+    /**
+     * The played-card hero scene drives the SHELL-owned surfaces around the
+     * flying card (the module owns the card; the shell owns the scenery):
+     *  - 'lifting' → the composer closes UNDER the already-independent
+     *    proxy (the hand slot stays held until the commit removes the card
+     *    from the hand — the existing departingPlayCard mechanism);
+     *  - 'failed'  → the play was refused: the composer is still open —
+     *    re-arm its CTA so the player can retry or cancel;
+     *  - 'idle'    → transaction over: run the deferred hard-block close
+     *    for a manually-open table (suppressed mid-scene above).
+     */
+    'playedHeroState.phase'(phase: string) {
+      if (phase === 'lifting') {
+        const pending = this.pendingPlayCard;
+        if (pending !== undefined) {
+          this.clearDepartingPlayCard();
+          this.departingPlayCard = pending.cardName;
+          this.departingTimer = window.setTimeout(() => this.clearDepartingPlayCard(), 6000);
+        }
+        this.pendingPlayCard = undefined;
+        closeConsoleLayers();
+        this.consoleState.section = 'board';
+        return;
+      }
+      if (phase === 'failed') {
+        const composer = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
+        composer?.resetSubmitting?.();
+        return;
+      }
+      if (phase === 'idle' && this.journalHardBlocked && this.playedOpen) {
         this.closePlayedOverlay();
       }
     },
@@ -2579,6 +2654,24 @@ export default defineComponent({
       // Bounded by the animations' safety timers, so it can never stick.
       if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive()) {
         return true;
+      }
+      // PLAYED-CARD HERO owns the moment. While the submit is in flight
+      // (`armed`) the composer stays visible: only B (cancel — it would
+      // corrupt the transaction) is swallowed, the rest routes normally
+      // (the composer's own latch already blocks a second A). From the
+      // first visual beat on, input is inert — except during the result
+      // beat, where any press ACCELERATES the close (never a cancel).
+      if (isPlayedHeroActive()) {
+        if (this.playedHeroState.phase === 'armed') {
+          if (action === 'back') {
+            return true;
+          }
+        } else {
+          if (intent.kind === 'press' && this.playedHeroState.phase === 'showing-result') {
+            skipPlayedHeroResult();
+          }
+          return true;
+        }
       }
       // «Разбор хода» review owns the pad while open (a read-only foreground
       // item — the presentation flow holds every other surface). B closes, X
@@ -3782,6 +3875,12 @@ export default defineComponent({
      * exit (touchdown still fires — the hold is always released).
      */
     onPlayCardCancel(): void {
+      // Mid-transaction (submit in flight / scene running) a cancel would
+      // corrupt the hero state — the input chain already swallows B, this
+      // is the belt-and-braces for programmatic emits.
+      if (isPlayedHeroActive()) {
+        return;
+      }
       const pending = this.pendingPlayCard;
       if (pending === undefined) {
         return;
@@ -3815,26 +3914,22 @@ export default defineComponent({
     onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
-      // SUCCESS finale: the card lifts OFF the composer toward the board —
-      // "played onto the table" — never a fake return to the hand it left:
-      // the hand slot stays held (departingPlayCard) until the server
-      // response actually removes the card from the hand (watcher above),
-      // with a safety timer for a rejected play.
-      if (pending !== undefined) {
-        const departSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
-        if (departSlot !== null) {
-          void runCardDepart({name: pending.cardName, el: departSlot});
-        }
-        this.clearDepartingPlayCard();
-        this.departingPlayCard = pending.cardName;
-        this.departingTimer = window.setTimeout(() => this.clearDepartingPlayCard(), 6000);
-      }
-      this.pendingPlayCard = undefined;
       if (pending === undefined || action === undefined) {
+        this.pendingPlayCard = undefined;
         return;
       }
-      closeConsoleLayers();
-      this.consoleState.section = 'board';
+      // The HERO transaction (spec: no visual success before the server's
+      // word). The composer STAYS OPEN through the submit; nothing lifts,
+      // nothing closes. On the confirmed response the WaitingFor gate runs
+      // the scene — the composer closes UNDER the lifted card at the
+      // 'lifting' phase (watcher below); a refused play keeps the composer
+      // intact and re-arms its CTA on 'failed'. Double-confirm is blocked
+      // both here and by the composer's own submit latch.
+      if (isPlayedHeroActive()) {
+        return;
+      }
+      const isEvent = getCard(pending.cardName)?.type === CardType.EVENT;
+      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen});
       const batch = buildPlayCardBatch({
         playPath: action.path,
         cardName: pending.cardName,
@@ -4890,6 +4985,7 @@ export default defineComponent({
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
+    abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

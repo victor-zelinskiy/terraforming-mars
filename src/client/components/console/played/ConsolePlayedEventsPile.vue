@@ -6,9 +6,9 @@
     when focused. ONE focus target for the whole stack; activating it opens
     the nested events list.
   -->
-  <div class="con-played__pile con-played__pile--events" :style="{width: slotW + 'px'}">
+  <div class="con-played__pile con-played__pile--events" :class="{'con-played__pile--reserved': reserved}" :style="{width: slotW + 'px'}">
     <div class="con-played__slot con-played__slot--events"
-         :class="{'con-played__slot--focused': focused}"
+         :class="{'con-played__slot--focused': focused && !reserved}"
          :style="{height: cardH + 'px'}"
          :data-played-key="EVENTS_PILE_KEY"
          @click="$emit('open')">
@@ -36,6 +36,9 @@ export default defineComponent({
     focused: {type: Boolean, required: true},
     slotW: {type: Number, required: true},
     cardH: {type: Number, required: true},
+    /** Hero scene, FIRST-ever event: the pile exists as hidden geometry (the
+     *  landing target) and turns visible with the reveal. */
+    reserved: {type: Boolean, default: false},
   },
   emits: {
     open: () => true,
