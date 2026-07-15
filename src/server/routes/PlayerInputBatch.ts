@@ -71,7 +71,7 @@ export class PlayerInputBatch extends Handler {
   private processBatch(req: Request, res: Response, ctx: Context, player: IPlayer): Promise<void> {
     // Same per-request reset as PlayerInput.processInput.
     for (const card of player.tableau) {
-      card.warnings.clear();
+      card.clearWarnings();
       if (isIProjectCard(card)) {
         card.additionalProjectCosts = undefined;
       }
