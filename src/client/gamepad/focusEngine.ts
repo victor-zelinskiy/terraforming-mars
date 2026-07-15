@@ -711,6 +711,14 @@ export function gamepadFocusTick(): void {
     focusState.ring.visible = false;
     return;
   }
+  if (scope.def.consoleOwned === true) {
+    // A console-native layer owns the pad: the DOM engine draws NOTHING and
+    // leaves no residue there (see ScopeDef.consoleOwned). A FULL reset, not
+    // just hiding the ring — a `gp-focus` class / synthetic hover left on a
+    // button under the console surface would keep it lit.
+    clearGamepadFocus();
+    return;
+  }
   if (scope.def.id !== focusState.scopeId) {
     onScopeChanged(scope);
     const all = collectFocusables(scope);
@@ -738,6 +746,12 @@ export function handleGamepadIntent(intent: GamepadIntent): void {
   }
   const scope = resolveScope();
   if (scope === undefined) {
+    return;
+  }
+  if (scope.def.consoleOwned === true) {
+    // The console shell handles this layer's pad itself (its handler runs
+    // first and claims the intent); the DOM engine must not ALSO act on it —
+    // no focus move, no synthetic A-click, no B. Stay fully inert.
     return;
   }
   if (scope.def.id !== focusState.scopeId) {

@@ -37,6 +37,15 @@ export type ScopeDef = {
   extraFocusables?: ReadonlyArray<string>,
   /** Also collect candidates from these document-level roots (pills, notifications). */
   coexistingRoots?: ReadonlyArray<string>,
+  /**
+   * CONSOLE-NATIVE surface: the console shell owns this layer's pad
+   * completely (its own cursor, its own command bar), so the DOM focus
+   * engine must be fully INERT here — no focusable collection, no ring, no
+   * B/A synthesis. It still matters that the scope RESOLVES (rather than
+   * being excluded by selector): resolving it CLAIMS the layer, so the
+   * engine can't fall through and start ringing a surface UNDERNEATH.
+   */
+  consoleOwned?: boolean,
 };
 
 /**
@@ -65,6 +74,19 @@ export const SCOPE_DEFS: ReadonlyArray<ScopeDef> = [
   // 0. The premium loading curtain (P10) — covers EVERYTHING while up; its
   //    only actionables are the Retry / Restore-fullscreen buttons.
   {id: 'loadingScreen', root: '.con-load', back: {kind: 'none'}},
+
+  // 0.5 The CONSOLE fullscreen card inspector — console-native, so the DOM
+  //     engine stays INERT (ConsoleShell owns the pad: LB/RB browse, A act,
+  //     B close; `.con-zoom__bar` inside the dialog IS the button truth).
+  //     It MUST be listed (above the generic `dialog` net) rather than
+  //     excluded by selector: matching CLAIMS the layer, so the engine can
+  //     neither ring the viewer's own buttons nor fall through and ring a
+  //     surface underneath it. Without this the generic net grabbed it and
+  //     drew a focus frame + «A» chip over the actions bar — and because
+  //     `isElementVisible` only checks client RECTS (not opacity), it did so
+  //     even while the bar was held at `opacity: 0` by `--flight`: a floating
+  //     outline with an A and no bar behind it, flashing on open/close.
+  {id: 'consoleZoom', root: 'dialog.con-zoom[open]', back: {kind: 'none'}, consoleOwned: true},
 
   // 1. Native top layer (CardZoomModal, ConfirmDialog, the quit confirm).
   {id: 'dialog', root: 'dialog[open]', back: {kind: 'dialog-close'}},
