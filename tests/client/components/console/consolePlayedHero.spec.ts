@@ -11,6 +11,7 @@ import {
   isPlayedHeroActive,
   playedHeroHolding,
   playedHeroState,
+  seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {panelRewardHold, heldStock, heldProduction} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
@@ -124,11 +125,21 @@ describe('consolePlayedHero (the animation transaction)', () => {
     ]});
     expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
     await runPlayedHero(viewWithTableau([CardName.TREES]));
-    // The hold seeded exactly as the commit gate opened: the commit will NOT
-    // fire the reward chips — each transfer's touchdown releases its metric
-    // (stock and production of the same resource held INDEPENDENTLY).
+    // NOTHING is held until the commit path seeds it — the panel renders
+    // `committed − held`, so a hold living through the flight would dip the
+    // PRE-commit value and fire a phantom −N chip.
+    expect(panelRewardHold.active).to.be.false;
+    // The commit path seeds it in the SAME synchronous block as the commit.
+    seedPlayedHeroRewardHold();
+    // The commit will NOT fire the reward chips — each transfer's touchdown
+    // releases its metric (stock and production of the same resource held
+    // INDEPENDENTLY).
     expect(panelRewardHold.active).to.be.true;
     expect(heldStock('plants')).to.eq(3);
+    expect(heldProduction('plants')).to.eq(1);
+    // Idempotent: a second seed can never double-hold (which would leave the
+    // metric stuck low after the single release).
+    seedPlayedHeroRewardHold();
     expect(heldProduction('plants')).to.eq(1);
     // Under JSDOM the transfers degrade (no measurable geometry) and release
     // immediately — the scene still walks to a clean idle with nothing held.
@@ -145,6 +156,7 @@ describe('consolePlayedHero (the animation transaction)', () => {
     ]});
     expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
     await runPlayedHero(viewWithTableau([CardName.TREES]));
+    seedPlayedHeroRewardHold(); // the commit path's seed
     expect(heldStock('megacredits')).to.eq(5);
     abortPlayedHero();
     expect(panelRewardHold.active).to.be.false;
@@ -157,6 +169,7 @@ describe('consolePlayedHero (the animation transaction)', () => {
     armPlayedHero(CardName.TREES, false, {manualTableOpen: false});
     expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
     await runPlayedHero(viewWithTableau([CardName.TREES]));
+    seedPlayedHeroRewardHold(); // no rewards → nothing to hold
     expect(panelRewardHold.active).to.be.false;
     const end = endPlayedHero();
     await settle(30);

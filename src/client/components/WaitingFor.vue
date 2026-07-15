@@ -175,6 +175,7 @@ import {
   detectPlayedHero,
   endPlayedHero,
   runPlayedHero,
+  seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {
@@ -194,6 +195,7 @@ import {
   detectTilePlacement,
   endTilePlacement,
   runTilePlacement,
+  seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
@@ -652,6 +654,24 @@ export default defineComponent({
         oldGame.venusScaleLevel = newGame.venusScaleLevel;
       }
     },
+    /**
+     * Seed the console REWARD HOLDS in the SAME SYNCHRONOUS BLOCK as the
+     * commit below (never earlier — see the seeders' own contract). The panel
+     * renders `committed − held`, so a hold seeded even ONE micro-task before
+     * `updatePlayerView` lets Vue flush a frame of "PRE-commit value − reward"
+     * — the metric visibly DIPS and AnimatedMetricValue honestly fires a
+     * phantom −N chip (most visible on production, which isn't clamped at 0),
+     * which the commit then undoes. Seeding here means Vue sees exactly ONE
+     * transition (pre-reward → pre-reward: no chip), and the only real one is
+     * each reward's release at its chip's touchdown → +N.
+     *
+     * Both calls are no-ops unless their transaction armed rewards (desktop
+     * and every non-console flow never arm), so this is free everywhere else.
+     */
+    seedRewardHolds(): void {
+      seedPlayedHeroRewardHold();
+      seedTilePlacementRewardHold();
+    },
     fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean) {
       const root = vueRoot(this);
       if (root.isServerSideRequestInProgress) {
@@ -780,6 +800,7 @@ export default defineComponent({
                 if (shouldHoldForTilePlacement(this.playerView.game.spaces, newView.game.spaces)) {
                   armPlacementAnimations();
                 }
+                this.seedRewardHolds();
                 this.updatePlayerView(newView);
               },
             })) {
@@ -924,6 +945,7 @@ export default defineComponent({
               this.holdingForHydroMarker = true;
               await runHydroMarker();
             }
+            this.seedRewardHolds();
             this.updatePlayerView(newView);
             if (hazardCleanups.length > 0) {
               this.holdingForHazardCleanup = false;

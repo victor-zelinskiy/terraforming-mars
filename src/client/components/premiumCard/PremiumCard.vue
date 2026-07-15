@@ -93,7 +93,7 @@ import {translateText, translateCardName} from '@/client/directives/i18n';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import {buildPremiumCardViewModel, PremiumCardVM, vpVariantOf} from './premiumCardViewModel';
-import {titleTierFor, TitleTier} from './titleFit';
+import {titleTierFor, longestWordLength, TitleTier} from './titleFit';
 import {cardResourceIconUrl, expansionIconUrl} from './premiumCardIcons';
 import PremiumCostBadge from './PremiumCostBadge.vue';
 import PremiumTagRail from './PremiumTagRail.vue';
@@ -274,6 +274,9 @@ export default defineComponent({
       return {
         '--pcard-title-safe-l': `${safeL}px`,
         '--pcard-title-safe-r': `${safeR}px`,
+        // Longest unbreakable run — the CSS shrinks the type until IT fits the
+        // remaining inline size, so a word is never split (see titleFit.ts).
+        '--pcard-title-longest': String(longestWordLength(this.translatedTitle)),
         '--pcard-tag-size': `${plan.size}px`,
         '--pcard-tag-overlap': `${plan.overlap}px`,
         '--pcard-tag-cluster-w': `${plan.width}px`,

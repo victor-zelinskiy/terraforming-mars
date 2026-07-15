@@ -97,6 +97,8 @@ let heldSourceEl: HTMLElement | undefined;
  * (seeded just before the commit), firing that delta chip at the contact.
  */
 let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
+/** The hold was seeded for THIS transaction (the commit path's one-shot). */
+let rewardHoldSeeded = false;
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
 
@@ -151,6 +153,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTab
   claimed = false;
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
+  rewardHoldSeeded = false;
   sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
   playedHeroState.active = true;
   playedHeroState.phase = 'armed';
@@ -207,28 +210,37 @@ export function runPlayedHero(view: PlayerViewModel): Promise<void> {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
     }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
-    void executeFlight().finally(() => {
-      // Seed the PANEL REWARD HOLD in the same turn the commit gate opens —
-      // strictly BEFORE updatePlayerView — so the commit shows everything
-      // EXCEPT the reward metrics (payment, TR, …); each reward's delta chip
-      // fires only when its chip physically lands during the reward beat.
-      seedRewardHold();
-      freeRunGate();
-    });
+    void executeFlight().finally(() => freeRunGate());
   });
 }
 
-/** Hold the reward metrics back from the imminent commit (no-op when the
- *  card grants nothing immediately, under reduced motion, or after abort —
- *  the chips then simply fire with the commit, the honest default). */
-function seedRewardHold(): void {
-  if (!playedHeroState.active || pendingRewards.length === 0) {
+/**
+ * Seed the PANEL REWARD HOLD — the caller MUST call this in the SAME
+ * SYNCHRONOUS BLOCK as `updatePlayerView` (WaitingFor's commit path), never
+ * from inside the flight's promise chain.
+ *
+ * Why the same block: the panel renders `committed − held`. Seeding one
+ * micro-task earlier lets Vue flush a frame where the value is still the
+ * PRE-commit number while the hold is already subtracted — i.e. the panel
+ * dips by exactly the reward (0 → −1 production) and AnimatedMetricValue
+ * honestly fires a phantom −N chip, then the commit brings it back to 0 and
+ * the touchdown fires +N. Seeding and committing in one block means Vue sees
+ * ONE transition (pre-reward → pre-reward: no chip at all), and the only
+ * real transition is the release at the chip's touchdown → +N.
+ *
+ * Idempotent + a no-op when the card grants nothing immediately, under
+ * reduced motion, or after an abort (the chips then simply fire with the
+ * commit — the honest default).
+ */
+export function seedPlayedHeroRewardHold(): void {
+  if (!playedHeroState.active || rewardHoldSeeded || pendingRewards.length === 0) {
     return;
   }
   if (consoleReducedMotionActive()) {
     pendingRewards = [];
     return;
   }
+  rewardHoldSeeded = true;
   beginPanelRewardHold(pendingRewards);
 }
 
@@ -425,6 +437,7 @@ export function abortPlayedHero(): void {
   abortResourceTransfers();
   clearPanelRewardHold();
   pendingRewards = [];
+  rewardHoldSeeded = false;
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
@@ -446,6 +459,7 @@ function finish(): void {
   restoreSource();
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
   pendingRewards = [];
+  rewardHoldSeeded = false;
   playedHeroState.active = false;
   playedHeroState.phase = 'idle';
   playedHeroState.card = undefined;

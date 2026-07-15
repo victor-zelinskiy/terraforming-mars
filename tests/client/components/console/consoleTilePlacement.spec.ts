@@ -11,6 +11,7 @@ import {
   isTilePlacementActive,
   tilePlacementHolding,
   tilePlacementState,
+  seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
 import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
@@ -84,11 +85,18 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     expect(prev[0].color).to.eq('green');
     expect(tilePlacementState.phase).to.eq('landed');
     expect(tilePlacementHolding()).to.be.true; // follow-up surfaces stay held
-    // The printed bonuses were seeded into the panel reward hold exactly as
-    // the gate opened — the commit will NOT fire their delta chips.
+    // NOTHING is held until the commit path seeds it: the panel renders
+    // `committed − held`, so a hold living through the flight would dip the
+    // PRE-commit value and fire a phantom −N chip.
+    expect(panelRewardHold.active).to.be.false;
+    // The commit path seeds it in the SAME synchronous block as the commit —
+    // the commit then will NOT fire the printed bonuses' delta chips.
+    seedTilePlacementRewardHold();
     expect(panelRewardHold.active).to.be.true;
     expect(heldStock('steel')).to.eq(1);
     expect(heldStock('plants')).to.eq(1);
+    seedTilePlacementRewardHold(); // idempotent — never a double hold
+    expect(heldStock('steel')).to.eq(1);
 
     // POST-COMMIT reward beat: transfers degrade under JSDOM (no panel
     // anchors) and release immediately — nothing held, clean idle.
@@ -106,6 +114,7 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     const next = [space('07', {tileType: TileType.OCEAN})];
     expect(detectTilePlacement(prev, next)).to.not.be.undefined;
     await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold(); // a bare cell → nothing to hold
     expect(panelRewardHold.active).to.be.false;
     const before = Date.now();
     await endTilePlacement();
@@ -120,6 +129,7 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     const next = [space('08', {bonus: [SpaceBonus.DRAW_CARD, SpaceBonus.OCEAN], tileType: TileType.CITY})];
     expect(detectTilePlacement(prev, next)).to.not.be.undefined;
     await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold(); // card / ocean bonuses are not ours
     expect(panelRewardHold.active).to.be.false;
     await endTilePlacement();
     expect(isTilePlacementActive()).to.be.false;
@@ -131,6 +141,7 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     const next = [space('05', {bonus: [SpaceBonus.TITANIUM], tileType: TileType.CITY})];
     expect(detectTilePlacement(prev, next)).to.not.be.undefined;
     const gate = runTilePlacement(prev, next);
+    seedTilePlacementRewardHold();
     abortTilePlacement();
     await gate; // resolves — WaitingFor can always commit
     expect(isTilePlacementActive()).to.be.false;
@@ -164,6 +175,7 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     // carries ITS OWN cell's bonuses — never the previous tile's.
     expect(detectTilePlacement(prev, next)).to.deep.eq({spaceId: '06'});
     await runTilePlacement(prev, next);
+    seedTilePlacementRewardHold();
     expect(heldStock('heat')).to.eq(1);
     expect(heldStock('steel')).to.eq(0);
     await endTilePlacement();

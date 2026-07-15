@@ -99,6 +99,8 @@ let heldBonusEl: HTMLElement | undefined;
 /** TRUE once the pre-lift ran — the icons already HOVER over the seated
  *  tile when the reward beat starts (no second rise). */
 let bonusesHovering = false;
+/** The hold was seeded for THIS transaction (the commit path's one-shot). */
+let bonusHoldSeeded = false;
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────
 
@@ -141,6 +143,7 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   hexRect = undefined;
   restoreHeldBonuses();
   bonusesHovering = false;
+  bonusHoldSeeded = false;
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
@@ -208,10 +211,7 @@ export function runTilePlacement(
     sceneSafety = window.setTimeout(() => {
       freeRunGate(); // rAF stall — force the gate open, degrade gracefully
     }, motionMs(TILE_FLIGHT_MS + TILE_SETTLE_MS) + 3000);
-    void executeApproach(prevSpaces, newSpaces).finally(() => {
-      seedBonusHold();
-      freeRunGate();
-    });
+    void executeApproach(prevSpaces, newSpaces).finally(() => freeRunGate());
   });
 }
 
@@ -284,16 +284,28 @@ async function executeApproach(
   await disposeTileProxy(els, motionMs(110));
 }
 
-/** Hold the printed bonuses back from the imminent commit (no-op for a
- *  bonus-less cell / reduced motion — the honest defaults). */
-function seedBonusHold(): void {
-  if (!tilePlacementState.active || pendingBonuses.length === 0) {
+/**
+ * Seed the PANEL REWARD HOLD for the cell's printed bonuses — the caller MUST
+ * call this in the SAME SYNCHRONOUS BLOCK as `updatePlayerView` (WaitingFor's
+ * commit path), never from inside the flight's promise chain: the panel shows
+ * `committed − held`, so seeding a micro-task early lets Vue flush a frame
+ * where the value is still the PRE-commit number minus the reward — an honest
+ * but PHANTOM −N chip, immediately undone by the commit. Same block ⇒ one
+ * transition (pre-reward → pre-reward: no chip), and the only real one is the
+ * release at each chip's touchdown → +N.
+ *
+ * Idempotent; a no-op for a bonus-less cell / reduced motion (the honest
+ * defaults — those chips ride the commit).
+ */
+export function seedTilePlacementRewardHold(): void {
+  if (!tilePlacementState.active || bonusHoldSeeded || pendingBonuses.length === 0) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
     pendingBonuses = [];
     return;
   }
+  bonusHoldSeeded = true;
   beginPanelRewardHold(pendingBonuses.map((b) => b.spec));
 }
 
@@ -373,6 +385,7 @@ export function abortTilePlacement(): void {
   clearPanelRewardHold();
   restoreHeldBonuses(); // the printed icons un-blank — the field is intact
   bonusesHovering = false;
+  bonusHoldSeeded = false;
   pendingBonuses = [];
   hexRect = undefined;
   tilePlacementState.active = false;
@@ -395,6 +408,7 @@ function finish(): void {
   // real board anyway (same as every pre-existing tile) — invisible swap.
   restoreHeldBonuses();
   bonusesHovering = false;
+  bonusHoldSeeded = false;
   pendingBonuses = [];
   hexRect = undefined;
   tilePlacementState.active = false;
