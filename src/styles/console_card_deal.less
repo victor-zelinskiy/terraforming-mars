@@ -278,6 +278,55 @@ body.con-zoom-open .con-root {
         0 0 1.1rem fade(@con-cyan, 22%);
 }
 
+/* ── Console fullscreen: the SELECTED badge IS the slot's badge ───────
+   The shared viewer's ribbon (`.card-zoom-card--selected::after`) is the
+   DESKTOP look: a steel, clip-path-tapered banner on the card's BOTTOM
+   edge in Russo One. The console's own selected marker is the mint
+   `.con-cards__pickband` pill on the card's TOP edge. Two different badges
+   for ONE state broke the close flight: `playZoomClose` scales the whole
+   stage down onto the slot, so the card landed still wearing the steel
+   bottom banner and, at the swap frame, the real slot's mint top pill took
+   over — a blink + a jump of the badge, exactly where the choreography
+   promises one continuous object.
+
+   So under the console inspector the ribbon is restyled INTO the pickband:
+   same edge, same pill silhouette, same mint palette, same type. Geometry
+   is px × `--card-zoom-fit` (the viewer's fit zoom) — NEVER rem: the ::after
+   sits on the UNZOOMED `.card-zoom-card` wrapper, so tracking the fit keeps
+   the badge:card ratio identical to the slot's (where the band rides the
+   slot's own zoom and divides the TV scale back out once). Result: the
+   badge shrinks with the card and lands pixel-on-pixel over the slot band —
+   the swap is invisible. The flight proxy gets it too, so the OPEN lift is
+   equally seamless. Values mirror `.con-cards__pickband` (console.less):
+   rem@20 → px (top -.6rem → -12, padding .15/.7rem → 3/14, font .7rem → 14,
+   letter-spacing .06rem → 1.2, rim .075rem → 1.5, shadows .2/.7/.9rem). */
+:is(dialog.con-zoom, .con-zoom-flight-proxy) .card-zoom-card--selected::after {
+    --ribbon-fit: var(--card-zoom-fit, 1);
+    /* The slot band reads «✓ ВЫБРАНА» (glyph + the shared ru/en label). */
+    content: '✓ ' var(--cab-selected-label, 'SELECTED');
+    top: calc(-12px * var(--ribbon-fit));
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 0;
+    height: auto;
+    gap: calc(6px * var(--ribbon-fit));
+    padding: calc(3px * var(--ribbon-fit)) calc(14px * var(--ribbon-fit));
+    border-radius: 49.95rem;
+    clip-path: none;
+    background: linear-gradient(180deg, fade(@con-mint, 28%), fade(@con-mint, 16%)), @con-glass;
+    box-shadow:
+        inset 0 0 0 calc(1.5px * var(--ribbon-fit)) fade(@con-mint, 90%),
+        0 calc(4px * var(--ribbon-fit)) calc(14px * var(--ribbon-fit)) rgba(0, 0, 0, 0.55),
+        0 0 calc(18px * var(--ribbon-fit)) fade(@con-mint, 25%);
+    color: @con-mint;
+    font-family: @con-font;
+    font-size: calc(14px * var(--ribbon-fit));
+    font-weight: 800;
+    letter-spacing: calc(1.2px * var(--ribbon-fit));
+    text-shadow: none;
+}
+
 /* ── The command bar yields to the inspector ──────────────────────────
    While fullscreen is open the viewer's OWN bar (`.con-zoom__bar` in the
    dialog) is the source of button truth, so the game's command bar is
