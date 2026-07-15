@@ -107,9 +107,9 @@ export type PremiumCardTier = 'thumb' | 'normal' | 'full';
 
 /* Title text safe-areas (design px). The plate keeps its full width; only
  * the text inset changes. Values are derived from the overlay clusters'
- * DETERMINISTIC geometry: the cost medallion assembly stays inside the 50px
- * base safe-area, the delta chip extends that cluster rightward, and the tag
- * cluster width comes from tagClusterPlan. */
+ * DETERMINISTIC geometry — badge 46px with a −6px overhang, the delta chip
+ * extends the cost cluster rightward, the tag cluster width comes from
+ * tagClusterPlan. */
 const TITLE_SAFE_BASE = 14;
 const TITLE_SAFE_COST = 50;
 const TITLE_SAFE_COST_MOD = 84;
