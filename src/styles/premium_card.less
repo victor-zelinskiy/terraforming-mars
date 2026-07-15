@@ -437,7 +437,14 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .pcard__cost-delta--surcharge { color: #ff9a8a; }
-.pcard--tier-thumb .pcard__cost-delta { display: none; }
+/* The chip is shown at EVERY tier, `thumb` included. A live discount is
+   decision-critical information — the player must see it on the card WHERE
+   THEY CHOOSE (the draft strip / the hand grid render `lightweight` = thumb),
+   not only after opening fullscreen. It costs no room: the title's left
+   safe-area already reserves the cluster width via `pcard--cost-mod` /
+   `TITLE_SAFE_COST_MOD` (JS, tier-independent), so thumb was reserving the
+   space and then hiding the chip in it. The chip only renders when
+   `delta !== 0`, so an undiscounted card is untouched. */
 
 /* ── tag cluster OVERLAY (pinned over the plate's right end) ──────────
    Sized by --pcard-tag-size / --pcard-tag-overlap / --pcard-tag-cluster-w

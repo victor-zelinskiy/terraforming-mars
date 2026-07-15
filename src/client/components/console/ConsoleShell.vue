@@ -4463,19 +4463,12 @@ export default defineComponent({
           }
           this.zoomOpening = false;
           this.zoomFlight = false; // chrome fades in over the landed card
-          // Drop the proxy the moment the dialog has painted its own card —
-          // TWO frames, never a timed linger. The dialog's ::backdrop paints
-          // nothing, so a lingering proxy SHOWS THROUGH under the top layer
-          // and its halo STACKS with the dialog card's identical halo: a
-          // bright double-glow flash around the card until it unmounts. Two
-          // frames of overlap are imperceptible; the timer is only a stall
-          // backstop (rAF frozen), and whichever fires first clears both.
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (token === this.zoomOpenToken) {
-              this.clearZoomOpenFlight();
-            }
-          }));
-          this.zoomOpenClearTimer = window.setTimeout(() => this.clearZoomOpenFlight(), motionMs(400));
+          // The proxy was already made INVISIBLE synchronously at hand-off
+          // (playZoomOpenFlight — it must not share a single PAINT with the
+          // dialog card, or their halos stack into a bright contour flash).
+          // This is only the UNMOUNT of an already-hidden element, so its
+          // timing is free — a beat later keeps it off the hand-off frame.
+          this.zoomOpenClearTimer = window.setTimeout(() => this.clearZoomOpenFlight(), motionMs(160));
         },
       });
     },

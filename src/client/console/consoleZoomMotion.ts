@@ -206,6 +206,20 @@ export function playZoomOpenFlight(
     if (!ctx.closing) {
       cb.onShow();
     }
+    // HAND-OFF IN ONE FRAME (load-bearing): showModal() promotes the dialog's
+    // ALREADY-LAID-OUT card into the top layer, so it paints on the very next
+    // paint. The proxy must be gone by that SAME paint — it is an identical
+    // card at the identical rect, and the dialog's ::backdrop paints nothing,
+    // so an overlapping proxy shows through and its halo ADDS to the dialog
+    // card's: the contour glow doubles in brightness for as long as they
+    // coexist — the "the glow behind the card flashes exactly on open" bug.
+    // Even TWO frames of overlap read as a flash, so this is a SYNCHRONOUS
+    // style write (no Vue flush, no rAF): hidden in the same task as show(),
+    // hence never in the same paint. The unmount then happens later, on an
+    // already-invisible element.
+    if (proxy !== undefined) {
+      gsap.set(proxy, {autoAlpha: 0});
+    }
     cb.onDone();
   };
   // Safety: a stalled rAF / killed tween can never leave the dialog unshown.
