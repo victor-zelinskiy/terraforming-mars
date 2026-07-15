@@ -19,8 +19,10 @@ export interface DesktopVersionModel {
   /** Where to obtain the installer (manual-download fallback when auto-update isn't wired). */
   downloadUrl?: string;
   /** True when a NEWER desktop build is currently building on CI but its release isn't published
-   *  yet — the client enters a non-blocking "waiting" mode and polls until it lands. Never set
-   *  together with `updateRequired` (an already-available update takes precedence). */
+   *  yet — the client LOCKS in a waiting mode and polls until it lands, then updates straight to
+   *  it. Takes PRECEDENCE over `updateRequired` (they can be set together): the build in flight is
+   *  the real latest version, so a client below it must NOT first update to whatever intermediate
+   *  release happens to be published — that would make it update twice within minutes. */
   buildInProgress: boolean;
   /** The version the in-progress build will publish (e.g. '1.1.231'), when known. */
   pendingVersion?: string;
@@ -77,15 +79,18 @@ export function computeDesktopVersion(o: DesktopVersionOptions): DesktopVersionM
     o.currentVersion !== '' &&
     compareVersions(o.currentVersion, o.latestVersion) < 0;
   const updateRequired = o.forceUpdate === true || belowMin || belowLatest;
-  // A build is "pending" only if it will publish a version NEWER than the caller has, and no
-  // update is already available (an available update always wins — no reason to wait).
-  const buildNewer =
+  // A build is "pending" whenever CI will publish a version NEWER than the caller has. It is
+  // deliberately NOT suppressed by `updateRequired`: the build in flight is the real latest
+  // version, so a caller below it should wait for THAT release rather than update to whatever
+  // intermediate one is published right now (which would mean updating twice within minutes).
+  // The client reads `buildInProgress` first and locks; `updateRequired` stays honest about the
+  // caller being out of date and takes over the moment the build lands.
+  const buildInProgress =
     o.pendingVersion !== undefined &&
     o.pendingVersion !== '' &&
     o.currentVersion !== undefined &&
     o.currentVersion !== '' &&
     compareVersions(o.currentVersion, o.pendingVersion) < 0;
-  const buildInProgress = buildNewer && !updateRequired;
   return {
     latestVersion: o.latestVersion,
     minSupportedVersion: o.minSupportedVersion,

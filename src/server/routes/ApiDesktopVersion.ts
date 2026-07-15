@@ -21,7 +21,9 @@ import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
  *   TM_DESKTOP_DOWNLOAD_URL     manual-download installer URL
  *   TM_DESKTOP_RELEASE_NOTES    JSON string array of notes
  *   TM_DESKTOP_DETECT_BUILDS    (default 1) report a CI build-in-progress so the client waits for
- *                               the imminent release instead of launching stale; set 0 to disable
+ *                               the imminent release instead of launching stale OR updating to a
+ *                               version that build is about to supersede; set 0 to disable (the
+ *                               client then always chases whatever is published right now)
  */
 export class ApiDesktopVersion extends Handler {
   public static readonly INSTANCE = new ApiDesktopVersion();
@@ -40,8 +42,11 @@ export class ApiDesktopVersion extends Handler {
     const githubLatest = requireLatest ? await githubLatestVersion() : undefined;
     const latestVersion = githubLatest ?? process.env.TM_DESKTOP_LATEST_VERSION ?? '1.0.0';
     // Premium "wait for the building release": when a newer desktop build is currently running on
-    // CI (release.yml) but its release isn't published yet, tell the client so it can enter a
-    // non-blocking waiting mode instead of launching stale. Follows requireLatest; disable with
+    // CI (release.yml) but its release isn't published yet, tell the client so it LOCKS and waits
+    // for that build rather than launching stale — or updating to whatever is published right now
+    // only to be updated again minutes later. This is also what carries a Linux client through the
+    // window where the release tag already exists (the `windows` job created it) but the `linux`
+    // channel hasn't been merged into it yet. Follows requireLatest; disable with
     // TM_DESKTOP_DETECT_BUILDS=0. Fail-open (a GitHub blip just means no pending signal).
     const detectBuilds = requireLatest && (process.env.TM_DESKTOP_DETECT_BUILDS ?? '1') !== '0';
     const pendingVersion = detectBuilds ? await githubPendingBuildVersion() : undefined;

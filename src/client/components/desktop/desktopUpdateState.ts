@@ -37,8 +37,12 @@ export interface DesktopUpdateState {
   progress?: {percent: number; transferred: number; total: number; bytesPerSecond: number};
   error?: string;
   downloadUrl?: string;
-  /** In `pending` mode: the version the CI build will publish once it finishes. */
+  /** In `pending` mode: the version being waited for (the one CI is publishing). */
   pendingVersion?: string;
+  /** In `pending` mode: WHY we are waiting — `ci-build` (the release is still building) or
+   *  `platform-feed` (published, but this platform's package hasn't landed on the feed yet).
+   *  Wording only; the lock is identical. Mirrors electron/update.ts. */
+  pendingReason?: 'ci-build' | 'platform-feed';
 }
 
 /** Steam Deck installer-freshness notice, pulled once from the main process. Mirrors
@@ -162,10 +166,15 @@ export function initDesktopUpdates(): void {
     .catch(() => undefined);
 }
 
-/** True while the overlay must COVER the screen (a mandatory update blocks the game). */
+/** True while the overlay must COVER the screen (a mandatory update blocks the game). `pending`
+ *  covers too: a build in flight means the installed version is ALREADY outdated and would be
+ *  force-updated the moment that release lands, so the player waits for it and updates once
+ *  instead of starting a session they are about to be kicked out of. Mirrors the main process's
+ *  `updateBlocksGame`. */
 export function updateOverlayBlocking(mode: DesktopUpdateMode): boolean {
   return (
     mode === 'required' ||
+    mode === 'pending' ||
     mode === 'downloading' ||
     mode === 'downloaded' ||
     mode === 'installing' ||

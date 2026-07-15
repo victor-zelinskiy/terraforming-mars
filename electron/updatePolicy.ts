@@ -8,6 +8,10 @@
 //       * it said we were compatible → fail-open (`normal`);
 //   - never verified + no cache → fail-open by default (don't brick a first-run offline
 //     launch), unless the operator opts into strict offline blocking.
+//
+// It also owns the PENDING-BUILD precedence: a CI build in flight is the real latest version, so
+// it OUTRANKS an already-available update — the client locks and waits for it instead of updating
+// to an intermediate release and then again minutes later.
 
 export interface CompatSnapshot {
   latestVersion: string;
@@ -16,13 +20,14 @@ export interface CompatSnapshot {
   releaseNotes?: Array<string>;
   downloadUrl?: string;
   /** A newer release is building on CI but isn't published yet → the client waits for it.
-   *  Only meaningful from a FRESH fetch (a stale offline value is ignored). */
+   *  Only meaningful from a FRESH fetch (a stale offline value is ignored — a build that was
+   *  running when we last had network has long since finished). */
   buildInProgress?: boolean;
   /** The version the in-progress build will publish (for the waiting-state message). */
   pendingVersion?: string;
 }
 
-export type UpdateDecisionMode = 'normal' | 'required' | 'offlineBlocked';
+export type UpdateDecisionMode = 'normal' | 'required' | 'pending' | 'offlineBlocked';
 
 export interface UpdateDecision {
   mode: UpdateDecisionMode;
@@ -43,8 +48,13 @@ export interface UpdateDecisionInput {
 
 export function resolveUpdateDecision(input: UpdateDecisionInput): UpdateDecision {
   if (input.fresh !== undefined) {
+    // A build in flight OUTRANKS `required`: it will publish a version newer than anything on the
+    // feed right now, so downloading the currently-available release would only make the client
+    // update a second time minutes later. Lock and wait for the build instead.
     return {
-      mode: input.fresh.updateRequired ? 'required' : 'normal',
+      mode: input.fresh.buildInProgress === true ?
+        'pending' :
+        input.fresh.updateRequired ? 'required' : 'normal',
       info: input.fresh,
       usedCache: false,
     };

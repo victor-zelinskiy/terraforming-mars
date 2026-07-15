@@ -94,12 +94,33 @@ describe('common/DesktopVersionModel', () => {
       expect(m.pendingVersion).to.be.undefined;
     });
 
-    it('an already-available required update wins over a pending build (buildInProgress suppressed)', () => {
-      // current < latest → updateRequired; even with a newer pending build, download now.
+    it('a pending build WINS over an already-available update (never update twice)', () => {
+      // current < latest → updateRequired, but CI is already building an even newer version:
+      // report BOTH so the client waits for 1.5.0 instead of updating to 1.4.0 and then again.
       const m = computeDesktopVersion({...BASE, currentVersion: '1.3.0', requireLatest: true, pendingVersion: '1.5.0'});
       expect(m.updateRequired).to.be.true;
-      expect(m.buildInProgress).to.be.false;
-      expect(m.pendingVersion).to.be.undefined;
+      expect(m.buildInProgress).to.be.true;
+      expect(m.pendingVersion).to.eq('1.5.0');
+    });
+
+    it('a pending build wins over a below-min required update too', () => {
+      // Below min (1.2.0) → hard gate; the client is blocked either way, so waiting for the
+      // build and updating ONCE is still the right move.
+      const m = computeDesktopVersion({...BASE, currentVersion: '1.1.0', pendingVersion: '1.5.0'});
+      expect(m.updateRequired).to.be.true;
+      expect(m.buildInProgress).to.be.true;
+    });
+
+    it('the Linux publish window: the release tag exists but its build is still running', () => {
+      // CI versions each run 1.1.<run_number>: the windows job creates the release tag (so the
+      // gate already reports it as `latest`) while the linux job is still packing the same
+      // version. A linux client must WAIT for that run, not chase the half-published release.
+      const m = computeDesktopVersion({
+        ...BASE, platform: 'linux', latestVersion: '1.1.231', currentVersion: '1.1.230',
+        requireLatest: true, pendingVersion: '1.1.231',
+      });
+      expect(m.buildInProgress).to.be.true;
+      expect(m.pendingVersion).to.eq('1.1.231');
     });
 
     it('no pendingVersion (no build running) → buildInProgress false', () => {

@@ -1,34 +1,57 @@
 <template>
   <div v-if="visible" class="desktop-update" :class="blocking ? 'desktop-update--cover' : 'desktop-update--pill'">
-    <!-- Non-blocking corner pill: the startup compatibility check, or waiting for a CI build to
-         publish (mode 'pending') — the player keeps playing until the release lands. -->
+    <!-- Non-blocking corner pill: the startup compatibility check. -->
     <div v-if="!blocking" class="desktop-update__pill">
       <span class="desktop-update__spinner"></span>
-      <template v-if="state.mode === 'pending'">
-        <span v-i18n>Update is building — waiting…</span>
-        <span v-if="state.pendingVersion" class="desktop-update__pill-ver">{{ state.pendingVersion }}</span>
-      </template>
-      <span v-else v-i18n>Checking for updates…</span>
+      <span v-i18n>Checking for updates…</span>
     </div>
 
     <!-- Blocking: the full-screen mandatory update gate. -->
     <div v-else class="desktop-update__panel">
       <div class="desktop-update__glyph">⟳</div>
 
-      <h1 class="desktop-update__title" v-i18n>Update required</h1>
-      <p class="desktop-update__lead" v-i18n>A newer version is required to keep playing.</p>
+      <!-- 'pending' is a WAIT, not a failure — say so instead of demanding an update the player
+           cannot install yet. -->
+      <template v-if="waiting">
+        <h1 class="desktop-update__title" v-i18n>Update on the way</h1>
+        <p class="desktop-update__lead" v-i18n>The newest version is being prepared — the game will update to it automatically.</p>
+      </template>
+      <template v-else>
+        <h1 class="desktop-update__title" v-i18n>Update required</h1>
+        <p class="desktop-update__lead" v-i18n>A newer version is required to keep playing.</p>
+      </template>
 
       <div class="desktop-update__versions">
         <span><span v-i18n>Installed</span>: <b>{{ state.currentVersion || '—' }}</b></span>
-        <span v-if="state.latestVersion"><span v-i18n>Latest</span>: <b>{{ state.latestVersion }}</b></span>
+        <!-- While waiting, `latest` is a half-published tag; the version actually coming is the
+             one being built, so show THAT and never a number the player can't get. -->
+        <span v-if="waiting && state.pendingVersion"><span v-i18n>Coming</span>: <b>{{ state.pendingVersion }}</b></span>
+        <span v-else-if="!waiting && state.latestVersion"><span v-i18n>Latest</span>: <b>{{ state.latestVersion }}</b></span>
       </div>
 
       <ul v-if="notes.length" class="desktop-update__notes">
         <li v-for="(n, i) in notes" :key="i">{{ n }}</li>
       </ul>
 
+      <!-- pending: a newer build is in flight, so the installed version is already outdated and
+           the newest release isn't downloadable yet. Hold here and poll rather than install an
+           intermediate version the player would be updated off again minutes later. The poll
+           starts the download by itself; Try again just nudges it. -->
+      <div v-if="state.mode === 'pending'" class="desktop-update__cta-block">
+        <div class="desktop-update__status desktop-update__wait">
+          <span class="desktop-update__spinner"></span>
+          <span v-if="state.pendingReason === 'platform-feed'" v-i18n>The release is published — waiting for the build for your platform…</span>
+          <span v-else v-i18n>Update is building — waiting…</span>
+        </div>
+        <p class="desktop-update__lead" v-i18n>The download will start on its own as soon as it is ready. This usually takes a few minutes.</p>
+        <button class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Try again" @click="retry">
+          <span class="gp-btn-glyph" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+          <span v-i18n>Try again</span>
+        </button>
+      </div>
+
       <!-- downloading -->
-      <div v-if="state.mode === 'downloading'" class="desktop-update__progress-wrap">
+      <div v-else-if="state.mode === 'downloading'" class="desktop-update__progress-wrap">
         <div class="desktop-update__status" v-i18n>Downloading update…</div>
         <div class="desktop-update__bar">
           <div class="desktop-update__bar-fill" :style="{width: percent + '%'}"></div>
@@ -130,11 +153,16 @@ export default defineComponent({
     canRestart(): boolean {
       return this.state.restartSupported === true;
     },
+    /** Holding for a version that exists but isn't downloadable yet — not a failure, and not
+     *  something the player can act on. Reframes the panel's title/lead/versions. */
+    waiting(): boolean {
+      return this.state.mode === 'pending';
+    },
     visible(): boolean {
       if (!this.isDesktop) {
         return false;
       }
-      return this.state.mode === 'checking' || this.state.mode === 'pending' || updateOverlayBlocking(this.state.mode);
+      return this.state.mode === 'checking' || updateOverlayBlocking(this.state.mode);
     },
     blocking(): boolean {
       return updateOverlayBlocking(this.state.mode);
@@ -196,10 +224,6 @@ export default defineComponent({
   color: #cfe9f5;
   font-size: 12.5px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-}
-.desktop-update__pill-ver {
-  opacity: 0.7;
-  font-variant-numeric: tabular-nums;
 }
 .desktop-update__spinner {
   width: 12px;
@@ -267,6 +291,12 @@ export default defineComponent({
 }
 .desktop-update__status--err {
   color: #ff9b9b;
+}
+.desktop-update__wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
 }
 .desktop-update__err-detail {
   font-size: 12px;

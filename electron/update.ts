@@ -11,6 +11,17 @@
 //      background with progress, and applies on the NEXT app exit (Squirrel-style in-place
 //      swap: fast, per-user, no UAC). Unreachable/unconfigured feed → manual-download.
 //
+// The two mechanisms run at DIFFERENT speeds, and the `pending` LOCK is what reconciles them.
+// The gate is version-based (it reads the release TAG), while the feed only serves what CI has
+// actually packed — so the gate legitimately runs ahead of the feed twice:
+//   * a build is still running     → the version it will publish beats everything on the feed;
+//   * a build published only SOME  → release.yml creates the tag in the `windows` job and merges
+//     channels                       the `linux` channel into it later, so a Linux client can see
+//                                    a `latest` its own channel doesn't carry yet.
+// In both cases downloading "the newest thing the feed has" is wrong: it either updates twice
+// within minutes or 404s. So the client LOCKS in `pending`, polls, and updates ONCE — straight to
+// the version CI is publishing — the moment it is actually downloadable for THIS platform.
+//
 // Only runs when PACKAGED (`app.isPackaged`); a no-op in dev. State is pushed to the
 // renderer over IPC; the premium overlay renders it. The DesktopUpdateState shape is
 // DUPLICATED (structurally) in the renderer's desktopUpdateState.ts — keep in sync.
@@ -50,8 +61,12 @@ export interface DesktopUpdateState {
   progress?: {percent: number; transferred: number; total: number; bytesPerSecond: number};
   error?: string;
   downloadUrl?: string;
-  /** In `pending` mode: the version the CI build will publish once it finishes. */
+  /** In `pending` mode: the version being waited for (the one CI is publishing). */
   pendingVersion?: string;
+  /** In `pending` mode: WHY we are waiting — `ci-build` (the release is still building) or
+   *  `platform-feed` (it is published, but this platform's package hasn't landed on the feed
+   *  yet). Drives the overlay's wording; the lock behaves the same either way. */
+  pendingReason?: 'ci-build' | 'platform-feed';
 }
 
 let state: DesktopUpdateState = {
@@ -87,10 +102,13 @@ function push(next: Partial<DesktopUpdateState>): void {
   }
 }
 
-/** True while a mandatory update (or a hard offline block) blocks normal game flow. */
+/** True while a mandatory update (or a hard offline block) blocks normal game flow. `pending` is
+ *  in here on purpose: a build that will publish a version newer than the installed one makes the
+ *  client outdated ALREADY — it would be force-updated the moment that release lands, so it waits
+ *  for it rather than starting a session it is about to be kicked out of. */
 export function updateBlocksGame(): boolean {
-  return state.mode === 'required' || state.mode === 'downloading' ||
-    state.mode === 'downloaded' || state.mode === 'installing' ||
+  return state.mode === 'required' || state.mode === 'pending' ||
+    state.mode === 'downloading' || state.mode === 'downloaded' || state.mode === 'installing' ||
     state.mode === 'offlineBlocked' || state.mode === 'manualDownloadRequired' ||
     (state.mode === 'error' && state.error !== undefined);
 }
@@ -190,9 +208,9 @@ async function fetchCompat(base: string, timeoutMs = 8000): Promise<CompatSnapsh
   }
 }
 
-/** While a CI build is pending, re-check periodically until the release lands (→ normal update
- *  flow) or the build finishes without a newer version (→ up to date). Non-blocking — the player
- *  keeps playing meanwhile. */
+/** While we wait, re-check periodically until the release lands (→ the download starts by itself)
+ *  or the build finishes without a newer version (→ up to date). This poll IS the auto-start:
+ *  every tick re-runs the whole decision, so nothing needs the player to press anything. */
 const PENDING_POLL_MS = 25_000;
 let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 function clearPendingPoll(): void {
@@ -208,6 +226,40 @@ function schedulePendingPoll(): void {
   }, PENDING_POLL_MS);
 }
 
+/** Enter (or stay in) the waiting lock and arm the poll that will auto-start the update. */
+function lockPending(reason: 'ci-build' | 'platform-feed', version: string | undefined): void {
+  push({mode: 'pending', error: undefined, pendingReason: reason, pendingVersion: version});
+  schedulePendingPoll();
+}
+
+/**
+ * Bound for the `platform-feed` wait — see `beginDownload`. The CI-build wait needs no bound: it
+ * ends on an authoritative server signal (the workflow run stops being active). This one is an
+ * INFERENCE — "the gate wants a version Velopack can't see, so the feed must still be catching
+ * up" — and an inference can be wrong (a broken/half-published release, an install Velopack can't
+ * update). So it is capped, and on expiry we fall through to the normal error / manual-download
+ * fallback rather than locking the player out for good. ~5 min covers the real window: the linux
+ * channel is merged before its run completes, leaving only the feed proxy's ~2 min asset cache
+ * plus GitHub CDN propagation.
+ */
+const PLATFORM_FEED_MAX_WAITS = 12;
+let platformFeedWaits = 0;
+
+/** Wait for THIS platform's package to appear on the feed, while the budget lasts. Returns false
+ *  once it's exhausted → the caller surfaces the honest failure. */
+function awaitPlatformFeed(why: string): boolean {
+  if (platformFeedWaits >= PLATFORM_FEED_MAX_WAITS) {
+    logUpdate(`feed still has no package for this platform after ${platformFeedWaits} checks — giving up (${why})`);
+    return false;
+  }
+  platformFeedWaits++;
+  logUpdate(
+    `gate wants ${state.latestVersion ?? 'a newer version'} but it isn't on this platform's feed yet ` +
+    `(${why}) — waiting ${platformFeedWaits}/${PLATFORM_FEED_MAX_WAITS}`);
+  lockPending('platform-feed', state.latestVersion);
+  return true;
+}
+
 /** Run (or re-run) the compatibility check + decision. Returns true when the game is blocked. */
 async function runCheck(): Promise<boolean> {
   // Every run cancels the pending poll; the branches below re-arm it only if still pending.
@@ -216,7 +268,13 @@ async function runCheck(): Promise<boolean> {
     push({mode: 'idle'});
     return false;
   }
-  push({mode: 'checking'});
+  // NEVER drop a gate that is already blocking down to the non-blocking 'checking' pill: this
+  // function re-runs on the waiting poll (every PENDING_POLL_MS) and on Try-again, and each of
+  // those would otherwise flash the game screen open — interactive — for the length of the fetch.
+  // The startup check is unaffected: nothing is blocking yet, so the pill still shows.
+  if (!updateBlocksGame()) {
+    push({mode: 'checking'});
+  }
   const fresh = await fetchCompat(serverBaseUrl);
   const cached = getLastKnownGood();
   if (fresh !== undefined) {
@@ -231,13 +289,23 @@ async function runCheck(): Promise<boolean> {
       downloadUrl: decision.info.downloadUrl,
     });
   }
+  // A newer release is building on CI. LOCK and wait for it: the client is already outdated
+  // (that build is the latest version), and updating to whatever is published right now would
+  // just mean a second update minutes later. The poll re-runs this check until the build lands,
+  // at which point the branch below starts the download on its own. `resolveUpdateDecision` only
+  // returns this for a FRESH fetch — a stale offline snapshot never locks the player out.
+  if (decision.mode === 'pending') {
+    logUpdate(`build in progress — waiting for ${decision.info?.pendingVersion ?? 'the new release'}`);
+    lockPending('ci-build', decision.info?.pendingVersion);
+    return true;
+  }
   if (decision.mode === 'required') {
     if (canAutoUpdate()) {
       // Windows or Linux-as-AppImage: run the in-app download → the premium overlay shows the
       // progress bar and the Restart-and-install CTA (Velopack reports download progress on
       // BOTH platforms, so the Linux experience matches Windows).
       logUpdate('update required — starting in-app download');
-      push({mode: 'required', error: undefined});
+      push({mode: 'required', error: undefined, pendingReason: undefined});
       void beginDownload();
     } else {
       // Linux NOT running as an AppImage (or any run Velopack can't self-install): never
@@ -256,16 +324,14 @@ async function runCheck(): Promise<boolean> {
     push({mode: 'offlineBlocked', error: 'Cannot reach the update server.'});
     return true;
   }
-  // A newer release is building on CI but isn't published yet. Enter a NON-BLOCKING waiting mode
-  // (the player keeps playing) and poll until it lands → the next runCheck sees updateRequired and
-  // runs the normal download flow. Only from a FRESH fetch — a stale offline value is ignored.
-  if (fresh?.buildInProgress === true) {
-    logUpdate(`build in progress — waiting for ${fresh.pendingVersion ?? 'the new release'}`);
-    push({mode: 'pending', error: undefined, pendingVersion: fresh.pendingVersion});
-    schedulePendingPoll();
-    return false;
-  }
-  push({mode: fresh !== undefined ? 'upToDate' : 'idle', error: undefined, pendingVersion: undefined});
+  // Nothing to do — and nothing left to wait for, so the feed budget starts fresh next time.
+  platformFeedWaits = 0;
+  push({
+    mode: fresh !== undefined ? 'upToDate' : 'idle',
+    error: undefined,
+    pendingVersion: undefined,
+    pendingReason: undefined,
+  });
   return false;
 }
 
@@ -293,17 +359,39 @@ function updateOrManual(err: unknown): void {
  *  apply. The download runs in the background; nothing is applied until quitAndInstall. */
 async function beginDownload(): Promise<void> {
   logUpdate('beginDownload — checking the Velopack GitHub feed');
+  const mgr = getManager();
+  // PHASE 1 — resolve the package. The gate has already told us we're outdated, so "this channel
+  // has nothing newer" is not an answer we accept at face value: it is the EXPECTED window in
+  // which the gate legitimately runs ahead of the feed. release.yml creates the release tag in
+  // the `windows` job (that tag IS what the gate reads as `latest`) and merges the `linux`
+  // channel into it only once the linux job has packed — and the feed proxy caches its asset map
+  // for ~2 min on top. Both the "no update" and the 404 shape of that window are a WAIT, not a
+  // dead-end. Bounded by PLATFORM_FEED_MAX_WAITS: past that it is a real problem and the manual
+  // download is the honest answer.
+  let info: UpdateInfo | null;
   try {
-    const mgr = getManager();
-    const info = await mgr.checkForUpdatesAsync();
-    if (info === null) {
-      // The server gate said "required" but Velopack sees no newer release on the feed yet
-      // (feed not published for this channel / OS, or a version mismatch). Never dead-end:
-      // offer the manual download instead of spinning forever.
-      updateOrManual('No update available on the Velopack feed');
+    info = await mgr.checkForUpdatesAsync();
+  } catch (err) {
+    const message = String((err as {message?: string})?.message ?? err);
+    if (awaitPlatformFeed(`feed check failed — ${message}`)) {
       return;
     }
-    push({mode: 'downloading', progress: {percent: 0, transferred: 0, total: 0, bytesPerSecond: 0}});
+    updateOrManual(err);
+    return;
+  }
+  if (info === null) {
+    if (awaitPlatformFeed('Velopack reports no update on this channel')) {
+      return;
+    }
+    updateOrManual('No update available on the Velopack feed');
+    return;
+  }
+  // PHASE 2 — the package is really there, so the feed has caught up: release its budget, and
+  // treat any failure from here on as a genuine download error (the manifest and the .nupkg URLs
+  // resolve from the same proxy cache snapshot, so a mid-download 404 is not a publish lag).
+  platformFeedWaits = 0;
+  try {
+    push({mode: 'downloading', pendingReason: undefined, pendingVersion: undefined, progress: {percent: 0, transferred: 0, total: 0, bytesPerSecond: 0}});
     await mgr.downloadUpdateAsync(info, (perc) => {
       // Velopack reports a single 0..100 percentage; the overlay renders the bar from it
       // (byte totals / speed aren't exposed by the JS binding — shown as 0, hidden by the UI).

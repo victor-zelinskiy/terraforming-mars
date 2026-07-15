@@ -6,6 +6,9 @@ import {CompatSnapshot, resolveUpdateDecision} from '../../electron/updatePolicy
 
 const compatible: CompatSnapshot = {latestVersion: '1.4.0', minSupportedVersion: '1.0.0', updateRequired: false};
 const required: CompatSnapshot = {latestVersion: '1.4.0', minSupportedVersion: '1.4.0', updateRequired: true};
+// CI is building 1.5.0. The gate reports it alongside whatever it currently knows.
+const buildPending: CompatSnapshot = {...compatible, buildInProgress: true, pendingVersion: '1.5.0'};
+const buildPendingAndRequired: CompatSnapshot = {...required, buildInProgress: true, pendingVersion: '1.5.0'};
 
 describe('electron/updatePolicy resolveUpdateDecision', () => {
   it('a fresh result is authoritative (required)', () => {
@@ -49,5 +52,36 @@ describe('electron/updatePolicy resolveUpdateDecision', () => {
   it('strict offline does NOT block when a compatible last-known-good exists', () => {
     const d = resolveUpdateDecision({fresh: undefined, cached: compatible, strictOffline: true});
     expect(d.mode).to.eq('normal');
+  });
+
+  describe('pending CI build', () => {
+    it('a fresh build-in-progress → pending (wait for it)', () => {
+      const d = resolveUpdateDecision({fresh: buildPending, cached: undefined, strictOffline: false});
+      expect(d.mode).to.eq('pending');
+      expect(d.info).to.eq(buildPending);
+      expect(d.usedCache).to.be.false;
+    });
+
+    it('a pending build OUTRANKS an available required update (never update twice)', () => {
+      const d = resolveUpdateDecision({fresh: buildPendingAndRequired, cached: undefined, strictOffline: false});
+      expect(d.mode).to.eq('pending');
+    });
+
+    it('once the build lands (no longer in progress) the required update takes over', () => {
+      const d = resolveUpdateDecision({fresh: required, cached: buildPendingAndRequired, strictOffline: false});
+      expect(d.mode).to.eq('required');
+    });
+
+    it('a CACHED build-in-progress is ignored offline (that build finished long ago)', () => {
+      // Falls back to the cached snapshot's own updateRequired, never to a stale 'pending' lock.
+      const d = resolveUpdateDecision({fresh: undefined, cached: buildPendingAndRequired, strictOffline: false});
+      expect(d.mode).to.eq('offlineBlocked');
+      expect(d.usedCache).to.be.true;
+    });
+
+    it('a cached build-in-progress on a COMPATIBLE snapshot still fails open offline', () => {
+      const d = resolveUpdateDecision({fresh: undefined, cached: buildPending, strictOffline: false});
+      expect(d.mode).to.eq('normal');
+    });
   });
 });
