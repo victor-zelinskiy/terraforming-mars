@@ -79,6 +79,10 @@ explaining surface and reads in Russian (`src/locales/ru/*.json`).
 
 ## Gotchas
 
+- **`mocha --import=tsx` does NOT typecheck.** A spec with a type error runs
+  green locally and fails CI (`npm run build:test` → `tsc --build
+  tests/tsconfig.json`). After touching any spec, run `npm run build:test` —
+  green mocha alone proves nothing about types.
 - Playwright's `expect` is **not chai** — `.to.not.eq()` throws. Use
   `.not.toBe()` / `.toContain()`. (Mocha specs under `tests/` DO use chai;
   don't mix the two idioms.)

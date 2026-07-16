@@ -90,7 +90,7 @@
  */
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
-import {createGameState} from '@/client/components/create/premium/createGameState';
+import {createGameState, visiblePremiumRules} from '@/client/components/create/premium/createGameState';
 import {
   LaunchIssue,
   botSeated,
@@ -101,7 +101,6 @@ import {
 } from '@/client/console/menu/consoleCreateModel';
 import {
   PREMIUM_EXPANSIONS,
-  PREMIUM_RULES,
   PremiumExpansionMeta,
   botDifficultyMeta,
   expansionIcon,
@@ -149,8 +148,8 @@ export default defineComponent({
     },
     activeRules(): ReadonlyArray<{id: string, labelKey: string}> {
       const config = createGameState.config;
-      return PREMIUM_RULES
-        .filter((meta) => (meta.requiresExpansion === undefined || config.selectedExpansions[meta.requiresExpansion] === true) && config.rules[meta.id])
+      return visiblePremiumRules(config)
+        .filter((meta) => config.rules[meta.id])
         .map((meta) => ({id: meta.id, labelKey: meta.labelKey}));
     },
     issues(): ReadonlyArray<LaunchIssue> {

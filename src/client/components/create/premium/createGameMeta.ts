@@ -108,15 +108,22 @@ export type PremiumRuleId =
   | 'randomBoardTiles'
   | 'trBoostEnabled'
   | 'showOtherPlayersVP'
-  | 'alternativeVenusBoard';
+  | 'alternativeVenusBoard'
+  | 'testMode';
 
 export type PremiumRuleMeta = {
   id: PremiumRuleId;
   labelKey: string;
   descKey: string;
-  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus' | 'vp';
+  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus' | 'vp' | 'test';
   /** When set, the toggle only shows while the given expansion is enabled. */
   requiresExpansion?: Expansion;
+  /**
+   * When set, the toggle only shows to the admin identity (see `adminUnlocked`).
+   * It is a development switch, not a rule variant — never show it to a player
+   * who did not deliberately take the admin seat.
+   */
+  requiresAdmin?: boolean;
 };
 
 export const PREMIUM_RULES: ReadonlyArray<PremiumRuleMeta> = [
@@ -126,4 +133,5 @@ export const PREMIUM_RULES: ReadonlyArray<PremiumRuleMeta> = [
   {id: 'trBoostEnabled', labelKey: 'Starting TR bonus', descKey: 'Give each player an extra starting Terraform Rating (a per-player handicap).', icon: 'tr'},
   {id: 'showOtherPlayersVP', labelKey: 'Show real-time VP', descKey: 'Reveal every player\'s and MarsBot\'s victory points during the game, instead of hiding them until the final scoring.', icon: 'vp'},
   {id: 'alternativeVenusBoard', labelKey: 'Alternative Venus board', descKey: 'Use the alternative Venus board layout.', icon: 'venus', requiresExpansion: 'venus'},
+  {id: 'testMode', labelKey: 'Test mode', descKey: 'Development setup: every player is dealt the whole deck to choose from, so any card can be tried out. Not a real game.', icon: 'test', requiresAdmin: true},
 ];

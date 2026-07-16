@@ -28,6 +28,7 @@ function baseState(): PremiumCreateGameState {
       alternativeVenusBoard: true,
       trBoostEnabled: false,
       showOtherPlayersVP: false,
+      testMode: false,
     },
   };
 }
@@ -105,6 +106,18 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
     state.selectedExpansions.venus = false;
     state.rules.alternativeVenusBoard = true;
     expect(buildCreateGamePayloadFromPremiumState(state).altVenusBoard).eq(false);
+  });
+
+  it('sends test mode only when a seat is taken by admin', () => {
+    const state = baseState();
+    state.rules.testMode = true;
+    expect(buildCreateGamePayloadFromPremiumState(state).testMode).eq(false);
+
+    state.players[1].name = 'Admin';
+    expect(buildCreateGamePayloadFromPremiumState(state).testMode).eq(true);
+
+    state.rules.testMode = false;
+    expect(buildCreateGamePayloadFromPremiumState(state).testMode).eq(false);
   });
 
   it('fills hidden legacy options from the central defaults', () => {

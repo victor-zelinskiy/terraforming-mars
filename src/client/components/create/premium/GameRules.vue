@@ -25,8 +25,8 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {PREMIUM_RULES, PremiumRuleMeta, PremiumRuleId} from './createGameMeta';
-import {automaBlockerText, createGameState, setInfoFocus, stateAutomaConflictKeys} from './createGameState';
+import {PremiumRuleMeta, PremiumRuleId} from './createGameMeta';
+import {automaBlockerText, createGameState, setInfoFocus, stateAutomaConflictKeys, visiblePremiumRules} from './createGameState';
 
 const ICONS: Record<PremiumRuleMeta['icon'], string> = {
   draft: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="6" width="9" height="13" rx="1.6" stroke="currentColor" stroke-width="1.6"/><path d="M12.5 8 H19 M12.5 11 H19 M12.5 14 H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
@@ -35,14 +35,14 @@ const ICONS: Record<PremiumRuleMeta['icon'], string> = {
   tr: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 9 H15 M12 9 V16 M9 16 H15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   venus: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M12 14 V21 M9 18 H15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   vp: '<svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12 C5 7 8.5 5 12 5 C15.5 5 19 7 21.5 12 C19 17 15.5 19 12 19 C8.5 19 5 17 2.5 12 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>',
+  test: '<svg viewBox="0 0 24 24" fill="none"><path d="M10 3 V9.2 L5.2 18 A1.6 1.6 0 0 0 6.6 20.4 H17.4 A1.6 1.6 0 0 0 18.8 18 L14 9.2 V3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 3 H15.5 M7.6 13.5 H16.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
 };
 
 export default defineComponent({
   name: 'GameRules',
   computed: {
     visibleRules(): ReadonlyArray<PremiumRuleMeta> {
-      const selected = createGameState.config.selectedExpansions;
-      return PREMIUM_RULES.filter((r) => r.requiresExpansion === undefined || selected[r.requiresExpansion] === true);
+      return visiblePremiumRules();
     },
     conflictKeys(): ReadonlySet<string> {
       return stateAutomaConflictKeys();

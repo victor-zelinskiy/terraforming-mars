@@ -3,6 +3,7 @@ import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
 import {BoardNameType, NewGameConfig, NewPlayerModel} from '@/common/game/NewGameConfig';
 import {Expansion} from '@/common/cards/GameModule';
 import {defaultCreateGameModel} from '@/client/components/create/defaultCreateGameModel';
+import {adminUnlocked} from './createGameState';
 import type {PremiumCreateGameState} from './createGameState';
 import {PREMIUM_EXPANSIONS} from './createGameMeta';
 
@@ -56,7 +57,9 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     showTimers: d.showTimers,
     fastModeOption: d.fastModeOption,
     showOtherPlayersVP: state.rules.showOtherPlayersVP,
-    testMode: d.testMode,
+    // The development switch only exists for the admin seat — a toggle left over
+    // from an admin session (persisted setup) can never leak into a real party.
+    testMode: adminUnlocked(state) && state.rules.testMode,
     aresExtremeVariant: d.aresExtremeVariant,
     politicalAgendasExtension: d.politicalAgendasExtension,
     // Venus solar phase follows the Venus expansion, like the legacy form.

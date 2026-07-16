@@ -28,6 +28,7 @@
     "Reveal every player's and MarsBot's victory points during the game, instead of hiding them until the final scoring.": "Показывает победные очки всех игроков (и бота) во время партии, а не скрывает их до финального подсчёта.",
     "Alternative Venus board": "Альтернативный планшет Венеры",
     "Use the alternative Venus board layout.": "Использовать альтернативную раскладку планшета Венеры.",
+    "Development setup: every player is dealt the whole deck to choose from, so any card can be tried out. Not a real game.": "Режим разработки: каждому игроку раздаётся вся колода на выбор, чтобы можно было опробовать любую карту. Не для настоящей партии.",
     "Base only": "Только база",
     "Creating": "Создаём…",
     "Could not create the game. Please try again.": "Не удалось создать партию. Попробуйте ещё раз.",

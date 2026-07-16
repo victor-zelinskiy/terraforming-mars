@@ -170,6 +170,14 @@ describe('consoleCreateModel', () => {
       expect(createGameState.config.rules.draftVariant).to.eq(!before);
     });
 
+    it('shows the test-mode rule only while a seat is taken by admin', () => {
+      expect(ruleRows().map((r) => r.meta.id)).to.not.include('testMode');
+      setSlotName(0, ' Admin ');
+      expect(ruleRows().map((r) => r.meta.id)).to.include('testMode');
+      setSlotName(0, 'Player 1');
+      expect(ruleRows().map((r) => r.meta.id)).to.not.include('testMode');
+    });
+
     it('selects a specific map and the random rotation', () => {
       selectMap(BoardName.HELLAS);
       expect(createGameState.config.mapMode).to.eq('specific');

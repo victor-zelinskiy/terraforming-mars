@@ -64,8 +64,8 @@ import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
-import {createGameState, PremiumPlayerSlot, slotNameIssue} from './createGameState';
-import {PREMIUM_EXPANSIONS, PREMIUM_RULES, PremiumRuleMeta, botDifficultyMeta, expansionIcon, expansionLabelKey, mapMeta} from './createGameMeta';
+import {createGameState, PremiumPlayerSlot, slotNameIssue, visiblePremiumRules} from './createGameState';
+import {PREMIUM_EXPANSIONS, PremiumRuleMeta, botDifficultyMeta, expansionIcon, expansionLabelKey, mapMeta} from './createGameMeta';
 
 export default defineComponent({
   name: 'PartyBriefing',
@@ -105,12 +105,7 @@ export default defineComponent({
     },
     activeRules(): ReadonlyArray<PremiumRuleMeta> {
       const cfg = createGameState.config;
-      return PREMIUM_RULES.filter((r) => {
-        if (r.requiresExpansion !== undefined && cfg.selectedExpansions[r.requiresExpansion] !== true) {
-          return false;
-        }
-        return cfg.rules[r.id] === true;
-      });
+      return visiblePremiumRules(cfg).filter((r) => cfg.rules[r.id] === true);
     },
   },
   methods: {

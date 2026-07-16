@@ -48,12 +48,12 @@ import {
   setSlotTrBoost,
   slotNameIssue,
   stateAutomaConflicts,
+  visiblePremiumRules,
 } from '@/client/components/create/premium/createGameState';
 import {
   BOT_DIFFICULTIES,
   PREMIUM_EXPANSIONS,
   PREMIUM_MAPS,
-  PREMIUM_RULES,
   PremiumExpansionMeta,
   PremiumMapMeta,
   PremiumRuleMeta,
@@ -319,8 +319,7 @@ export type RuleRow = {meta: PremiumRuleMeta, value: boolean, conflictKey: strin
 export function ruleRows(): ReadonlyArray<RuleRow> {
   const config = createGameState.config;
   const conflicts = stateAutomaConflictKeysSafe();
-  return PREMIUM_RULES
-    .filter((meta) => meta.requiresExpansion === undefined || config.selectedExpansions[meta.requiresExpansion] === true)
+  return visiblePremiumRules(config)
     .map((meta) => {
       const key = `rule:${meta.id}`;
       return {meta, value: config.rules[meta.id], conflictKey: conflicts.has(key) ? key : undefined};

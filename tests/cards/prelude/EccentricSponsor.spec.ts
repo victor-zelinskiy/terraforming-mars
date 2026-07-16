@@ -73,7 +73,7 @@ describe('EccentricSponsor', () => {
       const select = PreludesExpansion.selectPreludeToPlay(player, [eccentricSponsor]);
       expect(eccentricSponsor.warnings.has('preludeFizzle'), 'the UI is warned').is.true;
 
-      select.process({type: 'card', cards: [eccentricSponsor.name]}, player);
+      select.process({type: 'card', cards: [eccentricSponsor.name]});
       runAllActions(player.game);
       expect(player.megaCredits).eq(15);
     });

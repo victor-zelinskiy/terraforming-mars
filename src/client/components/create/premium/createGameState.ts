@@ -13,7 +13,7 @@ import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {AutomaConflict, automaConflicts} from '@/common/automa/automaCompatibility';
 import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName';
 import {defaultCreateGameModel} from '@/client/components/create/defaultCreateGameModel';
-import {PREMIUM_EXPANSIONS, PremiumRuleId} from './createGameMeta';
+import {PREMIUM_EXPANSIONS, PREMIUM_RULES, PremiumRuleId, PremiumRuleMeta} from './createGameMeta';
 import {CreateGameSettingsStorage} from '@/client/components/create/CreateGameSettingsStorage';
 import {JSONObject, JSONValue} from '@/common/Types';
 
@@ -44,6 +44,8 @@ export type PremiumRules = {
   trBoostEnabled: boolean;
   /** Show every player's (and MarsBot's) VP in real time instead of hiding it until the end. */
   showOtherPlayersVP: boolean;
+  /** Development switch — only reachable from the admin seat (see `adminUnlocked`). */
+  testMode: boolean;
 };
 
 export type PremiumCreateGameState = {
@@ -106,8 +108,36 @@ export function defaultPremiumState(): PremiumCreateGameState {
       alternativeVenusBoard: d.altVenusBoard,
       trBoostEnabled: false,
       showOtherPlayersVP: d.showOtherPlayersVP,
+      testMode: d.testMode,
     },
   };
+}
+
+/**
+ * The name that unlocks the development switches on the create screen.
+ * Matched through `normalizePlayerName`, like every other name comparison in
+ * the fork's temporary name-based identity model — when that model is replaced
+ * by real accounts, this becomes an account-role check in ONE place.
+ */
+const ADMIN_NAME = normalizePlayerName('admin');
+
+/** True while a seat in the current party is taken by the admin identity. */
+export function adminUnlocked(config: PremiumCreateGameState = createGameState.config): boolean {
+  return config.players.some((p) => normalizePlayerName(p.name) === ADMIN_NAME);
+}
+
+/**
+ * The rule toggles the current setup may show — THE one place the visibility
+ * gates live, so the console deck, the desktop toggles and both briefings can
+ * never disagree about which rules exist.
+ */
+export function visiblePremiumRules(config: PremiumCreateGameState = createGameState.config): ReadonlyArray<PremiumRuleMeta> {
+  return PREMIUM_RULES.filter((meta) => {
+    if (meta.requiresAdmin === true && !adminUnlocked(config)) {
+      return false;
+    }
+    return meta.requiresExpansion === undefined || config.selectedExpansions[meta.requiresExpansion] === true;
+  });
 }
 
 export const createGameState = reactive<{
