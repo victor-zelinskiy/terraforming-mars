@@ -19,6 +19,10 @@ const hazardPenalty: BoardFact = {
 const preview: BoardPlacementPreview = {
   space: '05',
   kind: 'greenery',
+  // A LEGAL cell — the panel only ever previews a placement the server allows;
+  // an illegal one carries `illegalReason` and is covered by the placement-reason
+  // popover, not here.
+  legal: true,
   costFacts: [hazardPenalty],
   immediateFacts: [],
   recipientFacts: [],
@@ -29,7 +33,9 @@ const preview: BoardPlacementPreview = {
 
 const info: BoardCellInfo = {
   space: '05',
-  status: {header: 'Land with a bonus'},
+  // An EMPTY land cell carrying a printed bonus — matches the `facts` below
+  // (a printed-placement-bonus) and the header this fixture asserts on.
+  status: {content: 'empty', header: 'Land with a bonus'},
   facts: [{id: 'f', category: 'printed-placement-bonus', timing: 'immediate', severity: 'positive', recipient: {kind: 'current-player'}, title: 'f'}],
 };
 

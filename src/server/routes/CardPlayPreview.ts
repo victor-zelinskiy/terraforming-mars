@@ -19,18 +19,22 @@ import {cardPlayPreview, previewableCard} from '../models/cardPlayPreview';
  * a play preview is for a card the player can play right now. A card that isn't
  * currently playable returns `notFound`, which correctly gates an illegal preview.
  *
- * Three START-OF-GAME sources resolve too — all played straight from the
+ * Four START-OF-GAME sources resolve too — all played straight from the
  * opening ceremony (no play modal), all previewed by the console's start scene
  * so they carry the same premium on-play reward beat:
  *   - PRELUDES in the player's own prelude hand;
+ *   - a PRELUDE OFFERED BY THE LIVE PROMPT (the drew-N pick — New Partner /
+ *     Valley Trust deal their candidates straight from the deck into the
+ *     `preludeSelection` prompt, so they are in neither the prelude hand nor
+ *     the tableau and the prompt is the only handle on them);
  *   - the CHOSEN but not-yet-played CORPORATION (`pickedCorporationCard` — the
  *     deferred `corporationPlay` window);
  *   - a corporation OFFERED BY THE LIVE PROMPT (Merger's `corporationSelection`
  *     — its dealt corps are local to `bespokePlay`, so the ONLY honest handle
  *     is the prompt the server is showing this player right now).
  * All are the player's OWN cards (the id check above already authorized them),
- * the prompt-sourced path is gated on the explicit `corporationSelection`
- * marker, and the preview is read-only — so this leaks nothing.
+ * the two prompt-sourced paths are gated on their explicit `startGamePrompt`
+ * marker + the card type, and the preview is read-only — so this leaks nothing.
  */
 export class CardPlayPreview extends Handler {
   public static readonly INSTANCE = new CardPlayPreview();

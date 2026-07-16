@@ -57,6 +57,25 @@ export type CanAffordOptions = Partial<PaymentOptions> & {
 }
 
 /**
+ * Asks the playability question about a HYPOTHETICAL state instead of the
+ * current one.
+ *
+ * `extraDiscount` — M€ off every card's cost on top of the discounts already in
+ * play. It exists for a card that must know, BEFORE it is played, whether the
+ * discount it is about to grant would give the player anything to play (Eccentric
+ * Sponsor: its own `getCardDiscount` only fires once the card sits in the tableau
+ * and `lastCardPlayed` names it, so at `canPlay` time the discount cannot be
+ * observed any other way).
+ *
+ * It goes through the REAL playability path deliberately — a private
+ * re-implementation would drift from `canPlay` and start answering "unplayable"
+ * for cards that are playable.
+ */
+export type PlayabilityOptions = {
+  extraDiscount?: number,
+}
+
+/**
  * One queued "you drew cards" reveal awaiting the player's acknowledgement.
  * Holds live cards (serialized to model lazily). Transient — see IPlayer.cardDrawReveals.
  */
@@ -407,15 +426,15 @@ export interface IPlayer {
   /** Player is done taking actions this generation. */
   pass(): void;
   takeActionForFinalGreenery(): void;
-  getPlayableCards(): Array<IProjectCard>;
-  canPlay(card: IProjectCard): boolean;
+  getPlayableCards(options?: PlayabilityOptions): Array<IProjectCard>;
+  canPlay(card: IProjectCard, playability?: PlayabilityOptions): boolean;
   canSpend(payment: Payment, reserveUnits?: Units): boolean;
   payingAmount(payment: Payment, options?: Partial<PaymentOptions>): number;
   /**
    * Returns a summary of how much a player would have to spend to play a card,
    * any associated costs, and ways the player can pay.
    */
-  affordOptionsForCard(card: IProjectCard): CanAffordOptions;
+  affordOptionsForCard(card: IProjectCard, options?: PlayabilityOptions): CanAffordOptions;
   canAfford(options: number | CanAffordOptions): boolean;
   /** The M€-equivalent shortfall to play `card` right now (0 if affordable). */
   affordabilityDeficit(card: IProjectCard): number;

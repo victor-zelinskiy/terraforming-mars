@@ -45,6 +45,9 @@ import {CommunityServices} from '../../src/server/cards/colonies/CommunityServic
 import {Decomposers} from '../../src/server/cards/base/Decomposers';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {MetalsCompany} from '../../src/server/cards/prelude/MetalsCompany';
+import {ValleyTrust} from '../../src/server/cards/prelude/ValleyTrust';
+import {Biolab} from '../../src/server/cards/prelude/Biolab';
+import {UNMIContractor} from '../../src/server/cards/prelude/UNMIContractor';
 import {EcoLine} from '../../src/server/cards/corporation/EcoLine';
 import {CrediCor} from '../../src/server/cards/corporation/CrediCor';
 import {Tag} from '../../src/common/cards/Tag';
@@ -85,6 +88,45 @@ describe('previewableCard (which of the player\'s OWN cards may be previewed)', 
     const prelude = new MetalsCompany();
     player.preludeCardsInHand.push(prelude);
     expect(previewableCard(player, CardName.METALS_COMPANY)).eq(prelude);
+  });
+
+  // The drew-N pick (Valley Trust / New Partner) deals its candidates STRAIGHT
+  // from the prelude deck into the prompt — they never touch `preludeCardsInHand`
+  // nor the tableau. Without the prompt-sourced branch every candidate answered
+  // 404 to the console start scene's reward prefetch, silently dropping the
+  // premium reward beat for exactly the cards the player is about to press.
+  it('VALLEY TRUST: a prelude offered by the LIVE preludeSelection prompt (the drew-N pick)', () => {
+    const [game, player] = testGame(2, {preludeExtension: true});
+    game.preludeDeck.drawPile = [new Biolab(), new UNMIContractor(), new MetalsCompany()];
+    // The initial action RETURNS the prompt; the game loop is what puts it in
+    // front of the player — mirror that, since the preview reads the LIVE prompt.
+    player.defer(new ValleyTrust().initialAction(player));
+    runAllActions(game);
+    cast(player.getWaitingFor(), SelectCard);
+
+    // Drawn, not held: the honest handle is the prompt the server is showing.
+    expect(player.preludeCardsInHand, 'the drawn candidates are NOT in the prelude hand').is.empty;
+    const offered = previewableCard(player, CardName.BIOLAB);
+    expect(offered, 'expected the offered prelude to be previewable').is.not.undefined;
+    expect(offered?.name).eq(CardName.BIOLAB);
+
+    // …and it previews its on-play result like any declarative card, so the
+    // press arms the same reward beat a hand prelude gets.
+    const branch = cardPlayPreview(player, offered!).branches[0];
+    expect(branch.effects.some((e) => e.icon === Resource.PLANTS), 'the +1 plant production chip').is.true;
+    expect(branch.effects.some((e) => e.icon === 'cards'), 'the draw-3 chip').is.true;
+  });
+
+  it('a prelude the preludeSelection prompt does NOT offer is not previewable', () => {
+    const [game, player] = testGame(2, {preludeExtension: true});
+    game.preludeDeck.drawPile = [new Biolab(), new UNMIContractor(), new MetalsCompany()];
+    // The initial action RETURNS the prompt; the game loop is what puts it in
+    // front of the player — mirror that, since the preview reads the LIVE prompt.
+    player.defer(new ValleyTrust().initialAction(player));
+    runAllActions(game);
+    cast(player.getWaitingFor(), SelectCard);
+    // Sitting in the deck, never offered → no peeking through the prompt branch.
+    expect(previewableCard(player, CardName.ECOLINE)).is.undefined;
   });
 
   it('the CHOSEN but not-yet-played corporation (the deferred corporationPlay window)', () => {

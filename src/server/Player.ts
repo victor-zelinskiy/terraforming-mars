@@ -66,7 +66,7 @@ import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PlayabilityOptions} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -1662,7 +1662,7 @@ export class Player implements IPlayer {
     }
   }
 
-  public getPlayableCards(): Array<IProjectCard> {
+  public getPlayableCards(options?: PlayabilityOptions): Array<IProjectCard> {
     const candidateCards: Array<IProjectCard> = [...this.cardsInHand];
     // Self Replicating robots check
     const card = this.tableau.get(CardName.SELF_REPLICATING_ROBOTS);
@@ -1674,14 +1674,14 @@ export class Player implements IPlayer {
     for (const card of candidateCards) {
       card.clearWarnings();
       card.additionalProjectCosts = undefined;
-      if (this.canPlay(card)) {
+      if (this.canPlay(card, options)) {
         playableCards.push(card);
       }
     }
     return playableCards;
   }
 
-  public affordOptionsForCard(card: IProjectCard): CanAffordOptions {
+  public affordOptionsForCard(card: IProjectCard, options?: PlayabilityOptions): CanAffordOptions {
     let trSource: TRSource = {};
     if (card.tr) {
       trSource = card.tr;
@@ -1699,7 +1699,9 @@ export class Player implements IPlayer {
       trSource.tr = (trSource.tr ?? 0) + 1;
     }
 
-    const cost = this.getCardCost(card);
+    // `getCardCost` already floors at 0, and so does this — a hypothetical
+    // discount can only ever reach free, never negative.
+    const cost = Math.max(0, this.getCardCost(card) - (options?.extraDiscount ?? 0));
     const paymentOptionsForCard = this.paymentOptionsForCard(card);
     return {
       cost,
@@ -1709,9 +1711,9 @@ export class Player implements IPlayer {
     };
   }
 
-  public canPlay(card: IProjectCard): boolean {
+  public canPlay(card: IProjectCard, playability?: PlayabilityOptions): boolean {
     card.additionalProjectCosts = undefined;
-    const options = this.affordOptionsForCard(card);
+    const options = this.affordOptionsForCard(card, playability);
     const canAfford = this.canAffordInternal(options);
     if (!canAfford.canAfford) {
       return false;

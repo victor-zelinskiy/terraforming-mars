@@ -2,6 +2,7 @@ import {IPlayer} from '../IPlayer';
 import {ICard} from '../cards/ICard';
 import {CardName} from '../../common/cards/CardName';
 import {isICorporationCard} from '../cards/corporation/ICorporationCard';
+import {isPreludeCard} from '../cards/prelude/IPreludeCard';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {SelectCard} from '../inputs/SelectCard';
 import {Behavior, TitledBehavior} from '../behavior/Behavior';
@@ -43,6 +44,9 @@ import {effectsForBehavior, stepsForBehavior, subAvailability} from './actionPre
  * gate — kept here so it is unit-testable alongside the preview itself):
  *  - a currently PLAYABLE project card (hand + Self-replicating Robots hosts);
  *  - a PRELUDE in the player's own prelude hand;
+ *  - a PRELUDE OFFERED BY THE LIVE PROMPT (the drew-N pick — New Partner /
+ *    Valley Trust: freshly drawn preludes live ONLY inside the `preludeSelection`
+ *    prompt, never in `preludeCardsInHand`, so the prompt is the only handle);
  *  - the CHOSEN but not-yet-played corporation (the deferred `corporationPlay`
  *    window — it lives in `pickedCorporationCard`, not the hand/tableau);
  *  - a corporation OFFERED BY THE LIVE PROMPT (Merger's `corporationSelection`:
@@ -63,7 +67,28 @@ export function previewableCard(player: IPlayer, name: CardName): ICard | undefi
   if (picked?.name === name) {
     return picked;
   }
-  return offeredCorporation(player, name);
+  return offeredPrelude(player, name) ?? offeredCorporation(player, name);
+}
+
+/**
+ * A prelude offered by the player's own live `preludeSelection` prompt. The
+ * drew-N pick (New Partner / Valley Trust) deals its candidates straight from
+ * the prelude deck into the `SelectCard` — they are in NEITHER
+ * `preludeCardsInHand` NOR the tableau, so without this branch the console's
+ * start scene asked for a preview it could never get (a 404 per candidate, and
+ * the press silently lost its premium reward beat). Mirrors
+ * `offeredCorporation`: gated on the explicit marker + the card type, so an
+ * arbitrary prompt's cards can never be previewed through it. Double Down's
+ * 'copy' candidates resolve too — they are the player's own played preludes, and
+ * a read-only preview of one is truthful.
+ */
+function offeredPrelude(player: IPlayer, name: CardName): ICard | undefined {
+  const waitingFor = player.getWaitingFor();
+  if (!(waitingFor instanceof SelectCard) || waitingFor.startGamePrompt?.kind !== 'preludeSelection') {
+    return undefined;
+  }
+  const card = (waitingFor.cards as ReadonlyArray<ICard>).find((c) => c.name === name);
+  return card !== undefined && isPreludeCard(card) ? card : undefined;
 }
 
 /** A corporation offered by the player's own live `corporationSelection`
