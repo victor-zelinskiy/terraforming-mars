@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {compareVersions, computeDesktopVersion} from '../../src/common/models/DesktopVersionModel';
+import {compareVersions, computeDesktopVersion, resolvePendingForPlatform} from '../../src/common/models/DesktopVersionModel';
 
 // Pure unit test of the desktop compatibility logic.
 //   npx mocha --import=tsx "tests/server/ApiDesktopVersion.spec.ts"
@@ -132,6 +132,90 @@ describe('common/DesktopVersionModel', () => {
     it('unknown current version → buildInProgress false even with a pending build', () => {
       const m = computeDesktopVersion({...BASE, pendingVersion: '1.9.0'});
       expect(m.buildInProgress).to.be.false;
+    });
+  });
+
+  describe('resolvePendingForPlatform — per-platform early unlock', () => {
+    it('no pending build → passes latest through, no pending', () => {
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.230', pendingVersion: undefined,
+        platformChannel: 'win', publishedChannels: new Set(['win']),
+      });
+      expect(r).to.deep.eq({latestVersion: '1.1.230', pendingVersion: undefined});
+    });
+
+    it('THIS platform published → unlocks and advances latest to the pending version', () => {
+      // windows job already uploaded releases.win.json for 1.1.231 (run still going for linux/prune).
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.230', pendingVersion: '1.1.231',
+        platformChannel: 'win', publishedChannels: new Set(['win']),
+      });
+      expect(r.pendingVersion).to.be.undefined; // lock dropped → updateRequired takes over
+      expect(r.latestVersion).to.eq('1.1.231');
+    });
+
+    it('THIS platform NOT yet published → stays locked (keeps pending)', () => {
+      // linux client during the same window: only win is up, linux channel not merged yet.
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.231', pendingVersion: '1.1.231',
+        platformChannel: 'linux', publishedChannels: new Set(['win']),
+      });
+      expect(r.pendingVersion).to.eq('1.1.231');
+      expect(r.latestVersion).to.eq('1.1.231');
+    });
+
+    it('release tag not created yet (empty channel set) → stays locked', () => {
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.230', pendingVersion: '1.1.231',
+        platformChannel: 'win', publishedChannels: new Set(),
+      });
+      expect(r.pendingVersion).to.eq('1.1.231');
+      expect(r.latestVersion).to.eq('1.1.230');
+    });
+
+    it('channels unknown (GitHub blip) → stays locked, never unlocks on a transient error', () => {
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.230', pendingVersion: '1.1.231',
+        platformChannel: 'win', publishedChannels: undefined,
+      });
+      expect(r.pendingVersion).to.eq('1.1.231');
+      expect(r.latestVersion).to.eq('1.1.230');
+    });
+
+    it('does not downgrade latest when it is already ahead of the pending version', () => {
+      const r = resolvePendingForPlatform({
+        latestVersion: '1.1.232', pendingVersion: '1.1.231',
+        platformChannel: 'win', publishedChannels: new Set(['win']),
+      });
+      expect(r.pendingVersion).to.be.undefined;
+      expect(r.latestVersion).to.eq('1.1.232');
+    });
+
+    it('the full win-client happy path: unlocked pending → updateRequired, no wait', () => {
+      const resolved = resolvePendingForPlatform({
+        latestVersion: '1.1.230', pendingVersion: '1.1.231',
+        platformChannel: 'win', publishedChannels: new Set(['win']),
+      });
+      const m = computeDesktopVersion({
+        ...BASE, platform: 'win32', currentVersion: '1.1.230', requireLatest: true,
+        latestVersion: resolved.latestVersion, pendingVersion: resolved.pendingVersion,
+      });
+      expect(m.buildInProgress).to.be.false; // no longer waiting
+      expect(m.updateRequired).to.be.true; // downloads 1.1.231 immediately
+      expect(m.latestVersion).to.eq('1.1.231');
+    });
+
+    it('the full linux-client happy path: still-locked pending → keeps waiting', () => {
+      const resolved = resolvePendingForPlatform({
+        latestVersion: '1.1.231', pendingVersion: '1.1.231',
+        platformChannel: 'linux', publishedChannels: new Set(['win']),
+      });
+      const m = computeDesktopVersion({
+        ...BASE, platform: 'linux', currentVersion: '1.1.230', requireLatest: true,
+        latestVersion: resolved.latestVersion, pendingVersion: resolved.pendingVersion,
+      });
+      expect(m.buildInProgress).to.be.true; // waits for the linux channel to merge
+      expect(m.pendingVersion).to.eq('1.1.231');
     });
   });
 });

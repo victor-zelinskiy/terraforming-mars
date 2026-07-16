@@ -3,7 +3,7 @@ import {Handler} from './Handler';
 import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
-import {computeDesktopVersion} from '../../common/models/DesktopVersionModel';
+import {computeDesktopVersion, resolvePendingForPlatform} from '../../common/models/DesktopVersionModel';
 import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
 
 /**
@@ -48,20 +48,40 @@ export class ApiDesktopVersion extends Handler {
     // window where the release tag already exists (the `windows` job created it) but the `linux`
     // channel hasn't been merged into it yet. Follows requireLatest; disable with
     // TM_DESKTOP_DETECT_BUILDS=0. Fail-open (a GitHub blip just means no pending signal).
+    //
+    // The lock is PER-PLATFORM (resolvePendingForPlatform below): a build stays "in progress" for
+    // the whole run, but each OS's package lands in the release at a different time — so the moment
+    // THIS platform's channel feed is published for the pending version, we drop its lock and let it
+    // update, instead of making it wait out the other OS's job + prune.
     const detectBuilds = requireLatest && (process.env.TM_DESKTOP_DETECT_BUILDS ?? '1') !== '0';
-    const pendingVersion = detectBuilds ? await githubPendingBuildVersion() : undefined;
-    const model = computeDesktopVersion({
+    const platform = q.get('platform') ?? 'win32';
+    const rawPending = detectBuilds ? await githubPendingBuildVersion() : undefined;
+    // Per-platform EARLY UNLOCK: a build is "in progress" for the whole workflow RUN (windows →
+    // linux → prune), but the windows job publishes the `win` channel feed into the release tag
+    // first. As soon as THIS platform's channel is published for the pending version, its package
+    // is downloadable — don't keep it locked waiting out the rest of the run. Resolves to the
+    // available version + drops the pending signal; the other platform keeps waiting until its own
+    // channel is merged. Only fetches when a build is actually running (rawPending set).
+    const publishedChannels =
+      rawPending !== undefined ? await githubReleasePublishedChannels(rawPending) : undefined;
+    const resolved = resolvePendingForPlatform({
       latestVersion,
+      pendingVersion: rawPending,
+      platformChannel: velopackChannel(platform),
+      publishedChannels,
+    });
+    const model = computeDesktopVersion({
+      latestVersion: resolved.latestVersion,
       minSupportedVersion: process.env.TM_DESKTOP_MIN_VERSION ?? '0.0.0',
       serverProtocolVersion: REALTIME_PROTOCOL_VERSION,
       channel: process.env.TM_DESKTOP_CHANNEL ?? 'latest',
-      platform: q.get('platform') ?? 'win32',
+      platform,
       releaseNotes: parseReleaseNotes(process.env.TM_DESKTOP_RELEASE_NOTES),
       downloadUrl: emptyToUndefined(process.env.TM_DESKTOP_DOWNLOAD_URL),
       forceUpdate: (process.env.TM_DESKTOP_FORCE_UPDATE ?? '') === '1',
       currentVersion: emptyToUndefined(q.get('current') ?? undefined),
       requireLatest,
-      pendingVersion,
+      pendingVersion: resolved.pendingVersion,
     });
     responses.writeJson(res, ctx, model);
   }
@@ -140,6 +160,65 @@ async function githubPendingBuildVersion(): Promise<string | undefined> {
     return version;
   } catch {
     return githubRunsCache?.version;
+  }
+}
+
+// The Velopack channel a platform downloads. release.yml's `windows` job packs the `win` channel,
+// the `linux` job the `linux` channel (each `vpk pack` uses the per-OS default). Anything else maps
+// to `win` (macOS is out of scope; the field only matters for win/linux clients).
+function velopackChannel(platform: string): string {
+  return platform === 'linux' ? 'linux' : 'win';
+}
+
+// Which Velopack channels are ALREADY published in the release tagged v<version> — i.e. which
+// platforms' packages are downloadable now, even while the rest of the CI run is still going. Each
+// OS's channel adds a `releases.<channel>.json` feed asset to the shared release tag, and vpk
+// uploads that manifest together with its .nupkg in one publish step, so the manifest's presence
+// means the package is fetchable. Returns an EMPTY set when the tag doesn't exist yet (404 → the
+// build hasn't published anything), or undefined on a transient failure (→ the caller keeps the
+// client locked rather than unlocking onto a maybe-half-published release). Cached briefly (a
+// release's channel set changes only as CI merges each OS, on the order of a minute).
+function githubReleaseTagUrl(tag: string): string {
+  return `https://api.github.com/repos/victor-zelinskiy/terraforming-mars/releases/tags/${tag}`;
+}
+const GITHUB_RELEASE_TTL_MS = 30_000;
+const releaseChannelsCache = new Map<string, {channels: Set<string>; at: number}>();
+
+async function githubReleasePublishedChannels(version: string): Promise<Set<string> | undefined> {
+  const now = Date.now();
+  const cached = releaseChannelsCache.get(version);
+  if (cached !== undefined && now - cached.at < GITHUB_RELEASE_TTL_MS) {
+    return cached.channels;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(githubReleaseTagUrl(`v${version}`), {
+      signal: controller.signal,
+      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+    });
+    clearTimeout(timer);
+    if (res.status === 404) {
+      // The build hasn't created the release yet → nothing published for any platform.
+      const channels = new Set<string>();
+      releaseChannelsCache.set(version, {channels, at: now});
+      return channels;
+    }
+    if (!res.ok) {
+      return cached?.channels;
+    }
+    const body = await res.json() as {assets?: Array<{name?: string}>};
+    const channels = new Set<string>();
+    for (const a of body.assets ?? []) {
+      const m = /^releases\.(.+)\.json$/i.exec(a.name ?? '');
+      if (m !== null) {
+        channels.add(m[1].toLowerCase());
+      }
+    }
+    releaseChannelsCache.set(version, {channels, at: now});
+    return channels;
+  } catch {
+    return cached?.channels;
   }
 }
 
