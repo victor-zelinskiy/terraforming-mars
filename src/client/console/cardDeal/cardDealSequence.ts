@@ -28,6 +28,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive, REDUCED_MOTION_CAP_MS} from '@/client/console/composables/useConsoleReducedMotion';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 import {dealTimings, REDUCED_REVEAL_STEP_MS, riseTimings} from '@/client/console/cardDeal/cardDealModel';
@@ -88,6 +89,12 @@ export function createCardDealSequence() {
   let retries = 0;
   let probeSig = '';
   let reducedTimers: Array<ReturnType<typeof setTimeout>> = [];
+  /** Presentation hold for the whole cinematic (finish() is the ONE funnel
+   *  every exit path — onDone, skip, dispose, degenerate measure — runs
+   *  through, so the release can never be missed). 'notification-only': the
+   *  deal plays INSIDE the task host / start scene — a blocking hold would
+   *  unmount its own stage. */
+  let presentationHold: AnimationHold | undefined;
 
   const isHeld = (key: string): boolean => state.active && !state.revealed.has(key);
 
@@ -96,6 +103,8 @@ export function createCardDealSequence() {
     state.active = false;
     state.cards = [];
     handle = undefined;
+    presentationHold?.release();
+    presentationHold = undefined;
   };
 
   /**
@@ -142,6 +151,8 @@ export function createCardDealSequence() {
       state.active = true;
       state.cards = [...cardNames];
       state.nonce++;
+      presentationHold?.release();
+      presentationHold = beginAnimationHold('card-deal', {scope: 'notification-only'});
       return true;
     },
 

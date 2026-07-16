@@ -31,6 +31,7 @@
 
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydroMarkerDirector';
 
@@ -74,6 +75,11 @@ let settleTimerId = 0;
 export function isHydroMarkerActive(): boolean {
   return hydroMarkerState.active;
 }
+
+// The glide is VISUAL from the arm itself (the marker charges at confirm —
+// the client-side leg), so the whole active window holds the presentation;
+// releases the instant end/abort drops `active` (lock = the GSAP signal).
+registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive);
 
 /** The director registers its handle so the controller can drive lock/skip. */
 export function registerHydroMarkerHandle(h: HydroMarkerDirectorHandle | undefined): void {

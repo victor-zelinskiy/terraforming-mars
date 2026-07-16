@@ -24,6 +24,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {changeFeedbackManager, prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {
@@ -103,6 +104,10 @@ function cancelTimers(): void {
 export function isEnergyConversionActive(): boolean {
   return energyConversionState.active;
 }
+
+// While the paired counters glide, notifications queue and mandatory surfaces
+// wait; releases the instant `endEnergyConversion` (or the safety) drops it.
+registerAnimationHoldSupplier('energy-conversion', isEnergyConversionActive);
 
 /**
  * Detect (and atomically CLAIM) a conversion to animate for the prev→next view

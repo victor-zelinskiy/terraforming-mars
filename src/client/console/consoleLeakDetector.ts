@@ -72,6 +72,12 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // draw has no modal for that window — the draw stage (mounted for the whole
   // scene) is what serves it.
   '.con-deckdraw',
+  // ANIMATION HOLDS (animationHold.ts): the viewer's OWN milestone/award
+  // coronation and the terraforming-complete cinematic hold mandatory
+  // surfaces for their bounded beat — the ceremony IS the serving surface
+  // for a prompt committed alongside it (e.g. the claim's payment).
+  '.con-macere',
+  '.con-terracere',
 ];
 
 /**

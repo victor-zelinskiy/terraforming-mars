@@ -30,6 +30,7 @@
 
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 
 export type DeckDrawPhase =
@@ -113,6 +114,13 @@ function clearSafety(): void {
 export function isDeckDrawActive(): boolean {
   return deckDrawState.active;
 }
+
+// While cards physically come off the deck, notifications queue behind the
+// scene. 'notification-only': the scene STAGES the reveal overlay (a mandatory
+// result surface) around its landed cards — a blocking hold would withhold the
+// very surface the scene assembles into. Surface coordination stays with the
+// shell (`consoleRevealMode` reads `deckDrawHolds()`).
+registerAnimationHoldSupplier('deck-draw', isDeckDrawActive, {scope: 'notification-only'});
 
 /**
  * The reveal overlay must not MOUNT while cards are still coming off the deck

@@ -33,6 +33,7 @@
  */
 
 import {reactive, nextTick} from 'vue';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -187,6 +188,11 @@ let runActive = false;
 export function isResourceTransferActive(): boolean {
   return runActive || resourceTransferState.flights.length > 0;
 }
+
+// Chips in flight hold the presentation. Today every wave runs nested inside
+// a blocking hero scene (played hero / patent sale / tile placement), so this
+// is redundant cover — but a FUTURE standalone wave is protected by default.
+registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive);
 
 /**
  * Run one transfer wave. Resolves when EVERY transfer has ARRIVED (its

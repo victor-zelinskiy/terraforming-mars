@@ -29,6 +29,7 @@
 import {reactive, nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -139,6 +140,11 @@ export function playedHeroHolding(): boolean {
   const p = playedHeroState.phase;
   return playedHeroState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
 }
+
+// The whole scene — incl. the POST-COMMIT reveal / reward beat — holds the
+// presentation: notifications queue, mandatory surfaces wait. Releases the
+// instant `finish`/`abort` drops the phase (the GSAP completion signal).
+registerAnimationHoldSupplier('played-hero', playedHeroHolding);
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 

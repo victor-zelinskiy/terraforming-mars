@@ -20,6 +20,7 @@
  */
 
 import {reactive} from 'vue';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 
@@ -44,6 +45,11 @@ export const govScaleFocusState = reactive({
   /** The raised parameter (drives the accent class + which scale). */
   param: undefined as string | undefined,
 });
+
+// The close beat + the scale glide/accent hold the presentation, so the next
+// modal AND any poll-delivered notification wait for the choreography to
+// finish (bounded by this module's own timers + safety).
+registerAnimationHoldSupplier('gov-scale-focus', () => govScaleFocusState.closing || govScaleFocusState.holding);
 
 let armedParam: string | undefined;
 let closeTimer: number | undefined;

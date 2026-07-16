@@ -36,6 +36,7 @@
 import {reactive, nextTick} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -113,6 +114,11 @@ export function patentSaleHolding(): boolean {
   const p = patentSaleState.phase;
   return patentSaleState.active && p !== 'idle' && p !== 'failed';
 }
+
+// The whole trade-terminal scene — incl. the post-commit settle — holds the
+// presentation (notifications queue, mandatory surfaces wait); releases the
+// instant the phase drops on end/abort (the scene's real completion signal).
+registerAnimationHoldSupplier('patent-sale', patentSaleHolding);
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 

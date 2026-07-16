@@ -30,6 +30,11 @@
  *     notification store reports whether a flow-holding card (the compact
  *     AI-turn notification) is currently visible. Injection keeps the import
  *     graph acyclic (notificationState imports THIS module, not vice versa).
+ *   - The ANIMATION-HOLD registry (`animationHold.ts`, a leaf like the module
+ *     states) — every critical premium animation (hero scenes, deal/reveal
+ *     cinematics, marker glides, ceremonies) holds the foreground for exactly
+ *     its real lifetime; the release is the flow's own completion signal
+ *     (GSAP onComplete → the flow's reactive flag drops), never a timer.
  *
  * Transitions are broadcast to subscribers (`onForegroundFreed` /
  * `onForegroundBlocked`) via a module-level watcher, so the notification
@@ -40,6 +45,7 @@ import {computed, reactive, watch} from 'vue';
 import {hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import {revealResultState} from '@/client/components/actions/revealResultState';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
+import {animationHoldCount, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
 import {
   ForegroundLeaseKind,
   PresentationBlockReason,
@@ -70,6 +76,8 @@ function flags(): PresentationFlags {
     ceremonyLeases: leaseCounts['ceremony'],
     theaterOpen: botTurnReviewState.open,
     flowHoldingNotificationVisible: flowHoldSupplier(),
+    animationHolds: animationHoldCount(),
+    blockingAnimationHolds: blockingAnimationHoldCount(),
   };
 }
 

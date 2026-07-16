@@ -43,6 +43,7 @@
 import {reactive, nextTick} from 'vue';
 import {TileType} from '@/common/TileType';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -128,6 +129,10 @@ export function tilePlacementHolding(): boolean {
   const p = tilePlacementState.phase;
   return tilePlacementState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
 }
+
+// The flight + the post-commit reward beat hold the presentation; releases
+// the instant the phase drops on end/abort (the scene's completion signal).
+registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 

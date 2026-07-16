@@ -32,6 +32,7 @@
  */
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {MaKind} from '@/client/components/ma/maArt';
 
 export type MaCeremonyEvent = {
@@ -74,6 +75,13 @@ export const maCeremonyState: MaCeremonyStateShape = reactive({
   current: undefined,
   nonce: 0,
 });
+
+// The viewer's OWN coronation / seal is a centre-stage cinematic: while it
+// plays, notifications queue and the follow-up prompt (e.g. the claim's
+// payment) waits for the beat to finish. The REMOTE beat is deliberately
+// unobtrusive by design ("never covers open overlays or interrupts an
+// action") and holds nothing. Releases when the host advances the queue.
+registerAnimationHoldSupplier('ma-ceremony-own', () => maCeremonyState.current?.own === true);
 
 /** Called at the viewer's own submit — carries the exact cost/free context. */
 export function armMaCeremony(event: {kind: MaKind, name: string, cost: number, free: boolean}, now: number = Date.now()): void {

@@ -14,6 +14,7 @@ import {revealResultState, dismissReveal} from '@/client/components/actions/reve
 import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {notificationFlowHoldSupplier} from '@/client/components/notifications/notificationState';
+import {resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 
 describe('presentationFlow (reactive orchestrator)', () => {
   beforeEach(() => {
@@ -21,6 +22,7 @@ describe('presentationFlow (reactive orchestrator)', () => {
     resetBotTurnReview();
     dismissReveal();
     drawnCardsState.events = [];
+    resetAnimationHoldsForTest();
     registerFlowHoldSupplier(() => false);
   });
 

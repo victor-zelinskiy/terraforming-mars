@@ -31,6 +31,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {TradeFleetDirectorHandle} from '@/client/console/colonyFleet/tradeFleetDirector';
 
@@ -75,6 +76,11 @@ let settleTimerId = 0;
 export function isTradeFleetActive(): boolean {
   return tradeFleetState.active;
 }
+
+// The flight is VISUAL from the arm itself (the ship lifts off at confirm —
+// the client-side leg), so the whole active window holds the presentation;
+// releases the instant end/abort drops `active` (dock = the GSAP signal).
+registerAnimationHoldSupplier('trade-fleet', isTradeFleetActive);
 
 /** The director registers its handle so the controller can drive dock/skip. */
 export function registerTradeFleetHandle(h: TradeFleetDirectorHandle | undefined): void {

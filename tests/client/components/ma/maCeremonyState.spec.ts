@@ -28,6 +28,10 @@ describe('maCeremonyState', () => {
   const seed = () => observeMaCeremony(view(), 500);
 
   beforeEach(() => resetMaCeremony());
+  // Module state is BUNDLE-SHARED in mochapack: a beat left `current` would
+  // keep the ma-ceremony-own ANIMATION HOLD active and block notification
+  // delivery in every later spec — leave the queue clean.
+  after(() => resetMaCeremony());
 
   it('first observation seeds silently — an already-taken slot never replays', () => {
     const taken = view({milestones: [{name: 'Mayor', playerName: 'Riv', color: rival}]});

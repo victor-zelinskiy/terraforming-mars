@@ -46,6 +46,7 @@
  */
 import {defineComponent} from 'vue';
 import {terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
+import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
@@ -63,6 +64,10 @@ export default defineComponent({
       visible: false,
       hideTimer: undefined as number | undefined,
       fx: undefined as CeremonyBurstHandle | undefined,
+      /** The game's climax cinematic holds the presentation for its bounded
+       *  lifetime (notifications queue, the next prompt waits) — released on
+       *  hide/unmount; the registry ceiling covers a leaked timer. */
+      presentationHold: undefined as AnimationHold | undefined,
     };
   },
   computed: {
@@ -82,6 +87,8 @@ export default defineComponent({
   watch: {
     celebrationNonce(): void {
       this.visible = true;
+      this.presentationHold?.release();
+      this.presentationHold = beginAnimationHold('terraforming-ceremony');
       void this.$nextTick(() => this.playFx());
       if (this.hideTimer !== undefined) {
         window.clearTimeout(this.hideTimer);
@@ -90,6 +97,7 @@ export default defineComponent({
         this.visible = false;
         this.hideTimer = undefined;
         this.stopFx();
+        this.releaseHold();
       }, motionMs(prefersReducedMotion() ? REDUCED_LIFETIME_MS : CEREMONY_LIFETIME_MS));
     },
   },
@@ -98,6 +106,7 @@ export default defineComponent({
       window.clearTimeout(this.hideTimer);
     }
     this.stopFx();
+    this.releaseHold();
   },
   methods: {
     $t,
@@ -118,6 +127,10 @@ export default defineComponent({
     stopFx(): void {
       this.fx?.stop();
       this.fx = undefined;
+    },
+    releaseHold(): void {
+      this.presentationHold?.release();
+      this.presentationHold = undefined;
     },
   },
 });

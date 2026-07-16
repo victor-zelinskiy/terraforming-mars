@@ -14,6 +14,8 @@ function flags(partial: Partial<PresentationFlags> = {}): PresentationFlags {
     ceremonyLeases: 0,
     theaterOpen: false,
     flowHoldingNotificationVisible: false,
+    animationHolds: 0,
+    blockingAnimationHolds: 0,
     ...partial,
   };
 }
@@ -38,6 +40,13 @@ describe('presentationPolicy (pure)', () => {
       expect(foregroundBlockReason(flags({mandatoryLeases: 2}))).eq('mandatory-choice');
       expect(foregroundBlockReason(flags({ceremonyLeases: 1}))).eq('ceremony');
     });
+
+    it('a LIVE critical animation outranks everything (it IS what is on screen)', () => {
+      expect(foregroundBlockReason(flags({animationHolds: 1}))).eq('animation');
+      expect(foregroundBlockReason(flags({
+        animationHolds: 1, resultModalOpen: true, theaterOpen: true, mandatoryLeases: 1,
+      }))).eq('animation');
+    });
   });
 
   describe('notificationDeliveryBlocked', () => {
@@ -51,6 +60,11 @@ describe('presentationPolicy (pure)', () => {
     it('a visible flow-holding card does NOT block delivery by itself (the single visible slot serializes)', () => {
       expect(notificationDeliveryBlocked(flags({flowHoldingNotificationVisible: true}))).eq(false);
     });
+
+    it('ANY animation hold blocks delivery — both scopes (nothing floats over a scene)', () => {
+      expect(notificationDeliveryBlocked(flags({animationHolds: 1}))).eq(true);
+      expect(notificationDeliveryBlocked(flags({animationHolds: 1, blockingAnimationHolds: 1}))).eq(true);
+    });
   });
 
   describe('mandatoryPromptsHeld', () => {
@@ -62,8 +76,14 @@ describe('presentationPolicy (pure)', () => {
 
     it('an ordinary corner toast never holds a draft (only flow-holding items participate)', () => {
       // No flag for ordinary toasts exists at all — held is derived ONLY from
-      // the two flow signals.
+      // the flow signals + blocking animation holds.
       expect(mandatoryPromptsHeld(flags({resultModalOpen: true, mandatoryLeases: 3}))).eq(false);
+    });
+
+    it('a BLOCKING animation holds mandatory surfaces; a notification-only one never does (it runs INSIDE one)', () => {
+      expect(mandatoryPromptsHeld(flags({animationHolds: 1, blockingAnimationHolds: 1}))).eq(true);
+      // notification-only: counted in animationHolds but NOT in the blocking subset.
+      expect(mandatoryPromptsHeld(flags({animationHolds: 1, blockingAnimationHolds: 0}))).eq(false);
     });
   });
 

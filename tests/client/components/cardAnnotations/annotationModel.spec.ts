@@ -150,8 +150,7 @@ describe('annotationModel', () => {
     }
   });
 
-  it('catalog guard: one block per type, clean texts, special notes — EVERY in-scope card', function() {
-    this.timeout(15000); // O(cards): builds annotations for every in-scope card (incl. corps)
+  it('catalog guard: one block per type, clean texts, special notes — EVERY in-scope card', () => {
     const covered = getCards((c) => c.metadata.information !== undefined);
     expect(covered.length).to.be.greaterThan(300); // the model ships broadly
     for (const card of covered) {
@@ -176,7 +175,7 @@ describe('annotationModel', () => {
         }
       }
     }
-  });
+  }).timeout(15000); // O(cards): builds annotations for every in-scope card (incl. corps)
 
   it('PLAY-ZONE INVARIANT: on-play graphics live in the trailing play zone (the rail opens it)', () => {
     // The «При розыгрыше» block tethers to the card-native play-rail, which

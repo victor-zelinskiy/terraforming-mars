@@ -22,6 +22,7 @@
 import {reactive} from 'vue';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {
@@ -87,6 +88,10 @@ function cancelTimers(): void {
 export function isHazardCleanupActive(): boolean {
   return hazardCleanupState.active;
 }
+
+// While the cleanup fx plays, notifications queue and mandatory surfaces
+// wait; releases the instant `endHazardCleanup` (or the safety) drops it.
+registerAnimationHoldSupplier('hazard-cleanup', isHazardCleanupActive);
 
 /**
  * Detect (and atomically CLAIM) the cleanups to animate for this prev→next view

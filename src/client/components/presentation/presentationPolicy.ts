@@ -44,6 +44,7 @@ export type ForegroundLeaseKind = 'mandatory-choice' | 'ceremony';
 
 /** Why the presentation slot is currently occupied. */
 export type PresentationBlockReason =
+  | 'animation'
   | 'result-modal'
   | 'mandatory-choice'
   | 'turn-theater'
@@ -61,14 +62,25 @@ export type PresentationFlags = {
   theaterOpen: boolean;
   /** A visible flow-holding notification (the compact AI-turn card). */
   flowHoldingNotificationVisible: boolean;
+  /** Critical premium animations currently holding (ALL scopes) — the
+   *  animation-hold registry (animationHold.ts). Blocks delivery. */
+  animationHolds: number;
+  /** The 'blocking'-scope subset — additionally holds MANDATORY surfaces
+   *  (a 'notification-only' hold runs INSIDE a mandatory surface and must
+   *  never unmount its own stage). */
+  blockingAnimationHolds: number;
 };
 
 /**
  * The single blocking-foreground resolution — priority order mirrors how the
- * surfaces stack temporally: the player's own result first, then the theater
- * they opened, then a mandatory prompt, then ceremonies.
+ * surfaces stack temporally: the motion that is LIVE on screen right now,
+ * then the player's own result, then the theater they opened, then a
+ * mandatory prompt, then ceremonies.
  */
 export function foregroundBlockReason(flags: PresentationFlags): PresentationBlockReason | undefined {
+  if (flags.animationHolds > 0) {
+    return 'animation';
+  }
   if (flags.resultModalOpen) {
     return 'result-modal';
   }
@@ -102,10 +114,14 @@ export function notificationDeliveryBlocked(flags: PresentationFlags): boolean {
  * re-evaluates this predicate.
  *
  * Deliberately NOT true for ordinary corner toasts (a "colony traded" card
- * must never delay a draft) — only flow-holding items participate.
+ * must never delay a draft) — only flow-holding items participate. A LIVE
+ * critical animation of 'blocking' scope participates too: the next modal /
+ * task host mounts only once the scene's real completion signal releases the
+ * hold ('notification-only' holds — cinematics INSIDE a mandatory surface —
+ * deliberately do not, else they would unmount their own stage).
  */
 export function mandatoryPromptsHeld(flags: PresentationFlags): boolean {
-  return flags.theaterOpen || flags.flowHoldingNotificationVisible;
+  return flags.theaterOpen || flags.flowHoldingNotificationVisible || flags.blockingAnimationHolds > 0;
 }
 
 /** Summary of the waiting queue for the pending indicator. */

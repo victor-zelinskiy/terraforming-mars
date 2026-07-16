@@ -26,6 +26,7 @@
 
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /**
  * WHERE the lifting cover comes from. `board-cell` carries the placed
@@ -129,6 +130,12 @@ function clearSafety(): void {
 export function isBoardCardBonusActive(): boolean {
   return boardCardBonusState.active;
 }
+
+// While the cover lifts / travels / flips, notifications queue behind the
+// scene. 'notification-only': the scene STAGES the reveal overlay (a mandatory
+// result surface) around its landed cards — a blocking hold would withhold the
+// very surface the scene assembles into.
+registerAnimationHoldSupplier('board-card-bonus', isBoardCardBonusActive, {scope: 'notification-only'});
 
 /** The layer registers its live-scene handle (idempotent re-register). */
 export function registerBoardCardBonusHandle(h: BoardCardBonusHandle | undefined): void {
