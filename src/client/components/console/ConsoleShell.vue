@@ -1074,7 +1074,10 @@ export default defineComponent({
     },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
-      if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds) {
+      // A reveal overlay owns the foreground — the task host (and, cascading
+      // off it, the gov-support panel) does not serve under it (see startTask).
+      if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds ||
+          this.consoleRevealMode !== undefined) {
         return undefined;
       }
       return taskServedByHost(this.playerView);
@@ -1098,7 +1101,9 @@ export default defineComponent({
     },
     /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
     shellTask(): ConsoleTask | undefined {
-      if (this.presentationHeld || this.playedHeroHolds) {
+      // A reveal overlay owns the foreground — no shell section activates
+      // under it (see startTask). It re-opens once the reveal is finished.
+      if (this.presentationHeld || this.playedHeroHolds || this.consoleRevealMode !== undefined) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -1106,7 +1111,14 @@ export default defineComponent({
     },
     /** The T5 START SCENE task (initialCards wizard / start-sequence ceremony). */
     startTask(): ConsoleTask | undefined {
-      if (this.presentationHeld) {
+      // A reveal overlay is a TOP-PRIORITY modal — it cannot be minimized and
+      // must be finished (cards taken) before anything under it comes alive.
+      // A draw earned by a prelude can arrive at the SAME time the server
+      // raises the corporation's first mandatory action (a start-scene task):
+      // the start scene must NOT mount / grab focus under the reveal. It
+      // re-activates the instant the reveal closes (the consoleForegroundBusy
+      // watcher opens the serving surface then).
+      if (this.presentationHeld || this.consoleRevealMode !== undefined) {
         return undefined;
       }
       const task = taskFor(this.playerView);
