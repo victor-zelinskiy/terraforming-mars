@@ -17,25 +17,41 @@
        placed tile and hands each to its resource chip on the shared
        ConsoleResourceTransferLayer.
   -->
-  <div v-if="tilePlacementState.active" class="con-tileplace" aria-hidden="true">
-    <div ref="shadow" class="con-tileplace__shadow"></div>
-    <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
-      <div class="con-tileplace__edge" :class="artClass"></div>
-      <div class="con-tileplace__art" :class="artClass"></div>
-      <div ref="touch" class="con-tileplace__touch"></div>
-    </div>
-    <div v-for="b in tilePlacementState.bonusProxies"
-         :key="b.id"
-         class="con-tileplace__bonus"
-         :class="'board-space-bonus--' + b.icon"
-         :style="bonusStyle(b)"
-         :ref="(el) => setBonusRef(b.id, el as HTMLElement | null)"></div>
+  <div v-if="tilePlacementState.active || remotePlacementState.active" class="con-tileplace" aria-hidden="true">
+    <template v-if="tilePlacementState.active">
+      <div ref="shadow" class="con-tileplace__shadow"></div>
+      <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">
+        <div class="con-tileplace__edge" :class="artClass"></div>
+        <div class="con-tileplace__art" :class="artClass"></div>
+        <div ref="touch" class="con-tileplace__touch"></div>
+      </div>
+      <div v-for="b in tilePlacementState.bonusProxies"
+           :key="b.id"
+           class="con-tileplace__bonus"
+           :class="'board-space-bonus--' + b.icon"
+           :style="bonusStyle(b)"
+           :ref="(el) => setBonusRef(b.id, el as HTMLElement | null)"></div>
+    </template>
+    <!-- The REMOTE flight (another player's / the bot's placement) — its
+         OWN proxy set, so a remote landing can overlap the own
+         transaction's reward beat without fighting over refs. Same
+         anatomy (thickness edge + touch overlay + parked ground shadow);
+         the pose/direction carries the provenance. -->
+    <template v-if="remotePlacementState.active">
+      <div ref="remoteShadow" class="con-tileplace__shadow"></div>
+      <div v-if="remoteArtClass !== ''" ref="remoteTile" class="con-tileplace__tile con-tileplace__tile--remote">
+        <div class="con-tileplace__edge" :class="remoteArtClass"></div>
+        <div class="con-tileplace__art" :class="remoteArtClass"></div>
+        <div ref="remoteTouch" class="con-tileplace__touch"></div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {tilePlacementState, registerTilePlacementStage, BonusProxy} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 
@@ -44,6 +60,7 @@ export default defineComponent({
   data() {
     return {
       tilePlacementState,
+      remotePlacementState,
       unregister: undefined as (() => void) | undefined,
       bonusEls: new Map<number, HTMLElement>(),
     };
@@ -55,6 +72,14 @@ export default defineComponent({
         return '';
       }
       const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+      return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    remoteArtClass(): string {
+      const t = remotePlacementState.tileType;
+      if (t === undefined) {
+        return '';
+      }
+      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
       return suffix === '' ? '' : 'board-space-tile--' + suffix;
     },
   },
@@ -98,10 +123,27 @@ export default defineComponent({
           bonusIcons,
         };
       },
+      remoteEls: (): TileStageEls | undefined => {
+        const tile = this.$refs.remoteTile as HTMLElement | undefined;
+        if (tile === undefined || !tile.isConnected) {
+          return undefined;
+        }
+        return {
+          tile,
+          edge: tile.querySelector<HTMLElement>('.con-tileplace__edge') ?? undefined,
+          touch: this.$refs.remoteTouch as HTMLElement | undefined,
+          shadow: this.$refs.remoteShadow as HTMLElement | undefined,
+          bonusIcons: [],
+        };
+      },
     });
   },
   beforeUnmount() {
     this.unregister?.();
+    // Shell teardown / game switch mid-flight: every held tile must become
+    // visible NOW (the hold set is module-level and would otherwise leak
+    // into the next mounted board).
+    abortRemotePlacements();
   },
 });
 </script>

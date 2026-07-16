@@ -34,6 +34,15 @@
         /* Elevation reads from the PNG alpha — a real object over the map. */
         filter: drop-shadow(0 .3rem .5rem rgba(0, 0, 0, 0.45));
     }
+    /* A REMOTE placement (another player / the MarsBot): the provenance is
+       carried by the POSE — it departs from the acting player's chip in the
+       top HUD, already near the board's scale, with the carried tilt
+       mirrored. The only material difference is a slightly SOFTER elevation
+       shadow (it never hovered over the viewer's own hand). */
+    &__tile--remote {
+        filter: drop-shadow(0 .22rem .4rem rgba(0, 0, 0, 0.38));
+    }
+
     &__art,
     &__edge {
         position: absolute;

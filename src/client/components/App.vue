@@ -437,6 +437,7 @@ import {
   armPlacementAnimations,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
@@ -804,6 +805,21 @@ export default defineComponent({
 
           const commit = () => {
             perfMark('playerView:commit');
+            /*
+             * Console: fresh tiles from OTHER players (this poll path is how
+             * an opponent's placement arrives; the staged bot batch's LAST
+             * turn also commits through this closure) land with the premium
+             * REMOTE flight. Staged in this SAME synchronous block as the
+             * commit below, so the tiles commit HIDDEN behind the reveal
+             * hold and each becomes visible at its proxy's touchdown — the
+             * generic impact entrance below then only serves hazards. A
+             * no-op on desktop / reduced motion / no fresh tiles.
+             */
+            stageRemotePlacements(prevView?.game.spaces, model.game.spaces, {
+              aresExtension: model.game.gameOptions?.expansions?.ares === true,
+              gamePhase: model.game.phase,
+              viewerColor: (model as PlayerViewModel).thisPlayer?.color,
+            });
             if (prevView !== undefined &&
                 shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
               armPlacementAnimations();

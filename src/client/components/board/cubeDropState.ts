@@ -120,3 +120,53 @@ export function observeCube(space: SpaceModel): void {
     }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
   }, tileMs));
 }
+
+/*
+ * ── Console HERO-placement bridge ───────────────────────────────────────────
+ *
+ * The console tile-placement hero paints the space's owner colour OUTSIDE the
+ * `arePlacementAnimationsArmed()` window (its own flight replaces the generic
+ * entrance), so `observeCube` would show the cube at rest the instant the
+ * proxy lands — the cube "just appears". These three explicit controls let
+ * the hero drive the SAME premium drop on its own timeline:
+ *
+ *   holdCubeForHeroPlacement — call BEFORE the colour is painted (same
+ *     synchronous block): pre-sets the phase to `hidden`, which observeCube
+ *     respects (a phase already in flight is never restarted). A safety timer
+ *     auto-drops a stranded hold so a cube can never stay invisible.
+ *   dropCubeForHeroPlacement — the tile has physically seated: play the
+ *     premium drop (`pc-place`), then settle to rest.
+ *   restCubeForHeroPlacement — the degraded/abort path: show the cube at
+ *     rest immediately, no drop beat.
+ */
+
+// Covers the longest honest wait: a queued remote flight several tiles deep
+// (~1s each) — far past that, the hold is a leak and the cube must land.
+const HERO_CUBE_HOLD_SAFETY_MS = 10000;
+
+export function holdCubeForHeroPlacement(id: SpaceId): void {
+  clearTimers(id);
+  phases[id] = 'hidden';
+  addTimer(id, window.setTimeout(() => {
+    if (phases[id] === 'hidden') {
+      dropCubeForHeroPlacement(id);
+    }
+  }, HERO_CUBE_HOLD_SAFETY_MS));
+}
+
+export function dropCubeForHeroPlacement(id: SpaceId): void {
+  clearTimers(id);
+  if (prefersReducedMotion()) {
+    phases[id] = 'rest';
+    return;
+  }
+  phases[id] = 'dropping';
+  addTimer(id, window.setTimeout(() => {
+    phases[id] = 'rest';
+  }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
+}
+
+export function restCubeForHeroPlacement(id: SpaceId): void {
+  clearTimers(id);
+  phases[id] = 'rest';
+}

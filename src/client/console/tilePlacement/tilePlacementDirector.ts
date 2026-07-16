@@ -18,8 +18,9 @@
 
 import {gsap} from 'gsap';
 import {
-  TileRect, tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
-  TILE_START_SCALE, TILE_START_TILT_DEG, TILE_SETTLE_PX, TILE_TOUCH_MS,
+  TileRect, TileFlightProfile, OWN_FLIGHT_PROFILE,
+  tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
+  TILE_SETTLE_PX, TILE_TOUCH_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -57,6 +58,8 @@ export type TilePoseOpts = {
   hex: TileRect,
   /** The table-edge supply point the tile departs from. */
   from: TransferPoint,
+  /** The provenance pose (own hand vs a remote player) — defaults to OWN. */
+  profile?: TileFlightProfile,
 };
 
 /**
@@ -70,13 +73,14 @@ export function placeTileProxy(els: TileStageEls, opts: TilePoseOpts): boolean {
   if (opts.hex.w < 8 || opts.hex.h < 8) {
     return false;
   }
+  const profile = opts.profile ?? OWN_FLIGHT_PROFILE;
   gsap.set(els.tile, {
     width: opts.hex.w,
     height: opts.hex.h,
     x: opts.from.x - opts.hex.w / 2,
     y: opts.from.y - opts.hex.h / 2,
-    scale: TILE_START_SCALE,
-    rotation: TILE_START_TILT_DEG,
+    scale: profile.startScale,
+    rotation: profile.startTiltDeg,
     transformOrigin: 'center center',
     autoAlpha: 0,
   });
@@ -107,6 +111,8 @@ export type TileFlightOpts = {
   uiScale: number,
   flightMs: number,
   settleMs: number,
+  /** The provenance pose (own hand vs a remote player) — defaults to OWN. */
+  profile?: TileFlightProfile,
 };
 
 /**
@@ -118,6 +124,7 @@ export type TileFlightOpts = {
  * and a microscopic damped settle ends the motion. Resolves at rest.
  */
 export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise<void> {
+  const profile = opts.profile ?? OWN_FLIGHT_PROFILE;
   const plan = tileFlightPlan(opts.from, {
     x: opts.hex.x + opts.hex.w / 2,
     y: opts.hex.y + opts.hex.h / 2,
@@ -140,8 +147,8 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
         gsap.set(els.tile, {
           x: p.x - opts.hex.w / 2,
           y: p.y - opts.hex.h / 2,
-          scale: tileScaleAt(prog.q),
-          rotation: tileTiltAt(prog.q),
+          scale: tileScaleAt(prog.q, profile),
+          rotation: tileTiltAt(prog.q, profile),
         });
         if (els.shadow !== undefined) {
           const sh = tileShadowAt(prog.q);

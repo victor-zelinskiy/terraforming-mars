@@ -41,9 +41,14 @@
  */
 
 import {reactive, nextTick} from 'vue';
+import {Color} from '@/common/Color';
+import {SpaceId} from '@/common/Types';
 import {TileType} from '@/common/TileType';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {
+  holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
+} from '@/client/components/board/cubeDropState';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -97,6 +102,12 @@ let hexRect: TileRect | undefined;
 /** The REAL printed-icon container we blanked under the proxies (the
  *  `con-deal-hold` swap discipline) — restored on abort/finish. */
 let heldBonusEl: HTMLElement | undefined;
+/** The landed tile's owner (captured at detect) — drives the premium cube
+ *  drop after the touchdown (undefined for oceans / neutral tiles). */
+let landedColor: Color | undefined;
+/** TRUE while the owner cube is explicitly held for THIS transaction —
+ *  abort must release it (rest) so a cube can never stay invisible. */
+let cubeHeld = false;
 /** TRUE once the pre-lift ran — the icons already HOVER over the seated
  *  tile when the reward beat starts (no second rise). */
 let bonusesHovering = false;
@@ -105,7 +116,13 @@ let bonusHoldSeeded = false;
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────
 
-type TileStageHandle = {els: () => TileStageEls | undefined};
+type TileStageHandle = {
+  els: () => TileStageEls | undefined,
+  /** The REMOTE flight's own proxy set (consoleRemotePlacement) — separate
+   *  elements so a remote landing can overlap the own transaction's reward
+   *  beat without fighting over refs. */
+  remoteEls?: () => TileStageEls | undefined,
+};
 let stage: TileStageHandle | undefined;
 
 export function registerTilePlacementStage(handle: TileStageHandle): () => void {
@@ -115,6 +132,11 @@ export function registerTilePlacementStage(handle: TileStageHandle): () => void 
       stage = undefined;
     }
   };
+}
+
+/** The remote-flight proxy set, when the console stage is mounted. */
+export function tileStageRemoteEls(): TileStageEls | undefined {
+  return stage?.remoteEls?.();
 }
 
 // ── predicates ──────────────────────────────────────────────────────────────
@@ -149,6 +171,8 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   restoreHeldBonuses();
   bonusesHovering = false;
   bonusHoldSeeded = false;
+  landedColor = undefined;
+  cubeHeld = false;
   tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
@@ -188,10 +212,11 @@ export function detectTilePlacement(
   }
   tilePlacementState.tileType = landed.tileType;
   tilePlacementState.aresExtension = opts?.aresExtension === true;
+  landedColor = landed.color;
   // The cell is still UNCOVERED on the displayed board — capture the hex +
   // every printed stock icon's live rect now (post pan/zoom truth). The
   // reward beat replays these exact positions over the placed tile.
-  hexRect = measureHex(spaceId);
+  hexRect = measureBoardHexRect(spaceId);
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
   pendingBonuses = space !== undefined ? placementBonuses(space.bonus) : [];
   tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
@@ -246,7 +271,7 @@ async function executeApproach(
   const ui = conUiScale();
   if (els === undefined || !placeTileProxy(els, {
     hex: hexRect,
-    from: supplyPoint(ui),
+    from: tableSupplyPoint(ui),
   })) {
     paintRealTile();
     tilePlacementState.phase = 'landed';
@@ -272,7 +297,7 @@ async function executeApproach(
   }
   await playTileFlight(els, {
     hex: hexRect,
-    from: supplyPoint(ui),
+    from: tableSupplyPoint(ui),
     uiScale: ui,
     flightMs,
     settleMs: motionMs(TILE_SETTLE_MS),
@@ -282,11 +307,23 @@ async function executeApproach(
   }
   // Frame-perfect handoff: the REAL tile paints under the settled proxy
   // (identical geometry, silent — the generic entrance stays unarmed),
-  // then the proxy dissolves on it.
+  // then the proxy dissolves on it. The owner CUBE is held through the
+  // handoff (same synchronous block as the colour paint — observeCube
+  // respects a phase already in flight) and DROPS once the proxy is gone:
+  // tile seats first, then the cube lands on it (the old choreography,
+  // now in the hero's language).
+  if (landedColor !== undefined) {
+    holdCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
+    cubeHeld = true;
+  }
   paintRealTile();
   tilePlacementState.phase = 'landed';
   await nextTick();
   await disposeTileProxy(els, motionMs(110));
+  if (cubeHeld && tilePlacementState.active) {
+    cubeHeld = false;
+    dropCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
+  }
 }
 
 /**
@@ -389,6 +426,12 @@ export function abortTilePlacement(): void {
   abortResourceTransfers();
   clearPanelRewardHold();
   restoreHeldBonuses(); // the printed icons un-blank — the field is intact
+  if (cubeHeld) {
+    // The tile was already painted when the cube was held — show the cube
+    // at rest (no drop beat) rather than leaving it stranded invisible.
+    cubeHeld = false;
+    restCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
+  }
   bonusesHovering = false;
   bonusHoldSeeded = false;
   pendingBonuses = [];
@@ -412,6 +455,11 @@ function finish(): void {
   // Un-blank the printed icons: the placed tile's art covers them on the
   // real board anyway (same as every pre-existing tile) — invisible swap.
   restoreHeldBonuses();
+  if (cubeHeld) {
+    // Belt-and-braces: the drop normally fires at the proxy handoff.
+    cubeHeld = false;
+    dropCubeForHeroPlacement(tilePlacementState.spaceId as SpaceId);
+  }
   bonusesHovering = false;
   bonusHoldSeeded = false;
   pendingBonuses = [];
@@ -430,9 +478,11 @@ function finish(): void {
 
 // ── internals ───────────────────────────────────────────────────────────────
 
-/** The neutral table-edge supply every placement source shares (the same
- *  bottom-centre geography as the sale terminal / the player zone). */
-function supplyPoint(uiScale: number): TransferPoint {
+/** The neutral table-edge supply every OWN placement source shares (the
+ *  same bottom-centre geography as the sale terminal / the player zone).
+ *  Exported for the remote scene's "own tile without a SelectSpace" case
+ *  (an auto-placed reserved-slot city) — same departure, same provenance. */
+export function tableSupplyPoint(uiScale: number): TransferPoint {
   return {
     x: window.innerWidth / 2,
     y: window.innerHeight - Math.round(96 * uiScale),
@@ -464,7 +514,9 @@ function restoreHeldBonuses(): void {
   heldBonusEl = undefined;
 }
 
-function measureHex(spaceId: string): TileRect | undefined {
+/** The live rect of a board hex (post pan/zoom truth) — shared with the
+ *  remote-placement scene (consoleRemotePlacement). */
+export function measureBoardHexRect(spaceId: string): TileRect | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }

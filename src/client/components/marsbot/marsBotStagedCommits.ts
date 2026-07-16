@@ -39,7 +39,9 @@
 import {reactive} from 'vue';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import {MarsBotAttack, MarsBotImpact, MarsBotTurn} from '@/common/automa/MarsBotTurn';
+import {HAZARD_TILES} from '@/common/TileType';
 import {armPlacementAnimations} from '@/client/components/board/tilePlacementAnimation';
+import {stageRemoteTileEvents} from '@/client/console/tilePlacement/consoleRemotePlacement';
 
 type StagedBatch = {
   /** The view the player is LOOKING at (the committed object — mutated in place). */
@@ -124,6 +126,24 @@ export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn): void {
   const visual = turn.visual;
   if (visual !== undefined) {
     if (visual.tiles !== undefined && visual.tiles.length > 0) {
+      // Console: the bot's fresh EMPTY → TILED tiles land with the premium
+      // REMOTE flight — staged in this SAME synchronous block as the
+      // mutation below, so they commit HIDDEN behind the reveal hold and
+      // each becomes visible at its proxy's touchdown (a no-op on desktop /
+      // reduced motion). Hazards and covered cells fall through to the
+      // armed generic entrance unchanged.
+      stageRemoteTileEvents(
+        visual.tiles.flatMap((tile) => {
+          const space = view.game.spaces.find((s) => s.id === tile.spaceId);
+          return space !== undefined && space.tileType === undefined && !HAZARD_TILES.has(tile.tileType) ?
+            [{spaceId: tile.spaceId, tileType: tile.tileType, color: tile.color}] : [];
+        }),
+        {
+          aresExtension: view.game.gameOptions?.expansions?.ares === true,
+          gamePhase: view.game.phase,
+          viewerColor: (view as PlayerViewModel).thisPlayer?.color,
+        },
+      );
       // Arm BEFORE mutating — BoardSpaceTile's watcher fires synchronously
       // from Vue reactivity (same rule as the placement-preview holds).
       armPlacementAnimations();

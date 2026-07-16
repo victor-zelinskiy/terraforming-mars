@@ -22,6 +22,8 @@ import {
   clearActivePlacement,
   observeTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {placementRenderState} from '@/client/components/board/placementRenderState';
+import {isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
 
 const tileTypeToCssClass: Record<TileType, string> = {
   [TileType.OCEAN]: 'ocean',
@@ -323,6 +325,24 @@ export default defineComponent({
       const result = observeTilePlacement(this.space);
       if (result === null) {
         this.placementKind = null;
+        return;
+      }
+      /*
+       * A reveal-held cell (console remote placement / remove-and-replace)
+       * must not fire the generic impact chrome — the ring/settle glow are
+       * pseudo-element paint, so with the tile art suppressed they would
+       * flash over an apparently-EMPTY hex. Read the MODULE state directly
+       * (not the `placementCleared` prop): the hold is set in the same
+       * synchronous block as the commit, so it is always current here,
+       * while the prop's freshness depends on the parent's re-render order
+       * within this flush. The observe call above already consumed the
+       * transition (baseline updated), so the later reveal (un-holding —
+       * no tileType change) can never re-trigger it: the tile paints
+       * silently under its flight proxy, exactly like the own hero.
+       */
+      if (isRemoteRevealHeld(this.space.id) || placementRenderState.hiddenTiles.has(this.space.id)) {
+        this.placementKind = null;
+        clearActivePlacement(this.space.id);
         return;
       }
       this.placementKind = result.kind;

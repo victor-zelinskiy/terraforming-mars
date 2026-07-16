@@ -26,6 +26,8 @@
  * transaction lifecycle in consoleTilePlacement.
  */
 
+import {Color} from '@/common/Color';
+import {SpaceId} from '@/common/Types';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
@@ -90,6 +92,31 @@ export const TILE_START_TILT_DEG = -3.5;
 /** Landing settle amplitude (px @ uiScale 1) — microscopic, damped. */
 export const TILE_SETTLE_PX = 2.5;
 
+/**
+ * PROVENANCE is carried by the flight POSE, not a color/glow: the viewer's
+ * OWN tile is picked up from their hand — big, close to the camera; a
+ * REMOTE tile (an opponent's build, a MarsBot turn) arrives from THEIR side
+ * of the table — already near the board's scale, with the carried tilt
+ * MIRRORED (the other hand). Same arc, same landing, same physics.
+ */
+export interface TileFlightProfile {
+  startScale: number;
+  cruiseScale: number;
+  startTiltDeg: number;
+}
+
+export const OWN_FLIGHT_PROFILE: TileFlightProfile = {
+  startScale: TILE_START_SCALE,
+  cruiseScale: 1.22,
+  startTiltDeg: TILE_START_TILT_DEG,
+};
+
+export const REMOTE_FLIGHT_PROFILE: TileFlightProfile = {
+  startScale: 1.14,
+  cruiseScale: 1.08,
+  startTiltDeg: 3.2,
+};
+
 export type TileRect = {x: number, y: number, w: number, h: number};
 
 export interface TileFlightPlan {
@@ -141,22 +168,24 @@ export function tileFlightPoint(plan: TileFlightPlan, t: number): TransferPoint 
  * size through the first half, then eases down into the board's own scale
  * for the whole approach — entering the field's perspective, not shrinking
  * at the last frame. Monotone non-increasing; exactly 1 at touchdown.
+ * The profile carries the provenance pose (own = big pick-up, remote =
+ * already near the board's scale).
  */
-export function tileScaleAt(t: number): number {
+export function tileScaleAt(t: number, profile: TileFlightProfile = OWN_FLIGHT_PROFILE): number {
   const k = clamp(0, 1, t);
   if (k <= 0.45) {
-    return TILE_START_SCALE - (TILE_START_SCALE - 1.22) * easeInOut(k / 0.45);
+    return profile.startScale - (profile.startScale - profile.cruiseScale) * easeInOut(k / 0.45);
   }
-  return 1.22 - 0.22 * easeInOut((k - 0.45) / 0.55);
+  return profile.cruiseScale - (profile.cruiseScale - 1) * easeInOut((k - 0.45) / 0.55);
 }
 
 /** Carried tilt: fully square by 75% of the path — the landing never rolls. */
-export function tileTiltAt(t: number): number {
+export function tileTiltAt(t: number, profile: TileFlightProfile = OWN_FLIGHT_PROFILE): number {
   const k = clamp(0, 1, t);
   if (k >= 0.75) {
     return 0;
   }
-  return TILE_START_TILT_DEG * (1 - easeInOut(k / 0.75));
+  return profile.startTiltDeg * (1 - easeInOut(k / 0.75));
 }
 
 /**
@@ -248,12 +277,14 @@ export function findSpace(spaces: ReadonlyArray<SpaceModel>, id: string): SpaceM
  * deliberately NOT ours — the hazard has its own ominous entrance — and a
  * covered/replaced tile (hazard cleanup, Ares upgrades) rides its own
  * premium sequence; both return undefined here and the scene unwinds.
+ * `color` = the landed tile's owner (undefined for oceans / neutral tiles)
+ * — it drives the premium cube drop after the touchdown.
  */
 export function verifyPlacement(
   prevSpaces: ReadonlyArray<SpaceModel>,
   newSpaces: ReadonlyArray<SpaceModel>,
   spaceId: string,
-): {tileType: TileType} | undefined {
+): {tileType: TileType, color: Color | undefined} | undefined {
   const prev = findSpace(prevSpaces, spaceId);
   const next = findSpace(newSpaces, spaceId);
   if (prev === undefined || next === undefined) {
@@ -265,7 +296,48 @@ export function verifyPlacement(
   if (HAZARD_TILES.has(next.tileType)) {
     return undefined;
   }
-  return {tileType: next.tileType};
+  return {tileType: next.tileType, color: next.color};
+}
+
+/** One fresh tile the response introduced on a previously-empty cell —
+ *  the remote-placement scene's unit of work. */
+export type FreshPlacement = {
+  spaceId: SpaceId;
+  tileType: TileType;
+  /** The owner (drives the flight origin — the acting player's chip in the
+   *  status strip — and the cube drop). Undefined for oceans / neutral. */
+  color: Color | undefined;
+};
+
+/**
+ * Every fresh EMPTY → TILED placement in this response, in board order —
+ * the diff the REMOTE placement scene presents (another player's build, a
+ * MarsBot turn). Hazards are excluded (their ominous materialization is a
+ * separate language), and so are covered/replaced tiles (hazard cleanup /
+ * Ares upgrades ride their own premium sequences). Index-aligned like
+ * `shouldHoldForTilePlacement`, defensively guarded against id mismatch.
+ */
+export function detectFreshPlacements(
+  prevSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): Array<FreshPlacement> {
+  const out: Array<FreshPlacement> = [];
+  const len = Math.min(prevSpaces.length, newSpaces.length);
+  for (let i = 0; i < len; i++) {
+    const prev = prevSpaces[i];
+    const next = newSpaces[i];
+    if (prev.id !== next.id) {
+      continue;
+    }
+    if (prev.tileType !== undefined || next.tileType === undefined) {
+      continue;
+    }
+    if (HAZARD_TILES.has(next.tileType)) {
+      continue;
+    }
+    out.push({spaceId: next.id, tileType: next.tileType, color: next.color});
+  }
+  return out;
 }
 
 /**

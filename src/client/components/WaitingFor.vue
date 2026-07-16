@@ -197,6 +197,7 @@ import {
   runTilePlacement,
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
@@ -797,6 +798,15 @@ export default defineComponent({
              */
             if (presentFreshBotTurns(this.playerView, newView, {
               commitLatest: () => {
+                // Console: the batch's LAST-turn tiles (this closure IS that
+                // full commit) land with the premium remote flight — staged
+                // in the same synchronous block, committed hidden, revealed
+                // at each proxy's touchdown. No-op on desktop.
+                stageRemotePlacements(this.playerView.game?.spaces, newView.game?.spaces, {
+                  aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
+                  gamePhase: newView.game?.phase,
+                  viewerColor: newView.thisPlayer?.color,
+                });
                 if (shouldHoldForTilePlacement(this.playerView.game.spaces, newView.game.spaces)) {
                   armPlacementAnimations();
                 }
@@ -842,6 +852,22 @@ export default defineComponent({
             if (playedHeroEvent === undefined && !consoleModeState.enabled) {
               primeStartSetupReveal(this.playerView, newView);
             }
+            /*
+             * Console REMOTE placements riding the viewer's OWN submit
+             * response (a concurrent human's build that resolved while the
+             * POST was in flight). Staged BEFORE the generic tile preview
+             * below paints them: they commit hidden behind the reveal hold
+             * and land with the premium remote flight at their proxy's
+             * touchdown. The viewer's own armed placement was already
+             * consumed by the tile hero above (its space is painted, so it
+             * no longer diffs); hazards are excluded and keep the generic
+             * ominous entrance. A no-op on desktop / no fresh tiles.
+             */
+            stageRemotePlacements(this.playerView.game?.spaces, newView.game?.spaces, {
+              aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
+              gamePhase: newView.game?.phase,
+              viewerColor: newView.thisPlayer?.color,
+            });
             const markerHold = wgtSubmit && this.shouldHoldForMarkerAnimation(newView);
             const tileHold = shouldHoldForTilePlacement(
               this.playerView.game.spaces,

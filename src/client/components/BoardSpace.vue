@@ -49,6 +49,7 @@ import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 import {getSpaceName} from '@/common/boards/spaces';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
+import {isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
 export default defineComponent({
   name: 'board-space',
@@ -95,10 +96,12 @@ export default defineComponent({
       css += ' board-space-selectable';
       return css;
     },
-    // True while this occupied cell is a remove-and-replace placement target:
-    // its tile graphic is suppressed and its placement bonus is shown instead.
+    // True while this occupied cell is a remove-and-replace placement target
+    // OR a console remote-placement reveal hold (the committed tile is hidden
+    // until its flight's touchdown): its tile graphic is suppressed and its
+    // placement bonus is shown instead — the cell keeps reading as untouched.
     placementCleared(): boolean {
-      return placementRenderState.hiddenTiles.has(this.space.id);
+      return placementRenderState.hiddenTiles.has(this.space.id) || isRemoteRevealHeld(this.space.id);
     },
     showBonus(): boolean {
       return this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared;
