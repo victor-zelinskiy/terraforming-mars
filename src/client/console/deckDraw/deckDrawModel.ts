@@ -59,14 +59,21 @@ export type DrawBeat = {
 export type DeckDrawTimings = {
   /** The top card separates from the stack (rise + slight grow). */
   peelMs: number,
-  /** Deck → inspect point. */
+  /** Deck → inspect point (a MATCH) or deck → tray (a discard). */
   travelMs: number,
-  /** Readable hold at the inspect point (a discard's is deliberately short). */
+  /** A MATCH's readable hold at the inspect point (discards never pause). */
   inspectMs: number,
-  /** Inspect point → destination. */
+  /** Inspect point → hold slot (a MATCH). */
   routeMs: number,
-  /** Gap between one card leaving the inspect zone and the next peeling off. */
+  /** Gap between a match leaving the inspect zone and the next card peeling. */
   gapMs: number,
+  /**
+   * The tight cadence of the DISCARD stream: a discard peels off every
+   * `streamStepMs`, so several are in the air at once flowing to the tray.
+   * The player reads the COUNT (how many cards streamed between two finds),
+   * never each card — they never flip face-up, they just flow past.
+   */
+  streamStepMs: number,
   flipPortion: number,
   /** The final "search complete" hero beat before the reveal assembles. */
   settleMs: number,
@@ -77,9 +84,10 @@ export type DeckDrawTimings = {
 };
 
 /**
- * The base rhythm. A DISCARD is a fast technological beat — long enough to
- * register "a card was really turned over and it wasn't the one", never long
- * enough to invite reading it. A MATCH gets a fuller (but unshowy) hero beat.
+ * The base rhythm. A MATCH gets a full (but unshowy) hero beat — it flips
+ * face-up, is read for a moment, and settles into the hold zone. DISCARDS
+ * never pause: they flow past face-DOWN in a tight, quick stream straight to
+ * the tray, so the player reads their COUNT, not each card.
  */
 export function deckDrawTimings(): DeckDrawTimings {
   return {
@@ -88,6 +96,7 @@ export function deckDrawTimings(): DeckDrawTimings {
     inspectMs: 260,
     routeMs: 300,
     gapMs: 90,
+    streamStepMs: 95,
     flipPortion: 0.62,
     settleMs: 320,
     frameMs: 240,
@@ -96,8 +105,8 @@ export function deckDrawTimings(): DeckDrawTimings {
 }
 
 /**
- * Reduced motion: the SHORT but still complete physical path (deck → inspect
- * → tray/hold → reveal). The story must read; only the theatrics go (mirrors
+ * Reduced motion: the SHORT but still complete physical path (deck → hold /
+ * deck → tray → reveal). The story must read; only the theatrics go (mirrors
  * reducedBonusSceneTimings).
  */
 export function reducedDeckDrawTimings(): DeckDrawTimings {
@@ -107,6 +116,7 @@ export function reducedDeckDrawTimings(): DeckDrawTimings {
     inspectMs: 90,
     routeMs: 110,
     gapMs: 20,
+    streamStepMs: 45,
     flipPortion: 0.5,
     settleMs: 90,
     frameMs: 100,
@@ -183,30 +193,44 @@ export function planDeckDraw(
       return;
     }
 
-    const pace = step.matched ? 1 : discardPace(discardOrdinal);
-    const beat: DrawBeat = {
-      index,
-      kind: step.matched ? 'match' : 'discard',
-      atMs: at,
-      travelMs: t.travelMs * pace,
-      flipPortion: t.flipPortion,
-      // A match earns a slightly longer readable moment; a discard's hold is
-      // the first thing the tightening ramp spends.
-      inspectMs: (step.matched ? t.inspectMs * 1.45 : t.inspectMs) * pace,
-      routeMs: t.routeMs * pace,
-    };
-    if (step.matched) {
-      beat.holdSlot = holdSlot++;
-    } else {
-      beat.trayDepth = trayDepth++;
+    if (!step.matched) {
+      // A DISCARD flows past face-down straight to the tray — no inspect, no
+      // flip, no per-card beat. Several are in the air at once (the next
+      // peels after only `streamStepMs`), so the player reads the COUNT of
+      // the stream, not each card. A long unlucky run tightens the cadence
+      // (discardPace) so it stays quick, but EVERY discarded card still
+      // physically flows — none is skipped or teleported.
+      const pace = discardPace(discardOrdinal);
+      beats.push({
+        index,
+        kind: 'discard',
+        atMs: at,
+        travelMs: t.travelMs * pace,
+        flipPortion: 0,
+        inspectMs: 0,
+        routeMs: 0,
+        trayDepth: trayDepth++,
+      });
       discardOrdinal++;
+      at += t.streamStepMs * pace;
+      return;
     }
-    beats.push(beat);
 
-    // The next card starts peeling once this one has committed to leaving the
-    // inspect zone — a continuous stream with no dead air, but never two
-    // cards being judged at once.
-    at += t.peelMs + beat.travelMs + beat.inspectMs + beat.routeMs * 0.45 + t.gapMs * pace;
+    // A MATCH gets the full hero beat: peel → travel → judged face-up →
+    // settle into the hold zone. It waits for the discard stream ahead of it
+    // to have cleared the deck (the stream is already flowing to the tray on
+    // the right, this card goes to the centre), so the two never tangle.
+    beats.push({
+      index,
+      kind: 'match',
+      atMs: at,
+      travelMs: t.travelMs,
+      flipPortion: t.flipPortion,
+      inspectMs: t.inspectMs * 1.45,
+      routeMs: t.routeMs,
+      holdSlot: holdSlot++,
+    });
+    at += t.peelMs + t.travelMs + t.inspectMs * 1.45 + t.routeMs * 0.45 + t.gapMs;
   });
 
   return beats;

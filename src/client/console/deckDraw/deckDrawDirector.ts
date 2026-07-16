@@ -110,12 +110,37 @@ export function runDeckDrawBeat(args: {
   }, 0);
   tl.call(args.onDrawn, undefined, s(t.peelMs * 0.55));
 
-  // ── 2 · The travel: deck → inspect point (or straight to the hold slot
-  //        for a plain, verdict-less draw) ──────────────────────────────
-  const flying = beat.kind === 'plain' && targets.hold !== undefined ? targets.hold : targets.inspect;
-  const flyTo = at(flying.x, flying.y, flying.scale);
   const travelAt = s(t.peelMs);
   const travel = s(beat.travelMs);
+
+  // ── DISCARD: a single quick flight deck → tray, face DOWN the whole way ─
+  // No inspect, no flip — it flows past as part of the stream and lands on
+  // the discard pile. Several are in the air at once (the plan starts them
+  // `streamStepMs` apart), so what the player reads is the COUNT, not the card.
+  if (beat.kind === 'discard') {
+    if (targets.tray !== undefined) {
+      const tray = targets.tray;
+      const trayScale = Math.max(0.04, tray.width / CARD_NATURAL_W);
+      // A slight arc (up-and-over) so the stream reads as thrown cards, not a
+      // straight slide; the jitter keeps the pile looking hand-stacked.
+      tl.to(proxy, {x: tray.left, duration: travel, ease: 'power1.inOut'}, travelAt);
+      tl.to(proxy, {y: tray.top, duration: travel, ease: 'power2.in'}, travelAt);
+      tl.to(proxy, {scale: trayScale, duration: travel, ease: 'power2.inOut'}, travelAt);
+      tl.to(proxy, {rotation: jitterDeg(beat.index) * 0.9, duration: travel, ease: 'power2.out'}, travelAt);
+      // It lands ON the pile: the real tray back materializes under it, so the
+      // proxy fades on contact rather than vanishing in mid-air.
+      tl.to(proxy, {autoAlpha: 0, duration: s(reduced ? 60 : 90), ease: 'power1.out'}, travelAt + travel);
+    } else {
+      // No believable tray anchor (degenerate layout): dive out honestly.
+      tl.to(proxy, {autoAlpha: 0, y: '+=40', duration: travel, ease: 'power1.in'}, travelAt);
+    }
+    return {kill: () => tl.kill()};
+  }
+
+  // ── MATCH / plain: travel to the inspect point (a plain draw flies
+  //    straight to its hold slot — nothing to judge) ─────────────────────
+  const flying = beat.kind === 'plain' && targets.hold !== undefined ? targets.hold : targets.inspect;
+  const flyTo = at(flying.x, flying.y, flying.scale);
   // The two-channel arc: lateral glide + a launch-fast / land-soft vertical.
   tl.to(proxy, {x: flyTo.x, duration: travel, ease: 'power1.inOut'}, travelAt);
   tl.to(proxy, {y: flyTo.y, duration: travel, ease: 'power3.out'}, travelAt);
@@ -136,9 +161,9 @@ export function runDeckDrawBeat(args: {
     return {kill: () => tl.kill()};
   }
 
-  // ── 3 · The verdict beat at the inspect point ─────────────────────────
+  // ── The verdict beat at the inspect point (MATCH) ─────────────────────
   const judgeAt = travelAt + travel;
-  if (beat.kind === 'match' && !reduced) {
+  if (!reduced) {
     // A found card is CONFIRMED, calmly: a light scale settle + a one-shot
     // sweep across its frame (the layer's CSS owns the sweep; here it is the
     // class toggle that starts it). Never a badge, never a particle.
@@ -147,11 +172,10 @@ export function runDeckDrawBeat(args: {
     tl.to(proxy, {scale: flying.scale, duration: s(150), ease: 'power2.inOut'}, judgeAt + s(120));
   }
 
-  // ── 4 · The route: inspect point → hold slot / tray ───────────────────
+  // ── The route: inspect point → hold slot ──────────────────────────────
   const routeAt = judgeAt + s(beat.inspectMs);
   const route = s(beat.routeMs);
-
-  if (beat.kind === 'match' && targets.hold !== undefined) {
+  if (targets.hold !== undefined) {
     const hold = at(targets.hold.x, targets.hold.y, targets.hold.scale);
     tl.to(proxy, {x: hold.x, duration: route, ease: 'power1.inOut'}, routeAt);
     tl.to(proxy, {y: hold.y, duration: route, ease: 'power2.inOut'}, routeAt);
@@ -160,30 +184,8 @@ export function runDeckDrawBeat(args: {
     return {kill: () => tl.kill()};
   }
 
-  if (targets.tray !== undefined) {
-    const tray = targets.tray;
-    const trayScale = Math.max(0.04, tray.width / CARD_NATURAL_W);
-    // It turns back face-down on the way — it is leaving the story, and a
-    // face-down pile is what the tray shows.
-    if (beat.flipPortion > 0) {
-      tl.to(flip, {rotateY: 180, duration: route * 0.5, ease: 'power1.in'}, routeAt);
-    }
-    tl.to(proxy, {x: tray.left, duration: route, ease: 'power1.inOut'}, routeAt);
-    tl.to(proxy, {y: tray.top, duration: route, ease: 'power2.in'}, routeAt);
-    tl.to(proxy, {scale: trayScale, duration: route, ease: 'power2.inOut'}, routeAt);
-    tl.to(proxy, {
-      rotation: jitterDeg(beat.index) * 0.7,
-      duration: route, ease: 'power2.out',
-    }, routeAt);
-    // It lands ON the pile and stays there: the real tray back materializes
-    // under it, so the proxy fades on contact rather than vanishing in air.
-    tl.to(proxy, {autoAlpha: 0, duration: s(90), ease: 'power1.out'}, routeAt + route);
-    return {kill: () => tl.kill()};
-  }
-
-  // No believable destination (degenerate layout): dive out honestly rather
-  // than fake a landing — the beat still resolves so the scene moves on.
-  tl.to(proxy, {autoAlpha: 0, y: `+=${40}`, duration: s(140), ease: 'power1.in'}, routeAt);
+  // No believable hold slot: dive out honestly rather than fake a landing.
+  tl.to(proxy, {autoAlpha: 0, y: '+=40', duration: s(140), ease: 'power1.in'}, routeAt);
   return {kill: () => tl.kill()};
 }
 

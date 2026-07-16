@@ -43,12 +43,15 @@
       <span class="con-deckdraw__hold-line"></span>
     </div>
 
-    <!-- One flyer per revealed card (the shared deal flip chassis). -->
+    <!-- One flyer per revealed card (the shared deal flip chassis). A MATCH
+         renders its FACE (it flips up to be seen + held); a DISCARD renders
+         ONLY the back — it never turns face-up, it just flows past to the
+         tray, so the heavy premium face is never built for it. -->
     <div v-for="(step, i) in sceneCards" :key="sceneNonce + '|' + step.name + '#' + i"
          class="con-deckdraw-proxy"
          :ref="(el) => setProxyRef(el, i)">
       <div class="con-deal-proxy__flip" :ref="(el) => setFlipRef(el, i)">
-        <div class="con-deal-proxy__face">
+        <div v-if="step.matched" class="con-deal-proxy__face">
           <ConsoleCardFaceLite :name="step.name" />
         </div>
         <div class="con-deal-proxy__back">

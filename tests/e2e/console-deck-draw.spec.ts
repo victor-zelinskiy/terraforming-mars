@@ -207,18 +207,20 @@ test.describe('console · deck-draw hero scene', () => {
     await expect(trayInModal).toHaveCount(1);
     await expect(trayInModal.locator('.con-reveal__discard-count')).toHaveText(String(discards.length));
 
-    // 4 · Inspecting it is the player's own move: walk focus onto the tray
-    // (it sits after the last card) and open it with X.
+    // 4 · The tray is opened by R3 ONLY — it is NOT a focus target. Walking
+    // the received cards to the end never lands the selection frame on it,
+    // and the pile carries the R3 glyph (never X), matching the command bar.
     for (const _card of batch.cards) {
       await key(page, 'ArrowRight', 350);
     }
-    await expect(trayInModal).toHaveClass(/con-reveal__discard--focused/);
-    await shoot(page, '04-tray-focused');
-    await key(page, 'KeyX', 900);
-    await expect(page.locator('dialog[open]')).toHaveCount(1);
-    await shoot(page, '05-tray-inspect');
-    // B returns to the modal with the reveal intact.
-    await key(page, 'Escape', 800);
-    await expect(revealCard).toHaveCount(1);
+    await expect(trayInModal).not.toHaveClass(/con-reveal__discard--focused/);
+    // The pile's own hint is R3, and nothing else.
+    const hint = trayInModal.locator('.con-reveal__discard-hint');
+    await expect(hint.locator('.gp-glyph')).toHaveText('R3');
+    // The command bar advertises the same single way in.
+    const bar = page.locator('.con-cmdbar');
+    await expect(bar).toContainText(/сброшенные/i);
+    await expect(bar.locator('.gp-glyph', {hasText: 'R3'})).toHaveCount(1);
+    await shoot(page, '04-tray-r3');
   });
 });

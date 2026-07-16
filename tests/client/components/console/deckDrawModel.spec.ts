@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  DrawBeat, FULL_RHYTHM_DISCARDS, MIN_DISCARD_PACE, deckCountAfter, deckDrawBudgetMs,
+  FULL_RHYTHM_DISCARDS, MIN_DISCARD_PACE, deckCountAfter, deckDrawBudgetMs,
   deckDrawTimings, discardPace, holdSlots, inspectPoint, planDeckDraw, planEndMs,
   reducedDeckDrawTimings,
 } from '@/client/console/deckDraw/deckDrawModel';
@@ -15,11 +15,6 @@ const T = deckDrawTimings();
 
 function seq(...matched: ReadonlyArray<boolean>) {
   return matched.map((m) => ({matched: m}));
-}
-
-/** A beat's full occupancy (peel → travel → inspect → route). */
-function endOf(b: DrawBeat): number {
-  return b.atMs + T.peelMs + b.travelMs + b.inspectMs + b.routeMs;
 }
 
 describe('deckDrawModel', () => {
@@ -42,31 +37,52 @@ describe('deckDrawModel', () => {
     it('every revealed card gets a beat — a long search never skips or batches one', () => {
       const steps = seq(...Array.from({length: 24}, (_, i) => i === 23));
       const beats = planDeckDraw(steps, T, false);
+      // 24 physical cards for 24 revealed cards — the count is exact.
       expect(beats).to.have.length(24);
-      expect(beats.every((b) => b.travelMs > 0 && b.routeMs > 0)).to.eq(true);
+      expect(beats.every((b) => b.travelMs > 0)).to.eq(true);
+      // The 23 discards each physically flow to the tray (a distinct depth).
+      expect(beats.filter((b) => b.kind === 'discard')).to.have.length(23);
+      expect(beats.filter((b) => b.kind === 'discard').map((b) => b.trayDepth))
+        .to.deep.eq(Array.from({length: 23}, (_, i) => i));
     });
 
-    it('a match gets a longer readable moment than a discard', () => {
+    it('a DISCARD never pauses to be judged and never flips face-up', () => {
+      const beats = planDeckDraw(seq(false, false, true), T, false);
+      const discards = beats.filter((b) => b.kind === 'discard');
+      expect(discards.every((b) => b.inspectMs === 0)).to.eq(true); // no inspect hold
+      expect(discards.every((b) => b.flipPortion === 0)).to.eq(true); // stays face down
+      expect(discards.every((b) => b.routeMs === 0)).to.eq(true); // one flight, no relay
+      expect(discards.every((b) => b.holdSlot === undefined)).to.eq(true);
+    });
+
+    it('a MATCH pauses face-up and a discard does not — the match is the only readable card', () => {
       const beats = planDeckDraw(seq(false, true), T, false);
-      expect(beats[1].inspectMs).is.greaterThan(beats[0].inspectMs);
+      expect(beats[0].inspectMs).to.eq(0); // discard
+      expect(beats[1].inspectMs).is.greaterThan(0); // match is read
+      expect(beats[1].flipPortion).is.greaterThan(0); // and flips up
     });
 
-    it('only ONE card occupies the inspect zone at a time — the next peels off after it commits to leaving', () => {
-      const beats = planDeckDraw(seq(false, false, true, false, true), T, false);
-      for (let i = 1; i < beats.length; i++) {
-        const prevLeavesInspect = beats[i - 1].atMs + T.peelMs + beats[i - 1].travelMs + beats[i - 1].inspectMs;
-        // The next card starts peeling only after the previous one has begun
-        // its exit, and its own inspect arrival is strictly later.
-        expect(beats[i].atMs).is.greaterThanOrEqual(prevLeavesInspect);
-        expect(beats[i].atMs).is.greaterThan(beats[i - 1].atMs);
+    it('the DISCARD stream is tight — cards peel `streamStepMs` apart, several in the air at once', () => {
+      const beats = planDeckDraw(seq(false, false, false, false, true), T, false);
+      const discards = beats.filter((b) => b.kind === 'discard');
+      // Consecutive discards start only streamStepMs apart (paced), FAR less
+      // than a whole flight — so the stream overlaps and reads as a count.
+      for (let i = 1; i < discards.length; i++) {
+        const step = discards[i].atMs - discards[i - 1].atMs;
+        expect(step).is.greaterThan(0);
+        expect(step).is.lessThanOrEqual(T.streamStepMs + 0.001);
+        expect(step).is.lessThan(discards[i - 1].travelMs); // overlaps in flight
       }
     });
 
-    it('beats never overlap end-to-start, so the stream stays readable', () => {
-      const beats = planDeckDraw(seq(false, true, false, true), T, false);
-      for (let i = 1; i < beats.length; i++) {
-        expect(beats[i].atMs).is.lessThan(endOf(beats[i - 1]) + T.gapMs * 2); // no dead air…
-      }
+    it('a MATCH after a discard stream waits for the stream to clear the deck', () => {
+      const beats = planDeckDraw(seq(false, false, false, true), T, false);
+      const lastDiscard = beats[2];
+      const match = beats[3];
+      // The match peels after the last discard has peeled (order preserved),
+      // and its own beat is the long one.
+      expect(match.atMs).is.greaterThan(lastDiscard.atMs);
+      expect(match.inspectMs).is.greaterThan(0);
     });
   });
 

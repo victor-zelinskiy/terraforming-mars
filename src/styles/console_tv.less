@@ -129,6 +129,16 @@ html.con-profile-tv {
         &__name { font-size: 1.3rem; }
         &__desc { font-size: 0.95rem; }
     }
+    /* The placement / cell FACTS (Cost · You receive · Other players · At
+       game end · Field rules) are px-authored desktop content — the base
+       rule (console.less) rides them at 0.86× the ui-scale for handheld
+       density. From the couch that lands them at ~half the panel's own rem
+       body text (the "many letters too small" read). Bump the multiplier so
+       the facts land near the couch caption size, still a notch below the
+       panel's primary status/reason/bonus. */
+    .con-context .con-inspector__facts {
+        zoom: calc(1.35 * var(--con-ui-scale, 1));
+    }
     .con-home__value b { font-size: 1.5rem; }
     .con-award__legend-span { font-size: 0.65rem; }
 

@@ -101,15 +101,12 @@
               The DISCARD tray of a conditional deck search — the cards the
               deck turned over and threw away to find these. Deliberately
               SECONDARY: a compact face-down pile in its own corner that never
-              shrinks the received cards. It only exists when the search
-              really discarded something, and inspecting it is the player's
-              own choice (X), never part of the animation.
+              shrinks the received cards. It is NOT a focus target (it never
+              competes with the received cards for the selection frame) — it is
+              opened ONLY by R3, always available while the modal is up, so
+              inspecting it is a deliberate side-move, never part of the flow.
             -->
-            <button v-if="discardedCards.length > 0"
-                    type="button"
-                    class="con-reveal__discard"
-                    :class="{'con-reveal__discard--focused': discardFocused}"
-                    @click="openDiscards">
+            <div v-if="discardedCards.length > 0" class="con-reveal__discard">
               <span class="con-reveal__discard-pile" aria-hidden="true">
                 <span v-if="discardedCards.length > 2" class="con-card-back con-reveal__discard-back con-reveal__discard-back--3"></span>
                 <span v-if="discardedCards.length > 1" class="con-card-back con-reveal__discard-back con-reveal__discard-back--2"></span>
@@ -119,10 +116,10 @@
               <span class="con-reveal__discard-meta">
                 <span class="con-reveal__discard-label">{{ $t('DISCARDED') }}</span>
                 <span class="con-reveal__discard-hint">
-                  <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                  <GamepadGlyph control="stickR" /><span>{{ $t('Inspect') }}</span>
                 </span>
               </span>
-            </button>
+            </div>
           </div>
 
           <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) ─── -->
@@ -168,9 +165,9 @@
            navigation (shared vocabulary with hand / draft / start scene).
            Self-resolving inside this overlay, so it can never target the
            task host's focused card underneath. -->
-      <!-- The tray is a focus target like any card, so the SAME gliding frame
-           lands on it (one focus vocabulary — never a second indicator). -->
-      <ConsoleCardFocusFrame selector=":is(.con-cards__slot--focused > :is(.card-container, .pcard), .con-reveal__discard--focused .con-reveal__discard-pile)" />
+      <!-- The gliding frame lands only on the received cards — the discard
+           tray is opened by R3, never focused. -->
+      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     </template>
   </div>
 </template>
@@ -468,10 +465,9 @@ export default defineComponent({
     },
     focusCount(): number {
       switch (this.mode) {
-      // The discard tray is ONE extra focus target at the end of the strip
-      // (the played-events pile's shape) — so inspecting it needs no new
-      // button and the command bar keeps its existing contract.
-      case 'drawn': return this.drawnUntaken.length + (this.discardedCards.length > 0 ? 1 : 0);
+      // The discard tray is NOT in the focus ring — it is opened by R3 only,
+      // so the received cards own the selection frame alone.
+      case 'drawn': return this.drawnUntaken.length;
       case 'viewer': return this.viewerReveal?.cards.length ?? 0;
       default: return 0;
       }
@@ -487,11 +483,6 @@ export default defineComponent({
         return [];
       }
       return seq.filter((step) => !step.matched).map((step) => step.card);
-    },
-    /** The strip focus has walked past the last card, onto the tray. */
-    discardFocused(): boolean {
-      return this.mode === 'drawn' && this.discardedCards.length > 0 &&
-        this.focusIdx === this.drawnUntaken.length;
     },
   },
   watch: {
@@ -545,6 +536,13 @@ export default defineComponent({
         this.zoomSource();
         return;
       }
+      // R3 = browse the DISCARD pile of a conditional search (drawn mode). The
+      // ONLY way in — the tray is not a focus target, so this never competes
+      // with taking a card.
+      if (intent.button === 'stickR' && this.mode === 'drawn' && this.discardedCards.length > 0) {
+        this.openDiscards();
+        return;
+      }
       const action = consoleActionOf(intent);
       if (action !== undefined) {
         this.onPress(action);
@@ -573,16 +571,6 @@ export default defineComponent({
     onPress(action: ConsoleAction): void {
       switch (this.mode) {
       case 'drawn':
-        // The tray is a focus target like any card: A / X open it, and it is
-        // never taken (there is nothing to take — these cards are gone).
-        if (this.discardFocused) {
-          if (action === 'primary' || action === 'inspect') {
-            this.openDiscards();
-          } else if (action === 'nextTab' || action === 'back') {
-            this.takeAll();
-          }
-          return;
-        }
         if (action === 'primary') {
           this.takeFocused();
         } else if (action === 'inspect') {

@@ -2068,6 +2068,11 @@ export default defineComponent({
           if (ev?.source?.type === 'card') {
             cmds.push({control: 'stickL', label: 'Source'});
           }
+          // R3 opens the discard pile of a conditional search (only when it
+          // discarded something) — the sole way in, mirroring the pile's glyph.
+          if (ev?.sequence?.some((step) => !step.matched) === true) {
+            cmds.push({control: 'stickR', label: 'Discarded pile'});
+          }
           cmds.push({control: 'back', label: 'Take all cards'});
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'dpadH', label: 'Navigate'});
