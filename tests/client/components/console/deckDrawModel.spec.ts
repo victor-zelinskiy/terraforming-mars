@@ -122,11 +122,14 @@ describe('deckDrawModel', () => {
     });
   });
 
-  describe('plain draw — no verdicts, no flips', () => {
-    it('cards stay face down and fly straight to the hold zone', () => {
+  describe('plain draw — no verdicts, each card tumbles open into the hold zone', () => {
+    it('cards fly straight to the hold zone and get a 3D flip (never a one-frame swap)', () => {
       const beats = planDeckDraw(seq(true, true), T, true);
       expect(beats.map((b) => b.kind)).to.deep.eq(['plain', 'plain']);
-      expect(beats.every((b) => b.flipPortion === 0)).to.eq(true);
+      // A plain card physically turns over as it lands (the director owns the
+      // choreography) — flipPortion marks it, so it is NEVER a back→face swap.
+      expect(beats.every((b) => b.flipPortion > 0)).to.eq(true);
+      // But it is never JUDGED — no inspect pause, straight to its hold slot.
       expect(beats.every((b) => b.inspectMs === 0)).to.eq(true);
       expect(beats.map((b) => b.holdSlot)).to.deep.eq([0, 1]);
       expect(beats.every((b) => b.trayDepth === undefined)).to.eq(true);

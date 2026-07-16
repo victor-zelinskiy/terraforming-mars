@@ -1,0 +1,278 @@
+/*
+ * CONSOLE PRODUCTION LOSS — the dedicated premium surface for "reduce your
+ * production" (the Ares hazard-adjacency penalty). The console-native twin of
+ * the desktop ModernProductionToLose; it replaces the generic distribute lanes
+ * for this ONE narrow case. Authored in rem (1rem = 20px logical) per the TV
+ * profile contract; tokens (@con-*, mixins) inherited from console.less's root
+ * scope. No animations of its own — the entrance is the shared con-layer fade,
+ * focus is a static ring (Steam-Deck cheap, mirrors ConsoleGovernmentSupport).
+ */
+
+@prodloss-loss: #e6a15c; // the warm "reduction" accent (kin to the hazard theme)
+
+.con-prodloss {
+    position: fixed;
+    inset: 0;
+    z-index: 11480; // same band as the task host it replaces
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
+    }
+
+    &__panel {
+        position: relative;
+        width: min(44rem, 92vw);
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        padding: 1.3rem 1.5rem .9rem;
+        border-radius: .8rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        color: @con-text;
+        // Safety valve only — the six rows + chrome always fit; no cursor-driven
+        // scroll, so a ConsoleScrollArea wrap would add churn without value.
+        overflow-y: auto;
+        .con-scrollbars();
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    &__head { margin-bottom: .8rem; }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__title {
+        margin-top: .3rem;
+        font-size: 1.7rem;
+        font-weight: 800;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        line-height: 1.1;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* The cause chip — hazard zone (Ares) or a card attack. */
+    &__source {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        margin-top: .6rem;
+        padding: .32rem .7rem;
+        border-radius: .5rem;
+        font-size: .85rem;
+        font-weight: 600;
+        letter-spacing: .02rem;
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        color: #cfe6fb;
+
+        &--hazard {
+            background: fade(#e58a5a, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(#e58a5a, 48%);
+            color: #ffcf9a;
+        }
+    }
+    &__source-glyph { font-size: .95rem; }
+
+    &__rule {
+        margin-top: .5rem;
+        font-size: .82rem;
+        line-height: 1.35;
+        color: @con-text-dim;
+    }
+
+    /* The distribution indicator (Выбрано: N / M). */
+    &__counter {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        margin-top: .75rem;
+        padding: .3rem .85rem;
+        border-radius: .5rem;
+        font-size: .95rem;
+        letter-spacing: .03rem;
+        background: rgba(20, 30, 44, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        color: @con-text-dim;
+        b { font-size: 1.3rem; font-weight: 800; color: @con-text; }
+
+        &--ready {
+            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 60%);
+            color: #cfe6fb;
+            b { color: @con-cyan; text-shadow: 0 0 .4rem fade(@con-cyan, 42%); }
+        }
+    }
+    &__counter-slash { opacity: 0.55; }
+
+    /* ── The six production rows ─────────────────────────────────────── */
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+
+    /* PERF: no transition / continuous effect — focus is a DISCRETE static ring. */
+    &__row {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        padding: .55rem .8rem;
+        border-radius: .6rem;
+        background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+
+        &--active {
+            background: linear-gradient(160deg, rgba(46, 34, 20, 0.66) 0%, rgba(22, 16, 10, 0.74) 100%);
+            box-shadow: inset 0 0 0 .06rem fade(@prodloss-loss, 55%);
+        }
+        &--focused {
+            box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 30%);
+        }
+        &--active&--focused {
+            box-shadow: inset 0 0 0 .1rem @prodloss-loss, 0 0 .9rem fade(@prodloss-loss, 34%);
+        }
+        &--disabled {
+            opacity: 0.52;
+            filter: saturate(0.5);
+        }
+        &--disabled&--focused {
+            box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.5);
+        }
+    }
+
+    &__line {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+    }
+    &__row-id {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+    }
+    &__frame {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: .4rem;
+        background: rgba(58, 44, 26, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(200, 150, 90, 0.28);
+    }
+    &__icon.resource_icon {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* current → resulting — right-aligned, fixed cell so the arrow lines up. */
+    &__values {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: .4rem;
+        min-width: 6.5rem;
+    }
+    &__cur {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: @con-text;
+        &--faded {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: @con-text-dim;
+        }
+    }
+    &__arrow { color: @prodloss-loss; font-size: 1.05rem; }
+    &__next {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: @prodloss-loss;
+        text-shadow: 0 0 .4rem fade(@prodloss-loss, 32%);
+    }
+
+    /* The chosen loss chip (−1 / −2) — a fixed slot so rows never jump. */
+    &__delta {
+        flex-shrink: 0;
+        min-width: 2.4rem;
+        text-align: center;
+        padding: .18rem .5rem;
+        border-radius: .4rem;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #1a120a;
+        background: linear-gradient(180deg, #f0b878 0%, #e19a52 100%);
+        box-shadow: 0 0 .5rem fade(@prodloss-loss, 40%);
+
+        &--empty {
+            background: none;
+            box-shadow: none;
+            padding: .18rem 0;
+        }
+    }
+    &__a {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.8rem;
+        opacity: 0.95;
+    }
+
+    &__note {
+        margin-left: 2.8rem; // align under the name (past the icon frame)
+        font-size: .78rem;
+        letter-spacing: .01rem;
+        color: #ffcf9a;
+    }
+    &__row--disabled &__note { color: rgba(220, 202, 182, 0.9); }
+
+    /* ── Command contract ────────────────────────────────────────────── */
+    &__foot {
+        display: flex;
+        align-items: center;
+        gap: 1.1rem;
+        margin-top: .8rem;
+        padding-top: .6rem;
+        border-top: .05rem solid fade(@con-cyan, 16%);
+    }
+    &__foot-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .9rem;
+        color: @con-text-dim;
+        &--off { opacity: 0.42; }
+    }
+}

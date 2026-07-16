@@ -62,6 +62,32 @@
     100% { opacity: 0; transform: translateX(42%); }
 }
 
+/* PLAIN reveal light sweep — a single glint racing across the FACE the
+   moment it turns into view (the director toggles `--revealing` as rotateY
+   crosses ~90°). It rides the face surface (not the proxy) so it moves WITH
+   the card in 3D and is hidden by backface while the card is still back-first.
+   One-shot, screen-blended, transform/opacity only. */
+.con-deckdraw-proxy--revealing .con-deal-proxy__face::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: .5rem;
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(115deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.44) 47%,
+        rgba(190, 230, 255, 0.3) 54%,
+        transparent 70%);
+    mix-blend-mode: screen;
+    animation: con-deckdraw-reveal-glint calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.25, 0, 0.35, 1) 1 both;
+}
+@keyframes con-deckdraw-reveal-glint {
+    0% { opacity: 0; transform: translateX(-58%) skewX(-8deg); }
+    30% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(62%) skewX(-8deg); }
+}
+
 /* ── The hold zone ───────────────────────────────────────────────────
    Deliberately NOT a panel: a hairline base under the found cards, so the
    composition reads as "these are being gathered" without a second window
@@ -262,6 +288,7 @@
    the decorative one-shots go. */
 @media (prefers-reduced-motion: reduce) {
     .con-deckdraw-proxy--found::after,
+    .con-deckdraw-proxy--revealing .con-deal-proxy__face::after,
     .con-deckdraw__tray-pile--pulse { animation: none; }
     .con-deckdraw__tray,
     .con-deckdraw__hold { animation-duration: 1ms; }

@@ -178,13 +178,16 @@ export function planDeckDraw(
 
   steps.forEach((step, index) => {
     if (plain) {
-      // No verdict to show: one calm staggered stream into the hold zone.
+      // No verdict to show: the card flies to its hold slot and, on the way,
+      // physically TUMBLES OPEN (a premium 3D flip — the director choreographs
+      // the tilt / depth / light). `flipPortion` marks that it flips; the
+      // director derives the flip's own timing from the travel leg.
       beats.push({
         index,
         kind: 'plain',
         atMs: at,
         travelMs: t.travelMs + t.routeMs * 0.5,
-        flipPortion: 0,
+        flipPortion: t.flipPortion,
         inspectMs: 0,
         routeMs: 0,
         holdSlot: holdSlot++,

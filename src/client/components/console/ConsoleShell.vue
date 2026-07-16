@@ -290,7 +290,7 @@
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
     <transition name="con-layer">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -312,6 +312,17 @@
                                 @defer="onTaskDefer"
                                 @space-pick="onTaskSpacePick"
                                 @gov-confirm="onGovSupportLeafConfirm" />
+    </transition>
+
+    <!-- Production loss (Ares hazard-adjacency penalty) — the dedicated
+         premium "reduce your production" surface (replaces the generic host
+         distribute lanes for this ONE case). Same submit / defer contract. -->
+    <transition name="con-layer">
+      <ConsoleProductionLoss v-if="productionLossActive && !consoleState.task.deferred && taskSpacePending === undefined"
+                             ref="prodLoss"
+                             :playerView="playerView"
+                             @submit="onTaskSubmit"
+                             @defer="onTaskDefer" />
     </transition>
 
     <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
@@ -658,6 +669,7 @@ import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
+import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
@@ -802,6 +814,7 @@ export default defineComponent({
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
+    ConsoleProductionLoss,
     ConsoleStartScene,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
@@ -1098,6 +1111,18 @@ export default defineComponent({
       const task = this.hostTask;
       return this.pendingClientPayment === undefined &&
         task?.kind === 'choice' && task.flavor === 'wgt';
+    },
+    /**
+     * "Reduce your production" (SelectProductionToLose) — the ONE distribute
+     * prompt that gets the dedicated premium production-loss surface instead of
+     * the generic ConsoleTaskHost lanes (the Ares hazard-adjacency penalty).
+     * Only the TOP-LEVEL prompt (a nested productionToLose inside an OrOptions
+     * stays in the host via `taskServedByHost`'s `choice` classification).
+     */
+    productionLossActive(): boolean {
+      const task = this.hostTask;
+      return this.pendingClientPayment === undefined &&
+        task?.kind === 'distribute' && task.mode === 'production';
     },
     /** A SHELL-SECTION task (T3/T4): projectCard → hand / std sheet; colony → rail. */
     shellTask(): ConsoleTask | undefined {
@@ -2115,6 +2140,16 @@ export default defineComponent({
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Apply'},
+          {control: 'back', label: 'Minimize'},
+        ];
+      }
+      if (this.productionLossActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        // The production-loss surface footer carries the contract; the bar mirrors it.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: '−1'},
+          {control: 'bumperL', label: '+1'},
+          {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: 'Minimize'},
         ];
       }
@@ -3165,6 +3200,13 @@ export default defineComponent({
       // while it serves (before the generic host branch below).
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         const panel = this.$refs.govSupport as InstanceType<typeof ConsoleGovernmentSupport> | undefined;
+        panel?.handleIntent(intent);
+        return true;
+      }
+      // Production loss (Ares hazard) — the dedicated surface owns input while
+      // it serves (before the generic host branch below).
+      if (this.productionLossActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+        const panel = this.$refs.prodLoss as InstanceType<typeof ConsoleProductionLoss> | undefined;
         panel?.handleIntent(intent);
         return true;
       }

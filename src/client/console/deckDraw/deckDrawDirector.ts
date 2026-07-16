@@ -29,6 +29,60 @@ function jitterDeg(index: number): number {
 
 export type DeckDrawHandle = {kill: () => void};
 
+/**
+ * The PLAIN-draw premium reveal: a real 3D tumble as the card lands. The
+ * flight (x/y/scale) is already on the timeline — this layers the OPEN onto
+ * the flip chassis (`.con-deal-proxy__flip`, `preserve-3d`, backface-hidden;
+ * the proxy owns the `perspective`, so a Z push reads as true depth).
+ *
+ * Four channels, one motion:
+ *  · rotateY 180 → 0 — the turn, decelerating into the face-up rest (inertia);
+ *  · rotateX 0 → −tilt → 0 — a small forward tumble that gives the turn volume;
+ *  · z 0 → push → 0 — the card lifts toward the viewer as it opens, then sinks;
+ *  · a one-shot light sweep (CSS `--revealing`) as the face comes round.
+ * The settle overshoot rides SCALE (on the proxy), never rotateY — an angular
+ * overshoot past 0°/180° would flash the mirrored backface.
+ *
+ * The flip is set up at (re)born time by the caller (`gsap.set(flip,{rotateY:
+ * 180})`); this only animates from there. Reduced motion collapses to a short
+ * honest turn with no tilt / depth / light.
+ */
+function addPlainReveal(tl: gsap.core.Timeline, o: {
+  proxy: HTMLElement,
+  flip: HTMLElement,
+  travelAt: number,
+  travel: number,
+  holdScale: number,
+  index: number,
+  reduced: boolean,
+}): void {
+  const {proxy, flip, travelAt, travel, holdScale, reduced} = o;
+  if (reduced) {
+    // Short, honest turn — no theatrics; lands face-up on the hold slot.
+    tl.to(flip, {rotateY: 0, duration: s(150), ease: 'power2.out'}, travelAt + travel * 0.35);
+    tl.to(proxy, {scale: holdScale, duration: s(90), ease: 'power2.out'}, travelAt + travel);
+    return;
+  }
+  // The turn starts ~40% into the flight and lands with the card, so "fly" and
+  // "open" read as one continuous motion, not settle-then-flip.
+  const flipStart = travelAt + travel * 0.4;
+  const flipDur = travel * 0.66 + s(150);
+  const half = flipDur * 0.5;
+  // Y — the turn, inertial deceleration into rest.
+  tl.to(flip, {rotateY: 0, duration: flipDur, ease: 'power3.out'}, flipStart);
+  // X — a forward tumble peaking at the halfway (card edge-on) point.
+  tl.to(flip, {rotateX: -13, duration: half, ease: 'sine.inOut'}, flipStart);
+  tl.to(flip, {rotateX: 0, duration: half, ease: 'sine.inOut'}, flipStart + half);
+  // Z — depth push toward the viewer, then a soft sink to rest.
+  tl.to(flip, {z: 74, duration: half, ease: 'power2.out'}, flipStart);
+  tl.to(flip, {z: 0, duration: half, ease: 'power2.inOut'}, flipStart + half);
+  // The light sweep fires as the face crosses into view (~rotateY 90°).
+  tl.call(() => proxy.classList.add('con-deckdraw-proxy--revealing'), undefined, flipStart + flipDur * 0.46);
+  // Settle overshoot on SCALE (safe — never on the turn axis).
+  tl.to(proxy, {scale: holdScale * 1.05, duration: flipDur * 0.62, ease: 'power2.out'}, flipStart);
+  tl.to(proxy, {scale: holdScale, duration: s(210), ease: 'back.out(1.5)'}, flipStart + flipDur * 0.62);
+}
+
 /** Everything one card's beat needs to be played. */
 export type BeatEls = {
   /** The flyer root (fixed-positioned, `perspective` owner). */
@@ -146,19 +200,25 @@ export function runDeckDrawBeat(args: {
   tl.to(proxy, {y: flyTo.y, duration: travel, ease: 'power3.out'}, travelAt);
   tl.to(proxy, {scale: flying.scale, duration: travel, ease: 'power2.out'}, travelAt);
   tl.to(proxy, {rotation: 0, duration: travel * 0.8, ease: 'power2.out'}, travelAt);
+
+  if (beat.kind === 'plain') {
+    // PLAIN: the reveal IS the flight. The card tumbles open in 3D as it lands
+    // in its hold slot — a real physical turn (Y turn + a touch of X tumble +
+    // a forward depth push + a light sweep as the face comes round), never a
+    // one-frame back→face swap. The proxy ends face-up, so the later handoff
+    // is a clean face→face crossfade (the reveal card fades in UNDER it).
+    addPlainReveal(tl, {proxy, flip, travelAt, travel, holdScale: flying.scale, index: beat.index, reduced});
+    return {kill: () => tl.kill()};
+  }
+
   if (beat.flipPortion > 0) {
-    // The flip rides the travel — the card turns over as it comes at you.
+    // MATCH: a simpler flip rides the travel — the card turns over as it comes
+    // at you (it is then read at the inspect point, so it needs no theatrics).
     tl.to(flip, {
       rotateY: 0,
       duration: travel * beat.flipPortion,
       ease: 'power2.inOut',
     }, travelAt + travel * 0.1);
-  }
-
-  if (beat.kind === 'plain') {
-    // Nothing to judge: a small settle and the card simply waits.
-    tl.to(proxy, {scale: flying.scale * 0.98, duration: s(90), ease: 'power2.out'}, travelAt + travel);
-    return {kill: () => tl.kill()};
   }
 
   // ── The verdict beat at the inspect point (MATCH) ─────────────────────
