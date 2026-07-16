@@ -25,7 +25,15 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
 
       metadata: {
         cardNumber: 'R44',
+        // The corp box draws its action and effect as plain text (no effect
+        // frame), so both are authored here and tethered to the community
+        // marker on the starting row.
         description: 'You start with 40 M€ and 10 steel. AS YOUR FIRST ACTION, PLACE A COMMUNITY [PLAYER MARKER] ON A NON-RESERVED AREA.',
+        infoText: [
+          {text: 'As your first action, place a community (player marker) on a non-reserved area.', tokens: ['community']},
+          {kind: 'action', text: 'Place a community (player marker) on a non-reserved area next to one of your tiles or marked areas.', tokens: ['community']},
+          {kind: 'effect', text: 'Marked areas are reserved for you. When you place a tile on a marked area, gain 3 M€.', tokens: ['community']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.megacredits(40).nbsp.steel(10, {digit}).nbsp.community().asterix();

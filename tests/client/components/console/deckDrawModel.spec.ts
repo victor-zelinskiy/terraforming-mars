@@ -46,20 +46,39 @@ describe('deckDrawModel', () => {
         .to.deep.eq(Array.from({length: 23}, (_, i) => i));
     });
 
-    it('a DISCARD never pauses to be judged and never flips face-up', () => {
+    it('a DISCARD never flips face-up — its beat is the dealer\'s pull → blink → toss', () => {
       const beats = planDeckDraw(seq(false, false, true), T, false);
       const discards = beats.filter((b) => b.kind === 'discard');
-      expect(discards.every((b) => b.inspectMs === 0)).to.eq(true); // no inspect hold
+      expect(discards.every((b) => b.inspectMs === 0)).to.eq(true); // never judged
       expect(discards.every((b) => b.flipPortion === 0)).to.eq(true); // stays face down
-      expect(discards.every((b) => b.routeMs === 0)).to.eq(true); // one flight, no relay
+      expect(discards.every((b) => b.turnMs === 0)).to.eq(true); // never turned over
+      expect(discards.every((b) => b.routeMs === 0)).to.eq(true);
       expect(discards.every((b) => b.holdSlot === undefined)).to.eq(true);
+      // The two-phase dealer path: pulled off the deck, considered for a
+      // blink, tossed onto the pile — travelMs is exactly their sum, and the
+      // toss (the throw) is the longer gesture.
+      for (const b of discards) {
+        expect(b.pullMs).is.greaterThan(0);
+        expect(b.tossMs).is.greaterThan(b.pullMs!);
+        expect(b.travelMs).to.be.closeTo(b.pullMs! + b.holdMs! + b.tossMs!, 0.001);
+      }
     });
 
-    it('a MATCH pauses face-up and a discard does not — the match is the only readable card', () => {
+    it('a MATCH arrives face down and is TURNED OVER at the inspect point, then read', () => {
       const beats = planDeckDraw(seq(false, true), T, false);
-      expect(beats[0].inspectMs).to.eq(0); // discard
-      expect(beats[1].inspectMs).is.greaterThan(0); // match is read
-      expect(beats[1].flipPortion).is.greaterThan(0); // and flips up
+      expect(beats[0].turnMs).to.eq(0); // discard — never turned
+      expect(beats[1].turnMs).to.eq(T.turnMs); // the premium 3D turn
+      expect(beats[1].inspectMs).is.greaterThan(0); // then the read
+      expect(beats[1].flipPortion).is.greaterThan(0);
+    });
+
+    it('the table rhythm stays within the +30% budget over the fast-stream baseline', () => {
+      // The reworked discard direction (pull → blink → toss) buys legibility
+      // with time. HARD BUDGET (per the design brief): at most ~30% over the
+      // previous fast-stream numbers — cadence 95ms/step, flight 300ms.
+      expect(T.streamStepMs).is.lessThanOrEqual(95 * 1.3);
+      const discard = planDeckDraw(seq(false, true), T, false)[0];
+      expect(discard.travelMs).is.lessThanOrEqual((190 + 300) * 1.3 - 190); // peel is shared
     });
 
     it('the DISCARD stream is tight — cards peel `streamStepMs` apart, several in the air at once', () => {

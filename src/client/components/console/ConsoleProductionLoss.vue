@@ -197,6 +197,17 @@ export default defineComponent({
     },
   },
   watch: {
+    // TEMP DIAG (remove after diagnosis): log every cost the surface renders,
+    // with the raw waitingFor cost + a high-res timestamp, so a sub-second
+    // "1 → 2" flash is captured in the browser console.
+    cost: {
+      immediate: true,
+      handler(nv: number, ov: number | undefined) {
+        const raw = (this.playerView.waitingFor as {payProduction?: {cost?: number}} | undefined)?.payProduction?.cost;
+        // eslint-disable-next-line no-console
+        console.log(`[PRODLOSS-DIAG] surface cost ${ov} -> ${nv} (waitingFor.cost=${raw}) @ ${Math.round(performance.now())}ms`);
+      },
+    },
     promptKey: {
       immediate: true,
       handler() {

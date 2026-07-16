@@ -30,10 +30,9 @@ function jitterDeg(index: number): number {
 export type DeckDrawHandle = {kill: () => void};
 
 /**
- * The PLAIN-draw premium reveal: a real 3D tumble as the card lands. The
- * flight (x/y/scale) is already on the timeline — this layers the OPEN onto
- * the flip chassis (`.con-deal-proxy__flip`, `preserve-3d`, backface-hidden;
- * the proxy owns the `perspective`, so a Z push reads as true depth).
+ * The shared PREMIUM 3D TURN: a real physical tumble open. Layers the OPEN
+ * onto the flip chassis (`.con-deal-proxy__flip`, `preserve-3d`, backface-
+ * hidden; the proxy owns the `perspective`, so a Z push reads as true depth).
  *
  * Four channels, one motion:
  *  · rotateY 180 → 0 — the turn, decelerating into the face-up rest (inertia);
@@ -44,43 +43,37 @@ export type DeckDrawHandle = {kill: () => void};
  * overshoot past 0°/180° would flash the mirrored backface.
  *
  * The flip is set up at (re)born time by the caller (`gsap.set(flip,{rotateY:
- * 180})`); this only animates from there. Reduced motion collapses to a short
- * honest turn with no tilt / depth / light.
+ * 180})`); this only animates from there. Used by the PLAIN landing (the turn
+ * rides the flight) and the MATCH's inspect-point moment (the card is turned
+ * over in place — the "is it the one?" table gesture).
  */
-function addPlainReveal(tl: gsap.core.Timeline, o: {
+function addPremiumTurn(tl: gsap.core.Timeline, o: {
   proxy: HTMLElement,
   flip: HTMLElement,
-  travelAt: number,
-  travel: number,
-  holdScale: number,
-  index: number,
-  reduced: boolean,
+  /** Timeline position the turn starts at. */
+  at: number,
+  /** Full duration of the turn (already in seconds). */
+  dur: number,
+  /** The scale the card rests at when the turn completes. */
+  poseScale: number,
+  /** Depth push magnitude (px at scale 1); the hero moment pushes harder. */
+  push: number,
 }): void {
-  const {proxy, flip, travelAt, travel, holdScale, reduced} = o;
-  if (reduced) {
-    // Short, honest turn — no theatrics; lands face-up on the hold slot.
-    tl.to(flip, {rotateY: 0, duration: s(150), ease: 'power2.out'}, travelAt + travel * 0.35);
-    tl.to(proxy, {scale: holdScale, duration: s(90), ease: 'power2.out'}, travelAt + travel);
-    return;
-  }
-  // The turn starts ~40% into the flight and lands with the card, so "fly" and
-  // "open" read as one continuous motion, not settle-then-flip.
-  const flipStart = travelAt + travel * 0.4;
-  const flipDur = travel * 0.66 + s(150);
-  const half = flipDur * 0.5;
+  const {proxy, flip, at, dur, poseScale, push} = o;
+  const half = dur * 0.5;
   // Y — the turn, inertial deceleration into rest.
-  tl.to(flip, {rotateY: 0, duration: flipDur, ease: 'power3.out'}, flipStart);
+  tl.to(flip, {rotateY: 0, duration: dur, ease: 'power3.out'}, at);
   // X — a forward tumble peaking at the halfway (card edge-on) point.
-  tl.to(flip, {rotateX: -13, duration: half, ease: 'sine.inOut'}, flipStart);
-  tl.to(flip, {rotateX: 0, duration: half, ease: 'sine.inOut'}, flipStart + half);
+  tl.to(flip, {rotateX: -13, duration: half, ease: 'sine.inOut'}, at);
+  tl.to(flip, {rotateX: 0, duration: half, ease: 'sine.inOut'}, at + half);
   // Z — depth push toward the viewer, then a soft sink to rest.
-  tl.to(flip, {z: 74, duration: half, ease: 'power2.out'}, flipStart);
-  tl.to(flip, {z: 0, duration: half, ease: 'power2.inOut'}, flipStart + half);
+  tl.to(flip, {z: push, duration: half, ease: 'power2.out'}, at);
+  tl.to(flip, {z: 0, duration: half, ease: 'power2.inOut'}, at + half);
   // The light sweep fires as the face crosses into view (~rotateY 90°).
-  tl.call(() => proxy.classList.add('con-deckdraw-proxy--revealing'), undefined, flipStart + flipDur * 0.46);
+  tl.call(() => proxy.classList.add('con-deckdraw-proxy--revealing'), undefined, at + dur * 0.46);
   // Settle overshoot on SCALE (safe — never on the turn axis).
-  tl.to(proxy, {scale: holdScale * 1.05, duration: flipDur * 0.62, ease: 'power2.out'}, flipStart);
-  tl.to(proxy, {scale: holdScale, duration: s(210), ease: 'back.out(1.5)'}, flipStart + flipDur * 0.62);
+  tl.to(proxy, {scale: poseScale * 1.05, duration: dur * 0.62, ease: 'power2.out'}, at);
+  tl.to(proxy, {scale: poseScale, duration: s(210), ease: 'back.out(1.5)'}, at + dur * 0.62);
 }
 
 /** Everything one card's beat needs to be played. */
@@ -167,23 +160,57 @@ export function runDeckDrawBeat(args: {
   const travelAt = s(t.peelMs);
   const travel = s(beat.travelMs);
 
-  // ── DISCARD: a single quick flight deck → tray, face DOWN the whole way ─
-  // No inspect, no flip — it flows past as part of the stream and lands on
-  // the discard pile. Several are in the air at once (the plan starts them
-  // `streamStepMs` apart), so what the player reads is the COUNT, not the card.
+  // ── DISCARD: the dealer's gesture, face DOWN the whole way ────────────
+  // Two legible movements instead of one blur: the card is PULLED off the
+  // deck toward the table (growing closer — the eye registers "a card was
+  // really taken"), considered for a blink, then TOSSED onto the pile in a
+  // flat arc. Several are in the air at once (the plan starts them
+  // `streamStepMs` apart), so the stream still reads as a COUNT — but each
+  // card's own motion now reads as a hand at work, not a projectile.
   if (beat.kind === 'discard') {
     if (targets.tray !== undefined) {
       const tray = targets.tray;
       const trayScale = Math.max(0.04, tray.width / CARD_NATURAL_W);
-      // A slight arc (up-and-over) so the stream reads as thrown cards, not a
-      // straight slide; the jitter keeps the pile looking hand-stacked.
-      tl.to(proxy, {x: tray.left, duration: travel, ease: 'power1.inOut'}, travelAt);
-      tl.to(proxy, {y: tray.top, duration: travel, ease: 'power2.in'}, travelAt);
-      tl.to(proxy, {scale: trayScale, duration: travel, ease: 'power2.inOut'}, travelAt);
-      tl.to(proxy, {rotation: jitterDeg(beat.index) * 0.9, duration: travel, ease: 'power2.out'}, travelAt);
+      const pull = s(beat.pullMs ?? beat.travelMs * 0.33);
+      const hold = s(beat.holdMs ?? 0);
+      const toss = s(beat.tossMs ?? beat.travelMs * 0.67);
+
+      // The dealer's spot: below the deck, nudged toward the tray, with a
+      // small deterministic per-card scatter so overlapping cards in the
+      // stream never stack on one point — they cascade like a real hand
+      // pulling cards to slightly different places.
+      const scatterX = ((beat.index * 53) % 3 - 1) * 14;
+      const scatterY = ((beat.index * 31) % 3 - 1) * 9;
+      const pullScale = Math.max(startScale, trayScale * 0.92);
+      const pullCx = deckCx - (deckCx - (tray.left + tray.width / 2)) * 0.22 + scatterX;
+      const pullCy = deckCy + deck.rect.height * 1.7 + 12 * pullScale + scatterY;
+      const pullPos = at(pullCx, pullCy, pullScale);
+
+      // Leg 1 — the PULL: down off the deck, growing toward the viewer,
+      // tilting into the coming toss. Quick grab, decelerating arrival.
+      tl.to(proxy, {x: pullPos.x, duration: pull, ease: 'power2.out'}, travelAt);
+      tl.to(proxy, {y: pullPos.y, duration: pull, ease: 'power2.out'}, travelAt);
+      tl.to(proxy, {scale: pullScale, duration: pull, ease: 'power2.out'}, travelAt);
+      tl.to(proxy, {rotation: jitterDeg(beat.index) * 0.5 - 3, duration: pull, ease: 'power2.out'}, travelAt);
+
+      // The blink — the card is "considered": alive (a slight rotation
+      // drift), never static, never long enough to read.
+      const tossAt = travelAt + pull + hold;
+      if (hold > 0) {
+        tl.to(proxy, {rotation: jitterDeg(beat.index) * 0.5 + 1, duration: hold, ease: 'sine.inOut'}, travelAt + pull);
+      }
+
+      // Leg 2 — the TOSS: a flat sideways throw onto the pile. A touch of
+      // rise first (the flick of the wrist), then the drop onto the stack;
+      // the spin carries through the flight and lands at the pile's jitter.
+      tl.to(proxy, {x: tray.left, duration: toss, ease: 'power1.inOut'}, tossAt);
+      tl.to(proxy, {y: pullPos.y - 16, duration: toss * 0.3, ease: 'power2.out'}, tossAt);
+      tl.to(proxy, {y: tray.top, duration: toss * 0.7, ease: 'power2.in'}, tossAt + toss * 0.3);
+      tl.to(proxy, {scale: trayScale, duration: toss, ease: 'power2.inOut'}, tossAt);
+      tl.to(proxy, {rotation: jitterDeg(beat.index) * 0.9, duration: toss, ease: 'power1.out'}, tossAt);
       // It lands ON the pile: the real tray back materializes under it, so the
       // proxy fades on contact rather than vanishing in mid-air.
-      tl.to(proxy, {autoAlpha: 0, duration: s(reduced ? 60 : 90), ease: 'power1.out'}, travelAt + travel);
+      tl.to(proxy, {autoAlpha: 0, duration: s(reduced ? 60 : 90), ease: 'power1.out'}, tossAt + toss);
     } else {
       // No believable tray anchor (degenerate layout): dive out honestly.
       tl.to(proxy, {autoAlpha: 0, y: '+=40', duration: travel, ease: 'power1.in'}, travelAt);
@@ -203,37 +230,45 @@ export function runDeckDrawBeat(args: {
 
   if (beat.kind === 'plain') {
     // PLAIN: the reveal IS the flight. The card tumbles open in 3D as it lands
-    // in its hold slot — a real physical turn (Y turn + a touch of X tumble +
-    // a forward depth push + a light sweep as the face comes round), never a
-    // one-frame back→face swap. The proxy ends face-up, so the later handoff
-    // is a clean face→face crossfade (the reveal card fades in UNDER it).
-    addPlainReveal(tl, {proxy, flip, travelAt, travel, holdScale: flying.scale, index: beat.index, reduced});
+    // in its hold slot — never a one-frame back→face swap. The proxy ends
+    // face-up, so the later handoff is a clean face→face crossfade (the
+    // reveal card fades in UNDER it).
+    if (reduced) {
+      // Short, honest turn — no theatrics; lands face-up on the hold slot.
+      tl.to(flip, {rotateY: 0, duration: s(150), ease: 'power2.out'}, travelAt + travel * 0.35);
+      tl.to(proxy, {scale: flying.scale, duration: s(90), ease: 'power2.out'}, travelAt + travel);
+      return {kill: () => tl.kill()};
+    }
+    // The turn starts ~40% into the flight and lands with the card, so "fly"
+    // and "open" read as one continuous motion, not settle-then-flip.
+    addPremiumTurn(tl, {
+      proxy, flip,
+      at: travelAt + travel * 0.4,
+      dur: travel * 0.66 + s(150),
+      poseScale: flying.scale,
+      push: 74,
+    });
     return {kill: () => tl.kill()};
   }
 
-  if (beat.flipPortion > 0) {
-    // MATCH: a simpler flip rides the travel — the card turns over as it comes
-    // at you (it is then read at the inspect point, so it needs no theatrics).
-    tl.to(flip, {
-      rotateY: 0,
-      duration: travel * beat.flipPortion,
-      ease: 'power2.inOut',
-    }, travelAt + travel * 0.1);
-  }
-
-  // ── The verdict beat at the inspect point (MATCH) ─────────────────────
+  // ── MATCH: the card arrives FACE DOWN, and is turned over AT the inspect
+  //    point — the physical "is it the one?" table gesture. The turn is the
+  //    same premium tumble the plain landing plays, with a harder depth push
+  //    (this IS the hero moment), and the mint confirmation sweep fires as
+  //    the turn settles into the read.
   const judgeAt = travelAt + travel;
-  if (!reduced) {
-    // A found card is CONFIRMED, calmly: a light scale settle + a one-shot
-    // sweep across its frame (the layer's CSS owns the sweep; here it is the
-    // class toggle that starts it). Never a badge, never a particle.
-    tl.call(() => proxy.classList.add('con-deckdraw-proxy--found'), undefined, judgeAt);
-    tl.to(proxy, {scale: flying.scale * 1.05, duration: s(120), ease: 'power2.out'}, judgeAt);
-    tl.to(proxy, {scale: flying.scale, duration: s(150), ease: 'power2.inOut'}, judgeAt + s(120));
+  const turnDur = s(beat.turnMs);
+  if (reduced) {
+    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.out'}, judgeAt);
+  } else {
+    addPremiumTurn(tl, {proxy, flip, at: judgeAt, dur: turnDur, poseScale: flying.scale, push: 96});
+    // The FOUND confirmation (the layer's mint sweep) rides the settle — the
+    // turn reveals, the sweep confirms. Never a badge, never a particle.
+    tl.call(() => proxy.classList.add('con-deckdraw-proxy--found'), undefined, judgeAt + turnDur * 0.88);
   }
 
   // ── The route: inspect point → hold slot ──────────────────────────────
-  const routeAt = judgeAt + s(beat.inspectMs);
+  const routeAt = judgeAt + turnDur + s(beat.inspectMs);
   const route = s(beat.routeMs);
   if (targets.hold !== undefined) {
     const hold = at(targets.hold.x, targets.hold.y, targets.hold.scale);

@@ -137,6 +137,13 @@ function emptyCauseEffect(nodes: ReadonlyArray<ItemType>): ICardRenderEffect | u
   return undefined;
 }
 
+/** Does this group draw a TAG item — the trigger signal of the Viral-Enhancers
+ *  splice (a tag row before an empty-cause effect)? On-play gains have none. */
+function groupHasTag(nodes: ReadonlyArray<ItemType>): boolean {
+  return nodes.some((node) => node !== undefined && typeof node !== 'string' &&
+    isICardRenderItem(node) && node.type === CardRenderItemType.TAG);
+}
+
 export function effectParts(node: ICardRenderEffect): EffectParts {
   const rows = node.rows;
   const delimiterRow = rows.length > 1 ? rows[1] : [];
@@ -316,10 +323,18 @@ function isCorpBoxNode(node: ItemType): node is CorpBoxNode {
  * empty cause, NOT a trigger drawn on the preceding row; the splice was
  * eating the corp's starting-resources row).
  */
-type SourceRow = {row: ReadonlyArray<ItemType>, rowIndex: number | undefined, fromCorpBox?: boolean};
+type SourceRow = {row: ReadonlyArray<ItemType>, rowIndex: number | undefined, frameIndex?: number, fromCorpBox?: boolean};
 
-function corpBoxSourceRows(box: CorpBoxNode): Array<SourceRow> {
-  const result: Array<SourceRow> = [];
+/**
+ * Append a corp box's expanded rows to `result`, tagging each effect/action
+ * FRAME with the ROOT row index + a per-root-row `frameIndex` (0, 1, …) so
+ * `buildMechanics` can resolve its graphic id against the SHARED per-frame
+ * derivation (cardGraphicIds.ts). Loose content between frames (vSpace runs,
+ * connector ORs) keeps `rowIndex: undefined` — it is never a tethered graphic.
+ * Returns the next free frame index.
+ */
+function appendCorpBoxSourceRows(result: Array<SourceRow>, box: CorpBoxNode, rootRowIndex: number, startFrameIndex: number): number {
+  let frameIndex = startFrameIndex;
   for (const boxRow of box.rows) {
     let pending: Array<ItemType> = [];
     const flush = () => {
@@ -331,14 +346,14 @@ function corpBoxSourceRows(box: CorpBoxNode): Array<SourceRow> {
     for (const node of boxRow) {
       if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) {
         flush();
-        result.push({row: [node], rowIndex: undefined, fromCorpBox: true});
+        result.push({row: [node], rowIndex: rootRowIndex, frameIndex: frameIndex++, fromCorpBox: true});
       } else {
         pending.push(node);
       }
     }
     flush();
   }
-  return result;
+  return frameIndex;
 }
 
 function flattenCorpBoxRows(rows: ReadonlyArray<ReadonlyArray<ItemType>>): Array<SourceRow> {
@@ -352,9 +367,10 @@ function flattenCorpBoxRows(rows: ReadonlyArray<ReadonlyArray<ItemType>>): Array
     if (renderableNodes(rest).length > 0) {
       result.push({row: rest, rowIndex});
     }
+    let frameIndex = 0;
     for (const node of row) {
       if (isCorpBoxNode(node)) {
-        result.push(...corpBoxSourceRows(node));
+        frameIndex = appendCorpBoxSourceRows(result, node, rowIndex, frameIndex);
       }
     }
   });
@@ -433,7 +449,7 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
    */
   const groups: Array<MechGroup> = [];
   let pendingOr = false;
-  for (const {row, rowIndex, fromCorpBox} of flattenCorpBoxRows(renderData.rows)) {
+  for (const {row, rowIndex, frameIndex, fromCorpBox} of flattenCorpBoxRows(renderData.rows)) {
     // Icons-only face: drop prose `plainText` (a row that was ONLY prose then
     // collapses and is skipped; a prose node chained onto an icon row — AI
     // Central — is removed while the icon stays).
@@ -457,7 +473,12 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     let effectiveNodes = nodes;
     const emptyEffect = fromCorpBox === true ? undefined : emptyCauseEffect(nodes);
     const prev = groups[groups.length - 1];
-    if (emptyEffect !== undefined && prev !== undefined && prev.kind === 'plain' && prev.orJoin !== true) {
+    // Splice ONLY a genuine TAG trigger (the Viral-Enhancers idiom draws its
+    // trigger as a standalone TAG row). A preceding plain row of ON-PLAY GAINS
+    // (Kuiper's starting M€ + production, High Circles' TR/cards/delegates) is
+    // NOT a trigger — splicing it would eat the starting-resources row into the
+    // effect's cause (a wrong face + an untethered «При розыгрыше» block).
+    if (emptyEffect !== undefined && prev !== undefined && prev.kind === 'plain' && prev.orJoin !== true && groupHasTag(prev.nodes)) {
       effectiveNodes = nodes.map((node) => (node === emptyEffect ?
         {...emptyEffect, rows: [[...prev.nodes], emptyEffect.rows[1], emptyEffect.rows[2]]} :
         node));
@@ -467,7 +488,11 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
       kind: groupKindOf(effectiveNodes),
       nodes: effectiveNodes,
       weight: sumNodes(effectiveNodes),
-      graphicId: rowIndex === undefined ? undefined : graphicIds.find((ref) => ref.rowIndex === rowIndex)?.id,
+      // Match the SHARED derivation on (rowIndex, frameIndex): a corp-box frame
+      // carries the root rowIndex + its per-frame index; an ordinary row carries
+      // a defined rowIndex + an undefined frameIndex (matches the single row ref).
+      graphicId: rowIndex === undefined ? undefined :
+        graphicIds.find((ref) => ref.rowIndex === rowIndex && ref.frameIndex === frameIndex)?.id,
     };
     if (pendingOr || leadingOr) {
       group.orJoin = true;

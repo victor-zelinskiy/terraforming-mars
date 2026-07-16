@@ -20,6 +20,9 @@ export class Poseidon extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R02',
         description: 'You start with 45 M€. As your first action, place a colony.',
+        infoText: [
+          {text: 'As your first action, place a colony.', tokens: ['colonies']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.br.br;
           b.megacredits(45).nbsp.colonies(1);

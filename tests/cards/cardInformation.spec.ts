@@ -16,7 +16,7 @@ import {CardType} from '../../src/common/cards/CardType';
  */
 
 const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
-const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
+const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 function loadCards(): Array<ClientCard> {
   return JSON.parse(fs.readFileSync('src/genfiles/cards.json', 'utf8'));
@@ -47,7 +47,7 @@ function ruKeys(): Set<string> {
 describe('card information model', function() {
   const cards = scopeCards();
 
-  it('covers EVERY in-scope card (457) with at least one group', () => {
+  it('covers EVERY in-scope card (incl. corporations) with at least one group', () => {
     expect(cards.length).to.be.gte(400);
     // Trans-Neptune Probe is the ONE honest empty: fixed VP + cost + tags
     // only — pure self-explanatory metadata, nothing to describe. A NEW
@@ -292,6 +292,7 @@ describe('card information model', function() {
       ['Release of Inert Gases', '"terraforming rating" = TR, shown as "Gain 2 TR."'],
       ['Deimos Down:promo', '"adjacent to no city tile" = "not next to a city", shown'],
       ['Neutralizer Factory', '"Venus track" = "Raise Venus …", shown'],
+      ['AstroDrill', '"3 asteroid resources" = "3 asteroids on this card" — same starting card-resources, only the noun differs'],
     ]);
 
     const offenders: Array<string> = [];

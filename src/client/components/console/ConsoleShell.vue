@@ -2488,7 +2488,6 @@ export default defineComponent({
         {control: 'stickL', label: 'Inspect board'},
         {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
-        {control: 'menu', label: 'System'},
       ];
     },
     // ── P15: the fullscreen viewer's select context ─────────────────────

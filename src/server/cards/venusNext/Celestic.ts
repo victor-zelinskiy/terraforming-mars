@@ -26,7 +26,13 @@ export class Celestic extends ActiveCorporationCard {
 
       metadata: {
         cardNumber: 'R05',
+        // The action string bakes in «1 VP per 3 floaters»; split it — the VP
+        // rule renders once from the countable shape, the action reads clean.
         description: 'You start with 42 M€. As your first action, reveal cards from the deck until you have revealed 2 cards with a floater icon on it. Take them into hand and discard the rest.',
+        infoText: [
+          {text: 'As your first action, reveal cards from the deck until you reveal 2 cards with a floater icon; take them into hand and discard the rest.', tokens: ['cards']},
+          {kind: 'action', text: 'Add a floater to any card.', tokens: ['res-floater']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(42).nbsp.cards(2, {secondaryTag: AltSecondaryTag.FLOATER});
           b.corpBox('action', (ce) => {

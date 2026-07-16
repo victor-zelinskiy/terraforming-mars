@@ -20,6 +20,9 @@ export class MonsInsurance extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R46',
         description: 'You start with 48 M€. Increase your M€ production 4 steps. ALL OPPONENTS DECREASE THEIR M€ production 2 STEPS. THIS DOES NOT TRIGGER THE EFFECT BELOW.',
+        infoText: [
+          {text: 'All opponents decrease their M€ production 2 steps. This does not trigger the effect below.', tokens: ['production(']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(48).production((pb) => {
             pb.megacredits(4).nbsp.megacredits(-2, {all}).asterix();

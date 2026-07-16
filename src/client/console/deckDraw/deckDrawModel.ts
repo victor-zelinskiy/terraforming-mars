@@ -46,7 +46,12 @@ export type DrawBeat = {
   travelMs: number,
   /** Portion of the travel spent completing the back→face flip (0 = stays down). */
   flipPortion: number,
-  /** Readable hold at the inspect point before the verdict routes the card. */
+  /**
+   * A MATCH's premium 3D turn AT the inspect point (arrives face down, is
+   * physically turned over there — the table moment). 0 for everything else.
+   */
+  turnMs: number,
+  /** Readable hold at the inspect point AFTER the turn (matches only). */
   inspectMs: number,
   /** Inspect point → tray / hold slot. */
   routeMs: number,
@@ -54,19 +59,35 @@ export type DrawBeat = {
   holdSlot?: number,
   /** Which tray depth a discarded card lands at (discards only). */
   trayDepth?: number,
+  /**
+   * A DISCARD's two-phase dealer path (all pace-scaled): the card is PULLED
+   * off the deck toward the table (read: "considered"), held for a blink,
+   * then TOSSED aside onto the pile. `travelMs` = their sum (the occupancy).
+   */
+  pullMs?: number,
+  holdMs?: number,
+  tossMs?: number,
 };
 
 export type DeckDrawTimings = {
   /** The top card separates from the stack (rise + slight grow). */
   peelMs: number,
-  /** Deck → inspect point (a MATCH) or deck → tray (a discard). */
+  /** Deck → inspect point (a MATCH's face-down approach). */
   travelMs: number,
-  /** A MATCH's readable hold at the inspect point (discards never pause). */
+  /** A MATCH's premium 3D turn at the inspect point. */
+  turnMs: number,
+  /** A MATCH's readable hold AFTER the turn (discards never pause). */
   inspectMs: number,
   /** Inspect point → hold slot (a MATCH). */
   routeMs: number,
   /** Gap between a match leaving the inspect zone and the next card peeling. */
   gapMs: number,
+  /** A DISCARD's pull-off-the-deck leg (deck → the dealer's spot). */
+  discardPullMs: number,
+  /** The blink the pulled card is "considered" for before the toss. */
+  discardHoldMs: number,
+  /** The toss: dealer's spot → the tray pile. */
+  discardTossMs: number,
   /**
    * The tight cadence of the DISCARD stream: a discard peels off every
    * `streamStepMs`, so several are in the air at once flowing to the tray.
@@ -84,19 +105,24 @@ export type DeckDrawTimings = {
 };
 
 /**
- * The base rhythm. A MATCH gets a full (but unshowy) hero beat — it flips
- * face-up, is read for a moment, and settles into the hold zone. DISCARDS
- * never pause: they flow past face-DOWN in a tight, quick stream straight to
- * the tray, so the player reads their COUNT, not each card.
+ * The base rhythm — the TABLE feel. A MATCH is the full physical gesture:
+ * drawn face-down to the centre, TURNED OVER there (the premium 3D turn),
+ * read, set aside into the hold zone. A DISCARD is the dealer's gesture:
+ * pulled off the deck toward the table, considered for a blink, tossed onto
+ * the pile — never paused long enough to read, but each one a legible motion.
  */
 export function deckDrawTimings(): DeckDrawTimings {
   return {
     peelMs: 190,
     travelMs: 300,
+    turnMs: 430,
     inspectMs: 260,
     routeMs: 300,
     gapMs: 90,
-    streamStepMs: 95,
+    discardPullMs: 120,
+    discardHoldMs: 65,
+    discardTossMs: 260,
+    streamStepMs: 120,
     flipPortion: 0.62,
     settleMs: 320,
     frameMs: 240,
@@ -113,10 +139,14 @@ export function reducedDeckDrawTimings(): DeckDrawTimings {
   return {
     peelMs: 50,
     travelMs: 110,
+    turnMs: 150,
     inspectMs: 90,
     routeMs: 110,
     gapMs: 20,
-    streamStepMs: 45,
+    discardPullMs: 50,
+    discardHoldMs: 0,
+    discardTossMs: 110,
+    streamStepMs: 50,
     flipPortion: 0.5,
     settleMs: 90,
     frameMs: 100,
@@ -188,6 +218,7 @@ export function planDeckDraw(
         atMs: at,
         travelMs: t.travelMs + t.routeMs * 0.5,
         flipPortion: t.flipPortion,
+        turnMs: 0,
         inspectMs: 0,
         routeMs: 0,
         holdSlot: holdSlot++,
@@ -197,43 +228,54 @@ export function planDeckDraw(
     }
 
     if (!step.matched) {
-      // A DISCARD flows past face-down straight to the tray — no inspect, no
-      // flip, no per-card beat. Several are in the air at once (the next
-      // peels after only `streamStepMs`), so the player reads the COUNT of
-      // the stream, not each card. A long unlucky run tightens the cadence
-      // (discardPace) so it stays quick, but EVERY discarded card still
-      // physically flows — none is skipped or teleported.
+      // A DISCARD is the dealer's own gesture, face-DOWN the whole way:
+      // PULLED off the deck toward the table (the eye registers "a card was
+      // really taken"), considered for a blink, then TOSSED onto the pile.
+      // Two legible movements instead of one blur — but still a stream:
+      // several are in the air at once (the next peels after only
+      // `streamStepMs`), so the player reads the COUNT between two finds.
+      // A long unlucky run tightens the cadence (discardPace); EVERY card
+      // still physically flows — none is skipped or teleported.
       const pace = discardPace(discardOrdinal);
+      const pullMs = t.discardPullMs * pace;
+      const holdMs = t.discardHoldMs * pace;
+      const tossMs = t.discardTossMs * pace;
       beats.push({
         index,
         kind: 'discard',
         atMs: at,
-        travelMs: t.travelMs * pace,
+        travelMs: pullMs + holdMs + tossMs,
         flipPortion: 0,
+        turnMs: 0,
         inspectMs: 0,
         routeMs: 0,
         trayDepth: trayDepth++,
+        pullMs,
+        holdMs,
+        tossMs,
       });
       discardOrdinal++;
       at += t.streamStepMs * pace;
       return;
     }
 
-    // A MATCH gets the full hero beat: peel → travel → judged face-up →
-    // settle into the hold zone. It waits for the discard stream ahead of it
-    // to have cleared the deck (the stream is already flowing to the tray on
-    // the right, this card goes to the centre), so the two never tangle.
+    // A MATCH is the full table gesture: drawn FACE DOWN to the centre,
+    // physically TURNED OVER there (the premium 3D turn — the "is it the
+    // one?" moment), read, then set aside into the hold zone. It waits for
+    // the discard stream ahead of it to have cleared the deck, so the two
+    // never tangle.
     beats.push({
       index,
       kind: 'match',
       atMs: at,
       travelMs: t.travelMs,
       flipPortion: t.flipPortion,
-      inspectMs: t.inspectMs * 1.45,
+      turnMs: t.turnMs,
+      inspectMs: t.inspectMs,
       routeMs: t.routeMs,
       holdSlot: holdSlot++,
     });
-    at += t.peelMs + t.travelMs + t.inspectMs * 1.45 + t.routeMs * 0.45 + t.gapMs;
+    at += t.peelMs + t.travelMs + t.turnMs + t.inspectMs + t.routeMs * 0.45 + t.gapMs;
   });
 
   return beats;
@@ -243,7 +285,7 @@ export function planDeckDraw(
 export function planEndMs(beats: ReadonlyArray<DrawBeat>, t: DeckDrawTimings): number {
   let end = 0;
   for (const b of beats) {
-    end = Math.max(end, b.atMs + t.peelMs + b.travelMs + b.inspectMs + b.routeMs);
+    end = Math.max(end, b.atMs + t.peelMs + b.travelMs + b.turnMs + b.inspectMs + b.routeMs);
   }
   return end;
 }

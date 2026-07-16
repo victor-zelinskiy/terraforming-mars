@@ -53,15 +53,15 @@ import {PlacementType} from '../../boards/PlacementType';
 import {CardInformation, CardInfoBlock, CardInfoGroup} from '../../../common/cards/CardInformation';
 import {CardRequirementDescriptor, requirementType} from '../../../common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../../common/cards/RequirementType';
-import {deriveGraphicIds, nodeGraphicToken, GraphicBlockRef} from '../../../common/cards/render/cardGraphicIds';
-import {isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} from '../../../common/cards/render/Types';
+import {deriveGraphicIds, nodeGraphicToken, corpBoxFrameNodes, GraphicBlockRef} from '../../../common/cards/render/cardGraphicIds';
+import {ICardRenderEffect, isICardRenderEffect, isICardRenderItem, isICardRenderRoot, ItemType} from '../../../common/cards/render/Types';
 import {CardRenderItemType} from '../../../common/cards/render/CardRenderItemType';
 import {Size} from '../../../common/cards/render/Size';
 import {Behavior} from '../../behavior/Behavior';
 import {Card} from '../../cards/Card';
 
 const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
-const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
+const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 /** Locales whose card-information coverage is ENFORCED (audited). */
 const ENFORCED_LOCALES: ReadonlyArray<string> = ['ru'];
@@ -492,20 +492,211 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
 
 /* ── DSL effect/action + vpText extraction ──────────────────────────── */
 
-function effectDescriptionOf(row: ReadonlyArray<ItemType>): string | undefined {
-  // The effect node's co-located description is the trailing string of rows[2].
-  for (const node of row) {
-    if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) {
-      const tail = node.rows[2] ?? [];
-      for (let i = tail.length - 1; i >= 0; i--) {
-        const item = tail[i];
-        if (typeof item === 'string' && item.length > 0) {
-          return item;
-        }
-      }
+/** The co-located description of ONE effect/action frame — the trailing
+ *  string of its `rows[2]` (cause / delimiter / result). */
+function frameDescription(node: ICardRenderEffect | undefined): string | undefined {
+  if (node === undefined) {
+    return undefined;
+  }
+  const tail = node.rows[2] ?? [];
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const item = tail[i];
+    if (typeof item === 'string' && item.length > 0) {
+      return item;
     }
   }
   return undefined;
+}
+
+/**
+ * The effect/action FRAME node a graphic ref addresses: a corporation corp-box
+ * frame (resolved by its per-frame index via the SHARED enumeration) or a
+ * project card's directly-drawn effect node. Both are plain effect nodes.
+ */
+function frameNodeOf(root: {rows: ReadonlyArray<ReadonlyArray<ItemType>>}, ref: GraphicBlockRef): ICardRenderEffect | undefined {
+  const row = root.rows[ref.rowIndex];
+  if (row === undefined) {
+    return undefined;
+  }
+  if (ref.frameIndex !== undefined) {
+    const node = corpBoxFrameNodes(row)[ref.frameIndex]?.node;
+    return (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) ? node : undefined;
+  }
+  for (const node of row) {
+    if (node !== undefined && typeof node !== 'string' && isICardRenderEffect(node)) {
+      return node;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * One effect/action group per DESCRIBED render frame — the project cards'
+ * directly-drawn effect nodes AND the corporations' corp-box frames (each
+ * resolved per-frame). A frame whose graphicId is in `suppress` is skipped: an
+ * authored `infoText` block took it over (a corp split — Tharsis/Celestic). A
+ * description-less frame whose SIBLING of the same kind carries the text is a
+ * multi-row drawing of ONE mechanic (Astrodrill / Titan Floating Launch-pad) —
+ * silently folded into the described group.
+ */
+function extractEffectActionGroups(card: ICard, graphics: ReadonlyArray<GraphicBlockRef>, notes: Array<string>, suppress: ReadonlySet<string>): Array<CardInfoGroup> {
+  const root = card.metadata.renderData;
+  const out: Array<CardInfoGroup> = [];
+  if (root === undefined || !isICardRenderRoot(root)) {
+    return out;
+  }
+  const described = new Set(graphics
+    .filter((g) => (g.kind === 'effect' || g.kind === 'action') && frameDescription(frameNodeOf(root, g)) !== undefined)
+    .map((g) => g.kind));
+  for (const ref of graphics) {
+    if (ref.kind !== 'effect' && ref.kind !== 'action') {
+      continue;
+    }
+    if (suppress.has(ref.id)) {
+      continue;
+    }
+    const description = frameDescription(frameNodeOf(root, ref));
+    if (description === undefined) {
+      if (!described.has(ref.kind)) {
+        notes.push(`no co-located description for ${ref.id}`);
+      }
+      continue;
+    }
+    out.push({
+      kind: ref.kind,
+      id: ref.id,
+      blocks: [{id: `${ref.kind}:${ref.id.slice(2)}`, kind: ref.kind, text: key(description), graphicId: ref.id}],
+    });
+  }
+  return out;
+}
+
+/** The special-VP group (dynamic / countable VP), shared by the project and
+ *  corporation paths. Plain numeric VP produces no block (self-explanatory). */
+function victoryPointsGroup(card: ICard, vpTextOverride: string | undefined, notes: Array<string>): CardInfoGroup | undefined {
+  const vp = card.victoryPoints;
+  if (vp === undefined || typeof vp === 'number') {
+    return undefined;
+  }
+  const vpText = vpTextOverride ?? findVpText(card);
+  let text: string | undefined;
+  if (vpText !== undefined) {
+    text = key(vpText);
+  } else if (typeof vp === 'object' && 'resourcesHere' in vp && card.resourceType !== undefined) {
+    const per = (vp as {per?: number}).per ?? 1;
+    const res = card.resourceType;
+    text = key(per === 1 ?
+      `1 VP for each ${enCardResource(res, 1)} on this card.` :
+      `1 VP per ${per} ${enCardResource(res, per)} on this card.`);
+  } else {
+    notes.push('special/countable VP without a text source — author a victory-points infoText');
+  }
+  return text === undefined ? undefined : {
+    kind: 'victory-points',
+    id: 'vp',
+    blocks: [{id: 'vp', kind: 'victory-points', text, graphicId: 'vp'}],
+  };
+}
+
+/**
+ * CORPORATION information — a dedicated path (corps are the player's first,
+ * most-scrutinized choice, so they are curated with care, not run through the
+ * project-card generic path). Unlike a project card — where authored
+ * `infoText` REPLACES the behavior-derived immediate blocks — a corporation
+ * ALWAYS auto-derives its STARTING RESOURCES (starting M€ + starting
+ * production/stock/card-resources/draws) and its EFFECT/ACTION frames from the
+ * co-located descriptions; `infoText` only AUGMENTS — it adds the bespoke
+ * on-play rules the render can't carry (a first-in-game action, an opponent
+ * penalty, a special-setup note) and may OVERRIDE a specific frame (splitting a
+ * crammed one, or dropping a VP clause the author baked into an action string).
+ */
+function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<GraphicBlockRef>, notes: Array<string>): {information: CardInformation, status: AuditEntry['status'], unlinked: Array<string>} {
+  const renderData = card.metadata.renderData;
+  const groups: Array<CardInfoGroup> = [];
+
+  // 1) On-play zone: auto starting resources + authored immediate/note (augment).
+  const pending: Array<Pending> = corpStartingBlocks(card, notes);
+  let vpTextOverride: string | undefined;
+  const suppress = new Set<string>();
+  const authoredGroups: Array<CardInfoGroup> = [];
+  const authored = card.metadata.infoText;
+  const status: AuditEntry['status'] = authored !== undefined ? 'authored' : 'ok';
+  if (authored !== undefined) {
+    authored.forEach((entry, i) => {
+      const kind = entry.kind ?? 'immediate';
+      if (kind === 'victory-points') {
+        vpTextOverride = entry.text;
+        return;
+      }
+      if (kind === 'effect' || kind === 'action') {
+        const match = entry.tokens !== undefined ? matchCorpFrame(graphics, entry.tokens, renderData) : {};
+        authoredGroups.push({kind, id: `authored:${kind}:${i}`, blocks: [{id: `${kind}:authored.${i}`, kind, text: key(entry.text), ...match}]});
+        if (match.graphicId !== undefined) {
+          suppress.add(match.graphicId); // this authored block took the frame over
+        }
+        return;
+      }
+      // immediate / note — join the on-play zone, ordered by render position.
+      pending.push({block: {id: `mech:authored.${i}`, kind, text: key(entry.text)}, tokens: entry.tokens ?? []});
+    });
+  }
+  const immediate = orderBehaviorBlocks(pending, graphics, renderData);
+  if (immediate.length > 0) {
+    groups.push({kind: 'immediate', id: 'immediate', blocks: immediate});
+  }
+  groups.push(...authoredGroups);
+
+  // 2) Effect / action frames (auto), minus any an authored block took over.
+  groups.push(...extractEffectActionGroups(card, graphics, notes, suppress));
+
+  // 3) Special VP (Celestic / Arklight).
+  const vpGroup = victoryPointsGroup(card, vpTextOverride, notes);
+  if (vpGroup !== undefined) {
+    groups.push(vpGroup);
+  }
+
+  const unlinked = [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]
+    .filter((b) => b.graphicId === undefined)
+    .map((b) => (b.kind === 'note' ? `${b.id}(note)` : b.id));
+  return {information: {groups}, status, unlinked};
+}
+
+/**
+ * A corporation's STARTING RESOURCES as on-play blocks: the starting M€ (which
+ * lives outside `behavior`, in `startingMegaCredits`) plus the behavior-derived
+ * production / stock / card-resource / draw bonuses. Reuses the SAME wording as
+ * the project generator (`behaviorBlocks`) so a shared rule reads identically
+ * everywhere; only structured draws (Pharmacy Union's «draw a Science card»)
+ * need a corp-local line.
+ */
+function corpStartingBlocks(card: ICard, notes: Array<string>): Array<Pending> {
+  const out: Array<Pending> = [];
+  const mc = (card as {startingMegaCredits?: number}).startingMegaCredits;
+  if (typeof mc === 'number' && mc !== 0) {
+    out.push({block: {id: 'mech:start.mc', kind: 'immediate', text: key(`Start with ${mc} M€.`)}, tokens: ['megacredits']});
+  }
+  for (const p of behaviorBlocks(card, notes) ?? []) {
+    // A plain numeric draw is only Beginner Corporation's setup special («keep
+    // all 10 for free, instead of choosing») — authored, not a bare «Draw 10».
+    if (p.block.id !== 'mech:drawCard') {
+      out.push(p);
+    }
+  }
+  // Structured draws behaviorBlocks skips (it flags them complex): a corp's
+  // tagged setup draw — Pharmacy Union «Draw a Science card».
+  const b: Behavior | undefined = (card as {behavior?: Behavior}).behavior;
+  const draw = b?.drawCard;
+  if (draw !== undefined && typeof draw !== 'number') {
+    const count = typeof draw.count === 'number' ? draw.count : 1;
+    const tag = draw.tag;
+    const noun = count === 1 ? 'card' : 'cards';
+    const article = count === 1 ? 'a' : `${count}`;
+    out.push({
+      block: {id: 'mech:start.draw', kind: 'immediate', text: key(tag !== undefined ? `Draw ${article} ${tag} ${noun}.` : `Draw ${article} ${noun}.`)},
+      tokens: tag !== undefined ? [`tag-${tag}`, 'cards'] : ['cards'],
+    });
+  }
+  return out;
 }
 
 function findVpText(card: ICard): string | undefined {
@@ -564,6 +755,24 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
   const groups: Array<CardInfoGroup> = [];
   const graphics = deriveGraphicIds(card.metadata.renderData);
   const unlinked: Array<string> = [];
+
+  // Corporations take a dedicated, hand-curated path (starting resources +
+  // per-frame effects/actions + augmenting infoText) — never the project-card
+  // seed/behavior/replace logic below.
+  if (card.type === CardType.CORPORATION) {
+    const corp = buildCorporationInformation(card, graphics, notes);
+    audit.push({
+      name: card.name,
+      module,
+      type: card.type,
+      status: corp.status,
+      blocks: corp.information.groups.reduce((acc, g) => acc + g.blocks.length, 0),
+      requirementBlocks: 0,
+      unlinkedBlocks: corp.unlinked,
+      notes,
+    });
+    return corp.information.groups.length > 0 ? corp.information : undefined;
+  }
 
   /* requirements */
   const requirements = card.requirements ?? [];
@@ -681,63 +890,13 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     }
   }
 
-  /* effects & actions from the DSL nodes */
-  const root = card.metadata.renderData;
-  if (root !== undefined && isICardRenderRoot(root)) {
-    const described = new Set(graphics
-      .filter((g) => (g.kind === 'effect' || g.kind === 'action') && effectDescriptionOf(root.rows[g.rowIndex]) !== undefined)
-      .map((g) => g.kind));
-    for (const ref of graphics) {
-      if (ref.kind !== 'effect' && ref.kind !== 'action') {
-        continue;
-      }
-      const description = effectDescriptionOf(root.rows[ref.rowIndex]);
-      if (description === undefined) {
-        // A description-less node whose SIBLING of the same kind carries the
-        // text is a multi-row drawing of ONE mechanic (Titan Floating
-        // Launch-pad) — silently part of the described group.
-        if (!described.has(ref.kind)) {
-          notes.push(`no co-located description for ${ref.id}`);
-        }
-        continue;
-      }
-      groups.push({
-        kind: ref.kind,
-        id: ref.id,
-        blocks: [{
-          id: `${ref.kind}:${ref.id.slice(2)}`,
-          kind: ref.kind,
-          text: key(description),
-          graphicId: ref.id,
-        }],
-      });
-    }
-  }
+  /* effects & actions from the DSL nodes (project cards draw them directly) */
+  groups.push(...extractEffectActionGroups(card, graphics, notes, new Set()));
 
   /* special victory points */
-  const vp = card.victoryPoints;
-  if (vp !== undefined && typeof vp !== 'number') {
-    const vpText = vpTextOverride ?? findVpText(card);
-    let text: string | undefined;
-    if (vpText !== undefined) {
-      text = key(vpText);
-    } else if (typeof vp === 'object' && 'resourcesHere' in vp && card.resourceType !== undefined) {
-      // The one countable shape without a printed vpText — generate it.
-      const per = (vp as {per?: number}).per ?? 1;
-      const res = card.resourceType;
-      text = key(per === 1 ?
-        `1 VP for each ${enCardResource(res, 1)} on this card.` :
-        `1 VP per ${per} ${enCardResource(res, per)} on this card.`);
-    } else {
-      notes.push('special/countable VP without a text source — author a victory-points infoText');
-    }
-    if (text !== undefined) {
-      groups.push({
-        kind: 'victory-points',
-        id: 'vp',
-        blocks: [{id: 'vp', kind: 'victory-points', text, graphicId: 'vp'}],
-      });
-    }
+  const vpGroup = victoryPointsGroup(card, vpTextOverride, notes);
+  if (vpGroup !== undefined) {
+    groups.push(vpGroup);
   }
 
   audit.push({
@@ -804,6 +963,27 @@ function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: Readonly
 /** Only the serializable half of a match (drops the ordering position). */
 function graphicOf(match: GraphicMatchPos): GraphicMatch {
   return {graphicId: match.graphicId, graphicNode: match.graphicNode};
+}
+
+/**
+ * Match an authored CORPORATION effect/action block to its FRAME first (its own
+ * engraved effect/action frame — Celestic's «add a floater» action), falling
+ * back to a mechanic ROW when the corp draws its rule as plain text with no
+ * frame (Arcadian, whose rules anchor to the starting community marker).
+ * `matchGraphic` alone only sees 'row' refs, so a frame override needs this.
+ */
+function matchCorpFrame(graphics: ReadonlyArray<GraphicBlockRef>, tokens: ReadonlyArray<string>, renderData: ICard['metadata']['renderData']): GraphicMatch {
+  for (const ref of graphics) {
+    if (ref.kind !== 'effect' && ref.kind !== 'action') {
+      continue;
+    }
+    for (const wanted of tokens) {
+      if (ref.tokens.some((have) => have === wanted || have.startsWith(wanted))) {
+        return {graphicId: ref.id};
+      }
+    }
+  }
+  return graphicOf(matchGraphic(graphics, tokens, renderData));
 }
 
 /**

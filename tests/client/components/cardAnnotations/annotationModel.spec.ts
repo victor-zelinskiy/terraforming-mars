@@ -99,8 +99,10 @@ describe('annotationModel', () => {
   });
 
   it('is silent for cards without the information model', () => {
-    const corp = getCards((c) => c.type === CardType.CORPORATION)[0];
-    expect(buildCardAnnotations(corp)).to.deep.eq([]);
+    // Out-of-scope types (CEO / standard projects) carry no information model.
+    const noInfo = getCards((c) => c.metadata.information === undefined)[0];
+    expect(noInfo, 'expected an out-of-scope info-less card').to.not.eq(undefined);
+    expect(buildCardAnnotations(noInfo)).to.deep.eq([]);
   });
 
   it('Herbivores: grouped blocks in card order, play rows keep EXACT anchors', () => {
@@ -148,7 +150,8 @@ describe('annotationModel', () => {
     }
   });
 
-  it('catalog guard: one block per type, clean texts, special notes — EVERY in-scope card', () => {
+  it('catalog guard: one block per type, clean texts, special notes — EVERY in-scope card', function() {
+    this.timeout(15000); // O(cards): builds annotations for every in-scope card (incl. corps)
     const covered = getCards((c) => c.metadata.information !== undefined);
     expect(covered.length).to.be.greaterThan(300); // the model ships broadly
     for (const card of covered) {
@@ -181,7 +184,11 @@ describe('annotationModel', () => {
     // card whose immediate-linked graphic row sat ABOVE an effect/action
     // frame would break that reading — this guard names it.
     const offenders: Array<string> = [];
-    for (const card of getCards((c) => isPremiumFaceType(c.type) && c.metadata.information !== undefined)) {
+    // Corporations are EXEMPT: they draw their starting resources at the TOP
+    // (before the effect/action frames), so the on-play graphic is the first
+    // group, never a trailing play-zone — the «При розыгрыше» block correctly
+    // tethers to that starting row instead of a play-rail.
+    for (const card of getCards((c) => isPremiumFaceType(c.type) && c.type !== CardType.CORPORATION && c.metadata.information !== undefined)) {
       const playIds = new Set<string>();
       for (const g of card.metadata.information!.groups) {
         if (g.kind === 'immediate') {

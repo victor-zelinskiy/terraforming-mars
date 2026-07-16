@@ -21,6 +21,9 @@ export class Vitor extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R35',
         description: 'You start with 45 M€. As your first action, fund an award for free.',
+        infoText: [
+          {text: 'As your first action, fund an award for free.', tokens: ['award']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.br.br;
           b.megacredits(45).nbsp.award();

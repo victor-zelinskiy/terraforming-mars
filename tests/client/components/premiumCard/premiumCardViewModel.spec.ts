@@ -400,6 +400,17 @@ describe('empty-cause effect trigger splice (Viral Enhancers idiom)', () => {
     // its cause carries only the empty spacer — nothing was wrongly spliced in
     expect(cause.every((n) => n !== undefined && typeof n !== 'string' && isICardRenderSymbol(n))).to.eq(true);
   });
+
+  it('an empty-cause effect after ON-PLAY GAINS (not a tag trigger) keeps the gains row separate (Kuiper)', () => {
+    // Kuiper draws its starting resources (M€ + titanium production) then an
+    // empty-cause action. Those gains are NOT the action's trigger — only a TAG
+    // row is (the Viral idiom) — so the splice must NOT eat the starting row: it
+    // stays its own group (a wrong face + an untethered «При розыгрыше» otherwise).
+    const groups = vmOf(CardName.KUIPER_COOPERATIVE).mechanics.groups;
+    expect(groups[0].kind, 'starting resources are their own plain group').to.eq('plain');
+    expect(groups[0].graphicId ?? '', 'starting row keeps its graphic id').to.contain('megacredits');
+    expect(groups.map((g) => g.kind)).to.include('action');
+  });
 });
 
 describe('premium face is ICONS-ONLY: prose plainText never renders', () => {

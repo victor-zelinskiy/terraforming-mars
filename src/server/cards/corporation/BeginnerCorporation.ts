@@ -16,6 +16,9 @@ export class BeginnerCorporation extends CorporationCard implements ICorporation
       metadata: {
         cardNumber: 'R00',
         description: 'You start with 42 M€. Instead of choosing from 10 cards during setup, you get 10 cards for free.',
+        infoText: [
+          {text: 'Instead of choosing from 10 cards during setup, keep all 10 project cards for free.', tokens: ['cards']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(42).nbsp.cards(10, {digit});
         }),
