@@ -2,7 +2,7 @@
   <div class="con-prodloss" role="dialog" :aria-label="titleText">
     <div class="con-prodloss__backdrop" aria-hidden="true"></div>
 
-    <div class="con-prodloss__panel">
+    <div class="con-prodloss__panel" :class="{'con-prodloss__panel--pending': !revealed}">
       <!-- ── Header ──────────────────────────────────────────────────── -->
       <header class="con-prodloss__head">
         <div class="con-prodloss__kicker">
@@ -123,6 +123,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {productionToLoseResponse} from '@/client/console/taskResponses';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {buildProductionLossRows, firstSelectableIndex, ProductionLossRow} from '@/client/console/consoleProductionLoss';
 
 function textOf(v: string | Message | undefined): string {
@@ -146,6 +147,9 @@ export default defineComponent({
       units: {} as Partial<Record<keyof Units, number>>,
       /** Blocks a duplicate submit between the emit and the next response. */
       submitting: false,
+      /** The settle gate — the body renders only once the cost is stable. */
+      revealed: false,
+      revealTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -197,27 +201,29 @@ export default defineComponent({
     },
   },
   watch: {
-    // TEMP DIAG (remove after diagnosis): log every cost the surface renders,
-    // with the raw waitingFor cost + a high-res timestamp, so a sub-second
-    // "1 → 2" flash is captured in the browser console.
-    cost: {
-      immediate: true,
-      handler(nv: number, ov: number | undefined) {
-        const raw = (this.playerView.waitingFor as {payProduction?: {cost?: number}} | undefined)?.payProduction?.cost;
-        // eslint-disable-next-line no-console
-        console.log(`[PRODLOSS-DIAG] surface cost ${ov} -> ${nv} (waitingFor.cost=${raw}) @ ${Math.round(performance.now())}ms`);
-      },
-    },
     promptKey: {
       immediate: true,
       handler() {
         this.resetSelection();
+        // SETTLE GATE: reveal the decision body only after the committed cost
+        // has been stable for a beat. If a placement's cost arrives across two
+        // rapid commits (a poll race / a multi-step placement), the earlier
+        // (lower) value is coalesced away, so the modal always opens directly
+        // at the FINAL combined amount — never a visible "−1 → −2" flash. The
+        // reset re-fires whenever the cost/title changes (promptKey), so each
+        // change restarts the settle.
+        this.scheduleReveal();
       },
     },
     /** Every server response re-arms submission (root identity always changes). */
     playerView() {
       this.submitting = false;
     },
+  },
+  beforeUnmount() {
+    if (this.revealTimer !== undefined) {
+      window.clearTimeout(this.revealTimer);
+    }
   },
   methods: {
     lossFor(unit: keyof Units): number {
@@ -245,6 +251,17 @@ export default defineComponent({
         return translateTextWithParams('Can only reduce by ${0}', [String(row.limitedTo)]);
       }
       return '';
+    },
+    /** Re-arm the settle gate: hide the body, reveal once the cost holds. */
+    scheduleReveal(): void {
+      if (this.revealTimer !== undefined) {
+        window.clearTimeout(this.revealTimer);
+      }
+      this.revealed = false;
+      this.revealTimer = window.setTimeout(() => {
+        this.revealTimer = undefined;
+        this.revealed = true;
+      }, motionMs(150));
     },
     resetSelection(): void {
       this.units = {};

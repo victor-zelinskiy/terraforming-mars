@@ -39,6 +39,11 @@
         // scroll, so a ConsoleScrollArea wrap would add churn without value.
         overflow-y: auto;
         .con-scrollbars();
+        // Settle gate: the panel fades in only once the committed cost is stable
+        // (see scheduleReveal) so it always opens directly at the final combined
+        // amount — a transient lower cost is coalesced away, never shown.
+        transition: opacity calc(120ms * var(--motion-scale, 1)) ease-out;
+        &--pending { opacity: 0; }
     }
 
     /* ── Header ──────────────────────────────────────────────────────── */

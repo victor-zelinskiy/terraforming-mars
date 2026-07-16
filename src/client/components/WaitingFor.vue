@@ -1055,14 +1055,6 @@ export default defineComponent({
         });
     },
     updatePlayerView(playerView: PlayerViewModel | undefined) {
-      // TEMP DIAG (remove after diagnosis): trace productionToLose commits (submit path).
-      {
-        const wf = playerView?.waitingFor as {type?: string, payProduction?: {cost?: number}} | undefined;
-        if (wf?.type === 'productionToLose') {
-          // eslint-disable-next-line no-console
-          console.log(`[PRODLOSS-DIAG] WaitingFor.updatePlayerView commit cost=${wf.payProduction?.cost} @ ${Math.round(performance.now())}ms`);
-        }
-      }
       if (this.suspend === false) {
         const root = vueRoot(this);
         // Structural sharing (viewSnapshotShare.ts): keep unchanged branches'

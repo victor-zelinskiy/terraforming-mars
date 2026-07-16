@@ -804,14 +804,6 @@ export default defineComponent({
 
           const commit = () => {
             perfMark('playerView:commit');
-            // TEMP DIAG (remove after diagnosis): trace productionToLose commits (poll path).
-            {
-              const wf = (model as {waitingFor?: {type?: string, payProduction?: {cost?: number}}}).waitingFor;
-              if (wf?.type === 'productionToLose') {
-                // eslint-disable-next-line no-console
-                console.log(`[PRODLOSS-DIAG] App.update(poll) commit cost=${wf.payProduction?.cost} @ ${Math.round(performance.now())}ms`);
-              }
-            }
             if (prevView !== undefined &&
                 shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
               armPlacementAnimations();
