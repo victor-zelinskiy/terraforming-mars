@@ -75,13 +75,24 @@ export const deckDrawState = reactive({
   stagedEventId: undefined as number | undefined,
   /** True when the server sequence contains at least one discarded card. */
   hasDiscards: false,
+  /** The deck size BEFORE this draw — what the counter shows until a card leaves. */
+  preDrawSize: 0,
   /** Discarded cards that have physically landed in the tray so far. */
   trayCount: 0,
   /** Snapshot taken at arm — one scene stays internally consistent. */
   reducedMotion: false,
+  /**
+   * SINGLE-card batches: flips true when the card has arrived in the hold
+   * zone. The reveal is HEADLESS there (the fullscreen viewer IS the reveal),
+   * so its auto-open is held until then and opens with a PHYSICAL origin
+   * resolving to our proxy — the viewer lifts the very card that flew, never
+   * a fresh copy appearing over a dissolving one.
+   */
+  zoomEntryReady: false,
 });
 
 let handle: DeckDrawHandle | undefined;
+let zoomOriginResolver: (() => HTMLElement | null) | undefined;
 let safetyTimer: ReturnType<typeof setTimeout> | undefined;
 
 /**
@@ -119,6 +130,32 @@ export function registerDeckDrawHandle(h: DeckDrawHandle | undefined): void {
   handle = h;
 }
 
+/** The layer registers the held card's proxy for the zoom FLIP origin. */
+export function registerDeckDrawZoomOrigin(fn: (() => HTMLElement | null) | undefined): void {
+  zoomOriginResolver = fn;
+}
+
+/** The single-card fullscreen's physical origin (the arrived proxy). */
+export function deckDrawZoomOriginEl(): HTMLElement | null {
+  return zoomOriginResolver?.() ?? null;
+}
+
+/**
+ * SINGLE-card: the reveal overlay HOLDS its fullscreen auto-open while the
+ * card is still travelling; the flag drops the moment it stands in the hold
+ * zone (or the scene aborts — never a stranded reveal).
+ */
+export function deckDrawHoldingSingleZoom(eventId: number | undefined): boolean {
+  return deckDrawState.active && isDeckDrawStaged(eventId) && !deckDrawState.zoomEntryReady;
+}
+
+/** The card stands ready — release the held fullscreen auto-open. */
+export function markDeckDrawZoomReady(): void {
+  if (deckDrawState.active) {
+    deckDrawState.zoomEntryReady = true;
+  }
+}
+
 /**
  * ARM — the layer calls this when a deck-sourced reveal batch arrives.
  * Synchronous `active` so the gates close in the same tick the batch lands
@@ -132,8 +169,10 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   deckDrawState.phase = 'search';
   deckDrawState.stagedEventId = eventId;
   deckDrawState.hasDiscards = opts.hasDiscards;
+  deckDrawState.preDrawSize = opts.preDrawSize;
   deckDrawState.trayCount = 0;
   deckDrawState.reducedMotion = opts.reducedMotion;
+  deckDrawState.zoomEntryReady = false;
   deckDrawState.nonce++;
   // The authoritative deckSize has ALREADY dropped (the server drew before it
   // answered). Hold the pre-draw number so the counter ticks down with the
@@ -186,6 +225,7 @@ export function endDeckDraw(): void {
   deckDrawState.active = false;
   deckDrawState.phase = 'done';
   handle = undefined;
+  zoomOriginResolver = undefined;
 }
 
 /**
@@ -201,11 +241,16 @@ export function abortDeckDraw(): void {
   releaseDeckDisplay();
   const h = handle;
   handle = undefined;
+  zoomOriginResolver = undefined;
   deckDrawState.active = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
   deckDrawState.hasDiscards = false;
+  deckDrawState.preDrawSize = 0;
   deckDrawState.trayCount = 0;
+  // Release the held single-card auto-open — an abort must never leave the
+  // reveal invisible.
+  deckDrawState.zoomEntryReady = true;
   h?.abort();
 }
 
@@ -214,10 +259,13 @@ export function resetDeckDraw(): void {
   clearSafety();
   releaseDeckDisplay();
   handle = undefined;
+  zoomOriginResolver = undefined;
   deckDrawState.active = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
   deckDrawState.hasDiscards = false;
+  deckDrawState.preDrawSize = 0;
   deckDrawState.trayCount = 0;
   deckDrawState.reducedMotion = false;
+  deckDrawState.zoomEntryReady = false;
 }

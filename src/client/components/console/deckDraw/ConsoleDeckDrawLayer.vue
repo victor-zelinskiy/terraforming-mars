@@ -12,17 +12,23 @@
   <div v-if="deckDrawState.active" class="con-deckdraw" aria-hidden="true">
     <!-- The DISCARD tray — secondary by construction: compact, off to the
          side, a face-down pile + a count. Only exists when the search really
-         discarded something. -->
-    <div v-if="deckDrawState.hasDiscards" class="con-deckdraw__tray" ref="tray">
+         discarded something, and only once the scene is actually playing
+         (never while we wait for the scene that earned this draw). -->
+    <div v-if="deckDrawState.hasDiscards && sceneLive" class="con-deckdraw__tray" ref="tray">
       <div class="con-deckdraw__tray-pile" ref="trayPile"
-           :class="{'con-deckdraw__tray-pile--pulse': trayPulse}">
+           :class="{
+             'con-deckdraw__tray-pile--pulse': trayPulse,
+             'con-deckdraw__tray-pile--empty': deckDrawState.trayCount === 0,
+           }">
         <!-- Thickness is capped at three backs; the count carries the rest
              (mirrors the played-events pile). -->
         <div v-if="deckDrawState.trayCount > 2" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--3"></div>
         <div v-if="deckDrawState.trayCount > 1" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--2"></div>
         <div v-if="deckDrawState.trayCount > 0" class="con-card-back con-deckdraw__tray-back con-deckdraw__tray-back--1"></div>
-        <!-- The landing slot: an invisible box the flying card aims at, so
-             the pile grows under a proxy that has actually arrived. -->
+        <!-- The landing slot: the box the flying card aims at. Until the
+             first card lands it is the only thing drawn — an empty berth, so
+             the tray reads as "discards will land here", never as a stray
+             label floating in space. -->
         <div class="con-deckdraw__tray-slot" ref="traySlot"></div>
       </div>
       <div class="con-deckdraw__tray-meta">
@@ -81,9 +87,14 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  armDeckDraw, deckDrawState, endDeckDraw, isDeckDrawSource, markDeckCardDrawn,
-  markDeckDrawDiscarded, registerDeckDrawHandle, setDeckDrawPhase,
+  abortDeckDraw, armDeckDraw, deckDrawState, endDeckDraw, isDeckDrawSource, markDeckCardDrawn,
+  markDeckDrawDiscarded, markDeckDrawZoomReady, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
+  setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
+import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
+import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
+import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -98,6 +109,13 @@ const CARD_NATURAL_H = 460;
 
 /** The top-bar deck's own top card — the source every flight is born at. */
 const DECK_SEL = '.con-deckstack__pile';
+
+/**
+ * How long we wait for the scene that EARNED this draw to finish before
+ * playing anyway. Bounded on purpose: a stuck neighbour must never keep the
+ * reveal withheld.
+ */
+const STAGE_WAIT_MAX_MS = 9_000;
 
 /** One scene card: the name + the server's verdict. */
 type SceneStep = {name: CardName, matched: boolean};
@@ -170,6 +188,12 @@ export default defineComponent({
       proxyRefs: [] as Array<HTMLElement | null>,
       flipRefs: [] as Array<HTMLElement | null>,
       trayPulse: false,
+      /**
+       * The scene's own furniture (tray / hold base) appears only once the
+       * cards actually start coming off the deck — while we wait for the
+       * scene that earned the draw, the stage is claimed but empty.
+       */
+      sceneLive: false,
       /** The hold zone's base is only drawn once a card is actually resting. */
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
@@ -185,6 +209,12 @@ export default defineComponent({
      * bonus belongs to the board card-bonus scene. `id !== stagedEventId`
      * keeps a finished scene from re-arming its own batch forever (the
      * board-bonus layer documents that exact trap).
+     *
+     * NOTE it does NOT wait for another running scene here. The batch must be
+     * CLAIMED the instant it lands (see the watcher) — waiting would let the
+     * finished modal mount in the meantime, and the whole point is that it
+     * doesn't exist yet. The waiting happens after the claim, inside the
+     * scene.
      */
     revealToProcess(): DrawnCardEntry | undefined {
       const e = currentRevealEvent();
@@ -196,13 +226,23 @@ export default defineComponent({
       }
       return isDeckDrawSource(e.source) ? e : undefined;
     },
+    /**
+     * Another cinematic is mid-story. A draw is nearly always EARNED by one
+     * (the prelude / card being played, a tile landing, a sale): that scene
+     * tells the CAUSE, this one the CONSEQUENCE — so ours waits its turn
+     * rather than playing over it.
+     */
+    otherSceneOwnsScreen(): boolean {
+      return isPlayedHeroActive() || isPatentSaleActive() || tilePlacementHolding() ||
+        isBoardCardBonusActive();
+    },
   },
   watch: {
     revealToProcess: {
       flush: 'pre',
       handler(e: DrawnCardEntry | undefined): void {
         if (e !== undefined) {
-          this.beginScene(e);
+          this.claimScene(e);
         }
       },
     },
@@ -219,6 +259,9 @@ export default defineComponent({
   },
   mounted() {
     registerDeckDrawHandle({abort: () => this.teardown()});
+    // The single-card fullscreen lifts THIS proxy (the card that just flew),
+    // rather than opening a fresh copy over it.
+    registerDeckDrawZoomOrigin(() => this.heldEls()[0] ?? null);
     // A batch already on screen at mount (a reload straight into a reveal) is
     // deliberately NOT animated: the cards are already the player's, and a
     // cinematic replayed on refresh would be a lie.
@@ -228,6 +271,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     registerDeckDrawHandle(undefined);
+    registerDeckDrawZoomOrigin(undefined);
     killAll();
   },
   methods: {
@@ -255,9 +299,17 @@ export default defineComponent({
       return deckDrawState.reducedMotion ? reducedDeckDrawTimings() : deckDrawTimings();
     },
 
-    /** ARM + run the whole scene. */
-    async beginScene(e: DrawnCardEntry): Promise<void> {
-      const reduced = consoleReducedMotionActive();
+    /**
+     * CLAIM the batch — SYNCHRONOUSLY, in the same tick it lands.
+     *
+     * This is the load-bearing half: the claim closes `deckDrawHolds()`, and
+     * that is what stops the reveal modal from ever mounting. Anything async
+     * (measuring the deck, waiting for another scene to finish) must happen
+     * AFTER it — a single awaited frame here and the finished modal appears
+     * behind our back, which is exactly the thing this scene exists to
+     * prevent.
+     */
+    claimScene(e: DrawnCardEntry): void {
       // The sequence is the server's own record of the search. Without one
       // (a plain draw, or a search that discarded nothing) every card simply
       // came off the deck — the simpler visual language, by design.
@@ -266,18 +318,62 @@ export default defineComponent({
         e.cards.map((c) => ({name: c.name, matched: true}));
       const plain = e.sequence === undefined || e.sequence.length === 0 ||
         !e.sequence.some((s) => !s.matched);
-
-      const deckRect = await stableRect(() => document.querySelector<HTMLElement>(DECK_SEL));
-      if (deckRect === undefined || steps.length === 0) {
-        // No believable deck anchor (desktop, an unmounted HUD, JSDOM): skip
-        // the cinematic entirely — the stock modal shows at once.
+      if (steps.length === 0) {
         return;
       }
       // The authoritative deckSize already dropped by everything revealed.
       const preDraw = this.playerView.game.deckSize + steps.length;
-      if (!armDeckDraw(e.id, {hasDiscards: !plain, preDrawSize: preDraw, reducedMotion: reduced})) {
+      if (!armDeckDraw(e.id, {
+        hasDiscards: !plain,
+        preDrawSize: preDraw,
+        reducedMotion: consoleReducedMotionActive(),
+      })) {
         return;
       }
+      void this.runScene(steps, plain);
+    },
+
+    /**
+     * Wait for whatever scene earned this draw to finish telling its own
+     * story. Bounded: if it somehow never ends, ours plays anyway rather than
+     * withholding the reveal forever.
+     */
+    waitForStage(): Promise<void> {
+      return new Promise((done) => {
+        if (!this.otherSceneOwnsScreen) {
+          done();
+          return;
+        }
+        const started = Date.now();
+        const poll = () => {
+          if (!deckDrawState.active || !this.otherSceneOwnsScreen || Date.now() - started > STAGE_WAIT_MAX_MS) {
+            done();
+            return;
+          }
+          ctx.timers.push(setTimeout(poll, 120));
+        };
+        poll();
+      });
+    },
+
+    /** Play the whole scene (the batch is already claimed + in the state). */
+    async runScene(steps: Array<SceneStep>, plain: boolean): Promise<void> {
+      const reduced = deckDrawState.reducedMotion;
+      await this.waitForStage();
+      if (!deckDrawState.active) {
+        return;
+      }
+      const deckRect = await stableRect(() => document.querySelector<HTMLElement>(DECK_SEL));
+      if (deckRect === undefined || !deckDrawState.active) {
+        // No believable deck anchor (an unmounted HUD, JSDOM): abort, which
+        // releases every gate — the stock modal shows at once. Never a
+        // withheld reveal because a cinematic couldn't find its stage.
+        abortDeckDraw();
+        return;
+      }
+      const preDraw = deckDrawState.preDrawSize;
+      // The stage is ours now — the tray may appear, ready to receive.
+      this.sceneLive = true;
 
       this.sceneCards = steps;
       this.sceneNonce++;
@@ -432,8 +528,20 @@ export default defineComponent({
         return;
       }
       // A SINGLE received card is presented by the fullscreen viewer itself
-      // (the reveal is headless) — there are no slots to fly into, so the
-      // hold pose is the handoff: fade the proxy and let the viewer take over.
+      // (that reveal is HEADLESS — no modal, no slots to fly into). The hold
+      // pose IS the hand-over: release the viewer's held auto-open, and it
+      // lifts THIS proxy via the existing zoom FLIP (registerDeckDrawZoomOrigin).
+      if (e.cards.length === 1) {
+        setDeckDrawPhase('frame');
+        markDeckDrawZoomReady();
+        // End once the viewer has taken over: the input gate must not stay
+        // closed through the take (that would swallow the «A Взять» press).
+        ctx.timers.push(setTimeout(() => {
+          this.teardown();
+          endDeckDraw();
+        }, motionMs(deckDrawState.reducedMotion ? 120 : 320)));
+        return;
+      }
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
       const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
         `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
@@ -481,6 +589,7 @@ export default defineComponent({
           endDeckDraw();
           this.sceneCards = [];
           this.showHoldBase = false;
+          this.sceneLive = false;
         },
       });
     },
@@ -494,6 +603,7 @@ export default defineComponent({
       }
       this.sceneCards = [];
       this.showHoldBase = false;
+      this.sceneLive = false;
       this.trayPulse = false;
     },
   },

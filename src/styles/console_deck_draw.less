@@ -93,8 +93,12 @@
    notch quieter — this is where cards go to stop mattering. */
 .con-deckdraw__tray {
     position: fixed;
-    right: 4vw;
-    top: 30vh;
+    /* Parked in the free band between the inspect point (34vh, centre) and
+       the hold zone (62vh) — right of the action, clear of BOTH side rails
+       (the left resource rail ends ~11%, the right dashboard starts ~76%).
+       Never the centre: this is where cards go to stop mattering. */
+    left: 66%;
+    top: 38vh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -122,11 +126,21 @@
 }
 .con-deckdraw__tray-back--2 { transform: translate(-.1rem, .12rem) rotate(-1.6deg); opacity: .88; }
 .con-deckdraw__tray-back--3 { transform: translate(.12rem, .24rem) rotate(2.1deg); opacity: .72; }
-/* The invisible landing box the flying card aims at — the pile grows under
-   a proxy that has actually arrived, never beside it. */
+/* The landing box the flying card aims at — the pile grows under a proxy
+   that has actually arrived, never beside it. */
 .con-deckdraw__tray-slot {
     position: absolute;
     inset: 0;
+}
+/* Before the first discard lands the pile has no cards, so the berth itself
+   is drawn: a quiet dashed outline that says "this is where they go". */
+.con-deckdraw__tray-pile--empty {
+    filter: none;
+
+    .con-deckdraw__tray-slot {
+        border: .05rem dashed fade(@con-amber, 30%);
+        border-radius: .3rem;
+    }
 }
 .con-deckdraw__tray-pile--pulse {
     animation: con-deckdraw-traypulse calc(260ms * var(--motion-scale, 1)) ease-out 1;

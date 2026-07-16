@@ -233,7 +233,9 @@ import {
 import {
   boardCardBonusState, bonusHoldingSingleZoom, bonusZoomOriginEl, isBoardCardBonusActive, isBonusRevealStaged,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
-import {deckDrawState, isDeckDrawActive, isDeckDrawStaged} from '@/client/console/deckDraw/consoleDeckDraw';
+import {
+  deckDrawHoldingSingleZoom, deckDrawState, deckDrawZoomOriginEl, isDeckDrawActive, isDeckDrawStaged,
+} from '@/client/console/deckDraw/consoleDeckDraw';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -341,7 +343,8 @@ export default defineComponent({
      */
     singleCardNeedsFullscreen(): boolean {
       return this.singleCardMode && consoleCardZoom.card === undefined &&
-        !bonusHoldingSingleZoom(this.drawnEvent?.id);
+        !bonusHoldingSingleZoom(this.drawnEvent?.id) &&
+        !deckDrawHoldingSingleZoom(this.drawnEvent?.id);
     },
     // ── STAGED entrance (a scene owns this batch's arrival) ────────────
     /*
@@ -706,11 +709,16 @@ export default defineComponent({
       if (card === undefined) {
         return;
       }
-      // A board card-bonus batch: the cover proxy stands at the presentation
-      // point — the viewer opens with a PHYSICAL origin resolving to it, so
-      // the existing zoom FLIP lifts the real card out of the scene (and
-      // `con-zoom-hold` hides the proxy the frame the flight starts).
+      // A STAGED batch: a scene's proxy already stands where the card should
+      // be — the board card-bonus cover at its presentation point, or the
+      // deck-draw card in its hold zone. The viewer opens with a PHYSICAL
+      // origin resolving to that proxy, so the existing zoom FLIP lifts the
+      // very card that flew (and `con-zoom-hold` hides the proxy the frame
+      // the flight starts) — never a fresh copy over a dissolving one.
       const bonusEntrance = isBoardCardBonusActive() && isBonusRevealStaged(this.drawnEvent?.id);
+      const deckEntrance = isDeckDrawActive() && isDeckDrawStaged(this.drawnEvent?.id);
+      const physicalOrigin = bonusEntrance ? () => bonusZoomOriginEl() :
+        (deckEntrance ? () => deckDrawZoomOriginEl() : undefined);
       openConsoleCardZoom([card], 0, undefined, undefined, {
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
@@ -718,7 +726,7 @@ export default defineComponent({
         receivedCount: this.drawnEvent?.cards.length ?? 1,
         statusLabel: 'Received card',
         mandatory: true,
-        origin: bonusEntrance ? {kind: 'physical', resolve: () => bonusZoomOriginEl()} : {kind: 'textual'},
+        origin: physicalOrigin !== undefined ? {kind: 'physical', resolve: physicalOrigin} : {kind: 'textual'},
       });
     },
     /**

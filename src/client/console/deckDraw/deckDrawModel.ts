@@ -246,12 +246,13 @@ export function inspectPoint(viewportW: number, viewportH: number): {x: number, 
 }
 
 /**
- * The scale a card is presented at while being judged — readable at a glance
- * but never a fullscreen event (a discard must not invite reading).
+ * The scale a card is presented at while being judged. Big enough to take in
+ * at a glance — the player must SEE that a real card was turned over — but
+ * never a fullscreen event: a discard is shown, not offered for reading.
  */
 export function inspectScale(viewportH: number, naturalH: number): number {
   const s = conUiScale();
-  return Math.min(0.46 * s, Math.max(0.24 * s, (viewportH * 0.3) / Math.max(1, naturalH)));
+  return Math.min(0.66 * s, Math.max(0.3 * s, (viewportH * 0.42) / Math.max(1, naturalH)));
 }
 
 /**
@@ -268,8 +269,10 @@ export function holdSlots(
   const gap = 26 * conUiScale();
   const pitch = cardW + gap;
   const totalW = count * cardW + (count - 1) * gap;
-  // Narrow viewport (handheld): overlap rather than run off the edges.
-  const maxW = viewportW * 0.66;
+  // The row must stay inside the free band between the side rails (the left
+  // resource rail ends ~11%, the right dashboard starts ~76%), so a big find
+  // overlaps rather than running under a panel — on any profile.
+  const maxW = viewportW * 0.46;
   const squeeze = totalW > maxW ? maxW / totalW : 1;
   const step = pitch * squeeze;
   const first = viewportW / 2 - (step * (count - 1)) / 2;
@@ -277,8 +280,12 @@ export function holdSlots(
   return Array.from({length: count}, (_, i) => ({x: first + step * i, y}));
 }
 
-/** The scale found cards rest at in the hold zone (the scene's heroes). */
+/**
+ * The scale found cards rest at in the hold zone. They are the scene's
+ * heroes, so they stay clearly readable — a notch under the inspect pose
+ * (that one is the card's moment), never a thumbnail.
+ */
 export function holdScale(viewportH: number, naturalH: number): number {
   const s = conUiScale();
-  return Math.min(0.42 * s, Math.max(0.2 * s, (viewportH * 0.26) / Math.max(1, naturalH)));
+  return Math.min(0.5 * s, Math.max(0.24 * s, (viewportH * 0.3) / Math.max(1, naturalH)));
 }
