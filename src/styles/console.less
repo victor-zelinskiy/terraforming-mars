@@ -9844,12 +9844,18 @@ body.con-start-ceremony {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2rem fade(@con-cyan, 8%);
         animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
+    /* The DRAWN reveal is a reward SCENE, not a content-hugging form: a
+       stable height makes the header / centre stage / bottom-air structure
+       read the same at every card count, with the received cards vertically
+       centred in the freed body (the body is flex:1 + centred). */
+    &__card--drawn { height: min(42rem, 84vh); }
     &__head { margin-bottom: .7rem; }
-    /* Header body: title + short intro on the LEFT, a COMPACT count chip on
-       the RIGHT (never a full-width strip). */
+    /* Header body: title + short intro + source chip grouped on the LEFT, a
+       COMPACT count chip vertically CENTRED against them on the RIGHT (one
+       visual header line, never a full-width strip). */
     &__headrow {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
         gap: 1rem;
         margin-top: .2rem;
@@ -9874,7 +9880,7 @@ body.con-start-ceremony {
     &__source-chip {
         appearance: none;
         border: 0;
-        margin-top: .5rem;
+        margin-top: .35rem;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
@@ -10029,6 +10035,21 @@ body.con-start-ceremony {
         gap: 2.4rem;
         padding: 2.2rem 1.2rem 1.5rem;
         max-width: 100%;
+
+        /* The FOCUSED card leads the reveal a notch harder than the shared
+           strip default (transform-only — the zoomed row never reflows);
+           clip-safe within this strip's taller headroom. */
+        > .con-cards__slot--focused {
+            transform: translateY(-.4rem) scale(1.1);
+        }
+        /* «A Взять» reads as part of the focused card. Its rem type already
+           carries the TV rem scale AND it lives inside the slot's zoom
+           (which carries --con-ui-scale too) — divide one scale back out so
+           the chip keeps a constant chip:card ratio on every profile (the
+           same double-scale guard as .con-cards__pickband). */
+        .con-start__slot-a {
+            zoom: calc(1 / var(--con-ui-scale, 1));
+        }
     }
     &__pager {
         display: inline-flex;
@@ -10051,7 +10072,7 @@ body.con-start-ceremony {
         align-self: center;
         border-radius: .6rem;
         padding: .4rem;
-        zoom: 1.08;
+        zoom: calc(1.08 * var(--con-ui-scale, 1));
         > :is(.card-container, .pcard) { margin: 0; }
 
         &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%), 0 0 1.3rem fade(@con-mint, 20%); }
@@ -12441,6 +12462,7 @@ html.con-profile-handheld {
     /* ── 12/21 · reveal / play / trade confirms ──────────────────── */
     .con-reveal {
         &__card { width: min(58rem, 96vw); padding: .7rem .9rem .5rem; }
+        &__card--drawn { height: min(34rem, 88vh); }
         &__title { font-size: 1rem; }
         &__subtitle { font-size: .7rem; max-width: 52ch; }
         &__count { padding: .25rem .65rem; gap: .35rem; }

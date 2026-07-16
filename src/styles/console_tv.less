@@ -361,10 +361,65 @@ html.con-profile-tv {
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }
     }
+    /* The REVEAL is a centre-stage reward scene on TV: the received cards
+       are the hero object. Every size lives in the profile knobs below —
+       the strip zoom is `base ladder × --con-ui-scale × the per-count
+       --con-reveal-zoom-boost` (assembled inline by ConsoleRevealOverlay.
+       stripZoomStyle; the count class is set by the same component), so
+       standard / handheld — where these vars are absent — stay untouched.
+       Boost targets (card height as a share of the panel): 1 card ~46%,
+       2 ~44%, 3 ~41%, 4 ~39%, 5-6 ~33% (comfort floor — larger batches
+       ride the existing focus carousel + pager, never shrink further). */
     .con-reveal {
-        &__card { width: min(76rem, 94vw); }
-        &__title { font-size: 1.5rem; }
-        &__sub { font-size: var(--con-t-body); }
+        --con-reveal-zoom-boost: 1.18;
+        --con-reveal-strip-gap: 3rem;
+
+        &__card { width: min(88rem, 94vw); padding: 1.4rem 2rem 1.1rem; }
+        &__card--drawn { height: min(46rem, 86vh); }
+        &__head { margin-bottom: 0.9rem; }
+        &__title { font-size: var(--con-t-title); }
+        &__subtitle { font-size: var(--con-t-body); max-width: 56ch; }
+        &__source-chip {
+            margin-top: 0.45rem;
+            padding: 0.35rem 0.95rem;
+            gap: 0.5rem;
+
+            &-mark { font-size: 0.8rem; }
+            &-label { font-size: var(--con-t-floor); }
+            &-name { font-size: var(--con-t-secondary); }
+        }
+        &__count { padding: 0.5rem 1.15rem; gap: 0.55rem; }
+        &__count-icon { width: 1.5rem; height: 1.5rem; }
+        &__count-label { font-size: var(--con-t-caption); }
+        &__count-num { font-size: var(--con-t-section); }
+        &__chip { font-size: var(--con-t-secondary); }
+        &__strip {
+            gap: var(--con-reveal-strip-gap);
+            padding: 3rem 1.6rem 2.2rem;
+        }
+        /* Per-count hero boost + a gap that tightens as the row fills. */
+        &__strip--n1 { --con-reveal-zoom-boost: 1.15; }
+        &__strip--n2 { --con-reveal-zoom-boost: 1.1; }
+        &__strip--n3 { --con-reveal-zoom-boost: 1.18; }
+        &__strip--n4 { --con-reveal-zoom-boost: 1.27; --con-reveal-strip-gap: 2.4rem; }
+        &__strip--n5,
+        &__strip--n6 { --con-reveal-zoom-boost: 1.3; --con-reveal-strip-gap: 1.8rem; }
+        &__strip--many { --con-reveal-zoom-boost: 1.35; --con-reveal-strip-gap: 1.6rem; }
+        /* «A Взять» on the focused card, couch-legible (rides the base
+           1/--con-ui-scale double-scale guard, so this is the REAL size). */
+        &__strip .con-start__slot-a {
+            font-size: 0.85rem;
+            padding: 0.3rem 0.85rem;
+            bottom: -0.85rem;
+        }
+        &__pager {
+            padding: 0.3rem 1rem;
+
+            &-i { font-size: var(--con-t-section); }
+            &-n { font-size: var(--con-t-secondary); }
+        }
+        &__vp { font-size: var(--con-t-secondary); }
+        &__outcome { font-size: var(--con-t-body); }
     }
 
     /* ═══ 19 · ACTION CENTER + COMPOSERS ══════════════════════════ */

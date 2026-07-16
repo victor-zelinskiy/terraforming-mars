@@ -548,7 +548,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="activeConsoleTask !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
+                   :modal-suppressed="hostServesPrompt || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -1094,6 +1094,21 @@ export default defineComponent({
         return undefined;
       }
       return taskServedByHost(this.playerView);
+    },
+    /**
+     * Does the console TASK HOST serve the current prompt — HOLD-INDEPENDENTLY?
+     * `activeConsoleTask` goes `undefined` during a transient hold (the
+     * tile-placement hero, a reveal, presentation), which used to un-SUPPRESS
+     * the desktop MandatoryInputModal fallback for the ~1s gap before the
+     * console surface mounts — so the desktop `ModernProductionToLose` FLASHED
+     * for a beat after placing next to a hazard, then swapped to the premium
+     * console surface. This reads the classification directly (no hold gate), so
+     * the desktop modal stays suppressed through the hold. It stays FALSE for a
+     * genuine fallback (`composite` the host can't serve) → that modal still
+     * shows when nothing native handles the prompt.
+     */
+    hostServesPrompt(): boolean {
+      return taskServedByHost(this.playerView) !== undefined;
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
     hostTask(): ConsoleTask | undefined {

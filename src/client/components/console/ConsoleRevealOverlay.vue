@@ -19,7 +19,8 @@
       <div class="con-reveal__backdrop" aria-hidden="true"></div>
 
       <transition name="con-task-swap" mode="out-in">
-        <div class="con-reveal__card" :key="revealKey">
+        <div class="con-reveal__card" :key="revealKey"
+             :class="{'con-reveal__card--drawn': mode === 'drawn'}">
           <!-- ── Header ──────────────────────────────────────────────── -->
           <header class="con-reveal__head">
             <div class="con-task__kicker">
@@ -75,7 +76,7 @@
           <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
             <div class="con-reveal__main">
               <div class="con-cards__strip con-reveal__strip"
-                   :class="{'con-cards__strip--has-focus': drawnUntaken.length > 1}"
+                   :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1}]"
                    :style="stripZoomStyle">
                 <div v-for="(entry, i) in drawnUntaken" :key="entry.card.name + '#' + entry.index"
                      class="con-cards__slot con-start__deal"
@@ -146,7 +147,9 @@
           <!-- ── VIEWER: another player's public reveal (read-only) ──── -->
           <div v-else-if="mode === 'viewer' && viewerReveal !== undefined" class="con-reveal__body con-info__scroll">
             <div class="con-reveal__main">
-              <div class="con-cards__strip">
+              <div class="con-cards__strip con-reveal__strip"
+                   :class="stripCountClass"
+                   :style="stripZoomStyle">
                 <div v-for="(name, i) in viewerReveal.cards" :key="name + '#' + i"
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(i)"
@@ -383,13 +386,17 @@ export default defineComponent({
         (isDeckDrawActive() &&
           (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame'));
     },
+    /** The visible card count driving the strip layout (drawn OR viewer). */
+    stripCount(): number {
+      return this.mode === 'viewer' ? (this.viewerReveal?.cards.length ?? 0) : this.drawnUntaken.length;
+    },
     /**
      * Count-driven card scale so 1–4 cards stay roomy with a generous safe gap
      * (no overlap); larger batches compact and scroll as a focus carousel. The
      * strip's `.con-cards__slot` reads `--con-cards-zoom` (set on the strip).
      */
     stripZoom(): number {
-      const n = this.drawnUntaken.length;
+      const n = this.stripCount;
       if (n <= 2) {
         return 0.94;
       }
@@ -404,8 +411,21 @@ export default defineComponent({
       }
       return 0.52;
     },
+    /**
+     * The base ladder rides two PROFILE factors resolved in CSS: the TV rem
+     * scale (`--con-ui-scale` — px card faces must grow with the scaled rem
+     * layout or they read desktop-small at 4K) and the per-count reveal boost
+     * (`--con-reveal-zoom-boost`, set only by the tv profile via the strip's
+     * count class in console_tv.less — 1 everywhere else, so standard /
+     * handheld render byte-identical).
+     */
     stripZoomStyle(): Record<string, string> {
-      return {'--con-cards-zoom': String(this.stripZoom)};
+      return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1))`};
+    },
+    /** The count class the tv profile keys its per-count boost / gap off. */
+    stripCountClass(): string {
+      const n = this.stripCount;
+      return n > 6 ? 'con-reveal__strip--many' : `con-reveal__strip--n${Math.max(n, 1)}`;
     },
     // ── result ───────────────────────────────────────────────────────
     lastReveal(): RevealResultModel | undefined {
