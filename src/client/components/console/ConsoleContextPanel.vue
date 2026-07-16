@@ -106,18 +106,9 @@
          footers; the LB/RB keys live ON the blocks they open. ── -->
     <template v-else>
 
-      <!-- Cards: how many can be PLAYED now / total in hand. -->
-      <section class="con-home__block" :class="{'con-home__block--hot': cardsPlayable > 0}">
-        <header class="con-home__head">
-          <BarButtonIcon name="cards" />
-          <span class="con-home__title">{{ $t('Cards') }}</span>
-          <span class="con-home__value"><b>{{ cardsPlayable }}</b><i>/{{ cardsTotal }}</i></span>
-        </header>
-        <div class="con-home__state" :class="cardsPlayable > 0 ? 'con-home__state--go' : 'con-home__state--mute'">
-          <span class="con-home__state-dot" aria-hidden="true"></span>
-          <span>{{ $t(cardsPlayable > 0 ? 'Playable now' : 'No playable cards') }}</span>
-        </div>
-      </section>
+      <!-- (The former Cards block moved OUT of this panel: hand presence,
+           count and the playable accent live on the bottom-centre HAND DOCK
+           now — the panel would only duplicate it.) -->
 
       <!-- Card actions: available blue-card/corp activations. -->
       <section class="con-home__block" :class="{'con-home__block--hot': actionsAvailable > 0}">
@@ -319,8 +310,6 @@ export default defineComponent({
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
     // idle mode
     myTurn: {type: Boolean, default: false},
-    cardsPlayable: {type: Number, default: 0},
-    cardsTotal: {type: Number, default: 0},
     actionsAvailable: {type: Number, default: 0},
     actionsTotal: {type: Number, default: 0},
     milestoneSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},

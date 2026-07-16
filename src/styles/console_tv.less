@@ -156,6 +156,25 @@ html.con-profile-tv {
             &--pill { min-width: 2.15rem; }
         }
     }
+    /* Footer bay + hand dock: rem geometry scales with the profile for
+       free — only the bar-height mirror and the couch count bump move. */
+    .con-footer { --con-bar-h: 2.9rem; }
+    .con-handdock__count-num { font-size: 1.15rem; }
+    /* Bay mode compacts the hint run a notch under the couch sizes too —
+       the richest (board home) set must clear the two zones. Still ≥ the
+       service-text floor (1rem = 20 logical px). */
+    .con-cmdbar--bay {
+        .con-cmdbar__context { font-size: 1rem; }
+        .con-cmdbar__cmds { gap: 0.9rem; }
+        .con-cmdbar__label { font-size: 1rem; }
+        .con-cmdbar__badge { min-width: 1.2rem; height: 1.2rem; font-size: 0.75rem; }
+        .gp-glyph {
+            min-width: 1.4rem;
+            height: 1.4rem;
+            font-size: 0.7rem;
+            &--pill { min-width: 1.85rem; }
+        }
+    }
 
     /* ═══ 5b · FEEDBACK DELTA CHIPS (px-authored desktop components) ═
        The AnimatedMetricValue chips anchor inside the console rails/HUD —
@@ -166,7 +185,8 @@ html.con-profile-tv {
     .con-res .delta-chip,
     .con-res-aux .delta-chip,
     .con-home .delta-chip,
-    .con-hand .delta-chip {
+    .con-hand .delta-chip,
+    .con-handdock .delta-chip {
         zoom: var(--con-ui-scale, 1);
     }
 

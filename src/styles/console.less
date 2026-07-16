@@ -1161,6 +1161,12 @@ html.con-profile-handheld .con-terracere {
     min-width: 0;
     display: flex;
     gap: .9rem;
+    /* HAND-DOCK clearance: the dock's pack rises ~3rem above the footer
+       into the main band's bottom centre. Reserving it HERE (the stage box
+       shrinks) lets the self-calibrating fit engine re-scale + re-centre
+       the planet — the deliberate small board-scale trade the dock buys.
+       The side panels keep their full height (the dock never reaches them). */
+    padding-bottom: 3.3rem;
 
     &__stage {
         flex: 1;
@@ -3773,10 +3779,14 @@ html.console-mode {
         color: fade(@con-cyan, 95%);
         text-shadow: 0 0 .9rem fade(@con-cyan, 35%);
     }
-    /* The cross: up / left-center-right / down (grid keeps it rigid). */
+    /* The cross: up / left-center-right / down (grid keeps it rigid).
+       EQUAL fixed columns on purpose — content-sized tracks let a long
+       side label (Гидросеть's reason) shove the CENTRE slot off the
+       viewport centre, and the centre slot is the axis the hand dock
+       below is built to share (the footer-bay coaxiality contract). */
     &__cross {
         display: grid;
-        grid-template-columns: repeat(3, minmax(10.5rem, auto));
+        grid-template-columns: repeat(3, 14rem);
         grid-template-rows: repeat(3, auto);
         gap: .7rem .8rem;
         align-items: stretch;
@@ -5949,6 +5959,364 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-size: .7rem;
         &--pill { min-width: 1.9rem; }
     }
+
+    /* The LEFT zone: context label (+ the left command cluster in bay
+       mode). In the classic flex bar it is just the context wrapper —
+       byte-identical layout for the menus / bot review. */
+    &__zone-left {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.2rem;
+        min-width: 0;
+    }
+    &__cmds--left {
+        /* Attached to the CONTEXT side: when the cluster overflows, the
+           clip eats its tail AT the bay edge (reads as sliding under the
+           dock) — a flex-end cluster would decapitate the first label. */
+        justify-content: flex-start;
+        flex: 1;
+    }
+
+    /* ── BAY mode (the in-game shell footer) ──────────────────────────
+       The centre track is `--con-hd-bay` wide and MATHEMATICALLY centred:
+       col1 = calc(50% − bay/2) of the content box, col3 takes the rest —
+       with symmetric root + bar paddings the bay centre IS the viewport
+       centre, the same axis the RT/LT quick cross centres on. That
+       coaxiality is the point of the whole footer rework — never replace
+       this grid with content-driven columns (an `auto` context column
+       shifts the bay off-centre by half the label width).
+       The hint typography COMPACTS a notch in bay mode — the bay costs
+       ~16rem of the row, and the board home's full hint set must still
+       fit the two zones (the split model estimates THESE sizes). */
+    &--bay {
+        display: grid;
+        grid-template-columns: calc(50% - var(--con-hd-bay, 16rem) / 2) var(--con-hd-bay, 16rem) minmax(0, 1fr);
+        gap: 0;
+
+        .con-cmdbar__context { font-size: .95rem; }
+        .con-cmdbar__cmds { gap: 1.05rem; }
+        .con-cmdbar__label { font-size: .95rem; }
+        .con-cmdbar__badge { min-width: 1.1rem; height: 1.1rem; font-size: .7rem; }
+        .gp-glyph {
+            min-width: 1.3rem;
+            height: 1.3rem;
+            font-size: .65rem;
+            &--pill { min-width: 1.75rem; }
+        }
+        /* Graceful overflow: on a hint-rich context (the board home runs 8
+           commands) whatever exceeds a zone SHRINKS its label to an
+           ellipsis instead of clipping a glyph in half — glyphs and badges
+           never compress. */
+        .con-cmdbar__cmd {
+            flex-shrink: 1;
+            min-width: 0;
+        }
+        .con-cmdbar__label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .gp-glyph, .con-cmdbar__badge { flex-shrink: 0; }
+    }
+    /* The socket the hand dock sits in — a recessed inlay with strict
+       angled sides (top wide → bottom narrow), carved INTO the bar. The
+       dock plate covers its centre; what stays visible is the machined
+       frame around the hand. */
+    &__bay {
+        position: relative;
+        align-self: stretch;
+        pointer-events: none;
+    }
+    &__bay-inlay {
+        position: absolute;
+        inset: .16rem .1rem .14rem;
+        /* kant layer (angled rim) … */
+        background: linear-gradient(180deg, fade(@con-cyan, 44%), fade(@con-cyan, 16%) 55%, rgba(90, 130, 170, 0.26));
+        clip-path: polygon(0 0, 100% 0, calc(100% - .95rem) 100%, .95rem 100%);
+
+        /* … over the recessed dark floor. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: .07rem;
+            background: linear-gradient(180deg, rgba(3, 6, 11, 0.94), rgba(10, 16, 25, 0.6));
+            clip-path: polygon(0 0, 100% 0, calc(100% - .9rem) 100%, .9rem 100%);
+        }
+    }
+}
+
+/* ── Footer (in-game shell): command bar + the permanent HAND DOCK ──
+   One composed band. The wrapper carries the bar's old z contract
+   (readable ABOVE task/inspect backdrops, under stranded 11900 /
+   fallback 12000); everything inside stacks locally. `--con-bar-h`
+   mirrors the bar height per profile (kept in sync with the .con-cmdbar
+   height rules) — the dock anchors its shoulder rails to it. */
+.con-footer {
+    position: relative;
+    flex-shrink: 0;
+    z-index: 11700;
+    --con-bar-h: 2.6rem;
+}
+
+/* The hand dock — the permanent bottom-centre "hand of cards" presence
+   (ConsoleHandDock.vue; geometry model in consoleHandDock.ts). Bottom-
+   anchored INTO the footer bay; the pack rises above the bar into the
+   clearance `.con-board` reserves (padding-bottom). Card sizes default to
+   the model constants (HAND_DOCK_CARD_*_REM) — keep them in sync. */
+.con-handdock {
+    position: absolute;
+    left: 50%;
+    bottom: .35rem;
+    transform: translateX(-50%);
+    width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
+    height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
+    /* Above the bar (11700-local) — the plate descends INTO the bay. */
+    z-index: 11705;
+    /* Pack presentation knobs (the hover/focused state retunes them). */
+    --hd-card-w: 3.15rem;
+    --hd-card-h: 4.4rem;
+    --hd-spread: 1;
+    --hd-lift: 0rem;
+    --hd-fan: 0;
+    cursor: default;
+    pointer-events: none;
+    transition:
+        opacity calc(300ms * var(--motion-scale, 1)) ease,
+        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        filter calc(300ms * var(--motion-scale, 1)) ease,
+        visibility 0s;
+
+    /* ── shoulder rails: the bar's top rim flowing around the bay ── */
+    &__wing {
+        position: absolute;
+        bottom: calc(var(--con-bar-h, 2.6rem) - .35rem - .1rem);
+        width: 2.7rem;
+        height: .12rem;
+        border-radius: .06rem;
+        pointer-events: none;
+    }
+    &__wing--l {
+        right: calc(100% + .45rem);
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 58%));
+    }
+    &__wing--r {
+        left: calc(100% + .45rem);
+        background: linear-gradient(270deg, transparent, fade(@con-cyan, 58%));
+    }
+
+    /* ── the PACK (behind the plate) ─────────────────────────────── */
+    &__pack {
+        position: absolute;
+        left: 50%;
+        bottom: .8rem;
+        width: 0; /* cards centre themselves around this axis */
+        height: var(--hd-card-h);
+        pointer-events: none;
+    }
+    &__card,
+    &__slab,
+    &__ghost {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: var(--hd-card-w);
+        height: var(--hd-card-h);
+        border-radius: .22rem;
+    }
+    /* One card-back silhouette — the SAME approved back texture the
+       project deck uses (never a CSS redraw). Left-edge shadow separates
+       it from the card underneath. */
+    &__card {
+        background: url('./assets/resources/card.webp') center / cover no-repeat;
+        box-shadow:
+            inset 0 0 0 .05rem rgba(165, 195, 225, 0.34),
+            -0.3rem .12rem .55rem rgba(0, 0, 0, 0.55);
+        transform:
+            translateX(calc(-50% + var(--hd-dx, 0rem) * var(--hd-spread, 1)))
+            translateY(calc(var(--hd-pop, 0rem) - var(--hd-lift, 0rem)))
+            rotate(calc(var(--hd-tilt, 0deg) * var(--hd-fan, 0)));
+        transition:
+            transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            opacity calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    /* Depth slabs — the "more than the silhouettes show" thickness read
+       (the deckstack language): dark edge slates behind the pack's left
+       (oldest) flank, deeper = darker. */
+    &__slab {
+        background: linear-gradient(180deg, #2b3947 0%, #16202c 100%);
+        box-shadow: inset 0 0 0 .04rem rgba(140, 170, 200, 0.24);
+        transform: translateX(calc(-50% + var(--hd-edge, 0rem) * var(--hd-spread, 1)));
+    }
+    &__slab--1 { transform: translateX(calc(-50% + var(--hd-edge, 0rem) * var(--hd-spread, 1) - .22rem)) translateY(.06rem); }
+    &__slab--2 { transform: translateX(calc(-50% + var(--hd-edge, 0rem) * var(--hd-spread, 1) - .42rem)) translateY(.12rem); filter: brightness(0.8); }
+    &__slab--3 { transform: translateX(calc(-50% + var(--hd-edge, 0rem) * var(--hd-spread, 1) - .62rem)) translateY(.18rem); filter: brightness(0.62); }
+    /* 0 cards: the tray stays — a dashed slot ghost marks the card home. */
+    &__ghost {
+        transform: translateX(-50%);
+        border: .06rem dashed fade(@con-cyan, 34%);
+        background: radial-gradient(80% 60% at 50% 100%, fade(@con-cyan, 7%), transparent 75%);
+    }
+
+    /* ── the tray PLATE (in front of the card bottoms) ───────────── */
+    &__plate {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2.7rem;
+        pointer-events: none;
+        /* ABOVE the pack (cards carry z 3..N): the card bottoms sink INTO
+           the tray — the physical read the whole dock is built on. */
+        z-index: 20;
+        /* kant layer (the crisp angular rim) */
+        background: linear-gradient(180deg, fade(@con-cyan, 62%), fade(@con-cyan, 20%) 45%, rgba(90, 130, 170, 0.34));
+        clip-path: polygon(.8rem 0, calc(100% - .8rem) 0, 100% .55rem, calc(100% - 1.15rem) 100%, 1.15rem 100%, 0 .55rem);
+    }
+    &__plate-face {
+        position: absolute;
+        inset: .07rem;
+        background:
+            radial-gradient(60% 90% at 50% 0%, fade(@con-cyan, 9%), transparent 70%),
+            linear-gradient(180deg, rgba(14, 24, 36, 0.98) 0%, rgba(8, 13, 21, 0.99) 100%);
+        clip-path: polygon(.78rem 0, calc(100% - .78rem) 0, 100% .53rem, calc(100% - 1.13rem) 100%, 1.13rem 100%, 0 .53rem);
+        transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    /* Etched zone label — quiet, engraved, uppercase. */
+    &__kicker {
+        position: absolute;
+        left: 50%;
+        bottom: .3rem;
+        transform: translateX(-50%);
+        padding-left: .32rem; /* optically re-centre the tracking */
+        font-size: .55rem;
+        font-weight: 700;
+        letter-spacing: .32rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 58%);
+        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
+    }
+
+    /* ── count capsule (the dock's own readout) ──────────────────── */
+    &__count {
+        position: absolute;
+        right: .15rem;
+        bottom: .5rem;
+        z-index: 21; /* on the plate, never under a card */
+        display: inline-flex;
+        align-items: center;
+        gap: .32rem;
+        padding: .14rem .5rem .14rem .42rem;
+        background: rgba(10, 17, 27, 0.94);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%);
+        clip-path: polygon(.45rem 0, 100% 0, 100% 100%, 0 100%, 0 .45rem);
+        transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    &__count-icon {
+        display: inline-block;
+        width: 1.05rem;
+        height: 1.05rem;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+        filter: drop-shadow(0 .05rem .15rem rgba(0, 0, 0, 0.5));
+    }
+    &__count-num {
+        position: relative; /* delta-chip anchor */
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        font-variant-numeric: tabular-nums;
+        color: fade(#dcebf9, 95%);
+    }
+    &__count--zero &__count-num {
+        color: fade(#8aa0b8, 85%);
+    }
+    /* Playable-now accent — ONE quiet mint dot, never text. */
+    &__go {
+        width: .42rem;
+        height: .42rem;
+        border-radius: 50%;
+        background: @con-mint;
+        box-shadow: 0 0 .35rem fade(@con-mint, 45%);
+        animation: con-hd-go calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+
+    /* ── states ──────────────────────────────────────────────────── */
+    &--live {
+        pointer-events: auto;
+        cursor: pointer;
+    }
+    &--live:hover,
+    &--live:focus-visible {
+        --hd-spread: 1.12;
+        --hd-lift: .45rem;
+        --hd-fan: 1;
+
+        .con-handdock__plate-face {
+            box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
+        }
+        .con-handdock__count {
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 62%), 0 0 .6rem fade(@con-cyan, 18%);
+        }
+    }
+    /* The playable mint hairline along the plate's top edge (live only). */
+    &--live&--hot .con-handdock__plate-face::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 16%;
+        right: 16%;
+        height: .1rem;
+        background: linear-gradient(90deg, transparent, fade(@con-mint, 55%), transparent);
+    }
+    /* A large overlay owns the screen — recede, stay present. */
+    &--subdued {
+        opacity: 0.48;
+        filter: saturate(0.55) brightness(0.82);
+        transform: translateX(-50%) translateY(1rem) scale(0.8);
+        transform-origin: 50% 100%;
+    }
+    /* A fullscreen SECTION replaces the board (the hand section IS the
+       expanded hand) — the dock yields entirely, layout kept. */
+    &--hidden {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(-50%) translateY(1.2rem) scale(0.9);
+        transform-origin: 50% 100%;
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) ease,
+            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            filter calc(300ms * var(--motion-scale, 1)) ease,
+            visibility 0s calc(300ms * var(--motion-scale, 1));
+    }
+}
+
+/* Pack enter/leave (a card joins / leaves the hand): rise out of / sink
+   into the tray. `--hd-pop` folds into the card's own transform, so the
+   x-placement never snaps. */
+.con-hd-enter-from,
+.con-hd-leave-to {
+    --hd-pop: 1.15rem;
+    opacity: 0;
+}
+.con-hd-enter-active,
+.con-hd-leave-active {
+    transition:
+        transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+
+@keyframes con-hd-go {
+    0%, 100% { opacity: .72; box-shadow: 0 0 .25rem fade(@con-mint, 30%); }
+    50% { opacity: 1; box-shadow: 0 0 .55rem fade(@con-mint, 55%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-handdock,
+    .con-handdock__card,
+    .con-hd-enter-active,
+    .con-hd-leave-active { transition: none; }
+    .con-handdock__go { animation: none; }
 }
 
 /* ── Console-mode entry prompt (desktop side) ────────────────────── */
@@ -12230,7 +12598,7 @@ html.con-profile-handheld {
     /* (The terraforming ceremony's handheld sizes live next to its own
        block — see `html.con-profile-handheld .con-terracere`.) */
 
-    /* ── 3 · bottom command bar ──────────────────────────────────── */
+    /* ── 3 · bottom command bar + hand dock ──────────────────────── */
     .con-cmdbar {
         gap: .7rem;
         padding: .3rem .7rem;
@@ -12239,8 +12607,52 @@ html.con-profile-handheld {
         &__context { font-size: .7rem; letter-spacing: .08rem; }
         &__cmds { gap: .7rem; }
         &__cmd { gap: .3rem; span { font-size: .7rem; } }
+        &__zone-left { gap: .7rem; }
+        /* Bay mode: the Deck footer is the tightest budget — shave the
+           inter-command gap AND pin the glyph badges back to the handheld
+           size (the bay-compact glyph bump is standard/TV-only; it would
+           eat the narrow Deck zones). */
+        /* ⚠ gap 0 is LOAD-BEARING: the profile's own `.con-cmdbar { gap }`
+           outranks `--bay` and would re-insert COLUMN gaps into the bay
+           grid — shrinking the fr zone AND shoving the bay half a gap off
+           the viewport centre (the coaxiality contract). */
+        &--bay { gap: 0; }
+        &--bay .con-cmdbar__cmds { gap: .55rem; }
+        &--bay .gp-glyph {
+            min-width: .85rem;
+            height: .85rem;
+            font-size: .475rem;
+            &--pill { min-width: 1.2rem; }
+        }
+        &--bay .con-cmdbar__label,
+        &--bay .con-cmdbar__context { font-size: .7rem; }
         .gp-glyph { min-width: .85rem; height: .85rem; font-size: .475rem; }
     }
+    .con-footer { --con-bar-h: 1.9rem; }
+    /* The dock compacts with the Deck footer (the bay itself narrows via
+       the model's handDockBayRem — the shell writes --con-hd-bay). */
+    .con-handdock {
+        --hd-card-w: 2.6rem;
+        --hd-card-h: 3.65rem;
+        --hd-spread: .84;
+        bottom: .3rem;
+        width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
+        height: calc(var(--hd-card-h) + 1.2rem);
+
+        &__pack, &__ghost { bottom: .62rem; }
+        &__plate { height: 2.05rem; }
+        &__kicker { font-size: .45rem; letter-spacing: .22rem; bottom: .22rem; }
+        &__count {
+            bottom: .38rem;
+            padding: .1rem .4rem .1rem .34rem;
+        }
+        &__count-icon { width: .85rem; height: .85rem; }
+        &__count-num { font-size: .8rem; }
+        &__wing { width: 1.9rem; }
+    }
+    /* The dock's rise is shallower on the Deck — hand the freed clearance
+       back to the board (every px is board scale there). */
+    .con-board { padding-bottom: 2.9rem; }
 
     /* ── 4 · right context + command panel (placement dossier) ───── */
     .con-inspector {
@@ -12284,7 +12696,7 @@ html.con-profile-handheld {
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
-    .con-quick__cross { gap: .5rem .6rem; }
+    .con-quick__cross { gap: .5rem .6rem; grid-template-columns: repeat(3, 12rem); }
     .con-quick__slot { min-height: 4.1rem; padding: .55rem .7rem .5rem; }
     .con-quick__slot-label { font-size: .85rem; }
 

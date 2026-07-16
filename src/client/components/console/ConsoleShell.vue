@@ -95,8 +95,6 @@
                            :inspectAll="consoleState.freeRoam"
                            :cancellable="placementCancellable"
                            :myTurn="myTurn"
-                           :cardsPlayable="cardsPlayableCount"
-                           :cardsTotal="cardsTotalCount"
                            :actionsAvailable="actionsAvailableCount"
                            :actionsTotal="actionsTotalCount"
                            :milestoneSummary="homeMilestoneSummary"
@@ -538,7 +536,21 @@
          (consoleResourceTransfer.ts / resourceTransferDirector). -->
     <ConsoleResourceTransferLayer />
 
-    <ConsoleCommandBar :context="commandContext" :commands="commands" />
+    <!-- The FOOTER — one composed band: the command bar with its centre BAY
+         + the permanent HAND DOCK sitting in it. The dock is absolutely
+         positioned at left:50% of this full-width wrapper (symmetric root
+         padding) → mathematically the viewport centre, coaxial with the
+         RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
+         is written HERE from the model so the bar's grid track and the
+         dock's plate can never disagree. -->
+    <div class="con-footer" :style="footerVars">
+      <ConsoleHandDock :cards="handDockCards"
+                       :playableCount="cardsPlayableCount"
+                       :epoch="playerView.runId"
+                       :mode="handDockMode"
+                       @open="onHandDockOpen" />
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
+    </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
          routing / SelectSpace placement handlers) runs unchanged; its INLINE
@@ -643,6 +655,8 @@ import {notificationState, pendingSummary, dismiss as dismissNotification} from 
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
+import ConsoleHandDock, {HandDockMode} from '@/client/components/console/ConsoleHandDock.vue';
+import {handDockBayRem} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import ConsoleMaConfirm from '@/client/components/console/ConsoleMaConfirm.vue';
@@ -741,7 +755,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -798,6 +812,7 @@ export default defineComponent({
     ConsoleTerraformingCeremony,
     ConsoleBotTurnReview,
     ConsoleCommandBar,
+    ConsoleHandDock,
     ConsoleSheet,
     ConsoleMaScreen,
     ConsoleMaConfirm,
@@ -971,6 +986,61 @@ export default defineComponent({
     },
     actionsTotalCount(): number {
       return playerActionSourceCount(this.thisPlayer.tableau);
+    },
+    // ── the permanent HAND DOCK (bottom-centre footer bay) ──────────────
+    /** The dock's hand in SERVER order (append-stable — backs only, so the
+     *  playable-first sort of the hand SECTION would just reshuffle the
+     *  silhouettes on every playability change). SRR-hosted cards count:
+     *  they are playable from the hand surface. */
+    handDockCards(): ReadonlyArray<CardModel> {
+      return [
+        ...this.playerView.cardsInHand,
+        ...(this.thisPlayer.selfReplicatingRobotsCards ?? []),
+      ];
+    },
+    /**
+     * The dock's presentation mode — derived from the SAME flags this
+     * template mounts surfaces by:
+     *  - `hidden` while a fullscreen SECTION replaces the board (the hand
+     *    section IS the expanded hand — they never coexist) or the shell
+     *    yielded to the fallback engine / the endgame;
+     *  - `subdued` (recede, stay present) while a large overlay owns the
+     *    screen — task host / start scene / sheets / MA / composers /
+     *    journal / played table / info mode / reveals / draft beats;
+     *  - `live` on the board home, during placement, draft-wait and the
+     *    RT/LT quick wheels (the wheels centre on the SAME axis — the
+     *    dock underneath is the alignment the layout is built around).
+     */
+    handDockMode(): HandDockMode {
+      if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
+        return 'hidden';
+      }
+      const overlayUp =
+        this.hostTask !== undefined ||
+        this.startTask !== undefined ||
+        this.govSupportActive ||
+        this.productionLossActive ||
+        this.consoleRevealMode !== undefined ||
+        this.consoleState.sheet !== undefined ||
+        this.consoleState.confirm !== undefined ||
+        this.pendingPlayCard !== undefined ||
+        this.pendingTradeColony !== undefined ||
+        this.maConfirmView !== undefined ||
+        this.maInspectItem !== undefined ||
+        this.colonyInspectModel !== undefined ||
+        this.playedTableVisible ||
+        this.journalPanelVisible ||
+        this.infoModeState.open ||
+        this.botTurnReviewState.open ||
+        this.govScaleFocusState.holding || this.govScaleFocusState.closing ||
+        draftPickBeatActive() || riseSceneEngaged() ||
+        this.leakDetectorState.stranded !== undefined;
+      return overlayUp ? 'subdued' : 'live';
+    },
+    /** The bay width flows from ONE source (consoleHandDock.ts) into both
+     *  consumers: the bar's grid track and the dock's plate. */
+    footerVars(): Record<string, string> {
+      return {'--con-hd-bay': `${handDockBayRem(consoleLayoutState.profile)}rem`};
     },
     /** Award names for the translation-proof structure fallback (the fund
      *  OrOptions title is a Message that i18n mutates in place). */
@@ -2499,7 +2569,11 @@ export default defineComponent({
         {control: 'secondary', label: 'Played'},
         {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
           highlight: this.myTurn && (this.cardsPlayableCount + this.actionsAvailableCount) > 0},
-        {control: 'triggerL', label: 'Basic actions'},
+        // The SHORT hint key on purpose — the footer's centre bay (hand
+        // dock) splits this richest set across two zones, and the full
+        // «Базовые действия» is the one atom that fits neither; the LT
+        // quick wheel itself keeps the full 'Basic actions' title.
+        {control: 'triggerL', label: 'Basics'},
         {control: 'stickL', label: 'Inspect board'},
         {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
@@ -3425,6 +3499,16 @@ export default defineComponent({
       } else if (quick === 'basics') {
         this.executeLtEntry(entry.id);
       }
+    },
+    /** The hand dock (footer bay) clicked — the mouse/touch entry point to
+     *  the hand. Same path as RT → КАРТЫ; guarded to the calm board home
+     *  (the dock is `live` there — every overlay state is non-interactive). */
+    onHandDockOpen(): void {
+      if (this.consoleState.section !== 'board' || this.placementActive ||
+          this.consoleState.quick !== undefined || this.consoleState.confirm !== undefined) {
+        return;
+      }
+      this.executeRtEntry('cards');
     },
     /** RT — action categories (navigation surfaces; inspection always allowed). */
     executeRtEntry(id: string): void {
