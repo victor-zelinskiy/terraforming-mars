@@ -199,8 +199,51 @@
             <div v-if="armedSkip" class="con-start__skipwarn">
               ⚠ {{ $t('You are not buying any project cards') }} — {{ $t('Press again to confirm') }}
             </div>
-            <div class="con-start__beginline" :class="{'con-start__beginline--off': !wizardReady}">
-              <GamepadGlyph control="triggerR" /><span>{{ $t('Begin the game') }}</span>
+            <!-- THE LAUNCH BLOCK. The summary is the setup's waiting room as
+                 much as it is a review, so this ONE slot states honestly which
+                 of the two it currently is, and MORPHS between them:
+                  · WAITING — somebody else still owes their setup pick: a live
+                    per-player readout (the SAME status brain the top strip
+                    reads, so the two can never disagree) under a scanning
+                    sweep. The pick is genuinely still happening — say so.
+                  · LAUNCH  — nobody else owes anything: this press is the LAST
+                    input the game needs, so it earns the full CTA plate.
+                 A is bound in BOTH states (see `launchVerb` — a hard gate
+                 would deadlock two humans); only the verb changes. The begin
+                 press used to hide on RT, which advertised the biggest press
+                 of the setup on the least obvious control. -->
+            <div class="con-start__launch" role="status" aria-live="polite">
+              <transition name="con-start-launch" mode="out-in">
+                <div v-if="!launch.launches" key="wait" class="con-start__wait">
+                  <span class="con-start__wait-scan" aria-hidden="true"></span>
+                  <div class="con-start__wait-head">
+                    <span class="con-start__wait-orbit" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="con-start__wait-title">{{ $t('Waiting for other players') }}</span>
+                  </div>
+                  <div class="con-start__crew">
+                    <span v-for="mate in launch.others" :key="mate.color"
+                          class="con-start__mate"
+                          :class="'con-start__mate--' + mate.status.category">
+                      <span :class="'con-start__mate-dot player_bg_color_' + mate.color" aria-hidden="true"></span>
+                      <span class="con-start__mate-name">{{ crewName(mate) }}</span>
+                      <span class="con-start__mate-state">
+                        <span v-if="!mate.picking" class="con-start__mate-tick" aria-hidden="true">✓</span>
+                        <span>{{ $t(mate.status.textKey) }}</span>
+                        <i v-if="mate.picking" class="con-start__mate-dots" aria-hidden="true"><b></b><b></b><b></b></i>
+                      </span>
+                    </span>
+                  </div>
+                  <!-- Honest secondary affordance: confirming NOW locks the
+                       viewer's choice in — the wait simply continues. -->
+                  <div class="con-start__wait-cta" :class="{'con-start__wait-cta--off': !wizardReady}">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Submit your choice') }}</span>
+                  </div>
+                </div>
+                <div v-else key="go" class="con-start__beginline" :class="{'con-start__beginline--off': !wizardReady}">
+                  <span class="con-start__beginline-flash" aria-hidden="true"></span>
+                  <GamepadGlyph control="confirm" /><span>{{ $t('Begin the game') }}</span>
+                </div>
+              </transition>
             </div>
           </aside>
         </div>
@@ -383,6 +426,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText} from '@/client/directives/i18n';
@@ -393,8 +437,10 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, consoleStartState, ensureStartWizard, initialCardsInputOf,
-  initialCardsSignature, picksForStep, StartWizardStep, stepComplete, wizardSteps,
+  initialCardsSignature, picksForStep, StartCrewMate, StartLaunchState, startLaunchState,
+  StartWizardStep, stepComplete, wizardSteps,
 } from '@/client/console/consoleStartState';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
   corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
@@ -442,6 +488,8 @@ export default defineComponent({
   components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
+    waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
     task: {type: Object as PropType<ConsoleTask>, required: true},
   },
   emits: ['submit', 'defer'],
@@ -575,6 +623,26 @@ export default defineComponent({
     /** True on the wizard's final summary (no live step). */
     onSummary(): boolean {
       return this.mode === 'wizard' && this.currentStep === undefined;
+    },
+    /**
+     * The summary is the setup's WAITING ROOM as much as it is a review: the
+     * game cannot start until every player has picked. This is the honest
+     * readout of that (the SHARED status brain — see startLaunchState).
+     */
+    launch(): StartLaunchState {
+      return startLaunchState(this.playerView, this.waitingOnPlayers);
+    },
+    /**
+     * The confirm's VERB. Nobody else owes a pick → this press is the last
+     * input the game needs, so it genuinely BEGINS the game; while somebody
+     * else is still choosing it only submits the viewer's own choice.
+     *
+     * The press itself is NEVER gated on the others (only its wording): two
+     * humans sitting on their summaries are both pending for each other, so a
+     * hard gate would leave them waiting on one another forever.
+     */
+    launchVerb(): string {
+      return this.launch.launches ? 'Begin the game' : 'Submit your choice';
     },
     /** Flat-index offsets so each summary section maps onto `summaryCards`. */
     summaryPreludeBase(): number {
@@ -793,12 +861,18 @@ export default defineComponent({
       if (this.mode === 'wizard') {
         const onSummary = this.currentStep === undefined;
         if (onSummary) {
+          // The launch is A now — the same control the CTA plate names (and
+          // the same one every other console surface confirms with). RT/RB are
+          // step navigation only and stop at the summary, so they are not
+          // advertised here at all.
           const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [];
           if (this.summaryCards.length > 0) {
             hints.push({control: 'dpad', label: 'Navigate'});
+          }
+          hints.push({control: 'confirm', label: this.launchVerb, enabled: this.wizardReady});
+          if (this.summaryCards.length > 0) {
             hints.push({control: 'secondary', label: 'Inspect'});
           }
-          hints.push({control: 'triggerR', label: 'Begin the game', enabled: this.wizardReady});
           hints.push({control: 'bumperL', label: 'Prev step'});
           hints.push({control: 'back', label: 'Minimize'});
           return hints;
@@ -985,6 +1059,11 @@ export default defineComponent({
     /** Summary focus cursor: is the flat-indexed tile the focused one? */
     isSummaryFocused(idx: number): boolean {
       return this.onSummary && this.focusIdx === idx;
+    },
+    /** The launch readout's visible label for a seat (the bot resolves to
+     *  its localized display name — never a raw «MarsBot»). */
+    crewName(mate: StartCrewMate): string {
+      return participantDisplayName({name: mate.name, isMarsBot: mate.isMarsBot});
     },
     disabledCardReason(card: CardModel): string {
       const reason = card.disabledReason;
@@ -1371,9 +1450,14 @@ export default defineComponent({
         this.zoomFocused();
         return;
       case 'nextTab':
-        // RT = continue / begin (the card-context confirm) — with the
-        // group-hero / discard exit on a completed multi-pick step.
-        this.continueWithExit();
+        // RT = continue a wizard STEP (with the group-hero / discard exit on a
+        // completed multi-pick step). It deliberately does NOT reach the
+        // summary's launch: starting the game is the explicit A CTA now, and
+        // leaving a second, invisible way to fire it on a trigger is exactly
+        // the "non-obvious button" this replaced.
+        if (!this.onSummary) {
+          this.continueWithExit();
+        }
         return;
       case 'prevSection':
         // LB is STEP navigation (back one wizard step); B always minimizes.
@@ -1382,8 +1466,9 @@ export default defineComponent({
         }
         return;
       case 'nextSection':
-        // RB = forward step navigation (LB's pair); gated on completion.
-        if (this.mode === 'wizard') {
+        // RB = forward step navigation (LB's pair); gated on completion. Like
+        // RT it stops AT the summary — there is no step beyond it.
+        if (this.mode === 'wizard' && !this.onSummary) {
           this.continueWithExit();
         }
         return;
@@ -1396,12 +1481,17 @@ export default defineComponent({
         return;
       }
     },
-    /** A: wizard = single-pick commits + advances / multi-pick toggles (Y
-     *  continues); ceremony = act. */
+    /** A: wizard = single-pick commits + advances / multi-pick toggles (RT
+     *  continues) / the SUMMARY's launch CTA; ceremony = act. */
     onPrimary(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep === undefined) {
-          return; // the summary: Y begins the game (A stays selection-only)
+          // The SUMMARY's one press — the explicit «НАЧАТЬ ПАРТИЮ» CTA. A is
+          // free here (there is nothing to select), and it is the control the
+          // CTA plate names. onContinue still arms the zero-projects warning
+          // first, so an empty buy stays a conscious second press.
+          this.onContinue();
+          return;
         }
         // Single-pick step (corp / CEO): A selects the focused card AND advances
         // to the next step in one press — parity with the between-generation

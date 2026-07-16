@@ -16,10 +16,10 @@ import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
  * `Board.computeAdditionalCosts`) so the preview never promises a bonus the
  * commit won't grant.
  *
- * Ares-readiness: the category union already names the future Ares fact kinds
- * (`ares-adjacency-bonus` / `tile-owner-benefit` / `hazard-*` / `ocean-upgrade`).
- * Those are NOT produced yet — Ares rules are out of scope — but a future Ares
- * adaptation adds facts into THIS model instead of inventing a new UI surface.
+ * Ares: ADAPTED — `ares-adjacency-bonus` / `tile-owner-benefit` / `hazard-*`
+ * facts are produced by the engine and render through the SAME surfaces as
+ * every other fact (no Ares-specific UI). `ocean-upgrade` is the one category
+ * still declared but never produced.
  */
 
 /** Mirrors `src/server/boards/PlacementType.ts` (kept in common so models + client share it). */
@@ -69,7 +69,7 @@ export type BoardFactCategory =
   | 'card-trigger'
   | 'corporation-trigger'
   | 'milestone-progress'
-  // Ares-ready (categories declared; no facts produced until Ares is adapted):
+  // Ares (produced when the module is on; `ocean-upgrade` is declared only):
   | 'ares-adjacency-bonus'
   | 'hazard-penalty'
   | 'hazard-cleanup'

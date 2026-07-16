@@ -66,6 +66,7 @@
     "Loading": "Загрузка",
     "Information": "Информация",
     "Press again to confirm": "Нажмите ещё раз для подтверждения",
+    "Submit your choice": "Отправить выбор",
     "This prompt is not available in console mode yet.": "Этот запрос пока недоступен в консольном режиме.",
     "System": "Система",
     "Entries": "Записи",
@@ -269,5 +270,6 @@
     "Desktop": "Десктопный",
     "Interface and display settings": "Интерфейс и настройки экрана",
     "Layout profile for this screen": "Профиль вёрстки для этого экрана",
-    "Controller shell or mouse and keyboard": "Оболочка для геймпада или мыши и клавиатуры"
+    "Controller shell or mouse and keyboard": "Оболочка для геймпада или мыши и клавиатуры",
+    "Project deck": "Колода проектов"
 }

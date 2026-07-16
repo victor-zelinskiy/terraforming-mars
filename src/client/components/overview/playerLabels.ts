@@ -41,6 +41,27 @@ export function isBotActiveTurn(
 }
 
 /**
+ * Normalize a live `/api/waitingFor` list into a signal {@link actionLabelForPlayer}
+ * can trust.
+ *
+ * The poll is TIMER-armed (and stretched while the realtime socket is healthy),
+ * so every consumer holds its EMPTY default until the first response lands —
+ * and an empty list is indistinguishable, to `isPlayerWaiting` below, from "the
+ * server is waiting on nobody", which reads every player as idle/ready. A
+ * running game always owes SOMEBODY an input, so an empty list can only mean
+ * "no signal yet": hand back `undefined` and let the per-player model snapshot
+ * answer instead (it is accurate as of the last view refresh).
+ *
+ * Additive on purpose — callers opt in; `actionLabelForPlayer`'s own contract
+ * is unchanged.
+ */
+export function liveWaitingSignal(
+  live: ReadonlyArray<Color> | undefined,
+): ReadonlyArray<Color> | undefined {
+  return live !== undefined && live.length > 0 ? live : undefined;
+}
+
+/**
  * Returns the status label for `player` in the current game state.
  *
  * Source of truth for "is the server waiting on this player?" is

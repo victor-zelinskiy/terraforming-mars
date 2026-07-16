@@ -12,6 +12,8 @@ import {Space} from '../../src/server/boards/Space';
 import {TileType} from '../../src/common/TileType';
 import {CardName} from '../../src/common/cards/CardName';
 import {AresHandler} from '../../src/server/ares/AresHandler';
+import {Athena} from '../../src/server/cards/community/Athena';
+import {Phase} from '../../src/common/Phase';
 
 describe('BoardInformationEngine', () => {
   let game: IGame;
@@ -356,24 +358,61 @@ describe('BoardInformationEngine', () => {
   });
 
   describe('Ares hazard adjacency', () => {
-    it('placing next to a hazard costs a production the player must reduce', () => {
-      const [aGame, aPlayer] = testGame(2, {aresExtension: true});
-      const target = aGame.board.spaces.find((s) =>
+    let aGame: IGame;
+    let aPlayer: TestPlayer;
+    /** An empty land cell next to a hazard — the penalty case. */
+    let target: Space;
+
+    beforeEach(() => {
+      [aGame, aPlayer] = testGame(2, {aresExtension: true});
+      const found = aGame.board.spaces.find((s) =>
         s.spaceType === SpaceType.LAND && s.tile === undefined &&
         aGame.board.getAdjacentSpaces(s).some((a) => AresHandler.hasHazardTile(a)));
-      if (target === undefined) {
+      if (found === undefined) {
         throw new Error('no empty land space adjacent to a hazard');
       }
+      target = found;
+    });
 
-      const preview = boardCellPreview(aPlayer, target, 'greenery');
+    function productionFact(kind: Parameters<typeof boardCellPreview>[2] = 'greenery') {
+      return boardCellPreview(aPlayer, target, kind).costFacts.find((f) => f.id === 'cost-production');
+    }
+
+    it('placing next to a hazard costs a production the player must reduce', () => {
+      const fact = productionFact();
 
       // The penalty is a COST (it is paid to place), never a soft warning —
       // and the console/desktop panels only render it via boardCellPreview.
-      const fact = preview.costFacts.find((f) => f.id === 'cost-production');
-      expect(fact, JSON.stringify(preview.costFacts)).to.not.be.undefined;
+      expect(fact).to.not.be.undefined;
       expect(fact!.category).to.eq('placement-penalty');
       expect(fact!.severity).to.eq('danger');
       expect(fact!.recipient.kind).to.eq('current-player');
+    });
+
+    // The preview must not promise a cost Game.addTile waives. Each case below
+    // is a waiver the commit path applies via AresHandler.
+    it('an OCEAN tile pays no hazard-adjacency penalty', () => {
+      expect(productionFact('ocean')).to.be.undefined;
+    });
+
+    it("Athena's owner pays no hazard-adjacency penalty", () => {
+      aPlayer.playedCards.push(new Athena());
+      expect(productionFact()).to.be.undefined;
+    });
+
+    it('the solar phase (WGT) waives the Ares placement costs', () => {
+      aGame.phase = Phase.SOLAR;
+      expect(productionFact()).to.be.undefined;
+    });
+
+    it('the waivers are the shared predicate the commit path charges by', () => {
+      // Guards the divergence class itself: preview and commit must agree.
+      expect(AresHandler.subjectToHazardAdjacency(aPlayer, TileType.GREENERY)).to.be.true;
+      expect(AresHandler.subjectToHazardAdjacency(aPlayer, TileType.OCEAN)).to.be.false;
+      // An unknown (card-specific) tile stays charged — never silently free.
+      expect(AresHandler.subjectToHazardAdjacency(aPlayer, undefined)).to.be.true;
+      aPlayer.playedCards.push(new Athena());
+      expect(AresHandler.subjectToHazardAdjacency(aPlayer, TileType.GREENERY)).to.be.false;
     });
   });
 

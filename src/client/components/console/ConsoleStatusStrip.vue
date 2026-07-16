@@ -99,6 +99,10 @@
           :epoch="epoch"
           variant="global-parameter" />
       </span>
+      <!-- The physical project draw pile — sits BETWEEN the global
+           parameters and the generation block. Informational only: the
+           count is the server's authoritative drawPile size. -->
+      <ConsoleProjectDeck :deckSize="game.deckSize" :epoch="epoch" />
       <!-- The generation carries NO delta chip: the flip-swap alone is its
            announcement (and the console suppresses the desktop's "new
            generation" toast — the HUD tick IS the event). Its beat goes
@@ -131,7 +135,7 @@ import {defineComponent, PropType} from 'vue';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
-import {actionLabelForPlayer} from '@/client/components/overview/playerLabels';
+import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {presentPlayerStatus, StatusPresentation, StatusGlyph} from '@/client/components/overview/playerStatusPresenter';
 import {terraformingProgress, TerraformingProgress} from '@/client/components/gameProgress/terraformingProgress';
@@ -140,6 +144,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
+import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -157,9 +162,19 @@ const GLYPH_CHARS: Record<StatusGlyph, string> = {
 
 export default defineComponent({
   name: 'ConsoleStatusStrip',
-  components: {AnimatedMetricValue, ConsoleFlipValue},
+  components: {AnimatedMetricValue, ConsoleFlipValue, ConsoleProjectDeck},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /**
+     * The LIVE `/api/waitingFor` poll. Without it the chips read the frozen
+     * `isWaitingForInput` snapshot, which goes STALE for the whole of a
+     * simultaneous-pick phase: while the viewer holds their own prompt the
+     * playerView is deliberately not refreshed (it would drop their partial
+     * input), so an opponent who has since submitted still reads as picking.
+     * The start scene's summary rail reads the same brain WITH the poll, so
+     * omitting it here made the two surfaces visibly disagree.
+     */
+    waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
     /** playerView.runId — drives the delta-chip feedback ('' disables). */
     epoch: {type: String, default: ''},
   },
@@ -242,7 +257,9 @@ export default defineComponent({
       return participantDisplayName(p);
     },
     presentation(p: PublicPlayerModel): StatusPresentation {
-      return presentPlayerStatus(actionLabelForPlayer(this.playerView, p), p.isMarsBot === true);
+      return presentPlayerStatus(
+        actionLabelForPlayer(this.playerView, p, liveWaitingSignal(this.waitingOnPlayers)),
+        p.isMarsBot === true);
     },
     statusGlyph(p: PublicPlayerModel): string {
       return GLYPH_CHARS[this.presentation(p).glyph];

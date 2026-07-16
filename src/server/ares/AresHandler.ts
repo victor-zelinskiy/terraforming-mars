@@ -182,7 +182,37 @@ export class AresHandler {
     return hazardSeverity(space.tile?.tileType) !== 'none';
   }
 
+  /**
+   * Whether this placement pays the hazard-ADJACENCY production penalty.
+   *
+   * The ONE predicate for the rule: `Game.addTile` charges by it and the
+   * read-only placement PREVIEW (`MarsBoard.placementCostInfo`) gates by it, so
+   * the preview can never promise a cost the commit path waives. Two waivers:
+   * an OCEAN tile is exempt, and Athena's owner is never subject.
+   *
+   * An UNKNOWN tile (a card-specific special tile the caller couldn't name)
+   * resolves to the charged default — never silently free.
+   */
+  public static subjectToHazardAdjacency(player: IPlayer, tileType: TileType | undefined): boolean {
+    if (tileType === TileType.OCEAN) {
+      return false;
+    }
+    return !player.tableau.has(CardName.ATHENA);
+  }
+
+  /**
+   * Ares placement costs are waived WHOLESALE during the solar phase (World
+   * Government Terraforming places its tiles for free). Mirrors the early
+   * return in {@link assertCanPay} — the preview reads the same predicate.
+   */
+  public static placementCostsWaived(game: IGame): boolean {
+    return game.phase === Phase.SOLAR;
+  }
+
   private static computePlacementCosts(player: IPlayer, space: Space, subjectToHazardAdjacency: boolean): AdjacencyCost {
+    // Defence in depth: every caller already resolves the flag through
+    // `subjectToHazardAdjacency()`, but a direct `assertCanPay(…, true)` must
+    // not charge Athena's owner either.
     if (player.tableau.has(CardName.ATHENA)) {
       subjectToHazardAdjacency = false;
     }
@@ -208,7 +238,7 @@ export class AresHandler {
   }
 
   public static assertCanPay(player: IPlayer, space: Space, subjectToHazardAdjacency: boolean): AdjacencyCost {
-    if (player.game.phase === Phase.SOLAR) {
+    if (AresHandler.placementCostsWaived(player.game)) {
       return {megacredits: 0, production: 0, tr: 0};
     }
     const cost = AresHandler.computePlacementCosts(player, space, subjectToHazardAdjacency);

@@ -1752,8 +1752,10 @@ export class Game implements IGame, Logger {
       throw new Error('Selected space is occupied: ' + space.id);
     }
 
-    // Oceans are not subject to Ares adjacency production penalties.
-    const subjectToHazardAdjacency = tile.tileType !== TileType.OCEAN;
+    // Oceans are not subject to Ares adjacency production penalties (nor is
+    // Athena's owner). The predicate is shared with the read-only placement
+    // preview, so what the panel promises is what this charges.
+    const subjectToHazardAdjacency = AresHandler.subjectToHazardAdjacency(player, tile.tileType);
 
     AresHandler.ifAres(this, () => {
       AresHandler.assertCanPay(player, space, subjectToHazardAdjacency);

@@ -87,6 +87,7 @@
       <ConsoleShell
         v-else-if="screen === 'player-home' && playerView !== undefined && consoleModeState.enabled"
         :player-view="playerView"
+        :waiting-on-players="playersWaitingFor"
       ></ConsoleShell>
       <player-home
         v-else-if="screen === 'player-home' && playerView !== undefined"

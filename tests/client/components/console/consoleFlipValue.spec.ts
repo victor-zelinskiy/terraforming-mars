@@ -54,6 +54,15 @@ describe('ConsoleFlipValue', () => {
     wrapper.unmount();
   });
 
+  it('flipOnDecrease: a DECREASE plays the same calm flip (deck-style readouts)', async () => {
+    const wrapper = mount(ConsoleFlipValue, {props: {value: 30, flipOnDecrease: true}});
+    await wrapper.setProps({value: 27});
+    expect(wrapper.classes()).to.contain('con-flipval--flip');
+    expect(wrapper.find('.con-flipval__card--out').text()).to.eq('30');
+    expect(wrapper.find('.con-flipval__card--in').text()).to.eq('27');
+    wrapper.unmount();
+  });
+
   it('a re-formatted text at the SAME value re-faces without flipping', async () => {
     const wrapper = mount(ConsoleFlipValue, {props: {value: 7, text: '7/9'}});
     await wrapper.setProps({value: 7, text: '7 of 9'});

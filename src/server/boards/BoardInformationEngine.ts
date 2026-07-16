@@ -7,6 +7,7 @@ import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTyp
 import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
 import {CardName, baseCardName} from '../../common/cards/CardName';
 import {PlacementType} from './PlacementType';
+import {AresHandler} from '../ares/AresHandler';
 import * as constants from '../../common/constants';
 import {
   BoardCellInfo,
@@ -37,10 +38,13 @@ import {Color} from '../../common/Color';
  *   - NEVER enter `game.events` scopes (`withSource` / `beginAction` / `record*`).
  *   - NEVER `game.defer(...)`. Deferred / interactive bonuses are DESCRIBED, not run.
  *
- * Ares-readiness: `space.adjacency` (a generic metadata field) is where a future
- * Ares adaptation adds `ares-adjacency-bonus` / `tile-owner-benefit` facts, and
- * the hazard cost already flows through `placementCostInfo`. No Ares facts are
- * produced today — Ares rules are out of scope.
+ * Ares: ADAPTED (no longer an extension point). `aresAdjacencyFacts` reads
+ * `space.adjacency` GENERICALLY — never "special tile = source" — and emits
+ * `ares-adjacency-bonus` / `tile-owner-benefit` / `hazard-cleanup` facts;
+ * hazard identity + the adjacency production penalty ride `hazardHoverFacts` /
+ * `placementCostFacts`, whose costs come from the REAL `placementCostInfo`
+ * gated by the SHARED `AresHandler.subjectToHazardAdjacency` /
+ * `placementCostsWaived` predicates. All of it is inert when the module is off.
  */
 
 // ---------------------------------------------------------------------------
@@ -119,7 +123,7 @@ export function boardCellPreview(
   const covering = Board.hasRealTile(space) && !cleared;
 
   const facts: Array<BoardFact> = [];
-  facts.push(...placementCostFacts(player, space));
+  facts.push(...placementCostFacts(player, space, placedTileType(kind, options?.tileType)));
   facts.push(...printedBonusFacts(space, covering));
   facts.push(...placementEffectFacts(player, kind));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
@@ -606,7 +610,7 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
 }
 
 // ---------------------------------------------------------------------------
-// Ares-ready extension point (NOT populated — Ares rules are out of scope)
+// Ares facts (adapted — inert when the module is off)
 // ---------------------------------------------------------------------------
 
 /**
@@ -885,6 +889,15 @@ function zoneImpact(timing: 'warning' | 'rule', description: string): BoardFact 
 // Mirrors Board.computeAdditionalCosts.
 const HAZARD_MEGACREDITS_PER_STEP = 8;
 
+/**
+ * Whether Ares placement costs are charged at all right now — the module is on
+ * AND the solar phase isn't waiving them (WGT places its tiles for free). The
+ * breakdown must not attribute a cost the commit path never charges.
+ */
+function aresCostsApply(player: IPlayer): boolean {
+  return player.game.gameOptions.aresExtension === true && !AresHandler.placementCostsWaived(player.game);
+}
+
 type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount: number, cardName?: string};
 
 /**
@@ -897,12 +910,16 @@ type McCostFactor = {id: string, kind: 'cleanup' | 'adjacency' | 'base', amount:
 function megacreditCostFactors(player: IPlayer, space: Space, total: number): ReadonlyArray<McCostFactor> {
   const board = player.game.board;
   const factors: Array<McCostFactor> = [];
-  const cleanupSteps = HAZARD_STEPS[hazardSeverity(space.tile?.tileType)];
+  // Both factor kinds are ARES costs — attribute neither when Ares isn't
+  // charging (module off / solar phase), else the remainder-based `base` would
+  // mislabel an ordinary printed cell cost as "Cleanup cost".
+  const ares = aresCostsApply(player);
+  const cleanupSteps = ares ? HAZARD_STEPS[hazardSeverity(space.tile?.tileType)] : 0;
   if (cleanupSteps > 0) {
     factors.push({id: 'mc-cleanup', kind: 'cleanup', amount: cleanupSteps * HAZARD_MEGACREDITS_PER_STEP});
   }
   for (const adj of board.getAdjacentSpaces(space)) {
-    const adjCost = adj.adjacency?.cost ?? 0;
+    const adjCost = ares ? (adj.adjacency?.cost ?? 0) : 0;
     if (adjCost > 0) {
       const cardName = adj.tile?.card !== undefined ?
         baseCardName(adj.tile.card) :
@@ -979,8 +996,14 @@ function megacreditCostFacts(player: IPlayer, space: Space, total: number, categ
   return out;
 }
 
-function placementCostFacts(player: IPlayer, space: Space): Array<BoardFact> {
-  const info = player.game.board.placementCostInfo(player, space);
+/**
+ * `tileType` is what makes the cost HONEST: the hazard-adjacency production
+ * penalty is waived for an OCEAN tile and for Athena's owner, exactly as
+ * `Game.addTile` will charge it (both read the shared
+ * `AresHandler.subjectToHazardAdjacency` predicate).
+ */
+function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | undefined): Array<BoardFact> {
+  const info = player.game.board.placementCostInfo(player, space, {tileType});
   const out: Array<BoardFact> = [];
   out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable));
   if (info.production > 0) {
@@ -1058,6 +1081,30 @@ function classifyPlacementFacts(
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The TileType this placement will actually put down: the caller's concrete
+ * tile when it knows it (`SelectSpace.tileType` — a composite over-ocean tile,
+ * a card's special tile), else the kind's own canonical tile.
+ *
+ * Only OCEAN changes any cost rule, so the kinds whose tile is card-specific
+ * ('land' / 'isolated' / 'volcanic' / the upgradeable-ocean pair, which place
+ * Ocean City / Ocean Farm / … — NOT an ocean) resolve to undefined = the
+ * charged default. Never guess an OCEAN we aren't sure about: that would
+ * under-report the cost.
+ */
+function placedTileType(kind: BoardPlacementKind, tileType: TileType | undefined): TileType | undefined {
+  if (tileType !== undefined) {
+    return tileType;
+  }
+  switch (kind) {
+  case 'ocean': return TileType.OCEAN;
+  case 'greenery': return TileType.GREENERY;
+  case 'city':
+  case 'away-from-cities': return TileType.CITY;
+  default: return undefined;
+  }
+}
 
 function legalSpacesForKind(player: IPlayer, kind: BoardPlacementKind): ReadonlyArray<Space> {
   try {

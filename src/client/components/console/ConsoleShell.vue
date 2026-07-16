@@ -3,7 +3,7 @@
     <!-- P27: the strip is player IDENTITY + live turn STATUS only — the
          cards/actions counters live in the right home panel now, and the
          viewer's "your turn" reads from their own chip (no central pill). -->
-    <ConsoleStatusStrip :playerView="playerView" :epoch="playerView.runId" />
+    <ConsoleStatusStrip :playerView="playerView" :waitingOnPlayers="waitingOnPlayers" :epoch="playerView.runId" />
 
     <!-- P27: the central banner is reserved for MANDATORY / critical states
          (placement, awaited decisions) — never a plain "your turn". -->
@@ -321,6 +321,7 @@
       <ConsoleStartScene v-if="startTask !== undefined && !govScaleFocusState.holding && !consoleState.task.deferred"
                          ref="startScene"
                          :playerView="playerView"
+                         :waitingOnPlayers="waitingOnPlayers"
                          :task="startTask"
                          @submit="onTaskSubmit"
                          @defer="consoleState.task.deferred = true" />
@@ -592,6 +593,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -818,6 +820,15 @@ export default defineComponent({
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /**
+     * The LIVE list of players the server is waiting on (App-level, refreshed
+     * by the headless WaitingFor's `/api/waitingFor` poll — mirrors what the
+     * desktop DraftFlowOverlay / StartGameFlowOverlay receive). Load-bearing
+     * while the viewer holds a prompt: the playerView is NOT refreshed then
+     * (it would drop their partial input), so this is the only signal that
+     * another player has since submitted.
+     */
+    waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
   },
   setup() {
     // Foundation (CONSOLE_FOUNDATION.md): the in-game shell is a
@@ -1202,20 +1213,15 @@ export default defineComponent({
       }
       return this.playerView.waitingFor?.placementContext?.cancellable === true;
     },
-    /** The active space prompt (server top-level OR the convert-plants inner). */
-    activeSpacePrompt(): PlayerInputModel | undefined {
-      const wf = this.playerView.waitingFor;
-      if (wf?.type === 'space') {
-        return wf;
-      }
-      return this.convertPlantsPrompt;
-    },
     /**
-     * The active space prompt NARROWED to the SelectSpace model — the source of
-     * the placement PREVIEW (`placementType` / the concrete tile / a cleared
-     * remove-and-replace target). Covers all three console placement sources:
-     * the server's top-level SelectSpace, the client-side convert-plants picker
-     * and a task's nested space option (the WGT ocean).
+     * The active space prompt, narrowed to the SelectSpace model — the ONE
+     * resolver for every placement read (title / per-cell illegal reason /
+     * preview). It covers all three console placement sources: the server's
+     * top-level SelectSpace, the client-side convert-plants picker and a task's
+     * nested space option (the WGT ocean). `placementActive` counts the same
+     * three, so anything derived from it must resolve them all — an earlier
+     * split resolver missed the nested one and left that placement with a blank
+     * title and no illegal reason.
      */
     placementSpaceModel() {
       const wf = this.playerView.waitingFor;
@@ -1238,7 +1244,7 @@ export default defineComponent({
       return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}`;
     },
     placementTitle(): string {
-      const t = this.activeSpacePrompt?.title;
+      const t = this.placementSpaceModel?.title;
       if (t === undefined) {
         return '';
       }
@@ -1254,9 +1260,9 @@ export default defineComponent({
     },
     /** The SERVER's per-cell illegal reason (+M€ deficit), translated. */
     selectedCellIllegalReason(): string {
-      const prompt = this.activeSpacePrompt;
+      const prompt = this.placementSpaceModel;
       const id = this.consoleState.boardSpaceId;
-      if (prompt === undefined || prompt.type !== 'space' || id === undefined || this.selectedCellLegal) {
+      if (prompt === undefined || id === undefined || this.selectedCellLegal) {
         return '';
       }
       const entry = prompt.illegalSpaces?.find((s) => s.spaceId === id);

@@ -40,7 +40,10 @@
  *    --motion-scale; prefers-reduced-motion collapses it to a plain swap
  *    in CSS);
  *  - a DECREASE (undo / a different game opened in-session) snaps
- *    silently — never a celebration for a rollback;
+ *    silently — never a celebration for a rollback. Readouts whose NORMAL
+ *    event IS a decrease (the project-deck count shrinks on every draw)
+ *    opt in via `flipOnDecrease` — the same calm one-shot beat plays in
+ *    both directions;
  *  - `accent` tints only the ONE-SHOT beat (shine + scanline); the
  *    persistent colour of the readout stays the host's own (e.g. the gold
  *    `con-status__gen--final`), which the cards inherit.
@@ -62,6 +65,9 @@ export default defineComponent({
     /** The formatted readout; defaults to the bare number. */
     text: {type: String, default: undefined},
     accent: {type: String as PropType<FlipAccent>, default: 'cyan'},
+    /** Opt-in: play the flip on a DECREASE too (deck-style readouts where
+     *  shrinking is the ordinary announced event, not a rollback). */
+    flipOnDecrease: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -86,7 +92,7 @@ export default defineComponent({
         return;
       }
       const nextText = this.display(next, this.text);
-      if (next < this.shown) {
+      if (next < this.shown && !this.flipOnDecrease) {
         this.stopFlip();
         this.shown = next;
         this.shownText = nextText;

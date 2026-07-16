@@ -429,6 +429,103 @@
     .con-flipval__card--in { animation: none; }
 }
 
+/* ── Project draw pile (top HUD) ──────────────────────────────────────
+   A compact PHYSICAL deck between the global parameters and the
+   generation block: the real card-back art on top (assets/resources/
+   card.webp — the same texture every console card-back uses), stacked
+   side layers for honest thickness (tiered by the remaining count), a
+   soft contact shadow and a minimal perspective tilt. Dark-industrial,
+   never a button: no hover, no focus, pointer-events none. The count is
+   the server's authoritative drawPile size (GameModel.deckSize); the
+   flip-swap + the shared delta chip announce every change. The pile is
+   the future ORIGIN ANCHOR for the hero draw animation — keep its DOM
+   node (`.con-deckstack__pile`) stable and measurable. */
+.con-deckstack {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    padding-left: 1rem;
+    /* Optical alignment with the terra group / Venus / generation, which
+       all reserve the same underline zone. */
+    padding-bottom: .45rem;
+    border-left: .05rem solid fade(@con-cyan, 25%);
+    pointer-events: none;
+
+    &__pile {
+        position: relative;
+        /* Card ratio 0.7; height caps at the param-row's own content height
+           (1.8rem icons) so the deck never grows the top bar. */
+        width: 1.26rem;
+        height: 1.8rem;
+        flex-shrink: 0;
+        /* Minimal perspective — reads as a physical object, not an icon. */
+        transform: perspective(16rem) rotateX(7deg);
+        filter: drop-shadow(0 .22rem .28rem rgba(0, 0, 0, 0.55));
+    }
+    &__layer,
+    &__top {
+        position: absolute;
+        inset: 0;
+        border-radius: .16rem;
+    }
+    /* Side layers = the card edges under the top card: slim dark slabs
+       shifted down-right with a hint of natural misalignment. Deeper
+       layers darken so the stack reads as depth, not as an outline. */
+    &__layer {
+        background: linear-gradient(180deg, #2b3947 0%, #16202c 100%);
+        box-shadow: inset 0 0 0 .04rem rgba(140, 170, 200, 0.26);
+    }
+    &__layer--1 { transform: translate(.07rem, .1rem) rotate(0.5deg); }
+    &__layer--2 { transform: translate(.13rem, .2rem) rotate(-0.6deg); filter: brightness(0.8); }
+    &__layer--3 { transform: translate(.19rem, .3rem) rotate(0.9deg); filter: brightness(0.62); }
+    /* The top card IS the approved back texture — never a CSS redraw. */
+    &__top {
+        background: url('./assets/resources/card.webp') center / cover no-repeat;
+        box-shadow:
+            inset 0 0 0 .04rem rgba(165, 195, 225, 0.32),
+            0 .05rem .16rem rgba(0, 0, 0, 0.45);
+    }
+    /* The remaining-card count — clearly the deck's own readout, quieter
+       than a resource number (smaller than .con-status__value). Anchors
+       the delta chip. */
+    &__count {
+        position: relative;
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        font-variant-numeric: tabular-nums;
+        color: fade(#cfe3f4, 92%);
+    }
+
+    /* LOW: the count warms to amber — a state, not an alarm. */
+    &--low &__count {
+        color: fade(@con-amber, 92%);
+        text-shadow: 0 0 .35rem fade(@con-amber, 25%);
+    }
+    /* EMPTY: the pile stays in layout (no top-bar jump) but reads as an
+       exhausted slot — the back art fades to a ghost inside a dashed
+       outline. */
+    &--empty &__pile {
+        filter: none;
+    }
+    &--empty &__top {
+        opacity: 0.16;
+        filter: grayscale(1);
+        box-shadow: none;
+    }
+    &--empty &__pile::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: .16rem;
+        border: .05rem dashed fade(@con-cyan, 32%);
+    }
+    &--empty &__count {
+        color: fade(#8aa0b8, 85%);
+        text-shadow: none;
+    }
+}
+
 /* ── Turn / task banner ──────────────────────────────────────────── */
 .con-banner {
     /* P21: an OVERLAY, not a flow row — toggling the banner (placement /
@@ -8673,9 +8770,36 @@ html.con-scale-focus-venus .arc-scale--venus {
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .5rem fade(@con-mint, 10%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 95%), 0 0 1.1rem fade(@con-mint, 26%); }
 }
+/* The summary's waiting state (transform/opacity only — see the launch block). */
+@keyframes con-start-scan {
+    0% { transform: translateX(-100%); }
+    60%, 100% { transform: translateX(340%); }
+}
+@keyframes con-start-orbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@keyframes con-start-typing {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-.1rem); }
+}
+@keyframes con-start-launch-flash {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(340%); }
+}
 @media (prefers-reduced-motion: reduce) {
     .con-cards__verdict--go,
-    .con-start__beginline { animation: none; }
+    .con-start__beginline,
+    .con-start__wait-scan,
+    .con-start__beginline-flash,
+    .con-start__wait-orbit i,
+    .con-start__mate--active .con-start__mate-dot,
+    .con-start__mate-dots b { animation: none; }
+    /* The sweeps carry no information on their own — drop them entirely
+       rather than parking a bright band across the plate. */
+    .con-start__wait-scan,
+    .con-start__beginline-flash { display: none; }
+    .con-start__mate-dots b { opacity: 1; }
 }
 
 /* ── P15: the CONSOLE fullscreen card viewer ──────────────────────────
@@ -9288,9 +9412,182 @@ body.con-start-ceremony {
         .con-start__minirow { gap: .5rem; }
     }
 
-    /* The final CTA line in the side rail - the ONE begin affordance. */
-    &__beginline {
+    /* ── The LAUNCH block: the side rail's ONE decision slot ──────────────
+       The summary doubles as the setup's waiting room, so this slot carries
+       whichever of the two states is TRUE right now and morphs between them
+       (see ConsoleStartScene's launch block):
+         · con-start__wait      — somebody else still owes a setup pick
+         · con-start__beginline — nobody does; this press starts the game
+       Both name the SAME control (A) — only the verb differs, because a
+       press before the others are done merely submits the viewer's choice. */
+    &__launch {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* WAITING: the pick is genuinely still happening elsewhere — show it. */
+    &__wait {
+        position: relative;
+        overflow: hidden; /* clips the scan sweep to the plate */
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        padding: .6rem .75rem .55rem;
+        border-radius: .6rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 0 .9rem fade(@con-cyan, 10%);
+    }
+    /* A slow sweep across the plate — the "still listening" pulse of the
+       whole block (transform-only; the plate itself never moves). */
+    &__wait-scan {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 42%;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 13%), transparent);
+        animation: con-start-scan calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__wait-head {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+    }
+    &__wait-title {
+        font-size: .7rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    /* Three dots orbiting a common centre — a compact "work in progress"
+       mark that reads at couch distance without shouting. */
+    &__wait-orbit {
+        position: relative;
+        flex-shrink: 0;
+        width: .95rem;
+        height: .95rem;
+
+        i {
+            position: absolute;
+            inset: 0;
+            animation: con-start-orbit calc(1800ms * var(--motion-scale, 1)) linear infinite;
+
+            &::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 50%;
+                width: .2rem;
+                height: .2rem;
+                margin-left: -.1rem;
+                border-radius: 50%;
+                background: @con-cyan;
+                box-shadow: 0 0 .3rem fade(@con-cyan, 80%);
+            }
+            &:nth-child(2) { animation-delay: calc(-600ms * var(--motion-scale, 1)); }
+            &:nth-child(3) { animation-delay: calc(-1200ms * var(--motion-scale, 1)); }
+        }
+    }
+    /* The per-player readout: WHO the game is still waiting on. Reuses the
+       shared status brain (presentPlayerStatus), so it can never disagree
+       with the top strip's chips. */
+    &__crew {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+    }
+    &__mate {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .18rem .3rem;
+        border-radius: .35rem;
+        font-size: .72rem;
+        line-height: 1.2;
+
+        /* Still choosing — the row the player is actually waiting on. */
+        &--active {
+            background: fade(@con-cyan, 9%);
+            .con-start__mate-dot { animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite; }
+            .con-start__mate-state { color: @con-cyan; }
+        }
+        /* Already submitted — settled, quiet, unmistakably done. */
+        &--ready {
+            .con-start__mate-name { color: @con-text-dim; }
+            .con-start__mate-state { color: @con-mint; }
+        }
+    }
+    &__mate-dot {
+        flex-shrink: 0;
+        width: .4rem;
+        height: .4rem;
+        border-radius: 50%;
+    }
+    &__mate-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: @con-text;
+        font-weight: 700;
+    }
+    &__mate-state {
+        flex-shrink: 0;
         display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        font-size: .65rem;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__mate-tick { font-weight: 800; }
+    /* The live «выбирает…» ellipsis — the honest signal that their pick has
+       not landed yet (the row is otherwise indistinguishable from a stall). */
+    &__mate-dots {
+        display: inline-flex;
+        gap: .1rem;
+
+        b {
+            width: .13rem;
+            height: .13rem;
+            border-radius: 50%;
+            background: currentColor;
+            animation: con-start-typing calc(1200ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+            &:nth-child(2) { animation-delay: calc(160ms * var(--motion-scale, 1)); }
+            &:nth-child(3) { animation-delay: calc(320ms * var(--motion-scale, 1)); }
+        }
+    }
+    /* The wait state's own A affordance: confirming here LOCKS the choice in
+       and keeps waiting — never dressed up as starting the game. */
+    &__wait-cta {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: .3rem .5rem;
+        border-radius: .45rem;
+        background: rgba(8, 14, 22, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+        color: @con-text-dim;
+        font-size: .68rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+
+        &--off { opacity: 0.45; }
+    }
+
+    /* LAUNCH: the final CTA plate — the ONE begin affordance (A). */
+    &__beginline {
+        position: relative;
+        overflow: hidden; /* clips the arrival flash */
+        display: flex;
         align-items: center;
         justify-content: center;
         gap: .5rem;
@@ -9309,6 +9606,17 @@ body.con-start-ceremony {
             opacity: 0.45;
             animation: none;
         }
+    }
+    /* ONE-SHOT sweep the moment the plate arrives — marks the handover from
+       "we are waiting" to "it is on you now". Never loops (the plate's own
+       calm con-verdict-go breathing is the persistent state). */
+    &__beginline-flash {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 45%;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, fade(#ffffff, 22%), transparent);
+        animation: con-start-launch-flash calc(620ms * var(--motion-scale, 1)) ease-out 1 both;
     }
     &__none {
         font-size: .9rem;
@@ -11861,6 +12169,15 @@ html.con-profile-handheld {
         &__pstatus-counter { font-size: .65rem; }
         &__dot { width: .55rem; height: .55rem; }
     }
+    /* Project draw pile — compact on the Deck, same physical read. */
+    .con-deckstack {
+        gap: .35rem;
+        padding-left: .6rem;
+        padding-bottom: .35rem;
+
+        &__pile { width: 1.05rem; height: 1.5rem; }
+        &__count { font-size: .7rem; }
+    }
 
     /* P27c: the right HOME panel packs tight — all four blocks (cards /
        card actions / milestones / awards incl. «Свободных слотов») fit
@@ -12104,6 +12421,12 @@ html.con-profile-handheld {
         &__cands .con-cards__strip > .con-cards__slot { zoom: 0.6; }
         &__cands--corps .con-cards__strip > .con-cards__slot { zoom: 0.5; }
         &__beginline { font-size: .75rem; padding: .4rem .6rem; }
+        &__wait { gap: .35rem; padding: .45rem .55rem .4rem; }
+        &__wait-title { font-size: .6rem; }
+        &__wait-orbit { width: .8rem; height: .8rem; }
+        &__mate { font-size: .625rem; padding: .12rem .25rem; }
+        &__mate-state { font-size: .55rem; }
+        &__wait-cta { font-size: .575rem; padding: .22rem .4rem; }
         &__money { padding: .4rem .6rem; }
         &__money-line { font-size: .7rem; &--total { font-size: .8rem; b { font-size: .95rem; } } }
         &__skipwarn { font-size: .75rem; }
@@ -12431,8 +12754,34 @@ html.con-profile-large {
     position: absolute;
     opacity: 0;
 }
+
+/* ── The summary's waiting → LAUNCH handover ──────────────────────────────
+   The last player finishing their pick is the moment the setup hands the game
+   over to the viewer, so the two states cross-fade rather than pop: the wait
+   plate sinks + fades out, the CTA rises into its place (out-in, so the rail
+   never shows both). Transform/opacity only. */
+.con-start-launch-leave-active {
+    transition:
+        opacity calc(180ms * var(--motion-scale, 1)) ease,
+        transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 1, 1);
+}
+.con-start-launch-leave-to {
+    opacity: 0;
+    transform: translateY(.35rem) scale(0.97);
+}
+.con-start-launch-enter-active {
+    transition:
+        opacity calc(260ms * var(--motion-scale, 1)) ease,
+        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-start-launch-enter-from {
+    opacity: 0;
+    transform: translateY(-.45rem) scale(0.96);
+}
 @media (prefers-reduced-motion: reduce) {
     .con-start-corpout-leave-active,
     .con-start-corpout-enter-active,
+    .con-start-launch-leave-active,
+    .con-start-launch-enter-active,
     .con-start-shift-move { transition: none; }
 }

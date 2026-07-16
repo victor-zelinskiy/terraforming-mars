@@ -24,10 +24,14 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputResponse';
 import * as titles from '@/common/inputs/SelectInitialCards';
+import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
+import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 
 export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
@@ -178,4 +182,82 @@ export function initialCardsSignature(input: SelectInitialCardsModel): string {
 /** Convenience narrowing for the shell / scene. */
 export function initialCardsInputOf(wf: PlayerInputModel | undefined): SelectInitialCardsModel | undefined {
   return wf !== undefined && wf.type === 'initialCards' ? wf : undefined;
+}
+
+/** One OTHER player at the table, as the summary's readiness readout sees them. */
+export type StartCrewMate = {
+  color: Color,
+  /** The RAW model name — the view resolves it (participantDisplayName). */
+  name: string,
+  isMarsBot: boolean,
+  /** The SHARED status presentation (same brain as the top status strip). */
+  status: StatusPresentation,
+  /** The server is STILL waiting on this player's setup pick. */
+  picking: boolean,
+};
+
+/**
+ * The summary's launch readout: WHO else the game is still waiting on, and
+ * whether the viewer's confirm is the last input the game needs.
+ */
+export type StartLaunchState = {
+  /** Every player EXCEPT the viewer, in seat order (empty in a solo game). */
+  others: ReadonlyArray<StartCrewMate>,
+  /** Those of `others` still owing a setup pick. */
+  pending: ReadonlyArray<StartCrewMate>,
+  /**
+   * Nobody else owes anything → the viewer's confirm genuinely STARTS the
+   * game (it is the last input the server needs), so it earns the «Begin the
+   * game» CTA. While false the confirm merely SUBMITS the viewer's choice and
+   * the wait continues — hence the two verbs.
+   *
+   * NEVER gate the submit itself on this: two humans sitting on their
+   * summaries are BOTH pending for each other, so a hard gate would leave
+   * them waiting forever.
+   */
+  launches: boolean,
+};
+
+/**
+ * Derive the launch readout from the view + the LIVE `/api/waitingFor` poll.
+ *
+ * Reuses `actionLabelForPlayer` + `presentPlayerStatus` — the same brain the
+ * top status strip and the desktop player cards read — so the summary rail
+ * and the strip can never disagree about who is still choosing. The live poll
+ * is load-bearing here: while the viewer holds the `initialCards` prompt the
+ * playerView is deliberately NOT refreshed (it would drop their partial
+ * picks), so the model's `isWaitingForInput` snapshot goes stale and only the
+ * poll can tell that another player has since submitted.
+ *
+ * ⚠️ `waitingOnPlayers` sits at its `[]` default until the first (timer-armed)
+ * poll lands, and a bare `[]` would read as "the server is waiting on nobody"
+ * — the summary would flash the launch CTA while everyone is still choosing.
+ * `liveWaitingSignal` is the shared normalization for exactly that.
+ */
+export function startLaunchState(
+  view: PlayerViewModel,
+  livePlayersWaitingFor?: ReadonlyArray<Color>,
+): StartLaunchState {
+  const viewer = view.thisPlayer.color;
+  const live = liveWaitingSignal(livePlayersWaitingFor);
+  const others: Array<StartCrewMate> = [];
+  for (const player of view.players) {
+    if (player.color === viewer) {
+      continue;
+    }
+    const isMarsBot = player.isMarsBot === true;
+    const status = presentPlayerStatus(
+      actionLabelForPlayer(view, player, live), isMarsBot);
+    others.push({
+      color: player.color,
+      name: player.name,
+      isMarsBot,
+      status,
+      // 'active' is the one category that means "the server is waiting on
+      // them" — during setup that can only be their own initial pick.
+      picking: status.category === 'active',
+    });
+  }
+  const pending = others.filter((mate) => mate.picking);
+  return {others, pending, launches: pending.length === 0};
 }

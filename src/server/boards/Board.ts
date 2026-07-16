@@ -144,7 +144,18 @@ export abstract class Board {
     return {megacredits: 0, production: 0, tr: {}};
   }
 
-  protected computeAdditionalCosts(space: Space, aresExtension: boolean, multiplier: number | undefined): SpaceCosts {
+  /**
+   * `options.subjectToHazardAdjacency` — whether the hazard-ADJACENCY production
+   * penalty applies (an OCEAN tile and Athena's owner are exempt; see
+   * `AresHandler.subjectToHazardAdjacency`, the shared predicate). DEFAULTS to
+   * `true`, the charged case: a caller that doesn't know which tile is being
+   * placed must not under-report the cost.
+   */
+  protected computeAdditionalCosts(
+    space: Space,
+    aresExtension: boolean,
+    multiplier: number | undefined,
+    options?: {subjectToHazardAdjacency?: boolean}): SpaceCosts {
     const costs: SpaceCosts = this.spaceCosts(space);
     if (multiplier !== undefined) {
       costs.megacredits *= multiplier;
@@ -171,14 +182,17 @@ export abstract class Board {
       break;
     }
 
+    const subjectToHazardAdjacency = options?.subjectToHazardAdjacency ?? true;
     for (const adjacentSpace of this.getAdjacentSpaces(space)) {
-      switch (hazardSeverity(adjacentSpace.tile?.tileType)) {
-      case 'mild':
-        costs.production += 1;
-        break;
-      case 'severe':
-        costs.production += 2;
-        break;
+      if (subjectToHazardAdjacency) {
+        switch (hazardSeverity(adjacentSpace.tile?.tileType)) {
+        case 'mild':
+          costs.production += 1;
+          break;
+        case 'severe':
+          costs.production += 2;
+          break;
+        }
       }
       if (adjacentSpace.adjacency !== undefined) {
         const adjacency = adjacentSpace.adjacency;

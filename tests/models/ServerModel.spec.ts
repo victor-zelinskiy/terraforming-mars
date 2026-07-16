@@ -40,6 +40,18 @@ describe('ServerModel', () => {
     player.production.add(Resource.MEGACREDITS, 7);
   }
 
+  // The console top-HUD draw pile renders GameModel.deckSize — it must be
+  // the DRAW pile alone (never draw+discard), tracking removals live.
+  it('deckSize is the authoritative project draw-pile size', () => {
+    createTestGame(false);
+    expect(Server.getPlayerModel(player).game.deckSize).eq(game.projectDeck.drawPile.length);
+    game.projectDeck.discardPile.push(game.projectDeck.drawOrThrow(game));
+    game.projectDeck.discardPile.push(game.projectDeck.drawOrThrow(game));
+    const model = Server.getPlayerModel(player).game;
+    expect(model.deckSize).eq(game.projectDeck.drawPile.length);
+    expect(model.deckSize + 2).eq(game.projectDeck.drawPile.length + game.projectDeck.discardPile.length);
+  });
+
   it('Should always return current player\'s VP', () => {
     createTestGame(false);
     const response = Server.getPlayerModel(player);

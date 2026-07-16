@@ -205,11 +205,24 @@ export class MarsBoard extends Board {
    * `computeAdditionalCosts` + `canAfford` + private `placementMegacreditDeficit`
    * so `BoardInformationEngine` (a sibling module, not a subclass) can surface
    * placement cost without re-implementing the rule.
+   *
+   * `options.tileType` — the tile actually being placed. It resolves the two
+   * Ares waivers `Game.addTile` applies at commit time (an OCEAN tile / Athena's
+   * owner never pay the hazard-adjacency production penalty) through the SHARED
+   * `AresHandler.subjectToHazardAdjacency` predicate, so the preview cannot
+   * promise a cost the commit path waives. Omitted → the charged default.
+   * The solar phase (WGT places for free) waives the Ares costs wholesale.
    */
-  public placementCostInfo(player: IPlayer, space: Space, canAffordOptions?: CanAffordOptions): {
+  public placementCostInfo(player: IPlayer, space: Space, options?: {
+    canAffordOptions?: CanAffordOptions, tileType?: TileType,
+  }): {
     megacredits: number, production: number, tr: SpaceCosts['tr'], affordable: boolean, deficit: number,
   } {
-    const costs = this.computeAdditionalCosts(space, player.game.gameOptions.aresExtension, canAffordOptions?.bonusMultiplier);
+    const canAffordOptions = options?.canAffordOptions;
+    const aresCostsApply = player.game.gameOptions.aresExtension && !AresHandler.placementCostsWaived(player.game);
+    const costs = this.computeAdditionalCosts(space, aresCostsApply, canAffordOptions?.bonusMultiplier, {
+      subjectToHazardAdjacency: AresHandler.subjectToHazardAdjacency(player, options?.tileType),
+    });
     const affordable = this.canAfford(player, space, canAffordOptions);
     const deficit = affordable ? 0 : this.placementMegacreditDeficit(player, space, 'cannot-afford', canAffordOptions);
     return {megacredits: costs.megacredits, production: costs.production, tr: costs.tr, affordable, deficit};
