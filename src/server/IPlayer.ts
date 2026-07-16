@@ -76,6 +76,16 @@ export type PlayabilityOptions = {
 }
 
 /**
+ * One card a conditional search turned over, with the verdict that decided
+ * its fate (see CardDrawRevealStep — the serialized twin). A discarded card
+ * is safe to hold: it lives on in the deck's discard pile.
+ */
+export type RevealedCard = {
+  card: IProjectCard,
+  matched: boolean,
+}
+
+/**
  * One queued "you drew cards" reveal awaiting the player's acknowledgement.
  * Holds live cards (serialized to model lazily). Transient — see IPlayer.cardDrawReveals.
  */
@@ -83,6 +93,11 @@ export type CardDrawReveal = {
   id: number,
   source?: CardDrawRevealSource,
   cards: ReadonlyArray<IProjectCard>,
+  /**
+   * The conditional search's real reveal order. Set ONLY when the search
+   * discarded at least one card — a plain draw leaves it undefined.
+   */
+  sequence?: ReadonlyArray<RevealedCard>,
 }
 
 /**
@@ -414,8 +429,12 @@ export interface IPlayer {
   playCorporationCard(corporationCard: ICorporationCard, options?: {deferCardPayment?: boolean}): void;
   drawCard(count?: number, options?: DrawOptions): void;
   drawCardKeepSome(count: number, options: AllOptions): void;
-  /** Queue a batch of just-drawn cards for the reveal modal. No-op when empty. */
-  enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource): void;
+  /**
+   * Queue a batch of just-drawn cards for the reveal modal. No-op when empty.
+   * `sequence` is the conditional search's real reveal order; it is kept only
+   * when the search actually discarded something.
+   */
+  enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>): void;
   /** Remove a reveal batch (or all) once the player has taken the cards. Idempotent. */
   acknowledgeCardDrawReveals(id: number | 'all'): void;
   discardPlayedCard(card: IProjectCard): void;

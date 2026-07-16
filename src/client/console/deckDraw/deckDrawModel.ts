@@ -1,0 +1,284 @@
+/*
+ * DECK-DRAW MODEL — the PURE plan of the console "cards physically come off
+ * the top-bar deck" cinematic (no DOM, no GSAP — unit-tested under the server
+ * runner, like cardDealModel / boardCardBonusModel).
+ *
+ * The story (consoleDeckDraw.ts / deckDrawDirector.ts): the project deck in
+ * the top bar is the SOURCE. Two scenarios, one language:
+ *
+ *  plain   — "draw N": the top cards peel off one by one, stay FACE DOWN and
+ *            gather in the hold zone. No verdicts, no tray.
+ *  search  — "reveal until you find N matching cards" (Acquired Space Agency
+ *            and friends): each card peels off, flips at the inspect point,
+ *            and its SERVER verdict routes it — a discard flows on into the
+ *            compact tray; a match settles into the hold zone as a hero.
+ *
+ * Either way the scene ENDS with the found cards standing in the hold zone;
+ * the reveal modal then assembles around them (the transition is the
+ * director's, staged exactly like the board card-bonus handoff).
+ *
+ * Everything here is BASE milliseconds — the director resolves through
+ * motionMs() so the whole choreography follows the fork-wide speed presets.
+ *
+ * NOTE: the ORDER is never computed here. It arrives from the server
+ * (CardDrawRevealModel.sequence) and is replayed verbatim.
+ */
+
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
+
+/** A plain rect (screen px) — DOMRect-compatible, test-friendly. */
+export type RectLike = {left: number, top: number, width: number, height: number};
+
+/** What the deck turned over, and what the server decided about it. */
+export type DrawBeatKind = 'match' | 'discard' | 'plain';
+
+/**
+ * ONE card's beat in the scene, already resolved to concrete timings. The
+ * director just plays these in order.
+ */
+export type DrawBeat = {
+  /** Index within the server's reveal sequence (the proxy id). */
+  index: number,
+  kind: DrawBeatKind,
+  /** Scene-relative launch time of this card's peel-off. */
+  atMs: number,
+  /** Deck → inspect point (a 'plain' beat flies straight to its hold slot). */
+  travelMs: number,
+  /** Portion of the travel spent completing the back→face flip (0 = stays down). */
+  flipPortion: number,
+  /** Readable hold at the inspect point before the verdict routes the card. */
+  inspectMs: number,
+  /** Inspect point → tray / hold slot. */
+  routeMs: number,
+  /** Which hold-zone slot a matched card lands in (matches only). */
+  holdSlot?: number,
+  /** Which tray depth a discarded card lands at (discards only). */
+  trayDepth?: number,
+};
+
+export type DeckDrawTimings = {
+  /** The top card separates from the stack (rise + slight grow). */
+  peelMs: number,
+  /** Deck → inspect point. */
+  travelMs: number,
+  /** Readable hold at the inspect point (a discard's is deliberately short). */
+  inspectMs: number,
+  /** Inspect point → destination. */
+  routeMs: number,
+  /** Gap between one card leaving the inspect zone and the next peeling off. */
+  gapMs: number,
+  flipPortion: number,
+  /** The final "search complete" hero beat before the reveal assembles. */
+  settleMs: number,
+  /** The reveal frame materializes AROUND the held cards. */
+  frameMs: number,
+  /** Proxy → real card crossfade (the handoff). */
+  handoffMs: number,
+};
+
+/**
+ * The base rhythm. A DISCARD is a fast technological beat — long enough to
+ * register "a card was really turned over and it wasn't the one", never long
+ * enough to invite reading it. A MATCH gets a fuller (but unshowy) hero beat.
+ */
+export function deckDrawTimings(): DeckDrawTimings {
+  return {
+    peelMs: 190,
+    travelMs: 300,
+    inspectMs: 260,
+    routeMs: 300,
+    gapMs: 90,
+    flipPortion: 0.62,
+    settleMs: 320,
+    frameMs: 240,
+    handoffMs: 170,
+  };
+}
+
+/**
+ * Reduced motion: the SHORT but still complete physical path (deck → inspect
+ * → tray/hold → reveal). The story must read; only the theatrics go (mirrors
+ * reducedBonusSceneTimings).
+ */
+export function reducedDeckDrawTimings(): DeckDrawTimings {
+  return {
+    peelMs: 50,
+    travelMs: 110,
+    inspectMs: 90,
+    routeMs: 110,
+    gapMs: 20,
+    flipPortion: 0.5,
+    settleMs: 90,
+    frameMs: 100,
+    handoffMs: 90,
+  };
+}
+
+/**
+ * How many DISCARDS play at the full, teaching rhythm before the stream
+ * tightens. The first couple show the principle completely; after that the
+ * player has understood the mechanism and only needs to see it keep working.
+ */
+export const FULL_RHYTHM_DISCARDS = 2;
+
+/** The floor the tightening ramp approaches (never a flicker). */
+export const MIN_DISCARD_PACE = 0.42;
+
+/** How fast the ramp falls off — each further discard shaves this much. */
+const PACE_STEP = 0.14;
+
+/**
+ * The pace multiplier for the Nth discard of the scene (0-based).
+ *
+ * A long unlucky search must not grow linearly into a 20-second wait, but it
+ * must never stop being an honest physical process either: the ramp only ever
+ * tightens the SPEED of a beat that still fully happens — no discard is
+ * skipped, batched or teleported into the tray.
+ */
+export function discardPace(discardOrdinal: number): number {
+  if (discardOrdinal < FULL_RHYTHM_DISCARDS) {
+    return 1;
+  }
+  const steps = discardOrdinal - FULL_RHYTHM_DISCARDS + 1;
+  return Math.max(MIN_DISCARD_PACE, 1 - steps * PACE_STEP);
+}
+
+/** One server reveal step, reduced to what the plan needs. */
+export type PlanStep = {matched: boolean};
+
+/**
+ * Build the whole scene plan from the server's reveal sequence.
+ *
+ * `steps` is the sequence VERBATIM (never re-sorted): the player watches the
+ * exact search the deck performed. A `plain` scene (no search / nothing
+ * discarded) passes every step as matched and gets the simpler language: the
+ * cards never flip, never pause to be judged, and fly straight to the hold
+ * zone with a light stagger.
+ */
+export function planDeckDraw(
+  steps: ReadonlyArray<PlanStep>,
+  t: DeckDrawTimings,
+  plain: boolean,
+): Array<DrawBeat> {
+  const beats: Array<DrawBeat> = [];
+  let at = 0;
+  let holdSlot = 0;
+  let trayDepth = 0;
+  let discardOrdinal = 0;
+
+  steps.forEach((step, index) => {
+    if (plain) {
+      // No verdict to show: one calm staggered stream into the hold zone.
+      beats.push({
+        index,
+        kind: 'plain',
+        atMs: at,
+        travelMs: t.travelMs + t.routeMs * 0.5,
+        flipPortion: 0,
+        inspectMs: 0,
+        routeMs: 0,
+        holdSlot: holdSlot++,
+      });
+      at += t.peelMs + t.gapMs * 1.4;
+      return;
+    }
+
+    const pace = step.matched ? 1 : discardPace(discardOrdinal);
+    const beat: DrawBeat = {
+      index,
+      kind: step.matched ? 'match' : 'discard',
+      atMs: at,
+      travelMs: t.travelMs * pace,
+      flipPortion: t.flipPortion,
+      // A match earns a slightly longer readable moment; a discard's hold is
+      // the first thing the tightening ramp spends.
+      inspectMs: (step.matched ? t.inspectMs * 1.45 : t.inspectMs) * pace,
+      routeMs: t.routeMs * pace,
+    };
+    if (step.matched) {
+      beat.holdSlot = holdSlot++;
+    } else {
+      beat.trayDepth = trayDepth++;
+      discardOrdinal++;
+    }
+    beats.push(beat);
+
+    // The next card starts peeling once this one has committed to leaving the
+    // inspect zone — a continuous stream with no dead air, but never two
+    // cards being judged at once.
+    at += t.peelMs + beat.travelMs + beat.inspectMs + beat.routeMs * 0.45 + t.gapMs * pace;
+  });
+
+  return beats;
+}
+
+/** When the last card has fully landed (scene-relative). */
+export function planEndMs(beats: ReadonlyArray<DrawBeat>, t: DeckDrawTimings): number {
+  let end = 0;
+  for (const b of beats) {
+    end = Math.max(end, b.atMs + t.peelMs + b.travelMs + b.inspectMs + b.routeMs);
+  }
+  return end;
+}
+
+/** Total BASE duration incl. the finish + handoff (the safety budget). */
+export function deckDrawBudgetMs(beats: ReadonlyArray<DrawBeat>, t: DeckDrawTimings): number {
+  return planEndMs(beats, t) + t.settleMs + t.frameMs + t.handoffMs;
+}
+
+/**
+ * The count the DECK shows once `revealed` cards have physically left it.
+ * The scene holds the pre-draw number and ticks it down per peel-off, so the
+ * counter and the physical stack always tell the same story.
+ */
+export function deckCountAfter(preDrawSize: number, revealed: number): number {
+  return Math.max(0, preDrawSize - revealed);
+}
+
+/**
+ * The INSPECT point — where a card pauses to be judged. Centred horizontally,
+ * high enough to sit clear of the hold zone below it, and always well below
+ * the top bar so the deck it came from stays visible (the source must never
+ * be covered by the card it just produced).
+ */
+export function inspectPoint(viewportW: number, viewportH: number): {x: number, y: number} {
+  return {x: viewportW / 2, y: Math.max(140 * conUiScale(), viewportH * 0.34)};
+}
+
+/**
+ * The scale a card is presented at while being judged — readable at a glance
+ * but never a fullscreen event (a discard must not invite reading).
+ */
+export function inspectScale(viewportH: number, naturalH: number): number {
+  const s = conUiScale();
+  return Math.min(0.46 * s, Math.max(0.24 * s, (viewportH * 0.3) / Math.max(1, naturalH)));
+}
+
+/**
+ * The HOLD-ZONE slot centres — where found cards wait for the rest of the
+ * search. A centred row that re-balances as it grows (the director tweens the
+ * already-placed cards to their new centres, so nothing ever jumps).
+ */
+export function holdSlots(
+  count: number, viewportW: number, viewportH: number, cardW: number,
+): Array<{x: number, y: number}> {
+  if (count <= 0) {
+    return [];
+  }
+  const gap = 26 * conUiScale();
+  const pitch = cardW + gap;
+  const totalW = count * cardW + (count - 1) * gap;
+  // Narrow viewport (handheld): overlap rather than run off the edges.
+  const maxW = viewportW * 0.66;
+  const squeeze = totalW > maxW ? maxW / totalW : 1;
+  const step = pitch * squeeze;
+  const first = viewportW / 2 - (step * (count - 1)) / 2;
+  const y = viewportH * 0.62;
+  return Array.from({length: count}, (_, i) => ({x: first + step * i, y}));
+}
+
+/** The scale found cards rest at in the hold zone (the scene's heroes). */
+export function holdScale(viewportH: number, naturalH: number): number {
+  const s = conUiScale();
+  return Math.min(0.42 * s, Math.max(0.2 * s, (viewportH * 0.26) / Math.max(1, naturalH)));
+}

@@ -211,6 +211,15 @@ export class Server {
         source: r.source,
         // Same options as cardsInHand so reveal cards render identically.
         cards: cardsToModel(player, r.cards, {showCalculatedCost: true, unplayableReasons: true}),
+        // The conditional search's reveal order (present only when it really
+        // discarded something). Serialized with the SAME options so a
+        // discarded card renders exactly like a kept one. These names are
+        // already public — Deck logs the discards to the shared game log —
+        // and this whole model is the requesting player's own view anyway.
+        sequence: r.sequence?.map((step) => ({
+          card: cardsToModel(player, [step.card], {showCalculatedCost: true, unplayableReasons: true})[0],
+          matched: step.matched,
+        })),
       })),
       // Self-only (this whole model IS the requesting player's view) + transient:
       // the result of the player's most recent reveal/deck-check action, for the

@@ -66,6 +66,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // stays held through the reward beat (printed bonuses paying out) — the
   // placement stage serves it for that window.
   '.con-tileplace',
+  // The DECK-DRAW scene: the reveal modal is deliberately WITHHELD while the
+  // cards are still coming off the deck, so a prompt committed alongside the
+  // draw has no modal for that window — the draw stage (mounted for the whole
+  // scene) is what serves it.
+  '.con-deckdraw',
 ];
 
 /**

@@ -66,7 +66,7 @@ import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PlayabilityOptions} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PlayabilityOptions, RevealedCard} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -1416,12 +1416,22 @@ export class Player implements IPlayer {
     this.game.defer(DrawCards.keepSome(this, count, options));
   }
 
-  public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource): void {
+  public enqueueCardDrawReveal(cards: ReadonlyArray<IProjectCard>, source?: CardDrawRevealSource, sequence?: ReadonlyArray<RevealedCard>): void {
     // Never queue an empty reveal (deck exhausted / count 0) — it would show an empty modal.
     if (cards.length === 0) {
       return;
     }
-    this.cardDrawReveals.push({id: this.nextCardDrawRevealId++, source, cards: [...cards]});
+    // Keep the sequence ONLY when the search really discarded something. A
+    // plain "draw N" (and a search every reveal of which matched) is visually
+    // the same event — cards simply come off the deck — so it carries no
+    // sequence, which is exactly the client's "no discard tray" signal.
+    const discarded = sequence?.some((step) => !step.matched) === true;
+    this.cardDrawReveals.push({
+      id: this.nextCardDrawRevealId++,
+      source,
+      cards: [...cards],
+      sequence: discarded ? [...(sequence ?? [])] : undefined,
+    });
   }
 
   public acknowledgeCardDrawReveals(id: number | 'all'): void {

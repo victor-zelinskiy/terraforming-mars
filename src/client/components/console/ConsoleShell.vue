@@ -500,6 +500,13 @@
          the real received cards (consoleBoardCardBonus.ts). -->
     <ConsoleBoardCardBonusLayer :player-view="playerView" />
 
+    <!-- The DECK-DRAW stage — cards physically peel off the top-bar project
+         deck, are judged one at a time against the server's own search
+         record, and route to the discard tray or the hold zone; the reveal
+         modal then assembles around the found cards
+         (consoleDeckDraw.ts / deckDrawDirector.ts). -->
+    <ConsoleDeckDrawLayer :player-view="playerView" />
+
     <!-- The PATENT-SALE trade-terminal stage — the sold cards flip to their
          backs, sink into the terminal's slit, and the dispensed M€ chip
          arcs onto the resource rail; the commit lands at its touchdown
@@ -700,6 +707,8 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
+import {abortDeckDraw, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
@@ -800,6 +809,7 @@ export default defineComponent({
     ConsoleDraftTray,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
+    ConsoleDeckDrawLayer,
     ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
     ConsoleColonyInspect,
@@ -1134,6 +1144,14 @@ export default defineComponent({
       // cell with a resource AND a card) opens right after, never over the
       // still-flying bonuses (the computed re-evaluates on `done`).
       if (this.tilePlacementHolds) {
+        return undefined;
+      }
+      // The cards are still physically coming off the top-bar deck: the
+      // player watches the board, the deck and the hold zone. The modal must
+      // not exist yet — it assembles AROUND the found cards once the search
+      // is over (the scene releases this at its 'assemble' phase, where the
+      // overlay mounts veiled so its slots can be measured).
+      if (deckDrawHolds()) {
         return undefined;
       }
       if (currentRevealEvent() !== undefined) {
@@ -1971,9 +1989,9 @@ export default defineComponent({
     },
     commands(): Array<ConsoleCommand> {
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
-      // TILE-PLACEMENT HERO: the animation owns the moment — the pad is
-      // inert, the bar advertises nothing (bounded, plays itself out).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds) {
+      // TILE-PLACEMENT HERO / DECK DRAW: the animation owns the moment — the
+      // pad is inert, the bar advertises nothing (bounded, plays itself out).
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -2893,6 +2911,12 @@ export default defineComponent({
       // gate (nothing visual yet — mirrors the played hero's armed policy),
       // and the pick itself can't double-fire (the arm claims the moment).
       if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
+        return true;
+      }
+      // DECK DRAW: the deck is dealing itself out — a bounded, self-playing
+      // scene the player only watches. The reveal it hands off to takes the
+      // pad back the moment its cards are released.
+      if (isDeckDrawActive()) {
         return true;
       }
       // PLAYED-CARD HERO owns the moment. While the submit is in flight
@@ -5271,6 +5295,7 @@ export default defineComponent({
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
+    abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)
     abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');

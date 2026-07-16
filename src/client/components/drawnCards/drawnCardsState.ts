@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {CardDrawRevealModel, CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
@@ -24,6 +24,12 @@ export type DrawnCardEntry = {
   id: number;
   source?: CardDrawRevealSource;
   cards: ReadonlyArray<CardModel>;
+  /**
+   * The conditional search's reveal order (server truth — see
+   * CardDrawRevealModel.sequence). Present only when the search really
+   * discarded something; the console draw cinematic replays it verbatim.
+   */
+  sequence?: ReadonlyArray<CardDrawRevealStep>;
   /** Indices within `cards` the player has already taken (client-only). */
   takenIndices: Set<number>;
   /** True between firing the ack POST and its response landing. */
@@ -65,15 +71,19 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
         id: r.id,
         source: r.source,
         cards: r.cards,
+        sequence: r.sequence,
         takenIndices: new Set<number>(),
         acking: false,
         dismissed: false,
       });
     } else {
       // Cost / unplayable reasons can shift between polls — refresh the models,
-      // preserving the client-only take progress.
+      // preserving the client-only take progress. The sequence is immutable
+      // history (what the deck did when the batch was drawn), but refresh it
+      // too so the batch stays one consistent server snapshot.
       existing.cards = r.cards;
       existing.source = r.source;
+      existing.sequence = r.sequence;
     }
   }
   // Deterministic FIFO (server ids are monotonic).

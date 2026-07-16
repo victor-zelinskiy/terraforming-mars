@@ -7,6 +7,7 @@ import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {ChooseCards, ChooseOptions, LogType, keep} from './ChooseCards';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
+import {RevealedCard} from '../IPlayer';
 
 /**
  * Best-effort attribution for the "you drew cards" reveal modal when the caller
@@ -50,6 +51,16 @@ export type DrawOptions = {
 export type AllOptions = DrawOptions & ChooseOptions;
 
 export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
+  /**
+   * Every card this draw turned over, in the deck's real reveal order, with
+   * the verdict that decided its fate. A CONDITIONAL search ("reveal until
+   * you find two space tags") is the only case where this is more than the
+   * kept cards — a plain "draw N" matches everything. Populated by
+   * `execute()`; read by `keepAll`'s callback (which runs right after), so
+   * the reveal can carry the honest sequence instead of just the result.
+   */
+  public readonly revealSequence: Array<RevealedCard> = [];
+
   // Visible for tests.
   public constructor(
     player: IPlayer,
@@ -62,6 +73,10 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
   public execute(): undefined {
     this.player.game.resettable = false;
     const game = this.player.game;
+    this.revealSequence.length = 0;
+    const onReveal = (card: IProjectCard, matched: boolean) => {
+      this.revealSequence.push({card, matched});
+    };
     const cards = game.projectDeck.drawByConditionLegacy(game, this.count, (card) => {
       if (this.options.resource !== undefined && this.options.resource !== card.resourceType) {
         return false;
@@ -76,14 +91,15 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         return false;
       }
       return true;
-    });
+    }, onReveal);
 
     this.cb(cards);
     return undefined;
   }
 
   public static keepAll(player: IPlayer, count: number = 1, options?: DrawOptions): DrawCards {
-    return new DrawCards(player, count, options).andThen((cards) => {
+    const action = new DrawCards(player, count, options);
+    return action.andThen((cards) => {
       let verbosity: LogType = LogType.DREW;
       if (options !== undefined) {
         if (options.tag !== undefined ||
@@ -103,7 +119,15 @@ export class DrawCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       // through their own SelectCard and never reach here. The source is the
       // caller's explicit one, else the active scope's card/colony — so the
       // modal ALWAYS names where the draw came from when it's known.
-      player.enqueueCardDrawReveal(cards, options?.source ?? revealSourceFromContext(player));
+      //
+      // The reveal SEQUENCE rides along so the client can replay the search
+      // the deck actually performed (which card came up when, and whether it
+      // was kept) instead of only seeing the result. `enqueueCardDrawReveal`
+      // drops it when nothing was discarded — i.e. a plain draw carries none.
+      player.enqueueCardDrawReveal(
+        cards,
+        options?.source ?? revealSourceFromContext(player),
+        action.revealSequence);
     });
   }
 

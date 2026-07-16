@@ -12,6 +12,13 @@ import {ICeoCard} from './ceos/ICeoCard';
 import {toName} from '../../common/utils/utils';
 
 /**
+ * Observes a conditional search turning ONE card over: `matched` is the
+ * verdict that decided whether it went to the player or to the discard pile.
+ * Called in real reveal order, before the card is discarded.
+ */
+export type RevealObserver<T extends ICard> = (card: T, matched: boolean) => void;
+
+/**
  * A deck of cards to draw from, and also its discard pile.
  */
 export class Deck<T extends ICard> {
@@ -110,11 +117,19 @@ export class Deck<T extends ICard> {
   /**
    * @deprecated use drawByConditionOrThrow, or create a safer version of drawByCondition
    */
-  public drawByConditionLegacy(logger: Logger, total: number, include: (card: T) => boolean) {
-    return this.drawByConditionOrThrow(logger, total, include);
+  public drawByConditionLegacy(logger: Logger, total: number, include: (card: T) => boolean, onReveal?: RevealObserver<T>) {
+    return this.drawByConditionOrThrow(logger, total, include, onReveal);
   }
 
-  public drawByConditionOrThrow(logger: Logger, total: number, include: (card: T) => boolean) {
+  /**
+   * `onReveal` observes each card AS IT IS TURNED OVER, in real deck order,
+   * with the verdict that decided its fate. The search itself is unchanged —
+   * the observer only lets a caller keep the ORDER + the discarded cards,
+   * which are otherwise destroyed here (only the kept cards are returned, and
+   * the discards survive as an untethered public log line). The console draw
+   * cinematic replays exactly this sequence rather than guessing it.
+   */
+  public drawByConditionOrThrow(logger: Logger, total: number, include: (card: T) => boolean, onReveal?: RevealObserver<T>) {
     const result: Array<T> = [];
     const discardedCards = new Array<CardName>();
 
@@ -124,7 +139,9 @@ export class Deck<T extends ICard> {
         break;
       }
       const projectCard = this.drawOrThrow(logger);
-      if (include(projectCard)) {
+      const matched = include(projectCard);
+      onReveal?.(projectCard, matched);
+      if (matched) {
         result.push(projectCard);
       } else {
         discardedCards.push(projectCard.name);

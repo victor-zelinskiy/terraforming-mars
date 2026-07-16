@@ -271,5 +271,7 @@
     "Interface and display settings": "Интерфейс и настройки экрана",
     "Layout profile for this screen": "Профиль вёрстки для этого экрана",
     "Controller shell or mouse and keyboard": "Оболочка для геймпада или мыши и клавиатуры",
-    "Project deck": "Колода проектов"
+    "Project deck": "Колода проектов",
+    "DISCARDED": "СБРОШЕННЫЕ",
+    "Discarded card": "Сброшенная карта"
 }

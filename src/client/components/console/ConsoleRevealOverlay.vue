@@ -97,6 +97,32 @@
                 <span class="con-reveal__pager-b">]</span>
               </div>
             </div>
+            <!--
+              The DISCARD tray of a conditional deck search — the cards the
+              deck turned over and threw away to find these. Deliberately
+              SECONDARY: a compact face-down pile in its own corner that never
+              shrinks the received cards. It only exists when the search
+              really discarded something, and inspecting it is the player's
+              own choice (X), never part of the animation.
+            -->
+            <button v-if="discardedCards.length > 0"
+                    type="button"
+                    class="con-reveal__discard"
+                    :class="{'con-reveal__discard--focused': discardFocused}"
+                    @click="openDiscards">
+              <span class="con-reveal__discard-pile" aria-hidden="true">
+                <span v-if="discardedCards.length > 2" class="con-card-back con-reveal__discard-back con-reveal__discard-back--3"></span>
+                <span v-if="discardedCards.length > 1" class="con-card-back con-reveal__discard-back con-reveal__discard-back--2"></span>
+                <span class="con-card-back con-reveal__discard-back con-reveal__discard-back--1"></span>
+                <span class="con-reveal__discard-count">{{ discardedCards.length }}</span>
+              </span>
+              <span class="con-reveal__discard-meta">
+                <span class="con-reveal__discard-label">{{ $t('DISCARDED') }}</span>
+                <span class="con-reveal__discard-hint">
+                  <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                </span>
+              </span>
+            </button>
           </div>
 
           <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) ─── -->
@@ -142,7 +168,9 @@
            navigation (shared vocabulary with hand / draft / start scene).
            Self-resolving inside this overlay, so it can never target the
            task host's focused card underneath. -->
-      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
+      <!-- The tray is a focus target like any card, so the SAME gliding frame
+           lands on it (one focus vocabulary — never a second indicator). -->
+      <ConsoleCardFocusFrame selector=":is(.con-cards__slot--focused > :is(.card-container, .pcard), .con-reveal__discard--focused .con-reveal__discard-pile)" />
     </template>
   </div>
 </template>
@@ -205,9 +233,18 @@ import {
 import {
   boardCardBonusState, bonusHoldingSingleZoom, bonusZoomOriginEl, isBoardCardBonusActive, isBonusRevealStaged,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {deckDrawState, isDeckDrawActive, isDeckDrawStaged} from '@/client/console/deckDraw/consoleDeckDraw';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
+
+/**
+ * The deck-draw phases during which the frame stays veiled. Note 'search' and
+ * 'settle' can't appear here — the shell withholds the overlay from mounting
+ * at all until the search is over ([[deckDrawHolds]]); by the time this modal
+ * exists the scene is already assembling into it.
+ */
+const DECK_DRAW_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['search', 'settle', 'assemble']);
 
 
 export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
@@ -306,25 +343,45 @@ export default defineComponent({
       return this.singleCardMode && consoleCardZoom.card === undefined &&
         !bonusHoldingSingleZoom(this.drawnEvent?.id);
     },
-    // ── Board card-bonus STAGED entrance (consoleBoardCardBonus) ───────
+    // ── STAGED entrance (a scene owns this batch's arrival) ────────────
+    /*
+     * TWO scenes stage a reveal, and the contract is identical for both: the
+     * cards physically arrive on their own stage and land in THESE slots, so
+     * the modal must suppress its stock deal-in entrance and stay veiled
+     * until the scene hands off.
+     *   · boardCardBonus — the cover lifts off a board cell / the Venus marker
+     *   · deckDraw       — the cards peel off the top-bar project deck
+     * The classes keep their `bonus-*` names (the CSS contract is shared);
+     * a batch can only ever be claimed by one scene, since they split on the
+     * reveal's source.
+     */
     /**
-     * This batch came off a board card-bonus cell and the lift scene owns
-     * its entrance: the stock deal-in / frame rise are suppressed for the
-     * batch's whole on-screen life (persists after the scene ends — see
-     * boardCardBonusState.stagedEventId).
+     * A scene owns this batch's entrance: the stock deal-in / frame rise are
+     * suppressed for the batch's whole on-screen life (this persists after
+     * the scene ends — see each controller's `stagedEventId` doc — otherwise
+     * dropping it would replay the entrance).
      */
     bonusMode(): boolean {
-      return this.mode === 'drawn' && isBonusRevealStaged(this.drawnEvent?.id);
+      return this.mode === 'drawn' &&
+        (isBonusRevealStaged(this.drawnEvent?.id) || isDeckDrawStaged(this.drawnEvent?.id));
     },
     /** Pre-frame: the modal is mounted for measurement but fully veiled. */
     bonusVeiled(): boolean {
-      return this.bonusMode && isBoardCardBonusActive() &&
-        BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase);
+      if (!this.bonusMode) {
+        return false;
+      }
+      return (isBoardCardBonusActive() && BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase)) ||
+        (isDeckDrawActive() && DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase));
     },
     /** The static cards stay hidden until the handoff releases them. */
     bonusHeld(): boolean {
-      return this.bonusMode && isBoardCardBonusActive() &&
-        (BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase) || boardCardBonusState.phase === 'frame');
+      if (!this.bonusMode) {
+        return false;
+      }
+      return (isBoardCardBonusActive() &&
+          (BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase) || boardCardBonusState.phase === 'frame')) ||
+        (isDeckDrawActive() &&
+          (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame'));
     },
     /**
      * Count-driven card scale so 1–4 cards stay roomy with a generous safe gap
@@ -408,10 +465,30 @@ export default defineComponent({
     },
     focusCount(): number {
       switch (this.mode) {
-      case 'drawn': return this.drawnUntaken.length;
+      // The discard tray is ONE extra focus target at the end of the strip
+      // (the played-events pile's shape) — so inspecting it needs no new
+      // button and the command bar keeps its existing contract.
+      case 'drawn': return this.drawnUntaken.length + (this.discardedCards.length > 0 ? 1 : 0);
       case 'viewer': return this.viewerReveal?.cards.length ?? 0;
       default: return 0;
       }
+    },
+    /**
+     * The cards this batch's conditional search turned over and threw away.
+     * Server truth (the reveal's own sequence) — the client neither derives
+     * nor re-orders it. Empty for a plain draw: no tray, nothing to inspect.
+     */
+    discardedCards(): Array<CardModel> {
+      const seq = this.drawnEvent?.sequence;
+      if (seq === undefined) {
+        return [];
+      }
+      return seq.filter((step) => !step.matched).map((step) => step.card);
+    },
+    /** The strip focus has walked past the last card, onto the tray. */
+    discardFocused(): boolean {
+      return this.mode === 'drawn' && this.discardedCards.length > 0 &&
+        this.focusIdx === this.drawnUntaken.length;
     },
   },
   watch: {
@@ -493,6 +570,16 @@ export default defineComponent({
     onPress(action: ConsoleAction): void {
       switch (this.mode) {
       case 'drawn':
+        // The tray is a focus target like any card: A / X open it, and it is
+        // never taken (there is nothing to take — these cards are gone).
+        if (this.discardFocused) {
+          if (action === 'primary' || action === 'inspect') {
+            this.openDiscards();
+          } else if (action === 'nextTab' || action === 'back') {
+            this.takeAll();
+          }
+          return;
+        }
         if (action === 'primary') {
           this.takeFocused();
         } else if (action === 'inspect') {
@@ -555,6 +642,26 @@ export default defineComponent({
           const e = this.drawnUntaken[i];
           return e !== undefined ? `${e.card.name}#${e.index}` : '';
         }, true),
+      });
+    },
+    /**
+     * Browse the cards the search discarded — READ-ONLY, and only ever on the
+     * player's own initiative (the hero scene never stops to let them be
+     * read). B returns to the modal with focus intact, exactly like the
+     * played-events pile. No receive bridge: these cards are not takeable.
+     */
+    openDiscards(): void {
+      const list = this.discardedCards;
+      if (list.length === 0) {
+        return;
+      }
+      openConsoleCardZoom(list, 0, undefined, undefined, {
+        statusLabel: 'Discarded card',
+        // The pile IS the physical origin — the viewer lifts out of it.
+        origin: {
+          kind: 'physical',
+          resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-reveal__discard-pile') ?? null,
+        },
       });
     },
     /** L3: inspect the DRAW SOURCE card fullscreen (multi-card modal). The
