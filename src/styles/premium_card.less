@@ -68,6 +68,17 @@
   --pcard-onplay-hi: #7ff0c4;
   --pcard-onplay-deep: #2f7d5c;
 
+  /* ── SEMANTIC category rims — the effect/action frames are coloured by
+     MEANING, not by the card's theme (an effect is BLUE and an action is
+     GOLD on EVERY card, matching the fullscreen rules panel's «ЭФФЕКТ»
+     [blue] / «ДЕЙСТВИЕ» [gold] chips). Before, the effect frame took the
+     theme rim (azure→blue, corporation→GOLD, emerald→green) so the same
+     «эффект» read a different colour per card type — the reported corp
+     mismatch. Requirements (copper) + VP (gold) are already root-token,
+     theme-independent. */
+  --pcard-effect-rim: rgba(90, 169, 230, 0.5);   /* = @con-effect-blue */
+  --pcard-action-rim: rgba(242, 215, 149, 0.45); /* = @con-action-gold */
+
   /* ── requirement copper — the warm satin-copper SURFACE of the requirement
         plate + its thin bronze RIM. The plate reads as ONE clean copper object
         (a symmetric pointed banner) that belongs to the card, NOT a dark
@@ -1247,7 +1258,9 @@
   gap: 2px 4px;
 }
 
-/* EFFECT / ACTION frame */
+/* EFFECT / ACTION frame — coloured by CATEGORY, not by the card theme:
+   an EFFECT is blue and an ACTION is gold on every card, matching the
+   rules-panel «ЭФФЕКТ»/«ДЕЙСТВИЕ» chips (unified language). */
 .pcard-effect {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1257,12 +1270,12 @@
   padding: 4px 8px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.26);
-  border: 1px solid var(--pcard-rim-soft);
+  border: 1px solid var(--pcard-effect-rim);
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
   max-width: 100%;
 }
 .pcard-effect--action {
-  border-color: rgba(242, 215, 149, 0.4);
+  border-color: var(--pcard-action-rim);
 }
 .pcard-effect__part {
   display: inline-flex;

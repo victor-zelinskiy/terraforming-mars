@@ -6162,6 +6162,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     flex-shrink: 0;
     z-index: 11700;
     --con-bar-h: 2.6rem;
+
+    /* The MANUAL «Разыграно» browse (`.con-played`, z 11400) is open: drop
+       the whole footer just BELOW it so the tableau panel covers the dock's
+       PACK (its box is bottom-anchored at 4.3rem, over the rising pack) while
+       the «КАРТЫ» plate + the command bar — both below 4.3rem, outside the
+       panel's box — keep peeking below it. So the hand presence never
+       "disappears"; it simply tucks behind the table (the hero landing table
+       instead CONCEALS the dock via visibility — see ConsoleHandDock). Safe:
+       a manual browse is a board-home VIEW surface that yields (closes) to
+       every mandatory surface, so nothing between 11390 and the panel ever
+       coexists with it. */
+    &--under-played {
+        z-index: 11390;
+    }
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -6374,6 +6388,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
         }
+    }
+    /* A covering scene / overlay owns the screen: the dock is painted OUT
+       but KEPT LAID OUT (never display:none) — its per-card slots stay
+       measurable so a hand-intake flight can still land cards in the hand
+       while the overlay sits on top (the counter ticks on the physical
+       touchdown; the cards are revealed when the overlay closes). This is
+       the documented "visibility:hidden, not display:none — keep the slot
+       intact" project pattern. */
+    &--concealed {
+        visibility: hidden;
+        pointer-events: none;
     }
     /* A card just LANDED (hand intake): the pack breathes open a touch and
        the plate glows — "the hand accepts the card". Rides the cards' own

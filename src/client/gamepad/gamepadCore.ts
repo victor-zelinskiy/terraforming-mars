@@ -130,12 +130,37 @@ function pollOnce(now: number): void {
       continue;
     }
     const next = readSnapshot(pad);
+    const active = snapshotActivity(next, deadzone);
+
+    // FIRST sighting of this pad (fresh page after a game-boundary reload, or a
+    // just-woken pad): seed the baseline from the CURRENT state and emit NO
+    // intents this frame. A button STILL HELD when the pad first appears is the
+    // pad-wake gesture, never an action — an edge only counts once it is released
+    // and pressed again. This is load-bearing: the game boundary is a full reload
+    // (navigateWithCurtain), and the A that confirmed "exit to main menu" is
+    // typically still down when the new page mounts. Without this seed, an empty
+    // baseline reads that held A as a fresh `confirm` press on the freshly-loaded
+    // main menu and auto-activates the focused item (Continue → bounced straight
+    // back into the game — the "exit does nothing the 2nd time" bug). We still
+    // elect the pad + enter gamepad mode so it stays responsive; only the stray
+    // press/nav intent is withheld.
+    if (!prevSnapshots.has(pad.index)) {
+      prevSnapshots.set(pad.index, next);
+      pollStates.set(pad.index, initialPollState());
+      if (active) {
+        gamepadCoreState.activeIndex = pad.index;
+        gamepadCoreState.activeId = pad.id;
+        enterGamepadMode();
+        resetPointerTravel();
+      }
+      continue;
+    }
+
     const prev = prevSnapshots.get(pad.index) ?? emptySnapshot();
     const state = pollStates.get(pad.index) ?? initialPollState();
 
     // Idle early-out: nothing pressed now AND nothing was pressed before →
     // skip the diff entirely (the common case, every frame at rest).
-    const active = snapshotActivity(next, deadzone);
     if (!active && !snapshotActivity(prev, deadzone)) {
       prevSnapshots.set(pad.index, next);
       continue;

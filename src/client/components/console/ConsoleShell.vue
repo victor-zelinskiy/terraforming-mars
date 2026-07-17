@@ -572,18 +572,26 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible}" :style="footerVars">
-      <!-- The permanent hand dock is HIDDEN while a full centre scene owns
-           the screen (start wizard / reveal / task host / composers / sheets):
-           its «КАРТЫ n/m» bay would paint over the scene's card row and clip
-           it, and the hand is irrelevant there anyway. The command bar (scene
-           contract) stays; the bay collapses so the hints re-centre. -->
-      <ConsoleHandDock v-show="handDockVisible"
+    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible, 'con-footer--under-played': playedOpen}" :style="footerVars">
+      <!-- The permanent hand dock stays MOUNTED for the whole game (only the
+           endgame unmounts it): a covering scene / overlay just CONCEALS it
+           (`visibility:hidden`, layout kept), never `display:none`. Why the
+           distinction is load-bearing: the hand-intake director flies cards
+           into the dock's real per-card slots — those slots must stay
+           MEASURABLE (a laid-out rect) even while «Разыграно» / a reveal /
+           the ceremony sit on top, so a card can always land in the hand and
+           the counter only ticks on the physical touchdown. A covering
+           overlay reads as ABOVE the concealed dock (it's simply not painted
+           under it); when the overlay closes the dock reappears with any
+           cards that arrived meanwhile. The command bar (scene contract)
+           stays; the bay collapses so the hints re-centre. -->
+      <ConsoleHandDock v-show="game.phase !== 'end'"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
+                       :concealed="!handDockVisible"
                        :raised="consoleState.quick === 'actions'"
                        :lifted="handRevealState.dockLifted"
                        :deliveryHeld="dockHeld"
@@ -1123,6 +1131,19 @@ export default defineComponent({
      *  sheets / inspectors) — there its «КАРТЫ n/m» bay only clips the
      *  scene's card row and the hand is irrelevant. Kept during placement
      *  (board section) and the section views. */
+    /** The dock is fully SHOWN (painted + the command bar reserves its bay).
+     *  When false the dock is CONCEALED (visibility:hidden), never removed —
+     *  it stays laid out so a hand-intake can still land cards in it (see the
+     *  footer template). Drives `--nodock` + the bar's `:bay`.
+     *
+     *  NOTE: the MANUAL «Разыграно» browse (`playedOpen`) is deliberately
+     *  NOT in the hide set — the dock STAYS visible there, and the footer
+     *  drops below the overlay (`--under-played`) so the pack tucks BEHIND
+     *  the tableau panel while the «КАРТЫ» plate keeps peeking below it (the
+     *  played panel is bottom-anchored above the command bar and never
+     *  reaches the plate). Only the HERO landing table (`tableOpen`) hides
+     *  the dock — there the table closes after the effect, revealing the
+     *  hand (with any cards that flew in) again. */
     handDockVisible(): boolean {
       if (this.game.phase === 'end') {
         return false;
@@ -1142,7 +1163,7 @@ export default defineComponent({
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
         this.botTurnReviewState.open ||
-        this.playedTableVisible ||
+        playedHeroState.tableOpen ||
         this.infoModeState.open ||
         this.leakDetectorState.stranded !== undefined
       );
