@@ -5,6 +5,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {computeDesktopVersion, resolvePendingForPlatform} from '../../common/models/DesktopVersionModel';
 import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
+import {githubCacheTtlMs, githubHeaders} from './desktopGithub';
 
 /**
  * GET /api/desktop/version?platform=win32&current=1.2.3
@@ -24,6 +25,12 @@ import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
  *                               the imminent release instead of launching stale OR updating to a
  *                               version that build is about to supersede; set 0 to disable (the
  *                               client then always chases whatever is published right now)
+ *   TM_DESKTOP_GITHUB_TOKEN     (or GITHUB_TOKEN / GH_TOKEN) — a server-only GitHub token. Lifts the
+ *                               API ceiling 60→5000/hr, so the caches below run SHORT and a new
+ *                               release is picked up in ~30s instead of up to 2 min. Never sent to
+ *                               the client. STRONGLY recommended for a snappy update experience.
+ *   TM_DESKTOP_GITHUB_TTL_MS    override for every GitHub-read cache TTL (ms). Default: adaptive —
+ *                               short when a token is set, long (rate-limit-safe) when it isn't.
  */
 export class ApiDesktopVersion extends Handler {
   public static readonly INSTANCE = new ApiDesktopVersion();
@@ -92,12 +99,16 @@ export class ApiDesktopVersion extends Handler {
 // undefined on failure → the route falls back to the env default (fail-open).
 const GITHUB_LATEST_URL =
   'https://api.github.com/repos/victor-zelinskiy/terraforming-mars/releases/latest';
-const GITHUB_LATEST_TTL_MS = 120_000;
+// With a server token the client can pick up a new release in ~30s; without one, 120s keeps the
+// gate under GitHub's 60/hr unauthenticated limit. Operator override: TM_DESKTOP_GITHUB_TTL_MS.
+function githubLatestTtl(): number {
+  return githubCacheTtlMs(30_000, 120_000, process.env.TM_DESKTOP_GITHUB_TTL_MS);
+}
 let githubLatestCache: {version: string; at: number} | undefined;
 
 async function githubLatestVersion(): Promise<string | undefined> {
   const now = Date.now();
-  if (githubLatestCache !== undefined && now - githubLatestCache.at < GITHUB_LATEST_TTL_MS) {
+  if (githubLatestCache !== undefined && now - githubLatestCache.at < githubLatestTtl()) {
     return githubLatestCache.version;
   }
   try {
@@ -105,7 +116,7 @@ async function githubLatestVersion(): Promise<string | undefined> {
     const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(GITHUB_LATEST_URL, {
       signal: controller.signal,
-      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+      headers: githubHeaders('tm-desktop-gate'),
     });
     clearTimeout(timer);
     if (!res.ok) {
@@ -131,12 +142,16 @@ async function githubLatestVersion(): Promise<string | undefined> {
 // means at most one run is active, so the max active run_number is the pending build.
 const GITHUB_RUNS_URL =
   'https://api.github.com/repos/victor-zelinskiy/terraforming-mars/actions/workflows/release.yml/runs?branch=main&per_page=10';
-const GITHUB_RUNS_TTL_MS = 45_000;
+// Builds change faster than releases; with a token poll them tightly (20s) so the pending→required
+// handoff is quick, else 45s to stay under the unauthenticated budget.
+function githubRunsTtl(): number {
+  return githubCacheTtlMs(20_000, 45_000, process.env.TM_DESKTOP_GITHUB_TTL_MS);
+}
 let githubRunsCache: {version: string | undefined; at: number} | undefined;
 
 async function githubPendingBuildVersion(): Promise<string | undefined> {
   const now = Date.now();
-  if (githubRunsCache !== undefined && now - githubRunsCache.at < GITHUB_RUNS_TTL_MS) {
+  if (githubRunsCache !== undefined && now - githubRunsCache.at < githubRunsTtl()) {
     return githubRunsCache.version;
   }
   try {
@@ -144,7 +159,7 @@ async function githubPendingBuildVersion(): Promise<string | undefined> {
     const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(GITHUB_RUNS_URL, {
       signal: controller.signal,
-      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+      headers: githubHeaders('tm-desktop-gate'),
     });
     clearTimeout(timer);
     if (!res.ok) {
@@ -181,13 +196,16 @@ function velopackChannel(platform: string): string {
 function githubReleaseTagUrl(tag: string): string {
   return `https://api.github.com/repos/victor-zelinskiy/terraforming-mars/releases/tags/${tag}`;
 }
-const GITHUB_RELEASE_TTL_MS = 30_000;
+// The per-platform early-unlock check — with a token, 15s catches each channel merge quickly.
+function githubReleaseTtl(): number {
+  return githubCacheTtlMs(15_000, 30_000, process.env.TM_DESKTOP_GITHUB_TTL_MS);
+}
 const releaseChannelsCache = new Map<string, {channels: Set<string>; at: number}>();
 
 async function githubReleasePublishedChannels(version: string): Promise<Set<string> | undefined> {
   const now = Date.now();
   const cached = releaseChannelsCache.get(version);
-  if (cached !== undefined && now - cached.at < GITHUB_RELEASE_TTL_MS) {
+  if (cached !== undefined && now - cached.at < githubReleaseTtl()) {
     return cached.channels;
   }
   try {
@@ -195,7 +213,7 @@ async function githubReleasePublishedChannels(version: string): Promise<Set<stri
     const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(githubReleaseTagUrl(`v${version}`), {
       signal: controller.signal,
-      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-gate'},
+      headers: githubHeaders('tm-desktop-gate'),
     });
     clearTimeout(timer);
     if (res.status === 404) {

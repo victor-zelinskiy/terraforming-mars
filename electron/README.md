@@ -284,10 +284,21 @@ error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
    `.exe` + `latest.yml` + `.blockmap` (and the Linux AppImage). The repo is public, so
    electron-updater reads the feed with no token.
 2. **Gate (automatic).** `GET /api/desktop/version` (`ApiDesktopVersion`) reads the newest
-   release LIVE from the GitHub API (`TM_DESKTOP_REQUIRE_LATEST` defaults on, 2-min cache) and
-   tells any client below it `updateRequired: true`. So a new push → older clients are
-   required to update, with **no env change**. `TM_DESKTOP_*` env only OVERRIDES this
-   (force-update, a pinned min-version, custom download URL / notes); it is optional.
+   release LIVE from the GitHub API (`TM_DESKTOP_REQUIRE_LATEST` defaults on) and tells any
+   client below it `updateRequired: true`. So a new push → older clients are required to update,
+   with **no env change**. `TM_DESKTOP_*` env only OVERRIDES this (force-update, a pinned
+   min-version, custom download URL / notes); it is optional.
+
+   **Update-pickup speed** is bounded by how fresh the server's cached GitHub view is, which is in
+   turn bounded by GitHub's rate limit. Set a server-only token (`TM_DESKTOP_GITHUB_TOKEN` /
+   `GITHUB_TOKEN` / `GH_TOKEN`, `src/server/routes/desktopGithub.ts`) and the ceiling jumps
+   60→5000/hr, so
+   every GitHub cache here runs SHORT (latest 30s, runs 20s, feed map 30s) and a new release is
+   picked up in ~30s instead of up to ~2 min. No token → conservative long TTLs (unchanged). The
+   token is NEVER sent to the client. `TM_DESKTOP_GITHUB_TTL_MS` overrides every TTL by hand.
+   Client-side, the main-menu re-check runs every 30s and a **post-pending bridge** keeps the fast
+   ~25s poll alive for a few extra ticks after a CI build completes, so a lagging latest-cache
+   can't strand a freshly-published update on the slow timer.
 3. **Delivery (automatic on Windows).** A packaged client checks the gate on launch; when an
    update is required, the premium `DesktopUpdateOverlay` shows the progress bar and
    electron-updater downloads the new NSIS installer and installs + auto-relaunches

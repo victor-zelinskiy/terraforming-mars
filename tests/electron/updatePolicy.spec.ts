@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {CompatSnapshot, resolveUpdateDecision, restartMarkerStamp} from '../../electron/updatePolicy';
+import {CompatSnapshot, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from '../../electron/updatePolicy';
 
 // Pure unit test of the Phase 8 last-known-good update policy.
 //   npx mocha --import=tsx "tests/electron/updatePolicy.spec.ts"
@@ -83,6 +83,38 @@ describe('electron/updatePolicy resolveUpdateDecision', () => {
       const d = resolveUpdateDecision({fresh: undefined, cached: buildPending, strictOffline: false});
       expect(d.mode).to.eq('normal');
     });
+  });
+});
+
+describe('electron/updatePolicy planPostPendingBridge', () => {
+  const MAX = 4;
+
+  it('starts the bridge (full budget) on the first settled run right after pending', () => {
+    const r = planPostPendingBridge({settled: true, wasPending: true, ticksRemaining: 0, maxTicks: MAX});
+    expect(r).to.deep.equal({keepPolling: true, ticksRemaining: MAX});
+  });
+
+  it('counts the budget down on subsequent settled runs and stops at zero', () => {
+    let ticks = MAX;
+    const seen: number[] = [];
+    for (let i = 0; i < MAX + 1; i++) {
+      const r = planPostPendingBridge({settled: true, wasPending: false, ticksRemaining: ticks, maxTicks: MAX});
+      ticks = r.ticksRemaining;
+      seen.push(ticks);
+    }
+    expect(seen).to.deep.equal([3, 2, 1, 0, 0]);
+    // the last run with ticks already 0 must NOT keep polling
+    expect(planPostPendingBridge({settled: true, wasPending: false, ticksRemaining: 0, maxTicks: MAX}).keepPolling).to.be.false;
+  });
+
+  it('does NOT bridge on an ordinary settled run (never pending, no budget) — no in-game/idle churn', () => {
+    const r = planPostPendingBridge({settled: true, wasPending: false, ticksRemaining: 0, maxTicks: MAX});
+    expect(r).to.deep.equal({keepPolling: false, ticksRemaining: 0});
+  });
+
+  it('resets on a non-settled decision (pending re-arms itself / required takes over)', () => {
+    const r = planPostPendingBridge({settled: false, wasPending: false, ticksRemaining: 3, maxTicks: MAX});
+    expect(r).to.deep.equal({keepPolling: false, ticksRemaining: 0});
   });
 });
 

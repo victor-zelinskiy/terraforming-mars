@@ -3,6 +3,7 @@ import {Handler} from './Handler';
 import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
+import {githubCacheTtlMs, githubHeaders} from './desktopGithub';
 
 /**
  * GET /api/desktop/feed/<file>  — Velopack update-feed PROXY for the desktop client.
@@ -23,13 +24,18 @@ import {Response} from '../Response';
  */
 const REPO = 'victor-zelinskiy/terraforming-mars';
 const RELEASES_API = `https://api.github.com/repos/${REPO}/releases?per_page=15`;
-const ASSETS_TTL_MS = 120_000;
 const PREFIX = '/api/desktop/feed/';
+// The asset-URL map gates how fast a client can DOWNLOAD a fresh release (a stale map points
+// `releases.<channel>.json` at the previous release). With a server token, refresh it every 30s so
+// the download follows the version gate closely; without one, 120s keeps us under the 60/hr limit.
+function assetsTtl(): number {
+  return githubCacheTtlMs(30_000, 120_000, process.env.TM_DESKTOP_GITHUB_TTL_MS);
+}
 let assetsCache: {map: Map<string, string>; at: number} | undefined;
 
 async function assetMap(): Promise<Map<string, string>> {
   const now = Date.now();
-  if (assetsCache !== undefined && now - assetsCache.at < ASSETS_TTL_MS) {
+  if (assetsCache !== undefined && now - assetsCache.at < assetsTtl()) {
     return assetsCache.map;
   }
   try {
@@ -37,7 +43,7 @@ async function assetMap(): Promise<Map<string, string>> {
     const timer = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(RELEASES_API, {
       signal: controller.signal,
-      headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'tm-desktop-feed'},
+      headers: githubHeaders('tm-desktop-feed'),
     });
     clearTimeout(timer);
     if (!res.ok) {

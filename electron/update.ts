@@ -29,7 +29,7 @@
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
 import * as fs from 'fs';
 import {UpdateManager, type UpdateInfo} from 'velopack';
-import {AppImageIdentity, CompatSnapshot, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
+import {AppImageIdentity, CompatSnapshot, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
 import {getLastKnownGood, setLastKnownGood} from './session';
 
 export type DesktopUpdateMode =
@@ -273,6 +273,14 @@ function lockPending(reason: 'ci-build' | 'platform-feed', version: string | und
 const PLATFORM_FEED_MAX_WAITS = 12;
 let platformFeedWaits = 0;
 
+/**
+ * Post-pending bridge budget (see planPostPendingBridge): after a CI build we were waiting on
+ * completes, keep the fast poll alive this many extra ticks so a server latest-cache lag can't
+ * drop us onto the slow menu timer. 4 × PENDING_POLL_MS ≈ 100s covers the version-cache tail.
+ */
+const POST_PENDING_BRIDGE_TICKS = 4;
+let bridgeTicks = 0;
+
 /** Wait for THIS platform's package to appear on the feed, while the budget lasts. Returns false
  *  once it's exhausted → the caller surfaces the honest failure. */
 function awaitPlatformFeed(why: string): boolean {
@@ -290,6 +298,8 @@ function awaitPlatformFeed(why: string): boolean {
 
 /** Run (or re-run) the compatibility check + decision. Returns true when the game is blocked. */
 async function runCheck(): Promise<boolean> {
+  // Capture the mode BEFORE any push below — the post-pending bridge keys off "we were pending".
+  const wasPending = state.mode === 'pending';
   // Every run cancels the pending poll; the branches below re-arm it only if still pending.
   clearPendingPoll();
   if (!app.isPackaged) {
@@ -306,7 +316,9 @@ async function runCheck(): Promise<boolean> {
   // function re-runs on the waiting poll (every PENDING_POLL_MS) and on Try-again, and each of
   // those would otherwise flash the game screen open — interactive — for the length of the fetch.
   // The startup check is unaffected: nothing is blocking yet, so the pill still shows.
-  if (!updateBlocksGame()) {
+  // Don't flash the 'checking' pill on a silent bridge re-check (bridgeTicks > 0) — the player is
+  // at the menu seeing up-to-date; a per-tick flicker would be noise.
+  if (!updateBlocksGame() && bridgeTicks === 0) {
     push({mode: 'checking'});
   }
   const fresh = await fetchCompat(serverBaseUrl);
@@ -329,11 +341,13 @@ async function runCheck(): Promise<boolean> {
   // at which point the branch below starts the download on its own. `resolveUpdateDecision` only
   // returns this for a FRESH fetch — a stale offline snapshot never locks the player out.
   if (decision.mode === 'pending') {
+    bridgeTicks = 0; // still pending — the bridge is only for AFTER pending ends
     logUpdate(`build in progress — waiting for ${decision.info?.pendingVersion ?? 'the new release'}`);
     lockPending('ci-build', decision.info?.pendingVersion);
     return true;
   }
   if (decision.mode === 'required') {
+    bridgeTicks = 0; // the update fired — bridge no longer needed
     if (canAutoUpdate()) {
       // Windows or Linux-as-AppImage: run the in-app download → the premium overlay shows the
       // progress bar and the Restart-and-install CTA (Velopack reports download progress on
@@ -355,6 +369,7 @@ async function runCheck(): Promise<boolean> {
     return true;
   }
   if (decision.mode === 'offlineBlocked') {
+    bridgeTicks = 0;
     push({mode: 'offlineBlocked', error: 'Cannot reach the update server.'});
     return true;
   }
@@ -366,6 +381,22 @@ async function runCheck(): Promise<boolean> {
     pendingVersion: undefined,
     pendingReason: undefined,
   });
+  // Post-pending bridge: if we JUST left a CI-build wait (or are still bridging), keep the fast
+  // poll alive a few more ticks so a lagging server latest-cache can't strand a freshly-published
+  // required update on the slow menu timer. Only a FRESH fetch can advance to 'required', so don't
+  // bridge on an offline settle (fresh === undefined → nothing new to catch).
+  if (fresh !== undefined) {
+    const bridge = planPostPendingBridge({
+      settled: true, wasPending, ticksRemaining: bridgeTicks, maxTicks: POST_PENDING_BRIDGE_TICKS,
+    });
+    bridgeTicks = bridge.ticksRemaining;
+    if (bridge.keepPolling) {
+      logUpdate(`bridging post-pending — ${bridgeTicks} fast re-check(s) left before settling`);
+      schedulePendingPoll();
+    }
+  } else {
+    bridgeTicks = 0;
+  }
   return false;
 }
 

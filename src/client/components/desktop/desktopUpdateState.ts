@@ -186,7 +186,7 @@ export function initDesktopUpdates(): void {
  * beforeUnmount. Inert on the web (no bridge) and in an unpackaged dev shell (the main process
  * short-circuits to `idle`).
  */
-const MENU_RECHECK_MS = 60_000;
+const MENU_RECHECK_MS = 30_000;
 let menuTimer: number | undefined;
 
 export function startMenuUpdateWatch(intervalMs: number = MENU_RECHECK_MS): void {

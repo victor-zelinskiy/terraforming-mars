@@ -69,6 +69,34 @@ export function resolveUpdateDecision(input: UpdateDecisionInput): UpdateDecisio
   return {mode: input.strictOffline ? 'offlineBlocked' : 'normal', usedCache: false};
 }
 
+/**
+ * Post-pending BRIDGE plan. The pending poll (main process, ~25s) is what makes a CI-build pickup
+ * fast — but it STOPS the moment the gate first reports "no longer pending", and the server's
+ * `latestVersion` cache can lag the build's completion by a cache tick. In that gap the client
+ * settles to up-to-date and then only re-checks on the slow menu timer, so the freshly-published
+ * required update is picked up minutes late. The bridge keeps the fast poll alive for a few extra
+ * ticks after leaving `pending`, so the moment the server's latest refreshes, `required` fires and
+ * the download starts — without waiting for the menu tick. Self-terminating (bounded ticks); it
+ * NEVER fires unless we were actually just pending, so ordinary in-game/idle runs are untouched.
+ *
+ * PURE (unit-tested). `settled` = the decision resolved to up-to-date/idle (nothing to do);
+ * `wasPending` = the mode BEFORE this run was 'pending'. Returns whether to re-arm the fast poll
+ * and the remaining tick budget.
+ */
+export function planPostPendingBridge(input: {
+  settled: boolean;
+  wasPending: boolean;
+  ticksRemaining: number;
+  maxTicks: number;
+}): {keepPolling: boolean; ticksRemaining: number} {
+  if (!input.settled) {
+    // A non-settled decision (pending re-arms itself; required/offline take over) → reset bridge.
+    return {keepPolling: false, ticksRemaining: 0};
+  }
+  const next = input.wasPending ? input.maxTicks : Math.max(0, input.ticksRemaining - 1);
+  return {keepPolling: next > 0, ticksRemaining: next};
+}
+
 /** Identity of the running AppImage file — the thing Velopack's UpdateNix replaces. */
 export interface AppImageIdentity {
   ino: number;
