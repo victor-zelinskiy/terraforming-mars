@@ -8,6 +8,7 @@ import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {TileType} from '../../common/TileType';
 
 type Options = {
   title?: string | Message,
@@ -58,6 +59,10 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
 
     return createMarsSelectSpace(this.player, title, availableSpaces, {
       placementType,
+      // An ocean can be placed `on: 'land'` (not just an ocean-reserved cell) —
+      // `placementType` carries the eligibility kind, `tileType` the tile, so
+      // the preview always reads the ocean parameter + TR bump.
+      tileType: TileType.OCEAN,
       customReasoner: this.options.customReasoner,
       placementContext: this.options.placementContext,
       onCancel: this.options.onCancel,

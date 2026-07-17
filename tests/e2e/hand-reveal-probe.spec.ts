@@ -160,7 +160,7 @@ test.describe('hand reveal · standard 1080', () => {
     await expect(page.locator('.con-handdock--lifted')).toHaveCount(1);
     await shoot(page, '01-mid-open');
 
-    await page.waitForTimeout(1200); // settle
+    await page.waitForTimeout(2100); // settle (open ≈ lift 140 + flight 600 + spread + handoff)
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
     await expect(page.locator('.con-handdock--lifted')).toHaveCount(1); // cards live in the hand
@@ -173,7 +173,7 @@ test.describe('hand reveal · standard 1080', () => {
     await page.waitForTimeout(100); // mid-gather
     await expectProxies(page);
     await shoot(page, '03-mid-close');
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(1700);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
     await expect(page.locator('.con-handdock--lifted')).toHaveCount(0);
     await expect(page.locator('.con-board')).toBeVisible();
@@ -185,18 +185,18 @@ test.describe('hand reveal · standard 1080', () => {
     test.setTimeout(240_000);
     await bootGame(page, request, 2);
 
-    for (const holdMs of [80, 200]) { // build-window cancel and ~60% of the open
+    for (const holdMs of [80, 400]) { // build-window cancel and ~50% of the open
       await openHandFast(page);
       await page.waitForTimeout(holdMs);
       await page.keyboard.press('Escape'); // reverse from current progress
       await page.waitForTimeout(120);
-      if (holdMs === 200) {
+      if (holdMs === 400) {
         // Still ONE representation while reversing (the 80ms case cancels
         // from ~0 progress — its proxies may already be handing off).
         await expectProxies(page);
         await shoot(page, '05-mid-reverse');
       }
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1900);
       // Back home: board + full dock pack, nothing stuck.
       await expect(page.locator('.con-board')).toBeVisible();
       await expect(page.locator('.con-handdock--lifted')).toHaveCount(0);
@@ -211,7 +211,7 @@ test.describe('hand reveal · standard 1080', () => {
     await bootGame(page, request, 3);
 
     await openHandFast(page);
-    await page.waitForTimeout(1400); // fully open
+    await page.waitForTimeout(2200); // fully open
     await page.keyboard.press('Escape'); // gather begins
     await page.waitForTimeout(130);
     // Reopen mid-close: the dock click is the entry (RT needs the wheel).
@@ -219,7 +219,7 @@ test.describe('hand reveal · standard 1080', () => {
     await page.waitForTimeout(120);
     await expectProxies(page);
     await shoot(page, '07-mid-reopen');
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(2000);
     // Landed OPEN again: hand section up, slots visible, no proxies.
     await expect(page.locator('.con-hand')).toHaveCount(1);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
@@ -260,7 +260,7 @@ test.describe('hand reveal · deck handheld', () => {
     await openHandFast(page);
     await expectProxies(page);
     await shoot(page, '10-handheld-mid-open');
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(2000);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
     await shoot(page, '11-handheld-open');
@@ -276,7 +276,7 @@ test.describe('hand reveal · tv 1080', () => {
     await openHandFast(page);
     await expectProxies(page);
     await shoot(page, '12-tv-mid-open');
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(2000);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
     await shoot(page, '13-tv-open');

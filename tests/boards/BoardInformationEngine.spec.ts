@@ -115,6 +115,57 @@ describe('BoardInformationEngine', () => {
     expect(fact!.recipient.kind).to.eq('current-player');
   });
 
+  // The tile and the eligibility SPACE can diverge — Protected Valley / Mangrove
+  // place a GREENERY on an ocean-reserved cell. The preview must read the tile
+  // (greenery → oxygen, its own VP, subject to hazard), NOT the cell's kind.
+  describe('tile identity ≠ eligibility kind (tileType override)', () => {
+    function oceanReservedEmpty(): Space {
+      const s = game.board.spaces.find((sp) =>
+        sp.spaceType === SpaceType.OCEAN && sp.tile === undefined);
+      if (s === undefined) {
+        throw new Error('no empty ocean-reserved space');
+      }
+      return s;
+    }
+
+    it('greenery-on-ocean raises OXYGEN, never the ocean parameter', () => {
+      const space = oceanReservedEmpty();
+      // kind 'ocean' = the eligibility set; tileType GREENERY = what is placed.
+      const preview = boardCellPreview(player, space, 'ocean', {tileType: TileType.GREENERY});
+      const facts = allFacts(preview);
+      expect(facts.some((f) => f.id === 'effect-oxygen'), 'oxygen effect shown').to.be.true;
+      expect(facts.some((f) => f.id === 'effect-ocean'), 'ocean effect NOT shown').to.be.false;
+    });
+
+    it('greenery-on-ocean previews its own greenery scoring', () => {
+      const space = oceanReservedEmpty();
+      const preview = boardCellPreview(player, space, 'ocean', {tileType: TileType.GREENERY});
+      expect(allFacts(preview).some((f) => f.id === 'place-greenery-self'), 'greenery VP shown').to.be.true;
+    });
+
+    it('a plain ocean placement still raises the ocean parameter', () => {
+      const space = oceanReservedEmpty();
+      const preview = boardCellPreview(player, space, 'ocean', {tileType: TileType.OCEAN});
+      const facts = allFacts(preview);
+      expect(facts.some((f) => f.id === 'effect-ocean')).to.be.true;
+      expect(facts.some((f) => f.id === 'effect-oxygen')).to.be.false;
+    });
+
+    it('city-on-isolated previews city scoring (Research Outpost / Early Expedition)', () => {
+      const isolated = emptyLand((s) => game.board.getAdjacentSpaces(s).every((a) => a.tile === undefined));
+      const preview = boardCellPreview(player, isolated, 'isolated', {tileType: TileType.CITY});
+      expect(preview.futureScoringFacts.some((f) => f.id === 'place-city'), 'city scoring shown').to.be.true;
+    });
+
+    it('a special tile on an ocean cell raises NEITHER parameter (Mohole Area)', () => {
+      const space = oceanReservedEmpty();
+      const preview = boardCellPreview(player, space, 'ocean', {tileType: TileType.MOHOLE_AREA});
+      const facts = allFacts(preview);
+      expect(facts.some((f) => f.id === 'effect-ocean'), 'no false ocean effect').to.be.false;
+      expect(facts.some((f) => f.id === 'effect-oxygen')).to.be.false;
+    });
+  });
+
   it('surfaces the Hellas special ocean placement cost (6 M€)', () => {
     const [hellasGame, hellasPlayer] = testGame(2, {boardName: BoardName.HELLAS});
     const space = hellasGame.board.getSpaceOrThrow(SpaceName.HELLAS_OCEAN_TILE);

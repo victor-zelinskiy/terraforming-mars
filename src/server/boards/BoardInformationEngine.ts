@@ -125,7 +125,7 @@ export function boardCellPreview(
   const facts: Array<BoardFact> = [];
   facts.push(...placementCostFacts(player, space, placedTileType(kind, options?.tileType)));
   facts.push(...printedBonusFacts(space, covering));
-  facts.push(...placementEffectFacts(player, kind));
+  facts.push(...placementEffectFacts(player, kind, options?.tileType));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
   if (onMarsGrid(board, space)) {
@@ -474,15 +474,26 @@ function oceanNeighbourRuleFact(player: IPlayer): BoardFact {
 // Placement's own global-parameter / TR effect
 // ---------------------------------------------------------------------------
 
-function placementEffectFacts(player: IPlayer, kind: BoardPlacementKind): Array<BoardFact> {
+/**
+ * The global-parameter bump a placement makes is intrinsic to the TILE, not to
+ * the eligibility kind. A greenery raises oxygen and a plain ocean raises the
+ * ocean parameter EVEN when placed on a cell reserved for the other (Protected
+ * Valley / Mangrove put a greenery on an ocean-reserved cell → oxygen, never the
+ * ocean track; an ocean can be placed on land → the ocean track). A special
+ * tile placed on an ocean cell (Mohole Area) touches NEITHER parameter — its
+ * card owns any effect — so keying off the exact tile (not `kind === 'ocean'`)
+ * also stops the old false "ocean +1" on those.
+ */
+function placementEffectFacts(player: IPlayer, kind: BoardPlacementKind, tileType: TileType | undefined): Array<BoardFact> {
   const game = player.game;
   const out: Array<BoardFact> = [];
-  if (kind === 'greenery') {
+  const tile = placedTileType(kind, tileType);
+  if (tile === TileType.GREENERY) {
     if (game.getOxygenLevel() < constants.MAX_OXYGEN_LEVEL) {
       out.push(gainFact('effect-oxygen', 'placement-effect', 'Raises oxygen', {icon: 'oxygen', amount: 1, direction: 'gain', unit: '%'}));
       out.push(gainFact('effect-tr-oxygen', 'placement-effect', 'Terraform rating', {icon: 'tr', amount: 1, direction: 'gain'}));
     }
-  } else if (kind === 'ocean') {
+  } else if (tile === TileType.OCEAN) {
     if (game.canAddOcean()) {
       out.push(gainFact('effect-ocean', 'placement-effect', 'Raises the ocean parameter', {icon: 'ocean', amount: 1, direction: 'gain'}));
       out.push(gainFact('effect-tr-ocean', 'placement-effect', 'Terraform rating', {icon: 'tr', amount: 1, direction: 'gain'}));
@@ -578,16 +589,20 @@ function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: 
 function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlacementKind, tileType?: TileType): Array<BoardFact> {
   const board = player.game.board;
   const out: Array<BoardFact> = [];
-  // A composite over-ocean tile that counts as a CITY scores for adjacent
-  // greeneries, exactly like a city placement — derive it from the real tile
-  // identity (the placement kind alone can't tell Ocean City from Ocean Farm).
-  const overOceanCity = (kind === 'upgradeable-ocean' || kind === 'upgradeable-ocean-new-holland') &&
-    tileType !== undefined && CITY_TILES.has(tileType);
-  if (kind === 'city' || overOceanCity) {
+  // Scoring follows what the tile COUNTS AS, derived from the real tile identity
+  // (the eligibility kind can't tell Ocean City from Ocean Farm, nor a greenery
+  // placed on an ocean cell / a city placed on an isolated cell from the plain
+  // kind). `placedTileType` resolves the exact tile; the `*_TILES` sets say what
+  // it counts as. A composite over-ocean tile that counts as a CITY scores for
+  // adjacent greeneries exactly like a city.
+  const tile = placedTileType(kind, tileType);
+  const countsAsCity = tile !== undefined && CITY_TILES.has(tile);
+  const countsAsGreenery = tile !== undefined && GREENERY_TILES.has(tile);
+  if (countsAsCity) {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
     out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
   }
-  if (kind === 'greenery') {
+  if (countsAsGreenery) {
     // The greenery itself scores +1 VP for the placing player.
     out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1, '+1 VP at game end.'));
     // Each adjacent city scores +1 more for ITS owner — possibly an opponent.

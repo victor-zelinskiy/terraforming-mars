@@ -5,6 +5,7 @@ import {PlacementType} from '../boards/PlacementType';
 import {Space} from '../boards/Space';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {TileType} from '../../common/TileType';
 
 export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -27,6 +28,13 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
 
     return createMarsSelectSpace(this.player, this.getTitle(), filtered, {
       placementType: this.on,
+      // The eligibility set (`on`) and the TILE can diverge: Protected Valley /
+      // Mangrove place a GREENERY on an ocean-reserved cell. `placementType`
+      // stays the eligibility kind (what makes those cells legal); `tileType`
+      // names what is actually placed, so the preview reads the greenery's
+      // effect (oxygen, its VP + adjacency, subject to hazard adjacency) — never
+      // the ocean track it does NOT touch.
+      tileType: TileType.GREENERY,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,
     })

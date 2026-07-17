@@ -7,6 +7,7 @@ import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {TileType} from '../../common/TileType';
 
 export class PlaceCityTile extends DeferredAction<Space | undefined> {
   constructor(
@@ -37,6 +38,10 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
     }
     return createMarsSelectSpace(this.player, title, spaces, {
       placementType: type,
+      // `type` is the eligibility kind (a city can go `on: 'isolated'` —
+      // Research Outpost / Early Expedition); `tileType` names the tile, so the
+      // preview shows the city's own scoring instead of nothing.
+      tileType: TileType.CITY,
       customReasoner: this.options?.customReasoner,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,

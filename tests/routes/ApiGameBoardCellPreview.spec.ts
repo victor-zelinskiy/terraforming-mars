@@ -73,6 +73,21 @@ describe('ApiGameBoardCellPreview', () => {
       'warningFacts', 'futureScoringFacts', 'ruleFacts');
   });
 
+  it('a greenery on an ocean-reserved cell reads oxygen via the tile param', async () => {
+    const {game, player} = await freshGame();
+    const ocean = game.board.spaces.find((s) => s.spaceType === 'ocean' && s.tile === undefined);
+    expect(ocean, 'an empty ocean-reserved cell').to.not.be.undefined;
+    // The panel fetches kind=ocean (eligibility) + tile=0 (GREENERY): the
+    // consequence must be oxygen + the greenery's own VP, never the ocean track.
+    scaffolding.url = `/api/game/board-cell-preview?id=${player.id}&space=${ocean!.id}&kind=ocean&tile=0`;
+    await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+    const preview = JSON.parse(res.content);
+    const facts = [...preview.immediateFacts, ...preview.futureScoringFacts];
+    expect(facts.some((f: {id: string}) => f.id === 'effect-oxygen'), 'oxygen shown').eq(true);
+    expect(facts.some((f: {id: string}) => f.id === 'effect-ocean'), 'no false ocean effect').eq(false);
+    expect(facts.some((f: {id: string}) => f.id === 'place-greenery-self'), 'greenery VP shown').eq(true);
+  });
+
   it('allows a spectator to fetch (board is open info)', async () => {
     const {game} = await freshGame();
     const spaceId = game.board.spaces[0].id;

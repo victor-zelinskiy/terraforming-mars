@@ -100,16 +100,21 @@ export function isHandRevealEpisodeRunning(): boolean {
   return building || (episode !== undefined && !episode.finished);
 }
 
-/* ── choreography constants (base ms — motionMs scales them) ────────── */
-const LIFT_MS = 90; // the pack's instant "answers the input" rise
-const OPEN_FLIGHT_MS = 300;
-const CLOSE_FLIGHT_MS = 260;
-const HANDOFF_MS = 130; // proxy fade over the materializing real card
-const LIFT_PX = 14;
+/* ── choreography constants (base ms — motionMs scales them) ──────────
+   Tuned UNHURRIED: the rise starts on the input frame (responsiveness),
+   but the flight itself is long enough to READ — the player must see the
+   pack lift, turn and fan out, not deduce it. The lift and the flight are
+   BUTT-JOINED per card (never overlapping y-tweens — two live tweens on
+   one channel jitter). */
+const LIFT_MS = 140; // the pack's "answers the input" rise (starts frame 1)
+const OPEN_FLIGHT_MS = 600;
+const CLOSE_FLIGHT_MS = 500;
+const HANDOFF_MS = 200; // proxy fade over the materializing real card
+const LIFT_PX = 18;
 
-/** The centre-out fan window: bounded regardless of hand size (§5). */
+/** The centre-out fan window: bounded regardless of hand size. */
 function spreadMs(count: number): number {
-  return count <= 4 ? 90 : count <= 8 ? 120 : 140;
+  return count <= 4 ? 150 : count <= 8 ? 200 : 240;
 }
 
 /** 0..1 rank of a card's distance from the centre axis (row-weighted). */
@@ -223,19 +228,24 @@ export async function runHandOpenEpisode(pairs: ReadonlyArray<RevealPair>): Prom
       return;
     }
     const scaleTo = p.target.width / CARD_NATURAL_W;
-    const at = s(LIFT_MS) * 0.7 + s(spread) * ranks[i];
+    // The flight BUTT-JOINS the lift (same y channel — overlapping tweens
+    // on one property fight each other and read as a jitter).
+    const at = s(LIFT_MS) + s(spread) * ranks[i];
     const flight = s(OPEN_FLIGHT_MS);
-    // The input-answer beat: the whole pack rises off the tray as one mass.
-    tl.to(el, {y: p.source.top - LIFT_PX * conUiScale(), duration: s(LIFT_MS), ease: 'power2.out'}, 0);
-    // The fan-out: X eases laterally, Y launches into the spread, the scale
-    // grows to the slot's real size — a rising, opening gesture.
+    // The input-answer beat: the whole pack rises off the tray as one
+    // mass — soft out, so the hold at the top blends into the launch.
+    tl.to(el, {y: p.source.top - LIFT_PX * conUiScale(), duration: s(LIFT_MS), ease: 'power1.out'}, 0);
+    // The fan-out: X eases laterally, Y launches into the spread with a
+    // soft landing, the scale grows to the slot's real size — one calm,
+    // rising, opening gesture.
     tl.to(el, {x: p.target.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: p.target.top, duration: flight, ease: 'power3.out'}, at);
+    tl.to(el, {y: p.target.top, duration: flight, ease: 'power2.inOut'}, at);
     tl.to(el, {scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
     const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
-      // Back → face strictly around the edge, early in the flight.
-      tl.to(flip, {rotationY: 0, duration: flight * 0.58, ease: 'power2.inOut'}, at + flight * 0.06);
+      // Back → face strictly around the edge, through the flight's heart —
+      // slow enough that the turn itself is the readable event.
+      tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
     }
     if (!p.visible) {
       // The scroll tail: the card exits through the grid's lower boundary.
@@ -308,12 +318,12 @@ export async function runHandCloseEpisode(pairs: ReadonlyArray<RevealPair>, scro
       tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
     }
     tl.to(el, {x: p.source.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: p.source.top, duration: flight, ease: 'power3.inOut'}, at);
-    tl.to(el, {scale: scaleTo, duration: flight, ease: 'power2.in'}, at);
+    tl.to(el, {y: p.source.top, duration: flight, ease: 'power2.inOut'}, at);
+    tl.to(el, {scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
     const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
       // Face → back on approach: the pack turns back-side-out at the tray.
-      tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.4);
+      tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
     }
   });
 
