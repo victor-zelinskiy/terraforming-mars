@@ -7,11 +7,12 @@
  * unit-testable under the server runner:
  *
  *  - `handDockPlan(count)` — how the pack physically renders for a given
- *    hand size: up to HAND_DOCK_VISIBLE_MAX real card-back silhouettes
- *    (strictly parallel, horizontally overlapped, count readable from the
- *    silhouette), then the pack stops widening and grows DEPTH instead
- *    (side slabs, the project-deck thickness language) while the counter
- *    carries the exact total.
+ *    hand size: EVERY card is its own physical back. Up to
+ *    HAND_DOCK_DISTINCT_MAX (20) sit on individually readable positions
+ *    (the step eases down as the hand grows); beyond that the OLDEST
+ *    cards tuck under anchors spread across the whole pack as real dense
+ *    thickness — never a decorative slab — while the counter carries the
+ *    exact total.
  *  - `bayCommandSplit(widths, zoneRight)` — the deterministic partition of
  *    the command-bar hints around the centre bay: commands pack from the
  *    RIGHT (the classic right-anchored hint run ending with B/System),
@@ -26,8 +27,11 @@
  * vars so LESS and JS can never disagree.
  */
 
-/** Card-back silhouettes rendered before the pack grows depth instead. */
-export const HAND_DOCK_VISIBLE_MAX = 6;
+/** Cards laid out on individually DISTINGUISHABLE positions; hands beyond
+ *  this keep 20 readable edges and stack the rest as REAL dense thickness
+ *  (every card is still its own physical element — never a decorative
+ *  slab). */
+export const HAND_DOCK_DISTINCT_MAX = 20;
 
 /** One card-back silhouette (premium card ratio ~0.7), rem. */
 export const HAND_DOCK_CARD_W_REM = 3.15;
@@ -40,62 +44,99 @@ export const HAND_DOCK_PACK_USABLE_REM = 11.4;
  *  pack, never a sparse row), rem. */
 export const HAND_DOCK_STEP_MAX_REM = 2.05;
 
+/** The subtle symmetric ARC: how far the OUTERMOST cards sit below the
+ *  centre card, rem (quadratic falloff — the centre pair stays level). */
+const ARC_DIP_REM = 0.12;
+
+/** Overflow thickness micro-offsets: alternate ±x and a slight sink, rem —
+ *  a real card tucked under its anchor, readable as depth, never a fan. */
+const OVERFLOW_JITTER_X_REM = 0.055;
+const OVERFLOW_SINK_Y_REM = 0.07;
+
 /** Max per-step fan tilt in the FOCUSED state, deg (idle is strictly 0). */
 const FOCUS_TILT_STEP_MAX_DEG = 1.6;
 /** Total edge-to-centre fan bound in the FOCUSED state, deg. */
 const FOCUS_TILT_TOTAL_DEG = 6.4;
 
-/** Depth slabs cap (the deckstack tier language). */
-const DEPTH_MAX = 3;
-/** Hidden cards folded into ONE additional depth slab. */
-const DEPTH_PER_SLAB = 4;
-
 export type HandDockSlot = {
   /** X offset of the back's centre from the pack centre, rem. */
   dx: number,
+  /** Y offset (the subtle arc / an overflow card's sink), rem. */
+  dy: number,
   /** The FOCUSED-state fan tilt, deg (applied only while focused). */
   tilt: number,
+  /** A dense-thickness card (beyond the 20 distinct positions): tucked
+   *  under its anchor, cheaply drawn (no drop shadow, dimmed). */
+  deep: boolean,
 };
 
 export type HandDockPlan = {
-  /** Rendered card-back silhouettes (≤ HAND_DOCK_VISIBLE_MAX). */
-  visible: number,
-  /** Per-back placement, index 0 = leftmost/oldest. */
+  /** EVERY card's placement, index 0 = oldest … last = newest. The FIRST
+   *  `overflow` entries are the deep-thickness cards (oldest, lowest z);
+   *  the remaining `distinct` entries hold the readable-edge positions. */
   slots: ReadonlyArray<HandDockSlot>,
-  /** Extra edge slabs BEHIND the pack (0..3) — the "more than the
-   *  silhouettes show" thickness read. */
-  depth: number,
-  /** Cards beyond the rendered silhouettes (count − visible). */
+  /** Cards on individually readable positions (min(count, 20)). */
+  distinct: number,
+  /** Cards folded into the dense thickness (count − distinct). */
   overflow: number,
   empty: boolean,
 };
 
-/** The physical pack layout for a hand of `count` cards. */
+/**
+ * The physical pack layout for a hand of `count` cards. Geometry depends on
+ * the TOTAL count only (playability never reshapes the pack):
+ *  - every card is a slot (one card — one physical element);
+ *  - up to 20 cards spread symmetrically around the centre axis, the step
+ *    easing down from STEP_MAX (roomy small hands) to the ~0.43rem edge a
+ *    20-card hand reads at; an odd hand centres its middle card ON the
+ *    axis, an even hand centres BETWEEN the middle pair;
+ *  - beyond 20, the OLDEST cards anchor evenly across the whole pack
+ *    (never one flank) with micro offsets — real, dense thickness;
+ *  - a subtle symmetric arc dips the outer cards a couple px (§premium
+ *    hand read; the centre stays level).
+ */
 export function handDockPlan(count: number): HandDockPlan {
   const n = Math.max(0, Math.floor(count));
-  const visible = Math.min(n, HAND_DOCK_VISIBLE_MAX);
-  if (visible === 0) {
-    return {visible: 0, slots: [], depth: 0, overflow: 0, empty: true};
+  if (n === 0) {
+    return {slots: [], distinct: 0, overflow: 0, empty: true};
   }
-  const step = visible === 1 ? 0 : Math.min(
+  const distinct = Math.min(n, HAND_DOCK_DISTINCT_MAX);
+  const overflow = n - distinct;
+  const step = distinct === 1 ? 0 : Math.min(
     HAND_DOCK_STEP_MAX_REM,
-    (HAND_DOCK_PACK_USABLE_REM - HAND_DOCK_CARD_W_REM) / (visible - 1),
+    (HAND_DOCK_PACK_USABLE_REM - HAND_DOCK_CARD_W_REM) / (distinct - 1),
   );
-  const tiltStep = visible === 1 ? 0 : Math.min(
+  const tiltStep = distinct === 1 ? 0 : Math.min(
     FOCUS_TILT_STEP_MAX_DEG,
-    FOCUS_TILT_TOTAL_DEG / (visible - 1),
+    FOCUS_TILT_TOTAL_DEG / (distinct - 1),
   );
-  const mid = (visible - 1) / 2;
-  const slots: Array<HandDockSlot> = [];
-  for (let i = 0; i < visible; i++) {
-    slots.push({
+  const mid = (distinct - 1) / 2;
+  const distinctSlots: Array<HandDockSlot> = [];
+  for (let i = 0; i < distinct; i++) {
+    const norm = mid === 0 ? 0 : (i - mid) / mid; // −1 .. 1 across the pack
+    distinctSlots.push({
       dx: round2((i - mid) * step),
+      dy: round2(norm * norm * ARC_DIP_REM),
       tilt: round2((i - mid) * tiltStep),
+      deep: false,
     });
   }
-  const overflow = n - visible;
-  const depth = overflow <= 0 ? 0 : Math.min(DEPTH_MAX, Math.ceil(overflow / DEPTH_PER_SLAB));
-  return {visible, slots, depth, overflow, empty: false};
+  // The dense thickness: each overflow card (oldest first) anchors to a
+  // distinct position, spread EVENLY across the pack, tucked under it with
+  // alternating micro x-offsets and a slight sink.
+  const deepSlots: Array<HandDockSlot> = [];
+  for (let j = 0; j < overflow; j++) {
+    const anchor = distinctSlots[overflow === 1 ?
+      Math.floor((distinct - 1) / 2) :
+      Math.round(j * (distinct - 1) / (overflow - 1))];
+    deepSlots.push({
+      dx: round2(anchor.dx + (j % 2 === 0 ? -OVERFLOW_JITTER_X_REM : OVERFLOW_JITTER_X_REM)),
+      dy: round2(anchor.dy + OVERFLOW_SINK_Y_REM),
+      tilt: anchor.tilt,
+      deep: true,
+    });
+  }
+  return {slots: [...deepSlots, ...distinctSlots], distinct, overflow, empty: false};
 }
 
 function round2(v: number): number {

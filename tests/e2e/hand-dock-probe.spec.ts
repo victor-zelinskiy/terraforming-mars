@@ -199,7 +199,7 @@ test.describe('hand dock · standard 1080', () => {
     await assertDockCentered(page);
     // Silhouettes mirror the REAL hand (server truth; preludes may draw).
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(Math.min(6, hand));
+    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
     await assertNoClippedHints(page);
     await shoot(page, '01-board-2cards');
 
@@ -247,7 +247,7 @@ test.describe('hand dock · standard 1080', () => {
 
     const dock = page.locator('.con-handdock');
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(Math.min(6, hand));
+    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
     if (hand === 0) {
       await expect(dock).toHaveClass(/con-handdock--empty/);
       await expect(page.locator('.con-handdock__ghost')).toHaveCount(1);
@@ -278,7 +278,7 @@ test.describe('hand dock · deck handheld', () => {
     const playerId = await bootGame(page, request, 3);
     await assertDockCentered(page);
     const hand = await handSize(request, playerId);
-    await expect(page.locator('.con-handdock__card')).toHaveCount(Math.min(6, hand));
+    await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
     await assertNoClippedHints(page);
     await shoot(page, '08-handheld-3cards');
   });

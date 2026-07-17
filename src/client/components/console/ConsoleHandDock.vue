@@ -7,7 +7,6 @@
          'con-handdock--hot': playableCount > 0,
          'con-handdock--lifted': lifted,
        }"
-       :style="rootVars"
        role="button"
        tabindex="-1"
        :aria-label="ariaLabel"
@@ -17,19 +16,21 @@
     <span class="con-handdock__wing con-handdock__wing--l" aria-hidden="true"></span>
     <span class="con-handdock__wing con-handdock__wing--r" aria-hidden="true"></span>
 
-    <!-- The PACK: depth slabs (the hidden-thickness read, project-deck
-         language) behind up to HAND_DOCK_VISIBLE_MAX real card-back
-         silhouettes — strictly parallel, overlapped, newest on the right.
-         Keys are the REAL card names: a future "card flies into the hand"
-         animation lands on a stable per-card anchor. -->
+    <!-- The PACK: EVERY hand card is its own physical back — up to 20 on
+         individually readable positions (the step eases down as the hand
+         grows), the rest tucked as REAL dense thickness under anchors
+         spread across the whole pack (never a decorative slab). Strictly
+         parallel, overlapped, oldest lowest / newest on top. Keys are the
+         REAL card names: the reveal transition (and a future "card flies
+         into the hand" handoff) lands on a stable per-card anchor. -->
     <div class="con-handdock__pack" aria-hidden="true">
-      <span v-for="d in plan.depth" :key="'slab' + d" class="con-handdock__slab" :class="'con-handdock__slab--' + d"></span>
       <transition-group name="con-hd">
         <span v-for="(slot, i) in packSlots"
               :key="slot.key"
               class="con-handdock__card"
+              :class="{'con-handdock__card--deep': slot.deep}"
               :data-hand-dock-card="slot.name"
-              :style="{'--hd-dx': slot.dx + 'rem', '--hd-tilt': slot.tilt + 'deg', zIndex: 3 + i}"></span>
+              :style="{'--hd-dx': slot.dx + 'rem', '--hd-dy': slot.dy + 'rem', '--hd-tilt': slot.tilt + 'deg', zIndex: 3 + i}"></span>
       </transition-group>
       <!-- 0 cards: a clean empty tray — the dashed slot ghost says "this
            is where cards live" without shouting. -->
@@ -96,7 +97,9 @@ type PackSlot = {
   key: string,
   name: string,
   dx: number,
+  dy: number,
   tilt: number,
+  deep: boolean,
 };
 
 export default defineComponent({
@@ -131,13 +134,14 @@ export default defineComponent({
     plan(): HandDockPlan {
       return handDockPlan(this.count);
     },
-    /** The rendered silhouettes = the NEWEST `visible` cards (older ones
-     *  melt into the depth slabs on the left). Keys stay unique even if a
-     *  variant duplicate ever lands in hand. */
+    /** EVERY card gets its slot (index ↔ index: the plan's slots are in
+     *  hand order — oldest first, the deep-thickness head, then the
+     *  distinct tail). Keys stay unique even if a variant duplicate ever
+     *  lands in hand. Card sizes stay CSS-owned (console.less defaults
+     *  mirror the model constants; profiles override them). */
     packSlots(): Array<PackSlot> {
-      const tail = this.cards.slice(this.count - this.plan.visible);
       const seen = new Map<string, number>();
-      return tail.map((card, i) => {
+      return this.cards.map((card, i) => {
         const n = (seen.get(card.name) ?? 0) + 1;
         seen.set(card.name, n);
         const slot = this.plan.slots[i];
@@ -145,17 +149,11 @@ export default defineComponent({
           key: n === 1 ? card.name : `${card.name}#${n}`,
           name: card.name,
           dx: slot.dx,
+          dy: slot.dy,
           tilt: slot.tilt,
+          deep: slot.deep,
         };
       });
-    },
-    /** The depth slabs anchor to the pack's LEFT (oldest) flank — the
-     *  leftmost slot's offset. Card sizes stay CSS-owned (console.less
-     *  defaults mirror the model constants; profiles override them). */
-    rootVars(): Record<string, string> {
-      return {
-        '--hd-edge': `${this.plan.slots[0]?.dx ?? 0}rem`,
-      };
     },
     ariaLabel(): string {
       return `${translateText('Cards in hand')}: ${this.count}`;
@@ -169,9 +167,10 @@ export default defineComponent({
     },
     /**
      * Every hand card's DOCK home, keyed by name (the reveal transition's
-     * source/landing rects): rendered backs give their real card rect; the
-     * thickness tail gets near-stacked positions at the pack's LEFT flank
-     * (each hidden card ~2px deeper — physically present, cheaply drawn).
+     * source/landing rects). EVERY card renders its own real back now
+     * (distinct positions ≤20, dense thickness beyond), so this is a pure
+     * DOM read — the plate-centre fallback only covers a card racing in
+     * between patches.
      */
     sourceRects(names: ReadonlyArray<string>): Map<string, {left: number, top: number, width: number, height: number}> {
       const root = this.$el as HTMLElement | undefined;
@@ -180,28 +179,15 @@ export default defineComponent({
         return out;
       }
       const backs = new Map<string, DOMRect>();
-      let leftmost: DOMRect | undefined;
       for (const el of root.querySelectorAll<HTMLElement>('[data-hand-dock-card]')) {
         const r = el.getBoundingClientRect();
         backs.set(el.getAttribute('data-hand-dock-card') ?? '', r);
-        if (leftmost === undefined || r.left < leftmost.left) {
-          leftmost = r;
-        }
       }
       const fallback = (root.querySelector<HTMLElement>('.con-handdock__plate') ?? root).getBoundingClientRect();
-      let depth = 0;
       for (const name of names) {
         const back = backs.get(name);
         if (back !== undefined) {
           out.set(name, {left: back.left, top: back.top, width: back.width, height: back.height});
-        } else if (leftmost !== undefined) {
-          depth++;
-          out.set(name, {
-            left: leftmost.left - depth * 2.2,
-            top: leftmost.top + Math.min(depth, 3) * 0.8,
-            width: leftmost.width,
-            height: leftmost.height,
-          });
         } else {
           const w = 63;
           const h = 88;
