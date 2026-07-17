@@ -106,13 +106,8 @@
         </div>
       </div>
 
-      <!-- ── Footer: the command contract ─────────────────────────────── -->
-      <footer class="con-task__foot" aria-hidden="true">
-        <span class="con-task__foot-item" :class="{'con-maconfirm__foot-off': !canConfirm}">
-          <GamepadGlyph control="confirm" /><span>{{ $t(view.kind === 'milestone' ? 'Claim' : 'Fund') }}</span>
-        </span>
-        <span class="con-task__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span></span>
-      </footer>
+      <!-- Command contract (A Claim/Fund · B Cancel) lives in the global
+           command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
   </div>
 </template>
@@ -136,7 +131,6 @@
  * (gated + one-shot), B = cancel (returns to the dashboard, nothing sent).
  */
 import {defineComponent, PropType} from 'vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {$t} from '@/client/directives/i18n';
@@ -148,7 +142,7 @@ const CONFIRM_DIALOG_OVERRIDES: ConsoleActionOverrides = {confirm: 'confirm', ba
 
 export default defineComponent({
   name: 'ConsoleMaConfirm',
-  components: {GamepadGlyph, MaHeroArt},
+  components: {MaHeroArt},
   props: {
     view: {type: Object as PropType<MaConfirmView>, required: true},
     /** LIVE availability (the waitingFor tree is the source of truth). */

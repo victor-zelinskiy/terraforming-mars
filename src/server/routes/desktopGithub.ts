@@ -27,17 +27,51 @@ function githubToken(): string | undefined {
   return undefined;
 }
 
-/** Standard headers for a GitHub REST call, with Bearer auth when a token is configured. */
-export function githubHeaders(userAgent: string): Record<string, string> {
+/** Standard headers for a GitHub REST call, with Bearer auth when a token is configured (and
+ *  `withAuth` isn't turned off — the retry path suppresses it). */
+export function githubHeaders(userAgent: string, withAuth = true): Record<string, string> {
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github+json',
     'User-Agent': userAgent,
   };
   const token = githubToken();
-  if (token !== undefined) {
+  if (withAuth && token !== undefined) {
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;
+}
+
+/**
+ * GitHub REST fetch with a timeout AND a graceful auth fallback: if a configured token is REJECTED
+ * or INSUFFICIENT (401 / 403 — e.g. a fine-grained token missing `Actions: Read`, which the
+ * build-in-progress detector needs), retry the SAME request UNAUTHENTICATED. This guarantees a
+ * misconfigured server token is never WORSE than no token — without it, every GitHub call 4xx'd and
+ * the pending-build fail-safe froze the client on a stale "build in progress" forever. `fetchImpl`
+ * is injectable for tests. Throws on a network error / timeout (callers already fall back to cache).
+ */
+export async function githubFetch(
+  url: string,
+  userAgent: string,
+  timeoutMs = 5000,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  const attempt = async (withAuth: boolean): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetchImpl(url, {signal: controller.signal, headers: githubHeaders(userAgent, withAuth)});
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const first = await attempt(true);
+  if ((first.status === 401 || first.status === 403) && hasGithubToken()) {
+    console.warn(
+      `[desktop-github] token rejected/insufficient (HTTP ${first.status}) for ${userAgent} — ` +
+      `retrying unauthenticated. Fix: grant the token 'Contents: Read' + 'Actions: Read', or unset it.`);
+    return attempt(false);
+  }
+  return first;
 }
 
 /**

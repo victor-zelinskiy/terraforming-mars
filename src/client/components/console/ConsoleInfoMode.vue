@@ -19,7 +19,6 @@
           <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
           <span class="con-info__tr">{{ viewed.terraformRating }} {{ $t('TR') }}</span>
           <span v-if="vpVisible" class="con-info__vp">{{ vpTotal }} {{ $t('VP') }}</span>
-          <span class="con-info__close-hint"><GamepadGlyph control="inspect" /><span>{{ $t('Close') }}</span></span>
         </div>
       </header>
 
@@ -214,24 +213,9 @@
         </div>
       </div>
 
-      <!-- ── Foot hints ──────────────────────────────────────────────── -->
-      <footer class="con-info__foot" aria-hidden="true">
-        <span class="con-info__foot-item"><GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" /><span>{{ $t('Players') }}</span></span>
-        <template v-if="infoModeState.detail === undefined && viewedIsBot">
-          <span class="con-info__foot-item"><GamepadGlyph control="secondary" /><span>{{ $t('MarsBot board') }}</span></span>
-          <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Played cards') }}</span></span>
-          <span class="con-info__foot-item"><GamepadGlyph control="triggerR" /><span>{{ $t('Bonus cards') }}</span></span>
-          <span class="con-info__foot-item" :class="{'con-info__foot-item--off': !vpVisible}"><GamepadGlyph control="confirm" /><span>{{ $t('VP overview') }}</span></span>
-        </template>
-        <template v-else-if="infoModeState.detail === undefined">
-          <span class="con-info__foot-item"><GamepadGlyph control="secondary" /><span>{{ $t('Extra resources') }}</span></span>
-          <span class="con-info__foot-item"><GamepadGlyph control="triggerL" /><span>{{ $t('Actions') }}</span></span>
-          <span class="con-info__foot-item"><GamepadGlyph control="triggerR" /><span>{{ $t('Effects') }}</span></span>
-          <span class="con-info__foot-item" :class="{'con-info__foot-item--off': !vpVisible}"><GamepadGlyph control="confirm" /><span>{{ $t('VP overview') }}</span></span>
-        </template>
-        <span v-else class="con-info__foot-item"><GamepadGlyph control="back" /><span>{{ $t('To overview') }}</span></span>
-        <span class="con-info__foot-item"><GamepadGlyph control="inspect" /><span>{{ $t('Close') }}</span></span>
-      </footer>
+      <!-- The command contract publishes to the shell's ONE bottom command
+           bar via consolePanelUi (CONSOLE_TV_PREMIUM_PLAN §3.2) — the
+           footCommands watch below; no panel-local hint row. -->
     </div>
   </div>
 </template>
@@ -279,6 +263,8 @@ import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Card from '@/client/components/card/CardFace.vue';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 
 const TAG_ORDER: ReadonlyArray<Tag> = [
   Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
@@ -479,6 +465,47 @@ export default defineComponent({
     detailTitle(): string {
       return DETAIL_TITLES[this.infoModeState.detail ?? ''] ?? '';
     },
+    /** The live command contract — published to the shell's ONE bottom
+     *  command bar through consolePanelUi (the footCommands watch below). */
+    footCommands(): Array<ConsoleCommand> {
+      const cmds: Array<ConsoleCommand> = [
+        {control: 'bumperL', control2: 'bumperR', label: 'Players'},
+      ];
+      if (this.infoModeState.detail === undefined && this.viewedIsBot) {
+        cmds.push(
+          {control: 'secondary', label: 'MarsBot board'},
+          {control: 'triggerL', label: 'Played cards'},
+          {control: 'triggerR', label: 'Bonus cards'},
+          {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
+        );
+      } else if (this.infoModeState.detail === undefined) {
+        cmds.push(
+          {control: 'secondary', label: 'Extra resources'},
+          {control: 'triggerL', label: 'Actions'},
+          {control: 'triggerR', label: 'Effects'},
+          {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
+        );
+      } else {
+        cmds.push({control: 'back', label: 'To overview'});
+      }
+      cmds.push({control: 'inspect', label: 'Close'});
+      return cmds;
+    },
+  },
+  watch: {
+    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+     *  command bar (consolePanelUi) — hints live only there, never in a
+     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        setPanelCommands('infoMode', cmds);
+      },
+    },
+  },
+  beforeUnmount() {
+    clearPanelCommands('infoMode');
   },
   methods: {
     tableauCard(name: CardName): CardModel | undefined {

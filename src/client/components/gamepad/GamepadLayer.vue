@@ -14,6 +14,7 @@
       <ConsoleSystemMenu v-if="systemMenuOpen && consoleModeState.enabled"
                          :index="systemMenuIndex"
                          :confirmExit="systemMenuConfirmExit"
+                         :showDiagnostics="systemMenuDiagnostics"
                          :inGame="screen === 'player-home'" />
     </transition>
 
@@ -157,6 +158,7 @@ export default defineComponent({
       systemMenuOpen: false,
       systemMenuIndex: 0,
       systemMenuConfirmExit: false,
+      systemMenuDiagnostics: false,
       legendOpen: false,
       toast: '',
       toastTimer: undefined as number | undefined,
@@ -325,19 +327,30 @@ export default defineComponent({
       this.systemMenuOpen = true;
       this.systemMenuIndex = 0;
       this.systemMenuConfirmExit = false;
+      this.systemMenuDiagnostics = false;
     },
     closeSystemMenu(): void {
       this.systemMenuOpen = false;
       this.systemMenuConfirmExit = false;
+      this.systemMenuDiagnostics = false;
     },
     handleSystemMenuIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        if (!this.systemMenuConfirmExit && (intent.dir === 'up' || intent.dir === 'down')) {
+        // No list navigation while a sub-panel (exit confirm / diagnostics) owns
+        // the card — the menu index is hidden underneath.
+        if (!this.systemMenuConfirmExit && !this.systemMenuDiagnostics && (intent.dir === 'up' || intent.dir === 'down')) {
           this.systemMenuIndex = stepIndex(this.systemMenuIndex, intent.dir === 'down' ? 1 : -1, SYSTEM_MENU_ITEMS.length);
         }
         return;
       }
       if (intent.kind !== 'press') {
+        return;
+      }
+      if (this.systemMenuDiagnostics) {
+        // A read-only sub-panel — Back returns to the menu list; nothing else acts.
+        if (intent.button === 'back') {
+          this.systemMenuDiagnostics = false;
+        }
         return;
       }
       if (this.systemMenuConfirmExit) {
@@ -361,6 +374,9 @@ export default defineComponent({
         case 'controls':
           this.closeSystemMenu();
           this.legendOpen = true;
+          break;
+        case 'diagnostics':
+          this.systemMenuDiagnostics = true;
           break;
         case 'exit':
           this.systemMenuConfirmExit = true;

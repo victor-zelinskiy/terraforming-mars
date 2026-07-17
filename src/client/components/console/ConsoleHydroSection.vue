@@ -308,9 +308,6 @@
               <li>{{ $t('The finish slots hold one player each: 2 VP, then 5 VP at game end.') }}</li>
             </ul>
           </div>
-          <footer class="con-task__foot" aria-hidden="true">
-            <span class="con-task__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
-          </footer>
         </div>
       </div>
     </transition>

@@ -108,8 +108,8 @@
       </ConsoleScrollArea>
 
       <!-- Footer: the FOCUSED item's context (one fixed line — owner /
-           ready / "+N to the threshold" / the concrete blocker) + the
-           controller hints; the A hint dims with the real availability. -->
+           ready / "+N to the threshold" / the concrete blocker); controller
+           hints live in the global command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
       <div class="con-ma__foot">
         <div class="con-ma__context" :class="contextClass">
           <template v-if="context.tone === 'owner'">
@@ -119,18 +119,6 @@
           <template v-else-if="context.tone === 'ready'"><span>{{ $t(context.key) }}</span></template>
           <template v-else-if="context.tone === 'gap'"><span>{{ $t('To the threshold') }}: <b>+{{ context.gap }}</b></span></template>
           <template v-else-if="context.tone === 'blocked'"><span>{{ $t(context.key) }}</span></template>
-        </div>
-        <div class="con-ma__hints">
-          <span class="con-ma__hint"><GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span></span>
-          <span class="con-ma__hint" :class="{'con-ma__hint--off': !confirmEnabled}">
-            <GamepadGlyph control="confirm" /><span>{{ $t(kind === 'milestones' ? 'Claim' : 'Fund') }}</span>
-          </span>
-          <span class="con-ma__hint"><GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span></span>
-          <span class="con-ma__hint">
-            <GamepadGlyph :control="kind === 'milestones' ? 'bumperR' : 'bumperL'" />
-            <span>{{ $t(kind === 'milestones' ? 'Awards' : 'Milestones') }}</span>
-          </span>
-          <span class="con-ma__hint"><GamepadGlyph control="back" /><span>{{ $t(free ? 'Minimize' : 'Close') }}</span></span>
         </div>
       </div>
     </div>
@@ -209,9 +197,6 @@ export default defineComponent({
     },
     focused(): ConsoleMaItem | undefined {
       return this.items[this.index];
-    },
-    confirmEnabled(): boolean {
-      return this.focused?.available === true;
     },
     context(): ConsoleMaFocusContext {
       return consoleMaFocusContext(this.focused);

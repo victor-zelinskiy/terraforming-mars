@@ -65,7 +65,7 @@
         single-card use is byte-identical (the stage stays a direct container
         child); only nav mode turns it into the flanking flex row.
       -->
-      <div class="card-zoom-midrow">
+      <div class="card-zoom-midrow" :class="{'card-zoom-midrow--side': hasSide}">
         <!--
           Prev / next navigation controls. Premium side controls that live in
           the viewer's gutters, never on the card. Bounded: at the first / last
@@ -128,6 +128,15 @@
             <span class="card-zoom-nav__chevron" aria-hidden="true"></span>
           </button>
         </div>
+
+        <!-- OPT-IN side panel (console rules panel). Rendered only when the
+             host provides the slot; the fit engine reserves its width. The
+             midrow gains an explicit flex layout via --side (its no-nav
+             default is display:contents, which would let a side child fall
+             out of the row). Desktop hosts pass nothing → byte-identical. -->
+        <div v-if="hasSide" class="card-zoom-side">
+          <slot name="side" />
+        </div>
       </div>
 
       <!--
@@ -173,7 +182,7 @@
         external re-point settled), so the rule blocks always materialize
         around a stationary card — never mid-flight.
       -->
-      <CardAnnotationsLayer :cardName="annotationCardName" :nonce="settleNonce" />
+      <CardAnnotationsLayer :cardName="annotationCardName" :nonce="annotationsSuppressed ? 0 : settleNonce" />
     </div>
   </dialog>
 </template>
@@ -183,6 +192,7 @@ import {defineComponent} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
@@ -296,6 +306,16 @@ export default defineComponent({
       default: true,
     },
     /*
+     * Suppress the floating rule callouts (console: the stable side rules
+     * panel replaces them — «one place for details»). Passing true holds the
+     * annotation layer at nonce 0 (its dismissed state). Desktop never binds
+     * it → default false → byte-identical.
+     */
+    annotationsSuppressed: {
+      type: Boolean,
+      default: false,
+    },
+    /*
      * CONSOLE close signal (opt-in; the shell binds `:closing="zoomClosing"`).
      * The console close plays a ~340ms flight BEFORE the dialog actually
      * closes, so the rule-overlay's usual clear (on the dialog 'close' event)
@@ -351,6 +371,11 @@ export default defineComponent({
     },
     navEnabled(): boolean {
       return this.navList.length > 1;
+    },
+    /** A host-provided side panel (console rules panel) is present — render
+     *  its column and reserve its width in the fit. */
+    hasSide(): boolean {
+      return this.$slots.side !== undefined;
     },
     navCount(): number {
       return this.navList.length;
@@ -874,15 +899,24 @@ export default defineComponent({
       // centre band: the top counter zone is its OWN in-flow row (~44px + a 20px
       // gap) so the card never grows up under it, and each side gutter (~120px)
       // is wide enough that the navigation controls sit fully OUTSIDE the card.
-      const chromeVertical = 48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0);
-      const chromeHorizontal = 32 + 8 + (this.navEnabled ? 200 : 0);
+      //
+      // TV profile (console instance only — `consoleMotion` gates it, so every
+      // desktop instance stays byte-identical): the chrome reservations are
+      // authored for the 1080 logical space and the viewer chrome is rem-based,
+      // so at conUiScale()=2 they physically double — scale them, and lift the
+      // zoom ceiling so the card is the HERO of the 4K stage (~85% of the
+      // viewport height) instead of stalling at the 1080-tuned 2.8 cap.
+      const s = this.consoleMotion ? conUiScale() : 1;
+      const sideReserve = this.hasSide ? 440 * s : 0;
+      const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
+      const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + sideReserve;
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 
       // Per-axis fit zoom, clamped to the readable / aesthetic range.
       const fitZoom = Math.min(availHeight / natural.height, availWidth / natural.width);
       const MIN_ZOOM = 1.0;
-      const MAX_ZOOM = 2.8;
+      const MAX_ZOOM = 2.8 * Math.max(1, s);
       const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
 
       cardEl.style.zoom = String(finalZoom);

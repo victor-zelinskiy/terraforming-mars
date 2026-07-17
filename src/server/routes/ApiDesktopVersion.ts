@@ -5,7 +5,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {computeDesktopVersion, resolvePendingForPlatform} from '../../common/models/DesktopVersionModel';
 import {REALTIME_PROTOCOL_VERSION} from '../../common/realtime/Protocol';
-import {githubCacheTtlMs, githubHeaders} from './desktopGithub';
+import {githubCacheTtlMs, githubFetch} from './desktopGithub';
 
 /**
  * GET /api/desktop/version?platform=win32&current=1.2.3
@@ -28,7 +28,11 @@ import {githubCacheTtlMs, githubHeaders} from './desktopGithub';
  *   TM_DESKTOP_GITHUB_TOKEN     (or GITHUB_TOKEN / GH_TOKEN) — a server-only GitHub token. Lifts the
  *                               API ceiling 60→5000/hr, so the caches below run SHORT and a new
  *                               release is picked up in ~30s instead of up to 2 min. Never sent to
- *                               the client. STRONGLY recommended for a snappy update experience.
+ *                               the client. A fine-grained token needs BOTH `Contents: Read` (the
+ *                               release reads) AND `Actions: Read` (the build-in-progress detector
+ *                               reads workflow runs); a classic token works with no scopes on a
+ *                               public repo. A rejected/insufficient token degrades gracefully to
+ *                               unauthenticated (githubFetch retries without it) — never a freeze.
  *   TM_DESKTOP_GITHUB_TTL_MS    override for every GitHub-read cache TTL (ms). Default: adaptive —
  *                               short when a token is set, long (rate-limit-safe) when it isn't.
  */
@@ -112,13 +116,7 @@ async function githubLatestVersion(): Promise<string | undefined> {
     return githubLatestCache.version;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(GITHUB_LATEST_URL, {
-      signal: controller.signal,
-      headers: githubHeaders('tm-desktop-gate'),
-    });
-    clearTimeout(timer);
+    const res = await githubFetch(GITHUB_LATEST_URL, 'tm-desktop-gate');
     if (!res.ok) {
       return githubLatestCache?.version;
     }
@@ -155,13 +153,7 @@ async function githubPendingBuildVersion(): Promise<string | undefined> {
     return githubRunsCache.version;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(GITHUB_RUNS_URL, {
-      signal: controller.signal,
-      headers: githubHeaders('tm-desktop-gate'),
-    });
-    clearTimeout(timer);
+    const res = await githubFetch(GITHUB_RUNS_URL, 'tm-desktop-gate');
     if (!res.ok) {
       return githubRunsCache?.version;
     }
@@ -209,13 +201,7 @@ async function githubReleasePublishedChannels(version: string): Promise<Set<stri
     return cached.channels;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(githubReleaseTagUrl(`v${version}`), {
-      signal: controller.signal,
-      headers: githubHeaders('tm-desktop-gate'),
-    });
-    clearTimeout(timer);
+    const res = await githubFetch(githubReleaseTagUrl(`v${version}`), 'tm-desktop-gate');
     if (res.status === 404) {
       // The build hasn't created the release yet → nothing published for any platform.
       const channels = new Set<string>();

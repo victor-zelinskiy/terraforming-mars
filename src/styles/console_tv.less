@@ -68,8 +68,13 @@ html.con-profile-tv {
     --con-t-floor: 0.8rem;     /* 16 — the absolute service-text floor */
     /* Focus & interaction */
     --con-focus-ring: 0.18rem; /* ~3.5 logical px ring */
+    --con-glow-r: 1.3rem;      /* couch-visible focus glow radius */
     --con-hit-min: 3.2rem;     /* 64 — minimum interactive height */
     --con-cta-h: 4.2rem;       /* 84 — key CTAs */
+    /* Backdrop DIM-STRONG tier (plan §3.1): every overlay backdrop built on
+       .con-backdrop-dim() rises to "фон нечитаем" on the TV — one knob. */
+    --con-dim-a: 0.86;
+    --con-dim-b: 0.965;
 }
 
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
@@ -140,7 +145,9 @@ html.con-profile-tv {
         zoom: calc(1.35 * var(--con-ui-scale, 1));
     }
     .con-home__value b { font-size: 1.5rem; }
-    .con-award__legend-span { font-size: 0.65rem; }
+    /* Floor rule (§3.4): the smallest legend on the board home reads at the
+       service floor, never below it. */
+    .con-award__legend-span { font-size: var(--con-t-floor); }
 
     /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
     .con-cmdbar {
@@ -159,10 +166,11 @@ html.con-profile-tv {
     /* Footer bay + hand dock: rem geometry scales with the profile for
        free — only the bar-height mirror and the couch count bump move. */
     .con-footer { --con-bar-h: 2.9rem; }
-    /* Couch bump for the dock's status line (label + n/m digits). */
-    .con-handdock__status-label { font-size: .62rem; }
-    .con-handdock__num { font-size: .8rem; }
-    .con-handdock__sep { font-size: .7rem; }
+    /* Couch bump for the dock's status line (label + n/m digits) — held to
+       the type floor (§3.4): service text, but still read from the couch. */
+    .con-handdock__status-label { font-size: var(--con-t-floor); }
+    .con-handdock__num { font-size: .95rem; }
+    .con-handdock__sep { font-size: var(--con-t-floor); }
     /* Bay mode compacts the hint run a notch under the couch sizes too —
        the richest (board home) set must clear the two zones. Still ≥ the
        service-text floor (1rem = 20 logical px). */
@@ -170,12 +178,15 @@ html.con-profile-tv {
         .con-cmdbar__context { font-size: 1rem; }
         .con-cmdbar__cmds { gap: 0.9rem; }
         .con-cmdbar__label { font-size: 1rem; }
-        .con-cmdbar__badge { min-width: 1.2rem; height: 1.2rem; font-size: 0.75rem; }
+        /* Floor rule (§3.4): glyph letters + badges are interactive-adjacent
+           service text — never below 16 logical px. The minimal hint sets +
+           the drop model freed the room the old compact sizes were buying. */
+        .con-cmdbar__badge { min-width: 1.3rem; height: 1.3rem; font-size: var(--con-t-floor); }
         .gp-glyph {
-            min-width: 1.4rem;
-            height: 1.4rem;
-            font-size: 0.7rem;
-            &--pill { min-width: 1.85rem; }
+            min-width: 1.5rem;
+            height: 1.5rem;
+            font-size: var(--con-t-floor);
+            &--pill { min-width: 2rem; }
         }
     }
 
@@ -193,17 +204,22 @@ html.con-profile-tv {
         zoom: var(--con-ui-scale, 1);
     }
 
-    /* ═══ 6 · RT/LT QUICK WHEELS ══════════════════════════════════ */
+    /* ═══ 6 · RT/LT QUICK WHEELS — the couch cross ════════════════
+       Bigger, weightier slots (each answers to ONE direct press): larger
+       plates + icons + labels; the disabled reason reads at the floor,
+       never below. The backdrop rises to dim-strong via the §0 dim vars. */
     .con-quick {
         &__kicker { font-size: 1.3rem; }
-        &__slot { min-height: var(--con-hit-min); min-width: 11rem; }
-        &__slot-label { font-size: 1.1rem; }
-        &__slot-meta { font-size: 0.9rem; }
-        &__slot-glyph { font-size: 1.6rem; }
+        &__slot { min-height: 3.9rem; min-width: 13rem; padding: 0.8rem 1.1rem; }
+        &__slot-label { font-size: 1.25rem; }
+        &__slot-meta { font-size: 0.95rem; }
+        &__slot-glyph { font-size: 1.8rem; }
+        &__slot-reason { font-size: var(--con-t-floor); }
+        &__slot-badge { min-width: 1.4rem; height: 1.4rem; font-size: 0.9rem; }
         &__slot-icon {
-            .bar-btn-icon { width: 2rem; height: 2rem; }
-            .resource_icon { width: 1.8rem; height: 1.8rem; }
-            .std-icon { width: 2rem; height: 2rem; }
+            .bar-btn-icon { width: 2.4rem; height: 2.4rem; }
+            .resource_icon { width: 2.2rem; height: 2.2rem; }
+            .std-icon { width: 2.4rem; height: 2.4rem; }
         }
     }
 
@@ -214,6 +230,10 @@ html.con-profile-tv {
         &__playable { font-size: 0.95rem; }
         &__reason { font-size: var(--con-t-body); }
         &__empty-text { font-size: var(--con-t-body); }
+        /* The blocker chip's adaptive counter-zoom targets a bigger constant
+           on the couch (the fill-pass grows the cards; the chip must read
+           at a glance without shouting). */
+        &__chip { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0.66))"; }
     }
 
     /* ═══ 8 · CARD BROWSER / PICK STRIPS / FULLSCREEN VIEWER ══════ */
@@ -229,6 +249,15 @@ html.con-profile-tv {
         &__desc { font-size: var(--con-t-body); }
         &__hint { font-size: var(--con-t-secondary); }
         &__meta { font-size: var(--con-t-secondary); }
+    }
+    /* The TV rules panel beside the hero card (Этап 1-R2): a full reading
+       column — body text at couch size, capped to the card's height band. */
+    .con-zoom-rules {
+        width: 21.5rem;
+        max-height: 80vh;
+
+        &__text { font-size: var(--con-t-body); line-height: 1.5; }
+        &__kind { font-size: var(--con-t-floor); }
     }
 
     /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
@@ -265,13 +294,33 @@ html.con-profile-tv {
         &__foot-item { font-size: 1.05rem; }
     }
 
-    /* ═══ 11 · SHEETS (standard projects / milestones / awards) ═══ */
+    /* ═══ 11 · SHEETS (generic bottom sheet) ══════════════════════ */
     .con-sheet {
         &__panel { width: min(56rem, 90vw); }
         &__title { font-size: 1.5rem; }
         &__row { min-height: var(--con-hit-min); }
         &__row-name { font-size: var(--con-t-body); }
         &__row-sub { font-size: var(--con-t-secondary); }
+    }
+
+    /* ═══ 11b · STANDARD PROJECTS — the WORKSPACE recomposition ═══
+       (Plan §3.5: the P27 `.con-stdp` screen previously had NO tv block —
+       §11 above styles the LEGACY .con-sheet.) On the couch the screen is
+       a wide working surface, not a desktop dialog: ≥85% of the stage
+       width, tall hit-target rows, couch typography. */
+    .con-stdp {
+        &__panel { width: min(84rem, 94vw); max-height: 90vh; }
+        &__title { font-size: var(--con-t-title); }
+        &__emblem { width: 2.9rem; .bar-btn-icon { width: 1.9rem; height: 1.9rem; } }
+        &__wallet { font-size: 1.05rem; }
+        &__wallet-label { font-size: var(--con-t-floor); }
+        &__wallet-now b { font-size: 1.3rem; }
+        &__grid { gap: 0.9rem; }
+        &__card { min-height: var(--con-hit-min); }
+        &__stage { width: 3.6rem; }
+        &__icon { width: 2.6rem; height: 2.6rem; }
+        &__name { font-size: 1.3rem; }
+        &__desc { font-size: var(--con-t-secondary); }
     }
 
     /* ═══ 12 · MA STRATEGIC PANEL + CONFIRM + CEREMONY ════════════ */
@@ -287,10 +336,14 @@ html.con-profile-tv {
         &__frame { width: min(54rem, 92vw); }
         &__name { font-size: 1.3rem; }
         &__racer-score { font-size: 1.3rem; }
+        /* Floor rule: the crown/status fine print never dips below 16. */
+        &__racer-crown { font-size: var(--con-t-floor); }
     }
     .con-mainspect {
         &__name { font-size: 1.6rem; }
         &__claimed-name { font-size: 1.3rem; }
+        &__statuschip { font-size: var(--con-t-floor); }
+        &__vpchip { font-size: var(--con-t-floor); }
     }
 
     /* ═══ 13 · HYDRO (Delta Project) ══════════════════════════════ */
@@ -306,8 +359,25 @@ html.con-profile-tv {
         &__stop-name { font-size: 0.9rem; }
         &__stage-name { font-size: 1.4rem; }
         &__delta { font-size: 1.15rem; }
-        &__cta { font-size: 1.15rem; padding: 0.7rem 1.1rem; }
+        &__cta { font-size: 1.15rem; padding: 0.7rem 1.1rem; min-height: var(--con-hit-min); }
         &__reason { font-size: var(--con-t-secondary); }
+        /* ── §3.5 recomposition: the decision panel FILLS its band ──
+           The three columns stop top-packing into a thin strip over an
+           empty lower half: content spreads with real air, requirement
+           chips grow to glance-size, and the fine print rises to the
+           floor (the .625–.675rem strings were the worst 10-foot
+           offenders on this screen). */
+        &__panel { gap: 1.4rem 1.6rem; align-content: stretch; }
+        &__col { gap: 0.9rem; }
+        /* The CTA zone anchors the panel's lower edge — the decision column
+           reads top (what) → bottom (act), no orphan void beneath it. */
+        &__cta-zone { margin-top: auto; }
+        &__section-label { font-size: var(--con-t-floor); }
+        &__req-tag .resource-tag { width: 2.1rem; height: 2.1rem; }
+        &__req-legend { font-size: var(--con-t-floor); }
+        &__delta-note { font-size: var(--con-t-floor); }
+        &__skip-or { font-size: var(--con-t-floor); }
+        small { font-size: var(--con-t-floor); }
     }
     .con-hydroconfirm {
         &__frame { width: min(40rem, 90vw); }
@@ -338,11 +408,19 @@ html.con-profile-tv {
 
     /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══ */
     .con-journal {
-        width: min(37rem, 34vw);
+        width: min(44rem, 40vw);
 
-        .journal-text, .journal-em { font-size: 0.95rem; }
-        .journal-player { font-size: 0.9rem; }
-        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 0.9rem; }
+        .journal-text, .journal-em { font-size: 1.05rem; }
+        .journal-player { font-size: 1rem; }
+        .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: 1rem; }
+        /* NEVER truncate a card name in the feed (TV rule §3.5): the chip
+           label wraps with the line instead of ellipsizing. */
+        .journal-chip__label {
+            max-width: none;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
     }
     .con-journal__title { font-size: 1.35rem; }
     .con-journal__gen-label b { font-size: 1.1rem; }
@@ -477,17 +555,39 @@ html.con-profile-tv {
        pass widens the ring + glow on the primary browse surfaces so a
        focused element reads instantly at 2 m, without lighting up idle
        chrome (OLED restraint: glow rides ONLY the focused element). */
-    .con-cards__slot--focused {
+    .con-cards__slot--focused,
+    .con-played__slot--focused {
         box-shadow: 0 0 0 var(--con-focus-ring) fade(@con-cyan, 92%), 0 0 1.4rem fade(@con-cyan, 40%);
         border-radius: 0.6rem;
     }
+    /* ONE couch focus ring across every browse surface (§3.3 — the .con-focus()
+       language at TV width). Single-class `--focused` only: compound state
+       rings (selected/go/picked colour variants) out-specify this and keep
+       their semantic colour, just as in the base sheets. */
     .con-task__opt--focused,
+    .con-task__option--focused,
+    .con-task__tile--focused,
+    .con-task__lane--focused,
     .con-sheet__row--focused,
     .con-sysmenu__item--focused,
     .con-trade__payrow--focused,
     .con-trade__steprow--focused,
-    .con-coltile--focused {
-        box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 1.2rem fade(@con-cyan, 32%);
+    .con-coltile--focused,
+    .con-ma__card--focused,
+    .con-stdp__card--focused,
+    .con-govsupport__card--focused,
+    .con-cardactions__tile--focused,
+    .con-composer__branch--focused,
+    .con-composer__row--focused,
+    .con-composer__opt--focused,
+    .con-start__mini--focused,
+    .con-start__corp--focused,
+    .con-start__prelude--focused,
+    .con-journal__node--focused,
+    .con-colinspect__payrow--focused,
+    .con-prodloss__row--focused,
+    .con-hydro__stop--focused {
+        box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 32%);
     }
 
     /* ═══ 22 · SCROLLBARS (foundation rail reads at distance) ═════ */
@@ -547,5 +647,5 @@ html.console-mode.con-profile-tv .notifications-layer {
     right: var(--con-safe-x);
 }
 html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {
-    right: calc(min(37rem, 34vw) + var(--con-safe-x) + 0.8rem);
+    right: calc(min(44rem, 40vw) + var(--con-safe-x) + 0.8rem);
 }

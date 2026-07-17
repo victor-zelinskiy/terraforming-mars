@@ -54,18 +54,12 @@
         </article>
       </ConsoleScrollArea>
 
-      <!-- Footer: the FOCUSED item's one-line context + controller hints. -->
+      <!-- Footer: the FOCUSED item's one-line context (controller hints live
+           in the global command bar — CONSOLE_TV_PREMIUM_PLAN §3.2). -->
       <div class="con-stdp__foot">
         <div class="con-stdp__context" :class="contextClass">
           <span v-if="focused !== undefined && !focused.available">{{ focusedReason }}</span>
           <span v-else-if="focused !== undefined" class="con-stdp__context-ready">{{ $t('Ready to use now') }}</span>
-        </div>
-        <div class="con-stdp__hints">
-          <span class="con-stdp__hint"><GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span></span>
-          <span class="con-stdp__hint" :class="{'con-stdp__hint--off': focused?.available !== true}">
-            <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-          </span>
-          <span class="con-stdp__hint"><GamepadGlyph control="back" /><span>{{ $t(backLabel) }}</span></span>
         </div>
       </div>
     </div>
@@ -96,7 +90,12 @@ export default defineComponent({
     items: {type: Array as PropType<ReadonlyArray<StdProjectItem>>, required: true},
     index: {type: Number, required: true},
     myMegacredits: {type: Number, required: true},
-    /** B semantics differ for the MANDATORY std-project prompt (Minimize). */
+    /**
+     * B semantics differ for the MANDATORY std-project prompt (Minimize).
+     * Rendered by the shell's command bar now (the local hint row is gone);
+     * kept declared so the shell's :backLabel binding doesn't fall through
+     * as a DOM attribute.
+     */
     backLabel: {type: String, default: 'Close'},
   },
   computed: {

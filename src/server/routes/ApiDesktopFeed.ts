@@ -3,7 +3,7 @@ import {Handler} from './Handler';
 import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
-import {githubCacheTtlMs, githubHeaders} from './desktopGithub';
+import {githubCacheTtlMs, githubFetch} from './desktopGithub';
 
 /**
  * GET /api/desktop/feed/<file>  — Velopack update-feed PROXY for the desktop client.
@@ -39,13 +39,7 @@ async function assetMap(): Promise<Map<string, string>> {
     return assetsCache.map;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(RELEASES_API, {
-      signal: controller.signal,
-      headers: githubHeaders('tm-desktop-feed'),
-    });
-    clearTimeout(timer);
+    const res = await githubFetch(RELEASES_API, 'tm-desktop-feed', 6000);
     if (!res.ok) {
       return assetsCache?.map ?? new Map();
     }

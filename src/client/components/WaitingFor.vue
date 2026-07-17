@@ -421,6 +421,16 @@ type DataModel = {
    * component remounts on every server response via playerkey++).
    */
   realtimeWakeOff: (() => void) | undefined;
+  /**
+   * Set true in `unmounted` so the self-re-arming poll chain can't outlive the
+   * component. `ui_update_timeout_id` is module-level and `askForUpdate` re-arms
+   * itself via `waitForUpdate()`, so leaving a game to a NON-game screen (main
+   * menu) — where no successor WaitingFor mounts to overwrite the shared timer —
+   * used to leave an immortal `/api/waitingfor` poll chain hammering the server.
+   * `waitForUpdate` bails on this flag, and an in-flight xhr's onload re-arm is
+   * likewise suppressed.
+   */
+  pollStopped: boolean;
 }
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
@@ -471,6 +481,7 @@ export default defineComponent({
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
+      pollStopped: false,
     };
   },
   /*
@@ -1122,6 +1133,13 @@ export default defineComponent({
       }
     },
     waitForUpdate(immediate = false) {
+      // The component has unmounted (left the game screen) — do NOT re-arm the
+      // poll chain. Without this an in-flight xhr's onload (or a queued alert
+      // retry) would resurrect the self-re-arming timer after unmount and keep
+      // polling `/api/waitingfor` forever from a non-game screen.
+      if (this.pollStopped) {
+        return;
+      }
       const vueApp = this;
       const root = vueRoot(this);
       clearTimeout(ui_update_timeout_id);
@@ -1316,6 +1334,13 @@ export default defineComponent({
     // Stop the title spinner on a genuine unmount. (Under the legacy remount
     // flag the successor instance's immediate `waitingfor` watcher re-arms it.)
     window.clearInterval(documentTitleTimer);
+    // Stop the self-re-arming poll chain. `ui_update_timeout_id` is module-level
+    // and `askForUpdate` re-arms itself, so without clearing it here (and
+    // guarding `waitForUpdate` on `pollStopped`) leaving a game to a non-game
+    // screen would leave an orphaned `/api/waitingfor` poller hammering forever.
+    this.pollStopped = true;
+    window.clearTimeout(ui_update_timeout_id);
+    ui_update_timeout_id = undefined;
   },
   computed: {
     Phase(): typeof Phase {

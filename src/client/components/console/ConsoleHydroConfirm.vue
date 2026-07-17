@@ -95,11 +95,8 @@
         </div>
       </div>
 
-      <!-- ── Footer: the command contract ──────────────────────────── -->
-      <footer class="con-task__foot" aria-hidden="true">
-        <span class="con-task__foot-item"><GamepadGlyph control="confirm" /><span>{{ $t('Confirm') }}</span></span>
-        <span class="con-task__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Back') }}</span></span>
-      </footer>
+      <!-- Command contract (A Confirm · B Back) lives in the global
+           command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
   </div>
 </template>
@@ -126,7 +123,6 @@
  * (nothing committed).
  */
 import {defineComponent, PropType} from 'vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import {HydroModel} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
@@ -141,7 +137,7 @@ const CONFIRM_DIALOG_OVERRIDES: ConsoleActionOverrides = {confirm: 'confirm', ba
 
 export default defineComponent({
   name: 'ConsoleHydroConfirm',
-  components: {GamepadGlyph, HydroReward},
+  components: {HydroReward},
   props: {
     model: {type: Object as PropType<HydroModel>, required: true},
     rewardView: {type: Object as PropType<HydroRewardView>, required: true},

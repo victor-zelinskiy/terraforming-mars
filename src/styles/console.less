@@ -30,6 +30,55 @@
 @con-text-dim: rgba(196, 216, 236, 0.72);
 @con-font: Prototype, Ubuntu, sans-serif;
 
+/* ── SEMANTIC accents (TV design system) ──────────────────────────────
+   ONE meaning → ONE colour, console-wide. Screen-local palettes (hydro
+   aqua/mint/gold, MA gold, rail plants-green) stay as FLAVOUR tints for
+   decorative chrome, but every STATE (focus / go / warn / danger /
+   prestige / idle-disabled) must resolve through these aliases so a
+   player reads the same language on every screen. */
+@sem-focus: @con-cyan; // the ONLY focus colour
+@sem-go: @con-mint; // selected / available / confirm
+@sem-warn: @con-amber; // soft-block, sale mode, "not now"
+@sem-danger: @con-red; // rules-block, errors, attacks
+@sem-prestige: #ffd87a; // milestones / awards / finale (= @con-ma-gold)
+@sem-idle: rgba(150, 175, 205, 0.6); // disabled / off chrome
+
+/* ── DESIGN TOKENS (base logical space; the TV profile overrides VALUES
+   in console_tv.less — same names, so components consume var() and get
+   the right size on every profile). Base values mirror today's shipped
+   base look — nothing existing changes until a rule opts into a token. */
+html.console-native {
+    --con-t-hero: 1.9rem;
+    --con-t-title: 1.5rem;
+    --con-t-section: 1.25rem;
+    --con-t-body: 1rem;
+    --con-t-secondary: 0.9rem;
+    --con-t-caption: 0.8rem;
+    --con-t-floor: 0.7rem;
+    --con-hit-min: 2.6rem;
+    --con-cta-h: 3.2rem;
+    --con-focus-ring: 0.1rem;
+    --con-glow-r: 0.9rem;
+}
+
+/* ── THE focus mixin — one ring language for every focused/selected state.
+   Inset ring + a single outer glow; colour = the semantic state. Use
+   .con-focus-outer() on card faces (their art must not be overpainted by
+   an inset ring). Glow rides ONLY the focused element (OLED restraint). */
+.con-focus(@color: @sem-focus) {
+    box-shadow: inset 0 0 0 var(--con-focus-ring, 0.1rem) fade(@color, 90%), 0 0 var(--con-glow-r, 0.9rem) fade(@color, 32%);
+}
+.con-focus-outer(@color: @sem-focus) {
+    box-shadow: 0 0 0 var(--con-focus-ring, 0.1rem) fade(@color, 92%), 0 0 var(--con-glow-r, 0.9rem) fade(@color, 36%);
+}
+
+/* Full-screen DIM-STRONG — the TASK/STAGE backdrop tier: the game stays
+   as silhouettes only (no readable panels under a decision or a hero
+   scene). Flat paint, no backdrop-filter (Steam Deck / OLED rule). */
+.con-backdrop-dim-strong() {
+    background: radial-gradient(120% 92% at 50% 44%, rgba(5, 9, 16, 0.9) 0%, rgba(2, 4, 8, 0.97) 100%);
+}
+
 /* PERF (Steam Deck): premium full-screen DIM without backdrop-filter blur.
    A live full-screen blur — worse when several stack over the board, only the
    top of which is ever visible — is the single most GPU-expensive effect on
@@ -37,7 +86,26 @@
    same intent as a frosted scrim) at a flat, cheap paint cost. THE backdrop
    for every console overlay; never reintroduce backdrop-filter here. */
 .con-backdrop-dim() {
-    background: radial-gradient(125% 95% at 50% 42%, rgba(6, 12, 20, 0.74) 0%, rgba(3, 6, 11, 0.93) 100%);
+    /* The stop opacities ride CSS vars so the TV profile can raise EVERY
+       overlay backdrop to the dim-strong tier (fon нечитаем) in one place
+       (console_tv.less) — defaults reproduce the shipped look byte-for-byte
+       on the other profiles. */
+    background: radial-gradient(125% 95% at 50% 42%, rgba(6, 12, 20, var(--con-dim-a, 0.74)) 0%, rgba(3, 6, 11, var(--con-dim-b, 0.93)) 100%);
+}
+
+/* ── STAGE suspends (CONSOLE_TV_PREMIUM_PLAN.md §3.1) ────────────────
+   While the fullscreen card viewer owns the screen (body.con-zoom-open —
+   set for the whole open flight + dialog lifetime), the non-fullscreen
+   console surfaces PARK: they keep state and layout slots (visibility,
+   not display — flight directors may still measure their rects) but
+   never show through the stage veil. Closes the "played tableau / hand
+   dock / draft tray / journal leaking behind a fullscreen card" defect. */
+body.con-zoom-open .con-played,
+body.con-zoom-open .con-played-events,
+body.con-zoom-open .con-drafttray,
+body.con-zoom-open .con-journal,
+body.con-zoom-open .con-handdock {
+    visibility: hidden;
 }
 
 /* ── Root frame (overscan-safe) ──────────────────────────────────── */
@@ -3414,19 +3482,25 @@ html.console-mode {
         left: 50%;
         bottom: .4rem;
         transform: translateX(-50%);
-        max-width: 92%;
+        max-width: 94%;
         padding: .15rem .55rem;
-        border-radius: 49.95rem;
+        border-radius: .55rem;
         background: rgba(8, 13, 20, 0.86);
         box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
         color: #ffc9c4;
         font-size: .75rem;
         font-weight: 700;
         letter-spacing: .015rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        zoom: 1.5; /* counter the slot zoom so the chip stays TV-readable */
+        /* NEVER truncate a reason (TV rule): the chip wraps to a second
+           centred line instead of ellipsizing. */
+        white-space: normal;
+        text-align: center;
+        line-height: 1.15;
+        /* ADAPTIVE counter-zoom: the chip reads at a CONSTANT size whatever
+           the card zoom (the fill-pass grows TV cards far past the old
+           fixed ×1.5 tuning; 0.99/0.66 reproduces it exactly at the base
+           hand zoom). */
+        zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
     }
     &__robot {
@@ -11308,6 +11382,41 @@ html.console-mode .notifications-layer {
         color: @con-text-dim;
         font-size: .85rem;
     }
+
+    /* Diagnostics sub-panel (Menu → Diagnostics): live realtime / poll status. */
+    &__diag {
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        margin-bottom: .4rem;
+    }
+    &__diag-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 2.1rem;
+        padding: .3rem .8rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+    }
+    &__diag-key {
+        font-size: .95rem;
+        color: @con-text-dim;
+        letter-spacing: .02rem;
+    }
+    &__diag-val {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: @con-text;
+        text-align: right;
+
+        &--ok { color: @con-mint; }
+        &--warn { color: @con-amber; }
+        &--dim { color: @con-text-dim; font-weight: 600; }
+        &--mono { font-family: monospace; font-size: .95rem; letter-spacing: .01rem; }
+    }
 }
 
 /* ── P10: PREMIUM LOADING SCREEN (the game-boundary curtain) ───────────
@@ -13264,4 +13373,97 @@ html.con-profile-large {
     .con-start-launch-leave-active,
     .con-start-launch-enter-active,
     .con-start-shift-move { transition: none; }
+}
+
+/* ═══ CONSOLE FULLSCREEN CARD — TV rules panel + side layout ═══════════
+   (CONSOLE_TV_PREMIUM_PLAN.md Этап 1-R2.) The console viewer's stable
+   right-hand rules surface. Scoped to `.con-zoom` — desktop viewers never
+   render the side slot, and their midrow keeps its shipped layout. */
+.con-zoom .card-zoom-midrow--side {
+    /* The no-nav default is display:contents — with a side child that
+       would drop the panel out of the row. Force the flanked row. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+}
+.con-zoom .card-zoom-side {
+    flex-shrink: 0;
+    align-self: center;
+    display: flex;
+}
+.con-zoom-rules {
+    display: flex;
+    flex-direction: column;
+    width: 20rem;
+    max-height: 76vh;
+    border-radius: .7rem;
+    background: @con-glass;
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%), 0 .9rem 2.4rem rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .7rem .95rem .55rem;
+        border-bottom: .05rem solid fade(@con-cyan, 20%);
+    }
+    &__mark {
+        color: fade(@con-cyan, 85%);
+        font-size: var(--con-t-section);
+        line-height: 1;
+    }
+    &__title {
+        font-size: var(--con-t-caption);
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        font-weight: 700;
+    }
+    &__scroll {
+        flex: 1;
+        min-height: 0;
+    }
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+        padding: .8rem .95rem .95rem;
+    }
+    &__group {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    &__kind {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        align-self: flex-start;
+        padding: .12rem .55rem;
+        border-radius: .35rem;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+        color: fade(@con-text, 92%);
+        font-size: var(--con-t-floor);
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+    }
+    &__group--victory-points &__kind {
+        background: fade(@sem-prestige, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@sem-prestige, 34%);
+    }
+    &__group--note &__kind {
+        background: fade(@sem-warn, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@sem-warn, 32%);
+    }
+    &__spark { color: @sem-warn; }
+    &__text {
+        margin: 0;
+        font-size: var(--con-t-secondary);
+        line-height: 1.42;
+        color: fade(@con-text, 94%);
+    }
 }

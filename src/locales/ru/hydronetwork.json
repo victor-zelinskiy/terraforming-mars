@@ -108,6 +108,7 @@
   "Reaching a stage requires every tag along the path (wild tags count).": "Для продвижения нужны метки всех этапов на пути (универсальные метки считаются).",
   "The finish slots hold one player each: 2 VP, then 5 VP at game end.": "Финишные позиции вмещают по одному игроку: 2 ПО и 5 ПО в конце игры.",
   "Farthest available": "Дальний доступный",
+  "Farthest stage": "К дальнему",
   "Reinforce": "Укрепить",
   "Stage requirements are not met": "Не выполнены требования этапа",
   "No change": "Без изменений"

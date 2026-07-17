@@ -26,9 +26,6 @@
           <span v-if="!entry.available" class="con-quick__slot-reason">{{ $t(entry.reason) }}</span>
         </div>
       </div>
-      <div class="con-quick__foot" aria-hidden="true">
-        <span class="con-quick__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
-      </div>
     </div>
   </div>
 </template>

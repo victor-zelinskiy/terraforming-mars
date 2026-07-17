@@ -316,13 +316,9 @@
           </div>
         </div>
 
-        <!-- ── Footer: the command contract, always visible ────────── -->
-        <footer class="con-task__foot" aria-hidden="true">
-          <span v-for="(hint, i) in footHints" :key="i" class="con-task__foot-item" :class="{'con-task__foot-item--off': hint.enabled === false}">
-            <GamepadGlyph :control="hint.control" />
-            <span>{{ $t(hint.label) }}</span>
-          </span>
-        </footer>
+        <!-- The command contract publishes to the shell's ONE bottom command
+             bar via consolePanelUi (CONSOLE_TV_PREMIUM_PLAN §3.2) — the
+             footCommands watch below; no panel-local hint row. -->
       </div>
     </transition>
 
@@ -393,6 +389,8 @@ type TargetRowVM = {isTrack: boolean, tag?: Tag, iconClass: string, from: number
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {
   amountResponse, cardsResponse, deltaProjectResponse, optionConfirmResponse, orOptionResponse,
   orWrappedResponse, paymentResponse, playerResponse, productionToLoseResponse, resourceResponse,
@@ -937,7 +935,9 @@ export default defineComponent({
         return true;
       }
     },
-    footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
+    /** The live command contract — published to the shell's ONE bottom
+     *  command bar through consolePanelUi (the footCommands watch below). */
+    footCommands(): Array<ConsoleCommand> {
       // While the deal cinematic / a draft beat runs, selection is NOT
       // interactive yet — the bar advertises only the skip (any button skips).
       if (this.deal.state.active || this.trayPickBeat) {
@@ -1071,6 +1071,16 @@ export default defineComponent({
     gridMode() {
       void this.$nextTick(() => this.fitCardStrip());
     },
+    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+     *  command bar (consolePanelUi) — hints live only there, never in a
+     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        setPanelCommands('taskHost', cmds);
+      },
+    },
   },
   mounted() {
     void this.$nextTick(() => this.fitCardStrip());
@@ -1079,6 +1089,7 @@ export default defineComponent({
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
   },
   beforeUnmount() {
+    clearPanelCommands('taskHost');
     this.stopStripObs?.();
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {

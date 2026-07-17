@@ -233,16 +233,9 @@
                            @cancel="onComposerCancel"
                            @repeat-pick="onRepeatPick" />
 
-    <!-- ── The ONE bottom command bar (hidden while the composer owns it) ── -->
-    <footer v-if="composer === undefined" class="con-cardactions__foot" aria-hidden="true">
-      <span v-for="(hint, i) in footHints" :key="i"
-            class="con-cardactions__foot-item"
-            :class="{'con-cardactions__foot-item--off': hint.enabled === false}">
-        <GamepadGlyph :control="hint.control" />
-        <GamepadGlyph v-if="hint.control2 !== undefined" :control="hint.control2" />
-        <span>{{ $t(hint.label) }}</span>
-      </span>
-    </footer>
+    <!-- The command contract lives in the global command bar
+         (CONSOLE_TV_PREMIUM_PLAN §3.2); the filter groups above keep their
+         own on-object LB/RB · LT/RT chips — the sanctioned exception. -->
   </div>
 </template>
 
@@ -260,8 +253,8 @@
  * (`buildActionBatch` mirrors `submitCardActionBatch`; a Viron repeat rides
  * the same prefix handoff as `submitRepeatActionBatch`).
  *
- * Control grammar (hints in the ONE bottom footer; the filter groups carry
- * their own LB/RB · LT/RT chips — the sanctioned exception):
+ * Control grammar (hints live in the global command bar — the filter groups
+ * carry their own on-object LB/RB · LT/RT chips, the sanctioned exception):
  *   D-pad = navigate variants · A = set up / confirm the focused action
  *   (unavailable → reason, never fires) · X = inspect the card fullscreen ·
  *   LB/RB = availability · LT/RT = activation · R3 = reset · RS = scroll ·
@@ -276,6 +269,8 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
@@ -302,7 +297,6 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {findPerformActionCard, wrapPath} from '@/client/console/turnIntents';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
@@ -428,6 +422,30 @@ export default defineComponent({
       const tile = this.focusedTile;
       return tile === undefined ? undefined : this.model.groups.find((g) => g.cardName === tile.cardName);
     },
+    /** The Action Center's grid contract for the ONE shell bar (plan §3.2).
+     *  Empty while the composer is open — the composer publishes its own
+     *  slot then ('actionComposer'); the watcher below skips publishing. */
+    footCommands(): Array<ConsoleCommand> {
+      if (this.composer !== undefined) {
+        return [];
+      }
+      if (this.model.groups.length === 0) {
+        // Empty state: the reset + the filter chords lead (the filters are
+        // what emptied the grid).
+        return [
+          {control: 'stickR', label: 'Reset'},
+          {control: 'bumperL', control2: 'bumperR', label: 'Availability'},
+          {control: 'triggerL', control2: 'triggerR', label: 'Activation'},
+          {control: 'back', label: 'Close'},
+        ];
+      }
+      return [
+        {control: 'confirm', label: 'Perform', enabled: this.focusedTile?.status === 'available'},
+        {control: 'secondary', label: 'Inspect'},
+        {control: 'stickR', label: 'Reset'},
+        {control: 'back', label: 'Close'},
+      ];
+    },
     statForFocused(): EffectOverlayStat | undefined {
       const tile = this.focusedTile;
       return tile === undefined ? undefined : this.stats.find((s) => s.card === tile.cardName);
@@ -471,27 +489,6 @@ export default defineComponent({
       return `${translateText('Availability')}: ${translateText(availability?.label ?? '')} · ` +
         `${translateText('Activation')}: ${translateText(activation?.label ?? '')}`;
     },
-    /** The ONE bottom command contract (grid context; the composer owns its own). */
-    footHints(): Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> {
-      const canAct = this.focusedTile?.status === 'available';
-      const hints: Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> = [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: 'Perform', enabled: canAct},
-        {control: 'secondary', label: 'Inspect'},
-        {control: 'stickR', label: 'Reset'},
-        {control: 'back', label: 'Close'},
-      ];
-      if (this.model.groups.length === 0) {
-        // Empty state: the reset affordance leads.
-        return [
-          {control: 'stickR', label: 'Reset'},
-          {control: 'bumperL', control2: 'bumperR', label: 'Availability'},
-          {control: 'triggerL', control2: 'triggerR', label: 'Activation'},
-          {control: 'back', label: 'Close'},
-        ];
-      }
-      return hints;
-    },
   },
   watch: {
     'previewFingerprint': {
@@ -530,6 +527,17 @@ export default defineComponent({
     composer(value: ComposerContext | undefined) {
       consoleCardActionsUi.confirmOpen = value !== undefined;
     },
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        // While the composer is open IT owns the panel slot — publishing an
+        // empty grid contract here would steal the owner key back.
+        if (this.composer === undefined) {
+          setPanelCommands('cardActions', cmds);
+        }
+      },
+    },
   },
   mounted() {
     consoleCardActionsUi.confirmOpen = false;
@@ -537,6 +545,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     consoleCardActionsUi.confirmOpen = false;
+    clearPanelCommands('cardActions');
     if (this.shakeTimer !== undefined) {
       window.clearTimeout(this.shakeTimer);
     }

@@ -231,7 +231,10 @@
     /* auto, not none: swallow stray mouse clicks during the open flight
        (the top-layer dialog takes over input once shown). */
     pointer-events: auto;
-    .con-backdrop-dim();
+    /* STAGE tier (plan §3.1): the fullscreen card is a theater scene — the
+       game behind it goes to silhouettes, on every profile (this is the
+       defect-class fix for panels reading through the old translucent dim). */
+    .con-backdrop-dim-strong();
     transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
 
     &--lifted {

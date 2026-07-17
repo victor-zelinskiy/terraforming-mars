@@ -62,15 +62,8 @@
       <!-- Focused-card briefing line (fixed height → never shifts the grid). -->
       <div class="con-govsupport__detail">{{ focusedDetail }}</div>
 
-      <!-- ── Command contract ────────────────────────────────────────── -->
-      <footer class="con-govsupport__foot" aria-hidden="true">
-        <span v-for="(hint, i) in footHints" :key="i"
-              class="con-govsupport__foot-item"
-              :class="{'con-govsupport__foot-item--off': hint.enabled === false}">
-          <GamepadGlyph :control="hint.control" />
-          <span>{{ $t(hint.label) }}</span>
-        </span>
-      </footer>
+      <!-- The command contract publishes to the shell's ONE bottom command
+           bar via consolePanelUi (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
   </div>
 </template>
@@ -104,7 +97,8 @@ import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {buildGovSupportCards, firstAvailableIndex, GovCard, GovParam} from '@/client/console/consoleGovernmentSupport';
 import {SCALE_FOCUS_PARAMS} from '@/client/console/consoleGovScaleFocus';
@@ -177,7 +171,9 @@ export default defineComponent({
         translateText(key) :
         translateText('A planetary initiative will raise one global parameter.');
     },
-    footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
+    /** The live command contract — published to the shell's ONE bottom
+     *  command bar through consolePanelUi (the footCommands watch below). */
+    footCommands(): Array<ConsoleCommand> {
       const card = this.focusedCard;
       const applyLabel = card?.isSpace === true && card.available ? 'Select ocean space' : 'Apply';
       return [
@@ -199,6 +195,19 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+     *  command bar (consolePanelUi) — hints live only there, never in a
+     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        setPanelCommands('govSupport', cmds);
+      },
+    },
+  },
+  beforeUnmount() {
+    clearPanelCommands('govSupport');
   },
   methods: {
     textOf(v: string | Message | undefined): string {

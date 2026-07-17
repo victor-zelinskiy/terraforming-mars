@@ -28,11 +28,6 @@
           </div>
         </template>
       </ConsoleScrollArea>
-      <div class="con-sheet__foot">
-        <span class="con-sheet__foot-item"><GamepadGlyph control="dpad" /><span>{{ $t('Navigate') }}</span></span>
-        <span class="con-sheet__foot-item"><GamepadGlyph control="stickScroll" /><span>{{ $t('Scroll') }}</span></span>
-        <span class="con-sheet__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
-      </div>
     </div>
   </div>
 </template>

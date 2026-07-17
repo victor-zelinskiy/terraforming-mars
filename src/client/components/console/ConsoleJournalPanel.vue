@@ -18,9 +18,6 @@
           <span v-if="filterColor !== undefined" class="con-status__dot" :class="'player_bg_color_' + filterColor"></span>
           <span class="con-journal__filter-label">{{ filterLabel }}</span>
         </div>
-        <span class="con-journal__closehint" aria-hidden="true">
-          <GamepadGlyph control="back" /><span v-i18n>Close</span>
-        </span>
       </div>
 
       <div class="con-journal__controls">
@@ -114,9 +111,6 @@
             <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
           </div>
         </div>
-        <div class="con-journal__inspect-hint">
-          <GamepadGlyph control="back" /><span v-i18n>Close</span>
-        </div>
       </div>
     </div>
 
@@ -135,10 +129,6 @@
         <span v-if="opt.color !== undefined" class="con-status__dot" :class="'player_bg_color_' + opt.color"></span>
         <span class="con-journal__filterpop-label">{{ opt.color !== undefined ? opt.label : $t(opt.label) }}</span>
         <span v-if="filterEquals(opt.filter, filter)" class="con-journal__filterpop-tick" aria-hidden="true">✓</span>
-      </div>
-      <div class="con-journal__filterpop-hint">
-        <span><GamepadGlyph control="confirm" /><span v-i18n>Select</span></span>
-        <span><GamepadGlyph control="back" /><span v-i18n>Close</span></span>
       </div>
     </div>
   </aside>

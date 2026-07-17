@@ -138,19 +138,12 @@
         </div>
       </div>
 
-      <footer class="con-mainspect__foot" aria-hidden="true">
-        <span v-if="item.available" class="con-mainspect__foot-item con-mainspect__foot-item--go">
-          <GamepadGlyph control="confirm" /><span>{{ $t(view.kind === 'milestone' ? 'Claim' : 'Fund') }}</span>
-        </span>
-        <span class="con-mainspect__foot-item"><GamepadGlyph control="back" /><span>{{ $t('Close') }}</span></span>
-      </footer>
     </div>
   </div>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
@@ -160,7 +153,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 
 export default defineComponent({
   name: 'ConsoleMaInspect',
-  components: {GamepadGlyph, MaHeroArt},
+  components: {MaHeroArt},
   props: {
     item: {type: Object as PropType<ConsoleMaItem>, required: true},
     players: {type: Array as PropType<ReadonlyArray<MaInspectPlayer>>, required: true},

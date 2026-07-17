@@ -53,23 +53,16 @@
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
+
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
-import {bayCommandSplit, commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
+import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
+import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 import {translateText} from '@/client/directives/i18n';
 
-export type ConsoleCommand = {
-  control: GlyphControl,
-  /** A paired second glyph (LB+RB acting as ONE command, e.g. «Бонус»). */
-  control2?: GlyphControl,
-  /** English i18n key. */
-  label: string,
-  enabled?: boolean,
-  /** Availability count (LB Достижения ②) — rendered as a badge chip. */
-  badge?: number,
-  /** Something is claimable behind this command — the glyph+label glow. */
-  highlight?: boolean,
-};
+/* The type lives in consoleCommandModel.ts (pure TS — importable by plain
+ * .ts modules); re-exported here so the existing .vue importers keep their
+ * `from 'ConsoleCommandBar.vue'` path. */
+export type {ConsoleCommand};
 
 export default defineComponent({
   name: 'ConsoleCommandBar',
@@ -85,11 +78,16 @@ export default defineComponent({
     return {vpWidth: width, profile, uiScale};
   },
   computed: {
-    /** How many commands render in the LEFT zone (0 in classic mode). The
-     *  estimate only picks the split — each zone still clips overflow. */
-    splitIndex(): number {
+    /**
+     * The TV fit plan: which commands RENDER and how they split around the
+     * bay. When the run overflows both zone budgets, whole low-priority
+     * commands DROP (consoleCommandModel) — a hint label never truncates.
+     * Classic (non-bay) bars keep every command (menus are hint-light).
+     */
+    runPlan(): {kept: ReadonlyArray<number>, splitIndex: number} {
+      const all = this.commands.map((_, i) => i);
       if (!this.bay || this.commands.length === 0) {
-        return 0;
+        return {kept: all, splitIndex: 0};
       }
       const remPx = 20 * (this.uiScale || 1);
       const wRem = this.vpWidth / remPx;
@@ -100,17 +98,24 @@ export default defineComponent({
       const barPad = this.profile === 'handheld' ? 0.7 : 1.2;
       const halfRem = wRem / 2 - handDockBayRem(this.profile) / 2 - rootPad - barPad - 1;
       const zoneLeft = halfRem - contextWidthRem(translateText(this.context));
-      const widths = this.commands.map((c) => commandWidthRem(translateText(c.label), {
-        badge: c.badge !== undefined && c.badge > 0,
-        twoGlyphs: c.control2 !== undefined,
+      const entries = this.commands.map((c) => ({
+        width: commandWidthRem(translateText(c.label), {
+          badge: c.badge !== undefined && c.badge > 0,
+          twoGlyphs: c.control2 !== undefined,
+        }),
+        keep: c.control === 'confirm' || c.control === 'back',
+        dropPriority: c.priority ?? defaultDropPriority(c.control),
       }));
-      return bayCommandSplit(widths, zoneLeft, halfRem);
+      const plan = planCommandRun(entries, zoneLeft, halfRem);
+      return {kept: plan.kept, splitIndex: plan.splitIndex};
     },
     cmdsLeft(): ReadonlyArray<ConsoleCommand> {
-      return this.commands.slice(0, this.splitIndex);
+      const {kept, splitIndex} = this.runPlan;
+      return kept.slice(0, splitIndex).map((i) => this.commands[i]);
     },
     cmdsRight(): ReadonlyArray<ConsoleCommand> {
-      return this.commands.slice(this.splitIndex);
+      const {kept, splitIndex} = this.runPlan;
+      return kept.slice(splitIndex).map((i) => this.commands[i]);
     },
   },
 });

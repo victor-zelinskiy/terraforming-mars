@@ -111,9 +111,11 @@ export type ConsoleColonyPick = {
 
 type FleetChip = {color: Color, name: string, free: number, total: number, me: boolean};
 
-/** The tile-fit bounds: how far the base tile may shrink / grow to fill space. */
+/** The tile-fit bounds: how far the base tile may shrink / grow to fill space.
+ *  The grow cap is deliberately generous — on the 4K tv profile the grid's
+ *  fit engine may raise tiles further into the freed stage (plan §3.5). */
 const MIN_TILE_SCALE = 0.72;
-const MAX_TILE_SCALE = 1.8;
+const MAX_TILE_SCALE = 2.0;
 // Grid gaps + padding — MUST match `.con-colonies__grid` in console.less.
 const COL_GAP = 18;
 const ROW_GAP = 16;

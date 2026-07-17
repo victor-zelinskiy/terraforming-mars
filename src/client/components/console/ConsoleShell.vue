@@ -403,8 +403,17 @@
                    :dismissable="!consoleCardZoom.mandatory"
                    :closing="zoomClosing"
                    :consoleMotion="true"
+                   :annotationsSuppressed="zoomHasRules"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
+      <!-- TV rules panel (Этап 1-R2): the stable right-hand rules surface —
+           the structured Card Information blocks beside the hero card. The
+           floating callouts are suppressed while it shows (one place for
+           details); cards with no structured rules render no panel and the
+           fit reclaims the width. -->
+      <template v-if="zoomHasRules" #side>
+        <ConsoleCardRulesPanel :cardName="consoleCardZoom.card.name" />
+      </template>
       <template #actions>
         <!-- A read-only inspector (bot-turn / card-actions, opened from a chip)
              names itself, so the card never reads as an ordinary picked card. -->
@@ -689,7 +698,7 @@ import {armMaCeremony} from '@/client/components/ma/maCeremonyState';
 import {MaKind} from '@/client/components/ma/maArt';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
-import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, QUICK_SLOT_GLYPH, StdProjectItem} from '@/client/console/consoleQuickModel';
+import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import {scaleTooltipState, ScaleTooltipContent, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
@@ -736,12 +745,14 @@ import {CardType} from '@/common/cards/CardType';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
+import {panelCommands} from '@/client/console/consolePanelUi';
 import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
+import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -854,6 +865,7 @@ export default defineComponent({
     ConsoleResourcePanel,
     ConsoleColoniesSection,
     ConsoleInfoMode,
+    ConsoleCardRulesPanel,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
@@ -2047,6 +2059,9 @@ export default defineComponent({
         default: return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
         }
       }
+      if (this.infoModeState.open) {
+        return 'Information';
+      }
       if (this.draftWaitActive) {
         return 'Waiting for draft cards';
       }
@@ -2164,15 +2179,11 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
-      // PRESENTATION FLOW: the compact AI-turn card is the foreground item —
-      // its contract owns the bar (X open the review, B close).
+      // PRESENTATION FLOW: the compact AI-turn card is the foreground item.
+      // The card itself carries its X verb ON the card (the one visible
+      // affordance); the bar only anchors B (one place per hint — §3.2).
       if (this.foregroundHoldingCard !== undefined && this.consoleCardZoom.card === undefined) {
-        const cmds: Array<ConsoleCommand> = [];
-        if (this.foregroundHoldingCard.botTurnKey !== undefined) {
-          cmds.push({control: 'secondary', label: 'Watch turn'});
-        }
-        cmds.push({control: 'back', label: 'Close'});
-        return cmds;
+        return [{control: 'back', label: 'Close'}];
       }
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
@@ -2180,10 +2191,15 @@ export default defineComponent({
       }
       if (this.consoleState.fallbackActive) {
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'Back'},
         ];
+      }
+      // LT INFORMATION MODE — the dashboard publishes its live contextual
+      // contract (players / detail tabs / VP) through consolePanelUi; the
+      // bar is its ONE hint surface (the old in-panel footer is gone).
+      if (this.infoModeState.open) {
+        return [...(panelCommands('infoMode') ?? [{control: 'inspect', label: 'Close'}])];
       }
       // A draft beat (hero landing / the research rise) owns the moment —
       // the bar advertises only the skip (any button skips).
@@ -2207,10 +2223,6 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [];
         if (this.consoleRevealMode === 'drawn') {
           const ev = currentRevealEvent();
-          const untaken = ev !== undefined ? ev.cards.length - ev.takenIndices.size : 0;
-          if (untaken > 1) {
-            cmds.push({control: 'dpadH', label: 'Navigate'});
-          }
           cmds.push({control: 'confirm', label: 'Take card'});
           cmds.push({control: 'secondary', label: 'Inspect'});
           if (ev?.source?.type === 'card') {
@@ -2223,7 +2235,6 @@ export default defineComponent({
           }
           cmds.push({control: 'back', label: 'Take all cards'});
         } else if (this.consoleRevealMode === 'viewer') {
-          cmds.push({control: 'dpadH', label: 'Navigate'});
           cmds.push({control: 'secondary', label: 'Inspect'});
           cmds.push({control: 'back', label: 'Close'});
         } else {
@@ -2240,38 +2251,35 @@ export default defineComponent({
         return consoleStartUi.commands.length > 0 ?
           [...consoleStartUi.commands] :
           [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'confirm', label: 'Select'},
             {control: 'secondary', label: 'Inspect'},
             {control: 'back', label: 'Minimize'},
           ];
       }
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        // The panel footer carries the context-aware contract; the bar mirrors it.
-        return [
-          {control: 'dpad', label: 'Navigate'},
+        // The panel publishes its context-aware contract (consolePanelUi) —
+        // the bar is the ONE hint surface (the in-panel footer is gone).
+        return [...(panelCommands('govSupport') ?? [
           {control: 'confirm', label: 'Apply'},
           {control: 'back', label: 'Minimize'},
-        ];
+        ])];
       }
       if (this.productionLossActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        // The production-loss surface footer carries the contract; the bar mirrors it.
-        return [
-          {control: 'dpad', label: 'Navigate'},
+        return [...(panelCommands('productionLoss') ?? [
           {control: 'confirm', label: '−1'},
           {control: 'bumperL', label: '+1'},
           {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: 'Minimize'},
-        ];
+        ])];
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        // The task frame carries the detailed contract; the bar mirrors it.
-        return [
-          {control: 'dpad', label: 'Navigate'},
+        // The task host publishes its live contract (browse / pick / lanes /
+        // payment differ) — the bar renders it; no in-frame footer anymore.
+        return [...(panelCommands('taskHost') ?? [
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
-        ];
+        ])];
       }
       if (this.pendingPlayCard !== undefined) {
         // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
@@ -2287,7 +2295,6 @@ export default defineComponent({
         // is the ONLY hint surface (no inline duplicates).
         if (consoleColoniesUi.composerSub === 'lanes') {
           return [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'triggerR', label: 'Max'},
             {control: 'confirm', label: 'Done'},
             {control: 'back', label: 'Back'},
@@ -2295,13 +2302,11 @@ export default defineComponent({
         }
         if (consoleColoniesUi.composerSub === 'list') {
           return [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'confirm', label: 'Select'},
             {control: 'back', label: 'Back'},
           ];
         }
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
           {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
           {control: 'back', label: 'Cancel'},
@@ -2310,11 +2315,8 @@ export default defineComponent({
       if (this.colonyInspectActive) {
         const cmds: Array<ConsoleCommand> = [];
         // Section source: ←/→ pages colonies + A trades a live-tradeable one.
-        if (this.journalColonyInspect === undefined) {
-          cmds.push({control: 'dpad', label: 'Navigate'});
-          if (this.colonyInspectTradeable) {
-            cmds.push({control: 'confirm', label: 'Trade'});
-          }
+        if (this.journalColonyInspect === undefined && this.colonyInspectTradeable) {
+          cmds.push({control: 'confirm', label: 'Trade'});
         }
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
@@ -2352,13 +2354,15 @@ export default defineComponent({
         }
         if (consoleJournalUi.filterOpen) {
           return [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'confirm', label: 'Select'},
             {control: 'back', label: 'Close'},
           ];
         }
+        // The panel's own header carries the LB/RB mode tabs, LT/RT
+        // generation pager and R3 filter chip ON the controls they drive —
+        // the bar advertises only the focused ENTRY's verbs (§3.2: one
+        // place per hint; this is what ends the truncated 9-hint runs).
         const cmds: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Entries'},
           {control: 'confirm', label: consoleJournalUi.focusExpanded ? 'Collapse' : 'Details', enabled: consoleJournalUi.focusIsGroup},
           // P29: X = «Осмотреть» — cards, standard projects/actions, hydro,
           // map-only entries (never the too-narrow «Карта»).
@@ -2367,18 +2371,7 @@ export default defineComponent({
         if (consoleJournalUi.focusHasSpace) {
           cmds.push({control: 'stickL', label: 'Show on map'});
         }
-        cmds.push(
-          {control: 'bumperL', control2: 'bumperR', label: 'Mode'},
-          {control: 'triggerL', control2: 'triggerR', label: 'Generation',
-            enabled: consoleJournalUi.canPrevGen || consoleJournalUi.canNextGen},
-        );
-        if (consoleJournalUi.filterAvailable) {
-          cmds.push({control: 'stickR', label: 'Filter'});
-        }
-        cmds.push(
-          {control: 'inspect', label: 'Information'},
-          {control: 'back', label: 'Close'},
-        );
+        cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
       if (this.corpFirstActionOpen) {
@@ -2392,10 +2385,7 @@ export default defineComponent({
         if (this.corpFirstActionNames.length > 1) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Corporation'});
         }
-        cmds.push(
-          {control: 'inspect', label: 'Information'},
-          {control: 'back', label: 'Minimize'},
-        );
+        cmds.push({control: 'back', label: 'Minimize'});
         return cmds;
       }
       if (this.playedTableVisible) {
@@ -2404,52 +2394,45 @@ export default defineComponent({
         // back (closes the list, never the tableau).
         if (consolePlayedUi.eventsOpen) {
           return [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'secondary', label: 'Inspect'},
             {control: 'back', label: 'Back'},
           ];
         }
-        const cmds: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Navigate'},
-        ];
+        const cmds: Array<ConsoleCommand> = [];
         cmds.push({control: 'secondary',
           label: consolePlayedUi.focusKind === 'events' ? 'Open' : 'Inspect',
           enabled: consolePlayedUi.focusKind !== 'none'});
         if (consolePlayedUi.canCyclePlayer) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
         }
-        cmds.push(
-          {control: 'inspect', label: 'Information'},
-          {control: 'back', label: 'Close'},
-        );
-        return cmds;
-      }
-      if (this.consoleState.quick !== undefined) {
-        // P27: the bar mirrors the selector's OWN slot map — one source.
-        const cmds: Array<ConsoleCommand> = this.quickEntries.map((e) => ({
-          control: QUICK_SLOT_GLYPH[e.slot],
-          label: e.label,
-          enabled: e.available,
-          badge: e.badge,
-          highlight: e.available && (e.badge ?? 0) > 0,
-        }));
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
+      if (this.consoleState.quick !== undefined) {
+        // The cross's slots carry their OWN direction glyphs + labels on
+        // screen — the bar anchors only the retreat (user rule: when the
+        // verbs are visible in the open surface, the bar stays minimal).
+        return [{control: 'back', label: 'Close'}];
+      }
       if (this.consoleState.sheet === 'standardProjects') {
-        const focusedStd = this.stdProjectItems[this.consoleState.sheetIndex];
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select', enabled: focusedStd?.available === true},
-          {control: 'back', label: this.stdBackLabel},
-        ];
+        // Every project row renders its own Ⓐ verb chip — the bar anchors
+        // only the retreat.
+        return [{control: 'back', label: this.stdBackLabel}];
+      }
+      if (this.consoleState.sheet === 'cardActions') {
+        // The Action Center (and, while open, its composer) publishes the
+        // live contract — grid browse vs branch/dial/payment states differ.
+        return [...(panelCommands('actionComposer') ?? panelCommands('cardActions') ?? [
+          {control: 'confirm', label: 'Perform'},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Close'},
+        ])];
       }
       if (this.maScreenKind !== undefined) {
         // P26: the hints mirror the REAL state — the verb is enabled only
         // when the focused item is actionable; bumpers switch the category.
         const focusedMa = this.maScreenItems[this.consoleState.sheetIndex];
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund', enabled: focusedMa?.available === true},
           {control: 'secondary', label: 'Inspect'},
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
@@ -2459,7 +2442,6 @@ export default defineComponent({
       }
       if (this.consoleState.sheet !== undefined) {
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: this.consoleState.sheet === 'hydroPick' ? 'Back' : 'To the board'},
         ];
@@ -2483,11 +2465,10 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         const n = this.consoleState.sale.selected.length;
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'stickL', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
           {control: 'secondary', label: 'Inspect'},
-          {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0},
+          {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0, priority: 1},
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -2498,7 +2479,7 @@ export default defineComponent({
         const canPick = focusName !== undefined && this.handSelectSelectableNames.includes(focusName);
         const verb = this.handSelectModel?.buttonLabel || 'Select';
         const n = this.consoleState.select.selected.length;
-        const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate'}];
+        const cmds: Array<ConsoleCommand> = [];
         if (this.handSelectSingle) {
           cmds.push({control: 'confirm', label: verb, enabled: canPick});
         } else {
@@ -2515,7 +2496,6 @@ export default defineComponent({
       if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
         const cmds: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Inspect'},
         ];
@@ -2526,7 +2506,6 @@ export default defineComponent({
           cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Tag filter'});
           cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
         }
-        cmds.push({control: 'inspect', label: 'Information'});
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
@@ -2537,20 +2516,16 @@ export default defineComponent({
           const selected = this.coloniesForRail[this.consoleState.colonyIndex];
           const pickable = selected !== undefined && pick.selectable.includes(selected.name);
           return [
-            {control: 'dpad', label: 'Navigate'},
             {control: 'confirm', label: pick.buttonLabel, enabled: pickable},
             {control: 'secondary', label: 'Inspect'},
-            {control: 'inspect', label: 'Information'},
             {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
           ];
         }
         const selected = this.game.colonies[this.consoleState.colonyIndex];
         const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Trade', enabled: tradeable},
           {control: 'secondary', label: 'Inspect'},
-          {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
         ];
       }
@@ -2568,21 +2543,25 @@ export default defineComponent({
         if (consoleHydroUi.helpOpen) {
           return [{control: 'back', label: 'Close'}];
         }
-        return [
-          {control: 'dpadH', label: 'Stages'},
-          {control: 'bumperL', control2: 'bumperR', label: 'Bonus', enabled: consoleHydroUi.bonusChoice},
-          {control: 'triggerR', label: 'Farthest available'},
+        const cmds: Array<ConsoleCommand> = [{control: 'dpadH', label: 'Stages', priority: 2}];
+        if (consoleHydroUi.bonusChoice) {
+          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Bonus'});
+        }
+        cmds.push(
+          // The SHORT key on purpose (the old «Farthest available» was the
+          // one atom that reliably truncated in the bay bar).
+          {control: 'triggerR', label: 'Farthest stage'},
           consoleHydroUi.mode === 'details' ?
             {control: 'confirm', label: 'Back to plan'} :
             {control: 'confirm', label: 'Reinforce', enabled: consoleHydroUi.primaryEnabled},
           {control: 'secondary', label: 'Details'},
           {control: 'back', label: 'To the board'},
-        ];
+        );
+        return cmds;
       }
       // P27b: SCALE INSPECTION MODE — the bonus ring, B/R3 exit.
       if (this.consoleState.scaleInspecting) {
         return [
-          {control: 'dpadH', label: 'Navigate'},
           {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
           {control: 'stickR', label: 'Exit'},
@@ -2591,7 +2570,6 @@ export default defineComponent({
       // P27: BOARD INSPECTION MODE — strict cell traversal, B/L3 exit.
       if (this.consoleState.inspecting) {
         return [
-          {control: 'dpad', label: 'Navigate'},
           {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
           {control: 'stickL', label: 'Exit'},
@@ -2617,6 +2595,12 @@ export default defineComponent({
       ];
     },
     // ── P15: the fullscreen viewer's select context ─────────────────────
+    /** The TV rules panel shows for cards with structured information —
+     *  and suppresses the floating callouts (one place for details). */
+    zoomHasRules(): boolean {
+      const name = this.consoleCardZoom.card?.name;
+      return name !== undefined && cardHasRules(name);
+    },
     zoomSelectable(): boolean {
       return this.consoleCardZoom.select !== undefined && this.consoleCardZoom.card !== undefined;
     },

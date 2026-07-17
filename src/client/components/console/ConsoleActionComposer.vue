@@ -215,16 +215,8 @@
         </template>
       </ConsoleScrollArea>
 
-      <!-- ── The ONE bottom command bar (composer context) ─────────── -->
-      <footer class="con-composer__foot" aria-hidden="true">
-        <span v-for="(hint, i) in footHints" :key="i"
-              class="con-composer__foot-item"
-              :class="{'con-composer__foot-item--off': hint.enabled === false}">
-          <GamepadGlyph :control="hint.control" />
-          <GamepadGlyph v-if="hint.control2 !== undefined" :control="hint.control2" />
-          <span>{{ $t(hint.label) }}</span>
-        </span>
-      </footer>
+      <!-- The command contract (composer context) lives in the global
+           command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
   </div>
 </template>
@@ -247,6 +239,8 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
@@ -270,10 +264,8 @@ import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/cons
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
@@ -326,7 +318,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, ConsoleScrollArea, GamepadGlyph},
+  components: {ActionEffectChip, ConsoleScrollArea},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     entry: {type: Object as PropType<ActionEntry>, required: true},
@@ -410,6 +402,44 @@ export default defineComponent({
       return canConfirmPure(this.preview, this.selectedBranch, {
         pre: this.capturedPre, option: this.capturedOption, steps: this.captured,
       });
+    },
+    /** The composer's live command contract, published to the ONE shell bar
+     *  (consolePanelUi 'actionComposer' — plan §3.2; the old in-panel footer
+     *  is gone). Sub-state (payment lanes / a pick list) re-labels the run. */
+    footCommands(): Array<ConsoleCommand> {
+      if (this.sub !== undefined) {
+        if (this.sub.kind === 'payment') {
+          return [
+            {control: 'bumperL', control2: 'bumperR', label: '−1 / +1'},
+            {control: 'triggerR', label: 'MAX'},
+            {control: 'confirm', label: 'Done', enabled: this.paymentView?.covers === true},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        const hints: Array<ConsoleCommand> = [{control: 'confirm', label: 'Select'}];
+        if (this.subChoice?.input.type === 'card') {
+          hints.push({control: 'secondary', label: 'Inspect'});
+        }
+        hints.push({control: 'back', label: 'Back'});
+        return hints;
+      }
+      const hints: Array<ConsoleCommand> = [];
+      if (this.items.length > 0) {
+        const focused = this.focusedItem;
+        if (focused?.kind === 'choice' && (focused.choice.kind === 'amount' || focused.choice.kind === 'spendHeat')) {
+          hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
+          if (focused.choice.kind === 'amount') {
+            hints.push({control: 'triggerR', label: 'MAX'});
+          }
+        } else {
+          hints.push({control: 'confirm', label: 'Select'});
+        }
+        hints.push({control: 'secondary', label: 'Confirm', enabled: this.canConfirm});
+      } else {
+        hints.push({control: 'confirm', label: 'Confirm', enabled: this.canConfirm});
+      }
+      hints.push({control: 'back', label: 'Cancel'});
+      return hints;
     },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
@@ -538,46 +568,6 @@ export default defineComponent({
     focusedItem(): Item | undefined {
       return this.items[this.focusIdx];
     },
-    footHints(): Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> {
-      if (this.sub !== undefined) {
-        if (this.sub.kind === 'payment') {
-          return [
-            {control: 'dpad', label: 'Navigate'},
-            {control: 'bumperL', control2: 'bumperR', label: '−1 / +1'},
-            {control: 'triggerR', label: 'MAX'},
-            {control: 'confirm', label: 'Done', enabled: this.paymentView?.covers === true},
-            {control: 'back', label: 'Back'},
-          ];
-        }
-        const isCard = this.subChoice?.input.type === 'card';
-        const hints: Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> = [
-          {control: 'dpad', label: 'Navigate'}, {control: 'confirm', label: 'Select'},
-        ];
-        if (isCard) {
-          hints.push({control: 'secondary', label: 'Inspect'});
-        }
-        hints.push({control: 'back', label: 'Back'});
-        return hints;
-      }
-      const hints: Array<{control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean}> = [];
-      if (this.items.length > 0) {
-        hints.push({control: 'dpad', label: 'Navigate'});
-        const focused = this.focusedItem;
-        if (focused?.kind === 'choice' && (focused.choice.kind === 'amount' || focused.choice.kind === 'spendHeat')) {
-          hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
-          if (focused.choice.kind === 'amount') {
-            hints.push({control: 'triggerR', label: 'MAX'});
-          }
-        } else {
-          hints.push({control: 'confirm', label: 'Select'});
-        }
-        hints.push({control: 'secondary', label: 'Confirm', enabled: this.canConfirm});
-      } else {
-        hints.push({control: 'confirm', label: 'Confirm', enabled: this.canConfirm});
-      }
-      hints.push({control: 'back', label: 'Cancel'});
-      return hints;
-    },
   },
   watch: {
     preview: {immediate: true, handler() {
@@ -586,6 +576,16 @@ export default defineComponent({
     playerView() {
       this.submitting = false;
     },
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        setPanelCommands('actionComposer', cmds);
+      },
+    },
+  },
+  beforeUnmount() {
+    clearPanelCommands('actionComposer');
   },
   methods: {
     iconClass(icon: string | undefined): string {

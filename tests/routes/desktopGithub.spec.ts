@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {githubCacheTtlMs, githubHeaders, hasGithubToken} from '../../src/server/routes/desktopGithub';
+import {githubCacheTtlMs, githubFetch, githubHeaders, hasGithubToken} from '../../src/server/routes/desktopGithub';
 
 // Pure unit test of the desktop GitHub-gate helpers (token → shorter caches → faster update pickup).
 //   npx mocha --import=tsx --require tests/testing/setup.ts "tests/routes/desktopGithub.spec.ts"
@@ -66,6 +66,60 @@ describe('server/routes/desktopGithub', () => {
       expect(githubCacheTtlMs(30_000, 120_000, 'abc')).to.equal(120_000);
       expect(githubCacheTtlMs(30_000, 120_000, '0')).to.equal(120_000);
       expect(githubCacheTtlMs(30_000, 120_000, '-5')).to.equal(120_000);
+    });
+  });
+
+  describe('githubFetch auth fallback (a bad token must never be worse than no token)', () => {
+    // A fake fetch recording the Authorization header of each call and returning scripted statuses.
+    function fakeFetch(statuses: number[]) {
+      const calls: Array<{auth: string | undefined}> = [];
+      const impl = ((_url: string, init?: {headers?: Record<string, string>}) => {
+        calls.push({auth: init?.headers?.Authorization});
+        const status = statuses[Math.min(calls.length - 1, statuses.length - 1)];
+        return Promise.resolve({status, ok: status >= 200 && status < 300} as Response);
+      }) as unknown as typeof fetch;
+      return {impl, calls};
+    }
+
+    it('no token → ONE unauthenticated call, no retry', async () => {
+      const {impl, calls} = fakeFetch([200]);
+      const res = await githubFetch('https://x', 'ua', 5000, impl);
+      expect(res.status).to.equal(200);
+      expect(calls).to.have.length(1);
+      expect(calls[0].auth).to.be.undefined;
+    });
+
+    it('valid token → ONE authenticated call, no retry', async () => {
+      process.env.GITHUB_TOKEN = 'ghp_ok';
+      const {impl, calls} = fakeFetch([200]);
+      await githubFetch('https://x', 'ua', 5000, impl);
+      expect(calls).to.have.length(1);
+      expect(calls[0].auth).to.equal('Bearer ghp_ok');
+    });
+
+    it('rejected token (401) → RETRIES unauthenticated, returns the second response', async () => {
+      process.env.GITHUB_TOKEN = 'ghp_bad';
+      const {impl, calls} = fakeFetch([401, 200]);
+      const res = await githubFetch('https://x', 'ua', 5000, impl);
+      expect(res.status).to.equal(200);
+      expect(calls).to.have.length(2);
+      expect(calls[0].auth).to.equal('Bearer ghp_bad'); // first: with token
+      expect(calls[1].auth).to.be.undefined;             // retry: no token
+    });
+
+    it('insufficient token (403 — e.g. missing Actions:Read) → also retries unauthenticated', async () => {
+      process.env.GITHUB_TOKEN = 'ghp_limited';
+      const {impl, calls} = fakeFetch([403, 200]);
+      const res = await githubFetch('https://x', 'ua', 5000, impl);
+      expect(res.status).to.equal(200);
+      expect(calls).to.have.length(2);
+    });
+
+    it('no token + 403 (rate limit) → does NOT retry (nothing to fall back from)', async () => {
+      const {impl, calls} = fakeFetch([403, 200]);
+      const res = await githubFetch('https://x', 'ua', 5000, impl);
+      expect(res.status).to.equal(403);
+      expect(calls).to.have.length(1);
     });
   });
 });
