@@ -260,6 +260,21 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
     opts?.onStaged?.();
     return;
   }
+  // Measure every DEPARTURE rect NOW, before the commit — the commit may
+  // swap/unmount the source surface (the research buy's submit closes the
+  // strip) long before the proxies spawn (~3 frames later). A source still
+  // alive at spawn time is re-measured fresh; this snapshot is the fallback
+  // that keeps the card visibly lifting OFF ITS SLOT, never teleporting.
+  const snapshots = entries.map((e) => {
+    if (e.el !== undefined && e.el.isConnected) {
+      const card = e.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? e.el;
+      const r = card.getBoundingClientRect();
+      if (usable(r)) {
+        return {left: r.left, top: r.top, width: r.width, height: r.height};
+      }
+    }
+    return e.rect !== undefined && e.rect.width > 4 ? e.rect : undefined;
+  });
   // Contract 1: commit first, hold in the SAME synchronous block.
   opts?.commit?.();
   handDeliveryState.inFlight = [...handDeliveryState.inFlight, ...names];
@@ -282,7 +297,7 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
 
   activeRuns++;
   try {
-    await fly(entries, opts, dock, {myGen, land, releaseRemaining});
+    await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining});
   } finally {
     releaseRemaining();
     activeRuns--;
@@ -295,7 +310,7 @@ type RunCtx = {
   releaseRemaining: () => void,
 };
 
-async function fly(entries: ReadonlyArray<HandIntakeEntry>, opts: HandIntakeOptions | undefined, dock: HTMLElement, ctx: RunCtx): Promise<void> {
+async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyArray<HandIntakeRect | undefined>, opts: HandIntakeOptions | undefined, dock: HTMLElement, ctx: RunCtx): Promise<void> {
   // A single card has no fan to gather — the stack gesture degrades to the
   // plain cascade arc.
   const mode = opts?.mode === 'stack' && entries.length > 1 ? 'stack' : 'cascade';
@@ -347,7 +362,13 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, opts: HandIntakeOpti
   // Position + reveal every proxy over its source in ONE synchronous block;
   // live sources are held hidden in the same frame (no double-vision), then
   // the stage callback lets the host drop its own surface under the proxies.
-  const dockR = dock.getBoundingClientRect();
+  // The dock rect anchors the stack point / bank direction — a dock that is
+  // somehow unmeasurable (it should never be: a covering overlay only
+  // CONCEALS it, layout kept) falls back to the bottom-centre hand zone so
+  // a flight can never aim at the (0,0) corner.
+  const rawDockR = dock.getBoundingClientRect();
+  const dockR = rawDockR.width > 8 ? rawDockR :
+    new DOMRect(window.innerWidth / 2 - 160 * ui, window.innerHeight - 110 * ui, 320 * ui, 80 * ui);
   type Live = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect};
   const live: Array<Live> = [];
   order.forEach((entryIdx, rank) => {
@@ -357,6 +378,10 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, opts: HandIntakeOpti
       ctx.land(entryIdx);
       return;
     }
+    // Prefer a FRESH measure of a still-mounted source (pixel-perfect over
+    // the live slot); fall back to the pre-commit snapshot when the commit
+    // already unmounted the surface (the card still lifts off the spot the
+    // player saw it at — never a teleport into the stack).
     let src: HandIntakeRect | undefined;
     if (entry.el !== undefined && entry.el.isConnected) {
       const card = entry.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? entry.el;
@@ -366,8 +391,8 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, opts: HandIntakeOpti
         card.classList.add(HOLD_CLASS);
       }
     }
-    if (src === undefined && entry.rect !== undefined && entry.rect.width > 4) {
-      src = entry.rect;
+    if (src === undefined) {
+      src = snapshots[entryIdx];
     }
     if (src !== undefined) {
       const scaleFrom = src.width / CARD_NATURAL_W;

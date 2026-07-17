@@ -445,6 +445,24 @@ dialog.con-zoom {
     contain: layout style;
 }
 
+/* ── THE TRAY SLOT LINE (physicality contract) ────────────────────────
+   Both hand flight stages are CLIPPED at the dock plate's TOP EDGE: a card
+   descending into the dock vanishes progressively behind that line — it
+   SLOTS INTO the tray from above (the plate + command bar visually overlap
+   it), never paints over the bottom bar's texture; a card lifting OUT of
+   the dock emerges across the same line. The offset mirrors the dock
+   geometry in console.less (standard: dock bottom .35rem + plate 2.7rem =
+   3.05rem; handheld: .3rem + 2.05rem = 2.35rem) — keep them in sync when
+   retuning the plate. */
+.con-handreveal-layer,
+.con-handdelivery-layer {
+    clip-path: inset(0 0 var(--con-hand-slot-clip, 3.05rem) 0);
+}
+html.con-profile-handheld .con-handreveal-layer,
+html.con-profile-handheld .con-handdelivery-layer {
+    --con-hand-slot-clip: 2.35rem;
+}
+
 /* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
    (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
    proxies depart whatever surface released the cards (the start-ceremony
