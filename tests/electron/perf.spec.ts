@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches, parseExtraSwitches} from '../../electron/perf';
+import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseExtraSwitches, rasterThreadCount} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -28,6 +28,7 @@ describe('electron/perf', () => {
   const ENV_KEYS = [
     'TM_ELECTRON_NO_PERF', 'TM_ELECTRON_SOFTWARE',
     'TM_ELECTRON_FEATURES', 'TM_ELECTRON_SWITCHES',
+    'SteamDeck',
   ] as const;
   const saved: Record<string, string | undefined> = {};
   for (const k of ENV_KEYS) {
@@ -143,7 +144,8 @@ describe('electron/perf', () => {
     for (const platform of ['linux', 'win32']) {
       withPlatform(platform, () => {
         const app = fakeApp();
-        applyPerformanceSwitches(app as never);
+        // Deck-shaped probe (8 logical cores) → the measured-best 4 raster threads.
+        applyPerformanceSwitches(app as never, {steamHardware: 'steam-deck', logicalCores: 8});
         const keys = app.switches.map((s) => s.key);
         expect(keys, platform).to.include('disable-gpu');
         expect(effectiveValue(app, 'num-raster-threads'), platform).to.equal('4');
@@ -258,6 +260,65 @@ describe('electron/perf', () => {
       expect(applied).to.have.length(app.switches.length);
       expect(applied).to.include('--force-color-profile=srgb');
       expect(applied).to.include('--ignore-gpu-blocklist');
+    });
+  });
+
+  describe('hardware-scaled values (Steam Deck vs Steam Machine)', () => {
+    it('classifySteamHardware: Jupiter/Galileo → deck, other Valve boxes → machine, non-Valve → generic', () => {
+      expect(classifySteamHardware('Valve', 'Jupiter')).to.equal('steam-deck');
+      expect(classifySteamHardware('Valve', 'Galileo')).to.equal('steam-deck');
+      // the Steam Machine (DMI codename Fremont) — and ANY future non-handheld
+      // Valve box — classifies as the machine class without a code change
+      expect(classifySteamHardware('Valve', 'Fremont')).to.equal('steam-machine');
+      expect(classifySteamHardware('Valve Corporation', 'Something-New')).to.equal('steam-machine');
+      expect(classifySteamHardware('ASUSTeK COMPUTER INC.', 'ROG Ally RC71L')).to.equal('generic');
+      expect(classifySteamHardware('', '')).to.equal('generic');
+    });
+
+    it('gpuMemBudgetMb: conservative 4096 on shared-UMA Deck / generic, 6144 on the dedicated-VRAM Machine', () => {
+      expect(gpuMemBudgetMb('steam-deck')).to.equal(4096);
+      expect(gpuMemBudgetMb('generic')).to.equal(4096);
+      expect(gpuMemBudgetMb('steam-machine')).to.equal(6144);
+    });
+
+    it('rasterThreadCount: half the logical cores, clamped 2..8', () => {
+      expect(rasterThreadCount(8)).to.equal(4);   // Deck (measured-best value preserved)
+      expect(rasterThreadCount(12)).to.equal(6);  // Steam Machine (Zen 4 6C/12T)
+      expect(rasterThreadCount(2)).to.equal(2);   // floor
+      expect(rasterThreadCount(32)).to.equal(8);  // ceiling
+    });
+
+    it('GPU path: the Machine probe raises the GPU memory budget; the Deck probe keeps 4096', () => {
+      withPlatform('linux', () => {
+        const deck = fakeApp();
+        applyPerformanceSwitches(deck as never, {steamHardware: 'steam-deck', logicalCores: 8});
+        expect(effectiveValue(deck, 'force-gpu-mem-available-mb')).to.equal('4096');
+
+        const machine = fakeApp();
+        applyPerformanceSwitches(machine as never, {steamHardware: 'steam-machine', logicalCores: 12});
+        expect(effectiveValue(machine, 'force-gpu-mem-available-mb')).to.equal('6144');
+        // the rest of the Linux GPU recipe is hardware-class-independent
+        expect(effectiveValue(machine, 'use-angle')).to.equal('vulkan');
+        expect(machine.switches.map((s) => s.key)).to.include('enable-skia-graphite');
+      });
+    });
+
+    it('software path: the Machine probe gets 6 raster threads', () => {
+      process.env.TM_ELECTRON_SOFTWARE = '1';
+      withPlatform('linux', () => {
+        const app = fakeApp();
+        applyPerformanceSwitches(app as never, {steamHardware: 'steam-machine', logicalCores: 12});
+        expect(effectiveValue(app, 'num-raster-threads')).to.equal('6');
+      });
+    });
+
+    it('TM_ELECTRON_SWITCHES still overrides the hardware-scaled budget (escape hatch)', () => {
+      process.env.TM_ELECTRON_SWITCHES = 'force-gpu-mem-available-mb=2048';
+      withPlatform('linux', () => {
+        const app = fakeApp();
+        applyPerformanceSwitches(app as never, {steamHardware: 'steam-machine', logicalCores: 12});
+        expect(effectiveValue(app, 'force-gpu-mem-available-mb')).to.equal('2048');
+      });
     });
   });
 

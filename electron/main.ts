@@ -23,6 +23,7 @@ import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
+import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed} from './session';
 import {VelopackApp} from 'velopack';
 
@@ -393,6 +394,17 @@ ipcMain.handle('desktop:getSteamState', () => ({
 }));
 ipcMain.handle('desktop:dismissSteamPrompt', () => {
   setSteamPromptDismissed(true);
+});
+// The DISPLAY name (persona) of the account signed into Steam — cross-platform, read-only,
+// best-effort (parses config/loginusers.vdf; no Steamworks SDK). Used ONLY to prefill the player
+// name on first launch when no local identity exists yet (Steam Deck / Steam Machine / desktop).
+// Returns undefined when Steam / a logged-in account can't be found; never throws.
+ipcMain.handle('desktop:getSteamName', () => {
+  try {
+    return readSteamPersonaName();
+  } catch {
+    return undefined;
+  }
 });
 
 // The app:// scheme must be registered as privileged BEFORE 'ready'.

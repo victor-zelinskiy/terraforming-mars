@@ -194,6 +194,7 @@ import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfil
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
+import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
 import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -374,6 +375,9 @@ export default defineComponent({
   mounted() {
     setDocumentTitle('Terraforming Mars');
     ensureIdentityLoaded();
+    // First launch with no saved name (Steam Deck / Steam Machine): prefill from the Steam display
+    // name so the greeting + creator seat aren't empty. Reactive — the menu updates when it lands.
+    void prefillIdentityFromSteam();
     initSteamShortcut();
     this.maybeShowSteamPrompt();
     this.offPad = installMenuPad((intent) => this.onIntent(intent));

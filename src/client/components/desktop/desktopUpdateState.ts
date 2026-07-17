@@ -97,6 +97,10 @@ interface DesktopBridge {
   getSteamState?(): Promise<SteamState | undefined>;
   // Persist the "Not now" first-run choice so the prompt never returns. OPTIONAL.
   dismissSteamPrompt?(): Promise<void>;
+  // The DISPLAY name of the account signed into Steam (cross-platform, read-only) — OPTIONAL:
+  // absent on older shells / the web (the renderer feature-detects). Used to prefill the player
+  // name on first launch (Steam Deck / Steam Machine) when no local identity exists yet.
+  getSteamName?(): Promise<string | undefined>;
   // Console-native pre-game shell (P10) — OPTIONAL: an older installed
   // shell may predate them; the renderer feature-detects (runtimeMode.ts)
   // and hides the affordances when absent.

@@ -65,6 +65,9 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   getSteamState: (): Promise<unknown> => ipcRenderer.invoke('desktop:getSteamState'),
   // Persist the "Not now" choice so the first-run prompt never returns.
   dismissSteamPrompt: (): Promise<void> => ipcRenderer.invoke('desktop:dismissSteamPrompt'),
+  // The display name of the account signed into Steam (cross-platform, read-only) — used to
+  // prefill the player name on first launch (Steam Deck / Steam Machine) when no identity is set.
+  getSteamName: (): Promise<string | undefined> => ipcRenderer.invoke('desktop:getSteamName'),
   // Console-native pre-game shell (P10): the ВЫЙТИ confirm + native
   // fullscreen restore. Thin invoke wrappers — no raw ipcRenderer leaks.
   quitApp: (): Promise<void> => ipcRenderer.invoke('desktop:quitApp'),

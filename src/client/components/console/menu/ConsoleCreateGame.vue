@@ -173,6 +173,7 @@ import {
 } from '@/client/components/create/premium/createGameState';
 import {submitPremiumCreateGame} from '@/client/components/create/premium/submitCreateGame';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
+import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCrewDeck from '@/client/components/console/menu/ConsoleCrewDeck.vue';
@@ -364,9 +365,12 @@ export default defineComponent({
       return row !== undefined && ((row.kind === 'human' && row.removable) || row.kind === 'bot');
     },
   },
-  mounted() {
+  async mounted() {
     setDocumentTitle('Create new game');
     ensureIdentityLoaded();
+    // First launch with no saved name (Steam Deck / Steam Machine): pull the Steam display name so
+    // the creator seat isn't empty. No-op when an identity already exists or off the Steam build.
+    await prefillIdentityFromSteam();
     const restored = restoreCreateGameState();
     if (!restored) {
       resetCreateGameState();

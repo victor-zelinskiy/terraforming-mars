@@ -1,9 +1,13 @@
 // Electron 43 (Chromium ~150) — performance / GPU tuning (main process).
 //
-// The desktop shell targets ONE known machine class per platform — a Windows box
-// with a GPU (fullscreen game on the LG C3 TV) and the Steam Deck (RDNA2 APU
-// under gamescope) — so the tuned configuration is the DEFAULT, not an env
-// matrix. The old per-knob "flag zoo" is gone; exactly FOUR escape hatches:
+// The desktop shell targets KNOWN machine classes — a Windows box with a GPU
+// (fullscreen game on the LG C3 TV) and Valve's SteamOS boxes: the Steam Deck
+// (RDNA2 APU under gamescope) and the Steam Machine (Zen 4 + dedicated-VRAM
+// RDNA3, same stack). The tuned configuration is the DEFAULT, not an env
+// matrix; the two capacity knobs (GPU memory budget, software raster threads)
+// scale off a DMI/cpu hardware probe (see classifySteamHardware /
+// gpuMemBudgetMb / rasterThreadCount). The old per-knob "flag zoo" is gone;
+// exactly FOUR escape hatches:
 //
 //   TM_ELECTRON_NO_PERF=1     — vanilla Electron, NOTHING below is applied (the
 //                               baseline for any "is it our tuning?" comparison).
@@ -31,6 +35,83 @@
 // logGpuStatus prints the same status to main-process stdout.
 
 import type {App} from 'electron';
+import * as fs from 'fs';
+import * as os from 'os';
+
+/**
+ * The Valve hardware class the tuned values key off. 'steam-machine' means
+ * "Valve box that is NOT a Deck" (the 2026 Steam Machine — DMI codename
+ * Fremont — and any future Valve console): same SteamOS/gamescope/RADV stack
+ * as the Deck, but a dedicated-VRAM dGPU and more cores, so the Deck's
+ * measured-conservative numbers undershoot it. Everything non-Valve is
+ * 'generic' and keeps the Deck-era conservative defaults.
+ */
+export type SteamHardware = 'steam-deck' | 'steam-machine' | 'generic';
+
+/** Hardware facts the switch builder derives values from (injectable for tests). */
+export interface HardwareProbe {
+  steamHardware: SteamHardware;
+  logicalCores: number;
+}
+
+/**
+ * Classify Valve hardware from the DMI identity strings. Pure (unit-tested):
+ * vendor "Valve" + product Jupiter (Deck LCD) / Galileo (Deck OLED) → the
+ * Deck; vendor "Valve" + anything else → the Steam-Machine class (matches
+ * Fremont today and future Valve boxes without a code change — the safe
+ * direction, since a misread only ever RAISES budgets on stronger hardware);
+ * non-Valve → generic.
+ */
+export function classifySteamHardware(sysVendor: string, productName: string): SteamHardware {
+  if (!/valve/i.test(sysVendor)) {
+    return 'generic';
+  }
+  return /jupiter|galileo/i.test(productName) ? 'steam-deck' : 'steam-machine';
+}
+
+/**
+ * Read the machine identity. DMI is authoritative (readable without root on
+ * SteamOS); the `SteamDeck=1` env Steam sets on the Deck is only the fallback
+ * for the odd container/sandbox where sysfs isn't readable — a Deck
+ * misclassified as generic (or a Machine as Deck) just gets the CONSERVATIVE
+ * values, never broken ones.
+ */
+function detectHardwareProbe(): HardwareProbe {
+  const logicalCores = Math.max(1, os.cpus().length);
+  if (process.platform !== 'linux') {
+    return {steamHardware: 'generic', logicalCores};
+  }
+  try {
+    const read = (f: string): string =>
+      fs.readFileSync(`/sys/class/dmi/id/${f}`, 'utf8').trim();
+    return {steamHardware: classifySteamHardware(read('sys_vendor'), read('product_name')), logicalCores};
+  } catch {
+    const viaEnv = process.env.SteamDeck === '1' ? 'steam-deck' : 'generic';
+    return {steamHardware: viaEnv, logicalCores};
+  }
+}
+
+/**
+ * cc's GPU memory budget (--force-gpu-mem-available-mb). Deck: 4096 — the
+ * measured-good value, deliberately conservative because its 16 GB is SHARED
+ * UMA (the budget competes with the game process itself). Steam Machine:
+ * 6144 — the GPU has its own dedicated 8 GB GDDR6, so the budget competes
+ * with nothing; overlays/4K-board tile eviction is the thing to avoid.
+ * Generic (incl. the Windows target box's 8 GB dGPU): the measured 4096.
+ */
+export function gpuMemBudgetMb(hw: SteamHardware): number {
+  return hw === 'steam-machine' ? 6144 : 4096;
+}
+
+/**
+ * Software-rasterizer worker threads (--num-raster-threads, the
+ * TM_ELECTRON_SOFTWARE=1 fallback path only): half the logical cores,
+ * clamped 2..8. The Deck's measured-best 4 falls out of the formula
+ * (8 logical → 4); the Steam Machine's 12 logical → 6.
+ */
+export function rasterThreadCount(logicalCores: number): number {
+  return Math.max(2, Math.min(8, Math.floor(logicalCores / 2)));
+}
 
 /** One parsed `--key[=value]` token from TM_ELECTRON_SWITCHES. */
 export interface ExtraSwitch {
@@ -171,8 +252,9 @@ const DISABLED_FEATURES = [
  * Append the tuned command-line switches. Call once, before 'ready'. Returns
  * the applied switches as `--key[=value]` strings (echoed into the renderer
  * console by main.ts so a packaged build can confirm what took effect).
+ * `probe` is injectable for tests; the default reads DMI + os.cpus().
  */
-export function applyPerformanceSwitches(app: App): string[] {
+export function applyPerformanceSwitches(app: App, probe: HardwareProbe = detectHardwareProbe()): string[] {
   // DIAGNOSTIC kill-switch: TM_ELECTRON_NO_PERF=1 skips ALL of our tuning, so a run can be
   // compared against the vanilla-Electron GPU path. If the GPU falls back to software ONLY with
   // our switches on (e.g. a flag crashes the GPU process on this driver), this run isolates that.
@@ -209,9 +291,9 @@ export function applyPerformanceSwitches(app: App): string[] {
     sw('enable-accelerated-2d-canvas'); // GPU-accelerate 2D canvas (endgame chart)
     // Raise cc's GPU memory budget: overlays mount 250-350 composited layers and
     // the board is a huge layer at 4K — a conservative budget evicts and
-    // re-rasterizes tiles on every overlay open/close. Cheap on the known 8 GB
-    // dGPU / UMA targets (Deck: 16 GB shared).
-    sw('force-gpu-mem-available-mb', '4096');
+    // re-rasterizes tiles on every overlay open/close. Hardware-scaled: see
+    // gpuMemBudgetMb (Deck/generic 4096, Steam Machine 6144).
+    sw('force-gpu-mem-available-mb', String(gpuMemBudgetMb(probe.steamHardware)));
     // A GPU context loss (monitor hotplug / dock / driver reset / gamescope
     // restart) exits the GPU process. By default Chromium PERMANENTLY falls
     // back to software after a few such crashes; a long-lived fullscreen
@@ -245,9 +327,10 @@ export function applyPerformanceSwitches(app: App): string[] {
     // ── Software path (TM_ELECTRON_SOFTWARE=1 — the rollback) ───────────────
     // A clean software compositor, skipping the GPU process entirely, with the
     // software rasterizer given explicit worker threads so tile raster runs in
-    // parallel (4 = the Deck's physical cores; measured best on-device).
+    // parallel. Hardware-scaled: see rasterThreadCount (half the logical
+    // cores, clamp 2..8 — reproduces the Deck's measured-best 4).
     sw('disable-gpu');
-    sw('num-raster-threads', '4');
+    sw('num-raster-threads', String(rasterThreadCount(probe.logicalCores)));
   }
 
   // ── Feature lists (ONE call each — appendSwitch replaces same-key values) ─
