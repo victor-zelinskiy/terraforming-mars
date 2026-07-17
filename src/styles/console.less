@@ -6018,30 +6018,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         }
         .gp-glyph, .con-cmdbar__badge { flex-shrink: 0; }
     }
-    /* The socket the hand dock sits in — a recessed inlay with strict
-       angled sides (top wide → bottom narrow), carved INTO the bar. The
-       dock plate covers its centre; what stays visible is the machined
-       frame around the hand. */
+    /* The bay TRACK is a bare grid spacer — no visuals of its own (the
+       dock's plate is the socket, welded straight into the bar). */
     &__bay {
         position: relative;
         align-self: stretch;
         pointer-events: none;
-    }
-    &__bay-inlay {
-        position: absolute;
-        inset: .16rem .1rem .14rem;
-        /* kant layer (angled rim) … */
-        background: linear-gradient(180deg, fade(@con-cyan, 44%), fade(@con-cyan, 16%) 55%, rgba(90, 130, 170, 0.26));
-        clip-path: polygon(0 0, 100% 0, calc(100% - .95rem) 100%, .95rem 100%);
-
-        /* … over the recessed dark floor. */
-        &::after {
-            content: '';
-            position: absolute;
-            inset: .07rem;
-            background: linear-gradient(180deg, rgba(3, 6, 11, 0.94), rgba(10, 16, 25, 0.6));
-            clip-path: polygon(0 0, 100% 0, calc(100% - .9rem) 100%, .9rem 100%);
-        }
     }
 }
 
@@ -6078,13 +6060,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     --hd-spread: 1;
     --hd-lift: 0rem;
     --hd-fan: 0;
+    /* WELDED IN: the dock is a fixed part of the bar — it never dims,
+       shrinks or slides with the shell's states (only the PACK animates:
+       hover / the RT wheel raise / card enter-leave). */
     cursor: default;
     pointer-events: none;
-    transition:
-        opacity calc(300ms * var(--motion-scale, 1)) ease,
-        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-        filter calc(300ms * var(--motion-scale, 1)) ease,
-        visibility 0s;
 
     /* ── shoulder rails: the bar's top rim flowing around the bay ── */
     &__wing {
@@ -6241,11 +6221,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         animation: con-hd-go calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
     }
 
-    /* ── states ──────────────────────────────────────────────────── */
+    /* ── states (pack-only — the dock chassis itself NEVER moves) ── */
     &--live {
         pointer-events: auto;
         cursor: pointer;
     }
+    /* The pack rises + opens a notch: on hover, AND while the RT wheel is
+       open (its centre «РУКА» slot is the entry to the hand — the dock
+       below answers on the same axis). */
+    &--raised,
     &--live:hover,
     &--live:focus-visible {
         --hd-spread: 1.12;
@@ -6259,8 +6243,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 62%), 0 0 .6rem fade(@con-cyan, 18%);
         }
     }
-    /* The playable mint hairline along the plate's top edge (live only). */
-    &--live&--hot .con-handdock__plate-face::after {
+    /* The playable mint hairline along the plate's top edge. */
+    &--hot .con-handdock__plate-face::after {
         content: '';
         position: absolute;
         top: 0;
@@ -6268,26 +6252,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         right: 16%;
         height: .1rem;
         background: linear-gradient(90deg, transparent, fade(@con-mint, 55%), transparent);
-    }
-    /* A large overlay owns the screen — recede, stay present. */
-    &--subdued {
-        opacity: 0.48;
-        filter: saturate(0.55) brightness(0.82);
-        transform: translateX(-50%) translateY(1rem) scale(0.8);
-        transform-origin: 50% 100%;
-    }
-    /* A fullscreen SECTION replaces the board (the hand section IS the
-       expanded hand) — the dock yields entirely, layout kept. */
-    &--hidden {
-        opacity: 0;
-        visibility: hidden;
-        transform: translateX(-50%) translateY(1.2rem) scale(0.9);
-        transform-origin: 50% 100%;
-        transition:
-            opacity calc(300ms * var(--motion-scale, 1)) ease,
-            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            filter calc(300ms * var(--motion-scale, 1)) ease,
-            visibility 0s calc(300ms * var(--motion-scale, 1));
     }
 }
 
@@ -6312,7 +6276,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .con-handdock,
     .con-handdock__card,
     .con-hd-enter-active,
     .con-hd-leave-active { transition: none; }

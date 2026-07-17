@@ -222,19 +222,20 @@ test.describe('hand dock · standard 1080', () => {
     await shoot(page, '03-rt-wheel-coaxial');
     await key(page, 'Escape', 700);
 
-    // ── LT → Standard Projects screen: SUBDUED (recede, stay present) ─
+    // ── LT → Standard Projects screen: the dock stays WELDED (identical
+    // visuals), only the click affordance drops. ─────────────────────
     await key(page, 'Comma', 900);
     await key(page, 'Enter', 1100);
-    await expect(dock).toHaveClass(/con-handdock--subdued/);
-    await shoot(page, '04-overlay-subdued');
+    await expect(dock).not.toHaveClass(/con-handdock--live/);
+    await shoot(page, '04-overlay-static');
     await key(page, 'Escape', 800);
 
-    // ── hand section: HIDDEN (the section IS the expanded hand) ─────
-    // RT wheel → A (КАРТЫ) is the canonical route to the hand section.
+    // ── hand section: still welded in place, non-interactive ─────────
+    // RT wheel → A (РУКА) is the canonical route to the hand section.
     await key(page, 'Period', 900);
     await key(page, 'Enter', 1400);
-    await expect(dock).toHaveClass(/con-handdock--hidden/);
-    await shoot(page, '05-hand-section-hidden');
+    await expect(dock).not.toHaveClass(/con-handdock--live/);
+    await shoot(page, '05-hand-section');
     await key(page, 'Escape', 1000); // B → back to the board home
     await expect(dock).toHaveClass(/con-handdock--live/);
   });

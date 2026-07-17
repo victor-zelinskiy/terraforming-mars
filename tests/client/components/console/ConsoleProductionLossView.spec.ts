@@ -11,7 +11,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 const A: GamepadIntent = {kind: 'press', button: 'confirm'}; // → assign −1
 const X: GamepadIntent = {kind: 'press', button: 'secondary'}; // → confirm
 const B: GamepadIntent = {kind: 'press', button: 'back'}; // → defer
-const DOWN: GamepadIntent = {kind: 'nav', dir: 'down'};
+const DOWN: GamepadIntent = {kind: 'nav', dir: 'down', repeat: false};
 
 function view(cost: number, prod: Partial<Units>, source?: ProductionLossSource): PlayerViewModel {
   const model: SelectProductionToLoseModel = {

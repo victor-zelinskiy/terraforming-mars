@@ -547,7 +547,8 @@
       <ConsoleHandDock :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
-                       :mode="handDockMode"
+                       :interactive="handDockInteractive"
+                       :raised="consoleState.quick === 'actions'"
                        @open="onHandDockOpen" />
       <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
     </div>
@@ -655,7 +656,7 @@ import {notificationState, pendingSummary, dismiss as dismissNotification} from 
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
-import ConsoleHandDock, {HandDockMode} from '@/client/components/console/ConsoleHandDock.vue';
+import ConsoleHandDock from '@/client/components/console/ConsoleHandDock.vue';
 import {handDockBayRem} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -999,23 +1000,17 @@ export default defineComponent({
       ];
     },
     /**
-     * The dock's presentation mode — derived from the SAME flags this
-     * template mounts surfaces by:
-     *  - `hidden` while a fullscreen SECTION replaces the board (the hand
-     *    section IS the expanded hand — they never coexist) or the shell
-     *    yielded to the fallback engine / the endgame;
-     *  - `subdued` (recede, stay present) while a large overlay owns the
-     *    screen — task host / start scene / sheets / MA / composers /
-     *    journal / played table / info mode / reveals / draft beats;
-     *  - `live` on the board home, during placement, draft-wait and the
-     *    RT/LT quick wheels (the wheels centre on the SAME axis — the
-     *    dock underneath is the alignment the layout is built around).
+     * The dock renders IDENTICALLY in every shell state (welded into the
+     * bar) — this only gates the CLICK affordance (hover lift + pointer),
+     * derived from the SAME flags this template mounts surfaces by: the
+     * calm board home / placement / draft-wait / quick wheels are
+     * interactive; any owning overlay or a non-board section is not.
      */
-    handDockMode(): HandDockMode {
+    handDockInteractive(): boolean {
       if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
-        return 'hidden';
+        return false;
       }
-      const overlayUp =
+      return !(
         this.hostTask !== undefined ||
         this.startTask !== undefined ||
         this.govSupportActive ||
@@ -1034,8 +1029,8 @@ export default defineComponent({
         this.botTurnReviewState.open ||
         this.govScaleFocusState.holding || this.govScaleFocusState.closing ||
         draftPickBeatActive() || riseSceneEngaged() ||
-        this.leakDetectorState.stranded !== undefined;
-      return overlayUp ? 'subdued' : 'live';
+        this.leakDetectorState.stranded !== undefined
+      );
     },
     /** The bay width flows from ONE source (consoleHandDock.ts) into both
      *  consumers: the bar's grid track and the dock's plate. */

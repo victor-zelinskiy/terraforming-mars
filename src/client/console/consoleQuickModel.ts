@@ -69,7 +69,10 @@ export type RtQuickContext = {
 export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
   return [
     {
-      id: 'cards', slot: 'center', label: 'Cards', barIcon: 'cards',
+      // «РУКА» on purpose — the slot is the ENTRY to the hand, and the
+      // footer's hand dock (which raises while this wheel is open) sits
+      // directly below it on the same axis.
+      id: 'cards', slot: 'center', label: 'Hand', barIcon: 'cards',
       badge: ctx.cardsPlayable, available: true, reason: '',
     },
     {

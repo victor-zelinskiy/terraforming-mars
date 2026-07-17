@@ -1,9 +1,11 @@
 <template>
   <div class="con-handdock"
-       :class="[`con-handdock--${mode}`, {
+       :class="{
+         'con-handdock--live': interactive,
+         'con-handdock--raised': raised,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
-       }]"
+       }"
        :style="rootVars"
        role="button"
        tabindex="-1"
@@ -68,11 +70,12 @@
  * (click → the shell opens the hand section; the pad's own path stays
  * RT → КАРТЫ — no new bindings here, the command bar owns button truth).
  *
- * Modes (the shell computes them from the same flags its template mounts
- * overlays by): `live` (board home / placement / draft-wait / quick
- * wheels), `subdued` (a large overlay owns the screen — the dock recedes
- * but stays present), `hidden` (a fullscreen SECTION replaces the board;
- * the hand section IS the expanded hand — the dock never coexists with it).
+ * The dock is WELDED INTO the bar: it renders identically in every shell
+ * state — never dimmed, scaled or hidden. Only the PACK animates: hover /
+ * the RT-wheel `raised` beat (the wheel's centre «РУКА» slot is the entry
+ * to the hand — the dock below answers on the same axis) / card
+ * enter-leave. `interactive` gates the click affordance only (the shell
+ * computes it from the same flags its template mounts overlays by).
  *
  * Deliberately NO card faces and NO text besides the etched kicker + the
  * count: the dock must stay clean (hand presence first; playable state is
@@ -85,8 +88,6 @@ import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
-
-export type HandDockMode = 'live' | 'subdued' | 'hidden';
 
 type PackSlot = {
   key: string,
@@ -108,7 +109,10 @@ export default defineComponent({
     playableCount: {type: Number, default: 0},
     /** playerView.runId — drives the delta-chip feedback ('' disables). */
     epoch: {type: String, default: ''},
-    mode: {type: String as PropType<HandDockMode>, default: 'live'},
+    /** Click-to-open affordance (hover lift + pointer) — visuals never change. */
+    interactive: {type: Boolean, default: true},
+    /** The RT wheel is open — the pack rises to answer its «РУКА» slot. */
+    raised: {type: Boolean, default: false},
   },
   emits: ['open'],
   computed: {
@@ -150,7 +154,7 @@ export default defineComponent({
   },
   methods: {
     onClick(): void {
-      if (this.mode === 'live') {
+      if (this.interactive) {
         this.$emit('open');
       }
     },

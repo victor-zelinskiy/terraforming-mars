@@ -14,12 +14,10 @@
         </span>
       </div>
     </div>
-    <!-- The reserved centre BAY — the socket the hand dock sits in. A
-         geometric carve of the footer (recessed inlay + angled sides), so
-         the bar reads as machined for the hand, never patched over. -->
-    <div v-if="bay" class="con-cmdbar__bay">
-      <span class="con-cmdbar__bay-inlay"></span>
-    </div>
+    <!-- The reserved centre BAY track — an empty grid spacer the hand dock
+         (a footer sibling) sits over. Deliberately NO visuals of its own:
+         the dock's plate IS the socket, welded straight into the bar. -->
+    <div v-if="bay" class="con-cmdbar__bay"></div>
     <div class="con-cmdbar__cmds" :class="{'con-cmdbar__cmds--right': bay}">
       <span v-for="(cmd, i) in cmdsRight"
             :key="i"
