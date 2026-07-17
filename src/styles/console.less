@@ -11272,6 +11272,87 @@ html.console-mode .notifications-layer {
     }
 }
 
+/* ── System ALERT (pad-navigable replacement for App's native <dialog>
+      alert — server outage / rejected input / unexpected response). RED
+      accent so it reads as an ABNORMAL situation, not a routine prompt.
+      z ABOVE the game surfaces + the system menu, below the gamepad ring. */
+.con-alert {
+    position: fixed;
+    inset: 0;
+    z-index: 12900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck)
+    }
+    &__card {
+        position: relative;
+        min-width: 24rem;
+        max-width: 34rem;
+        padding: 1.3rem 1.6rem 1.1rem;
+        border-radius: .7rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%), 0 1.2rem 4rem rgba(0, 0, 0, 0.7), 0 0 2.4rem fade(@con-red, 12%);
+        font-family: @con-font;
+        color: @con-text;
+        text-align: center;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .95rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-red;
+        margin-bottom: .6rem;
+    }
+    &__mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: .3rem;
+        background: fade(@con-red, 18%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 70%);
+        font-weight: 700;
+    }
+    &__title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: .5rem;
+        line-height: 1.35;
+    }
+    &__body {
+        font-size: 1rem;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: .9rem;
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .95rem;
+        color: @con-text;
+    }
+    &__queued {
+        margin-left: .3rem;
+        padding: .1rem .45rem;
+        border-radius: .3rem;
+        background: fade(@con-red, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+        font-size: .8rem;
+        color: fade(@con-red, 92%);
+    }
+}
+
 /* ── System overlay menu (Menu button — any lifecycle context) ───── */
 .con-sysmenu {
     position: fixed;
@@ -13251,6 +13332,7 @@ html.con-profile-handheld {
     .con-quit__btn { font-size: .75rem; padding: .5rem .8rem; }
     .con-confirm__card { zoom: 0.92; }
     .con-stranded { zoom: 0.92; }
+    .con-alert { zoom: 0.92; }
 }
 
 /* ── LARGE (4K / big TV): a gentle readability boost only ─────────── */

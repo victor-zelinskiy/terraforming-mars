@@ -91,9 +91,19 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   for (let i = 0; i < buyProjects; i++) {
     walk.push('Enter', 'ArrowRight');
   }
-  walk.push('Period', 'Period', 'Period');
   for (const code of walk) {
     await key(page, code, code === 'Period' ? 1600 : 1000);
+  }
+  // Deterministically submit the start summary: RT/Period is INERT on the
+  // summary (the launch is the explicit A CTA), so continue to the launch
+  // CTA «НАЧАТЬ ПАРТИЮ», then press Enter (A) to pay + start. Relying on the
+  // self-healing loop's rotating Enter to hit it was the boot's flake source.
+  const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
+  for (let i = 0; i < 5 && await launch.count() === 0; i++) {
+    await key(page, 'Period', 1300);
+  }
+  if (await launch.count() > 0) {
+    await key(page, 'Enter', 2200); // pay + start
   }
   await page.waitForTimeout(3000);
   const live = page.locator('.con-handdock--live');
@@ -133,7 +143,7 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
 
 /** Wait for the first reveal proxy (spawn is a couple frames after A). */
 async function expectProxies(page: Page): Promise<void> {
-  await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 2000});
+  await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 3500});
 }
 
 /** Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle — the reveal

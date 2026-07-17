@@ -410,6 +410,7 @@ import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
+import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';
 import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
 import {beginLoading, consumeBootFlags, endLoading, failLoading, loadingScreenState} from '@/client/console/loadingScreenState';
 const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
@@ -701,6 +702,13 @@ export default defineComponent({
   },
   methods: {
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
+      // Console mode: the native <dialog> OK button is unreachable by the pad,
+      // so a server error froze the shell. Route to the pad-navigable
+      // console-native alert instead (dismiss with A/B).
+      if (consoleModeState.enabled) {
+        showConsoleAlert(title, message, cb);
+        return;
+      }
       const dialogElement: HTMLElement | null = document.getElementById('alert-dialog');
       const buttonElement: HTMLElement | null = document.getElementById('alert-dialog-button');
       const messageElement: HTMLElement | null = document.getElementById('alert-dialog-message');

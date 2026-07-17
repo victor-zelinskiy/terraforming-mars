@@ -353,6 +353,13 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
+    <!-- SYSTEM ALERT: the pad-navigable replacement for App's native <dialog>
+         alert (a server outage / rejected input froze the shell before, its
+         OK button unreachable). Top of the intent chain — A/B dismiss. -->
+    <transition name="con-layer">
+      <ConsoleSystemAlert v-if="consoleSystemAlertState.current !== undefined" />
+    </transition>
+
     <!-- The zoom dim VEIL — the ONE dim of the console fullscreen viewer
          (dialog.con-zoom's ::backdrop paints NOTHING — see the LESS). It
          fades in from the very first frame of the open (Vue enter
@@ -412,7 +419,8 @@
            details); cards with no structured rules render no panel and the
            fit reclaims the width. -->
       <template v-if="zoomHasRules" #side="side">
-        <ConsoleCardRulesPanel :cardName="consoleCardZoom.card.name"
+        <ConsoleCardRulesPanel v-if="zoomRulesCardName !== undefined"
+                               :cardName="zoomRulesCardName"
                                :nonce="side.nonce"
                                :closing="side.closing" />
       </template>
@@ -719,6 +727,8 @@ import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePan
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
+import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.vue';
+import {consoleSystemAlertState, dismissConsoleAlert, isConsoleAlertActive} from '@/client/console/consoleSystemAlertState';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
@@ -872,6 +882,7 @@ export default defineComponent({
     ConsoleQuickSelector,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
+    ConsoleSystemAlert,
     ConsoleBoardSection,
     ConsoleHandSection,
     ConsoleResourcePanel,
@@ -955,6 +966,7 @@ export default defineComponent({
       zoomOpenClearTimer: undefined as number | undefined,
       infoModeState,
       leakDetectorState,
+      consoleSystemAlertState,
       govScaleFocusState,
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
@@ -2165,6 +2177,10 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
+      // SYSTEM ALERT owns the pad — the bar advertises only the acknowledge.
+      if (this.consoleSystemAlertState.current !== undefined) {
+        return [{control: 'confirm', label: 'OK'}];
+      }
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
       // TILE-PLACEMENT HERO / DECK DRAW: the animation owns the moment — the
       // pad is inert, the bar advertises nothing (bounded, plays itself out).
@@ -2614,6 +2630,13 @@ export default defineComponent({
     zoomHasRules(): boolean {
       const name = this.consoleCardZoom.card?.name;
       return name !== undefined && cardHasRules(name);
+    },
+    /** The zoomed card's name typed as a CardName for the rules panel — only
+     *  read behind `zoomHasRules`, which is true solely for real project cards
+     *  (a bonus entry never resolves rules), so the cast is sound. */
+    zoomRulesCardName(): CardName | undefined {
+      const name = this.consoleCardZoom.card?.name;
+      return name === undefined ? undefined : (name as CardName);
     },
     zoomSelectable(): boolean {
       return this.consoleCardZoom.select !== undefined && this.consoleCardZoom.card !== undefined;
@@ -3106,6 +3129,16 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
+      // SYSTEM ALERT owns the pad ABOVE everything (even mid-hero): a server
+      // error / rejected input must always be acknowledgeable — A or B
+      // dismisses it (running its callback + advancing the queue); every
+      // other intent is swallowed so nothing acts under it.
+      if (isConsoleAlertActive()) {
+        if (intent.kind === 'press' && (action === 'primary' || action === 'back')) {
+          dismissConsoleAlert();
+        }
+        return true;
+      }
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
       // TILE-PLACEMENT HERO own the moment: while the ship flies, the marker
       // glides, the bonus cover travels, the terminal takes the sold cards
