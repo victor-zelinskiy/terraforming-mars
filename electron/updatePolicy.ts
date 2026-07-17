@@ -68,3 +68,30 @@ export function resolveUpdateDecision(input: UpdateDecisionInput): UpdateDecisio
   }
   return {mode: input.strictOffline ? 'offlineBlocked' : 'normal', usedCache: false};
 }
+
+/** Identity of the running AppImage file — the thing Velopack's UpdateNix replaces. */
+export interface AppImageIdentity {
+  ino: number;
+  mtimeMs: number;
+}
+
+/**
+ * Content of the Linux restart marker (TM_RESTART_MARKER) written just before the
+ * apply+exit. With the AppImage identity known it is `applying <inode> <mtimeSec>` —
+ * the wrapper's restart loop parses it and WAITS until `stat -c '%i %Y'` on the
+ * AppImage differs (the swap is a replace → new inode/mtime) before relaunching.
+ * Without that wait the wrapper relaunched the moment the app exited, while
+ * UpdateNix was still extracting — re-running the OLD version, which then
+ * downloaded and applied the same update a second time (the double-apply seen in
+ * the 1.1.325 Steam Machine log). mtime is floored to whole SECONDS because
+ * that's what the wrapper's `stat -c '%Y'` yields. The identity-less fallback is
+ * the legacy bare timestamp — an OLD wrapper ignores the content entirely (it
+ * only tests -f), and a NEW wrapper treats a non-`applying` marker as
+ * "relaunch immediately", so every app/wrapper version pairing stays safe.
+ */
+export function restartMarkerStamp(st: AppImageIdentity | undefined, now: number = Date.now()): string {
+  if (st === undefined) {
+    return String(now);
+  }
+  return `applying ${st.ino} ${Math.floor(st.mtimeMs / 1000)}`;
+}

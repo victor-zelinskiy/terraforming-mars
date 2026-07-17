@@ -116,6 +116,25 @@ while true; do
   "$APP" --no-sandbox --disable-gpu-sandbox "$@" >> "$LOG" 2>&1
   if [ -f "$TM_RESTART_MARKER" ]; then
     echo "=== restart after update: $(date) ===" >> "$LOG"
+    # Velopack's UpdateNix applies the update CONCURRENTLY with this loop: it waits for the
+    # app to exit, then extracts + moves the new AppImage into place (~1-2s). Relaunching the
+    # instant the app exits re-runs the OLD AppImage, which downloads and applies the same
+    # update a second time. The app stamps the marker with the identity of the AppImage it
+    # was running ("applying <inode> <mtime>"); wait until stat() differs (the swap replaces
+    # the file → new inode/mtime), or UpdateNix is gone (apply done or failed — one grace
+    # second lets a just-finished move settle), or 90s (a hung apply must never brick the
+    # launcher; Velopack's own exit-wait ceiling is 60s). A marker without the stamp (an
+    # older app) keeps the old immediate relaunch.
+    read -r m_tag m_ino m_mtime < "$TM_RESTART_MARKER" 2>/dev/null || m_tag=""
+    if [ "$m_tag" = "applying" ] && [ -n "$m_ino" ] && [ -n "$m_mtime" ]; then
+      deadline=$(( $(date +%s) + 90 ))
+      while [ "$(stat -c '%i %Y' "$APP" 2>/dev/null)" = "$m_ino $m_mtime" ]; do
+        if ! pgrep -x UpdateNix >/dev/null 2>&1; then sleep 1; break; fi
+        [ "$(date +%s)" -ge "$deadline" ] && break
+        sleep 0.3
+      done
+      echo "=== apply-wait done (AppImage $(stat -c '%i %Y' "$APP" 2>/dev/null || echo '?')): $(date) ===" >> "$LOG"
+    fi
     continue
   fi
   break

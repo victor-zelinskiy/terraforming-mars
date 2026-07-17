@@ -29,7 +29,7 @@
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
 import * as fs from 'fs';
 import {UpdateManager, type UpdateInfo} from 'velopack';
-import {CompatSnapshot, resolveUpdateDecision} from './updatePolicy';
+import {AppImageIdentity, CompatSnapshot, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
 import {getLastKnownGood, setLastKnownGood} from './session';
 
 export type DesktopUpdateMode =
@@ -169,6 +169,23 @@ function linuxRestartMarker(): string | undefined {
  *  wrapper. Otherwise the overlay offers install-and-close. */
 function canRestartAfterUpdate(): boolean {
   return process.platform === 'win32' || linuxRestartMarker() !== undefined;
+}
+
+/** stat() the CURRENTLY-running AppImage (the file UpdateNix is about to replace) for the
+ *  restart-marker stamp. $APPIMAGE is set by the AppImage runtime; unset / unreadable →
+ *  undefined → the stamp degrades to the legacy bare timestamp (wrapper relaunches
+ *  immediately, today's behaviour). */
+function statRunningAppImage(): AppImageIdentity | undefined {
+  const p = (process.env.APPIMAGE ?? '').trim();
+  if (p === '') {
+    return undefined;
+  }
+  try {
+    const st = fs.statSync(p);
+    return {ino: st.ino, mtimeMs: st.mtimeMs};
+  } catch {
+    return undefined;
+  }
 }
 
 /** One-line status log — provider is the Velopack GitHub feed, plus the platform / AppImage /
@@ -506,11 +523,14 @@ function applyUpdate(): void {
   if (marker !== undefined) {
     // Steam Deck via the restart-loop wrapper: drop the marker, apply (no relaunch), exit — the
     // WRAPPER (the process Steam/gamescope tracks) relaunches the updated AppImage in the SAME
-    // session. A real install-and-restart with no hang.
+    // session. A real install-and-restart with no hang. The marker carries the identity of the
+    // AppImage we are running RIGHT NOW (`applying <inode> <mtimeSec>`), so the wrapper can wait
+    // for UpdateNix to actually swap the file before relaunching — see restartMarkerStamp for
+    // the double-apply race this closes.
     logUpdate('installing (Linux/Velopack) — apply + restart via the wrapper loop');
     setTimeout(() => {
       try {
-        fs.writeFileSync(marker, String(Date.now()));
+        fs.writeFileSync(marker, restartMarkerStamp(statRunningAppImage()));
       } catch (err) {
         logUpdate('could not write restart marker — ' + String(err));
       }

@@ -362,6 +362,12 @@ the newest 5 (a delta chain needs the prior full present).
   - launched by the **restart-loop wrapper** (`scripts/steamdeck` sets `TM_RESTART_SUPPORTED=1` +
     `TM_RESTART_MARKER`) → the app writes the marker, applies (no relaunch), exits, and the wrapper —
     the process Steam/gamescope tracks — **relaunches the updated AppImage in the same session**.
+    The marker content is `applying <inode> <mtimeSec>` — the identity of the AppImage the app was
+    running (`restartMarkerStamp` in `updatePolicy.ts`). The wrapper WAITS until `stat` on the
+    AppImage differs (UpdateNix swapped it), or UpdateNix exits, or 90 s, BEFORE relaunching —
+    without the wait it relaunched the OLD AppImage while the apply was still extracting, which
+    re-downloaded and re-applied the same update (double-apply). Old wrapper ignores the content
+    (only tests `-f`); an old app's bare-timestamp marker makes a new wrapper relaunch immediately.
   - old wrapper / direct launch → *Install and close*: apply + quit cleanly (Steam returns to the
     library) and the player reopens it. `restartSupported` drives which button the overlay shows.
   - not an AppImage at all (dev/unpacked) → premium **manual-download** fallback (needs `$APPIMAGE`).

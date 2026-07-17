@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {CompatSnapshot, resolveUpdateDecision} from '../../electron/updatePolicy';
+import {CompatSnapshot, resolveUpdateDecision, restartMarkerStamp} from '../../electron/updatePolicy';
 
 // Pure unit test of the Phase 8 last-known-good update policy.
 //   npx mocha --import=tsx "tests/electron/updatePolicy.spec.ts"
@@ -83,5 +83,19 @@ describe('electron/updatePolicy resolveUpdateDecision', () => {
       const d = resolveUpdateDecision({fresh: undefined, cached: buildPending, strictOffline: false});
       expect(d.mode).to.eq('normal');
     });
+  });
+});
+
+describe('electron/updatePolicy restartMarkerStamp', () => {
+  it('stamps the AppImage identity for the wrapper apply-wait, mtime floored to whole SECONDS (stat -c %Y)', () => {
+    // The wrapper parses `read -r tag ino mtime` and compares against `stat -c '%i %Y'`
+    // — three space-separated tokens, seconds precision.
+    expect(restartMarkerStamp({ino: 123456, mtimeMs: 1752760661987})).to.eq('applying 123456 1752760661');
+  });
+
+  it('degrades to the legacy bare timestamp when the AppImage identity is unknown', () => {
+    // A NEW wrapper treats a non-`applying` marker as "relaunch immediately" (old behaviour);
+    // an OLD wrapper never reads the content at all — every pairing stays safe.
+    expect(restartMarkerStamp(undefined, 1752760661987)).to.eq('1752760661987');
   });
 });
