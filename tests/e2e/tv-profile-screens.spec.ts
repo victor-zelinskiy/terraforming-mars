@@ -111,7 +111,9 @@ for (const preset of PRESETS) {
     });
 
     test(`captures the console screens`, async ({page, request}) => {
-      test.setTimeout(180_000);
+      // 4K-class presets render (and video-encode) far slower — animation
+      // holds stretch in wall time and full-page shots take seconds each.
+      test.setTimeout(preset.viewport.width * preset.deviceScaleFactor >= 3840 ? 420_000 : 180_000);
 
       // ── 1 · The console-native pre-game shell ──────────────────────
       await page.goto(`/?console=1${preset.profileQuery}`);
@@ -134,25 +136,33 @@ for (const preset of PRESETS) {
       await page.waitForTimeout(3500); // deal cinematic settles
       await shoot(page, preset, '02-start-scene');
 
-      // ── 3 · Walk the start wizard with the console keyboard bridge ──
-      // A=Enter picks the focused card, RT=Period continues a step:
-      // corp (pick → continue) → preludes (pick 2 → continue) → projects
-      // (buy 2, so the hand section has cards → continue) → verdict
-      // (start; a second RT confirms). Then the prelude phase: play both
-      // preludes with A. Extra presses are inert once each step completes.
-      const walk = [
-        'Enter', 'Period', // corporation
-        'Enter', 'ArrowRight', 'Enter', 'Period', // preludes ×2
-        'Enter', 'ArrowRight', 'Enter', 'Period', // buy 2 projects
-        'Period', 'Period', // verdict → start (double-press confirm safe)
-      ];
-      for (const code of walk) {
-        await key(page, code, 1000);
+      // ── 3 · Drive the start flow STATE-AWARE (not a blind press list) ──
+      // A (Enter) picks / pays / plays the focused item, RT (Period)
+      // continues a completed step, ArrowRight nudges multi-pick steps
+      // (2 preludes / 2 project cards). Heavy 4K rendering + animation
+      // holds can swallow any single press, so the driver simply keeps
+      // alternating them while the start scene is mounted — extra presses
+      // are inert per step; bounded so a genuine hang still fails fast.
+      for (let i = 0; i < 24; i++) {
+        if (await page.locator('.con-start__frame').count() === 0) {
+          break;
+        }
+        await key(page, 'Enter', 1300);
+        await key(page, 'Period', 900);
+        if (i % 2 === 1) {
+          await key(page, 'ArrowRight', 400);
+        }
       }
+      // The wizard hands over to the PRELUDE-PHASE scene through a brief
+      // unmount window (the loop above may break inside it). Give the next
+      // scene time to mount, then play the preludes with a second bounded
+      // state-aware loop (A plays the focused prelude; extra presses inert).
       await page.waitForTimeout(3000);
-      // Prelude phase: play the two preludes (focused card → A).
-      for (const code of ['Enter', 'Enter', 'Enter']) {
-        await key(page, code, 1800);
+      for (let i = 0; i < 8; i++) {
+        if (await page.locator('.con-start__frame, .con-task-host').count() === 0) {
+          break;
+        }
+        await key(page, 'Enter', 2600);
       }
       await page.waitForTimeout(2500);
       await shoot(page, preset, '03-after-start');
@@ -166,6 +176,11 @@ for (const preset of PRESETS) {
       // ── 5 · Hand section (RB = next section) ───────────────────────
       await key(page, 'KeyE', 1200);
       await shoot(page, preset, '05-hand');
+      // ── 5b · Fullscreen card viewer (X = inspect the focused card) —
+      // the TV-fit + rules-panel acceptance shot (Этап 1-R2).
+      await key(page, 'KeyX', 2800); // open flight + annotation settle
+      await shoot(page, preset, '09-card-zoom');
+      await key(page, 'Escape', 1000);
       await key(page, 'KeyQ', 800); // back to the board
 
       // ── 6 · LT information mode ────────────────────────────────────
