@@ -1,8 +1,11 @@
 import {expect} from 'chai';
 import {
-  buildExportFilename, formatConsoleEntry, formatStamp,
-  normalizeConsoleLevel, sanitizeForFilename,
+  buildExportFilename, formatConsoleEntry, formatStamp, makeRichFormatter,
+  normalizeConsoleLevel, RICH_FORMAT_SOURCE, sanitizeForFilename,
 } from '../../electron/consoleExport';
+
+// Exercise the EXACT source the renderer main world runs (compiled from the string, no drift).
+const richFormatArgs = makeRichFormatter();
 
 // Pure unit test of the console-export naming + formatting helpers (the capture/write side is a
 // thin Electron shim around these).
@@ -53,6 +56,47 @@ describe('electron/consoleExport', () => {
       expect(normalizeConsoleLevel(2)).to.eq('WARN');
       expect(normalizeConsoleLevel(3)).to.eq('ERROR');
       expect(normalizeConsoleLevel(undefined)).to.eq('INFO');
+    });
+  });
+
+  describe('richFormatArgs (objects EXPANDED — the fix for [object Object])', () => {
+    it('expands an object argument as pretty JSON, not [object Object]', () => {
+      const out = richFormatArgs(['[TM perf]', {switches: ['--a', '--b'], gpu: {compositing: 'enabled'}}]);
+      expect(out).to.not.include('[object Object]');
+      expect(out).to.include('"compositing": "enabled"');
+      expect(out.startsWith('[TM perf] {')).to.be.true;
+    });
+    it('renders primitives legibly and joins args with a space', () => {
+      expect(richFormatArgs(['n=', 42, true, undefined, null])).to.eq('n= 42 true undefined null');
+    });
+    it('serializes an Error as its stack (or name: message)', () => {
+      const e = new Error('boom');
+      const out = richFormatArgs([e]);
+      expect(out.startsWith('Error: boom')).to.be.true;
+    });
+    it('handles a circular reference without throwing', () => {
+      const a: Record<string, unknown> = {name: 'a'};
+      a.self = a;
+      const out = richFormatArgs([a]);
+      expect(out).to.include('"name": "a"');
+      expect(out).to.include('[Circular]');
+    });
+    it('renders functions and bigint', () => {
+      expect(richFormatArgs([function foo() {}])).to.eq('[Function: foo]');
+      expect(richFormatArgs([10n])).to.eq('10n');
+    });
+    it('caps a monster string so one value cannot blow the file', () => {
+      const out = richFormatArgs(['x'.repeat(50000)]);
+      expect(out.length).to.be.lessThan(21000);
+      expect(out).to.include('…(truncated)');
+    });
+    it('the injected SOURCE string carries no transpiler helper refs (would ReferenceError in the page)', () => {
+      // The page evals RICH_FORMAT_SOURCE as-is. A bundler helper like esbuild's `__name` /
+      // `__spreadArray` is undefined in the page → the capture would silently break. Being a plain
+      // string, no transpiler rewrites it — assert it stays clean.
+      expect(RICH_FORMAT_SOURCE).to.include('WeakSet');
+      expect(RICH_FORMAT_SOURCE).to.include('JSON.stringify');
+      expect(RICH_FORMAT_SOURCE).to.not.match(/__name|__spreadArray|__assign|_classCallCheck/);
     });
   });
 

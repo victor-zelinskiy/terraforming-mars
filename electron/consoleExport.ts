@@ -1,8 +1,16 @@
 // Export the renderer console to a text file (the "⬇ Экспорт консоли" button in the F12
 // DevTools overlay). Steam Machine / Deck have no easy copy-out of the console, so this dumps
 // everything the renderer logged to a file NEXT TO the game log, named with the game, date and
-// time. Passive by construction: it buffers the `console-message` event (which fires whether or
-// not DevTools is open) — it does NOT touch the renderer, the game, or the pad-cursor overlay.
+// time.
+//
+// OBJECTS ARE EXPANDED. The `console-message` event only carries Chromium's flattened text, where
+// an object argument is the useless `[object Object]`. So instead the capture runs IN the renderer
+// MAIN world: a tiny injected script wraps console.{log,info,warn,error,debug}, richly serializes
+// each argument (JSON with a circular guard / Errors as stacks / functions+bigint handled), and
+// buffers the result; the main process periodically DRAINS that buffer into a reload-surviving log.
+// The injection is instrumentation-only (it calls the original console first, never throws into the
+// app) — it does NOT change game behaviour. The `console-message` event is kept only as a fallback
+// for the rare case the injection never ran.
 //
 // Filename: <game>_console_export_<YYYY-MM-DD_HH-MM-SS>.txt  (game sanitized for the filesystem).
 // Directory: TM_LOG_DIR / dirname(TM_LOG_FILE) / dirname($APPIMAGE) (where the wrapper's
@@ -21,6 +29,59 @@ export interface ConsoleEntry {
 }
 
 const MAX_ENTRIES = 20000;
+
+/**
+ * The rich argument-formatter, as PLAIN JS SOURCE — objects EXPANDED (the whole point of the
+ * export). It is a STRING on purpose: it is injected verbatim into the renderer main world (see
+ * CONSOLE_CAPTURE), so it must not go through `.toString()` of a TS function — a transpiler
+ * (esbuild/tsx) rewrites that with helper refs like `__name` that don't exist in the page, which
+ * would silently break the capture. As a string, no bundler touches it; the unit test evaluates
+ * THIS SAME string via `makeRichFormatter()`, so there is one source of truth and zero drift.
+ * Per-arg circular guard; Errors as stacks; functions / bigint / symbol / undefined legible; each
+ * arg capped so one monster object can't blow the file. References only page globals (JSON /
+ * String / WeakSet / Array).
+ */
+export const RICH_FORMAT_SOURCE =
+`function (args) {
+  var one = function (v) {
+    if (v === undefined) return 'undefined';
+    if (v === null) return 'null';
+    var t = typeof v;
+    if (t === 'string') return v;
+    if (t === 'number' || t === 'boolean') return String(v);
+    if (t === 'bigint') return String(v) + 'n';
+    if (t === 'symbol') return v.toString();
+    if (t === 'function') return '[Function' + (v.name ? ': ' + v.name : '') + ']';
+    if (v instanceof Error) return v.stack || (v.name + ': ' + v.message);
+    var seen = new WeakSet();
+    try {
+      var json = JSON.stringify(v, function (_k, val) {
+        if (typeof val === 'bigint') return String(val) + 'n';
+        if (typeof val === 'function') return '[Function' + (val.name ? ': ' + val.name : '') + ']';
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) return '[Circular]';
+          seen.add(val);
+        }
+        return val;
+      }, 2);
+      return json === undefined ? String(v) : json;
+    } catch (e) {
+      try { return String(v); } catch (e2) { return '[Unserializable]'; }
+    }
+  };
+  var MAXLEN = 20000;
+  return args.map(function (a) {
+    var s = one(a);
+    return s.length > MAXLEN ? s.slice(0, MAXLEN) + '…(truncated)' : s;
+  }).join(' ');
+}`;
+
+/** Compile RICH_FORMAT_SOURCE into a callable — used by the unit test to exercise the EXACT source
+ *  the page runs (no drift). Not used at runtime by the app (the page evals the string itself). */
+export function makeRichFormatter(): (args: unknown[]) => string {
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  return new Function('return (' + RICH_FORMAT_SOURCE + ')')() as (args: unknown[]) => string;
+}
 
 /** Normalize the console level to a short upper token. The `console-message` event carries a
  *  STRING level on modern Electron and an INT (0 verbose … 3 error) on the legacy signature. */
@@ -117,63 +178,132 @@ const GAME_NAME_PROBE = `(() => {
   return 'game';
 })()`;
 
+// The main-world capture script, injected on every dom-ready. It wraps the console methods to push
+// a RICHLY-serialized record ({t, level, text}) into a drainable buffer. `richFormatArgs` is
+// embedded verbatim via .toString() so the page uses the exact logic the unit tests cover. Guarded
+// against double-install; calls the original method first and never lets a formatting error escape.
+const CONSOLE_CAPTURE = `(() => {
+  if (window.__tmConsoleCap) return true;
+  window.__tmConsoleCap = true;
+  window.__tmConsoleBuf = [];
+  var MAX = 5000;
+  var fmt = ${RICH_FORMAT_SOURCE};
+  window.__tmConsoleDrain = function () {
+    var e = window.__tmConsoleBuf; window.__tmConsoleBuf = []; return e;
+  };
+  var LEVELS = {log: 'LOG', info: 'INFO', warn: 'WARN', error: 'ERROR', debug: 'DEBUG'};
+  Object.keys(LEVELS).forEach(function (m) {
+    var orig = (typeof console[m] === 'function') ? console[m].bind(console) : function () {};
+    console[m] = function () {
+      var a = Array.prototype.slice.call(arguments);
+      try { orig.apply(null, a); } catch (e) {}
+      try {
+        window.__tmConsoleBuf.push({t: Date.now(), level: LEVELS[m], text: fmt(a)});
+        if (window.__tmConsoleBuf.length > MAX) {
+          window.__tmConsoleBuf.splice(0, window.__tmConsoleBuf.length - MAX);
+        }
+      } catch (e) {}
+    };
+  });
+  return true;
+})()`;
+
 /**
  * Buffer the renderer console and return an exporter. Call once after the BrowserWindow is
- * created. Captures from app start (independent of DevTools being open); a main-frame navigation
- * (the game-boundary reload) inserts a marker line but keeps prior history (bounded by MAX_ENTRIES).
+ * created. The rich capture is injected into the main world on every dom-ready and DRAINED into a
+ * reload-surviving log (periodically, before each navigation, and at export time). A main-frame
+ * navigation inserts a marker line but keeps prior history (bounded by MAX_ENTRIES). The
+ * `console-message` event feeds a SEPARATE fallback buffer, used only if the injection never ran.
  */
 export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExporter {
-  const buffer: ConsoleEntry[] = [];
-  const push = (level: string, text: string, source: string): void => {
-    buffer.push({t: Date.now(), level, text, source});
-    if (buffer.length > MAX_ENTRIES) {
-      buffer.splice(0, buffer.length - MAX_ENTRIES);
+  const richLog: ConsoleEntry[] = [];   // objects expanded — the export's primary source
+  const fallback: ConsoleEntry[] = [];  // flattened console-message text — used only if rich empty
+
+  const capTo = (buf: ConsoleEntry[], level: string, text: string, source: string): void => {
+    buf.push({t: Date.now(), level, text, source});
+    if (buf.length > MAX_ENTRIES) {
+      buf.splice(0, buf.length - MAX_ENTRIES);
     }
   };
 
-  // Dual-signature tolerant: modern Electron passes a ConsoleMessageEvent object; the legacy
-  // form is (event, level, message, line, sourceId).
+  // Pull the rich records the page accumulated and append them to richLog. Cheap (returns only
+  // undrained entries and clears them); safe to call often. Best-effort — a navigating/destroyed
+  // frame just yields nothing.
+  const drain = async (): Promise<void> => {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) {
+      return;
+    }
+    try {
+      const raw = await win.webContents.executeJavaScript(
+        'window.__tmConsoleDrain ? window.__tmConsoleDrain() : []', true);
+      if (Array.isArray(raw)) {
+        for (const r of raw as Array<{t?: number; level?: string; text?: string}>) {
+          richLog.push({t: Number(r.t ?? Date.now()), level: String(r.level ?? 'LOG'), text: String(r.text ?? ''), source: ''});
+        }
+        if (richLog.length > MAX_ENTRIES) {
+          richLog.splice(0, richLog.length - MAX_ENTRIES);
+        }
+      }
+    } catch {
+      // frame not ready / navigating — ignore, the next drain catches up
+    }
+  };
+
+  win.webContents.on('dom-ready', () => {
+    void win.webContents.executeJavaScript(CONSOLE_CAPTURE, true).catch(() => {/* CSP/none — fallback covers it */});
+  });
+  // Grab the tail of the outgoing page BEFORE a reload wipes its buffer, then mark the boundary.
+  win.webContents.on('did-start-navigation', (e) => {
+    const isMainFrame = (e as {isMainFrame?: boolean})?.isMainFrame;
+    if (isMainFrame !== false) {
+      void drain();
+    }
+  });
+  win.webContents.on('did-navigate', (_e, url) => {
+    capTo(richLog, 'INFO', `──────── page loaded: ${url} ────────`, '');
+  });
+
+  // Dual-signature tolerant fallback capture (modern event object OR legacy positional args).
   win.webContents.on('console-message', (...args: unknown[]) => {
     const first = args[0] as Record<string, unknown> | undefined;
     if (first !== undefined && typeof first === 'object' && typeof first.message === 'string') {
-      const line = Number(first.lineNumber ?? 0);
-      const sourceId = String(first.sourceId ?? '');
-      push(normalizeConsoleLevel(first.level), first.message, sourceId !== '' && line > 0 ? `${sourceId}:${line}` : sourceId);
+      capTo(fallback, normalizeConsoleLevel(first.level), String(first.message), '');
     } else {
-      const line = Number(args[3] ?? 0);
-      const sourceId = String(args[4] ?? '');
-      push(normalizeConsoleLevel(args[1]), String(args[2] ?? ''), sourceId !== '' && line > 0 ? `${sourceId}:${line}` : sourceId);
+      capTo(fallback, normalizeConsoleLevel(args[1]), String(args[2] ?? ''), '');
     }
   });
 
-  win.webContents.on('did-navigate', (_e, url) => {
-    push('INFO', `──────── page loaded: ${url} ────────`, '');
-  });
+  // Periodic drain so cross-reload history survives even without a navigation event firing.
+  const drainTimer = setInterval(() => void drain(), 8000);
+  win.on('closed', () => clearInterval(drainTimer));
 
-  const dump = (gameName: string, when: Date): string => {
+  const dump = (gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean): string => {
     const header = [
       `Terraforming Mars — console export`,
       `game: ${gameName}`,
       `time: ${when.toISOString()} (local ${formatStamp(when)})`,
       `url:  ${win.webContents.getURL()}`,
-      `lines: ${buffer.length}`,
+      `lines: ${entries.length}${rich ? '' : '  (fallback — objects not expanded)'}`,
       '─'.repeat(60),
       '',
     ].join('\n');
-    return header + buffer.map(formatConsoleEntry).join('\n') + '\n';
+    return header + entries.map(formatConsoleEntry).join('\n') + '\n';
   };
 
   return {
     async export() {
       try {
-        const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE));
+        await drain(); // capture everything logged up to this instant
+        const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE, true));
+        const rich = richLog.length > 0;
+        const entries = rich ? richLog : fallback;
         const when = new Date();
         const dir = resolveExportDir(app);
         const file = path.join(dir, buildExportFilename(gameName, when));
         await fs.promises.mkdir(dir, {recursive: true});
-        await fs.promises.writeFile(file, dump(gameName, when), 'utf8');
+        await fs.promises.writeFile(file, dump(gameName, when, entries, rich), 'utf8');
         // eslint-disable-next-line no-console
-        console.log(`[console-export] wrote ${buffer.length} lines → ${file}`);
+        console.log(`[console-export] wrote ${entries.length} lines (${rich ? 'rich' : 'fallback'}) → ${file}`);
         return {ok: true, path: file};
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
