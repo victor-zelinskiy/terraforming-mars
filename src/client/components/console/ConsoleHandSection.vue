@@ -1,5 +1,5 @@
 <template>
-  <div class="con-hand con-hand--grid" :style="rootStyle">
+  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold}" :style="rootStyle">
     <!-- HEADER: title + live counts + the premium tag-filter chips. Button
          hints live ONLY in the footer command bar — never here. -->
     <div class="con-hand__header">
@@ -148,8 +148,10 @@
     <!-- The gliding selection frame — THE primary focus indicator of card
          navigation (shared with the start scene / draft / reveal). Self-
          resolving: tracks the cursored card inside this section itself,
-         following grid scroll and the focus scale transition live. -->
-    <ConsoleCardFocusFrame selector=".con-hand__slot--selected > :is(.card-container, .pcard)" />
+         following grid scroll and the focus scale transition live.
+         Suppressed while the reveal transition owns the cards (the frame
+         would aim at a held-invisible slot). -->
+    <ConsoleCardFocusFrame v-if="!transitHold" selector=".con-hand__slot--selected > :is(.card-container, .pcard)" />
   </div>
 </template>
 
@@ -261,6 +263,13 @@ export default defineComponent({
      * physical card can never sit in the hand AND the modal at once.
      */
     stagedCard: {type: String as PropType<CardName | undefined>, default: undefined},
+    /**
+     * The dock ↔ overlay REVEAL transition owns the cards right now: every
+     * slot renders held (the flying proxies are the single visible
+     * representation of each card — handRevealDirector.ts). Vue-managed so
+     * a mid-episode patch can't wash the hold off.
+     */
+    transitHold: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -540,6 +549,76 @@ export default defineComponent({
       next = clampNum(0, maxScroll, next);
       if (Math.abs(next - viewTop) > 0.5) {
         grid.scrollTop = next; // fires @scroll → applyScroll re-windows
+      }
+    },
+    // ── the dock ↔ overlay reveal transition (handRevealDirector) ─────────
+    /**
+     * Every hand card's OVERLAY home, in entries order: the real card rect
+     * for rendered slots, a PLAN-derived rect for slots beyond the virtual
+     * window (grid math is pure — a reference rendered card anchors the
+     * row/column strides, so even a 30-card tail has an honest position).
+     * `visible` = the rect intersects the grid viewport (off-window proxies
+     * fade at the boundary — "into the scroll"). One read batch; no writes.
+     */
+    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean}>, scrollTop: number} {
+      const grid = this.$refs.grid as HTMLElement | undefined;
+      if (grid === undefined || this.entries.length === 0) {
+        return {pairs: [], scrollTop: 0};
+      }
+      const gr = grid.getBoundingClientRect();
+      const p = this.plan;
+      // The anchor: the FIRST rendered slot's card (its entries index is
+      // known via the render window), backing out the per-card strides.
+      const firstRow = this.renderRows[0] ?? 0;
+      const refIndex = firstRow * p.cols;
+      const refName = this.entries[refIndex]?.card.name;
+      const refSlot = refName !== undefined ?
+        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(refName)}"]`) : null;
+      const refCard = refSlot?.querySelector<HTMLElement>(':is(.card-container, .pcard)');
+      const ref = refCard?.getBoundingClientRect();
+      // Column stride: measured off two adjacent rendered cards when
+      // possible (slot padding/zoom folded in), else plan-derived.
+      let colStride = ref !== undefined ? ref.width + p.gapX : 0;
+      const secondName = this.entries[refIndex + 1]?.card.name;
+      const secondCard = secondName !== undefined && p.cols > 1 ?
+        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(secondName)}"] :is(.card-container, .pcard)`) : null;
+      if (ref !== undefined && secondCard !== null && secondCard !== undefined) {
+        const r2 = secondCard.getBoundingClientRect();
+        if (r2.left > ref.left) {
+          colStride = r2.left - ref.left;
+        }
+      }
+      const refRow = Math.floor(refIndex / p.cols);
+      const refCol = refIndex % p.cols;
+      const pairs = this.entries.map((e, i) => {
+        const slotCard = grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(e.card.name)}"] :is(.card-container, .pcard)`);
+        let rect: {left: number, top: number, width: number, height: number};
+        if (slotCard !== null) {
+          const r = slotCard.getBoundingClientRect();
+          rect = {left: r.left, top: r.top, width: r.width, height: r.height};
+        } else if (ref !== undefined) {
+          const row = Math.floor(i / p.cols);
+          const col = i % p.cols;
+          rect = {
+            left: ref.left + (col - refCol) * colStride,
+            top: ref.top + (row - refRow) * p.rowStride,
+            width: ref.width,
+            height: ref.height,
+          };
+        } else {
+          rect = {left: gr.left + gr.width / 2, top: gr.bottom, width: 60, height: 84};
+        }
+        const visible = rect.top < gr.bottom - 4 && rect.top + rect.height > gr.top + 4;
+        return {name: e.card.name as CardName, rect, visible};
+      });
+      return {pairs, scrollTop: grid.scrollTop};
+    },
+    /** Re-seat the grid scroll after a mid-close reopen remount — the
+     *  returning proxies land on rects measured at THIS scroll. */
+    restoreScroll(px: number): void {
+      const grid = this.$refs.grid as HTMLElement | undefined;
+      if (grid !== undefined) {
+        grid.scrollTop = px;
       }
     },
     measure(): void {

@@ -5,6 +5,7 @@
          'con-handdock--raised': raised,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
+         'con-handdock--lifted': lifted,
        }"
        :style="rootVars"
        role="button"
@@ -113,8 +114,14 @@ export default defineComponent({
     epoch: {type: String, default: ''},
     /** Click-to-open affordance (hover lift + pointer) — visuals never change. */
     interactive: {type: Boolean, default: true},
-    /** The RT wheel is open — the pack rises to answer its «РУКА» slot. */
+    /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
     raised: {type: Boolean, default: false},
+    /**
+     * The reveal transition owns the cards (they are "in the player's
+     * hand"): the PACK renders held — backs/slabs/ghost invisible, the
+     * chassis + status line stay put (handRevealDirector.ts).
+     */
+    lifted: {type: Boolean, default: false},
   },
   emits: ['open'],
   computed: {
@@ -159,6 +166,49 @@ export default defineComponent({
       if (this.interactive) {
         this.$emit('open');
       }
+    },
+    /**
+     * Every hand card's DOCK home, keyed by name (the reveal transition's
+     * source/landing rects): rendered backs give their real card rect; the
+     * thickness tail gets near-stacked positions at the pack's LEFT flank
+     * (each hidden card ~2px deeper — physically present, cheaply drawn).
+     */
+    sourceRects(names: ReadonlyArray<string>): Map<string, {left: number, top: number, width: number, height: number}> {
+      const root = this.$el as HTMLElement | undefined;
+      const out = new Map<string, {left: number, top: number, width: number, height: number}>();
+      if (root === undefined || root === null) {
+        return out;
+      }
+      const backs = new Map<string, DOMRect>();
+      let leftmost: DOMRect | undefined;
+      for (const el of root.querySelectorAll<HTMLElement>('[data-hand-dock-card]')) {
+        const r = el.getBoundingClientRect();
+        backs.set(el.getAttribute('data-hand-dock-card') ?? '', r);
+        if (leftmost === undefined || r.left < leftmost.left) {
+          leftmost = r;
+        }
+      }
+      const fallback = (root.querySelector<HTMLElement>('.con-handdock__plate') ?? root).getBoundingClientRect();
+      let depth = 0;
+      for (const name of names) {
+        const back = backs.get(name);
+        if (back !== undefined) {
+          out.set(name, {left: back.left, top: back.top, width: back.width, height: back.height});
+        } else if (leftmost !== undefined) {
+          depth++;
+          out.set(name, {
+            left: leftmost.left - depth * 2.2,
+            top: leftmost.top + Math.min(depth, 3) * 0.8,
+            width: leftmost.width,
+            height: leftmost.height,
+          });
+        } else {
+          const w = 63;
+          const h = 88;
+          out.set(name, {left: fallback.left + fallback.width / 2 - w / 2, top: fallback.top - h * 0.55, width: w, height: h});
+        }
+      }
+      return out;
     },
   },
 });

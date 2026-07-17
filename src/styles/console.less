@@ -3266,6 +3266,28 @@ html.console-mode {
     flex-direction: column;
     gap: .6rem;
 
+    /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────
+       Every slot is held invisible while the proxies fly (one card — one
+       visible representation; handRevealDirector.ts). Releasing the class
+       rides the slot's own 160ms opacity transition — that IS the handoff
+       fade-in under the landed proxies. The chrome (header / verdict bar /
+       scrollbar) is NOT held — it arrives around the flying cards. */
+    &--transit &__slot {
+        opacity: 0 !important;
+        pointer-events: none;
+    }
+
+    /* The chrome materializes AROUND the arriving cards: a quiet rise on
+       every mount of the section (the reveal episode and the plain task
+       opens share it — cards stay the main event, panels follow). */
+    &__header,
+    &__verdictbar {
+        animation: con-hand-chrome-in calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+    }
+    &__verdictbar {
+        animation-delay: calc(60ms * var(--motion-scale, 1));
+    }
+
     /* ── the premium hand SHELF: a glass sci-fi surface holding the grid ── */
     &__shelf {
         position: relative;
@@ -3337,7 +3359,8 @@ html.console-mode {
         zoom: var(--con-hand-zoom, 0.66);
         transition:
             transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            filter calc(150ms * var(--motion-scale, 1)) ease;
+            filter calc(150ms * var(--motion-scale, 1)) ease,
+            opacity calc(160ms * var(--motion-scale, 1)) ease; /* the reveal handoff fade-in */
         /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
@@ -6229,6 +6252,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         pointer-events: auto;
         cursor: pointer;
     }
+    /* The reveal transition owns the cards ("in the player's hand"): the
+       PACK is held invisible the same frame its proxies stand over it —
+       instant, no transition (the proxies ARE the cards); the chassis,
+       status line and counter stay exactly where they are. */
+    &--lifted {
+        .con-handdock__card,
+        .con-handdock__slab,
+        .con-handdock__ghost {
+            visibility: hidden;
+        }
+    }
     /* The pack rises + opens a notch: on hover, AND while the RT wheel is
        open (its centre «КАРТЫ» slot is the entry to the hand — the dock
        below answers on the same axis). */
@@ -6270,6 +6304,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         opacity calc(260ms * var(--motion-scale, 1)) ease;
 }
 
+/* The hand section's chrome rise (header / verdict bar) — the panels
+   follow the cards, never precede them. */
+@keyframes con-hand-chrome-in {
+    from { opacity: 0; transform: translateY(.4rem); }
+    to { opacity: 1; transform: none; }
+}
+
 /* A CHANGED digit re-enters with a short drop-in (the element is re-keyed,
    so only the digit that actually changed animates — the line and its
    centre never move). */
@@ -6283,6 +6324,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     .con-hd-enter-active,
     .con-hd-leave-active { transition: none; }
     .con-handdock__num { animation: none; transition: none; }
+    .con-hand__header,
+    .con-hand__verdictbar { animation: none; }
+    .con-hand__slot { transition-duration: 1ms; }
 }
 
 /* ── Console-mode entry prompt (desktop side) ────────────────────── */

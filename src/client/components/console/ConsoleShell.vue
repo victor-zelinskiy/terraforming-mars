@@ -126,7 +126,8 @@
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
-                          :stagedCard="stagedHandCard" />
+                          :stagedCard="stagedHandCard"
+                          :transitHold="handRevealState.holdSlots" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
@@ -493,6 +494,12 @@
          closing mid-animation (cardExitDirector.ts). -->
     <ConsoleCardExitLayer />
 
+    <!-- The dock ↔ hand-overlay REVEAL stage — the compact pack physically
+         opens into the real hand grid and gathers back (one reversible
+         timeline per episode; handRevealDirector.ts). Above the footer:
+         the flights land INTO the command bar's dock bay. -->
+    <ConsoleHandRevealLayer />
+
     <!-- The colony-trade LAUNCH flight stage (send a trade fleet to the
          planet) — app-level so the ship survives the composer dissolving
          beneath it; docks on the target colony's berth, then the trade
@@ -544,11 +551,13 @@
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
     <div class="con-footer" :style="footerVars">
-      <ConsoleHandDock :cards="handDockCards"
+      <ConsoleHandDock ref="handDock"
+                       :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
+                       :lifted="handRevealState.dockLifted"
                        @open="onHandDockOpen" />
       <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
     </div>
@@ -689,6 +698,12 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
+import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
+import {handRevealState} from '@/client/console/handDock/handRevealState';
+import {
+  isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
+  setHandRevealHooks, RevealPair, RevealRect,
+} from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {
@@ -835,6 +850,7 @@ export default defineComponent({
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
     ConsoleCardExitLayer,
+    ConsoleHandRevealLayer,
     ConsoleDraftTray,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
@@ -881,6 +897,7 @@ export default defineComponent({
       consoleState,
       consoleCardZoom,
       playedHeroState,
+      handRevealState,
       patentSaleState,
       tilePlacementState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
@@ -1639,6 +1656,7 @@ export default defineComponent({
      *  reveal / fullscreen zoom would otherwise get scrolled through blindly). */
     handScrollActive(): boolean {
       return this.consoleState.section === 'hand' &&
+        !isHandRevealEpisodeRunning() && // flight targets pin the layout
         this.pendingPlayCard === undefined &&
         this.hostTask === undefined &&
         // A hand-served shell task (play-from-hand / mandatory hand-select)
@@ -2796,6 +2814,24 @@ export default defineComponent({
         this.colonyInspectOpen = false;
         resetConsoleColoniesUi();
       }
+      // The hand-reveal presentation follows the section on EVERY path, not
+      // just the choreographed ones. While an episode runs the director owns
+      // these flips (it switches the section itself — skip). Otherwise:
+      //  - hand opened by ANY route (a serving task, sale) → the dock pack
+      //    reads "cards are in the hand" (lifted), no proxies;
+      //  - hand closed by ANY route (sale cancel, a task replacing the
+      //    section) → the pack returns; a stuck hold is impossible.
+      if (!isHandRevealEpisodeRunning()) {
+        if (section === 'hand' && handRevealState.phase === 'docked') {
+          handRevealState.phase = 'open';
+          handRevealState.dockLifted = true;
+        } else if (section !== 'hand' && (handRevealState.phase === 'open' ||
+            (handRevealState.phase === 'docked' && (handRevealState.holdSlots || handRevealState.dockLifted)))) {
+          // NOT 'opening'/'closing': those belong to a director episode in
+          // its pre-install flush — resetting there would kill it mid-birth.
+          resetHandReveal();
+        }
+      }
     },
     // The journal closing for ANY reason (mandatory surface, game switch)
     // takes its read-only colony dossier with it.
@@ -3495,6 +3531,72 @@ export default defineComponent({
         this.executeLtEntry(entry.id);
       }
     },
+    // ── the dock ↔ hand-overlay REVEAL episodes (handRevealDirector) ──────
+    /**
+     * OPEN the hand as a physical reveal: mount the overlay HELD (slots
+     * invisible, chrome arriving), measure both ends in one read batch,
+     * then fly one proxy per card dock → slot (backs flip to faces around
+     * the edge, centre-out fan). Reopening mid-close reverses the running
+     * gather instead. Falls back to the plain section switch when the
+     * geometry isn't measurable.
+     */
+    async openHandWithReveal(): Promise<void> {
+      if (isHandRevealEpisodeRunning()) {
+        if (handRevealState.phase === 'closing') {
+          reverseHandReveal(); // reopen mid-close: same timeline, back to open
+        }
+        return;
+      }
+      if (this.consoleState.section === 'hand') {
+        return;
+      }
+      this.deferShellTask(); // navigation-away (the RT path's contract)
+      // Phase BEFORE the section flip: the section watcher must see a
+      // director-owned transition, not an untracked open (which would lift
+      // the dock instantly and skip the choreography).
+      handRevealState.phase = 'opening';
+      handRevealState.holdSlots = true;
+      this.consoleState.section = 'hand';
+      await this.$nextTick();
+      // Two frames: the grid measures itself + ensureSelectedVisible seats
+      // the scroll — the targets below are the settled layout.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+      const pairs: Array<RevealPair> = [];
+      for (const p of t.pairs) {
+        const source = sources.get(p.name);
+        if (source !== undefined) {
+          pairs.push({name: p.name, source, target: p.rect, visible: p.visible});
+        }
+      }
+      await runHandOpenEpisode(pairs);
+    },
+    /**
+     * CLOSE the hand as the physical gather: measure the LIVE slot rects
+     * (current scroll/filter), fly the cards back into the dock's exact
+     * back positions (faces flip back-side-out on approach). `B` mid-open
+     * never reaches here — handleSectionBack reverses the running episode.
+     */
+    async closeHandWithReveal(): Promise<void> {
+      if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand') {
+        return;
+      }
+      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+      const pairs: Array<RevealPair> = [];
+      for (const p of t.pairs) {
+        const source = sources.get(p.name);
+        if (source !== undefined) {
+          pairs.push({name: p.name, source, target: p.rect, visible: p.visible});
+        }
+      }
+      await runHandCloseEpisode(pairs, t.scrollTop);
+    },
     /** The hand dock (footer bay) clicked — the mouse/touch entry point to
      *  the hand. Same path as RT → КАРТЫ; guarded to the calm board home
      *  (the dock is `live` there — every overlay state is non-interactive). */
@@ -3509,8 +3611,7 @@ export default defineComponent({
     executeRtEntry(id: string): void {
       switch (id) {
       case 'cards':
-        this.deferShellTask(); // navigation-away
-        this.consoleState.section = 'hand';
+        void this.openHandWithReveal();
         break;
       case 'cardActions':
         this.openSheet('cardActions');
@@ -3806,6 +3907,11 @@ export default defineComponent({
       }
     },
     handleSectionNav(dir: NavDirection): void {
+      // Mid-reveal the hand grid must not scroll (the flight targets were
+      // measured against the current layout) — nav resumes at touchdown.
+      if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
+        return;
+      }
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         // P27b: SCALE INSPECTION — the cursor walks the bonus ring
@@ -3843,6 +3949,11 @@ export default defineComponent({
       }
     },
     handleSectionConfirm(): void {
+      // No accidental card activation under the flying reveal proxies —
+      // A waits out the episode (navigation stays free; B reverses).
+      if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
+        return;
+      }
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
         if (this.placementActive) {
@@ -3920,6 +4031,15 @@ export default defineComponent({
     },
     /** B: one calm step toward the console home (never destructive). */
     handleSectionBack(): void {
+      // A running hand-reveal episode owns B: mid-open it REVERSES the same
+      // timeline from its current progress (the hard `B` contract);
+      // mid-close it's swallowed — the gather is already going home.
+      if (isHandRevealEpisodeRunning()) {
+        if (handRevealState.phase === 'opening') {
+          reverseHandReveal();
+        }
+        return;
+      }
       // A DEFERRED task comes back first — B toggles task ↔ board-inspect.
       if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
         this.consoleState.task.deferred = false;
@@ -3947,7 +4067,13 @@ export default defineComponent({
         this.consoleState.section = 'board';
         return;
       }
-      if (this.consoleState.section === 'hand' || this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') {
+      if (this.consoleState.section === 'hand') {
+        // The physical gather back into the dock (plain browse close — the
+        // sale / shell-task paths returned above with their own handling).
+        void this.closeHandWithReveal();
+        return;
+      }
+      if (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') {
         this.consoleState.section = 'board';
         return;
       }
@@ -5419,6 +5545,16 @@ export default defineComponent({
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
+    // The hand-reveal director owns WHEN the section switches during its
+    // episodes (and re-seats the grid scroll on a mid-close reopen).
+    setHandRevealHooks({
+      setSection: (s) => {
+        this.consoleState.section = s;
+      },
+      restoreScroll: (px) => {
+        (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.restoreScroll(px);
+      },
+    });
     // Clear any scale-overview tooltip a stray real-mouse hover left showing
     // before the shell reported its presence (mouse tooltips are suppressed in
     // console mode from here on — see ArcScale.mouseTooltipsSuppressed).
@@ -5433,6 +5569,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offIntent?.();
+    resetHandReveal(); // never leak a mid-episode timeline / held dock
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

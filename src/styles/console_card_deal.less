@@ -427,6 +427,21 @@ dialog.con-zoom {
     }
 }
 
+/* ── HAND REVEAL — the dock ↔ hand-overlay physical transition ────────
+   (handRevealDirector.ts / ConsoleHandRevealLayer.vue). The compact pack
+   in the footer bay opens into the real hand grid and gathers back; one
+   reversible GSAP timeline per episode, one deal-language proxy per card
+   (the 3D flip chassis is shared — `.con-deal-proxy*`). ABOVE the footer
+   (11700): the flights depart from / land into the command bar's dock bay. */
+.con-handreveal-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11710;
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
 /* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────
    The outbound twin of the deal: take-one, collect-all, draft hero-pick,
    hand→play-modal transfers fly FaceLite proxies on the ONE app-level
