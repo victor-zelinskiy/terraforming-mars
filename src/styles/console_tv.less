@@ -77,6 +77,21 @@ html.con-profile-tv {
     --con-dim-b: 0.965;
 }
 
+/* ═══ 0b · CONTROLLER GLYPHS — the couch floor, EVERYWHERE ══════════
+   The base .gp-glyph is px-authored for desktop (20px box / 11px letter):
+   at couch distance that reads as a speck. ONE global floor for every
+   console surface (zoom bar, verdict chips, quick slots, MA blocks,
+   journal controls, banners …); the command-bar's own sizes below stay
+   the larger authority. */
+html.con-profile-tv.console-mode .gp-glyph,
+html.con-profile-tv.console-native .gp-glyph {
+    min-width: 1.55rem;
+    height: 1.55rem;
+    font-size: var(--con-t-floor);
+
+    &--pill { min-width: 2.05rem; }
+}
+
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
 html.con-profile-tv {
     .con-root {
@@ -148,6 +163,12 @@ html.con-profile-tv {
     /* Floor rule (§3.4): the smallest legend on the board home reads at the
        service floor, never below it. */
     .con-award__legend-span { font-size: var(--con-t-floor); }
+    /* The on-object LB/RB keys + badges on the home MA blocks and the
+       journal header controls — real key caps, not specks (their base
+       compact sizes out-specify the global §0b floor). */
+    .con-home__hint .gp-glyph { min-width: 1.7rem; height: 1.3rem; font-size: var(--con-t-floor); }
+    .con-home__badge .gp-glyph { min-width: 1.5rem; height: 1.5rem; font-size: var(--con-t-floor); }
+    .con-journal__controls .gp-glyph { min-width: 1.55rem; height: 1.25rem; font-size: var(--con-t-floor); }
 
     /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
     .con-cmdbar {
@@ -473,7 +494,12 @@ html.con-profile-tv {
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {
         --con-start-verdict-h: 3rem;
-        &__frame { width: min(90rem, 96vw); }
+        /* A REAL stage height: the frame's base height is content-driven,
+           which starved the card strip's fit engine (body.clientHeight ≈
+           content → zoom never grew → 4 preludes floating in a void).
+           Fixing the frame height lets __body (flex:1) hand the strip the
+           whole band — the fit engine then fills it. */
+        &__frame { width: min(90rem, 96vw); height: 84vh; }
         &__title { font-size: 1.6rem; }
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }
@@ -655,6 +681,12 @@ html.con-profile-tv.console-mode {
     .fsr { zoom: var(--con-ui-scale, 1); }
     .rematch-modal { zoom: var(--con-ui-scale, 1); }
     .desktop-update--cover .desktop-update__panel { zoom: var(--con-ui-scale, 1); }
+}
+/* The app BOOT LOADER (shader warm-up curtain) is px-authored — on the tv
+   profile its centre panel rides the profile scale like every lifecycle
+   surface (the backdrop scene is full-screen gradients and needs nothing). */
+html.con-profile-tv .boot-loader__panel {
+    zoom: var(--con-ui-scale, 1);
 }
 
 /* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */

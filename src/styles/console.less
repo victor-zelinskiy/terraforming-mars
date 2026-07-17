@@ -43,6 +43,14 @@
 @sem-prestige: #ffd87a; // milestones / awards / finale (= @con-ma-gold)
 @sem-idle: rgba(150, 175, 205, 0.6); // disabled / off chrome
 
+/* ── CARD-ELEMENT accents (the premium face's own material colours, used
+   by the fullscreen rules panel to colour-match a block to its element):
+   requirement plate copper (--pcard-req-copper-hi), action frame gold
+   (the pcard gold band), effect frame blue (the azure frame family). */
+@con-req-copper: #b87f42;
+@con-action-gold: #f2d795;
+@con-effect-blue: #5aa9e6;
+
 /* ── DESIGN TOKENS (base logical space; the TV profile overrides VALUES
    in console_tv.less — same names, so components consume var() and get
    the right size on every profile). Base values mirror today's shipped
@@ -10165,6 +10173,66 @@ body.con-start-ceremony {
         gap: .2rem;
         .con-start__mc { width: .85rem; height: .85rem; }
     }
+    /* ── The ceremony PAYMENT beat ────────────────────────────────────────
+       The bought project cards shown FACE UP (a compact, non-navigable grid
+       — the player sees exactly WHICH cards they are buying) over the
+       cost + «Оплатить» CTA. On confirm these cards physically fly into the
+       hand dock (handDeliveryDirector); they are held out of the dock until
+       then, so this grid is their only home in the meantime. */
+    &__pay {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .5rem;
+    }
+    &__pay-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .55rem;
+        padding: .7rem .85rem;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, background calc(160ms * var(--motion-scale, 1)) ease;
+        &--focused {
+            background: fade(@con-mint, 14%);
+            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 30%);
+        }
+    }
+    &__pay-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--con-pay-cols, 4), auto);
+        gap: .45rem;
+        justify-content: center;
+        align-items: start;
+    }
+    /* Each bought card: a compact FACE (readable enough to identify), zeroed
+       legacy margin, inert. Same footprint feel as a hand card, never
+       navigable inside the payment element. */
+    &__pay-proxy {
+        display: flex;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: calc(0.36 * var(--con-ui-scale, 1));
+        }
+    }
+    &__pay-meta {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    &__pay-cards {
+        font-size: .72rem; color: @con-text-dim;
+        b { font-size: .85rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__pay-amount {
+        display: inline-flex; align-items: center; gap: .15rem;
+        font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
+    }
+    &__pay-cta {
+        margin-left: .1rem;
+    }
     &__right {
         flex: 1;
         min-width: 0;
@@ -13502,6 +13570,16 @@ html.con-profile-large {
     stroke: fade(@con-cyan, 38%);
     stroke-width: 2;
 }
+/* Leaders inherit their block's semantic accent — the wire IS the link. */
+.con-zoom-rules__link--requirement { .con-zoom-rules__node { fill: fade(@con-req-copper, 85%); } .con-zoom-rules__wire { stroke: fade(@con-req-copper, 45%); } }
+.con-zoom-rules__link--immediate { .con-zoom-rules__node { fill: fade(@con-mint, 85%); } .con-zoom-rules__wire { stroke: fade(@con-mint, 42%); } }
+.con-zoom-rules__link--effect { .con-zoom-rules__node { fill: fade(@con-effect-blue, 85%); } .con-zoom-rules__wire { stroke: fade(@con-effect-blue, 45%); } }
+.con-zoom-rules__link--action { .con-zoom-rules__node { fill: fade(@con-action-gold, 88%); } .con-zoom-rules__wire { stroke: fade(@con-action-gold, 45%); } }
+.con-zoom-rules__link--victory-points { .con-zoom-rules__node { fill: fade(@sem-prestige, 88%); } .con-zoom-rules__wire { stroke: fade(@sem-prestige, 45%); } }
+/* The «ПРИ РОЗЫГРЫШЕ» play-rail is now MINT at the source (premium_card.less
+   --pcard-onplay — the unified premium-wide colour of on-play), so it
+   already matches its mint rules chip everywhere; no console-scoped
+   recolour needed. */
 .con-zoom-rules {
     display: flex;
     flex-direction: column;
@@ -13560,6 +13638,31 @@ html.con-profile-large {
         font-weight: 700;
         letter-spacing: .09rem;
         text-transform: uppercase;
+    }
+    /* ── COLOUR-CODED kinds — each chip carries the EXACT accent of its
+       card element (the user-approved linkage language): requirement =
+       the copper plate, action = the gold frame, effect = the blue frame,
+       «при розыгрыше» = the mint-recoloured play-rail (see the .con-zoom
+       .pcard-play-rail override below), VP = prestige gold, note = amber. */
+    &__group--requirement &__kind {
+        background: fade(@con-req-copper, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-req-copper, 55%);
+        color: #e8c496;
+    }
+    &__group--immediate &__kind {
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
+        color: #bdf3dc;
+    }
+    &__group--effect &__kind {
+        background: fade(@con-effect-blue, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-effect-blue, 55%);
+        color: #bfe0ff;
+    }
+    &__group--action &__kind {
+        background: fade(@con-action-gold, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-action-gold, 55%);
+        color: #f2e3bb;
     }
     &__group--victory-points &__kind {
         background: fade(@sem-prestige, 12%);

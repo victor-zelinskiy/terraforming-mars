@@ -741,8 +741,7 @@ import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevea
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
-import {armStartingCardsDelivery, maybeRunDelivery, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
-import {consoleStartState} from '@/client/console/consoleStartState';
+import {resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
   isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
   setHandRevealHooks, RevealPair, RevealRect,
@@ -2987,6 +2986,17 @@ export default defineComponent({
       this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
     },
+    /** The start ceremony fully resolved (the game began) — release any
+     *  residual starting-cards delivery HOLD so the dock can never stick
+     *  withheld. The normal flow already cleared it on the flight's landing;
+     *  this is the belt-and-braces for a theoretical no-payment path. NOT
+     *  fired on defer (`startTask` stays defined while the scene is deferred,
+     *  so the hold correctly survives a board inspection). */
+    startTask(now: ConsoleTask | undefined, was: ConsoleTask | undefined): void {
+      if (now === undefined && was !== undefined && handDeliveryState.held.length > 0) {
+        resetHandDelivery();
+      }
+    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -3069,17 +3079,6 @@ export default defineComponent({
           if (shellTask !== undefined) {
             this.openShellTaskSurface(shellTask);
           }
-        }
-        // STARTING-CARDS DELIVERY: once the paid project cards are in the
-        // hand and the board (deck + dock) is on screen, fly them in from the
-        // project deck. The director no-ops until an arm is pending + all
-        // bought names present; measured after the DOM settles.
-        if (handDeliveryState.active) {
-          void this.$nextTick(() => {
-            const dock = (this.$refs.handDock as {$el?: HTMLElement} | undefined)?.$el ?? null;
-            const deck = document.querySelector<HTMLElement>('.con-deckstack');
-            maybeRunDelivery(this.handDockCards.map((c) => c.name), dock, deck);
-          });
         }
       },
     },
@@ -4865,13 +4864,10 @@ export default defineComponent({
         }
         return;
       }
-      // START-BUY DELIVERY: this is the game-opening initialCards submit — the
-      // PAYMENT. Withhold the bought project cards from the dock NOW (before
-      // the commit brings them), so they never flash in the hand before the
-      // payment lands; the director then flies them in from the project deck.
-      if (this.startTask !== undefined) {
-        armStartingCardsDelivery([...consoleStartState.projects]);
-      }
+      // (The starting-cards DELIVERY is armed + fired entirely inside
+      // ConsoleStartScene — the hold begins at the first ceremony frame and
+      // the flight fires ONLY on the project-payment confirm. The shell just
+      // hosts the delivery layer + passes the held set to the dock.)
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       this.submit(response);

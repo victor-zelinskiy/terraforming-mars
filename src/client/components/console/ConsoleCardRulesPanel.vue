@@ -11,7 +11,9 @@
          :style="{left: -gapW + 'px', width: gapW + 'px', height: panelH + 'px'}"
          :viewBox="'0 0 ' + gapW + ' ' + panelH"
          aria-hidden="true">
-      <g v-for="link in links" :key="link.id" class="con-zoom-rules__link">
+      <g v-for="link in links" :key="link.id"
+         class="con-zoom-rules__link"
+         :class="'con-zoom-rules__link--' + link.kind">
         <circle :cx="5" :cy="link.y1" r="4.5" class="con-zoom-rules__node" />
         <line :x1="10" :y1="link.y1" :x2="gapW" :y2="link.y2" class="con-zoom-rules__wire" />
       </g>
@@ -92,7 +94,7 @@ function cssEscapeId(value: string): string {
   return typeof CSS !== 'undefined' && CSS.escape !== undefined ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
 
-type Link = {id: string, y1: number, y2: number};
+type Link = {id: string, kind: CardAnnotation['kind'], y1: number, y2: number};
 
 export default defineComponent({
   name: 'ConsoleCardRulesPanel',
@@ -268,7 +270,7 @@ export default defineComponent({
         if (y1 < -8 || y1 > panelRect.height + 8) {
           continue; // row outside the panel band (extreme layouts) — skip
         }
-        links.push({id: a.id, y1: Math.round(y1), y2: Math.round(y2)});
+        links.push({id: a.id, kind: a.kind, y1: Math.round(y1), y2: Math.round(y2)});
       }
       this.gapW = gap;
       this.panelH = Math.round(panelRect.height);

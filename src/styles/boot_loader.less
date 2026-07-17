@@ -109,14 +109,21 @@
   border: none;
   padding: 0;
   background: transparent;
-  opacity: 0.02;           // must PAINT (a 0-alpha layer may be skipped), but is invisible
+  opacity: 0.02;           // must PAINT (a 0-alpha layer may be skipped)
+  // TRUE invisibility: the dialog lives in the TOP LAYER — above the loader
+  // panel itself — and 2% of a white legacy corp face IS readable on a dark
+  // OLED («просвечивают текстуры карт» defect). brightness(0) turns every
+  // painted pixel black (invisible on the black scene) while the card
+  // pipelines still compile BEFORE the filter stage — the warm-up keeps
+  // its purpose.
+  filter: brightness(0);
   pointer-events: none;    // never intercepts input even while modal
   outline: none;
 
   &::backdrop {
-    // Paint a real (near-invisible) backdrop too — the zoom dialog's backdrop
-    // is its own top-layer surface, warm that texture as well.
-    background: rgba(5, 9, 15, 0.02);
+    // Paint a real backdrop too (its texture is a separate top-layer
+    // allocation) — black-on-black, never a visible veil.
+    background: rgba(0, 0, 0, 0.02);
   }
 }
 .boot-loader__warm-dialog-stage {

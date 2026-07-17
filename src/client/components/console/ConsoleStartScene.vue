@@ -287,15 +287,32 @@
                are IN the panel, and this press is what spends them on the
                cards bought at setup (the server holds the deduction until
                it — see Player.payForBoughtCardsInput). Skipped entirely when
-               nothing was bought. -->
+               nothing was bought. The bought PROJECT cards are shown FACE UP
+               here (a compact, non-navigable grid — same footprint as the
+               hand) so the player sees exactly WHICH cards they are buying:
+               these are held out of the dock until the payment confirms, and
+               on confirm THESE cards physically fly into the hand. -->
           <transition name="con-start-corpout">
             <div v-if="corpPayCost !== undefined" class="con-start__pay">
               <span class="con-start__section-title">{{ $t('Payment') }}</span>
-              <div class="con-start__pay-card" :class="{'con-start__pay-card--focused': isFocused('pay', PAY_KEY)}">
-                <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
-                <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
-                <div class="con-start__slot-a con-start__pay-cta">
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+              <div class="con-start__pay-card"
+                   :class="{
+                     'con-start__pay-card--focused': isFocused('pay', PAY_KEY),
+                     'con-start__pay-card--grid': payProjects.length > 0,
+                   }">
+                <div v-if="payProjects.length > 0" class="con-start__pay-grid" ref="payGrid"
+                     :style="{'--con-pay-cols': payGridCols}">
+                  <div v-for="name in payProjects" :key="name"
+                       class="con-start__pay-proxy" :data-pay-card="name">
+                    <Card :card="{name}" :key="name" lightweight />
+                  </div>
+                </div>
+                <div class="con-start__pay-meta">
+                  <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
+                  <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                  <div class="con-start__slot-a con-start__pay-cta">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -373,14 +390,6 @@
       </div>
     </transition>
 
-    <!-- The gliding selection frame (motion-v springs) — mounts OUTSIDE the
-         keyed frame so it survives step swaps and glides across them.
-         Self-resolving: finds the focused card inside this scene itself. -->
-    <ConsoleCardFocusFrame :active="!deal.state.active"
-                           selector=".con-cards__slot--focused > :is(.card-container, .pcard),
-                                     .con-start__mini--focused > :is(.card-container, .pcard),
-                                     .con-start__corp--focused > :is(.card-container, .pcard),
-                                     .con-start__prelude--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
          only while a deal runs — will-change is scoped by construction. -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
@@ -448,6 +457,7 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
+import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
@@ -461,7 +471,6 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -483,9 +492,16 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
 
+/** The stable delivery-hold key for a bought-cards set (name-derived, so it
+ *  survives a reload mid-ceremony and matches between the summary-submit arm
+ *  and the in-ceremony re-affirm). */
+function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
+  return 'ceremony|' + [...names].sort().join(',');
+}
+
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardFocusFrame},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -702,6 +718,55 @@ export default defineComponent({
      *  the step is skipped entirely, exactly as the rules read). */
     corpPayCost(): {megacredits: number, cards: number} | undefined {
       return this.mode === 'ceremony' ? startFlowCorpPayPrompt(this.playerView) : undefined;
+    },
+    /**
+     * The bought project cards (the ceremony's held + payment-grid set). The
+     * player's wizard picks are the explicit intent; a reload mid-ceremony
+     * (module state reset) falls back to the current hand, which at the pay
+     * step IS exactly the bought projects (corp is played, preludes/CEO are
+     * not in `cardsInHand`). Empty until the ceremony (never held on the
+     * wizard, never on a returning save with no picks + no hand).
+     */
+    ceremonyBoughtNames(): ReadonlyArray<CardName> {
+      if (this.mode !== 'ceremony') {
+        return [];
+      }
+      if (this.state.projects.length > 0) {
+        return this.state.projects;
+      }
+      return this.playerView.cardsInHand.map((c) => c.name);
+    },
+    /** The face-up cards shown in the payment element (only during the pay
+     *  beat — the corp-play beat holds them silently out of the dock). */
+    payProjects(): ReadonlyArray<CardName> {
+      return this.corpPayCost !== undefined ? this.ceremonyBoughtNames : [];
+    },
+    /** A balanced column count for the compact pay grid (rows stay even —
+     *  never a lone orphan on a second row). */
+    payGridCols(): number {
+      const n = this.payProjects.length;
+      if (n <= 4) {
+        return n;
+      }
+      const cols = Math.min(6, Math.ceil(Math.sqrt(n)));
+      const rows = Math.ceil(n / cols);
+      return Math.ceil(n / rows);
+    },
+    /**
+     * The stable key of the delivery HOLD episode: non-empty from the first
+     * ceremony frame (corp-play or pay beat) while cards were bought, so the
+     * bought projects are withheld from the dock until the payment flies them
+     * in. Name-derived (not the module signature) so it survives a reload
+     * mid-ceremony. Empty = nothing to hold (wizard / nothing bought).
+     */
+    deliveryHoldSignature(): string {
+      if (this.mode !== 'ceremony' || this.ceremonyBoughtNames.length === 0) {
+        return '';
+      }
+      if (this.corpPlayPrompt === undefined && this.corpPayCost === undefined) {
+        return '';
+      }
+      return deliveryHoldKey(this.ceremonyBoughtNames);
     },
     /**
      * The corporation column. Two honest shapes:
@@ -1016,6 +1081,19 @@ export default defineComponent({
       immediate: true,
       handler() {
         void this.$nextTick(() => this.syncCeremonyLayout());
+      },
+    },
+    /** Withhold the bought project cards from the dock the instant the
+     *  ceremony opens (so they are never in the hand before the player pays);
+     *  they are shown face-up in the payment element and fly in on the pay
+     *  confirm. Idempotent per deal (armDeliveryHold no-ops after the flight);
+     *  survives defer + reload. */
+    'deliveryHoldSignature': {
+      immediate: true,
+      handler(key: string) {
+        if (key !== '') {
+          armDeliveryHold(key, this.ceremonyBoughtNames);
+        }
       },
     },
   },
@@ -1649,6 +1727,13 @@ export default defineComponent({
         this.armedSkip = true;
         return;
       }
+      // Withhold the bought cards from the dock BEFORE the submit brings them
+      // into `cardsInHand`, so they never flash in the hand on the way into
+      // the ceremony (the reactive watcher re-affirms the SAME hold once in
+      // ceremony — idempotent). They fly in on the payment confirm.
+      if (this.state.projects.length > 0) {
+        armDeliveryHold(deliveryHoldKey(this.state.projects), [...this.state.projects]);
+      }
       this.$emit('submit', buildInitialCardsResponse(input, this.picks));
     },
     backStep(): void {
@@ -1678,9 +1763,13 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return;
       }
-      // The card-payment beat: a bare confirm — the server holds the exact
-      // deduction behind it (no hero flight; nothing physical moves).
+      // The card-payment beat: the server holds the exact M€ deduction behind
+      // this confirm. The bought cards were shown FACE UP in the pay grid;
+      // now they physically fly from there into the hand dock — measure their
+      // rects BEFORE the submit (the grid unmounts as the payment resolves),
+      // fire the delivery, then submit.
       if (item.kind === 'pay') {
+        this.launchStartCardsDelivery();
         this.$emit('submit', {type: 'option'});
         return;
       }
@@ -1729,6 +1818,33 @@ export default defineComponent({
         }
       }
       submit();
+    },
+    /**
+     * The starting-cards DELIVERY (handDeliveryDirector). Fire on the payment
+     * confirm: capture the FACE-UP card rects from the payment grid NOW (the
+     * grid unmounts as the payment resolves), so the same cards can lift off
+     * exactly where they sat, flip to their backs and arc down into the hand
+     * dock. Only fires while the delivery is holding this deal (the arm
+     * watcher) — a no-op otherwise.
+     */
+    launchStartCardsDelivery(): void {
+      const names = [...this.ceremonyBoughtNames];
+      if (names.length === 0) {
+        return;
+      }
+      const grid = this.$refs.payGrid as HTMLElement | undefined;
+      const rects = new Map<CardName, DOMRect>();
+      if (grid !== undefined && grid !== null) {
+        for (const el of grid.querySelectorAll<HTMLElement>('[data-pay-card]')) {
+          const name = el.getAttribute('data-pay-card') as CardName | null;
+          const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
+          const r = card.getBoundingClientRect();
+          if (name !== null && r.width > 4) {
+            rects.set(name, r);
+          }
+        }
+      }
+      runHandDelivery(names, rects);
     },
     /** Arm the played-card hero for a START-SCENE press: the card lifts out
      *  of its scene slot (never the play composer), carrying the prelude's

@@ -203,10 +203,10 @@ export default defineComponent({
      * (rects are 0), so the CSS base size is the graceful fallback.
      */
     fit(): void {
-      const scroll = this.$refs.scroll as HTMLElement | undefined;
-      const root = this.$el as HTMLElement | undefined;
+      const scroll = this.$refs.scroll as HTMLElement | null | undefined;
+      const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
-      if (scroll === undefined || root === undefined || count === 0) {
+      if (scroll == null || root == null || count === 0) {
         return;
       }
       const availW = scroll.clientWidth;

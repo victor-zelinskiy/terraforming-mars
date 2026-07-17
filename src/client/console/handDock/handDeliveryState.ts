@@ -1,23 +1,22 @@
 /*
- * HAND DELIVERY STATE — the registry behind the "you paid for your starting
- * cards, and now they physically fly into your hand" cinematic
+ * HAND DELIVERY STATE — the registry behind "I paid for the project cards I
+ * bought at setup, and now they physically fly into my hand"
  * (handDeliveryDirector + ConsoleHandDeliveryLayer).
  *
- * The starting-projects buy is ONE atomic server submit — the paid cards
- * land in `cardsInHand` on the very next playerView. A plain reactive jump
- * would read as "the cards were already mine the instant I clicked". This
- * layer sequences the DELIVERY so the moment reads honestly: the bought
- * cards are HELD out of the dock (never shown before the payment lands),
- * then flown from the project deck (top HUD) down into the hand dock bay
- * and materialized under the landed proxies.
+ * The bought project cards are ALREADY in `cardsInHand` — the ceremony
+ * payment only deducts M€. So the delivery is a purely CLIENT beat: the cards
+ * are HELD out of the dock (shown face-up in the payment element instead)
+ * until the player confirms the payment, then flown from those face-up cards
+ * down into the hand dock and materialized under the landed proxies.
  *
- *  - `held` — bought card names withheld from the dock (hidden + excluded
- *    from the shown count) until each one's proxy touches down. Set at
- *    SUBMIT time so the cards can never flash in the dock before delivery.
- *  - `flights` — one proxy per delivered card on the fixed delivery layer.
+ *  - `held` — bought card names withheld from the dock (hidden-with-layout +
+ *    excluded from the shown count) until each proxy touches down.
+ *  - `flights` — one face-up→back flip proxy per delivered card on the fixed
+ *    delivery layer.
  *
- * All motion lives in handDeliveryDirector.ts. Mirrors the reveal / exit
- * layers' function-ref element registry (v-for order is not guaranteed).
+ * All motion / lifecycle lives in handDeliveryDirector.ts. Mirrors the
+ * reveal / exit layers' function-ref element registry (v-for order is not
+ * guaranteed).
  */
 
 import {reactive} from 'vue';
@@ -29,9 +28,9 @@ export type DeliveryFlight = {
 };
 
 export const handDeliveryState = reactive({
-  /** A delivery is armed or in flight (the dock withholds `held`). */
-  active: false,
-  /** Names still IN FLIGHT — hidden in the dock, excluded from the count. */
+  /** Names withheld from the dock — hidden-with-layout, excluded from the
+   *  count — while held (pre-payment) or in flight. Drives the dock's
+   *  `deliveryHeld` prop. */
   held: [] as Array<CardName>,
   flights: [] as Array<DeliveryFlight>,
 });

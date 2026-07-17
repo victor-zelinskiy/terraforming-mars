@@ -170,7 +170,6 @@
            task host's focused card underneath. -->
       <!-- The gliding frame lands only on the received cards — the discard
            tray is opened by R3, never focused. -->
-      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     </template>
   </div>
 </template>
@@ -208,7 +207,6 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -256,7 +254,7 @@ type SourceChip = {name: string, inspectable: boolean};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, GamepadGlyph, ActionEffectChip, ConsoleCardFocusFrame},
+  components: {Card, GamepadGlyph, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},

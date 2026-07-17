@@ -77,7 +77,10 @@ export default defineComponent({
       requestAnimationFrame(() => {
         measurePending = false;
         const vp = viewport.value;
-        if (vp === undefined) {
+        // Vue nulls a template ref on unmount, so a pending rAF/ResizeObserver
+        // callback can land here with `null` (not `undefined`) — `== null`
+        // catches both (else `null.clientHeight` throws).
+        if (vp == null) {
           return;
         }
         const size = props.axis === 'y' ? vp.clientHeight : vp.clientWidth;

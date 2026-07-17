@@ -322,11 +322,6 @@
       </div>
     </transition>
 
-    <!-- The gliding selection frame (motion-v springs) — outside the keyed
-         frame so it survives prompt swaps and glides across them.
-         Self-resolving: finds the focused card inside this host itself. -->
-    <ConsoleCardFocusFrame :active="!deal.state.active && !trayPickBeat"
-                           selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
                           :cards="deal.state.cards" :nonce="deal.state.nonce" />
@@ -414,7 +409,6 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -478,7 +472,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsoleCardFocusFrame},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
