@@ -7,12 +7,19 @@
  *  runCardTake      — the player takes ONE card: a small lift/tilt beat,
  *                     then a confident dive toward the player zone (bottom
  *                     centre — the same table geography the dealer's deck
- *                     uses), fading on the last third.
- *  runCardCollect   — «взять все» / the researching purchase: a staged
+ *                     uses), fading on the last third. NOTE: takes that put
+ *                     the card INTO THE HAND ride the hand-intake director
+ *                     now (handDeliveryDirector.runHandIntake — the card
+ *                     lays onto its real dock slot); this stays for
+ *                     non-hand departures.
+ *  runCardCollect   — a multi-card group departure that does NOT end in the
+ *                     hand (the start wizard's step confirm): a staged
  *                     GATHER (the fan collapses into a neat stack at a
  *                     collection point, per-card rotation converging),
  *                     one confirmation pulse of the whole stack, then the
- *                     stack drops to the player as ONE object.
+ *                     stack drops to the player as ONE object. Hand-bound
+ *                     collects («взять все» / the research buy) ride the
+ *                     hand intake's STACK mode instead.
  *  runHeroPick      — the draft choice: the chosen card gets the HERO beat
  *                     (lift + rim accent) and departs with dignity, while
  *                     the rejected cards leave via the cheap CSS discard

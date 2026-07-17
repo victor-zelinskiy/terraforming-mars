@@ -280,9 +280,6 @@ html.con-profile-tv {
         &__text { font-size: var(--con-t-body); line-height: 1.5; }
         &__kind { font-size: var(--con-t-floor); }
     }
-    /* Schematic leaders read at couch distance (SVG is physical-px). */
-    .con-zoom-rules__wire { stroke-width: ~"calc(2px * var(--con-ui-scale, 1))"; }
-    .con-zoom-rules__node { r: ~"calc(4.5px * var(--con-ui-scale, 1))"; }
     /* Viewer chrome: the counter is a first-class HUD readout; the action
        strip speaks at command-bar size. */
     .card-zoom-counter {
@@ -300,7 +297,11 @@ html.con-profile-tv {
     /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
     .con-task {
         width: min(52rem, 86vw);
-        &--wide { width: min(68rem, 92vw); }
+        /* The CARD BROWSER (buy / draft / target pick) is `--wide`: a proper
+           4K workspace, not a compact dialog — big enough that a few cards
+           read LARGE and the row uses the stage (the fit engine fills both
+           axes into this box). */
+        &--wide { width: min(92rem, 95vw); }
 
         &__title { font-size: var(--con-t-title); }
         &__sub { font-size: var(--con-t-body); }
@@ -494,12 +495,21 @@ html.con-profile-tv {
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {
         --con-start-verdict-h: 3rem;
-        /* A REAL stage height: the frame's base height is content-driven,
-           which starved the card strip's fit engine (body.clientHeight ≈
-           content → zoom never grew → 4 preludes floating in a void).
-           Fixing the frame height lets __body (flex:1) hand the strip the
-           whole band — the fit engine then fills it. */
-        &__frame { width: min(90rem, 96vw); height: 84vh; }
+        /* The frame is FULL-HEIGHT (root align-items:stretch) with a bottom
+           pad = command-bar clearance; the dock is hidden under the scene
+           now, so the bar clearance is all that's reserved. A wider frame +
+           extra TOP headroom so the selected-card «ВЫБРАНА» band (which
+           overhangs above the card) never clips against the header. */
+        &__frame { width: min(90rem, 96vw); padding-top: 2.2rem; }
+        /* The «A РАЗЫГРАТЬ» affordance pill sits INSIDE a card that is itself
+           zoomed (corp 0.92·s, prelude 0.86·s, candidate 0.78·s) — so at the
+           TV ui-scale it compounded to ~50px and read disproportionately
+           huge. Cancel each context's card zoom so the pill renders at ONE
+           calm root-space size regardless of the card it decorates. */
+        &__corp &__slot-a { zoom: ~"calc(1 / (0.92 * var(--con-ui-scale, 1)))"; }
+        &__prelude &__slot-a { zoom: ~"calc(1 / (0.86 * var(--con-ui-scale, 1)))"; }
+        &__cands .con-cards__slot &__slot-a { zoom: ~"calc(1 / (0.78 * var(--con-ui-scale, 1)))"; }
+        &__slot-a { font-size: 0.7rem; padding: .22rem .6rem; }
         &__title { font-size: 1.6rem; }
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }

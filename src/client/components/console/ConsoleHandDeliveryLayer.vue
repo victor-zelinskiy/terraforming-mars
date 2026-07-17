@@ -1,15 +1,20 @@
 <template>
   <!--
-    HAND DELIVERY LAYER — the fixed stage of the starting-cards delivery
-    (handDeliveryDirector.ts). One proxy per bought card: the deal language's
-    3D flip chassis — it departs the payment grid FACE UP (the card the player
-    just bought, the FaceLite twin) and flips to its BACK mid-flight as it
-    arcs down into the hand dock (the hand is backs). Pointer-inert, clipped;
-    ABOVE the footer so the flights land INTO the dock plate.
+    HAND INTAKE LAYER — the fixed stage of every "cards arrive in the hand"
+    cinematic (handDeliveryDirector.ts): the starting-cards delivery, the
+    reveal-modal takes, the fullscreen take, the research-buy purchase. One
+    proxy per travelling card: the deal language's 3D flip chassis — it
+    departs its surface FACE UP (the FaceLite twin) and flips to its BACK
+    mid-flight as it arcs down into the hand dock (the hand is backs). Each
+    proxy carries its DOCK-ORDER z, so mid-flight overlap always matches the
+    final pack stacking (a later hand card paints over the one it covers).
+    Pointer-inert, clipped; ABOVE the footer so the flights land INTO the
+    dock plate.
   -->
   <div class="con-handdelivery-layer" aria-hidden="true">
     <div v-for="f in handDeliveryState.flights" :key="f.id"
          class="con-deal-proxy"
+         :style="{zIndex: f.z}"
          :ref="(el) => registerDeliveryEl(f.id, el as HTMLElement | null)">
       <div class="con-deal-proxy__flip">
         <div class="con-deal-proxy__face">

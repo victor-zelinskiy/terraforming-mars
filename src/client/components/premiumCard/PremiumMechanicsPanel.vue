@@ -35,7 +35,7 @@
 import {defineComponent} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
-import {MechanicsVM, playZoneStart} from './mechanicsModel';
+import {MechanicsVM, playZoneStart, playZoneStartLeading} from './mechanicsModel';
 import {translateText} from '@/client/directives/i18n';
 import PremiumMechNode from './PremiumMechNode.vue';
 
@@ -52,14 +52,25 @@ export default defineComponent({
       type: Object as () => MechanicsVM,
       required: true,
     },
+    /** Corporation face: the on-play zone is the LEADING starting-resources
+     *  run (top of the card), not the trailing immediate run — so «при
+     *  розыгрыше» reads there, unified with every other card. */
+    corporation: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     orLabel(): string {
       return translateText('OR');
     },
-    /** First group of the play zone; groups.length = no zone → no rail. */
+    /** First group of the play zone; groups.length = no zone → no rail.
+     *  Corporations use the LEADING run (starting resources); every other
+     *  card the trailing immediate run. */
     playStart(): number {
-      return playZoneStart(this.mechanics.groups);
+      return this.corporation ?
+        playZoneStartLeading(this.mechanics.groups) :
+        playZoneStart(this.mechanics.groups);
     },
   },
   methods: {

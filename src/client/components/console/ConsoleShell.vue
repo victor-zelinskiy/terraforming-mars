@@ -572,17 +572,23 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :style="footerVars">
-      <ConsoleHandDock ref="handDock"
+    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible}" :style="footerVars">
+      <!-- The permanent hand dock is HIDDEN while a full centre scene owns
+           the screen (start wizard / reveal / task host / composers / sheets):
+           its «КАРТЫ n/m» bay would paint over the scene's card row and clip
+           it, and the hand is irrelevant there anyway. The command bar (scene
+           contract) stays; the bay collapses so the hints re-centre. -->
+      <ConsoleHandDock v-show="handDockVisible"
+                       ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
                        :lifted="handRevealState.dockLifted"
-                       :deliveryHeld="handDeliveryState.held"
+                       :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
-      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="handDockVisible" />
     </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -741,7 +747,7 @@ import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevea
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
-import {resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
   isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
   setHandRevealHooks, RevealPair, RevealRect,
@@ -779,7 +785,7 @@ import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTaskSummary';
@@ -1044,10 +1050,28 @@ export default defineComponent({
     },
     // ── action intelligence (same sources as the desktop bar buttons) ──
     cardsPlayableCount(): number {
-      return (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
+      const raw = (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
+      // Never read ahead of the intake-aware total (a card still mid-flight
+      // into the dock is not "in hand" on any HUD readout).
+      return Math.min(raw, this.cardsTotalCount);
     },
+    /** The hand total every HUD readout shows — the same intake-aware count
+     *  the dock's «КАРТЫ» line uses (held / in-flight / untaken-reveal
+     *  copies excluded), so no surface ever runs ahead of a physical take. */
     cardsTotalCount(): number {
-      return this.playerView.cardsInHand.length + (this.thisPlayer.selfReplicatingRobotsCards ?? []).length;
+      const totals = new Map<string, number>();
+      for (const c of this.handDockCards) {
+        totals.set(c.name, (totals.get(c.name) ?? 0) + 1);
+      }
+      const held = new Map<string, number>();
+      for (const n of this.dockHeld) {
+        held.set(n, (held.get(n) ?? 0) + 1);
+      }
+      let hidden = 0;
+      held.forEach((k, name) => {
+        hidden += Math.min(k, totals.get(name) ?? 0);
+      });
+      return this.handDockCards.length - hidden;
     },
     actionsAvailableCount(): number {
       return this.thisPlayer.availableBlueCardActionCount;
@@ -1067,12 +1091,62 @@ export default defineComponent({
       ];
     },
     /**
+     * Names the dock must WITHHOLD (hidden-with-layout + excluded from the
+     * «КАРТЫ» count) — the union of every "on its way into the hand" ledger:
+     *  - the episodic starting-cards hold (armDeliveryHold, pre-payment);
+     *  - cards mid-flight into the dock (released per touchdown — the
+     *    counter ticks only on a physical landing);
+     *  - UNTAKEN reveal-batch cards: the server puts a drawn batch straight
+     *    into `cardsInHand`, but until the player presses «взять» those
+     *    cards are staged on the reveal surface — the hand count must not
+     *    jump ahead of the take (the desktop's stagedCardsInHand twin).
+     * A multiset (may repeat names) — the dock hides that many NEWEST copies.
+     */
+    dockHeld(): ReadonlyArray<string> {
+      const out: Array<string> = [...handDeliveryState.held, ...handDeliveryState.inFlight];
+      untakenNameMultiset().forEach((k, name) => {
+        for (let i = 0; i < k; i++) {
+          out.push(name);
+        }
+      });
+      return out;
+    },
+    /**
      * The dock renders IDENTICALLY in every shell state (welded into the
      * bar) — this only gates the CLICK affordance (hover lift + pointer),
      * derived from the SAME flags this template mounts surfaces by: the
      * calm board home / placement / draft-wait / quick wheels are
      * interactive; any owning overlay or a non-board section is not.
      */
+    /** The dock is a persistent HUD on the board + sections, but VANISHES
+     *  under any full centre scene (start / reveal / task host / composers /
+     *  sheets / inspectors) — there its «КАРТЫ n/m» bay only clips the
+     *  scene's card row and the hand is irrelevant. Kept during placement
+     *  (board section) and the section views. */
+    handDockVisible(): boolean {
+      if (this.game.phase === 'end') {
+        return false;
+      }
+      return !(
+        this.startTask !== undefined ||
+        this.consoleRevealMode !== undefined ||
+        this.hostTask !== undefined ||
+        this.govSupportActive ||
+        this.productionLossActive ||
+        this.pendingPlayCard !== undefined ||
+        this.pendingTradeColony !== undefined ||
+        this.corpFirstActionOpen ||
+        this.maConfirmView !== undefined ||
+        this.maInspectItem !== undefined ||
+        this.colonyInspectModel !== undefined ||
+        this.consoleState.sheet !== undefined ||
+        this.consoleState.confirm !== undefined ||
+        this.botTurnReviewState.open ||
+        this.playedTableVisible ||
+        this.infoModeState.open ||
+        this.leakDetectorState.stranded !== undefined
+      );
+    },
     handDockInteractive(): boolean {
       if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
         return false;
@@ -2993,7 +3067,8 @@ export default defineComponent({
      *  fired on defer (`startTask` stays defined while the scene is deferred,
      *  so the hold correctly survives a board inspection). */
     startTask(now: ConsoleTask | undefined, was: ConsoleTask | undefined): void {
-      if (now === undefined && was !== undefined && handDeliveryState.held.length > 0) {
+      // Never yank a LIVE flight — its own safety timeout reconciles it.
+      if (now === undefined && was !== undefined && handDeliveryState.held.length > 0 && !isHandDeliveryActive()) {
         resetHandDelivery();
       }
     },
@@ -5222,10 +5297,10 @@ export default defineComponent({
      * The RECEIVE bridge A-verb — take the inspected card from FULLSCREEN.
      * PREMIUM PARITY: never a bare state jump — the viewer CLOSES first (the
      * card flies back into its reveal slot, choreographed), THEN the opener
-     * runs the SAME premium take the reveal modal uses (`runCardTake` — the
-     * card lifts off the slot and dives to the player). So a fullscreen take
-     * is the identical physical pipeline as an in-modal take. Re-entrant safe
-     * (`zoomClosing` guards a double press mid-flight).
+     * runs the SAME premium take the reveal modal uses (the hand intake —
+     * the card lifts off the slot and lays into the hand dock). So a
+     * fullscreen take is the identical physical pipeline as an in-modal
+     * take. Re-entrant safe (`zoomClosing` guards a double press mid-flight).
      */
     zoomTakeReceived(): void {
       const r = this.consoleCardZoom.receive;
@@ -5235,18 +5310,26 @@ export default defineComponent({
       const idx = this.consoleCardZoom.index;
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
       if (r.departFromFullscreen === true) {
-        // SINGLE-CARD reveal: the card DEPARTS from fullscreen straight to the
-        // player (the backdrop fading under it via `--closing`), THEN the
-        // dialog closes. `takeAt` is the reveal overlay's bare commit — the
-        // premium flight is `playZoomDepart` here, running over the still-open
-        // dialog so it survives the reveal overlay unmounting on the commit.
+        // SINGLE-CARD reveal: the card departs from fullscreen INTO THE HAND
+        // — playZoomDepart hands the flight to the hand-intake director (the
+        // proxy takes over at the stage rect; the dialog closes in that same
+        // paint via the staged callback, so the top layer never covers the
+        // flight) and the card arcs into the dock, flipping to its back.
+        // `takeAt` is the reveal overlay's bare commit — fired as the flight
+        // begins; the counter ticks only on the touchdown.
+        const card = this.consoleCardZoom.card;
+        if (card === undefined) {
+          r.takeAt(idx);
+          zoom?.close();
+          return;
+        }
         this.zoomFlight = true;
         this.zoomClosing = true;
-        void playZoomDepart(zoom?.$el as HTMLElement | undefined, () => r.takeAt(idx)).then(() => zoom?.close());
+        void playZoomDepart(zoom?.$el as HTMLElement | undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close());
         return;
       }
       // MULTI-CARD: close back to the strip slot first, then the reveal modal's
-      // own premium take (runCardTake) lifts the card off the slot.
+      // own premium take (the hand intake) lifts the card off the slot.
       void this.closeZoomViewer().then(() => r.takeAt(idx));
     },
     /** P17: the viewer's A hands the card to the context action. Two paths:

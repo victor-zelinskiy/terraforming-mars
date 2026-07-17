@@ -398,7 +398,8 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {applyDiscardExit, ExitSource, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
+import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
+import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
 import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 import {
@@ -1461,7 +1462,15 @@ export default defineComponent({
         // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
         // zoom against the width left after the gaps. 0.96 leaves headroom for
         // the focused card's scale(1.08) — the row fits WITH the lift.
-        const zoom = Math.min(1 * s, Math.max(0.5 * s, (0.96 * availW - (n - 1) * colGap) / (n * slotW)));
+        const wZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
+        // ALSO fill the panel's vertical band (TV: a few buy cards must not
+        // float small in a mostly-empty modal — the «карты слишком мелкие»
+        // read). availH mirrors the grid branch's viewport budget; the
+        // ceiling is generous so a small pick genuinely fills the stage.
+        const CHROME = 220 * s;
+        const availH = Math.max(200 * s, 0.86 * window.innerHeight - CHROME - padY);
+        const hZoom = availH / slotH;
+        const zoom = Math.min(1.6 * s, Math.max(0.5 * s, Math.min(wZoom, hZoom)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }
@@ -1584,11 +1593,17 @@ export default defineComponent({
       void runHeroPick({name, el: slot}, commit);
     },
     /** BUY / multi commit (RT) — the PURCHASE cinematic: the kept cards
-     *  gather into a stack (one confirmation pulse) and go to the player;
-     *  the unbought cards drift to the discard side. Zero picks → just the
-     *  calm discard (no hero objects). A MULTI-KEEP DRAFT (Luna Project
-     *  Office / Mars Maths round 1) instead lands its heroes on the drafted
-     *  tray — the same physical place every pick joins. Submit at onLift. */
+     *  gather into one back-stack above the HAND DOCK (one confirmation
+     *  pulse) and peel bottom-first into their real pack slots — the
+     *  «КАРТЫ» counter ticks per landing (handDeliveryDirector; the submit
+     *  fires as the flight begins, the server response lands mid-flight
+     *  and the intake polls the dock slots in). A picked card that never
+     *  reaches the hand degrades to a quiet fade — the intake self-adapts,
+     *  so non-buy multi selects stay safe. The unbought cards drift to the
+     *  discard side. Zero picks → just the calm discard (no hero objects).
+     *  A MULTI-KEEP DRAFT (Luna Project Office / Mars Maths round 1)
+     *  instead lands its heroes on the drafted tray — the same physical
+     *  place every pick joins. */
     confirmCardSetWithExit(): void {
       if (this.activeTask.kind !== 'cardSelect' || this.singlePick || this.submitting || !this.confirmReady) {
         this.onConfirm(); // self-guarding fallback (also the 'not ready' path)
@@ -1616,7 +1631,7 @@ export default defineComponent({
         commit(); // 0 bought: the calm discard alone
         return;
       }
-      void runCardCollect(sources, commit);
+      void runHandIntake(sources.map((s) => ({name: s.name, el: s.el})), {mode: 'stack', commit});
     },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;

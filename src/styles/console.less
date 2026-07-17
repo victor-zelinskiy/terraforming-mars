@@ -3444,9 +3444,15 @@ html.console-mode {
         &--playable > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 .05rem fade(@con-mint, 26%);
         }
-        /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card. */
+        /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card.
+           The dim EASES IN on mount (the reveal flies the cards in from the
+           dock UNfiltered → a hard grayscale snap on landing read cheap).
+           The animation plays once per grid mount = exactly when the reveal
+           lands; a re-focus doesn't remount the card, so it never re-runs.
+           `both` holds the dimmed end state. reduced-motion → instant. */
         &--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.42) brightness(0.78);
+            animation: con-hand-dim-in calc(300ms * var(--motion-scale, 1)) ease both;
         }
         /* SELECTED: the focus pop — a cheap ring + glow + slight scale (the
            transform composes on top of the slot `zoom`), state-coloured. */
@@ -3483,18 +3489,21 @@ html.console-mode {
            rule's TV double-scale guard (same property → this would drop it). */
         .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
     }
-    /* Compact blocker chip on an unavailable card (short reason — the full
-       requirement lives in the info panel below). */
+    /* Compact blocker chip on an unavailable card (short reason). Placed
+       over the CARD ART (vertical centre), NEVER over the bottom mechanics
+       plate: the art is decorative, the mechanics icons explain the card
+       and must stay legible (user rule — cover the art, not the mechanics).
+       The full requirement lives in the info panel below. */
     &__chip {
         position: absolute;
         left: 50%;
-        bottom: .4rem;
-        transform: translateX(-50%);
-        max-width: 94%;
-        padding: .15rem .55rem;
+        top: 42%;
+        transform: translate(-50%, -50%);
+        max-width: 88%;
+        padding: .25rem .6rem;
         border-radius: .55rem;
-        background: rgba(8, 13, 20, 0.86);
-        box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
+        background: rgba(8, 13, 20, 0.92);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
         color: #ffc9c4;
         font-size: .75rem;
         font-weight: 700;
@@ -3503,7 +3512,7 @@ html.console-mode {
            centred line instead of ellipsizing. */
         white-space: normal;
         text-align: center;
-        line-height: 1.15;
+        line-height: 1.18;
         /* ADAPTIVE counter-zoom: the chip reads at a CONSTANT size whatever
            the card zoom (the fill-pass grows TV cards far past the old
            fixed ×1.5 tuning; 0.99/0.66 reproduces it exactly at the base
@@ -3849,6 +3858,16 @@ html.console-mode {
         font-size: 1.1rem;
         letter-spacing: .03rem;
     }
+}
+
+/* The unavailable-card dim EASES in (never a hard grayscale snap when the
+   reveal flies the cards into the hand grid from the dock). */
+@keyframes con-hand-dim-in {
+    from { filter: grayscale(0) brightness(1); }
+    to { filter: grayscale(0.42) brightness(0.78); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-hand__slot--unplayable > :is(.card-container, .pcard) { animation: none; }
 }
 
 /* ── P27: RT / LT QUICK SELECTORS (direct-input command cross) ───── */
@@ -6354,6 +6373,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
+        }
+    }
+    /* A card just LANDED (hand intake): the pack breathes open a touch and
+       the plate glows — "the hand accepts the card". Rides the cards' own
+       340ms transform transition; the class drops after ~240ms so the
+       spread eases back on its own. */
+    &--receiving {
+        --hd-spread: 1.05;
+
+        .con-handdock__plate-face {
+            box-shadow: inset 0 .05rem .9rem fade(@con-cyan, 20%);
         }
     }
     /* The playable mint hairline along the plate's top edge. */
@@ -13541,10 +13571,10 @@ html.con-profile-large {
     align-self: center;
     display: flex;
 }
-/* The panel HOST: carries the schematic leaders (an SVG overhanging LEFT
-   into the card↔panel gap) — so the panel itself may keep overflow:hidden.
-   `--closing` hides the whole rules surface in ~90ms the instant the close
-   flight begins: the panel must never visibly lag the departing card. */
+/* The panel HOST. `--closing` hides the whole rules surface in ~90ms the
+   instant the close flight begins: the panel must never visibly lag the
+   departing card. (The schematic leader lines were removed — the COLOUR
+   link, chip accent = card element, is the connection now.) */
 .con-zoom-rules-host {
     position: relative;
     display: flex;
@@ -13555,31 +13585,9 @@ html.con-profile-large {
         transition-duration: 60ms;
     }
 }
-.con-zoom-rules__links {
-    position: absolute;
-    top: 0;
-    pointer-events: none;
-    overflow: visible;
-}
-.con-zoom-rules__node {
-    fill: fade(@con-cyan, 78%);
-    stroke: rgba(6, 12, 20, 0.9);
-    stroke-width: 2;
-}
-.con-zoom-rules__wire {
-    stroke: fade(@con-cyan, 38%);
-    stroke-width: 2;
-}
-/* Leaders inherit their block's semantic accent — the wire IS the link. */
-.con-zoom-rules__link--requirement { .con-zoom-rules__node { fill: fade(@con-req-copper, 85%); } .con-zoom-rules__wire { stroke: fade(@con-req-copper, 45%); } }
-.con-zoom-rules__link--immediate { .con-zoom-rules__node { fill: fade(@con-mint, 85%); } .con-zoom-rules__wire { stroke: fade(@con-mint, 42%); } }
-.con-zoom-rules__link--effect { .con-zoom-rules__node { fill: fade(@con-effect-blue, 85%); } .con-zoom-rules__wire { stroke: fade(@con-effect-blue, 45%); } }
-.con-zoom-rules__link--action { .con-zoom-rules__node { fill: fade(@con-action-gold, 88%); } .con-zoom-rules__wire { stroke: fade(@con-action-gold, 45%); } }
-.con-zoom-rules__link--victory-points { .con-zoom-rules__node { fill: fade(@sem-prestige, 88%); } .con-zoom-rules__wire { stroke: fade(@sem-prestige, 45%); } }
-/* The «ПРИ РОЗЫГРЫШЕ» play-rail is now MINT at the source (premium_card.less
+/* The «ПРИ РОЗЫГРЫШЕ» play-rail is MINT at the source (premium_card.less
    --pcard-onplay — the unified premium-wide colour of on-play), so it
-   already matches its mint rules chip everywhere; no console-scoped
-   recolour needed. */
+   already matches its mint rules chip everywhere. */
 .con-zoom-rules {
     display: flex;
     flex-direction: column;

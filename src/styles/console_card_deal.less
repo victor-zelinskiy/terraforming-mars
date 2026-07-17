@@ -445,9 +445,11 @@ dialog.con-zoom {
     contain: layout style;
 }
 
-/* ── HAND DELIVERY — "the starting cards you paid for fly into your hand" ─
-   (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Card-back
-   proxies depart the top-HUD project deck and arc down into the dock bay.
+/* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
+   (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
+   proxies depart whatever surface released the cards (the start-ceremony
+   pay grid, the reveal modal strip, the fullscreen stage, the research-buy
+   strip) and arc down into the dock bay, each carrying its DOCK-ORDER z.
    Same fixed-stage contract as the reveal layer; above the footer so the
    flights land INTO the dock plate. */
 .con-handdelivery-layer {

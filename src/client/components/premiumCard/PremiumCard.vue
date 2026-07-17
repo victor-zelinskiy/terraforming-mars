@@ -47,7 +47,7 @@ Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
            resource capsule are pinned at the bottom-left corner — tiny,
            overlapping the panel's border zone only. -->
       <div class="pcard__lower">
-        <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
+        <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" :corporation="isCorporation" />
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
                 :class="{'pcard__exp-medallion--base': expansionIcon === undefined}"

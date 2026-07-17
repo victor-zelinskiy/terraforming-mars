@@ -417,6 +417,20 @@ export function playZoneStart(groups: ReadonlyArray<MechGroup>): number {
   return start;
 }
 
+/**
+ * A CORPORATION's on-play zone is the LEADING run of starting-resources
+ * groups (plain/production at the TOP of the card) — the «начните с X M€»
+ * effect that resolves when the corporation is played. The rail draws
+ * ABOVE that run (index 0) so «при розыгрыше» reads the same as on a
+ * project card, unified across the fork. Returns 0 when the card opens with
+ * a starting-resources group, else `groups.length` (no rail — a corp whose
+ * first group is a passive effect, e.g. a flag-only corp).
+ */
+export function playZoneStartLeading(groups: ReadonlyArray<MechGroup>): number {
+  const isPlayKind = (kind: MechGroupKind) => kind === 'plain' || kind === 'production';
+  return groups.length > 0 && isPlayKind(groups[0].kind) ? 0 : groups.length;
+}
+
 export type BuildMechanicsOptions = {
   /**
    * Drop the printed VP fine print (the TINY-uppercase vpText items) from
