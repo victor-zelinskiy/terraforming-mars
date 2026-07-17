@@ -23,6 +23,7 @@ import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
+import {installConsoleCapture} from './consoleExport';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed} from './session';
@@ -276,10 +277,14 @@ function createWindow(): void {
     }
   });
 
+  // Passive capture of the renderer console (fires whether or not DevTools is open) so the
+  // F12 "Экспорт консоли" button can dump it to a file beside the game log.
+  const consoleExporter = installConsoleCapture(app, mainWindow);
+
   // Gamepad-driven mouse cursor INSIDE the DevTools window only (Steam Machine /
-  // Deck have no mouse; F12 was visible but un-navigable from the pad). Scoped
-  // strictly to devToolsWebContents — the game surface is untouched.
-  installDevtoolsPadCursor(mainWindow);
+  // Deck have no mouse; F12 was visible but un-navigable from the pad) + the export
+  // button. Scoped strictly to devToolsWebContents — the game surface is untouched.
+  installDevtoolsPadCursor(mainWindow, {onExport: () => consoleExporter.export()});
 
   // Re-echo the settled "[TM perf]" line on every page load — game-boundary
   // reloads clear the DevTools console, and this keeps the tuning state

@@ -81,6 +81,9 @@ cat > "$WRAPPER" <<'EOF'
 # (A relaunch spawned by the app itself escapes the gamescope session → Steam would hang.)
 APP="$HOME/Applications/TerraformingMars.AppImage"
 LOG="$HOME/Applications/terraforming-mars-steam.log"
+# So the F12 "Экспорт консоли" button writes the export into this same folder (the app also
+# derives it from the AppImage path, so this is an exactness hint, not a hard requirement).
+export TM_LOG_FILE="$LOG"
 export TM_RESTART_SUPPORTED=1
 export TM_RESTART_MARKER="$HOME/.cache/terraforming-mars-restart"
 mkdir -p "$(dirname "$TM_RESTART_MARKER")"

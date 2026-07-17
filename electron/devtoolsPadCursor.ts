@@ -35,6 +35,8 @@ export interface PadFrame {
   scroll?: number;
   btnA?: boolean;
   btnX?: boolean;
+  /** Monotonic counter — bumped each time the DevTools "Экспорт консоли" button is clicked. */
+  exportReq?: number;
 }
 
 /** One synthesized input action (the pure step function's output, unit-testable). */
@@ -111,6 +113,32 @@ const BOOTSTRAP = `(() => {
     '<path d="M1 1 L1 19 L5.5 15.2 L8.4 22 L11.4 20.6 L8.6 13.9 L14.6 13.4 Z" ' +
     'fill="#f5f7fa" stroke="#1c2733" stroke-width="1.3"/></svg>';
   document.documentElement.appendChild(cur);
+
+  // "Экспорт консоли" button — clicked with the pad cursor (a real, trusted mouse click), so
+  // its onclick fires like a mouse would. Bumps a counter the main loop watches; main writes the
+  // file and calls __tmExportDone to flash the result on the button.
+  window.__tmExportReq = 0;
+  const btn = document.createElement('button');
+  btn.textContent = '\\u2b07 Экспорт консоли';
+  btn.style.cssText = 'position:fixed;top:40px;right:12px;z-index:2147483646;' +
+    'font:600 12px system-ui,sans-serif;color:#eaf2ff;background:#1d2c3a;' +
+    'border:1px solid #3d566e;border-radius:6px;padding:6px 11px;cursor:pointer;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.5);opacity:.92;';
+  btn.onmouseenter = () => { btn.style.background = '#264057'; };
+  btn.onmouseleave = () => { btn.style.background = '#1d2c3a'; };
+  btn.onclick = () => { window.__tmExportReq = (window.__tmExportReq | 0) + 1; };
+  document.documentElement.appendChild(btn);
+  let toastTimer = 0;
+  window.__tmExportDone = (ok, msg) => {
+    btn.textContent = ok ? '\\u2705 ' + (msg || 'Сохранено') : '\\u26a0 ' + (msg || 'Ошибка');
+    btn.style.borderColor = ok ? '#3ba55d' : '#c04747';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      btn.textContent = '\\u2b07 Экспорт консоли';
+      btn.style.borderColor = '#3d566e';
+    }, 4000);
+  };
+
   const DEAD = 0.24;
   const flt = (v) => Math.abs(v) < DEAD ? 0 : (v - Math.sign(v) * DEAD) / (1 - DEAD);
   window.__tmPad = {
@@ -123,13 +151,14 @@ const BOOTSTRAP = `(() => {
       } catch (e) { /* gamepad API unavailable */ }
       cur.style.display = p ? 'block' : 'none';
       cur.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-      if (!p) return {ok: false, w: innerWidth, h: innerHeight};
-      return {
-        ok: true, w: innerWidth, h: innerHeight,
+      const base = {w: innerWidth, h: innerHeight, exportReq: window.__tmExportReq | 0};
+      if (!p) return Object.assign({ok: false}, base);
+      return Object.assign({
+        ok: true,
         ax: flt(p.axes[0] || 0), ay: flt(p.axes[1] || 0), scroll: flt(p.axes[3] || 0),
         btnA: !!(p.buttons[0] && p.buttons[0].pressed),
         btnX: !!(p.buttons[2] && p.buttons[2].pressed),
-      };
+      }, base);
     },
   };
   return true;
@@ -152,15 +181,34 @@ function sendAction(dtc: WebContents, action: PadAction): void {
   }
 }
 
+/** Result of the DevTools "Экспорт консоли" action, echoed back onto the button. */
+export interface DevtoolsExportResult {
+  ok: boolean;
+  path?: string;
+  error?: string;
+}
+
+export interface DevtoolsPadCursorOptions {
+  /** Called when the injected "Экспорт консоли" button is clicked; resolves with the outcome
+   *  so the button can flash the saved path / an error. */
+  onExport?: () => Promise<DevtoolsExportResult>;
+}
+
 /**
  * Wire the pad-cursor to a window's DevTools lifecycle. Call once after the
  * BrowserWindow is created; everything else is self-managed (starts on
  * devtools-opened, stops on devtools-closed / window close).
  */
-export function installDevtoolsPadCursor(win: BrowserWindow): void {
+export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPadCursorOptions = {}): void {
   let timer: ReturnType<typeof setInterval> | undefined;
   let inFlight = false;
+  let lastExportReq = 0;
+  let exporting = false;
   let state: PadCursorState = {x: 80, y: 80, aHeld: false, xHeld: false};
+
+  // Basename only — the DevTools toast shows a short label, not the full path.
+  const shortPath = (p: string | undefined): string =>
+    p === undefined ? 'Сохранено' : (p.split(/[\\/]/).pop() ?? p);
 
   const stop = (): void => {
     if (timer !== undefined) {
@@ -183,6 +231,7 @@ export function installDevtoolsPadCursor(win: BrowserWindow): void {
       return;
     }
     state = {x: 80, y: 80, aHeld: false, xHeld: false};
+    lastExportReq = 0;
     void dtc.executeJavaScript(BOOTSTRAP).catch(() => {/* frontend not ready — the tick retries */});
     timer = setInterval(() => {
       if (inFlight || dtc.isDestroyed()) {
@@ -202,6 +251,26 @@ export function installDevtoolsPadCursor(win: BrowserWindow): void {
           state = next;
           for (const action of actions) {
             sendAction(dtc, action);
+          }
+          // Export-button edge: the injected counter went up → run the export once and echo
+          // the result onto the button. `exporting` guards against a re-trigger while the
+          // (async) write is in flight.
+          const req = Number(frame.exportReq ?? 0);
+          if (req > lastExportReq && options.onExport !== undefined && !exporting) {
+            lastExportReq = req;
+            exporting = true;
+            void options.onExport()
+              .then((res) => {
+                const label = res.ok ? shortPath(res.path) : (res.error ?? 'Ошибка');
+                return dtc.isDestroyed() ? undefined : dtc.executeJavaScript(
+                  `window.__tmExportDone && __tmExportDone(${res.ok ? 'true' : 'false'}, ${JSON.stringify(label)})`);
+              })
+              .catch(() => {/* frontend gone */})
+              .finally(() => {
+                exporting = false;
+              });
+          } else if (req > lastExportReq) {
+            lastExportReq = req; // no handler wired — swallow so it can't re-fire
           }
         })
         .catch(() => {
