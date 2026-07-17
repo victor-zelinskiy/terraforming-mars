@@ -36,22 +36,24 @@
     </div>
 
     <!-- The tray PLATE (paints in front of the card bottoms — the pack sits
-         IN the tray, not on top of the footer). -->
+         IN the tray, not on top of the footer) + the STATUS line:
+         «КАРТЫ playable/total» in the etched-kicker voice, HUD ratio
+         semantics (mint active / neutral total). Digits are re-keyed so a
+         change animates ONLY the digit that moved; the group is absolutely
+         centred, so digit growth can never shift the centre. -->
     <div class="con-handdock__plate" aria-hidden="true">
       <span class="con-handdock__plate-face"></span>
-      <span class="con-handdock__kicker">{{ $t('Hand') }}</span>
-    </div>
-
-    <!-- Count capsule — the dock's own readout on the right shoulder:
-         flip-tick on change + the shared premium delta chip; a quiet mint
-         dot when something is playable RIGHT NOW (server-authoritative). -->
-    <div class="con-handdock__count" :class="{'con-handdock__count--zero': count === 0}">
-      <span class="con-handdock__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
-      <span class="con-handdock__count-num">
-        <ConsoleFlipValue :value="count" :flip-on-decrease="true" />
-        <AnimatedMetricValue :value="count" metricKey="globals.hand-dock" scopeKey="global" :epoch="epoch" variant="misc" />
+      <span class="con-handdock__status">
+        <span class="con-handdock__status-label">{{ $t('Cards') }}</span>
+        <span class="con-handdock__ratio">
+          <span :key="'a' + playableCount"
+                class="con-handdock__num con-handdock__num--active"
+                :class="{'con-handdock__num--go': playableCount > 0}">{{ playableCount }}</span>
+          <span class="con-handdock__sep">/</span>
+          <span :key="'t' + count" class="con-handdock__num con-handdock__num--total">{{ count }}</span>
+          <AnimatedMetricValue :value="count" metricKey="globals.hand-dock" scopeKey="global" :epoch="epoch" variant="misc" />
+        </span>
       </span>
-      <span v-if="playableCount > 0" class="con-handdock__go" aria-hidden="true"></span>
     </div>
   </div>
 </template>
@@ -77,17 +79,17 @@
  * enter-leave. `interactive` gates the click affordance only (the shell
  * computes it from the same flags its template mounts overlays by).
  *
- * Deliberately NO card faces and NO text besides the etched kicker + the
- * count: the dock must stay clean (hand presence first; playable state is
- * the one quiet mint accent). Future receive-animations land on the
- * per-card `data-hand-dock-card` anchors — keep them stable.
+ * Deliberately NO card faces and NO text besides the ONE status line
+ * «КАРТЫ playable/total» (etched-kicker voice; HUD active/total
+ * semantics — the mint first digit IS the playable accent). Future
+ * receive-animations land on the per-card `data-hand-dock-card` anchors —
+ * keep them stable.
  */
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
-import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 
 type PackSlot = {
   key: string,
@@ -98,7 +100,7 @@ type PackSlot = {
 
 export default defineComponent({
   name: 'ConsoleHandDock',
-  components: {AnimatedMetricValue, ConsoleFlipValue},
+  components: {AnimatedMetricValue},
   props: {
     /** The viewer's hand in SERVER order (cardsInHand + SRR-hosted) — the
      *  dock renders backs only, so append-order beats playable-sorting:

@@ -6161,64 +6161,67 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         clip-path: polygon(.78rem 0, calc(100% - .78rem) 0, 100% .53rem, calc(100% - 1.13rem) 100%, 1.13rem 100%, 0 .53rem);
         transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
     }
-    /* Etched zone label — quiet, engraved, uppercase. */
-    &__kicker {
+    /* ── the STATUS line: «КАРТЫ playable/total» ──────────────────────
+       Keeps the etched-kicker language (quiet steel-blue uppercase, wide
+       tracking, engraved) and folds the hand's active/total readout into
+       the SAME line — the HUD ratio semantics (mint active / neutral
+       total, the «ДЕЙСТВИЯ КАРТ n/m» pattern) at the dock's own quiet
+       scale. Absolutely centred at 50% + translateX(-50%): a digit-count
+       change grows the group symmetrically, the centre NEVER moves. */
+    &__status {
         position: absolute;
         left: 50%;
-        bottom: .3rem;
+        bottom: .26rem;
         transform: translateX(-50%);
-        padding-left: .32rem; /* optically re-centre the tracking */
-        font-size: .55rem;
-        font-weight: 700;
-        letter-spacing: .32rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 58%);
-        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
-    }
-
-    /* ── count capsule (the dock's own readout) ──────────────────── */
-    &__count {
-        position: absolute;
-        right: .15rem;
-        bottom: .5rem;
         z-index: 21; /* on the plate, never under a card */
         display: inline-flex;
-        align-items: center;
-        gap: .32rem;
-        padding: .14rem .5rem .14rem .42rem;
-        background: rgba(10, 17, 27, 0.94);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%);
-        clip-path: polygon(.45rem 0, 100% 0, 100% 100%, 0 100%, 0 .45rem);
-        transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
+        align-items: baseline;
+        gap: .42rem;
+        white-space: nowrap;
+        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
     }
-    &__count-icon {
-        display: inline-block;
-        width: 1.05rem;
-        height: 1.05rem;
-        background-size: contain !important;
-        background-repeat: no-repeat;
-        background-position: center;
-        filter: drop-shadow(0 .05rem .15rem rgba(0, 0, 0, 0.5));
-    }
-    &__count-num {
-        position: relative; /* delta-chip anchor */
-        font-size: 1rem;
+    &__status-label {
+        font-size: .55rem;
         font-weight: 700;
-        letter-spacing: .03rem;
+        letter-spacing: .22rem;
+        padding-left: .22rem; /* optically re-centre the tracking */
+        text-transform: uppercase;
+        color: fade(@con-cyan, 58%);
+    }
+    &__ratio {
+        position: relative; /* delta-chip anchor */
+        display: inline-flex;
+        align-items: baseline;
         font-variant-numeric: tabular-nums;
-        color: fade(#dcebf9, 95%);
+        font-weight: 700;
     }
-    &__count--zero &__count-num {
-        color: fade(#8aa0b8, 85%);
+    /* Digits: a stable reserved width per number so 9→10 and back never
+       jiggles the line (the group still grows symmetrically from centre). */
+    &__num {
+        display: inline-block;
+        min-width: 1.1ch;
+        font-size: .7rem;
+        letter-spacing: .02rem;
+        animation: con-hd-num-in calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
     }
-    /* Playable-now accent — ONE quiet mint dot, never text. */
-    &__go {
-        width: .42rem;
-        height: .42rem;
-        border-radius: 50%;
-        background: @con-mint;
-        box-shadow: 0 0 .35rem fade(@con-mint, 45%);
-        animation: con-hd-go calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    &__num--active {
+        text-align: right;
+        color: fade(#93a7bd, 78%); /* muted at 0 — never red, never mint */
+        transition: color calc(260ms * var(--motion-scale, 1)) ease, text-shadow calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    &__num--go {
+        color: @con-mint;
+        text-shadow: 0 0 .35rem fade(@con-mint, 30%);
+    }
+    &__num--total {
+        text-align: left;
+        color: fade(#cfe3f4, 82%);
+    }
+    &__sep {
+        font-size: .62rem;
+        font-weight: 700;
+        margin: 0 .08rem;
+        color: fade(#8aa0b8, 66%);
     }
 
     /* ── states (pack-only — the dock chassis itself NEVER moves) ── */
@@ -6227,7 +6230,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         cursor: pointer;
     }
     /* The pack rises + opens a notch: on hover, AND while the RT wheel is
-       open (its centre «РУКА» slot is the entry to the hand — the dock
+       open (its centre «КАРТЫ» slot is the entry to the hand — the dock
        below answers on the same axis). */
     &--raised,
     &--live:hover,
@@ -6238,9 +6241,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
-        }
-        .con-handdock__count {
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 62%), 0 0 .6rem fade(@con-cyan, 18%);
         }
     }
     /* The playable mint hairline along the plate's top edge. */
@@ -6270,16 +6270,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         opacity calc(260ms * var(--motion-scale, 1)) ease;
 }
 
-@keyframes con-hd-go {
-    0%, 100% { opacity: .72; box-shadow: 0 0 .25rem fade(@con-mint, 30%); }
-    50% { opacity: 1; box-shadow: 0 0 .55rem fade(@con-mint, 55%); }
+/* A CHANGED digit re-enters with a short drop-in (the element is re-keyed,
+   so only the digit that actually changed animates — the line and its
+   centre never move). */
+@keyframes con-hd-num-in {
+    0% { opacity: 0; transform: translateY(.18rem) scale(1.04); }
+    100% { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .con-handdock__card,
     .con-hd-enter-active,
     .con-hd-leave-active { transition: none; }
-    .con-handdock__go { animation: none; }
+    .con-handdock__num { animation: none; transition: none; }
 }
 
 /* ── Console-mode entry prompt (desktop side) ────────────────────── */
@@ -12604,13 +12607,10 @@ html.con-profile-handheld {
 
         &__pack, &__ghost { bottom: .62rem; }
         &__plate { height: 2.05rem; }
-        &__kicker { font-size: .45rem; letter-spacing: .22rem; bottom: .22rem; }
-        &__count {
-            bottom: .38rem;
-            padding: .1rem .4rem .1rem .34rem;
-        }
-        &__count-icon { width: .85rem; height: .85rem; }
-        &__count-num { font-size: .8rem; }
+        &__status { bottom: .2rem; gap: .32rem; }
+        &__status-label { font-size: .45rem; letter-spacing: .16rem; padding-left: .16rem; }
+        &__num { font-size: .58rem; }
+        &__sep { font-size: .52rem; }
         &__wing { width: 1.9rem; }
     }
     /* The dock's rise is shallower on the Deck — hand the freed clearance

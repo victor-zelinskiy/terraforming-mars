@@ -159,7 +159,10 @@ html.con-profile-tv {
     /* Footer bay + hand dock: rem geometry scales with the profile for
        free — only the bar-height mirror and the couch count bump move. */
     .con-footer { --con-bar-h: 2.9rem; }
-    .con-handdock__count-num { font-size: 1.15rem; }
+    /* Couch bump for the dock's status line (label + n/m digits). */
+    .con-handdock__status-label { font-size: .62rem; }
+    .con-handdock__num { font-size: .8rem; }
+    .con-handdock__sep { font-size: .7rem; }
     /* Bay mode compacts the hint run a notch under the couch sizes too —
        the richest (board home) set must clear the two zones. Still ≥ the
        service-text floor (1rem = 20 logical px). */
