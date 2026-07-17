@@ -799,16 +799,8 @@ export class Game implements IGame, Logger {
         // corporation is assigned at game creation, before any start screen
         // exists (same discriminator gotoInitialResearchPhase prompts on).
         // There is nothing for them to press, so it plays immediately.
-        // Test mode likewise keeps the synchronous play (the deferred press
-        // is a presentation beat, not a rules step).
-        if (this.gameOptions.testMode || somePlayer.dealtCorporationCards.length === 0) {
-          if (this.gameOptions.testMode) {
-            this.applyTestModeStartingStock(somePlayer);
-          }
+        if (somePlayer.dealtCorporationCards.length === 0) {
           somePlayer.playCorporationCard(somePlayer.pickedCorporationCard);
-          if (this.gameOptions.testMode) {
-            this.applyTestModeStartingStock(somePlayer);
-          }
         } else {
           // DEFERRED corporation play: the corporation is NOT played (no
           // tableau entry, no starting M€, no card payment, no effects)
@@ -816,6 +808,9 @@ export class Game implements IGame, Logger {
           // the answer to this prompt runs `playCorporationCard`, which
           // also releases the RESEARCH barrier per player, so the phase
           // sequencing is unchanged (corp play still precedes preludes).
+          // Test mode uses this SAME deferred flow (so the play/pay beats
+          // appear there too); the full test stock is applied around the
+          // corp play + card payment inside `playCorporationCard`.
           somePlayer.setWaitingFor(this.playCorporationInput(somePlayer));
         }
       }
@@ -841,17 +836,6 @@ export class Game implements IGame, Logger {
         player.playCorporationCard(corporation, {deferCardPayment: true});
         return undefined;
       });
-  }
-
-  private applyTestModeStartingStock(player: IPlayer): void {
-    player.stock.override({
-      megacredits: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-      steel: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-      titanium: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-      plants: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-      energy: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-      heat: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
-    });
   }
 
   private selectInitialCards(player: IPlayer): PlayerInput {

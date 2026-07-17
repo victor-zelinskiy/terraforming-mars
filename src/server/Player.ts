@@ -1302,6 +1302,18 @@ export class Player implements IPlayer {
 
     this.playedCards.push(corporationCard);
 
+    // TEST MODE plays with a full stock of everything so any card is
+    // affordable. It is applied BEFORE the corp bonus + card payment (and
+    // AGAIN after the payment resolves, in `payForBoughtCards` below) so the
+    // deferred start beats (play corp → pay for the bought cards) run in test
+    // mode too, yet the player still begins the game with the full test stock.
+    // The corp play is the single choke point for every path (immediate
+    // beginner assignment, the deferred corporationPlay press, Merger's 2nd
+    // corp), so centralising it here covers them all. No-op in a normal game.
+    if (this.game.gameOptions.testMode) {
+      this.applyTestModeStartingStock();
+    }
+
     // Update starting MC
     this.megaCredits += corporationCard.startingMegaCredits;
     // Update card cost.
@@ -1319,6 +1331,12 @@ export class Player implements IPlayer {
       this.stock.deduct(Resource.MEGACREDITS, megacreditsPaid);
       if (megacreditsPaid > 0) {
         PathfindersExpansion.addToSolBank(this);
+      }
+      // TEST MODE: restore the full test stock AFTER the payment resolves — in
+      // the deferred flow this runs when the player presses «Оплатить», so the
+      // player begins the game with the full stock regardless of what was spent.
+      if (this.game.gameOptions.testMode) {
+        this.applyTestModeStartingStock();
       }
     };
     if (megacreditsPaid > 0 && options?.deferCardPayment === true) {
@@ -1384,6 +1402,20 @@ export class Player implements IPlayer {
         pay();
         return undefined;
       });
+  }
+
+  /** Test mode: override the stock to the full test count of every resource so
+   *  any card is affordable. Called around the corp play + card payment in
+   *  `playCorporationCard` (see the comments there). */
+  private applyTestModeStartingStock(): void {
+    this.stock.override({
+      megacredits: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      steel: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      titanium: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      plants: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      energy: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+      heat: constants.TEST_MODE_STARTING_RESOURCE_COUNT,
+    });
   }
 
   /** Full resource / production / TR snapshot — the pre-corp baseline the

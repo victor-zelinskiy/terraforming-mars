@@ -1160,7 +1160,7 @@ describe('Game', () => {
   it('test mode overrides starting cards and resources', () => {
     const player = TestPlayer.BLUE.newPlayer();
     const player2 = TestPlayer.RED.newPlayer();
-    Game.newInstance('gameid', [player, player2], player, 'spectatorid', {
+    const game = Game.newInstance('gameid', [player, player2], player, 'spectatorid', {
       testMode: true,
       preludeExtension: true,
       venusNextExtension: true,
@@ -1176,8 +1176,10 @@ describe('Game', () => {
     expect(player.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
     expect(player2.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
 
+    const corpName = new Map<TestPlayer, string>();
     function selectAllInitialCards(player: TestPlayer) {
       const input = cast(player.getWaitingFor(), SelectInitialCards);
+      corpName.set(player, player.dealtCorporationCards[0].name);
       input.process({type: 'initialCards', responses: [
         {type: 'card', cards: [player.dealtCorporationCards[0].name]},
         {type: 'card', cards: player.dealtPreludeCards.slice(0, 2).map(toName)},
@@ -1187,6 +1189,19 @@ describe('Game', () => {
 
     selectAllInitialCards(player);
     selectAllInitialCards(player2);
+
+    // Test mode now rides the SAME deferred start flow as a normal game: the
+    // corporation is played on an explicit press, then the bought cards are
+    // paid on a second press — the full test stock is (re)applied around both,
+    // so the player still begins with everything maxed out.
+    for (const testPlayer of [player, player2]) {
+      expect(testPlayer.getWaitingFor()?.startGamePrompt).deep.eq({kind: 'corporationPlay'});
+      testPlayer.process({type: 'card', cards: [corpName.get(testPlayer)!]});
+      runAllActions(game);
+      expect(testPlayer.getWaitingFor()?.startGamePrompt?.kind).eq('corporationPay');
+      testPlayer.process({type: 'option'});
+      runAllActions(game);
+    }
 
     for (const testPlayer of [player, player2]) {
       expect(testPlayer.megaCredits).eq(constants.TEST_MODE_STARTING_RESOURCE_COUNT);
