@@ -505,6 +505,7 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
+      settleFitTimer: undefined as number | undefined,
       /** The draft-tray brain (pick beats / research rise) — module state. */
       draftTrayState,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
@@ -1020,8 +1021,12 @@ export default defineComponent({
         // Pre-flush: arm the deal HOLD before the new frame paints (the
         // real cards mount hidden — zero first-frame flash).
         this.prepareDeal();
-        // Re-fit the single-row card strip for the new prompt (after render).
+        // Re-fit the single-row card strip for the new prompt (after render),
+        // then AGAIN after the entry/deal cinematic settles — the first fit
+        // can race a transitional layout (the wide panel / the rise flight),
+        // leaving small cards; the delayed re-fit lands the final size.
         void this.$nextTick(() => this.fitCardStrip());
+        this.scheduleSettleFit();
       },
     },
     /** A genuinely NEW server prompt discards an open nested step. */
@@ -1055,8 +1060,18 @@ export default defineComponent({
     /** The deal finished (or was skipped BEFORE launch) while the rise scene
      *  was engaged — finalize the handoff so the tray never lingers. */
     'deal.state.active'(active: boolean) {
-      if (!active && riseSceneEngaged()) {
-        finishRiseScene();
+      if (!active) {
+        if (riseSceneEngaged()) {
+          finishRiseScene();
+        }
+        // RE-FIT once the cinematic settles. The BETWEEN-GENERATION BUY always
+        // follows a draft → the research-RISE flies the cards in, and the fit
+        // that ran mid-cinematic (against a transitional layout) could leave
+        // the strip at the fallback zoom (small cards on 4K — the reported
+        // buy-modal defect). Re-fitting on the final, settled layout sizes
+        // them to the wide panel. The draft path re-fits per round already,
+        // which is why it composed and the buy did not.
+        void this.$nextTick(() => this.fitCardStrip());
       }
     },
     /** Card count or grid↔row transition changes the fit (never per focus). */
@@ -1089,6 +1104,9 @@ export default defineComponent({
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
       window.clearTimeout(this.dealLaunchTimer);
+    }
+    if (this.settleFitTimer !== undefined) {
+      window.clearTimeout(this.settleFitTimer);
     }
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the tray off
@@ -1397,6 +1415,18 @@ export default defineComponent({
         this.fitScheduled = false;
         this.fitCardStrip();
       });
+    },
+    /** A one-shot re-fit AFTER the entry/deal cinematic settles (~360ms) —
+     *  the safety net for the buy modal, whose first fit could race the wide
+     *  panel / rise flight and leave small cards. Cheap + idempotent. */
+    scheduleSettleFit(): void {
+      if (this.settleFitTimer !== undefined) {
+        window.clearTimeout(this.settleFitTimer);
+      }
+      this.settleFitTimer = window.setTimeout(() => {
+        this.settleFitTimer = undefined;
+        this.fitCardStrip();
+      }, motionMs(380));
     },
     /**
      * Size the SINGLE-ROW card strip so N cards ALWAYS fit its width — the
