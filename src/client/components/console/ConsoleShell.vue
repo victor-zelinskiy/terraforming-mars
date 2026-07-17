@@ -411,8 +411,10 @@
            floating callouts are suppressed while it shows (one place for
            details); cards with no structured rules render no panel and the
            fit reclaims the width. -->
-      <template v-if="zoomHasRules" #side>
-        <ConsoleCardRulesPanel :cardName="consoleCardZoom.card.name" />
+      <template v-if="zoomHasRules" #side="side">
+        <ConsoleCardRulesPanel :cardName="consoleCardZoom.card.name"
+                               :nonce="side.nonce"
+                               :closing="side.closing" />
       </template>
       <template #actions>
         <!-- A read-only inspector (bot-turn / card-actions, opened from a chip)
@@ -507,6 +509,11 @@
          the flights land INTO the command bar's dock bay. -->
     <ConsoleHandRevealLayer />
 
+    <!-- The STARTING-CARDS DELIVERY stage — the cards you paid for fly from
+         the top-HUD project deck down into the hand dock bay
+         (handDeliveryDirector.ts). Above the footer; lands into the dock. -->
+    <ConsoleHandDeliveryLayer />
+
     <!-- The colony-trade LAUNCH flight stage (send a trade fleet to the
          planet) — app-level so the ship survives the composer dissolving
          beneath it; docks on the target colony's berth, then the trade
@@ -565,6 +572,7 @@
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
                        :lifted="handRevealState.dockLifted"
+                       :deliveryHeld="handDeliveryState.held"
                        @open="onHandDockOpen" />
       <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
     </div>
@@ -720,7 +728,11 @@ import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardC
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
+import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
+import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
+import {armStartingCardsDelivery, maybeRunDelivery, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {consoleStartState} from '@/client/console/consoleStartState';
 import {
   isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
   setHandRevealHooks, RevealPair, RevealRect,
@@ -876,6 +888,7 @@ export default defineComponent({
     ConsoleCorpFirstActionConfirm,
     ConsoleCardExitLayer,
     ConsoleHandRevealLayer,
+    ConsoleHandDeliveryLayer,
     ConsoleDraftTray,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
@@ -923,6 +936,7 @@ export default defineComponent({
       consoleCardZoom,
       playedHeroState,
       handRevealState,
+      handDeliveryState,
       patentSaleState,
       tilePlacementState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
@@ -3033,6 +3047,17 @@ export default defineComponent({
             this.openShellTaskSurface(shellTask);
           }
         }
+        // STARTING-CARDS DELIVERY: once the paid project cards are in the
+        // hand and the board (deck + dock) is on screen, fly them in from the
+        // project deck. The director no-ops until an arm is pending + all
+        // bought names present; measured after the DOM settles.
+        if (handDeliveryState.active) {
+          void this.$nextTick(() => {
+            const dock = (this.$refs.handDock as {$el?: HTMLElement} | undefined)?.$el ?? null;
+            const deck = document.querySelector<HTMLElement>('.con-deckstack');
+            maybeRunDelivery(this.handDockCards.map((c) => c.name), dock, deck);
+          });
+        }
       },
     },
   },
@@ -4807,6 +4832,13 @@ export default defineComponent({
         }
         return;
       }
+      // START-BUY DELIVERY: this is the game-opening initialCards submit — the
+      // PAYMENT. Withhold the bought project cards from the dock NOW (before
+      // the commit brings them), so they never flash in the hand before the
+      // payment lands; the director then flies them in from the project deck.
+      if (this.startTask !== undefined) {
+        armStartingCardsDelivery([...consoleStartState.projects]);
+      }
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       this.submit(response);
@@ -5590,6 +5622,7 @@ export default defineComponent({
   beforeUnmount() {
     this.offIntent?.();
     resetHandReveal(); // never leak a mid-episode timeline / held dock
+    resetHandDelivery(); // never leak a mid-flight delivery / held dock
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

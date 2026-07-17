@@ -248,9 +248,11 @@ test.describe('hand dock · standard 1080', () => {
     const dock = page.locator('.con-handdock');
     const hand = await handSize(request, playerId);
     await expect(page.locator('.con-handdock__card')).toHaveCount(hand); // EVERY card is a physical back now
+    // No placeholder at 0 cards — the empty pack + «0» counter say it; a
+    // dashed ghost frame was removed (it read as a broken/awaiting slot).
+    await expect(page.locator('.con-handdock__ghost')).toHaveCount(0);
     if (hand === 0) {
       await expect(dock).toHaveClass(/con-handdock--empty/);
-      await expect(page.locator('.con-handdock__ghost')).toHaveCount(1);
     } else {
       console.log(`[probe] preludes drew ${hand} card(s) — empty-tray evidence not reachable at this seed`);
     }

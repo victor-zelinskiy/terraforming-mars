@@ -259,6 +259,22 @@ html.con-profile-tv {
         &__text { font-size: var(--con-t-body); line-height: 1.5; }
         &__kind { font-size: var(--con-t-floor); }
     }
+    /* Schematic leaders read at couch distance (SVG is physical-px). */
+    .con-zoom-rules__wire { stroke-width: ~"calc(2px * var(--con-ui-scale, 1))"; }
+    .con-zoom-rules__node { r: ~"calc(4.5px * var(--con-ui-scale, 1))"; }
+    /* Viewer chrome: the counter is a first-class HUD readout; the action
+       strip speaks at command-bar size. */
+    .card-zoom-counter {
+        font-size: 1.15rem;
+        padding: .6rem 2rem;
+
+        &__current { font-size: 1.7rem; }
+        &__total { font-size: 1.15rem; }
+    }
+    .con-zoom__bar { gap: 1.5rem; }
+    .con-zoom__btn { font-size: 1.05rem; }
+    .con-zoom__cmd { font-size: 0.95rem; }
+    .con-zoom__state { font-size: var(--con-t-floor); }
 
     /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
     .con-task {

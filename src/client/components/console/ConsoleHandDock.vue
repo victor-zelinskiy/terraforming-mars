@@ -23,18 +23,18 @@
          parallel, overlapped, oldest lowest / newest on top. Keys are the
          REAL card names: the reveal transition (and a future "card flies
          into the hand" handoff) lands on a stable per-card anchor. -->
+    <!-- 0 cards: nothing here — the empty pack + the «0» counter already
+         say "no cards" (no placeholder frame; a dashed ghost read as a
+         broken/awaiting slot). -->
     <div class="con-handdock__pack" aria-hidden="true">
       <transition-group name="con-hd">
         <span v-for="(slot, i) in packSlots"
               :key="slot.key"
               class="con-handdock__card"
-              :class="{'con-handdock__card--deep': slot.deep}"
+              :class="{'con-handdock__card--deep': slot.deep, 'con-handdock__card--held': slot.held}"
               :data-hand-dock-card="slot.name"
               :style="{'--hd-dx': slot.dx + 'rem', '--hd-dy': slot.dy + 'rem', '--hd-tilt': slot.tilt + 'deg', zIndex: 3 + i}"></span>
       </transition-group>
-      <!-- 0 cards: a clean empty tray — the dashed slot ghost says "this
-           is where cards live" without shouting. -->
-      <span v-if="plan.empty" class="con-handdock__ghost"></span>
     </div>
 
     <!-- The tray PLATE (paints in front of the card bottoms — the pack sits
@@ -100,6 +100,8 @@ type PackSlot = {
   dy: number,
   tilt: number,
   deep: boolean,
+  /** In flight from the deck — laid out but hidden (delivery hold). */
+  held: boolean,
 };
 
 export default defineComponent({
@@ -125,14 +127,32 @@ export default defineComponent({
      * chassis + status line stay put (handRevealDirector.ts).
      */
     lifted: {type: Boolean, default: false},
+    /**
+     * Starting-cards DELIVERY hold: names still in flight from the project
+     * deck (handDeliveryDirector.ts). The pack still LAYS OUT at the full
+     * count (proxies land on final positions), but a held card renders
+     * hidden-with-layout and is EXCLUDED from the shown count — so a paid
+     * card never appears in the dock before its delivery lands, and the
+     * counter ticks up 0 → N as the cards arrive.
+     */
+    deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   emits: ['open'],
   computed: {
-    count(): number {
-      return this.cards.length;
+    heldSet(): Set<string> {
+      return new Set(this.deliveryHeld);
     },
+    /** The count the STATUS LINE shows — held (in-flight) cards excluded. */
+    count(): number {
+      if (this.heldSet.size === 0) {
+        return this.cards.length;
+      }
+      return this.cards.reduce((n, c) => n + (this.heldSet.has(c.name) ? 0 : 1), 0);
+    },
+    /** The pack LAYOUT is always the full hand (proxies must land on final
+     *  positions) — the count above is the display-only, delivery-aware one. */
     plan(): HandDockPlan {
-      return handDockPlan(this.count);
+      return handDockPlan(this.cards.length);
     },
     /** EVERY card gets its slot (index ↔ index: the plan's slots are in
      *  hand order — oldest first, the deep-thickness head, then the
@@ -152,6 +172,7 @@ export default defineComponent({
           dy: slot.dy,
           tilt: slot.tilt,
           deep: slot.deep,
+          held: this.heldSet.has(card.name),
         };
       });
     },

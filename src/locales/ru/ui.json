@@ -446,7 +446,7 @@
   "Selected": "Выбрано",
   "Unselect": "Снять выбор",
   "Select at least ${0} card(s)": "Выберите минимум ${0} карт",
-  "Not enough M€: need ${0}, have ${1}": "Недостаточно МС: нужно ${0}, доступно ${1}",
+  "Not enough M€: need ${0}, have ${1}": "Недостаточно M€: нужно ${0}, доступно ${1}",
   "WAITING FOR DRAFT CARDS": "ОЖИДАЕМ КАРТЫ ДЛЯ ДРАФТА",
   "Waiting for draft cards": "Ожидаем карты для драфта",
   "You have already made your pick. Waiting for the next set of cards.": "Вы уже сделали выбор. Ждём следующий набор карт.",

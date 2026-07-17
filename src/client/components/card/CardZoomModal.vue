@@ -135,7 +135,10 @@
              default is display:contents, which would let a side child fall
              out of the row). Desktop hosts pass nothing → byte-identical. -->
         <div v-if="hasSide" class="card-zoom-side">
-          <slot name="side" />
+          <!-- Scoped: the console rules panel measures its leaders on the
+               SETTLE nonce (card landed) and hides instantly on `closing`
+               so it can never lag behind the departing card. -->
+          <slot name="side" :nonce="settleNonce" :closing="closing" />
         </div>
       </div>
 

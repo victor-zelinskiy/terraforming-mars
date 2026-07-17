@@ -136,6 +136,13 @@ for (const preset of PRESETS) {
       await page.waitForTimeout(3500); // deal cinematic settles
       await shoot(page, preset, '02-start-scene');
 
+      // ── 2b · Fullscreen card viewer (X on the focused corp) — the TV-fit
+      // + rules-panel acceptance shot, taken HERE because the start scene
+      // is deterministic (no wizard walk required).
+      await key(page, 'KeyX', 4200); // open flight + settle + leaders
+      await shoot(page, preset, '09-card-zoom');
+      await key(page, 'Escape', 1200);
+
       // ── 3 · Drive the start flow STATE-AWARE (not a blind press list) ──
       // A (Enter) picks / pays / plays the focused item, RT (Period)
       // continues a completed step, ArrowRight nudges multi-pick steps
@@ -176,11 +183,6 @@ for (const preset of PRESETS) {
       // ── 5 · Hand section (RB = next section) ───────────────────────
       await key(page, 'KeyE', 1200);
       await shoot(page, preset, '05-hand');
-      // ── 5b · Fullscreen card viewer (X = inspect the focused card) —
-      // the TV-fit + rules-panel acceptance shot (Этап 1-R2).
-      await key(page, 'KeyX', 2800); // open flight + annotation settle
-      await shoot(page, preset, '09-card-zoom');
-      await key(page, 'Escape', 1000);
       await key(page, 'KeyQ', 800); // back to the board
 
       // ── 6 · LT information mode ────────────────────────────────────

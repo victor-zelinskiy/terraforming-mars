@@ -445,6 +445,20 @@ dialog.con-zoom {
     contain: layout style;
 }
 
+/* ── HAND DELIVERY — "the starting cards you paid for fly into your hand" ─
+   (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Card-back
+   proxies depart the top-HUD project deck and arc down into the dock bay.
+   Same fixed-stage contract as the reveal layer; above the footer so the
+   flights land INTO the dock plate. */
+.con-handdelivery-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11712;
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
 /* ── Card EXIT / TRANSFER cinematics (cardExitDirector.ts) ────────────
    The outbound twin of the deal: take-one, collect-all, draft hero-pick,
    hand→play-modal transfers fly FaceLite proxies on the ONE app-level

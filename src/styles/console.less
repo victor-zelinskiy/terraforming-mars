@@ -6190,8 +6190,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: var(--hd-card-h);
         pointer-events: none;
     }
-    &__card,
-    &__ghost {
+    &__card {
         position: absolute;
         left: 0;
         bottom: 0;
@@ -6224,12 +6223,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
         filter: brightness(0.78);
     }
-    /* 0 cards: the tray stays — a dashed slot ghost marks the card home. */
-    &__ghost {
-        transform: translateX(-50%);
-        border: .06rem dashed fade(@con-cyan, 34%);
-        background: radial-gradient(80% 60% at 50% 100%, fade(@con-cyan, 7%), transparent 75%);
+    /* Starting-cards DELIVERY hold: a card still flying from the deck —
+       hidden but LAID OUT (its slot rect is what the flying proxy targets),
+       released (materializes via the base opacity transition) on touchdown. */
+    &__card--held {
+        visibility: hidden;
     }
+    /* (0 cards: no placeholder — the empty pack + the «0» counter say it.) */
 
     /* ── the tray PLATE (in front of the card bottoms) ───────────── */
     &__plate {
@@ -6330,8 +6330,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        instant, no transition (the proxies ARE the cards); the chassis,
        status line and counter stay exactly where they are. */
     &--lifted {
-        .con-handdock__card,
-        .con-handdock__ghost {
+        .con-handdock__card {
             visibility: hidden;
         }
     }
@@ -12797,7 +12796,7 @@ html.con-profile-handheld {
         width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
         height: calc(var(--hd-card-h) + 1.2rem);
 
-        &__pack, &__ghost { bottom: .62rem; }
+        &__pack { bottom: .62rem; }
         &__plate { height: 2.05rem; }
         &__status { bottom: .2rem; gap: .32rem; }
         &__status-label { font-size: .45rem; letter-spacing: .16rem; padding-left: .16rem; }
@@ -13392,6 +13391,35 @@ html.con-profile-large {
     align-self: center;
     display: flex;
 }
+/* The panel HOST: carries the schematic leaders (an SVG overhanging LEFT
+   into the card↔panel gap) — so the panel itself may keep overflow:hidden.
+   `--closing` hides the whole rules surface in ~90ms the instant the close
+   flight begins: the panel must never visibly lag the departing card. */
+.con-zoom-rules-host {
+    position: relative;
+    display: flex;
+    transition: opacity calc(90ms * var(--motion-scale, 1)) ease;
+
+    &--closing {
+        opacity: 0;
+        transition-duration: 60ms;
+    }
+}
+.con-zoom-rules__links {
+    position: absolute;
+    top: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+.con-zoom-rules__node {
+    fill: fade(@con-cyan, 78%);
+    stroke: rgba(6, 12, 20, 0.9);
+    stroke-width: 2;
+}
+.con-zoom-rules__wire {
+    stroke: fade(@con-cyan, 38%);
+    stroke-width: 2;
+}
 .con-zoom-rules {
     display: flex;
     flex-direction: column;
@@ -13466,4 +13494,100 @@ html.con-profile-large {
         line-height: 1.42;
         color: fade(@con-text, 94%);
     }
+}
+
+/* ═══ CONSOLE FULLSCREEN VIEWER — the console-native chrome pass ═══════
+   (Perfection pass: the counter reads from the couch, the action strip
+   speaks the command-bar language — no web pills inside a console stage.) */
+dialog.con-zoom {
+    /* Position counter: a proper HUD plate in the console language —
+       angular, rem-sized (the base is px-authored for desktop), the
+       CURRENT index unmistakably dominant. */
+    .card-zoom-counter {
+        padding: .5rem 1.7rem;
+        font-size: 1rem;
+        letter-spacing: .18em;
+        border-radius: .35rem;
+        border-color: fade(@con-cyan, 40%);
+        background: linear-gradient(180deg, rgba(14, 24, 37, 0.88) 0%, rgba(8, 14, 22, 0.84) 100%);
+    }
+    .card-zoom-counter__current {
+        font-size: 1.45rem;
+        color: #cfeaff;
+    }
+    .card-zoom-counter__total {
+        font-size: 1rem;
+    }
+    .card-zoom-counter__sep { margin: 0 .55rem; }
+    .card-zoom-counter__corner {
+        width: .45rem;
+        height: 1.1rem;
+        border-color: fade(@con-cyan, 55%);
+    }
+    .card-zoom-counter__corner--l { left: .55rem; }
+    .card-zoom-counter__corner--r { right: .55rem; }
+
+    /* The action strip: ONE trapezoid command plate (the hand-dock bay
+       language) instead of the desktop rounded glass panel. */
+    .card-zoom-actions__panel {
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(180deg, rgba(12, 20, 31, 0.92) 0%, rgba(7, 12, 19, 0.9) 100%);
+        box-shadow: inset 0 .05rem 0 fade(@con-cyan, 22%), 0 .5rem 1.6rem rgba(0, 0, 0, 0.45);
+        clip-path: polygon(1.3rem 0, calc(100% - 1.3rem) 0, 100% 100%, 0 100%);
+        padding: .55rem 2.2rem;
+    }
+    .card-zoom-actions__corner { display: none; }
+}
+/* Command items: FLAT console verbs (glyph + uppercase label), never a
+   web button box. Role colour carries the meaning: mint = the primary
+   take/play verb, cyan = select, plain = close/neutral. */
+.con-zoom__btn {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: .3rem .45rem;
+    font-size: .85rem;
+    font-weight: 800;
+    letter-spacing: .09rem;
+    text-transform: uppercase;
+
+    &:hover {
+        box-shadow: none;
+        color: #ffffff;
+        text-shadow: 0 0 .7rem fade(@con-cyan, 55%);
+    }
+    &--select {
+        box-shadow: none;
+        color: #bfe6ff;
+
+        &:hover { text-shadow: 0 0 .7rem fade(@con-cyan, 60%); }
+    }
+}
+.con-zoom__btn--play {
+    background: transparent;
+    box-shadow: none;
+    color: @con-mint;
+
+    &:hover {
+        box-shadow: none;
+        color: #d7ffe9;
+        text-shadow: 0 0 .8rem fade(@con-mint, 55%);
+    }
+}
+.con-zoom__cmd {
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .08rem;
+    text-transform: uppercase;
+}
+.con-zoom__bar {
+    gap: 1.15rem;
+}
+/* The dialog autofocuses the first button (native showModal behaviour) —
+   the pad drives this surface, a Chromium focus-visible outline on the
+   mint verb is desktop noise. */
+.con-zoom__btn:focus,
+.con-zoom__btn:focus-visible {
+    outline: none;
 }
