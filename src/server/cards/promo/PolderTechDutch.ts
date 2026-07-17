@@ -12,6 +12,7 @@ import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Size} from '../../../common/cards/render/Size';
 import {Tag} from '../../../common/cards/Tag';
 import {Phase} from '../../../common/Phase';
+import * as actionPreviews from '../actionPreviews';
 
 // TODO(kberg): PolderTech is not yet compatible with Ares or Red City.
 export class PolderTechDutch extends CorporationCard implements ICorporationCard {
@@ -92,6 +93,16 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
       });
 
     return undefined;
+  }
+
+  // Two chained placements (ocean → adjacent greenery). The tiles' own O2/TR
+  // consequences surface in the per-cell board preview, matching the
+  // declarative placement corps (Tharsis / Philares).
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [], [
+      actionPreviews.boardPlacementStep('ocean'),
+      actionPreviews.boardPlacementStep('greenery'),
+    ]);
   }
 
   public onTilePlaced(cardOwner: IPlayer, activePlayer: IPlayer, space: Space): void {

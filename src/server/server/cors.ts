@@ -64,6 +64,7 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_GAME_REMATCH,
   paths.API_ACTION_PREVIEW,
   paths.API_CARD_PLAY_PREVIEW,
+  paths.API_CORP_FIRST_ACTION_PREVIEW,
   // Lobby / create / join / load (the flows a desktop client needs).
   paths.API_GAMES_JOINABLE,
   paths.API_GAME_PLAYER_COLOR,

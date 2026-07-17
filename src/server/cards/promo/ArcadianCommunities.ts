@@ -82,6 +82,14 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
     return this.askToClaimSpace(player, player.game.board.getAvailableSpacesOnLand(player), false);
   }
 
+  // Same board-space follow-up as the repeatable action (minus the adjacency
+  // rule) — the first-action confirm reuses the same honest note.
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [], [
+      actionPreviews.noteStep('board', 'After confirming, choose where to place the community.'),
+    ]);
+  }
+
   public getAvailableSpacesForMarker(player: IPlayer): Array<Space> {
     const board = player.game.board;
     const candidateSpaces = board.getAvailableSpacesOnLand(player);

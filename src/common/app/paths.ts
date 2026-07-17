@@ -34,6 +34,7 @@ export const paths = {
   API_WAITING_FOR: 'api/waitingfor',
   API_ACTION_PREVIEW: 'api/action-preview',
   API_CARD_PLAY_PREVIEW: 'api/card-play-preview',
+  API_CORP_FIRST_ACTION_PREVIEW: 'api/corp-first-action-preview',
   // Public desktop (Electron) compatibility + update-metadata endpoint (Phase 7).
   API_DESKTOP_VERSION: 'api/desktop/version',
   // Velopack update-feed PROXY (prefix). `<base>/api/desktop/feed/<file>` — keeps desktop clients

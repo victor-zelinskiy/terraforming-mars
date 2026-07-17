@@ -25,8 +25,6 @@
         <!-- Live stored-resource counter (microbes / animals / floaters …) —
              a SLOT chip so a count change never patches the card face. -->
         <span v-if="(card.resources ?? 0) > 0" class="con-played__res" aria-hidden="true">{{ card.resources }}</span>
-        <!-- ACTION MODE: the mandatory first action awaits on this card. -->
-        <span v-if="actionKeys.includes(card.name)" class="con-cards__pickband con-played__actionband" v-i18n>First action</span>
       </div>
     </div>
   </div>
@@ -46,8 +44,6 @@ export default defineComponent({
     /** The hero scene's RESERVED slot: rendered with full layout but kept
      *  invisible until the landing commit (the arc flies into it). */
     hiddenKey: {type: String as PropType<string | undefined>, default: undefined},
-    /** ACTION MODE: cards whose mandatory first action is live (badge). */
-    actionKeys: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
     /** Plan metrics (screen px / css zoom) — see consolePlayedModel. */
     zoom: {type: Number, required: true},
     slotW: {type: Number, required: true},

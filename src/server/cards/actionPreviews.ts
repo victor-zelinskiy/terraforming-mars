@@ -540,6 +540,29 @@ export function placementPreview(
 }
 
 /**
+ * A corporation's MANDATORY first-action preview (the co-located
+ * `ICorporationCard.firstActionPreview` hook — the first-action analog of
+ * `cardPlayPreview`). ONE always-available confirm branch: the action is
+ * mandatory, so there is no availability gate. Unlike `playPreview` it does
+ * NOT auto-include the corp's on-play `behavior` chips — those were the
+ * corporation's PLAY reward (already granted when it was played), not the
+ * first action's result. Follow-ups the modal can't pre-collect get a
+ * `noteStep`/`boardPlacementStep` so the confirm is never mute about what
+ * comes next.
+ */
+export function firstActionBranch(
+  card: ICard,
+  effects: ReadonlyArray<ActionEffect> = [],
+  steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
+): ActionPreview {
+  return {
+    ...base(card),
+    kind: 'bespoke',
+    branches: [{index: -1, title: '', available: true, renderKeys: [], effects, steps: definedSteps(steps)}],
+  };
+}
+
+/**
  * The escape hatch for actions that resist a static description (Viron copies
  * another player's used action; SelfReplicatingRobots, etc.): a single
  * confirm-only branch with NO steps. The action's own prompts ride the existing

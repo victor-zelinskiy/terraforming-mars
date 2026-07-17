@@ -6,6 +6,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
 import {floaterCards} from './floaterCards';
+import * as actionPreviews from '../actionPreviews';
 
 export class Celestic extends ActiveCorporationCard {
   constructor() {
@@ -52,5 +53,13 @@ export class Celestic extends ActiveCorporationCard {
       include: (card) => floaterCards.has(card.name) || card.resourceType === CardResource.FLOATER,
     });
     return undefined;
+  }
+
+  // A reveal-search that genuinely nets 2 cards to hand — the draw chip is
+  // exact; the note explains the reveal mechanic (discards ride the log).
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [actionPreviews.drawGain(2)], [
+      actionPreviews.noteStep('generic', 'Reveal cards from the deck until you find 2 cards with a floater icon — they go to your hand.'),
+    ]);
   }
 }

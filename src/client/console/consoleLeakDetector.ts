@@ -96,8 +96,8 @@ const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // FREE award funding (Vitor) is served by the premium awards MA screen.
   awardFunding: ['.con-ma'],
   // The corporation's mandatory FIRST ACTION (the player's first turn) is
-  // served by the «Разыграно» table in action mode.
-  corpFirstAction: ['.con-played'],
+  // served by its dedicated confirm modal (ConsoleCorpFirstActionConfirm).
+  corpFirstAction: ['.con-composer--corpfirst'],
   // T5: the full-screen start scene serves both opening kinds.
   initialDraft: ['.con-start'],
   startSequence: ['.con-start'],

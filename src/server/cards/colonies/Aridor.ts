@@ -9,6 +9,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {SerializedCard} from '../../SerializedCard';
 import {ICard} from '../ICard';
+import * as actionPreviews from '../actionPreviews';
 
 export class Aridor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -59,6 +60,14 @@ export class Aridor extends CorporationCard implements ICorporationCard {
       {title: 'Aridor first action - Select colony tile to add'},
     );
     return undefined;
+  }
+
+  // The tile catalog is dealt when the action resolves — the pick rides the
+  // colonies surface after confirming; the note says so honestly.
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [], [
+      actionPreviews.noteStep('colony', 'After confirming, choose an additional colony tile to put into play.'),
+    ]);
   }
 
   private processTags(player: IPlayer, tags: ReadonlyArray<Tag>) {

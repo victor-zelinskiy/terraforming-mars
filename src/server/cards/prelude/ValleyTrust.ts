@@ -5,6 +5,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {PreludesExpansion} from '../../preludes/PreludesExpansion';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionPreviews from '../actionPreviews';
 
 export class ValleyTrust extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -39,5 +40,14 @@ export class ValleyTrust extends CorporationCard implements ICorporationCard {
     const game = player.game;
     const cards = game.preludeDeck.drawN(game, 3);
     return PreludesExpansion.selectPreludeToPlay(player, cards, 'discard');
+  }
+
+  // The 3 preludes are drawn only when the action RESOLVES — nothing exists to
+  // pre-collect, and a "+3 cards" chip would overstate a keep-1-of-3 pick. An
+  // honest note tells the player exactly what confirming starts.
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [], [
+      actionPreviews.noteStep('generic', 'After confirming, draw 3 Prelude cards and choose one to play; the other two are discarded.'),
+    ]);
   }
 }

@@ -9,6 +9,7 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Resource} from '../../../common/Resource';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import * as actionPreviews from '../actionPreviews';
 
 export class Vitor extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -68,6 +69,14 @@ export class Vitor extends CorporationCard implements ICorporationCard {
     freeAward.options = availableAwards.map((award) => this.selectAwardToFund(player, award));
 
     return freeAward;
+  }
+
+  // The award pick itself rides the premium awards surface after confirming
+  // (solo skips the action entirely — the prompt then never offers Vitor).
+  public firstActionPreview() {
+    return actionPreviews.firstActionBranch(this, [], [
+      actionPreviews.noteStep('generic', 'After confirming, choose an award to sponsor for free.'),
+    ]);
   }
 
   public onCardPlayed(player: IPlayer, card: ICard) {

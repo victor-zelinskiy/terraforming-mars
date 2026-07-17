@@ -236,12 +236,14 @@
                   <!-- Honest secondary affordance: confirming NOW locks the
                        viewer's choice in — the wait simply continues. -->
                   <div class="con-start__wait-cta" :class="{'con-start__wait-cta--off': !wizardReady}">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Submit your choice') }}</span>
+                    <!-- TEMP DIAGNOSTIC (revert me): launch on LT -->
+                    <GamepadGlyph control="triggerL" /><span>{{ $t('Submit your choice') }}</span>
                   </div>
                 </div>
                 <div v-else key="go" class="con-start__beginline" :class="{'con-start__beginline--off': !wizardReady}">
                   <span class="con-start__beginline-flash" aria-hidden="true"></span>
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Begin the game') }}</span>
+                  <!-- TEMP DIAGNOSTIC (revert me): launch on LT -->
+                  <GamepadGlyph control="triggerL" /><span>{{ $t('Begin the game') }}</span>
                 </div>
               </transition>
             </div>
@@ -869,7 +871,8 @@ export default defineComponent({
           if (this.summaryCards.length > 0) {
             hints.push({control: 'dpad', label: 'Navigate'});
           }
-          hints.push({control: 'confirm', label: this.launchVerb, enabled: this.wizardReady});
+          // TEMP DIAGNOSTIC (revert me): launch verb moved to LT to A/LT-isolate the auto-apply.
+          hints.push({control: 'triggerL', label: this.launchVerb, enabled: this.wizardReady});
           if (this.summaryCards.length > 0) {
             hints.push({control: 'secondary', label: 'Inspect'});
           }
@@ -1459,6 +1462,13 @@ export default defineComponent({
           this.continueWithExit();
         }
         return;
+      case 'prevTab':
+        // TEMP DIAGNOSTIC (revert me): LT launches from the summary (moved off A)
+        // to test whether an A carry-over auto-fires the corp/pay beats.
+        if (this.mode === 'wizard' && this.onSummary) {
+          this.onContinue();
+        }
+        return;
       case 'prevSection':
         // LB is STEP navigation (back one wizard step); B always minimizes.
         if (this.mode === 'wizard') {
@@ -1486,11 +1496,9 @@ export default defineComponent({
     onPrimary(): void {
       if (this.mode === 'wizard') {
         if (this.currentStep === undefined) {
-          // The SUMMARY's one press — the explicit «НАЧАТЬ ПАРТИЮ» CTA. A is
-          // free here (there is nothing to select), and it is the control the
-          // CTA plate names. onContinue still arms the zero-projects warning
-          // first, so an empty buy stays a conscious second press.
-          this.onContinue();
+          // TEMP DIAGNOSTIC (revert me): the SUMMARY launch was moved off A onto
+          // LT (prevTab) to test whether a carried-over / repeated A press is what
+          // auto-fires the corp-play + pay beats after launch. A does nothing here.
           return;
         }
         // Single-pick step (corp / CEO): A selects the focused card AND advances

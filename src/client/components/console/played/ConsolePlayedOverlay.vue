@@ -42,7 +42,6 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.corporations)" :key="'corp' + pi"
                                  :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :actionKeys="corpActionKeys"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
                                  @press="onCardPress" />
             </div>
@@ -126,7 +125,6 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -173,16 +171,9 @@ export default defineComponent({
     heroRevealed: {type: Boolean, default: false},
     /** The transaction owns the moment (input inert, frame gated). */
     heroActive: {type: Boolean, default: false},
-    /**
-     * ACTION MODE (the corporation's mandatory FIRST ACTION on the player's
-     * first turn): corporations whose action is live — A on such a card
-     * emits `corp-action` (the shell submits); X still inspects.
-     */
-    corpActionKeys: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   emits: {
     'close': () => true,
-    'corp-action': (_name: CardName) => true,
   },
   setup() {
     const viewport = useConsoleViewport();
@@ -354,15 +345,6 @@ export default defineComponent({
         this.focusKey = this.heroIncomingIsEvent ? EVENTS_PILE_KEY : this.heroIncoming.name;
       }
     },
-    /** ACTION MODE opens: seed the cursor onto the first actionable corp. */
-    'corpActionKeys': {
-      immediate: true,
-      handler(keys: ReadonlyArray<string>) {
-        if (keys.length > 0 && !keys.includes(this.focusKey)) {
-          this.focusKey = keys[0];
-        }
-      },
-    },
   },
   beforeUnmount() {
     this.unregisterHeroTarget?.();
@@ -392,12 +374,7 @@ export default defineComponent({
       }
       switch (consoleActionOf(intent)) {
       case 'primary':
-        // ACTION MODE: A on a corporation with a live first action PERFORMS
-        // it (the mandatory first-turn decision); everywhere else A mirrors X.
-        if (this.corpActionKeys.includes(this.focusKey)) {
-          this.$emit('corp-action', this.focusKey as CardName);
-          break;
-        }
+        // A VIEW surface: A mirrors X (inspect the focused card / open events).
         this.activateFocused();
         break;
       case 'inspect':

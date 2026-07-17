@@ -203,9 +203,7 @@
                             :heroIncoming="playedHeroIncoming"
                             :heroRevealed="playedHeroState.revealed"
                             :heroActive="playedHeroHolds"
-                            :corpActionKeys="playedCorpActionNames"
-                            @corp-action="onPlayedCorpAction"
-                            @close="onPlayedOverlayClose" />
+                            @close="closePlayedOverlay" />
     </transition>
 
     <!-- The played-card hero STAGE — the fixed proxy layer of the "card
@@ -601,6 +599,19 @@
                               @cancel="onPlayCardCancel" />
     </transition>
 
+    <!-- The corporation's MANDATORY FIRST ACTION — the dedicated confirm
+         modal (the play-composer's mandatory sibling). Presence is DERIVED
+         from the corporationInitialAction prompt (never opened imperatively);
+         B DEFERS to the amber chip, A submits the corp's OrOptions option. -->
+    <transition name="con-layer">
+      <ConsoleCorpFirstActionConfirm v-if="corpFirstActionOpen"
+                                     ref="corpFirstConfirm"
+                                     :playerView="playerView"
+                                     :corpNames="corpFirstActionNames"
+                                     @confirm="onCorpFirstActionConfirm"
+                                     @cancel="onCorpFirstActionDefer" />
+    </transition>
+
   </div>
 </template>
 
@@ -697,6 +708,7 @@ import ConsoleProductionLoss from '@/client/components/console/ConsoleProduction
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
+import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
@@ -849,6 +861,7 @@ export default defineComponent({
     ConsoleStartScene,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
+    ConsoleCorpFirstActionConfirm,
     ConsoleCardExitLayer,
     ConsoleHandRevealLayer,
     ConsoleDraftTray,
@@ -1040,6 +1053,7 @@ export default defineComponent({
         this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
+        this.corpFirstActionOpen ||
         this.playedTableVisible ||
         this.journalPanelVisible ||
         this.infoModeState.open ||
@@ -1119,32 +1133,28 @@ export default defineComponent({
       return playedHeroHolding();
     },
     /**
-     * The «Разыграно» table is the SERVING SURFACE of the corporation's
-     * mandatory first action — so its presence is DERIVED from the prompt,
-     * never opened imperatively: an open/close race with the hard-block
-     * watcher (which closes the table for a mandatory task) used to leave the
-     * prompt with no surface at all (the stranded guard). Deferring (B) hides
-     * it via the deferred flag; answering it clears `shellTask` and the table
-     * closes itself — a manual browse (`playedOpen`) is a separate flag, so
-     * the mandatory beat can never strand the player in a browse surface.
-     * NOTE `shellTask` is suppressed while the hero scene holds the
-     * foreground, so the table simply appears when the landing completes.
+     * The DEDICATED first-action confirm modal is the SERVING SURFACE of the
+     * corporation's mandatory first action — its presence is DERIVED from the
+     * prompt, never opened imperatively (the open/close-race lesson from the
+     * old «Разыграно» action mode). Deferring (B) hides it via the deferred
+     * flag; answering it clears `shellTask` and the modal unmounts itself.
+     * NOTE `shellTask` is suppressed while the hero scene / a reveal holds the
+     * foreground, so the modal simply appears when the beat completes.
      */
-    corpActionTableOpen(): boolean {
+    corpFirstActionOpen(): boolean {
       return this.shellTask?.kind === 'corpFirstAction' && !this.consoleState.task.deferred;
     },
-    /** The overlay is up — as a manual browse, the hero stage, or the corp
-     *  first action's serving surface. */
+    /** The overlay is up — as a manual browse or the hero stage. (The corp
+     *  first action no longer rides this table — it has its own modal.) */
     playedTableVisible(): boolean {
-      return this.playedOpen || playedHeroState.tableOpen || this.corpActionTableOpen;
+      return this.playedOpen || playedHeroState.tableOpen;
     },
     /**
-     * The «Разыграно» ACTION MODE (kind corpFirstAction): the corporations
-     * whose mandatory first action is live RIGHT NOW — A on such a card in
-     * the overlay performs it. Empty when the prompt isn't up / is deferred.
+     * The corporations whose mandatory first action is live RIGHT NOW (>1 =
+     * Merger's second corp). Empty when the prompt isn't up / is deferred.
      */
-    playedCorpActionNames(): ReadonlyArray<CardName> {
-      if (!this.corpActionTableOpen) {
+    corpFirstActionNames(): ReadonlyArray<CardName> {
+      if (!this.corpFirstActionOpen) {
         return [];
       }
       return corporationCardNames(this.playerView)
@@ -2058,6 +2068,9 @@ export default defineComponent({
       if (this.pendingPlayCard !== undefined) {
         return 'Play project card';
       }
+      if (this.corpFirstActionOpen) {
+        return 'First action';
+      }
       if (this.pendingTradeColony !== undefined) {
         return 'Trade';
       }
@@ -2368,6 +2381,23 @@ export default defineComponent({
         );
         return cmds;
       }
+      if (this.corpFirstActionOpen) {
+        // The MANDATORY corp first-action modal: A takes the action, X
+        // inspects the corporation, LB/RB switches corps (Merger), B only
+        // DEFERS to the amber chip (never a dismissal).
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'confirm', label: 'Take first action', highlight: true},
+          {control: 'secondary', label: 'Inspect'},
+        ];
+        if (this.corpFirstActionNames.length > 1) {
+          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Corporation'});
+        }
+        cmds.push(
+          {control: 'inspect', label: 'Information'},
+          {control: 'back', label: 'Minimize'},
+        );
+        return cmds;
+      }
       if (this.playedTableVisible) {
         // «Разыграно»: the tableau grammar, honest to the overlay's live
         // mirrors (consolePlayedUi). Inside the events list B is a LOCAL
@@ -2382,21 +2412,15 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
         ];
-        // ACTION MODE: the mandatory corp first action leads the bar.
-        const corpAction = this.playedCorpActionNames.length > 0;
-        if (corpAction) {
-          const onActionable = this.playedCorpActionNames.includes(consolePlayedUi.focusName as CardName);
-          cmds.push({control: 'confirm', label: 'Take first action', enabled: onActionable, highlight: onActionable});
-        }
         cmds.push({control: 'secondary',
           label: consolePlayedUi.focusKind === 'events' ? 'Open' : 'Inspect',
           enabled: consolePlayedUi.focusKind !== 'none'});
-        if (consolePlayedUi.canCyclePlayer && !corpAction) {
+        if (consolePlayedUi.canCyclePlayer) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
         }
         cmds.push(
           {control: 'inspect', label: 'Information'},
-          {control: 'back', label: corpAction ? 'Minimize' : 'Close'},
+          {control: 'back', label: 'Close'},
         );
         return cmds;
       }
@@ -2734,12 +2758,12 @@ export default defineComponent({
         journalState.open = false;
       }
       // The «Разыграно» overlay is the same family of board-home VIEW
-      // surface — it yields to a mandatory surface identically. TWO honest
-      // exceptions: while the hero scene owns it (the landing/result beat
+      // surface — it yields to a mandatory surface identically. ONE honest
+      // exception: while the hero scene owns it (the landing/result beat
       // completes first — the deferred close runs in the phase watcher
-      // below), and when the table IS the mandatory surface (the corp's
-      // first action) — closing it there left the prompt with nothing.
-      if (now && this.playedOpen && !this.playedHeroHolds && !this.corpActionTableOpen) {
+      // below). The corp first action has its OWN dedicated modal now, so a
+      // stale browse always yields to a mandatory prompt.
+      if (now && this.playedOpen && !this.playedHeroHolds) {
         this.closePlayedOverlay();
       }
     },
@@ -3258,6 +3282,18 @@ export default defineComponent({
         }
         const panel = this.$refs.journalPanel as InstanceType<typeof ConsoleJournalPanel> | undefined;
         panel?.handleIntent(intent);
+        return true;
+      }
+      // The MANDATORY corp first-action modal owns the pad while open
+      // (before the «Разыграно» browse below — a stale browse yields to it
+      // via the hard-block watcher). Y keeps the global Info Mode meaning.
+      if (this.corpFirstActionOpen) {
+        if (action === 'fullscreen') {
+          this.toggleInfoMode();
+          return true;
+        }
+        const confirm = this.$refs.corpFirstConfirm as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
+        confirm?.handleIntent(intent);
         return true;
       }
       // «Разыграно» (X from the board home) owns the pad while open — a
@@ -4135,29 +4171,24 @@ export default defineComponent({
       // Focus returns to the board home — the board stays mounted (v-show)
       // with its own retained cursor state; nothing to restore explicitly.
     },
-    /** B on the overlay: in ACTION MODE (corp first action) the mandatory
-     *  prompt is DEFERRED to the amber chip (B returns to it) — the overlay
-     *  never just swallows a mandatory decision. */
-    onPlayedOverlayClose(): void {
-      if (this.shellTask?.kind === 'corpFirstAction') {
-        this.deferShellTask();
-      }
-      this.closePlayedOverlay();
-    },
-    /** A on a corporation with a live first action (the «Разыграно» action
-     *  mode): submit that corp's option of the corporationInitialAction
-     *  OrOptions — byte-identical to the desktop start-flow submit. */
-    onPlayedCorpAction(name: CardName): void {
+    /** A in the first-action modal: submit that corp's option of the
+     *  corporationInitialAction OrOptions — byte-identical to the desktop
+     *  start-flow submit. The action's follow-ups (a Tharsis city placement,
+     *  Vitor's award pick …) arrive as native tasks; Merger's second
+     *  first-action re-opens the modal with the remaining corp. */
+    onCorpFirstActionConfirm(name: CardName): void {
       const prompt = startFlowCorpPrompt(this.playerView);
       const index = corpActionOptionIndexFor(prompt, name);
       if (prompt === undefined || index === -1) {
         return;
       }
-      // The action may spawn follow-ups (a Tharsis city placement …) — the
-      // table yields to them; Merger's second first-action re-opens it.
-      this.closePlayedOverlay();
       this.consoleState.task.deferred = false;
       this.submit({type: 'or', index, response: {type: 'option'}});
+    },
+    /** B in the first-action modal: the MANDATORY prompt is DEFERRED to the
+     *  amber chip (B returns to it) — never just swallowed. */
+    onCorpFirstActionDefer(): void {
+      this.deferShellTask();
     },
     // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
     toggleInspection(): void {
@@ -4865,10 +4896,9 @@ export default defineComponent({
       }
       if (task.kind === 'corpFirstAction') {
         // The corporation's mandatory FIRST ACTION (the player's first turn):
-        // the «Разыграно» table serves it in ACTION MODE — A on the
-        // corporation card performs the action. The table's presence is
-        // DERIVED (corpActionTableOpen), so there is nothing to open here:
-        // only the board must be the section underneath it.
+        // the dedicated confirm modal serves it. Its presence is DERIVED
+        // (corpFirstActionOpen), so there is nothing to open here: only the
+        // board must be the section underneath it.
         this.consoleState.section = 'board';
       }
     },
@@ -5240,6 +5270,12 @@ export default defineComponent({
       if (this.handScrollActive) {
         const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
         hand?.stickScroll(dy);
+        return;
+      }
+      // The corp first-action modal's briefing column scrolls first.
+      if (this.corpFirstActionOpen) {
+        const confirm = this.$refs.corpFirstConfirm as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
+        confirm?.stickScroll(dy);
         return;
       }
       // The «Разыграно» overlay owns the right stick while open (main table

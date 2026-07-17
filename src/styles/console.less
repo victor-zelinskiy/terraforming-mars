@@ -12468,6 +12468,47 @@ html.console-mode {
     }
 }
 
+/* ── Corp FIRST-ACTION confirm — the play composer's MANDATORY sibling
+   (ConsoleCorpFirstActionConfirm). Same chassis (panel--play two-column
+   layout), recomposed: an AMBER mandatory framing (kicker + badge + panel
+   rim) and the printed first-action ASK leading the briefing column, so the
+   player reads "obligatory corporation beat" before anything else. ── */
+.con-composer--corpfirst {
+    .con-composer__panel--corpfirst {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%), 0 1.1rem 3rem rgba(0, 0, 0, 0.66);
+    }
+    .con-composer__kicker--mandatory {
+        color: #ffd9a0;
+        .con-composer__kicker-mark { color: @con-amber; }
+    }
+    /* The "ПЕРВОЕ ДЕЙСТВИЕ" identity chip (mint — the reward framing). */
+    .con-composer__corpfirst-chip {
+        font-size: .7rem; font-weight: 800; letter-spacing: .05rem; text-transform: uppercase;
+        padding: .2rem .6rem; border-radius: 49.95rem;
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
+        color: @con-mint;
+    }
+    /* The "ОБЯЗАТЕЛЬНО" badge (amber — the mandatory framing; calm, no pulse). */
+    .con-composer__paytag--mandatory {
+        background: fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+        color: #ffe6b0;
+    }
+    .con-composer__corpfirst-pager {
+        display: inline-flex; align-items: center; gap: .35rem;
+        font-size: .75rem; color: @con-text-dim; font-variant-numeric: tabular-nums;
+    }
+    /* The printed first-action text — the ask the player is about to fulfil. */
+    .con-composer__corpfirst-ask {
+        font-size: .95rem; line-height: 1.4; color: #eaf4ff;
+        padding: .55rem .8rem; border-radius: .55rem;
+        background: rgba(26, 26, 18, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 28%);
+        border-left: .18rem solid fade(@con-amber, 78%);
+    }
+}
+
 @keyframes con-pay-flash {
     0% { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 70%), 0 0 .8rem fade(@con-cyan, 34%); }
     100% { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 0%), 0 0 .8rem fade(@con-cyan, 0%); }
