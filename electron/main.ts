@@ -22,6 +22,7 @@ import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, logGpuStatus} from './perf';
+import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed} from './session';
@@ -274,6 +275,11 @@ function createWindow(): void {
       }
     }
   });
+
+  // Gamepad-driven mouse cursor INSIDE the DevTools window only (Steam Machine /
+  // Deck have no mouse; F12 was visible but un-navigable from the pad). Scoped
+  // strictly to devToolsWebContents — the game surface is untouched.
+  installDevtoolsPadCursor(mainWindow);
 
   // Re-echo the settled "[TM perf]" line on every page load — game-boundary
   // reloads clear the DevTools console, and this keeps the tuning state
