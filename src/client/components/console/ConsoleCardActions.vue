@@ -527,7 +527,7 @@ export default defineComponent({
     composer(value: ComposerContext | undefined) {
       consoleCardActionsUi.confirmOpen = value !== undefined;
     },
-    footCommands: {
+    'footCommands': {
       immediate: true,
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
