@@ -120,14 +120,23 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
       if (await quick.count() > 0) {
         await key(page, 'Escape', 1100);
       } else if (await composer.count() > 0) {
-        await key(page, 'KeyX', 1600); // the play composer confirms on X
+        // The PLAY composer confirms on X; the CORP FIRST-ACTION composer
+        // (`--corpfirst`, e.g. Tharsis Republic's mandatory city) confirms
+        // on A — X there is «Осмотреть» (inspect) and never advances.
+        const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
+        await key(page, corpFirst ? 'Enter' : 'KeyX', 1600);
       } else if (await handSec.count() > 0) {
         await key(page, await banner.count() > 0 ? 'Escape' : 'Enter', 1400);
       } else if (await wizard.count() > 0) {
         await key(page, finishers[i % finishers.length], 900);
       } else if (await placement.count() > 0) {
-        await key(page, dirs[i % dirs.length], 700);
-        await key(page, 'Enter', 1500);
+        // The cursor is seeded on a LEGAL cell — try it directly first;
+        // only walk if that cell was already taken.
+        await key(page, 'Enter', 1200);
+        if (await placement.count() > 0) {
+          await key(page, dirs[i % dirs.length], 600);
+          await key(page, 'Enter', 1400);
+        }
       } else {
         await key(page, 'Enter', 1500);
       }
