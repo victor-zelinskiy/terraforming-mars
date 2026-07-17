@@ -1176,7 +1176,7 @@ describe('Game', () => {
     expect(player.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
     expect(player2.dealtProjectCards).has.lengthOf(constants.TEST_MODE_PROJECT_CARDS_DEALT_PER_PLAYER);
 
-    const corpName = new Map<TestPlayer, string>();
+    const corpName = new Map<TestPlayer, CardName>();
     function selectAllInitialCards(player: TestPlayer) {
       const input = cast(player.getWaitingFor(), SelectInitialCards);
       corpName.set(player, player.dealtCorporationCards[0].name);
