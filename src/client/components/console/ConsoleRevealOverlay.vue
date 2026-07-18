@@ -170,6 +170,7 @@
            task host's focused card underneath. -->
       <!-- The gliding frame lands only on the received cards — the discard
            tray is opened by R3, never focused. -->
+      <ConsoleCardFocusFrame selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     </template>
   </div>
 </template>
@@ -207,6 +208,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -222,7 +224,7 @@ import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, markAllTaken, markCardTaken,
 } from '@/client/components/drawnCards/drawnCardsState';
 import {CardName} from '@/common/cards/CardName';
-import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {runCardCollect, runCardTake} from '@/client/console/cardDeal/cardExitDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {
@@ -254,7 +256,7 @@ type SourceChip = {name: string, inspectable: boolean};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, GamepadGlyph, ActionEffectChip},
+  components: {Card, GamepadGlyph, ActionEffectChip, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -816,13 +818,11 @@ export default defineComponent({
       return root.querySelector<HTMLElement>(`[data-zoom-slot="${esc}"]`);
     },
     /** A: take the focused card (last one closes + releases + acks).
-     *  HAND-INTAKE cinematic (handDeliveryDirector): the card physically
-     *  lifts off the reveal surface, arcs into the bottom-centre hand dock
-     *  flipping face → back, and LAYS ONTO its real pack slot — the «КАРТЫ»
-     *  counter ticks on the touchdown, never before. State commits the
-     *  frame the proxy stands ready, so the real card never blinks; the
-     *  flight lives on the app-level delivery layer, surviving the overlay
-     *  closing on the last take. Reduced motion → the bare commit. */
+     *  EXIT cinematic: the card physically lifts off the reveal surface and
+     *  dives to the player zone — state commits the frame the proxy stands
+     *  ready (onLift), so the real card never blinks. The flight lives on
+     *  the shell's exit layer, surviving the overlay closing on the last
+     *  take. Reduced motion / missing slot → the bare commit. */
     takeFocused(): void {
       const e = this.drawnEvent;
       const entry = this.drawnUntaken[this.focusIdx];
@@ -837,27 +837,35 @@ export default defineComponent({
         }
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
-      void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {commit});
+      if (slot === null) {
+        commit();
+        return;
+      }
+      void runCardTake({name: entry.card.name, el: slot}, commit);
     },
-    /** RT / B: take everything — the STACK intake gesture: the fan gathers
-     *  into one back-stack above the hand dock (one confirmation pulse),
-     *  then the cards peel off bottom-first into their real pack slots,
-     *  the counter ticking with every landing (handDeliveryDirector). */
+    /** RT / B: take everything — the premium GROUP collect: the fan
+     *  collapses into a stack at the gather point, one confirmation pulse,
+     *  the stack drops to the player as ONE object (cardExitDirector). */
     takeAll(): void {
       const e = this.drawnEvent;
       if (e === undefined) {
         return;
       }
       const commit = () => closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
-      const entries = this.drawnUntaken
-        .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));
-      void runHandIntake(entries, {mode: 'stack', commit});
+      const sources = this.drawnUntaken
+        .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`)}))
+        .filter((s): s is {name: CardName, el: HTMLElement} => s.el !== null);
+      if (sources.length === 0) {
+        commit();
+        return;
+      }
+      void runCardCollect(sources, commit);
     },
     /**
      * A from FULLSCREEN (MULTI-CARD) — the shell has ALREADY choreographed the
      * viewer's close (the card flew back into its reveal slot), so this just
      * SYNCS the focus to the inspected card and runs the SAME premium take as
-     * an in-modal A (the hand intake — lift off the slot + lay into the dock).
+     * an in-modal A (`runCardTake` — lift off the slot + dive to the player).
      */
     takeFromZoom(idx: number): void {
       this.focusIdx = Math.max(0, Math.min(idx, this.drawnUntaken.length - 1));
@@ -866,7 +874,7 @@ export default defineComponent({
       void this.$nextTick(() => this.takeFocused());
     },
     /** RT from FULLSCREEN (MULTI-CARD) — the shell already closed the viewer;
-     *  run the SAME premium stack intake as an in-modal RT. */
+     *  run the SAME premium group collect as an in-modal RT (`runCardCollect`). */
     takeAllFromZoom(): void {
       void this.$nextTick(() => this.takeAll());
     },

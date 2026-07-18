@@ -179,13 +179,10 @@ const GAME_NAME_PROBE = `(() => {
 })()`;
 
 // The main-world capture script, injected on every dom-ready. It wraps the console methods to push
-// a RICHLY-serialized record ({t, level, text}) into a drainable buffer, AND hooks UNCAUGHT errors
-// + unhandled promise rejections — the most important lines to export, which Chromium prints to
-// DevTools directly WITHOUT going through console.error, so the console wrappers never see them
-// (this was the "errors missing from the export" bug). `richFormatArgs` is embedded verbatim so the
-// page uses the exact logic the unit tests cover. Guarded against double-install; calls the original
-// method first and never lets a formatting error escape.
-export const CONSOLE_CAPTURE = `(() => {
+// a RICHLY-serialized record ({t, level, text}) into a drainable buffer. `richFormatArgs` is
+// embedded verbatim via .toString() so the page uses the exact logic the unit tests cover. Guarded
+// against double-install; calls the original method first and never lets a formatting error escape.
+const CONSOLE_CAPTURE = `(() => {
   if (window.__tmConsoleCap) return true;
   window.__tmConsoleCap = true;
   window.__tmConsoleBuf = [];
@@ -194,49 +191,19 @@ export const CONSOLE_CAPTURE = `(() => {
   window.__tmConsoleDrain = function () {
     var e = window.__tmConsoleBuf; window.__tmConsoleBuf = []; return e;
   };
-  var push = function (level, text) {
-    try {
-      window.__tmConsoleBuf.push({t: Date.now(), level: level, text: text});
-      if (window.__tmConsoleBuf.length > MAX) {
-        window.__tmConsoleBuf.splice(0, window.__tmConsoleBuf.length - MAX);
-      }
-    } catch (e) {}
-  };
   var LEVELS = {log: 'LOG', info: 'INFO', warn: 'WARN', error: 'ERROR', debug: 'DEBUG'};
   Object.keys(LEVELS).forEach(function (m) {
     var orig = (typeof console[m] === 'function') ? console[m].bind(console) : function () {};
     console[m] = function () {
       var a = Array.prototype.slice.call(arguments);
       try { orig.apply(null, a); } catch (e) {}
-      try { push(LEVELS[m], fmt(a)); } catch (e) {}
+      try {
+        window.__tmConsoleBuf.push({t: Date.now(), level: LEVELS[m], text: fmt(a)});
+        if (window.__tmConsoleBuf.length > MAX) {
+          window.__tmConsoleBuf.splice(0, window.__tmConsoleBuf.length - MAX);
+        }
+      } catch (e) {}
     };
-  });
-  // Uncaught exceptions — prefer the real Error stack (with the stack trace), fall back to the
-  // event's message + source location. Bubble-phase listener on window catches SCRIPT errors only
-  // (resource-load errors don't reach it), so no <img>/<script> 404 noise.
-  window.addEventListener('error', function (ev) {
-    try {
-      var text;
-      if (ev && ev.error && ev.error.stack) {
-        text = 'Uncaught ' + ev.error.stack;
-      } else if (ev && ev.error) {
-        text = 'Uncaught ' + fmt([ev.error]);
-      } else if (ev && ev.message) {
-        var where = ev.filename ? ' (' + ev.filename + ':' + ev.lineno + ':' + ev.colno + ')' : '';
-        text = 'Uncaught ' + ev.message + where;
-      } else {
-        text = 'Uncaught error';
-      }
-      push('ERROR', text);
-    } catch (e) {}
-  });
-  // Unhandled promise rejections — same treatment for the rejection reason.
-  window.addEventListener('unhandledrejection', function (ev) {
-    try {
-      var r = ev ? ev.reason : undefined;
-      var text = (r && r.stack) ? r.stack : fmt([r]);
-      push('ERROR', 'Unhandled promise rejection: ' + text);
-    } catch (e) {}
   });
   return true;
 })()`;

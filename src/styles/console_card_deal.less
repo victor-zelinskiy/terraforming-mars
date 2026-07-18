@@ -344,35 +344,6 @@ body.con-zoom-open .con-root {
     text-shadow: none;
 }
 
-/* ── Console fullscreen: the PREMIUM face's OWN selected glow is calmed ─
-   A project / prelude card renders via `.pcard`, and `.pcard--selected`
-   (premium_card.less) layers its own selection signal ON TOP of the two
-   console markers above: a fixed-px cyan drop-shadow HALO around the whole
-   card + an inset ring on `.pcard__state`. That treatment is authored for
-   the STATIC on-table slot. Inside the inspector the card face is
-   GSAP-transform-SCALED every frame of the open lift / close retract, so
-   the fixed-px halo is rescaled with it — it swells + throbs during the
-   flight and then snaps to its calm size the instant the card lands: the
-   "the thick SELECTED outline flickers while the card zooms in, then thins
-   out in fullscreen" defect. The console's own selected look is already the
-   calm static rim (::before) + the «✓ ВЫБРАНА» pickband (::after), so here
-   the premium halo is dropped back to the card's plain depth shadow and the
-   inset ring removed — the base `.pcard` filter (premium_card.less: the two
-   black depth drop-shadows), so DEPTH is preserved, only the cyan glow goes.
-   Applied to the flight proxy AND the open dialog, so the selection outline
-   is byte-identical from the first animation frame through fullscreen — no
-   throb, no thick→thin swap, no abrupt style change. The on-table slot
-   (console.less `.con-cards__slot--selected`) keeps its own thick ring: the
-   normal browse look is deliberately UNTOUCHED. */
-:is(dialog.con-zoom, .con-zoom-flight-proxy) .pcard--selected {
-    filter:
-        drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5))
-        drop-shadow(0 9px 20px rgba(0, 0, 0, 0.32));
-}
-:is(dialog.con-zoom, .con-zoom-flight-proxy) .pcard--selected .pcard__state {
-    box-shadow: none;
-}
-
 /* ── The command bar yields to the inspector ──────────────────────────
    While fullscreen is open the viewer's OWN bar (`.con-zoom__bar` in the
    dialog) is the source of button truth, so the game's command bar is
@@ -474,29 +445,9 @@ dialog.con-zoom {
     contain: layout style;
 }
 
-/* ── THE TRAY SLOT LINE (physicality contract) ────────────────────────
-   Both hand flight stages are CLIPPED at the dock plate's TOP EDGE: a card
-   descending into the dock vanishes progressively behind that line — it
-   SLOTS INTO the tray from above (the plate + command bar visually overlap
-   it), never paints over the bottom bar's texture; a card lifting OUT of
-   the dock emerges across the same line. The offset mirrors the dock
-   geometry in console.less (standard: dock bottom .35rem + plate 2.7rem =
-   3.05rem; handheld: .3rem + 2.05rem = 2.35rem) — keep them in sync when
-   retuning the plate. */
-.con-handreveal-layer,
-.con-handdelivery-layer {
-    clip-path: inset(0 0 var(--con-hand-slot-clip, 3.05rem) 0);
-}
-html.con-profile-handheld .con-handreveal-layer,
-html.con-profile-handheld .con-handdelivery-layer {
-    --con-hand-slot-clip: 2.35rem;
-}
-
-/* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
-   (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
-   proxies depart whatever surface released the cards (the start-ceremony
-   pay grid, the reveal modal strip, the fullscreen stage, the research-buy
-   strip) and arc down into the dock bay, each carrying its DOCK-ORDER z.
+/* ── HAND DELIVERY — "the starting cards you paid for fly into your hand" ─
+   (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Card-back
+   proxies depart the top-HUD project deck and arc down into the dock bay.
    Same fixed-stage contract as the reveal layer; above the footer so the
    flights land INTO the dock plate. */
 .con-handdelivery-layer {

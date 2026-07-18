@@ -25,7 +25,6 @@ import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS} from '@/client/console/console
 import {inputTitleText} from '@/client/console/turnIntents';
 import {translateText} from '@/client/directives/i18n';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
-import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -190,20 +189,6 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // then the board scale animates while the next modal is held (`holding`).
   // Never a stranded prompt during either.
   if (govScaleFocusState.holding || govScaleFocusState.closing) {
-    clearStranded();
-    return;
-  }
-  // A critical premium animation (a prelude tile / resource flight, the card
-  // intake into the dock, the card deal, a reveal / ceremony beat) owns the
-  // foreground for its bounded lifetime — any pending prompt is legitimately
-  // held BEHIND it (e.g. the corp first-action confirm waits out the prelude
-  // and intake cinematics; a placement follow-up waits out the reward beat).
-  // The named animation STAGES are already listed in SERVING_SURFACES, but the
-  // 'notification-only' holds (hand intake / deal) render into the always-on
-  // dock, which has no dedicated serving node — so treat ANY active hold as a
-  // legitimate serving beat. A genuinely stranded prompt still persists after
-  // the hold releases (bounded by the 35 s ceiling) and surfaces then.
-  if (isAnimationHoldActive()) {
     clearStranded();
     return;
   }

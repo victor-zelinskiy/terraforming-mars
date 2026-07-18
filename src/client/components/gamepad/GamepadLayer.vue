@@ -182,12 +182,8 @@ export default defineComponent({
   },
   watch: {
     'inputModeState.padsConnected'(now: number, before: number) {
-      // A pad DISCONNECTING mid-session is worth surfacing; a CONNECT is not —
-      // it just reflected the console posture already switching on, so the toast
-      // read as noise (and cluttered the launcher/update screens).
-      if (now < before) {
-        this.showToast(this.$t('Controller disconnected'));
-      }
+      // Connect/disconnect toast — the W3C lifecycle made visible.
+      this.showToast(this.$t(now > before ? 'Controller connected' : 'Controller disconnected'));
       // ELECTRON (P10): a pad connecting anywhere in the shell (menu /
       // create / lobby / game) enables the console posture immediately —
       // unless the player explicitly opted out (their choice persists).

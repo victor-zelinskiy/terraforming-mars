@@ -178,14 +178,15 @@ describe('annotationModel', () => {
   }).timeout(15000); // O(cards): builds annotations for every in-scope card (incl. corps)
 
   it('PLAY-ZONE INVARIANT: on-play graphics live in the trailing play zone (the rail opens it)', () => {
-    // The «При розыгрыше» block tethers to the card-native play-rail, which the
-    // face draws before the TRAILING run of plain/production groups. Since
-    // buildMechanics now reorders every card so the on-play run is always
-    // trailing, this guards that an on-play graphic is never misclassified as an
-    // effect/action frame (which would place it ABOVE the play zone).
+    // The «При розыгрыше» block tethers to the card-native play-rail, which
+    // the face draws before the TRAILING run of plain/production groups. A
+    // card whose immediate-linked graphic row sat ABOVE an effect/action
+    // frame would break that reading — this guard names it.
     const offenders: Array<string> = [];
-    // Corporations are EXEMPT here only to avoid re-deriving corp-frame graphic
-    // ids in the test; their on-play run is reordered to the bottom the same way.
+    // Corporations are EXEMPT: they draw their starting resources at the TOP
+    // (before the effect/action frames), so the on-play graphic is the first
+    // group, never a trailing play-zone — the «При розыгрыше» block correctly
+    // tethers to that starting row instead of a play-rail.
     for (const card of getCards((c) => isPremiumFaceType(c.type) && c.type !== CardType.CORPORATION && c.metadata.information !== undefined)) {
       const playIds = new Set<string>();
       for (const g of card.metadata.information!.groups) {

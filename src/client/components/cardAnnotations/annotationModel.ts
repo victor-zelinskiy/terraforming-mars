@@ -85,11 +85,10 @@ const LABEL_BY_KIND: Readonly<Record<CardAnnotationKind, string>> = {
   'note': 'Special rule',
 };
 
-/** Reveal / reading order — mirrors the reordered card top-down: requirements
- *  bar → action frames → effect frames → the bottom on-play zone → the VP
- *  badge → fine print (matches mechanicsModel.orderMechGroups). */
+/** Reveal / reading order — mirrors the card top-down: requirements bar →
+ *  effect/action frames → the bottom play zone → the VP badge → fine print. */
 const KIND_ORDER: ReadonlyArray<CardAnnotationKind> = [
-  'requirement', 'action', 'effect', 'immediate', 'victory-points', 'note',
+  'requirement', 'effect', 'action', 'immediate', 'victory-points', 'note',
 ];
 
 /** Fold an information block kind into its semantic group. */

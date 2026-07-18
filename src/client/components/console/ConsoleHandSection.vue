@@ -151,6 +151,7 @@
          following grid scroll and the focus scale transition live.
          Suppressed while the reveal transition owns the cards (the frame
          would aim at a held-invisible slot). -->
+    <ConsoleCardFocusFrame v-if="!transitHold" selector=".con-hand__slot--selected > :is(.card-container, .pcard)" />
   </div>
 </template>
 
@@ -175,6 +176,7 @@
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
@@ -222,14 +224,7 @@ const OVERSCAN = 2;
 /** Top/bottom content inset (px): a card's cost badge + focus glow poke ABOVE
  *  the card box, so the scroll content starts this far below the clip edge
  *  (and rows keep this margin from the viewport top when scrolled to). */
-const EDGE_INSET_BASE = 20;
-/** Edge reserve around the grid (badge overhang + focus glow clearance).
- *  Scales with the TV profile: the fill-pass grows cards ~2.5×, so the
- *  cost badge's overhang grows past the 1080-tuned 20px and the top row
- *  clipped (the «карты обрезаются сверху» defect). */
-function edgeInset(): number {
-  return Math.round(EDGE_INSET_BASE * conUiScale());
-}
+const EDGE_INSET = 20;
 /** Right-stick free-scroll px per intent frame (rows are tall). */
 const STICK_SCROLL_STEP = 44;
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
@@ -242,7 +237,7 @@ function clampNum(lo: number, hi: number, v: number): number {
 
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card},
+  components: {Card, ConsoleCardFocusFrame},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -360,11 +355,11 @@ export default defineComponent({
       return this.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');
     },
     plan(): HandGridPlan {
-      // Reserve the edge inset on every side so cards' badges + focus glow have
+      // Reserve EDGE_INSET on every side so cards' badges + focus glow have
       // room and never clip against the shelf edge (the fit/scroll decision
       // and the centred content width both fall inside that inset box).
-      const w = (this.box.w > 0 ? this.box.w : FALLBACK_W) - edgeInset() * 2;
-      const h = (this.box.h > 0 ? this.box.h : FALLBACK_H) - edgeInset() * 2;
+      const w = (this.box.w > 0 ? this.box.w : FALLBACK_W) - EDGE_INSET * 2;
+      const h = (this.box.h > 0 ? this.box.h : FALLBACK_H) - EDGE_INSET * 2;
       return planHandGrid({availW: w, availH: h, count: this.entries.length, uiScale: conUiScale()});
     },
     /** Row indices to render (all when it fits; windowed when it scrolls). The
@@ -379,7 +374,7 @@ export default defineComponent({
         return this.range(0, p.rows - 1);
       }
       const availH = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const contentY = this.scrollTopPx - edgeInset();
+      const contentY = this.scrollTopPx - EDGE_INSET;
       const first = Math.max(0, Math.floor(contentY / p.rowStride) - OVERSCAN);
       const last = Math.min(p.rows - 1, Math.ceil((contentY + availH) / p.rowStride) + OVERSCAN);
       return this.range(first, last);
@@ -395,18 +390,18 @@ export default defineComponent({
     },
     topSpacerPx(): number {
       const rows = this.renderRows;
-      return rows.length === 0 ? 0 : edgeInset() + rows[0] * this.plan.rowStride;
+      return rows.length === 0 ? 0 : EDGE_INSET + rows[0] * this.plan.rowStride;
     },
     bottomSpacerPx(): number {
       const rows = this.renderRows;
       if (rows.length === 0) {
         return 0;
       }
-      return (this.plan.rows - 1 - rows[rows.length - 1]) * this.plan.rowStride + edgeInset();
+      return (this.plan.rows - 1 - rows[rows.length - 1]) * this.plan.rowStride + EDGE_INSET;
     },
     thumbStyle(): Record<string, string> {
       const p = this.plan;
-      const content = p.rows * p.rowStride + edgeInset() * 2;
+      const content = p.rows * p.rowStride + EDGE_INSET * 2;
       const visible = this.box.h > 0 ? this.box.h : FALLBACK_H;
       const hPct = clampNum(8, 100, (visible / Math.max(1, content)) * 100);
       const topPct = (100 - hPct) * this.scrollFrac;
@@ -495,7 +490,7 @@ export default defineComponent({
       const p = this.plan;
       const st = grid.scrollTop;
       // Row-gated: only re-render the window when the first visible row changes.
-      const firstRow = p.rowStride > 0 ? Math.floor((st - edgeInset()) / p.rowStride) : 0;
+      const firstRow = p.rowStride > 0 ? Math.floor((st - EDGE_INSET) / p.rowStride) : 0;
       if (firstRow !== this.lastFirstRow) {
         this.lastFirstRow = firstRow;
         this.scrollTopPx = st;
@@ -511,8 +506,8 @@ export default defineComponent({
       if (!p.scrolls || p.cols <= 0 || this.box.h <= 0) {
         return;
       }
-      const firstFull = Math.ceil((st - edgeInset()) / p.rowStride);
-      const lastFull = Math.floor((st - edgeInset() + this.box.h) / p.rowStride) - 1;
+      const firstFull = Math.ceil((st - EDGE_INSET) / p.rowStride);
+      const lastFull = Math.floor((st - EDGE_INSET + this.box.h) / p.rowStride) - 1;
       if (lastFull < firstFull) {
         return;
       }
@@ -539,16 +534,16 @@ export default defineComponent({
         return;
       }
       const row = Math.floor(this.index / p.cols);
-      const top = edgeInset() + row * p.rowStride;
+      const top = EDGE_INSET + row * p.rowStride;
       const bottom = top + p.slotH;
       const viewTop = grid.scrollTop;
       const viewBottom = viewTop + grid.clientHeight;
       let next = viewTop;
-      // Leave an edge-inset buffer so the card's top badge / glow clear the edge.
-      if (top - edgeInset() < viewTop) {
-        next = top - edgeInset();
-      } else if (bottom + edgeInset() > viewBottom) {
-        next = bottom + edgeInset() - grid.clientHeight;
+      // Leave an EDGE_INSET buffer so the card's top badge / glow clear the edge.
+      if (top - EDGE_INSET < viewTop) {
+        next = top - EDGE_INSET;
+      } else if (bottom + EDGE_INSET > viewBottom) {
+        next = bottom + EDGE_INSET - grid.clientHeight;
       }
       const maxScroll = Math.max(0, grid.scrollHeight - grid.clientHeight);
       next = clampNum(0, maxScroll, next);

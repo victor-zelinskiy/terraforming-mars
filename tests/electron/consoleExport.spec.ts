@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  buildExportFilename, CONSOLE_CAPTURE, formatConsoleEntry, formatStamp, makeRichFormatter,
+  buildExportFilename, formatConsoleEntry, formatStamp, makeRichFormatter,
   normalizeConsoleLevel, RICH_FORMAT_SOURCE, sanitizeForFilename,
 } from '../../electron/consoleExport';
 
@@ -97,52 +97,6 @@ describe('electron/consoleExport', () => {
       expect(RICH_FORMAT_SOURCE).to.include('WeakSet');
       expect(RICH_FORMAT_SOURCE).to.include('JSON.stringify');
       expect(RICH_FORMAT_SOURCE).to.not.match(/__name|__spreadArray|__assign|_classCallCheck/);
-    });
-  });
-
-  describe('CONSOLE_CAPTURE — uncaught errors go to the buffer (the export "no errors" bug)', () => {
-    // Evaluate the injected main-world script against a fake window/console, then drive the
-    // listeners it registers. The uncaught-error path is what the console.* wrappers never see,
-    // so it must land in __tmConsoleBuf directly (with a stack trace when available).
-    function runCapture() {
-      const listeners: Record<string, (ev: unknown) => void> = {};
-      const win: Record<string, unknown> = {
-        addEventListener(type: string, cb: (ev: unknown) => void) {
-          listeners[type] = cb;
-        },
-      };
-      const fakeConsole: Record<string, (...a: unknown[]) => void> = {
-        log() {}, info() {}, warn() {}, error() {}, debug() {},
-      };
-      new Function('window', 'console', CONSOLE_CAPTURE)(win, fakeConsole);
-      return {win, listeners};
-    }
-
-    it('captures an uncaught exception WITH its stack trace as an ERROR entry', () => {
-      const {win, listeners} = runCapture();
-      const err = new Error("Cannot read properties of null (reading 'clientHeight')");
-      listeners.error({error: err, message: err.message, filename: '401.js', lineno: 1, colno: 5976});
-      const buf = win.__tmConsoleBuf as Array<{level: string; text: string}>;
-      expect(buf).to.have.length(1);
-      expect(buf[0].level).to.eq('ERROR');
-      expect(buf[0].text.startsWith('Uncaught Error: ')).to.be.true;
-      expect(buf[0].text).to.include("reading 'clientHeight'");
-      expect(buf[0].text).to.include('at '); // the stack trace made it through
-    });
-
-    it('falls back to message + source location when no Error object is present', () => {
-      const {win, listeners} = runCapture();
-      listeners.error({message: 'Script error.', filename: 'app://bundle/x.js', lineno: 3, colno: 9});
-      const buf = win.__tmConsoleBuf as Array<{level: string; text: string}>;
-      expect(buf[0].text).to.eq('Uncaught Script error. (app://bundle/x.js:3:9)');
-    });
-
-    it('captures an unhandled promise rejection', () => {
-      const {win, listeners} = runCapture();
-      listeners.unhandledrejection({reason: new Error('boom')});
-      const buf = win.__tmConsoleBuf as Array<{level: string; text: string}>;
-      expect(buf[0].level).to.eq('ERROR');
-      expect(buf[0].text.startsWith('Unhandled promise rejection: Error: boom')).to.be.true;
     });
   });
 

@@ -97,12 +97,12 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
     await page.waitForTimeout(3500);
 
-    // Walk the start wizard: A picks the focused card, RB advances a step
+    // Walk the start wizard: A picks the focused card, RT continues a step
     // (corp → buy projects → start). Adaptive: keep going until the start
     // scene is gone — extra presses are inert once a step completes.
     const startScene = page.locator('.con-start__frame');
     for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-      await key(page, i % 2 === 0 ? 'Enter' : 'KeyE', 1100);
+      await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
     }
     await page.waitForTimeout(2500);
     await shoot(page, '01-after-start');

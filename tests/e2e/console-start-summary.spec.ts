@@ -83,9 +83,8 @@ function newGameConfig(twoHumans = false) {
 /**
  * Walk the wizard to its final summary step. This config's steps are
  * corporation → project buy (`prelude: false`), and the two take DIFFERENT
- * presses: a single-pick step commits with A, the multi-pick buy advances
- * with RB (KeyE — the symmetric LB/RB step navigation; RT is unused in the
- * setup) — pressing A there would silently toggle a card into the buy and
+ * presses: a single-pick step commits with A, the multi-pick buy continues
+ * with RT — pressing A there would silently toggle a card into the buy and
  * quietly void the zero-projects case. So read the active step chip and
  * decide, rather than alternating keys blindly.
  */
@@ -96,13 +95,13 @@ async function walkToSummary(page: Page): Promise<void> {
   const activeStep = page.locator('.con-start__step--active');
 
   for (let i = 0; i < 8 && await summary.count() === 0; i++) {
-    // The context rail renders only once the deal cinematic has finished
+    // The verdict bar renders only once the deal cinematic has finished
     // (`v-if="focusedCard && !deal.state.active"`), so it is the exact "this
     // press acts instead of skipping the cinematic" gate.
     await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
     await page.waitForTimeout(400);
     const before = (await activeStep.innerText()).toLowerCase();
-    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'KeyE', 1200);
+    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'Period', 1200);
     // Let the step actually change before looking again — otherwise the next
     // iteration fires into the outgoing frame.
     for (let w = 0; w < 20 && await summary.count() === 0 &&
@@ -151,14 +150,7 @@ test.describe('console start scene · the summary launch', () => {
     // The command bar mirrors it (consoleStartUi) — and RT no longer carries it.
     const bar = page.locator('.con-cmdbar');
     await expect(bar).toContainText(/начать партию/i);
-    const barText = await bar.innerText();
-    expect(barText).not.toContain('RT');
-    // The polish pass: the bar carries ONLY physical commands during setup —
-    // no repeated flow title, no generic navigation hint, no hand counter.
-    expect(barText).not.toMatch(/старт партии/i);
-    expect(barText).not.toMatch(/навигация/i);
-    // The hand dock («КАРТЫ 0/0») does not exist before the game starts.
-    await expect(page.locator('.con-handdock')).toBeHidden();
+    expect(await bar.innerText()).not.toContain('RT');
 
     // 3 · Zero projects bought → the first A arms the warning, not a submit.
     await key(page, 'Enter', 700);
@@ -170,9 +162,6 @@ test.describe('console start scene · the summary launch', () => {
     // summary (the ceremony takes over, or the scene unmounts entirely).
     await key(page, 'Enter', 2500);
     await expect(summary).toHaveCount(0);
-    // The setup is over — the hand dock (the ceremony's delivery target)
-    // is back, with the REAL hand as its source of truth.
-    await expect(page.locator('.con-handdock')).toBeVisible({timeout: 15_000});
     await shoot(page, '03-submitted');
   });
 

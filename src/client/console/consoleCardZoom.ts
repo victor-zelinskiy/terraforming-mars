@@ -77,14 +77,12 @@ export type ConsoleZoomReceive = {
   /** Take every remaining card (closes the viewer). Omit → no take-all. */
   takeAll?: () => void,
   /**
-   * SINGLE-CARD reveal: the take DEPARTS from fullscreen INTO THE HAND (the
-   * hand-intake flight — the card arcs off the stage rect into the dock,
-   * flipping to its back), instead of closing back to a source slot.
-   * `takeAt` is then the BARE commit — the premium flight is
-   * `playZoomDepart`, run by the shell (the dialog closes the frame the
-   * flight proxy takes over). The multi-card fullscreen take (omit this)
-   * closes first, then the reveal modal's own hand intake lifts the card
-   * off its strip slot.
+   * SINGLE-CARD reveal: the take DEPARTS from fullscreen (the stage dives
+   * straight to the player zone, the backdrop fading under it), instead of
+   * closing back to a source slot. `takeAt` is then the BARE commit — the
+   * premium flight is `playZoomDepart`, run by the shell over the still-open
+   * dialog. The multi-card fullscreen take (omit this) closes first, then the
+   * reveal modal's own `runCardTake` lifts the card off its strip slot.
    */
   departFromFullscreen?: boolean,
 };

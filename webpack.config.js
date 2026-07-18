@@ -19,14 +19,8 @@ const zlib = require('zlib');
 // See ELECTRON_MIGRATION_PLAN.md §9 / Phase 2A.
 const DESKTOP_BUILD = process.env.DESKTOP_BUILD === '1';
 
-// Skip the in-build type check when the caller already type-checks separately.
-// CI runs `lint:client` (vue-tsc) as its own step, so re-running a full tsc via
-// fork-ts-checker inside the webpack build just doubles the type-check time on
-// the critical path. Local dev (dev:client, plain `npm run build`) keeps it on.
-const SKIP_TS_CHECK = process.env.SKIP_TS_CHECK === '1';
-
 const plugins = [
-  ...(SKIP_TS_CHECK ? [] : [new ForkTsCheckerWebpackPlugin({
+  new ForkTsCheckerWebpackPlugin({
     typescript: {
       configOverwrite: {
         exclude: [
@@ -34,7 +28,7 @@ const plugins = [
         ],
       },
     },
-  })]),
+  }),
   new VueLoaderPlugin(),
   new webpack.DefinePlugin({
     __VUE_OPTIONS_API__: true,

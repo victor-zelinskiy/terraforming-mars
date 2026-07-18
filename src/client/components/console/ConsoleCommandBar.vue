@@ -97,23 +97,12 @@ export default defineComponent({
         wRem * (this.profile === 'handheld' ? 0.007 : 0.016);
       const barPad = this.profile === 'handheld' ? 0.7 : 1.2;
       const halfRem = wRem / 2 - handDockBayRem(this.profile) / 2 - rootPad - barPad - 1;
-      // The width estimate (`commandWidthRem`) is calibrated for the COMPACT
-      // bay typography (label .95rem / glyph 1.3rem). The TV profile renders
-      // the labels + glyphs LARGER (console_tv.less: label 1.05rem, glyph
-      // floor 1.55rem), so the raw estimate UNDER-counts — the fit model then
-      // keeps more commands than fit and the CSS truncates their labels (the
-      // exact broken bar on 4K). Scaling the estimate up at TV restores the
-      // model's contract: whole low-priority hints DROP (A/B always kept),
-      // labels never truncate. Conservative on purpose — a dropped step hint
-      // (the logic still works; the step chips show the structure) beats a
-      // clipped one.
-      const wScale = this.profile === 'tv' ? 1.15 : 1;
-      const zoneLeft = halfRem - contextWidthRem(translateText(this.context)) * wScale;
+      const zoneLeft = halfRem - contextWidthRem(translateText(this.context));
       const entries = this.commands.map((c) => ({
         width: commandWidthRem(translateText(c.label), {
           badge: c.badge !== undefined && c.badge > 0,
           twoGlyphs: c.control2 !== undefined,
-        }) * wScale,
+        }),
         keep: c.control === 'confirm' || c.control === 'back',
         dropPriority: c.priority ?? defaultDropPriority(c.control),
       }));

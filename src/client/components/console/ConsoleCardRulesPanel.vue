@@ -1,5 +1,22 @@
 <template>
   <div class="con-zoom-rules-host" :class="{'con-zoom-rules-host--closing': closing}">
+    <!-- Schematic LEADERS (variant B of the linkage design): one thin
+         hairline per anchored block, from a node dot on the card's right
+         edge (at the linked row's height) to the block's kind chip. Drawn
+         in the GAP between the stage card and the panel (the console
+         viewer hides the desktop nav arrows, so the gap is clean).
+         Measured on `nonce` (the card LANDED) — never mid-flight. -->
+    <svg v-if="links.length > 0"
+         class="con-zoom-rules__links"
+         :style="{left: -gapW + 'px', width: gapW + 'px', height: panelH + 'px'}"
+         :viewBox="'0 0 ' + gapW + ' ' + panelH"
+         aria-hidden="true">
+      <g v-for="link in links" :key="link.id" class="con-zoom-rules__link">
+        <circle :cx="5" :cy="link.y1" r="4.5" class="con-zoom-rules__node" />
+        <line :x1="10" :y1="link.y1" :x2="gapW" :y2="link.y2" class="con-zoom-rules__wire" />
+      </g>
+    </svg>
+
     <aside class="con-zoom-rules" aria-label="Card rules">
       <div class="con-zoom-rules__head">
         <span class="con-zoom-rules__mark" aria-hidden="true">§</span>
@@ -8,6 +25,7 @@
       <ConsoleScrollArea class="con-zoom-rules__scroll" axis="y">
         <div class="con-zoom-rules__body">
           <section v-for="group in orderedAnnotations" :key="group.id"
+                   :ref="(el) => setBlockRef(group.id, el)"
                    class="con-zoom-rules__group"
                    :class="'con-zoom-rules__group--' + group.kind">
             <span class="con-zoom-rules__kind">
@@ -33,15 +51,16 @@
  * READING ORDER = THE CARD'S ORDER: blocks are sorted by the vertical
  * position of their linked graphic row on the LANDED card (data-graphic-id
  * anchors, measured on `nonce`), so the panel always reads top-to-bottom
- * exactly like the card. Cards without measurable anchors fall back to the
- * canonical card order: requirement → action → effect → on-play → VP → note.
+ * exactly like the card. Cards without anchors (corporations — their rows
+ * carry no graphicIds) fall back to the PHYSICAL card order: requirement →
+ * on-play (start resources) → effect → action → VP → note — which fixes
+ * the Polyphemos-class inversion (effect above the starting resources).
  *
- * LINKAGE = COLOUR: each block's kind chip carries the EXACT accent of its
- * card element (requirement copper / effect blue / action gold / on-play
- * mint / VP prestige) — the connection is READ, not drawn. The earlier
- * schematic leader lines were removed once the colour link landed (they
- * were redundant chrome). `closing` hides the panel instantly so it never
- * lags the departing card.
+ * LINKAGE: anchored blocks draw a schematic leader (node dot on the card
+ * edge + hairline to the block chip) — the blueprint-HUD language; the
+ * card face itself is never painted over. `closing` (the viewer's close
+ * flight began) hides the whole host in ~90ms so the panel can never lag
+ * behind the departing card.
  */
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
@@ -60,18 +79,20 @@ export function cardHasRules(cardName: string | undefined): boolean {
   return card !== undefined && buildCardAnnotations(card).length > 0;
 }
 
-/** The reading order used when blocks carry no measurable graphic anchors
- *  (corporations): requirements bar → action frames → effect frames → the
- *  bottom on-play «при розыгрыше» zone → the VP badge → fine print. Mirrors
- *  the reordered card face (mechanicsModel.orderMechGroups). */
+/** The PHYSICAL reading order of a printed card, used when blocks carry no
+ *  graphic anchors (corporations): requirements bar → start/on-play row →
+ *  effect frames → action frames → the VP badge → fine print. */
 const PHYSICAL_KIND_ORDER: ReadonlyArray<CardAnnotation['kind']> =
-  ['requirement', 'action', 'effect', 'immediate', 'victory-points', 'note'];
+  ['requirement', 'immediate', 'effect', 'action', 'victory-points', 'note'];
 
 const STAGE_SELECTOR = '.con-zoom .card-zoom-stage';
+const STAGE_CARD_SELECTOR = ':is(.card-container.filterDiv, .pcard, .mb-face)';
 
 function cssEscapeId(value: string): string {
   return typeof CSS !== 'undefined' && CSS.escape !== undefined ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
+
+type Link = {id: string, y1: number, y2: number};
 
 export default defineComponent({
   name: 'ConsoleCardRulesPanel',
@@ -79,7 +100,7 @@ export default defineComponent({
   props: {
     cardName: {type: String as PropType<CardName>, required: true},
     /** The viewer's settle signal: bumps when the card has LANDED (open
-     *  settled / browse slide finished). The card-order measure runs then. */
+     *  settled / browse slide finished). Leaders measure only then. */
     nonce: {type: Number, default: 0},
     /** The close flight began — hide instantly (never lag the card). */
     closing: {type: Boolean, default: false},
@@ -88,6 +109,11 @@ export default defineComponent({
     return {
       /** Anchor-measured order (annotation ids); undefined until measured. */
       measuredOrder: undefined as ReadonlyArray<string> | undefined,
+      links: [] as Array<Link>,
+      gapW: 0,
+      panelH: 0,
+      blockEls: new Map<string, HTMLElement>(),
+      onResize: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -118,16 +144,37 @@ export default defineComponent({
     },
     cardName() {
       // A browse step re-points the panel BEFORE the slide settles: drop the
-      // stale order immediately (falls back), the landed card re-measures.
+      // stale geometry immediately (order falls back, leaders hide) — the
+      // landed card re-measures via the next nonce bump.
       this.measuredOrder = undefined;
+      this.links = [];
+    },
+    closing(now: boolean) {
+      if (now) {
+        this.links = [];
+      }
     },
   },
   mounted() {
+    this.onResize = () => this.scheduleMeasure();
+    window.addEventListener('resize', this.onResize);
     this.scheduleMeasure();
+  },
+  beforeUnmount() {
+    if (this.onResize !== undefined) {
+      window.removeEventListener('resize', this.onResize);
+    }
   },
   methods: {
     rowText(key: CardAnnotationRow['text']): string {
       return stripKindPrefix(translateText(key));
+    },
+    setBlockRef(id: string, el: unknown): void {
+      if (el instanceof HTMLElement) {
+        this.blockEls.set(id, el);
+      } else {
+        this.blockEls.delete(id);
+      }
     },
     /** Resolve an annotation's ROW element (mirrors CardAnnotationsLayer.rowEl
      *  incl. the documented special-id fallbacks). */
@@ -153,9 +200,9 @@ export default defineComponent({
     scheduleMeasure(): void {
       // Two rAFs: the landed card's zoom/layout must be committed before
       // rects are read (the settle nonce fires right at landing).
-      requestAnimationFrame(() => requestAnimationFrame(() => this.measure()));
+      requestAnimationFrame(() => requestAnimationFrame(() => void this.measure()));
     },
-    measure(): void {
+    async measure(): Promise<void> {
       if (this.closing) {
         return;
       }
@@ -164,7 +211,7 @@ export default defineComponent({
       if (stage === null || host === undefined || !host.isConnected) {
         return;
       }
-      // The CARD order: sort anchored blocks by their row's Y on the card.
+      // Phase 1 — the CARD order: sort anchored blocks by their row's Y.
       const rowY = new Map<string, number>();
       for (const a of this.annotations) {
         const el = this.anchorEl(stage, a.graphicId);
@@ -192,6 +239,40 @@ export default defineComponent({
           return (fallbackRank.get(a.id) ?? 0) - (fallbackRank.get(b.id) ?? 0);
         })
         .map((a) => a.id);
+      // Phase 2 — the leaders: card right edge → each block's kind chip.
+      await this.$nextTick();
+      const cardEl = stage.querySelector<HTMLElement>(STAGE_CARD_SELECTOR);
+      const panel = host.querySelector<HTMLElement>('.con-zoom-rules');
+      if (cardEl === null || panel === null) {
+        this.links = [];
+        return;
+      }
+      const cardRect = cardEl.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const gap = Math.round(panelRect.left - cardRect.right);
+      if (gap < 24) {
+        this.links = []; // no clean channel (stacked layout) — skip leaders
+        return;
+      }
+      const links: Array<Link> = [];
+      for (const a of this.annotations) {
+        const y = rowY.get(a.id);
+        const block = this.blockEls.get(a.id);
+        if (y === undefined || block === undefined) {
+          continue;
+        }
+        const chip = block.querySelector<HTMLElement>('.con-zoom-rules__kind') ?? block;
+        const chipRect = chip.getBoundingClientRect();
+        const y1 = y - panelRect.top;
+        const y2 = chipRect.top + chipRect.height / 2 - panelRect.top;
+        if (y1 < -8 || y1 > panelRect.height + 8) {
+          continue; // row outside the panel band (extreme layouts) — skip
+        }
+        links.push({id: a.id, y1: Math.round(y1), y2: Math.round(y2)});
+      }
+      this.gapW = gap;
+      this.panelH = Math.round(panelRect.height);
+      this.links = links;
     },
   },
 });

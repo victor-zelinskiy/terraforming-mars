@@ -54,15 +54,13 @@ Config knobs that make driving tractable:
 | `Escape` | B | back |
 | `KeyQ` / `KeyE` | LB / RB | prev / next section |
 | `Comma` | LT | basic-actions wheel (**Standard Projects** = center slot) |
-| `Period` | RT | quick wheel (RT is UNUSED in the start wizard — steps advance with RB) |
+| `Period` | RT | quick wheel / "continue" in the start wizard |
 | `KeyX` | X | secondary (inspect) |
 | `KeyR` | view | journal |
 | Arrows | d-pad | nav (board cursor moves cell-by-cell during placement) |
 
 **Reaching a tile placement** (the shortest path): walk the start wizard
-(alternate `Enter` / `KeyE` until `.con-start__frame` is gone — A commits a
-single-pick step, RB advances a multi-pick one; the summary launches on
-`Enter` only) → `Comma` →
+(alternate `Enter` / `Period` until `.con-start__frame` is gone) → `Comma` →
 `Enter` (Standard Projects) → `ArrowDown` ×2 → `Enter` (a placing project) →
 the board opens with the right panel in placement mode.
 
@@ -72,7 +70,7 @@ moment a step's focus differs. Loop on a DOM/text condition:
 ```ts
 const startScene = page.locator('.con-start__frame');
 for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-  await key(page, i % 2 === 0 ? 'Enter' : 'KeyE', 1100);
+  await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
 }
 ```
 

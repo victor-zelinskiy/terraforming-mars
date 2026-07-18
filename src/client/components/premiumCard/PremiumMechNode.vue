@@ -11,14 +11,10 @@
     <span v-else-if="isNbsp" class="pcard-mi__nbsp">&nbsp;</span>
     <!-- glyph icons (X multiplier, ? vp) -->
     <span v-else-if="glyph !== undefined" class="pcard-mi__digit">{{ glyph }}</span>
-    <!-- localized text plate (prelude / award / milestone / ignore global req) -->
-    <span v-else-if="labelText !== undefined" class="pcard-plate" :class="labelAccentClass">{{ labelText }}</span>
-    <!-- trade-discount light value token -->
-    <span v-else-if="isDiscountToken" class="pcard-token">{{ insideText }}</span>
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
-      <span v-for="i in repeats" :key="i" class="pcard-ic" :class="iconModClass" :style="iconStyle">
+      <span v-for="i in repeats" :key="i" class="pcard-ic" :style="iconStyle">
         <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside">{{ insideText }}</span>
       </span>
       <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :style="{backgroundImage: `url(${bubbleUrl})`}"></span>
@@ -89,7 +85,7 @@ import {
   isICardRenderTile,
 } from '@/common/cards/render/Types';
 import {effectKindOf, effectParts, EffectParts, itemRepeats, renderableNodes} from './mechanicsModel';
-import {mechItemIcon, MechIconSpec, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
+import {mechItemIcon, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
@@ -150,39 +146,24 @@ export default defineComponent({
       const translated = translateText(raw);
       return item.inParens === true ? `(${translated})` : translated;
     },
-    /** Resolve the icon spec ONCE for this item (structural kinds excluded). */
-    mechIcon(): MechIconSpec | undefined {
+    glyph(): string | undefined {
       const item = this.itemNode;
       if (item === undefined || this.isTextItem || this.isPlateItem || this.isNbsp) {
         return undefined;
       }
-      return mechItemIcon(item);
-    },
-    glyph(): string | undefined {
-      return this.mechIcon?.kind === 'glyph' ? this.mechIcon.glyph : undefined;
+      const icon = mechItemIcon(item);
+      return icon?.kind === 'glyph' ? icon.glyph : undefined;
     },
     iconUrl(): string | undefined {
-      return this.mechIcon?.kind === 'img' ? this.mechIcon.url : undefined;
-    },
-    iconModClass(): string | undefined {
-      const icon = this.mechIcon;
-      return icon?.kind === 'img' && icon.mod !== undefined ? `pcard-ic--${icon.mod}` : undefined;
+      const item = this.itemNode;
+      if (item === undefined || this.isTextItem || this.isPlateItem || this.isNbsp) {
+        return undefined;
+      }
+      const icon = mechItemIcon(item);
+      return icon?.kind === 'img' ? icon.url : undefined;
     },
     iconStyle(): Record<string, string> {
       return this.iconUrl !== undefined ? {backgroundImage: `url(${this.iconUrl})`} : {};
-    },
-    /** Localized text plate (prelude / award / milestone / global requirements). */
-    labelText(): string | undefined {
-      const icon = this.mechIcon;
-      return icon?.kind === 'label' ? translateText(icon.text) : undefined;
-    },
-    labelAccentClass(): string | undefined {
-      const icon = this.mechIcon;
-      return icon?.kind === 'label' && icon.accent !== undefined ? `pcard-plate--${icon.accent}` : undefined;
-    },
-    /** Trade-discount light value token (the −N rides `insideText`). */
-    isDiscountToken(): boolean {
-      return this.mechIcon?.kind === 'token';
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

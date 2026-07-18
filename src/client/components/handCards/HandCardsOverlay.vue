@@ -783,8 +783,8 @@ export default defineComponent({
     // overflows. Measures imperatively (sets the CSS var + reads scrollHeight)
     // because column count shifts with zoom — a sqrt step converges fast.
     fit(): void {
-      const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body === undefined || body === null) {
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined) {
         return;
       }
       const grid = body.querySelector('.hand-board__grid') as HTMLElement | null;

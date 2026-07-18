@@ -49,12 +49,10 @@
  */
 
 import {gsap} from 'gsap';
-import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 
 const HOLD_CLASS = 'con-zoom-hold';
 
@@ -447,22 +445,21 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
 }
 
 /**
- * DEPART-TO-HAND choreography — the SINGLE-CARD reveal take. The inspected
- * card does not dive off-screen: its flight is the HAND INTAKE cinematic
- * (handDeliveryDirector) — a proxy takes over at the stage's exact rect, the
- * stage hides and the dialog closes in that same paint (`onStaged` — the
- * caller runs `zoom.close()` there, so the top layer never covers the
- * flight), then the card arcs down into the bottom-centre hand dock,
- * flipping face → back, and LAYS onto its real pack slot — the «КАРТЫ»
- * counter ticks on the touchdown. One continuous gesture from fullscreen
- * into the hand.
+ * DEPART-TO-PLAYER choreography — the SINGLE-CARD reveal take. Instead of
+ * closing back to a source slot (there is no strip in single-card mode), the
+ * fullscreen stage dives STRAIGHT to the player zone (bottom centre, the same
+ * table geography the exit director's take uses), the dialog backdrop fading
+ * under it (the host's `--closing` class) so the game is revealed as the card
+ * lands "in the hand". The take reads as one continuous gesture from
+ * fullscreen — never a return to an empty modal.
  *
- * `onCommit` fires as the flight begins (the reveal state commits while the
- * card flies — the same "onLift" same-frame semantics as the exit director).
- * Resolves when the card has landed. Reduced motion / missing stage → an
- * immediate commit + staged callback (the intake's instant path).
+ * `onCommit` fires as the dive BEGINS (the reveal state commits while the card
+ * flies — the same "onLift" same-frame semantics as the exit director, so the
+ * hand count / delta-chip tick up on the revealing screen). Resolves when the
+ * flight is done; the caller then closes the dialog. Reduced motion / missing
+ * stage → an immediate commit + short fade.
  */
-export function playZoomDepart(dialog: HTMLElement | undefined, name: CardName, onCommit: () => void, onStaged?: () => void): Promise<void> {
+export function playZoomDepart(dialog: HTMLElement | undefined, onCommit: () => void): Promise<void> {
   if (ctx.closing) {
     return Promise.resolve();
   }
@@ -471,19 +468,41 @@ export function playZoomDepart(dialog: HTMLElement | undefined, name: CardName, 
   const stage = dialog !== undefined ? stageEl(dialog) : null;
   if (stage === null) {
     onCommit();
-    onStaged?.();
     return Promise.resolve();
   }
-  const rect = stage.getBoundingClientRect();
-  return runHandIntake([{name, rect}], {
-    commit: onCommit,
-    onStaged: () => {
-      // The proxy stands revealed at this exact rect — hide the stage and
-      // let the caller close the dialog in the SAME paint (no double-vision,
-      // no frame without the card).
-      gsap.set(stage, {autoAlpha: 0});
-      onStaged?.();
-    },
+  const reduced = consoleReducedMotionActive();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        ctx.tween = undefined;
+        resolve();
+      }
+    };
+    const safety = window.setTimeout(finish, motionMs(560) + 500);
+    const done = () => {
+      window.clearTimeout(safety);
+      finish();
+    };
+    // Commit while the card is airborne (or immediately under reduced motion).
+    onCommit();
+    if (reduced) {
+      ctx.tween = gsap.to(stage, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.in', onComplete: done});
+      return;
+    }
+    const rect = stage.getBoundingClientRect();
+    // The player zone (mirrors cardExitDirector.playerPoint): bottom centre,
+    // just off-screen. Drift the dive laterally toward centre for a natural arc.
+    const targetY = window.innerHeight + 80 - rect.top;
+    const driftX = (window.innerWidth / 2 - (rect.left + rect.width / 2)) * 0.2;
+    const tl = gsap.timeline({onComplete: done});
+    // The pick-up beat: the card comes off the inspector.
+    tl.to(stage, {y: -18, scale: 1.03, rotation: -2, duration: motionMs(130) / 1000, ease: 'power2.out'});
+    // The dive home — shrinks toward the hand, fades on the last third.
+    tl.to(stage, {x: driftX, y: targetY, scale: 0.5, rotation: -7, duration: motionMs(400) / 1000, ease: 'power2.in'}, '>-0.02');
+    tl.to(stage, {autoAlpha: 0, duration: motionMs(150) / 1000, ease: 'power1.in'}, '<55%');
+    ctx.tween = tl;
   });
 }
 

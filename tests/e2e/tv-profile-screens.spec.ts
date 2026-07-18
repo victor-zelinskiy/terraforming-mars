@@ -144,8 +144,8 @@ for (const preset of PRESETS) {
       await key(page, 'Escape', 1200);
 
       // ── 3 · Drive the start flow STATE-AWARE (not a blind press list) ──
-      // A (Enter) picks / pays / plays the focused item, RB (KeyE)
-      // advances a completed step, ArrowRight nudges multi-pick steps
+      // A (Enter) picks / pays / plays the focused item, RT (Period)
+      // continues a completed step, ArrowRight nudges multi-pick steps
       // (2 preludes / 2 project cards). Heavy 4K rendering + animation
       // holds can swallow any single press, so the driver simply keeps
       // alternating them while the start scene is mounted — extra presses
@@ -155,7 +155,7 @@ for (const preset of PRESETS) {
           break;
         }
         await key(page, 'Enter', 1300);
-        await key(page, 'KeyE', 900);
+        await key(page, 'Period', 900);
         if (i % 2 === 1) {
           await key(page, 'ArrowRight', 400);
         }

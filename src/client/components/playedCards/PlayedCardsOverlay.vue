@@ -649,8 +649,8 @@ export default defineComponent({
       if (this.viewMode !== 'cards') {
         return;
       }
-      const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body === undefined || body === null) {
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined) {
         return;
       }
       const tableau = body.querySelector('.played-tableau') as HTMLElement | null;
@@ -703,8 +703,8 @@ export default defineComponent({
       if (this.viewMode !== 'cards') {
         return;
       }
-      const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body === undefined || body === null) {
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (body === undefined) {
         return;
       }
       const tableau = body.querySelector('.played-tableau') as HTMLElement | null;

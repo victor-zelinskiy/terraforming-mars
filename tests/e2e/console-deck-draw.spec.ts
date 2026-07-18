@@ -117,10 +117,10 @@ async function walkWizardPickingSearchPrelude(page: Page): Promise<void> {
       await key(page, 'Enter', 500); // pick the search prelude
       await key(page, 'ArrowRight', 400);
       await key(page, 'Enter', 500); // pick any second prelude
-      await key(page, 'KeyE', 1200); // RB → next step
+      await key(page, 'Period', 1200); // continue
       continue;
     }
-    await key(page, /корпорац|директор/.test(step) ? 'Enter' : 'KeyE', 1200);
+    await key(page, /корпорац|директор/.test(step) ? 'Enter' : 'Period', 1200);
   }
 
   await expect(summary).toHaveCount(1);

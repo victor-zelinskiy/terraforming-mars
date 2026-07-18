@@ -340,9 +340,8 @@ describe('corporation premium face', () => {
 
   it('flattens the corp box: rows become ordinary groups, no corp-box node leaks (Helion)', () => {
     const groups = vmOf(CardName.HELION).mechanics.groups;
-    // the heat-as-M€ effect + the starting resources row (production + 42 M€):
-    // on-play «при розыгрыше» is reordered to the BOTTOM, effects above it.
-    expect(groups.map((g) => g.kind)).to.deep.eq(['effect', 'plain']);
+    // starting resources row (production + 42 M€) + the heat-as-M€ effect
+    expect(groups.map((g) => g.kind)).to.deep.eq(['plain', 'effect']);
     for (const group of groups) {
       for (const node of group.nodes) {
         const leaked = node !== undefined && typeof node !== 'string' &&
@@ -407,13 +406,10 @@ describe('empty-cause effect trigger splice (Viral Enhancers idiom)', () => {
     // empty-cause action. Those gains are NOT the action's trigger — only a TAG
     // row is (the Viral idiom) — so the splice must NOT eat the starting row: it
     // stays its own group (a wrong face + an untethered «При розыгрыше» otherwise).
-    // The on-play gains reorder to the BOTTOM (trailing «при розыгрыше» zone),
-    // the action above them.
     const groups = vmOf(CardName.KUIPER_COOPERATIVE).mechanics.groups;
-    const starting = groups[groups.length - 1];
-    expect(starting.kind, 'starting resources are their own plain group').to.eq('plain');
-    expect(starting.graphicId ?? '', 'starting row keeps its graphic id').to.contain('megacredits');
-    expect(groups[0].kind, 'the action reads above the on-play zone').to.eq('action');
+    expect(groups[0].kind, 'starting resources are their own plain group').to.eq('plain');
+    expect(groups[0].graphicId ?? '', 'starting row keeps its graphic id').to.contain('megacredits');
+    expect(groups.map((g) => g.kind)).to.include('action');
   });
 });
 

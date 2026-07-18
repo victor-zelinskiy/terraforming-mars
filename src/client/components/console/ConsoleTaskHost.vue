@@ -322,6 +322,11 @@
       </div>
     </transition>
 
+    <!-- The gliding selection frame (motion-v springs) — outside the keyed
+         frame so it survives prompt swaps and glides across them.
+         Self-resolving: finds the focused card inside this host itself. -->
+    <ConsoleCardFocusFrame :active="!deal.state.active && !trayPickBeat"
+                           selector=".con-cards__slot--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage (draft / buy / research card sets). -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
                           :cards="deal.state.cards" :nonce="deal.state.nonce" />
@@ -398,8 +403,7 @@ import {
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
-import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {applyDiscardExit, ExitSource, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
 import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 import {
@@ -410,6 +414,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -473,7 +478,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsoleCardFocusFrame},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -505,7 +510,6 @@ export default defineComponent({
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
-      settleFitTimer: undefined as number | undefined,
       /** The draft-tray brain (pick beats / research rise) — module state. */
       draftTrayState,
       /** Single-row card fit (sets --con-cards-zoom so the row always fits →
@@ -1021,12 +1025,8 @@ export default defineComponent({
         // Pre-flush: arm the deal HOLD before the new frame paints (the
         // real cards mount hidden — zero first-frame flash).
         this.prepareDeal();
-        // Re-fit the single-row card strip for the new prompt (after render),
-        // then AGAIN after the entry/deal cinematic settles — the first fit
-        // can race a transitional layout (the wide panel / the rise flight),
-        // leaving small cards; the delayed re-fit lands the final size.
+        // Re-fit the single-row card strip for the new prompt (after render).
         void this.$nextTick(() => this.fitCardStrip());
-        this.scheduleSettleFit();
       },
     },
     /** A genuinely NEW server prompt discards an open nested step. */
@@ -1060,18 +1060,8 @@ export default defineComponent({
     /** The deal finished (or was skipped BEFORE launch) while the rise scene
      *  was engaged — finalize the handoff so the tray never lingers. */
     'deal.state.active'(active: boolean) {
-      if (!active) {
-        if (riseSceneEngaged()) {
-          finishRiseScene();
-        }
-        // RE-FIT once the cinematic settles. The BETWEEN-GENERATION BUY always
-        // follows a draft → the research-RISE flies the cards in, and the fit
-        // that ran mid-cinematic (against a transitional layout) could leave
-        // the strip at the fallback zoom (small cards on 4K — the reported
-        // buy-modal defect). Re-fitting on the final, settled layout sizes
-        // them to the wide panel. The draft path re-fits per round already,
-        // which is why it composed and the buy did not.
-        void this.$nextTick(() => this.fitCardStrip());
+      if (!active && riseSceneEngaged()) {
+        finishRiseScene();
       }
     },
     /** Card count or grid↔row transition changes the fit (never per focus). */
@@ -1104,9 +1094,6 @@ export default defineComponent({
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
       window.clearTimeout(this.dealLaunchTimer);
-    }
-    if (this.settleFitTimer !== undefined) {
-      window.clearTimeout(this.settleFitTimer);
     }
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the tray off
@@ -1416,18 +1403,6 @@ export default defineComponent({
         this.fitCardStrip();
       });
     },
-    /** A one-shot re-fit AFTER the entry/deal cinematic settles (~360ms) —
-     *  the safety net for the buy modal, whose first fit could race the wide
-     *  panel / rise flight and leave small cards. Cheap + idempotent. */
-    scheduleSettleFit(): void {
-      if (this.settleFitTimer !== undefined) {
-        window.clearTimeout(this.settleFitTimer);
-      }
-      this.settleFitTimer = window.setTimeout(() => {
-        this.settleFitTimer = undefined;
-        this.fitCardStrip();
-      }, motionMs(380));
-    },
     /**
      * Size the SINGLE-ROW card strip so N cards ALWAYS fit its width — the
      * strip then never overflows, so it never scrolls on focus and neighbours
@@ -1492,15 +1467,7 @@ export default defineComponent({
         // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
         // zoom against the width left after the gaps. 0.96 leaves headroom for
         // the focused card's scale(1.08) — the row fits WITH the lift.
-        const wZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
-        // ALSO fill the panel's vertical band (TV: a few buy cards must not
-        // float small in a mostly-empty modal — the «карты слишком мелкие»
-        // read). availH mirrors the grid branch's viewport budget; the
-        // ceiling is generous so a small pick genuinely fills the stage.
-        const CHROME = 220 * s;
-        const availH = Math.max(200 * s, 0.86 * window.innerHeight - CHROME - padY);
-        const hZoom = availH / slotH;
-        const zoom = Math.min(1.6 * s, Math.max(0.5 * s, Math.min(wZoom, hZoom)));
+        const zoom = Math.min(1 * s, Math.max(0.5 * s, (0.96 * availW - (n - 1) * colGap) / (n * slotW)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }
@@ -1623,17 +1590,11 @@ export default defineComponent({
       void runHeroPick({name, el: slot}, commit);
     },
     /** BUY / multi commit (RT) — the PURCHASE cinematic: the kept cards
-     *  gather into one back-stack above the HAND DOCK (one confirmation
-     *  pulse) and peel bottom-first into their real pack slots — the
-     *  «КАРТЫ» counter ticks per landing (handDeliveryDirector; the submit
-     *  fires as the flight begins, the server response lands mid-flight
-     *  and the intake polls the dock slots in). A picked card that never
-     *  reaches the hand degrades to a quiet fade — the intake self-adapts,
-     *  so non-buy multi selects stay safe. The unbought cards drift to the
-     *  discard side. Zero picks → just the calm discard (no hero objects).
-     *  A MULTI-KEEP DRAFT (Luna Project Office / Mars Maths round 1)
-     *  instead lands its heroes on the drafted tray — the same physical
-     *  place every pick joins. */
+     *  gather into a stack (one confirmation pulse) and go to the player;
+     *  the unbought cards drift to the discard side. Zero picks → just the
+     *  calm discard (no hero objects). A MULTI-KEEP DRAFT (Luna Project
+     *  Office / Mars Maths round 1) instead lands its heroes on the drafted
+     *  tray — the same physical place every pick joins. Submit at onLift. */
     confirmCardSetWithExit(): void {
       if (this.activeTask.kind !== 'cardSelect' || this.singlePick || this.submitting || !this.confirmReady) {
         this.onConfirm(); // self-guarding fallback (also the 'not ready' path)
@@ -1661,7 +1622,7 @@ export default defineComponent({
         commit(); // 0 bought: the calm discard alone
         return;
       }
-      void runHandIntake(sources.map((s) => ({name: s.name, el: s.el})), {mode: 'stack', commit});
+      void runCardCollect(sources, commit);
     },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;

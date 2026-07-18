@@ -353,13 +353,6 @@
                              :stranded="leakDetectorState.stranded" />
     </transition>
 
-    <!-- SYSTEM ALERT: the pad-navigable replacement for App's native <dialog>
-         alert (a server outage / rejected input froze the shell before, its
-         OK button unreachable). Top of the intent chain — A/B dismiss. -->
-    <transition name="con-layer">
-      <ConsoleSystemAlert v-if="consoleSystemAlertState.current !== undefined" />
-    </transition>
-
     <!-- The zoom dim VEIL — the ONE dim of the console fullscreen viewer
          (dialog.con-zoom's ::backdrop paints NOTHING — see the LESS). It
          fades in from the very first frame of the open (Vue enter
@@ -419,8 +412,7 @@
            details); cards with no structured rules render no panel and the
            fit reclaims the width. -->
       <template v-if="zoomHasRules" #side="side">
-        <ConsoleCardRulesPanel v-if="zoomRulesCardName !== undefined"
-                               :cardName="zoomRulesCardName"
+        <ConsoleCardRulesPanel :cardName="consoleCardZoom.card.name"
                                :nonce="side.nonce"
                                :closing="side.closing" />
       </template>
@@ -572,43 +564,17 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
-      <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — its CARDS are hidden
-           in two lifecycle windows (the endgame; and the pre-game INITIAL
-           SETUP where no actual hand exists yet — see `handDockVisible`, so
-           the «КАРТЫ 0/0» readout never lies), but the command bar KEEPS its
-           reserved bay track through the whole in-game lifecycle (see the bar
-           below) — only the dock's own cards `v-show` off. The player must
-           always see how many cards they hold; the bar carries the command
-           hints LEFT + RIGHT of the permanent centre bay. Surfaces interact
-           with it by Z ONLY: tall
-           bottom-reaching panels (the «Разыграно» table, composers, sheets,
-           inspectors — `footerUnderScene`) drop the footer BELOW themselves
-           so they cover the PACK where they overlap while the plate +
-           counter keep peeking below their edge; the card-flow surfaces
-           (start ceremony / task-host buys / the reveal modal — which is
-           RAISED above the dock zone in CSS) keep the footer on top so
-           cards visibly fly into a bright dock. The dock's per-card slots
-           therefore stay laid out + measurable at all times WHILE VISIBLE —
-           the hand-intake director can always land a card, and the counter
-           only ticks on the physical touchdown. -->
-      <ConsoleHandDock v-show="handDockVisible"
-                       ref="handDock"
+    <div class="con-footer" :style="footerVars">
+      <ConsoleHandDock ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
                        :lifted="handRevealState.dockLifted"
-                       :deliveryHeld="dockHeld"
+                       :deliveryHeld="handDeliveryState.held"
                        @open="onHandDockOpen" />
-      <!-- The command bar keeps its BAY (centre track) for the whole in-game
-           lifecycle — the bay-mode fit (planCommandRun drops/splits commands
-           to the width) is what keeps the setup's 5-command run from clipping
-           at TV 4K. Only the DOCK CARDS (the «КАРТЫ 0/0» readout) are hidden
-           during the pre-game setup (handDockVisible); the reserved bay track
-           stays, so the bar layout is identical to in-game. -->
-      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="game.phase !== 'end'" />
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="true" />
     </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -722,7 +688,6 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
-import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
@@ -754,8 +719,6 @@ import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePan
 import ConsoleColoniesSection, {ConsoleColonyPick} from '@/client/components/console/ConsoleColoniesSection.vue';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
-import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.vue';
-import {consoleSystemAlertState, dismissConsoleAlert, isConsoleAlertActive} from '@/client/console/consoleSystemAlertState';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
@@ -768,7 +731,8 @@ import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevea
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
-import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {armStartingCardsDelivery, maybeRunDelivery, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
+import {consoleStartState} from '@/client/console/consoleStartState';
 import {
   isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
   setHandRevealHooks, RevealPair, RevealRect,
@@ -806,7 +770,7 @@ import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTaskSummary';
@@ -908,7 +872,6 @@ export default defineComponent({
     ConsoleQuickSelector,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
-    ConsoleSystemAlert,
     ConsoleBoardSection,
     ConsoleHandSection,
     ConsoleResourcePanel,
@@ -992,7 +955,6 @@ export default defineComponent({
       zoomOpenClearTimer: undefined as number | undefined,
       infoModeState,
       leakDetectorState,
-      consoleSystemAlertState,
       govScaleFocusState,
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
@@ -1071,28 +1033,10 @@ export default defineComponent({
     },
     // ── action intelligence (same sources as the desktop bar buttons) ──
     cardsPlayableCount(): number {
-      const raw = (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
-      // Never read ahead of the intake-aware total (a card still mid-flight
-      // into the dock is not "in hand" on any HUD readout).
-      return Math.min(raw, this.cardsTotalCount);
+      return (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
     },
-    /** The hand total every HUD readout shows — the same intake-aware count
-     *  the dock's «КАРТЫ» line uses (held / in-flight / untaken-reveal
-     *  copies excluded), so no surface ever runs ahead of a physical take. */
     cardsTotalCount(): number {
-      const totals = new Map<string, number>();
-      for (const c of this.handDockCards) {
-        totals.set(c.name, (totals.get(c.name) ?? 0) + 1);
-      }
-      const held = new Map<string, number>();
-      for (const n of this.dockHeld) {
-        held.set(n, (held.get(n) ?? 0) + 1);
-      }
-      let hidden = 0;
-      held.forEach((k, name) => {
-        hidden += Math.min(k, totals.get(name) ?? 0);
-      });
-      return this.handDockCards.length - hidden;
+      return this.playerView.cardsInHand.length + (this.thisPlayer.selfReplicatingRobotsCards ?? []).length;
     },
     actionsAvailableCount(): number {
       return this.thisPlayer.availableBlueCardActionCount;
@@ -1112,93 +1056,12 @@ export default defineComponent({
       ];
     },
     /**
-     * Names the dock must WITHHOLD (hidden-with-layout + excluded from the
-     * «КАРТЫ» count) — the union of every "on its way into the hand" ledger:
-     *  - the episodic starting-cards hold (armDeliveryHold, pre-payment);
-     *  - cards mid-flight into the dock (released per touchdown — the
-     *    counter ticks only on a physical landing);
-     *  - UNTAKEN reveal-batch cards: the server puts a drawn batch straight
-     *    into `cardsInHand`, but until the player presses «взять» those
-     *    cards are staged on the reveal surface — the hand count must not
-     *    jump ahead of the take (the desktop's stagedCardsInHand twin).
-     * A multiset (may repeat names) — the dock hides that many NEWEST copies.
-     */
-    dockHeld(): ReadonlyArray<string> {
-      const out: Array<string> = [...handDeliveryState.held, ...handDeliveryState.inFlight];
-      untakenNameMultiset().forEach((k, name) => {
-        for (let i = 0; i < k; i++) {
-          out.push(name);
-        }
-      });
-      return out;
-    },
-    /**
      * The dock renders IDENTICALLY in every shell state (welded into the
      * bar) — this only gates the CLICK affordance (hover lift + pointer),
      * derived from the SAME flags this template mounts surfaces by: the
      * calm board home / placement / draft-wait / quick wheels are
      * interactive; any owning overlay or a non-board section is not.
      */
-    /**
-     * THE DOCK IS NEVER HIDDEN — it is a physical part of the bottom bar
-     * (the player must always see their hand count). This decides only the
-     * footer's Z: TRUE = a tall bottom-reaching panel is up, so the footer
-     * drops BELOW the overlay band (`--under-scene`, z 11390) and the panel
-     * covers the PACK where they geometrically overlap — the plate +
-     * «КАРТЫ» counter + command hints keep peeking below every panel's
-     * bottom edge (panels end above the plate line).
-     *
-     * Deliberately NOT here (the footer stays ON TOP — a bright dock the
-     * cards physically fly into): the start ceremony (`startTask`), the
-     * task-host prompts incl. the research buy (`hostTask`), and the reveal
-     * modal (`consoleRevealMode`) — its panel is RAISED above the dock zone
-     * in CSS so per-card takes land in a fully visible hand.
-     */
-    footerUnderScene(): boolean {
-      return (
-        this.playedTableVisible ||
-        this.pendingPlayCard !== undefined ||
-        this.pendingTradeColony !== undefined ||
-        this.corpFirstActionOpen ||
-        this.govSupportActive ||
-        this.productionLossActive ||
-        this.maConfirmView !== undefined ||
-        this.maInspectItem !== undefined ||
-        this.colonyInspectModel !== undefined ||
-        this.consoleState.sheet !== undefined ||
-        this.consoleState.confirm !== undefined ||
-        this.botTurnReviewState.open ||
-        this.infoModeState.open ||
-        this.leakDetectorState.stranded !== undefined
-      );
-    },
-    /**
-     * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —
-     * the `initialCards` wizard is live (incl. deferred / the submit in
-     * flight), the initial draft is still dealing, or the viewer already
-     * submitted and gen-1 research waits on the other players. The hand
-     * dock's «КАРТЫ 0/0» would be a false readout for a hand that does not
-     * exist, so the footer unmounts the dock AND its bay for the whole
-     * window (see `handDockVisible`). The dock appears the moment the game
-     * actually starts — the start ceremony's card delivery (post-launch) is
-     * the first real hand content and needs the dock as its landing target.
-     */
-    setupHandPending(): boolean {
-      if (this.playerView.waitingFor?.type === 'initialCards') {
-        return true;
-      }
-      const phase = this.game.phase;
-      if (phase === Phase.INITIALDRAFTING) {
-        return true;
-      }
-      return this.game.generation === 1 && phase === Phase.RESEARCH &&
-        this.playerView.waitingFor === undefined;
-    },
-    /** The dock (and the bar's centre bay) exists whenever a REAL hand can —
-     *  everything but the endgame and the pre-game initial setup. */
-    handDockVisible(): boolean {
-      return this.game.phase !== 'end' && !this.setupHandPending;
-    },
     handDockInteractive(): boolean {
       if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
         return false;
@@ -1402,26 +1265,7 @@ export default defineComponent({
         return undefined;
       }
       const task = taskFor(this.playerView);
-      if (task === undefined || !SHELL_SECTION_KINDS.has(task.kind)) {
-        return undefined;
-      }
-      // The corporation's MANDATORY FIRST ACTION is a STANDALONE start-of-game
-      // confirm modal that hosts NONE of the start-sequence cinematics — the
-      // prelude tile / resource flights, the drawn-cards reveal AND the card
-      // intake that lays the drawn cards into the dock. The guard above already
-      // waits out the reveal / hero / BLOCKING holds, but the intake + card
-      // deal register 'notification-only' holds (they legitimately play OVER
-      // the other shell sections and the action menu, so they must not hold
-      // those), which are invisible to it. Hold the corp confirm until the
-      // WHOLE presentation has settled — otherwise it pops as "modal spam"
-      // over the still-running prelude / intake animations (the exact overlap
-      // the user reported). Safe from a self-deadlock: the confirm animates
-      // nothing of its own, so nothing it hosts keeps the hold alive; the hold
-      // is reactive, so the modal appears the instant the last flight lands.
-      if (task.kind === 'corpFirstAction' && isAnimationHoldActive()) {
-        return undefined;
-      }
-      return task;
+      return task !== undefined && SHELL_SECTION_KINDS.has(task.kind) ? task : undefined;
     },
     /** The T5 START SCENE task (initialCards wizard / start-sequence ceremony). */
     startTask(): ConsoleTask | undefined {
@@ -2239,10 +2083,7 @@ export default defineComponent({
         return 'Cards';
       }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
-        // The scene's own header already reads «СТАРТ ПАРТИИ» (kicker +
-        // title) — repeating it in the bar is noise. The bar carries ONLY
-        // the physical commands during the initial setup.
-        return '';
+        return 'Start of the game';
       }
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Government Support';
@@ -2324,10 +2165,6 @@ export default defineComponent({
       return out;
     },
     commands(): Array<ConsoleCommand> {
-      // SYSTEM ALERT owns the pad — the bar advertises only the acknowledge.
-      if (this.consoleSystemAlertState.current !== undefined) {
-        return [{control: 'confirm', label: 'OK'}];
-      }
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
       // TILE-PLACEMENT HERO / DECK DRAW: the animation owns the moment — the
       // pad is inert, the bar advertises nothing (bounded, plays itself out).
@@ -2778,13 +2615,6 @@ export default defineComponent({
       const name = this.consoleCardZoom.card?.name;
       return name !== undefined && cardHasRules(name);
     },
-    /** The zoomed card's name typed as a CardName for the rules panel — only
-     *  read behind `zoomHasRules`, which is true solely for real project cards
-     *  (a bonus entry never resolves rules), so the cast is sound. */
-    zoomRulesCardName(): CardName | undefined {
-      const name = this.consoleCardZoom.card?.name;
-      return name === undefined ? undefined : (name as CardName);
-    },
     zoomSelectable(): boolean {
       return this.consoleCardZoom.select !== undefined && this.consoleCardZoom.card !== undefined;
     },
@@ -3048,16 +2878,6 @@ export default defineComponent({
         }
       }
     },
-    // The corp first-action confirm can surface AFTER a 'notification-only'
-    // hold (the drawn-prelude card intake) releases — a path the reveal /
-    // blocking `consoleForegroundBusy` transition above never covers. Make sure
-    // the board is the section behind the modal whenever it finally opens, so a
-    // later defer (B) reveals the board, not a stale hand / colonies view.
-    corpFirstActionOpen(open: boolean): void {
-      if (open) {
-        this.consoleState.section = 'board';
-      }
-    },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
     // The open CHOREOGRAPHY (consoleZoomMotion): the landing geometry is
@@ -3144,18 +2964,6 @@ export default defineComponent({
       this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
     },
-    /** The start ceremony fully resolved (the game began) — release any
-     *  residual starting-cards delivery HOLD so the dock can never stick
-     *  withheld. The normal flow already cleared it on the flight's landing;
-     *  this is the belt-and-braces for a theoretical no-payment path. NOT
-     *  fired on defer (`startTask` stays defined while the scene is deferred,
-     *  so the hold correctly survives a board inspection). */
-    startTask(now: ConsoleTask | undefined, was: ConsoleTask | undefined): void {
-      // Never yank a LIVE flight — its own safety timeout reconciles it.
-      if (now === undefined && was !== undefined && handDeliveryState.held.length > 0 && !isHandDeliveryActive()) {
-        resetHandDelivery();
-      }
-    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -3239,6 +3047,17 @@ export default defineComponent({
             this.openShellTaskSurface(shellTask);
           }
         }
+        // STARTING-CARDS DELIVERY: once the paid project cards are in the
+        // hand and the board (deck + dock) is on screen, fly them in from the
+        // project deck. The director no-ops until an arm is pending + all
+        // bought names present; measured after the DOM settles.
+        if (handDeliveryState.active) {
+          void this.$nextTick(() => {
+            const dock = (this.$refs.handDock as {$el?: HTMLElement} | undefined)?.$el ?? null;
+            const deck = document.querySelector<HTMLElement>('.con-deckstack');
+            maybeRunDelivery(this.handDockCards.map((c) => c.name), dock, deck);
+          });
+        }
       },
     },
   },
@@ -3287,16 +3106,6 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
-      // SYSTEM ALERT owns the pad ABOVE everything (even mid-hero): a server
-      // error / rejected input must always be acknowledgeable — A or B
-      // dismisses it (running its callback + advancing the queue); every
-      // other intent is swallowed so nothing acts under it.
-      if (isConsoleAlertActive()) {
-        if (intent.kind === 'press' && (action === 'primary' || action === 'back')) {
-          dismissConsoleAlert();
-        }
-        return true;
-      }
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
       // TILE-PLACEMENT HERO own the moment: while the ship flies, the marker
       // glides, the bonus cover travels, the terminal takes the sold cards
@@ -5023,10 +4832,13 @@ export default defineComponent({
         }
         return;
       }
-      // (The starting-cards DELIVERY is armed + fired entirely inside
-      // ConsoleStartScene — the hold begins at the first ceremony frame and
-      // the flight fires ONLY on the project-payment confirm. The shell just
-      // hosts the delivery layer + passes the held set to the dock.)
+      // START-BUY DELIVERY: this is the game-opening initialCards submit — the
+      // PAYMENT. Withhold the bought project cards from the dock NOW (before
+      // the commit brings them), so they never flash in the hand before the
+      // payment lands; the director then flies them in from the project deck.
+      if (this.startTask !== undefined) {
+        armStartingCardsDelivery([...consoleStartState.projects]);
+      }
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       this.submit(response);
@@ -5381,10 +5193,10 @@ export default defineComponent({
      * The RECEIVE bridge A-verb — take the inspected card from FULLSCREEN.
      * PREMIUM PARITY: never a bare state jump — the viewer CLOSES first (the
      * card flies back into its reveal slot, choreographed), THEN the opener
-     * runs the SAME premium take the reveal modal uses (the hand intake —
-     * the card lifts off the slot and lays into the hand dock). So a
-     * fullscreen take is the identical physical pipeline as an in-modal
-     * take. Re-entrant safe (`zoomClosing` guards a double press mid-flight).
+     * runs the SAME premium take the reveal modal uses (`runCardTake` — the
+     * card lifts off the slot and dives to the player). So a fullscreen take
+     * is the identical physical pipeline as an in-modal take. Re-entrant safe
+     * (`zoomClosing` guards a double press mid-flight).
      */
     zoomTakeReceived(): void {
       const r = this.consoleCardZoom.receive;
@@ -5394,26 +5206,18 @@ export default defineComponent({
       const idx = this.consoleCardZoom.index;
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
       if (r.departFromFullscreen === true) {
-        // SINGLE-CARD reveal: the card departs from fullscreen INTO THE HAND
-        // — playZoomDepart hands the flight to the hand-intake director (the
-        // proxy takes over at the stage rect; the dialog closes in that same
-        // paint via the staged callback, so the top layer never covers the
-        // flight) and the card arcs into the dock, flipping to its back.
-        // `takeAt` is the reveal overlay's bare commit — fired as the flight
-        // begins; the counter ticks only on the touchdown.
-        const card = this.consoleCardZoom.card;
-        if (card === undefined) {
-          r.takeAt(idx);
-          zoom?.close();
-          return;
-        }
+        // SINGLE-CARD reveal: the card DEPARTS from fullscreen straight to the
+        // player (the backdrop fading under it via `--closing`), THEN the
+        // dialog closes. `takeAt` is the reveal overlay's bare commit — the
+        // premium flight is `playZoomDepart` here, running over the still-open
+        // dialog so it survives the reveal overlay unmounting on the commit.
         this.zoomFlight = true;
         this.zoomClosing = true;
-        void playZoomDepart(zoom?.$el as HTMLElement | undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close());
+        void playZoomDepart(zoom?.$el as HTMLElement | undefined, () => r.takeAt(idx)).then(() => zoom?.close());
         return;
       }
       // MULTI-CARD: close back to the strip slot first, then the reveal modal's
-      // own premium take (the hand intake) lifts the card off the slot.
+      // own premium take (runCardTake) lifts the card off the slot.
       void this.closeZoomViewer().then(() => r.takeAt(idx));
     },
     /** P17: the viewer's A hands the card to the context action. Two paths:

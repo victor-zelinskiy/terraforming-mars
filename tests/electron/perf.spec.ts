@@ -299,28 +299,7 @@ describe('electron/perf', () => {
         expect(effectiveValue(machine, 'force-gpu-mem-available-mb')).to.equal('6144');
         // the rest of the Linux GPU recipe is hardware-class-independent
         expect(effectiveValue(machine, 'use-angle')).to.equal('vulkan');
-      });
-    });
-
-    it('Graphite is gated OFF on the Steam Machine (flicker regression) but kept on the Deck', () => {
-      withPlatform('linux', () => {
-        // Deck (Jupiter/Galileo) — CONFIRMED good on Graphite → keeps the bypass
-        // switch + the Vulkan Dawn-backend pin.
-        const deck = fakeApp();
-        applyPerformanceSwitches(deck as never, {steamHardware: 'steam-deck', logicalCores: 8});
-        expect(deck.switches.map((s) => s.key)).to.include('enable-skia-graphite');
-        expect(effectiveValue(deck, 'skia-graphite-dawn-backend')).to.equal('vulkan');
-
-        // Steam Machine — Graphite off → Ganesh-Vulkan (still full GPU): no
-        // bypass switch, no Dawn-backend pin. use-angle=vulkan stays.
-        const machine = fakeApp();
-        applyPerformanceSwitches(machine as never, {steamHardware: 'steam-machine', logicalCores: 12});
-        const keys = machine.switches.map((s) => s.key);
-        expect(keys).to.not.include('enable-skia-graphite');
-        expect(keys).to.not.include('skia-graphite-dawn-backend');
-        expect(effectiveValue(machine, 'use-angle')).to.equal('vulkan');
-        // still GPU, not the software fallback
-        expect(keys).to.not.include('disable-gpu');
+        expect(machine.switches.map((s) => s.key)).to.include('enable-skia-graphite');
       });
     });
 
