@@ -271,6 +271,16 @@ html.con-profile-tv {
         &__hint { font-size: var(--con-t-secondary); }
         &__meta { font-size: var(--con-t-secondary); }
     }
+    /* The «✓ ВЫБРАНА» / selected band overhangs ABOVE the card; a FOCUSED
+       card scales 1.08 + lifts, and on the big 4K cards that absolute
+       upward travel outgrew the strip's clip headroom → the band clipped
+       at the top (the reported buy-modal defect; the strip's overflow, not
+       z-index, does the clipping). Give BOTH card strips generous top
+       headroom on TV so the focused band always sits inside the clip. */
+    .con-cards__strip { padding-top: 3.4rem; }
+    .con-cards__strip--grid { padding-top: 2.6rem; }
+    /* The hand grid's focused card + its state band get the same headroom. */
+    .con-hand__pad { padding-top: 1.6rem; }
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading
        column — body text at couch size, capped to the card's height band. */
     .con-zoom-rules {

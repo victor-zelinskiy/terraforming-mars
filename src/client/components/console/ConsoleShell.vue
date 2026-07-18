@@ -572,31 +572,32 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible, 'con-footer--under-played': playedOpen}" :style="footerVars">
-      <!-- The permanent hand dock stays MOUNTED for the whole game (only the
-           endgame unmounts it): a covering scene / overlay just CONCEALS it
-           (`visibility:hidden`, layout kept), never `display:none`. Why the
-           distinction is load-bearing: the hand-intake director flies cards
-           into the dock's real per-card slots — those slots must stay
-           MEASURABLE (a laid-out rect) even while «Разыграно» / a reveal /
-           the ceremony sit on top, so a card can always land in the hand and
-           the counter only ticks on the physical touchdown. A covering
-           overlay reads as ABOVE the concealed dock (it's simply not painted
-           under it); when the overlay closes the dock reappears with any
-           cards that arrived meanwhile. The command bar (scene contract)
-           stays; the bay collapses so the hints re-centre. -->
+    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
+      <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — it is NEVER hidden
+           during a game (only the endgame unmounts it). The player must
+           always see how many cards they hold; the bar carries the command
+           hints LEFT + RIGHT of the permanent centre bay. Surfaces interact
+           with it by Z ONLY: tall bottom-reaching panels (the «Разыграно»
+           table, composers, sheets, inspectors — `footerUnderScene`) drop
+           the footer BELOW themselves so they cover the PACK where they
+           overlap while the plate + counter keep peeking below their edge;
+           the card-flow surfaces (start ceremony / task-host buys / the
+           reveal modal — which is RAISED above the dock zone in CSS) keep
+           the footer on top so cards visibly fly into a bright dock. The
+           dock's per-card slots therefore stay laid out + measurable at all
+           times — the hand-intake director can always land a card, and the
+           counter only ticks on the physical touchdown. -->
       <ConsoleHandDock v-show="game.phase !== 'end'"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
-                       :concealed="!handDockVisible"
                        :raised="consoleState.quick === 'actions'"
                        :lifted="handRevealState.dockLifted"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
-      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="handDockVisible" />
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="game.phase !== 'end'" />
     </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -1126,44 +1127,35 @@ export default defineComponent({
      * calm board home / placement / draft-wait / quick wheels are
      * interactive; any owning overlay or a non-board section is not.
      */
-    /** The dock is a persistent HUD on the board + sections, but VANISHES
-     *  under any full centre scene (start / reveal / task host / composers /
-     *  sheets / inspectors) — there its «КАРТЫ n/m» bay only clips the
-     *  scene's card row and the hand is irrelevant. Kept during placement
-     *  (board section) and the section views. */
-    /** The dock is fully SHOWN (painted + the command bar reserves its bay).
-     *  When false the dock is CONCEALED (visibility:hidden), never removed —
-     *  it stays laid out so a hand-intake can still land cards in it (see the
-     *  footer template). Drives `--nodock` + the bar's `:bay`.
+    /**
+     * THE DOCK IS NEVER HIDDEN — it is a physical part of the bottom bar
+     * (the player must always see their hand count). This decides only the
+     * footer's Z: TRUE = a tall bottom-reaching panel is up, so the footer
+     * drops BELOW the overlay band (`--under-scene`, z 11390) and the panel
+     * covers the PACK where they geometrically overlap — the plate +
+     * «КАРТЫ» counter + command hints keep peeking below every panel's
+     * bottom edge (panels end above the plate line).
      *
-     *  NOTE: the MANUAL «Разыграно» browse (`playedOpen`) is deliberately
-     *  NOT in the hide set — the dock STAYS visible there, and the footer
-     *  drops below the overlay (`--under-played`) so the pack tucks BEHIND
-     *  the tableau panel while the «КАРТЫ» plate keeps peeking below it (the
-     *  played panel is bottom-anchored above the command bar and never
-     *  reaches the plate). Only the HERO landing table (`tableOpen`) hides
-     *  the dock — there the table closes after the effect, revealing the
-     *  hand (with any cards that flew in) again. */
-    handDockVisible(): boolean {
-      if (this.game.phase === 'end') {
-        return false;
-      }
-      return !(
-        this.startTask !== undefined ||
-        this.consoleRevealMode !== undefined ||
-        this.hostTask !== undefined ||
-        this.govSupportActive ||
-        this.productionLossActive ||
+     * Deliberately NOT here (the footer stays ON TOP — a bright dock the
+     * cards physically fly into): the start ceremony (`startTask`), the
+     * task-host prompts incl. the research buy (`hostTask`), and the reveal
+     * modal (`consoleRevealMode`) — its panel is RAISED above the dock zone
+     * in CSS so per-card takes land in a fully visible hand.
+     */
+    footerUnderScene(): boolean {
+      return (
+        this.playedTableVisible ||
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
         this.corpFirstActionOpen ||
+        this.govSupportActive ||
+        this.productionLossActive ||
         this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
         this.botTurnReviewState.open ||
-        playedHeroState.tableOpen ||
         this.infoModeState.open ||
         this.leakDetectorState.stranded !== undefined
       );

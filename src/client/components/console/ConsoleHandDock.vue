@@ -7,7 +7,6 @@
          'con-handdock--hot': playableCount > 0,
          'con-handdock--lifted': lifted,
          'con-handdock--receiving': receiving,
-         'con-handdock--concealed': concealed,
        }"
        role="button"
        tabindex="-1"
@@ -124,14 +123,6 @@ export default defineComponent({
     interactive: {type: Boolean, default: true},
     /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
     raised: {type: Boolean, default: false},
-    /**
-     * A covering scene / overlay is on top: the dock is painted OUT
-     * (`visibility:hidden`) but kept LAID OUT — its per-card slots stay
-     * measurable so a hand-intake flight can still land cards in the hand
-     * while the overlay covers it (the counter ticks on the touchdown; the
-     * cards are revealed when the overlay closes). Never `display:none`.
-     */
-    concealed: {type: Boolean, default: false},
     /**
      * The reveal transition owns the cards (they are "in the player's
      * hand"): the PACK renders held — backs/slabs/ghost invisible, the
