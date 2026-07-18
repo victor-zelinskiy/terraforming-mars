@@ -9026,6 +9026,22 @@ html.con-scale-focus-venus .arc-scale--venus {
             max-width: 16rem;
             text-align: center;
         }
+        /* Start-scene context rail: a reached pick LIMIT is a NORMAL state —
+           calm amber (never the red error look, never a ✕ that collides with
+           the controller's X), one line of cause + recovery. The one-shot
+           settle plays on mount; a blocked A re-keys the chip to replay it
+           as the restrained "press was heard" feedback. */
+        &--limit {
+            display: inline-block;
+            background: fade(@con-amber, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+            color: #ffe6b0;
+            max-width: 36rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            animation: con-start-limit-in calc(240ms * var(--motion-scale, 1)) ease-out;
+        }
     }
     &__strip {
         flex: 1;
@@ -9272,6 +9288,17 @@ html.con-scale-focus-venus .arc-scale--venus {
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .5rem fade(@con-mint, 10%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 95%), 0 0 1.1rem fade(@con-mint, 26%); }
 }
+/* One-shot mount beats of the start-scene polish: the limit chip's settle
+   (replayed by a blocked A via re-key) and the pick counter's nudge
+   (replayed by a blocked RB). Transform/opacity + shadow only. */
+@keyframes con-start-limit-in {
+    from { opacity: 0.35; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes con-start-count-nudge {
+    0% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 95%), 0 0 .9rem fade(@con-amber, 35%); transform: scale(1.04); }
+    100% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); transform: scale(1); }
+}
 /* The summary's waiting state (transform/opacity only — see the launch block). */
 @keyframes con-start-scan {
     0% { transform: translateX(-100%); }
@@ -9291,6 +9318,8 @@ html.con-scale-focus-venus .arc-scale--venus {
 }
 @media (prefers-reduced-motion: reduce) {
     .con-cards__verdict--go,
+    .con-cards__verdict--limit,
+    .con-start__count--nudge,
     .con-start__beginline,
     .con-start__wait-scan,
     .con-start__beginline-flash,
@@ -9813,6 +9842,11 @@ body.con-start-ceremony {
         &--ready {
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .7rem fade(@con-mint, 14%);
             b { color: @con-mint; }
+        }
+        /* Blocked RB: the counter IS the step's gating reason — one calm
+           amber nudge (re-keyed per press), never a modal / focus change. */
+        &--nudge {
+            animation: con-start-count-nudge calc(420ms * var(--motion-scale, 1)) ease-out;
         }
     }
 

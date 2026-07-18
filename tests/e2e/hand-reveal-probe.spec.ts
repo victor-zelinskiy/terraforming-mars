@@ -87,20 +87,20 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   await page.waitForTimeout(3500);
-  const walk: Array<string> = ['Enter', 'Period', 'Enter', 'ArrowRight', 'Enter', 'Period'];
+  const walk: Array<string> = ['Enter', 'KeyE', 'Enter', 'ArrowRight', 'Enter', 'KeyE'];
   for (let i = 0; i < buyProjects; i++) {
     walk.push('Enter', 'ArrowRight');
   }
   for (const code of walk) {
-    await key(page, code, code === 'Period' ? 1600 : 1000);
+    await key(page, code, code === 'KeyE' ? 1600 : 1000);
   }
-  // Deterministically submit the start summary: RT/Period is INERT on the
+  // Deterministically submit the start summary: RB (KeyE) is INERT on the
   // summary (the launch is the explicit A CTA), so continue to the launch
   // CTA «НАЧАТЬ ПАРТИЮ», then press Enter (A) to pay + start. Relying on the
   // self-healing loop's rotating Enter to hit it was the boot's flake source.
   const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
   for (let i = 0; i < 5 && await launch.count() === 0; i++) {
-    await key(page, 'Period', 1300);
+    await key(page, 'KeyE', 1300);
   }
   if (await launch.count() > 0) {
     await key(page, 'Enter', 2200); // pay + start
@@ -113,7 +113,7 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   const handSec = page.locator('.con-hand');
   const composer = page.locator('.con-composer');
   const banner = page.locator('.con-banner');
-  const finishers = ['ArrowRight', 'Enter', 'Period'];
+  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
   for (let round = 0; round < 3; round++) {
     for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {

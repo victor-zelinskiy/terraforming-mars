@@ -67,7 +67,7 @@ async function toSummary(page: Page, request: any, profileQuery = ''): Promise<v
   await page.waitForTimeout(3500);
   // ADAPTIVE wizard walk — the layouts differ by profile / reduced-motion, so
   // a fixed key sequence drifts. Each round PICKS the focused card, MOVES on,
-  // and TRIES to continue (RT advances only when a step is complete). Stops at
+  // and TRIES to continue (RB advances only when a step is complete). Stops at
   // the launch CTA «НАЧАТЬ ПАРТИЮ» (never pressing A on the summary).
   const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
   for (let round = 0; round < 20 && await launch.count() === 0; round++) {
@@ -76,7 +76,7 @@ async function toSummary(page: Page, request: any, profileQuery = ''): Promise<v
       break;
     }
     await key(page, 'ArrowRight', 500);
-    await key(page, 'Period', 1200);
+    await key(page, 'KeyE', 1200);
   }
   await expect(launch, 'reached the start summary').toBeVisible({timeout: 4000});
   // GUARANTEE at least one bought project (so the delivery has something to
@@ -88,7 +88,7 @@ async function toSummary(page: Page, request: any, profileQuery = ''): Promise<v
     await key(page, 'Enter', 700); // buy the focused (first) project
     await key(page, 'ArrowRight', 400);
     await key(page, 'Enter', 700); // and a second, for a fuller flight
-    await key(page, 'Period', 1300); // → back to the summary
+    await key(page, 'KeyE', 1300); // RB → back to the summary
     await expect(launch, 'back on the summary after buying').toBeVisible({timeout: 4000});
   }
   await expect(page.locator('.con-handdock')).toHaveCount(1);

@@ -162,6 +162,9 @@
     "Prelude effects": "Эффекты прологов",
     "Deselect another card first": "Сначала снимите выбор с другой карты",
     "Prev step": "Пред. шаг",
+    "Next step": "След. шаг",
+    "of ${0}": "из ${0}",
+    "Limit ${0}/${1} reached — deselect one of the marked cards": "Лимит ${0}/${1} достигнут — снимите выбор с одной из отмеченных карт",
     "Browse": "Листать",
     "Card selected": "Выбрана",
     "Return to selection": "Вернуться к выбору",
@@ -293,8 +296,5 @@
     "Discarded card": "Сброшенная карта",
     "Discarded pile": "Сброшенные карты",
     "Controller": "Контроллер",
-    "Button glyph set": "Набор кнопок",
-    "Xbox": "Xbox",
-    "PlayStation": "PlayStation",
-    "Steam": "Steam"
+    "Button glyph set": "Набор кнопок"
 }

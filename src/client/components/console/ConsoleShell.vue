@@ -572,22 +572,25 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
+    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible, 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
       <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — it is NEVER hidden
-           during a game (only the endgame unmounts it). The player must
-           always see how many cards they hold; the bar carries the command
-           hints LEFT + RIGHT of the permanent centre bay. Surfaces interact
-           with it by Z ONLY: tall bottom-reaching panels (the «Разыграно»
-           table, composers, sheets, inspectors — `footerUnderScene`) drop
-           the footer BELOW themselves so they cover the PACK where they
-           overlap while the plate + counter keep peeking below their edge;
-           the card-flow surfaces (start ceremony / task-host buys / the
-           reveal modal — which is RAISED above the dock zone in CSS) keep
-           the footer on top so cards visibly fly into a bright dock. The
-           dock's per-card slots therefore stay laid out + measurable at all
-           times — the hand-intake director can always land a card, and the
-           counter only ticks on the physical touchdown. -->
-      <ConsoleHandDock v-show="game.phase !== 'end'"
+           during a game (two lifecycle exceptions unmount it: the endgame,
+           and the pre-game INITIAL SETUP where no actual hand exists yet —
+           see `handDockVisible`; the bar drops its bay with it, so no empty
+           socket is reserved). The player must always see how many cards
+           they hold; the bar carries the command hints LEFT + RIGHT of the
+           permanent centre bay. Surfaces interact with it by Z ONLY: tall
+           bottom-reaching panels (the «Разыграно» table, composers, sheets,
+           inspectors — `footerUnderScene`) drop the footer BELOW themselves
+           so they cover the PACK where they overlap while the plate +
+           counter keep peeking below their edge; the card-flow surfaces
+           (start ceremony / task-host buys / the reveal modal — which is
+           RAISED above the dock zone in CSS) keep the footer on top so
+           cards visibly fly into a bright dock. The dock's per-card slots
+           therefore stay laid out + measurable at all times WHILE VISIBLE —
+           the hand-intake director can always land a card, and the counter
+           only ticks on the physical touchdown. -->
+      <ConsoleHandDock v-show="handDockVisible"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
@@ -597,7 +600,7 @@
                        :lifted="handRevealState.dockLifted"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
-      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="game.phase !== 'end'" />
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="handDockVisible" />
     </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
@@ -1160,6 +1163,33 @@ export default defineComponent({
         this.infoModeState.open ||
         this.leakDetectorState.stranded !== undefined
       );
+    },
+    /**
+     * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —
+     * the `initialCards` wizard is live (incl. deferred / the submit in
+     * flight), the initial draft is still dealing, or the viewer already
+     * submitted and gen-1 research waits on the other players. The hand
+     * dock's «КАРТЫ 0/0» would be a false readout for a hand that does not
+     * exist, so the footer unmounts the dock AND its bay for the whole
+     * window (see `handDockVisible`). The dock appears the moment the game
+     * actually starts — the start ceremony's card delivery (post-launch) is
+     * the first real hand content and needs the dock as its landing target.
+     */
+    setupHandPending(): boolean {
+      if (this.playerView.waitingFor?.type === 'initialCards') {
+        return true;
+      }
+      const phase = this.game.phase;
+      if (phase === Phase.INITIALDRAFTING) {
+        return true;
+      }
+      return this.game.generation === 1 && phase === Phase.RESEARCH &&
+        this.playerView.waitingFor === undefined;
+    },
+    /** The dock (and the bar's centre bay) exists whenever a REAL hand can —
+     *  everything but the endgame and the pre-game initial setup. */
+    handDockVisible(): boolean {
+      return this.game.phase !== 'end' && !this.setupHandPending;
     },
     handDockInteractive(): boolean {
       if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
@@ -2201,7 +2231,10 @@ export default defineComponent({
         return 'Cards';
       }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
-        return 'Start of the game';
+        // The scene's own header already reads «СТАРТ ПАРТИИ» (kicker +
+        // title) — repeating it in the bar is noise. The bar carries ONLY
+        // the physical commands during the initial setup.
+        return '';
       }
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Government Support';
