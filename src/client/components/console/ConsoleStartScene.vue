@@ -42,37 +42,51 @@
                  language: the ICON marks every money value (no М€ text
                  mixed in). Hidden on the summary (the money block there
                  is the detailed version). -->
-            <div v-if="budget !== undefined && currentStep !== undefined" class="con-start__budget" :class="{'con-start__budget--broke': budget.remaining < 0}">
-              <span class="con-start__budget-col">
-                <span class="con-start__budget-label">{{ $t('Starting funds') }}</span>
-                <b>{{ budget.start }}
-                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
-              </span>
-              <!-- The cost column NAMES its source — «ПРОЕКТЫ», never an
-                   abstract «ПОКУПКА» (on the prelude step it reads as the
-                   preludes' price otherwise). The value keeps the honest
-                   count × per-card price math. -->
-              <span v-if="budget.buys > 0" class="con-start__budget-col">
-                <span class="con-start__budget-label">{{ $t('Projects') }}</span>
-                <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}
-                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
-              </span>
-              <span v-if="budget.preludes !== 0" class="con-start__budget-col">
-                <span class="con-start__budget-label">{{ $t('Prelude effects') }}</span>
-                <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}
-                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
-              </span>
-              <span class="con-start__budget-col con-start__budget-col--strong">
-                <span class="con-start__budget-label">{{ $t('Remaining') }}</span>
-                <b>{{ budget.remaining + budget.preludes }}
-                  <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
-              </span>
+            <div v-if="budget !== undefined && currentStep !== undefined" class="con-start__budget"
+                 :class="{'con-start__budget--broke': budget.remaining < 0, 'con-start__budget--compact': moneyCompact}">
+              <!-- COMPACT (corp / prelude — nothing bought yet): just the
+                   available funds. The full projects breakdown would be a bare
+                   «НАЧАЛЬНЫЕ 30 / ОСТАНЕТСЯ 30» there — noise. -->
+              <template v-if="moneyCompact">
+                <span class="con-start__budget-col con-start__budget-col--strong">
+                  <span class="con-start__budget-label">{{ $t('Funds') }}</span>
+                  <b>{{ moneyAvailable }}
+                    <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
+                </span>
+              </template>
+              <!-- FULL (projects step): the honest Starting − Projects (n × cost)
+                   [+ prelude effects] = Remaining breakdown. -->
+              <template v-else>
+                <span class="con-start__budget-col">
+                  <span class="con-start__budget-label">{{ $t('Starting funds') }}</span>
+                  <b>{{ budget.start }}
+                    <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
+                </span>
+                <!-- The cost column NAMES its source — «ПРОЕКТЫ», never an
+                     abstract «ПОКУПКА». The value keeps the honest count ×
+                     per-card price math. -->
+                <span v-if="budget.buys > 0" class="con-start__budget-col">
+                  <span class="con-start__budget-label">{{ $t('Projects') }}</span>
+                  <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}
+                    <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
+                </span>
+                <span v-if="budget.preludes !== 0" class="con-start__budget-col">
+                  <span class="con-start__budget-label">{{ $t('Prelude effects') }}</span>
+                  <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }}
+                    <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
+                </span>
+                <span class="con-start__budget-col con-start__budget-col--strong">
+                  <span class="con-start__budget-label">{{ $t('Remaining') }}</span>
+                  <b>{{ budget.remaining + budget.preludes }}
+                    <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
+                </span>
+              </template>
             </div>
           </div>
         </header>
 
         <!-- ── WIZARD: one card step ───────────────────────────────── -->
-        <div v-if="mode === 'wizard' && currentStep !== undefined" class="con-start__body con-info__scroll" ref="body">
+        <div v-if="mode === 'wizard' && currentStep !== undefined" class="con-start__body con-start__body--cards con-info__scroll" ref="body">
           <div class="con-cards">
             <!-- P13: ONE clean composition — the focused card is emphasized
                  IN PLACE, X reads it fullscreen; the 10-card projects step
@@ -102,33 +116,6 @@
                 <Card :card="card" :key="card.name" lightweight />
                 <span v-if="isPickedHere(card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               </div>
-            </div>
-            <!-- The CONTEXT / STATUS RAIL (2026-07 polish): the focused
-                 card's name + its state ONLY — controller prompts live in
-                 the shell's ONE bottom command bar, never duplicated here.
-                 Hidden while the deal cinematic runs (nothing is
-                 interactive yet); the focused card's context swaps
-                 smoothly on d-pad moves (con-verdict-swap); the bar keeps
-                 its pinned height so a message never shifts the cards. -->
-            <div v-if="focusedCard !== undefined && !deal.state.active" class="con-cards__verdictbar">
-              <transition name="con-verdict-swap" mode="out-in">
-                <div class="con-cards__verdict-inner" :key="focusedCard.name">
-                  <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
-                  <span v-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
-                    <span aria-hidden="true">✓</span>
-                    <span>{{ $t('Card selected') }}<template v-if="!singlePickStep"> · {{ picksHere.length }} {{ ofMaxText }}</template></span>
-                  </span>
-                  <!-- A reached pick limit is a NORMAL state, not an error:
-                       calm amber, cause + recovery, no ✕ (it collides with
-                       the controller's X button). Re-keyed on a blocked A
-                       press → the chip replays its one-shot settle as the
-                       restrained "the press was heard" feedback. -->
-                  <span v-else-if="!singlePickStep && !canPickFocused" :key="'lim' + blockedNudge"
-                        class="con-cards__verdict con-cards__verdict--limit">
-                    {{ limitText }}
-                  </span>
-                </div>
-              </transition>
             </div>
           </div>
         </div>
@@ -387,6 +374,25 @@
           </div>
         </div>
 
+        <!-- ── PINNED STATUS RAIL ───────────────────────────────────────
+             The focused card's LOCAL state ONLY (name + picked / limit /
+             unaffordable / hint) — NEVER the global «N из M» progress (that
+             is the header counter). Pinned as the frame's last child so it
+             sits directly above the command bar with a STABLE height: the
+             card area (flex:1 body above) fills all the space down to it,
+             and a message swap never shifts the cards. Wizard card step only;
+             hidden while the deal cinematic runs (nothing interactive yet). -->
+        <div v-if="mode === 'wizard' && currentStep !== undefined && !deal.state.active"
+             class="con-start__statusrail" :class="'con-start__statusrail--' + statusRailKind">
+          <transition name="con-verdict-swap" mode="out-in">
+            <div class="con-start__status-inner" :key="focusedCard ? focusedCard.name : 'none'">
+              <span class="con-start__status-name">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
+              <span v-if="statusRailText !== ''" class="con-start__status-state"
+                    :key="'st' + blockedNudge">{{ statusRailText }}</span>
+            </div>
+          </transition>
+        </div>
+
         <!-- The command contract lives in the shell's command bar ONLY
              (footHints → setConsoleStartCommands). The old inline footer
              duplicated it UNDER the bar (z 11700 covers the frame bottom)
@@ -474,7 +480,7 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {cssLengthPx} from '@/client/console/cssUnits';
+import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 
@@ -497,6 +503,16 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName
 
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
+
+/**
+ * Fit-zoom ceilings (× conUiScale). Deliberately ABOVE 1: the status rail is
+ * now pinned OUTSIDE the scrollable body, so the freed height must GROW the
+ * cards into it (the old 1× cap pinned corp/prelude cards at natural size and
+ * wasted the space). rowFitZoom / gridFitPlan still clamp to fit both axes, so
+ * a small card count never bursts the frame — the ceiling only lifts the cap.
+ */
+const ROW_ZOOM_CEIL = 1.35;
+const GRID_ZOOM_CEIL = 1.2;
 
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
  *  survives a reload mid-ceremony and matches between the summary-submit arm
@@ -631,6 +647,9 @@ export default defineComponent({
       if (step === undefined) {
         return false;
       }
+      if (this.focusedUnaffordable) {
+        return false;
+      }
       return this.singlePickStep || this.picksHere.length < step.input.max;
     },
     /** The whole chosen setup, for the summary's fullscreen browse (X). The
@@ -710,6 +729,81 @@ export default defineComponent({
       const max = String(step.input.max);
       return translateTextWithParams(
         'Limit ${0}/${1} reached — deselect one of the marked cards', [max, max]);
+    },
+    /** PROJECTS step: adding the focused (unpicked) card would break the budget
+     *  (every project costs the same, so this is really "no room for one more"
+     *  — a NORMAL limit, surfaced per-card so the rail can explain it). */
+    focusedUnaffordable(): boolean {
+      const step = this.currentStep;
+      const card = this.focusedCard;
+      const corp = this.state.corp;
+      if (step === undefined || step.id !== 'projects' || card === undefined || corp === undefined) {
+        return false;
+      }
+      if (this.isPickedHere(card.name)) {
+        return false;
+      }
+      return (startingMegacredits(corp, this.state.projects.length + 1) ?? 0) < 0;
+    },
+    /** The pinned status rail's LOCAL state for the focused card. Never the
+     *  global «N из M» progress (that lives in the header counter) — only the
+     *  focused card's own state + a short hint. */
+    statusRailKind(): 'picked' | 'unaffordable' | 'limit' | 'hint' {
+      const step = this.currentStep;
+      const card = this.focusedCard;
+      if (step === undefined || card === undefined) {
+        return 'hint';
+      }
+      if (this.isPickedHere(card.name)) {
+        return 'picked';
+      }
+      if (this.focusedUnaffordable) {
+        return 'unaffordable';
+      }
+      if (!this.singlePickStep && this.picksHere.length >= step.input.max) {
+        return 'limit';
+      }
+      return 'hint';
+    },
+    statusRailText(): string {
+      switch (this.statusRailKind) {
+      case 'picked':
+        return translateText('Card selected');
+      case 'unaffordable':
+        return translateText('Not enough funds to add this card');
+      case 'limit':
+        return this.limitText;
+      default:
+        return this.stepHint;
+      }
+    },
+    /** A short hint for the current pick — never a controller prompt, never the
+     *  global progress. Preludes: how many still to pick; projects: available;
+     *  single-pick (corp/CEO): the header states the task, so no rail hint. */
+    stepHint(): string {
+      const step = this.currentStep;
+      if (step === undefined) {
+        return '';
+      }
+      if (step.id === 'projects') {
+        return translateText('Available to buy');
+      }
+      if (this.singlePickStep) {
+        return '';
+      }
+      const remaining = step.input.min - this.picksHere.length;
+      return remaining > 0 ? translateTextWithParams('Select ${0} more', [String(remaining)]) : '';
+    },
+    /** Economy is COMPACT on corp / prelude (nothing bought yet → just the
+     *  available funds); the projects step + summary show the full breakdown. */
+    moneyCompact(): boolean {
+      const step = this.currentStep;
+      return step !== undefined && step.id !== 'projects';
+    },
+    /** The compact readout's available funds (start + any prelude effect). */
+    moneyAvailable(): number {
+      const b = this.budget;
+      return b === undefined ? 0 : b.start + b.preludes;
     },
     cardCost(): number {
       return cardCostForCorp(this.state.corp);
@@ -1028,6 +1122,15 @@ export default defineComponent({
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
     },
+    /** The pinned status rail is v-if'd off DURING the deal cinematic, so the
+     *  body is taller then; when the deal ends the rail appears and the body
+     *  shrinks by the rail height — re-fit so the (freed-height) cards fit the
+     *  now-shorter body instead of overflowing its internal scroll. */
+    'deal.state.active'(active: boolean) {
+      if (!active) {
+        void this.$nextTick(() => this.fitCardStrip());
+      }
+    },
     focusables(now: Array<Focusable>) {
       // Only clamp the CEREMONY focus cursor here — the wizard summary reuses
       // focusIdx over summaryCards (focusables is empty there), and this clamp
@@ -1217,19 +1320,11 @@ export default defineComponent({
       return idx > 0 ? idx : 0;
     },
     onNav(dir: NavDirection): void {
-      // The summary browses the whole chosen setup (corp → preludes → CEO →
-      // projects) as one flat linear list so X inspects the focused card.
+      // The summary browses the whole chosen setup with FULL 2D spatial
+      // navigation: ←/→ move along the row, ↑/↓ jump between the corp/prelude
+      // and project SECTIONS by real geometry (nearest tile, no wrap-around).
       if (this.onSummary) {
-        const step = dir === 'right' || dir === 'down' ? 1 : -1;
-        const count = this.summaryCards.length;
-        if (count === 0) {
-          return;
-        }
-        const next = Math.min(count - 1, Math.max(0, this.focusIdx + step));
-        if (next !== this.focusIdx) {
-          this.focusIdx = next;
-          void this.$nextTick(() => this.scrollFocusedIntoView());
-        }
+        this.moveFocusSummary(dir);
         return;
       }
       // P13: the wizard GRID jumps rows on up/down (measured, wrap-robust).
@@ -1354,6 +1449,31 @@ export default defineComponent({
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
+    /** The summary's mini tiles, in DOM order (= summaryCards order: corp →
+     *  preludes → CEO → projects), for the 2D spatial navigation. */
+    summaryTileEls(): Array<HTMLElement> {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelectorAll !== 'function') {
+        return [];
+      }
+      return Array.from(root.querySelectorAll<HTMLElement>('.con-start__mini'));
+    },
+    /** Summary 2D d-pad: move focus to the nearest tile in `dir` by real
+     *  geometry (nearestInDirection) — ←/→ along a row, ↑/↓ across sections;
+     *  no candidate → focus stays; re-measured each press so a resize is
+     *  always honoured. */
+    moveFocusSummary(dir: NavDirection): void {
+      const tiles = this.summaryTileEls();
+      if (tiles.length === 0 || this.focusIdx >= tiles.length) {
+        return;
+      }
+      const rects = tiles.map((el) => el.getBoundingClientRect());
+      const next = nearestInDirection(rects, this.focusIdx, dir);
+      if (next !== -1 && next !== this.focusIdx) {
+        this.focusIdx = next;
+        void this.$nextTick(() => this.scrollFocusedIntoView());
+      }
+    },
     scrollFocusedIntoView(): void {
       const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
@@ -1408,27 +1528,16 @@ export default defineComponent({
         this.syncCeremonyLayout();
       });
     },
-    /** The vertical allowance the verdict bar will take under the strip.
-     *  Deterministic (a CSS var — the bar's height is PINNED to it in
-     *  console.less), because the bar is v-if'd off mid-deal: measuring the
-     *  live element would make the post-deal layout jump. */
-    verdictReserve(): number {
-      // rem-authored var (TV logical space) — resolve, never bare parseFloat.
-      const raw = window.getComputedStyle(this.$el as HTMLElement).getPropertyValue('--con-start-verdict-h');
-      const resolved = cssLengthPx(raw, 0);
-      return resolved > 0 ? resolved : 46 * conUiScale();
-    },
-    /** The height the strip may occupy inside the scrollable body: the
-     *  body's allocated height minus the verdict bar + the .con-cards gap. */
+    /** The height the strip may occupy. The status rail is now PINNED OUTSIDE
+     *  the scrollable body (a frame-level element above the command bar), so
+     *  the strip may use the WHOLE body height — the cards fill all the space
+     *  between the header and the pinned rail (no verdict reserve to subtract). */
     stripAvailHeight(strip: HTMLElement): number {
       const body = this.$refs.body as HTMLElement | undefined;
       if (body === undefined || body === null) {
         return strip.clientHeight;
       }
-      const cards = strip.parentElement;
-      const fallbackGap = 10 * conUiScale();
-      const gap = cards !== null ? (parseFloat(window.getComputedStyle(cards).rowGap) || fallbackGap) : fallbackGap;
-      return Math.max(180 * conUiScale(), body.clientHeight - gap - this.verdictReserve());
+      return Math.max(180 * conUiScale(), body.clientHeight);
     },
     /**
      * Size the wizard card strip so N cards ALWAYS fit — BOTH axes (the
@@ -1500,31 +1609,21 @@ export default defineComponent({
       // TV profile: the card face is px-natural — its size ceiling/floors
       // scale with the profile so cards stay couch-readable on 4K.
       const s = conUiScale();
+      const fit = {n, slotW, slotH, availW, availH, colGap, rowGap, scale: s};
       if (!grid) {
-        // `zoom` scales the slots but not the flex gap; 0.96 leaves scale(1.08) headroom.
-        const widthZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
-        const heightZoom = availH / slotH;
-        const zoom = Math.min(1 * s, Math.max(0.5 * s, Math.min(widthZoom, heightZoom)));
-        strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+        // Ceiling ROW_ZOOM_CEIL×scale (was 1×): the freed body height now GROWS
+        // the corp/prelude row into the space instead of pinning it at natural
+        // size; rowFitZoom still clamps to fit both axes.
+        strip.style.setProperty('--con-cards-zoom', rowFitZoom(fit, ROW_ZOOM_CEIL).toFixed(3));
         return;
       }
-      // GRID: pick the balanced rows×cols with the LARGEST zoom fitting both axes.
-      let best = {zoom: 0, cols: Math.ceil(n / 2)};
-      for (let rows = 1; rows <= Math.min(3, n); rows++) {
-        const cols = Math.ceil(n / rows);
-        const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
-        const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
-        const zoom = Math.min(1 * s, wZoom, hZoom);
-        if (zoom > best.zoom) {
-          best = {zoom, cols};
-        }
-      }
-      const zoom = Math.max(0.4 * s, best.zoom);
-      strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
-      // Cap the content width at the planned columns — leftover width from a
-      // height-governed zoom must not let flex-wrap unbalance the rows.
-      // Zoom quantizes tiles to device px — rounding room (see TaskHost).
-      strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
+      // GRID (the 10-card project buy): the balanced rows×cols plan with the
+      // largest zoom fitting both axes; cap the content width at the planned
+      // columns so flex-wrap breaks at 5+5 (never 6+4). Zoom quantizes tiles to
+      // device px — rounding room (see TaskHost).
+      const plan = gridFitPlan({...fit, maxRows: 3}, GRID_ZOOM_CEIL);
+      strip.style.setProperty('--con-cards-grid-zoom', plan.zoom.toFixed(3));
+      strip.style.maxWidth = `${Math.ceil(plan.cols * slotW * plan.zoom + (plan.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
     // LB/RB(prev/nextSection) the symmetric wizard-step navigation, B(back)
@@ -1614,6 +1713,13 @@ export default defineComponent({
         // Slots full: state / focus never change — the context rail names the
         // limit + recovery, and replays its one-shot settle as the restrained
         // "the press was heard" feedback.
+        this.blockedNudge++;
+        return;
+      }
+      // PROJECTS: no budget for one more card — a NORMAL limit, blocked here so
+      // the buy can never go negative; the rail says «Недостаточно средств…».
+      if (step.id === 'projects' && this.state.corp !== undefined &&
+          (startingMegacredits(this.state.corp, this.picksHere.length + 1) ?? 0) < 0) {
         this.blockedNudge++;
         return;
       }

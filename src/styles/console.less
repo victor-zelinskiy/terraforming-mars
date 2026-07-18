@@ -9698,7 +9698,9 @@ body.con-start-ceremony {
 
     &__frame {
         position: relative;
-        width: min(84rem, 96vw);
+        /* Wider than before (was 84rem): the freed width lets the 10-project
+           grid + the summary tableau grow into the 4K frame. */
+        width: min(90rem, 96vw);
         display: flex;
         flex-direction: column;
         /* Bottom padding = the shell command bar clearance (52px bar + air)
@@ -9789,6 +9791,11 @@ body.con-start-ceremony {
             box-shadow: inset 0 0 0 .05rem fade(@con-red, 65%), 0 0 .7rem fade(@con-red, 14%);
             .con-start__budget-col--strong b { color: @con-red; }
         }
+        /* COMPACT (corp / prelude): just «СРЕДСТВА N» — a calm cyan capsule,
+           not the amber spend-warning look of the full projects breakdown. */
+        &--compact {
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+        }
     }
     &__budget-col {
         display: inline-flex;
@@ -9865,14 +9872,100 @@ body.con-start-ceremony {
         padding-right: .3rem;
         .con-scrollbars();
     }
-    /* Pin the verdict bar to the fit engine's reserve (one nowrap line —
-       name ellipsizes, chips never wrap) so its mid-deal absence can't
-       change the strip's computed height. */
-    .con-cards__verdictbar {
+    /* WIZARD card step: the body is a flex column whose ONLY child (.con-cards)
+       fills it, so the card strip uses the WHOLE height between the header and
+       the pinned status rail (the fit engine sizes the cards to that). */
+    &__body--cards {
+        display: flex;
+        flex-direction: column;
+        .con-cards { flex: 1; min-height: 0; }
+        /* Fill the freed height: centre the single row / the grid rows
+           vertically so the (now larger) cards sit centred in the strip
+           instead of top-stuck above a void. Scoped to the wizard body so the
+           ceremony candidate strip is untouched. */
+        .con-cards__strip:not(.con-cards__strip--grid) { align-items: center; }
+        .con-cards__strip--grid { align-content: center; }
+    }
+
+    /* ── PINNED STATUS RAIL ─────────────────────────────────────────────
+       The frame's last child (header · body[flex:1] · rail), so it sits
+       directly above the command bar with a STABLE height (var below) — the
+       card area never shifts when the rail's message swaps. Shows the focused
+       card's LOCAL state only (name + one state chip); the global «N из M»
+       counter lives in the header. */
+    --con-start-rail-h: 2.6rem;
+    &__statusrail {
         box-sizing: border-box;
-        height: var(--con-start-verdict-h);
-        flex-wrap: nowrap;
+        flex-shrink: 0;
+        height: var(--con-start-rail-h);
+        margin-top: .5rem;                 /* gap: cards → rail */
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        border-radius: .55rem;
+        background: rgba(14, 22, 33, 0.62);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
         overflow: hidden;
+    }
+    &__status-inner {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        min-width: 0;
+        width: 100%;
+    }
+    &__status-name {
+        font-weight: 700;
+        font-size: 1rem;
+        color: @con-text;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 1;
+        min-width: 0;
+    }
+    &__status-state {
+        flex-shrink: 0;
+        margin-left: auto;
+        padding: .18rem .7rem;
+        border-radius: 49.95rem;
+        font-size: .85rem;
+        font-weight: 700;
+        white-space: nowrap;
+        max-width: 60%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        /* One-shot settle on (re)mount — a blocked A re-keys it (see the
+           :key='st'+blockedNudge) so the press is acknowledged calmly. */
+        animation: con-start-limit-in calc(240ms * var(--motion-scale, 1)) ease-out;
+    }
+    /* State colours: hint = neutral, picked = mint, limit / unaffordable =
+       calm AMBER (a NORMAL limit, never a red error, never a ✕ that collides
+       with the controller's X). */
+    &__statusrail--hint .con-start__status-state {
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        color: fade(@con-cyan, 92%);
+    }
+    &__statusrail--picked {
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%);
+        .con-start__status-state {
+            background: fade(@con-mint, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%);
+            color: @con-mint;
+        }
+    }
+    &__statusrail--limit,
+    &__statusrail--unaffordable {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
+        .con-start__status-state {
+            background: fade(@con-amber, 12%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+            color: #ffe6b0;
+            /* long RU cause+recovery fits without changing the rail geometry */
+            white-space: normal;
+            line-height: 1.15;
+        }
     }
     &__section-title {
         font-size: .75rem;
@@ -9923,14 +10016,16 @@ body.con-start-ceremony {
     }
     &__mini {
         flex-shrink: 0;
-        zoom: calc(0.62 * var(--con-ui-scale, 1));
+        /* Larger than before (0.62): the summary is the review screen — the
+           cards earn the freed space so the tableau reads finished on 4K. */
+        zoom: calc(0.72 * var(--con-ui-scale, 1));
         position: relative;
         border-radius: .6rem;
         transition: transform var(--con-motion-fast, 140ms) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
-        &--id { zoom: calc(0.7 * var(--con-ui-scale, 1)); }
+        &--id { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
 
         /* Summary focus cursor: the browsed tile lifts + leads; the gliding
            ConsoleCardFocusFrame draws the ring around it (X inspects it). */
@@ -9942,8 +10037,8 @@ body.con-start-ceremony {
     /* P17: >5 bought projects drop the summary one density notch so the
        confirmation screen FITS without scrolling (X = the detailed read). */
     &__summary--dense {
-        .con-start__mini { zoom: calc(0.5 * var(--con-ui-scale, 1)); }
-        .con-start__mini--id { zoom: calc(0.6 * var(--con-ui-scale, 1)); }
+        .con-start__mini { zoom: calc(0.58 * var(--con-ui-scale, 1)); }
+        .con-start__mini--id { zoom: calc(0.68 * var(--con-ui-scale, 1)); }
         .con-start__summary-cards { gap: .5rem; }
         .con-start__minirow { gap: .5rem; }
     }
@@ -13214,6 +13309,10 @@ html.con-profile-handheld {
         /* Handheld vertical budget (800px): every chrome pixel saved here
            goes straight into the fit engine's card zoom. */
         --con-start-verdict-h: 2.1rem;
+        --con-start-rail-h: 2rem;
+        &__statusrail { margin-top: .3rem; padding: 0 .6rem; border-radius: .45rem; }
+        &__status-name { font-size: .75rem; }
+        &__status-state { font-size: .65rem; padding: .12rem .5rem; }
 
         &__frame { width: 97vw; padding: .5rem 1rem 2.4rem; } /* 48 = cmdbar (38) + air */
         &__head { margin-bottom: .3rem; }
