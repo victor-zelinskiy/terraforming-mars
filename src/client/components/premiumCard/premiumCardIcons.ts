@@ -23,7 +23,12 @@ import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
 
 export type MechIconSpec =
-  | {kind: 'img', url: string}
+  | {kind: 'img', url: string, mod?: string}
+  /** A localized text plate (prelude / award / milestone / ignore-global-req).
+   *  `text` is the English i18n KEY — the component translates it. */
+  | {kind: 'label', text: string, accent?: 'prelude' | 'award'}
+  /** A value-bearing light token (trade discount) — the amount rides `amountInside`. */
+  | {kind: 'token'}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -31,6 +36,7 @@ const TILES = 'assets/tiles';
 const GLOBALS = 'assets/global-parameters';
 const TAGS = 'assets/tags';
 const MISC = 'assets/misc';
+const PROMO = 'assets/promo';
 
 /** Card-resource key → filename under assets/resources (lowercase, spaces→hyphens). */
 function cardResourceKey(resource: CardResource): string {
@@ -94,6 +100,24 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.EMPTY_TILE_GOLDEN]: `${TILES}/adjacency_bonus.png`,
   [CardRenderItemType.HAZARD_TILE]: `${TILES}/hazard.png`,
   [CardRenderItemType.COLONY_TILE]: `${TILES}/colony.png`,
+
+  // Colonies expansion — the trade-track colony icon + the trade token.
+  [CardRenderItemType.COLONIES]: `${TILES}/colony.png`,
+  [CardRenderItemType.TRADE]: `${TILES}/trade.png`,
+
+  // Promo special icons that ship a clean asset.
+  [CardRenderItemType.CATHEDRAL]: `${PROMO}/cathedral.png`,
+  [CardRenderItemType.CITY_OR_SPECIAL_TILE]: `${PROMO}/city-or-special-tile.png`,
+
+  // «a corporation card» / «a card slot on Self-replicating Robots» — corp
+  // cards render on the same premium face as project cards, so the generic
+  // card cover (the playground card-back texture) IS the corporation glyph.
+  [CardRenderItemType.CORPORATION]: `${RES}/card.webp`,
+  [CardRenderItemType.SELF_REPLICATING]: `${RES}/card.webp`,
+
+  // Tag markers with dedicated art.
+  [CardRenderItemType.NO_TAGS]: `${TAGS}/tag-none.png`,
+  [CardRenderItemType.DIVERSE_TAG]: `${TAGS}/diverse.png`,
 
   [CardRenderItemType.DELEGATES]: `${MISC}/delegate.png`,
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chairman.png`,
@@ -284,6 +308,21 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     return {kind: 'glyph', glyph: 'X'};
   case CardRenderItemType.VP:
     return {kind: 'glyph', glyph: '?'};
+  case CardRenderItemType.TRADE_FLEET:
+    // Same trade canvas as TRADE, inverted — the fork's fleet marker (mirrors
+    // the legacy `filter: invert(1)` on card-resource-trade-fleet).
+    return {kind: 'img', url: `${TILES}/trade.png`, mod: 'invert'};
+  case CardRenderItemType.TRADE_DISCOUNT:
+    // A light value token (the −N reduction rides `amountInside`).
+    return {kind: 'token'};
+  case CardRenderItemType.PRELUDE:
+    return {kind: 'label', text: 'Prelude', accent: 'prelude'};
+  case CardRenderItemType.AWARD:
+    return {kind: 'label', text: 'Award', accent: 'award'};
+  case CardRenderItemType.MILESTONE:
+    return {kind: 'label', text: 'Milestone', accent: 'award'};
+  case CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS:
+    return {kind: 'label', text: 'Global requirements'};
   default: {
     const url = ITEM_ICON_URL[item.type];
     if (url !== undefined) {

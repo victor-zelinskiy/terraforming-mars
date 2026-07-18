@@ -1093,6 +1093,10 @@
   width: calc(var(--pcard-mech-icon) * 0.62);
   height: calc(var(--pcard-mech-icon) * 0.62);
 }
+/* trade FLEET — the trade canvas inverted (mirrors legacy filter: invert(1)). */
+.pcard-ic--invert {
+  filter: invert(1) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
 .pcard-mi__digit {
   font-size: var(--pcard-mech-font);
   color: #f3e9d2;
@@ -1174,6 +1178,36 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   text-shadow: none;
+}
+/* semantic accents for the concept plates (prelude pink, award/milestone
+   orange) — keeps the premium plate silhouette while preserving the
+   at-a-glance colour of the physical cards. */
+.pcard-plate--prelude {
+  background: linear-gradient(180deg, #f0a6c6, #d76aa0);
+  border-color: #8a3a63;
+  color: #3a0f27;
+}
+.pcard-plate--award {
+  background: linear-gradient(180deg, #f3c07a, #d88a34);
+  border-color: #8a561c;
+  color: #3a2408;
+}
+/* trade-discount — a light value token (mirrors the legacy white square, the
+   −N reduction of a colony's trade fee). */
+.pcard-token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(var(--pcard-mech-icon) * 0.9);
+  height: calc(var(--pcard-mech-icon) * 0.9);
+  padding: 0 4px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #f4efe2, #cfc7b2);
+  border: 1px solid #7a6f52;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 1px rgba(0, 0, 0, 0.5);
+  color: #2f2712;
+  font-size: calc(var(--pcard-mech-icon) * 0.5);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 /* unmapped fallback chip — visible, honest, never a broken image */
 .pcard-mi__chip {

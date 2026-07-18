@@ -711,6 +711,7 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
+import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
@@ -1363,7 +1364,26 @@ export default defineComponent({
         return undefined;
       }
       const task = taskFor(this.playerView);
-      return task !== undefined && SHELL_SECTION_KINDS.has(task.kind) ? task : undefined;
+      if (task === undefined || !SHELL_SECTION_KINDS.has(task.kind)) {
+        return undefined;
+      }
+      // The corporation's MANDATORY FIRST ACTION is a STANDALONE start-of-game
+      // confirm modal that hosts NONE of the start-sequence cinematics — the
+      // prelude tile / resource flights, the drawn-cards reveal AND the card
+      // intake that lays the drawn cards into the dock. The guard above already
+      // waits out the reveal / hero / BLOCKING holds, but the intake + card
+      // deal register 'notification-only' holds (they legitimately play OVER
+      // the other shell sections and the action menu, so they must not hold
+      // those), which are invisible to it. Hold the corp confirm until the
+      // WHOLE presentation has settled — otherwise it pops as "modal spam"
+      // over the still-running prelude / intake animations (the exact overlap
+      // the user reported). Safe from a self-deadlock: the confirm animates
+      // nothing of its own, so nothing it hosts keeps the hold alive; the hold
+      // is reactive, so the modal appears the instant the last flight lands.
+      if (task.kind === 'corpFirstAction' && isAnimationHoldActive()) {
+        return undefined;
+      }
+      return task;
     },
     /** The T5 START SCENE task (initialCards wizard / start-sequence ceremony). */
     startTask(): ConsoleTask | undefined {
@@ -2985,6 +3005,16 @@ export default defineComponent({
         if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
           this.openShellTaskSurface(task);
         }
+      }
+    },
+    // The corp first-action confirm can surface AFTER a 'notification-only'
+    // hold (the drawn-prelude card intake) releases — a path the reveal /
+    // blocking `consoleForegroundBusy` transition above never covers. Make sure
+    // the board is the section behind the modal whenever it finally opens, so a
+    // later defer (B) reveals the board, not a stale hand / colonies view.
+    corpFirstActionOpen(open: boolean): void {
+      if (open) {
+        this.consoleState.section = 'board';
       }
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the

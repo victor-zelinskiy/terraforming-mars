@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {taskFor, SHELL_SECTION_KINDS, NATIVE_KINDS, taskServedByHost} from '@/client/console/consoleTaskRouter';
 import {runLeakDetection, leakDetectorState} from '@/client/console/consoleLeakDetector';
+import {beginAnimationHold, isAnimationHoldActive, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /**
@@ -29,6 +30,12 @@ function corpActionView(): PlayerViewModel {
 }
 
 describe('corporation first action (console routing)', () => {
+  // Module state (animation holds) is BUNDLE-SHARED in mochapack — the leak
+  // detector now consults isAnimationHoldActive(), so clear any stray manual
+  // hold a sibling spec may have left before/after each case here.
+  beforeEach(() => resetAnimationHoldsForTest());
+  afterEach(() => resetAnimationHoldsForTest());
+
   it('routes the untitled corp-action OrOptions to the dedicated modal, not the host', () => {
     const view = corpActionView();
     const task = taskFor(view);
@@ -57,6 +64,31 @@ describe('corporation first action (console routing)', () => {
     document.body.appendChild(modal);
     runLeakDetection(view);
     expect(leakDetectorState.stranded).to.eq(undefined);
+    document.body.innerHTML = '';
+  });
+
+  it('does NOT strand the corp-action prompt while a critical animation owns the foreground', () => {
+    const view = corpActionView();
+    // No serving surface on screen — but the drawn-prelude card intake (a
+    // 'notification-only' hold) is laying cards into the dock. The corp confirm
+    // is deliberately withheld until it settles, so the prompt is legitimately
+    // held BEHIND the beat — it must NOT flash the honest stranded guard.
+    document.body.innerHTML = '';
+    const hold = beginAnimationHold('test-corp-intake', {scope: 'notification-only'});
+    expect(isAnimationHoldActive()).to.be.true;
+    runLeakDetection(view);
+    runLeakDetection(view); // even past the 2-pass debounce
+    expect(leakDetectorState.stranded).to.eq(undefined);
+
+    // Once the beat settles and there is STILL no serving surface, the honest
+    // guard returns (the ceiling-bounded hold can never hide a real strand).
+    hold.release();
+    expect(isAnimationHoldActive()).to.be.false;
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded?.taskKind).to.eq('corpFirstAction');
+
+    resetAnimationHoldsForTest();
     document.body.innerHTML = '';
   });
 });
