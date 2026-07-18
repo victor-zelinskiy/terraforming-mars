@@ -228,17 +228,7 @@ export default defineComponent({
   font-size: 12.5px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
 }
-/* TV 4K (con-profile-tv): the compact corner pill is tiny from the couch.
-   Scale it — and its edge offset — by the shared console UI scale so it stays
-   a small corner pill (never a panel), just readable across the room. The
-   `zoom` pattern mirrors the other legacy fallback surfaces on the tv profile. */
-:global(html.con-profile-tv) .desktop-update--pill {
-  top: calc(14px * var(--con-ui-scale, 1));
-  right: calc(18px * var(--con-ui-scale, 1));
-}
-:global(html.con-profile-tv) .desktop-update__pill {
-  zoom: var(--con-ui-scale, 1);
-}
+
 .desktop-update__spinner {
   width: 12px;
   height: 12px;
