@@ -86,6 +86,11 @@ type Episode = {
 
 let episode: Episode | undefined;
 let hooks: RevealHooks | undefined;
+/** The teardown's deferred handoff fade (proxies over the materializing real
+ *  elements). Tracked so a NEW episode starting inside the handoff window can
+ *  kill it — its delayed `clearRevealFlights()` would otherwise unmount the
+ *  new episode's proxies mid-flight (cards blink out, then pop into place). */
+let handoffFade: gsap.core.Tween | undefined;
 /** An episode is being BUILT (measures / proxy spawn — a few frames before
  *  its timeline exists). Guards the window against a racing 2nd episode. */
 let building = false;
@@ -140,6 +145,12 @@ function spawnBudget(count: number, flightMs: number): number {
  * real element exactly. Returns elements in pair order (missing = skipped).
  */
 async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | 'target', sizeTo: 'source' | 'target'): Promise<Array<HTMLElement | undefined>> {
+  // A previous episode's handoff fade may still be pending: kill it BEFORE
+  // replacing the flights, so its onComplete can't clear the new proxies.
+  // (kill() suppresses onComplete; the old, nearly-transparent proxies are
+  // replaced by the new flight list in this same flush.)
+  handoffFade?.kill();
+  handoffFade = undefined;
   handRevealState.flights = pairs.map((p) => ({id: nextRevealId(), name: p.name, face: p.visible}));
   const ids = handRevealState.flights.map((f) => f.id);
   await nextTick();
@@ -185,12 +196,21 @@ function teardown(instant: boolean): void {
     // The materialization: real elements fade in under the proxies (their
     // own 160ms transition — the hold release happened in the caller),
     // the proxies fade out on top. Outside the reversible window by design.
-    gsap.to(els, {
+    // The deferred clear is EPOCH-GUARDED: it only fires while this fade is
+    // still the current handoff — a new episode spawned inside the window
+    // kills the fade (spawnProxies) and owns the flights from then on.
+    const fade = gsap.to(els, {
       autoAlpha: 0,
       duration: motionMs(HANDOFF_MS) / 1000,
       ease: 'power1.out',
-      onComplete: () => clearRevealFlights(),
+      onComplete: () => {
+        if (handoffFade === fade) {
+          handoffFade = undefined;
+          clearRevealFlights();
+        }
+      },
     });
+    handoffFade = fade;
   }
   episode = undefined;
 }
