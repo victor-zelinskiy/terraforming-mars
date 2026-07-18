@@ -1,13 +1,9 @@
 <template>
-  <div v-if="visible" class="desktop-update" :class="blocking ? 'desktop-update--cover' : 'desktop-update--pill'">
-    <!-- Non-blocking corner pill: the startup compatibility check. -->
-    <div v-if="!blocking" class="desktop-update__pill">
-      <span class="desktop-update__spinner"></span>
-      <span v-i18n>Checking for updates…</span>
-    </div>
-
-    <!-- Blocking: the full-screen mandatory update gate. -->
-    <div v-else class="desktop-update__panel">
+  <div v-if="visible" class="desktop-update desktop-update--cover">
+    <!-- Only the blocking, full-screen mandatory-update gate is shown. The
+         non-blocking "Checking for updates…" corner pill is intentionally NOT
+         surfaced — no reason to flash update-checking chrome on the UI. -->
+    <div class="desktop-update__panel">
       <div class="desktop-update__glyph">⟳</div>
 
       <!-- 'pending' is a WAIT, not a failure — say so instead of demanding an update the player
@@ -165,7 +161,9 @@ export default defineComponent({
       if (!this.isDesktop) {
         return false;
       }
-      return this.state.mode === 'checking' || updateOverlayBlocking(this.state.mode);
+      // Surface ONLY the blocking mandatory-update gate. The non-blocking
+      // 'checking' state (the corner pill) is intentionally silent.
+      return updateOverlayBlocking(this.state.mode);
     },
     blocking(): boolean {
       return updateOverlayBlocking(this.state.mode);
