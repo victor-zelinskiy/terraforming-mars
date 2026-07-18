@@ -344,6 +344,35 @@ body.con-zoom-open .con-root {
     text-shadow: none;
 }
 
+/* ── Console fullscreen: the PREMIUM face's OWN selected glow is calmed ─
+   A project / prelude card renders via `.pcard`, and `.pcard--selected`
+   (premium_card.less) layers its own selection signal ON TOP of the two
+   console markers above: a fixed-px cyan drop-shadow HALO around the whole
+   card + an inset ring on `.pcard__state`. That treatment is authored for
+   the STATIC on-table slot. Inside the inspector the card face is
+   GSAP-transform-SCALED every frame of the open lift / close retract, so
+   the fixed-px halo is rescaled with it — it swells + throbs during the
+   flight and then snaps to its calm size the instant the card lands: the
+   "the thick SELECTED outline flickers while the card zooms in, then thins
+   out in fullscreen" defect. The console's own selected look is already the
+   calm static rim (::before) + the «✓ ВЫБРАНА» pickband (::after), so here
+   the premium halo is dropped back to the card's plain depth shadow and the
+   inset ring removed — the base `.pcard` filter (premium_card.less: the two
+   black depth drop-shadows), so DEPTH is preserved, only the cyan glow goes.
+   Applied to the flight proxy AND the open dialog, so the selection outline
+   is byte-identical from the first animation frame through fullscreen — no
+   throb, no thick→thin swap, no abrupt style change. The on-table slot
+   (console.less `.con-cards__slot--selected`) keeps its own thick ring: the
+   normal browse look is deliberately UNTOUCHED. */
+:is(dialog.con-zoom, .con-zoom-flight-proxy) .pcard--selected {
+    filter:
+        drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5))
+        drop-shadow(0 9px 20px rgba(0, 0, 0, 0.32));
+}
+:is(dialog.con-zoom, .con-zoom-flight-proxy) .pcard--selected .pcard__state {
+    box-shadow: none;
+}
+
 /* ── The command bar yields to the inspector ──────────────────────────
    While fullscreen is open the viewer's OWN bar (`.con-zoom__bar` in the
    dialog) is the source of button truth, so the game's command bar is

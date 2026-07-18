@@ -45,6 +45,7 @@ import {
   snapshotActivity,
 } from '@/client/gamepad/gamepadPollModel';
 import {gamepadDeadzone, gamepadEnabled} from '@/client/gamepad/gamepadSettings';
+import {updateDetectedGlyphSet} from '@/client/gamepad/glyphSets';
 import {enterGamepadMode, exitGamepadMode, inputModeState, installInputModeWatchers, resetPointerTravel, uninstallInputModeWatchers} from '@/client/gamepad/inputModeState';
 
 type IntentListener = (intent: GamepadIntent) => void;
@@ -150,6 +151,7 @@ function pollOnce(now: number): void {
       if (active) {
         gamepadCoreState.activeIndex = pad.index;
         gamepadCoreState.activeId = pad.id;
+        updateDetectedGlyphSet(pad.id);
         enterGamepadMode();
         resetPointerTravel();
       }
@@ -170,6 +172,7 @@ function pollOnce(now: number): void {
     if (active && gamepadCoreState.activeIndex !== pad.index) {
       gamepadCoreState.activeIndex = pad.index;
       gamepadCoreState.activeId = pad.id;
+      updateDetectedGlyphSet(pad.id);
     }
 
     const {intents, state: nextState} = diffSnapshots(prev, next, state, now, deadzone);
@@ -197,6 +200,7 @@ function onConnected(e: GamepadEvent): void {
   if (gamepadCoreState.activeIndex === -1) {
     gamepadCoreState.activeIndex = e.gamepad.index;
     gamepadCoreState.activeId = e.gamepad.id;
+    updateDetectedGlyphSet(e.gamepad.id);
   }
   if (typeof document === 'undefined' || document.visibilityState === 'visible') {
     startLoop();
