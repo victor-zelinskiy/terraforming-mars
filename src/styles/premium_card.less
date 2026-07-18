@@ -166,14 +166,11 @@
   --pcard-glow: rgba(217, 184, 120, 0.38);
   --pcard-band: rgba(166, 128, 62, 0.26);
 }
-/* A corporation's starting resources ARE its «при розыгрыше» effect (the
-   card grants them when played) — so the mint play-rail shows above them
-   too (playZoneStartLeading), unified with every other card. The rail's
-   top margin tightens here: on a corp it sits right under the identity
-   zone, not between two mechanic runs. */
-.pcard--theme-corporation .pcard-play-rail {
-  margin-top: 1px;
-}
+/* A corporation's starting resources ARE its «при розыгрыше» effect (the card
+   grants them when played). buildMechanics now reorders every card so that
+   on-play run trails at the BOTTOM (mechanicsModel.orderMechGroups), so the
+   mint play-rail sits above it identically to a project card — no corp-specific
+   rail spacing override is needed. */
 
 /* ── corpus layers ──────────────────────────────────────────────────── */
 .pcard__body {

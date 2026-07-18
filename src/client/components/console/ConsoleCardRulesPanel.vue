@@ -33,9 +33,8 @@
  * READING ORDER = THE CARD'S ORDER: blocks are sorted by the vertical
  * position of their linked graphic row on the LANDED card (data-graphic-id
  * anchors, measured on `nonce`), so the panel always reads top-to-bottom
- * exactly like the card. Cards without anchors (corporations — their rows
- * carry no graphicIds) fall back to the PHYSICAL card order: requirement →
- * on-play → effect → action → VP → note.
+ * exactly like the card. Cards without measurable anchors fall back to the
+ * canonical card order: requirement → action → effect → on-play → VP → note.
  *
  * LINKAGE = COLOUR: each block's kind chip carries the EXACT accent of its
  * card element (requirement copper / effect blue / action gold / on-play
@@ -61,11 +60,12 @@ export function cardHasRules(cardName: string | undefined): boolean {
   return card !== undefined && buildCardAnnotations(card).length > 0;
 }
 
-/** The PHYSICAL reading order of a printed card, used when blocks carry no
- *  graphic anchors (corporations): requirements bar → start/on-play row →
- *  effect frames → action frames → the VP badge → fine print. */
+/** The reading order used when blocks carry no measurable graphic anchors
+ *  (corporations): requirements bar → action frames → effect frames → the
+ *  bottom on-play «при розыгрыше» zone → the VP badge → fine print. Mirrors
+ *  the reordered card face (mechanicsModel.orderMechGroups). */
 const PHYSICAL_KIND_ORDER: ReadonlyArray<CardAnnotation['kind']> =
-  ['requirement', 'immediate', 'effect', 'action', 'victory-points', 'note'];
+  ['requirement', 'action', 'effect', 'immediate', 'victory-points', 'note'];
 
 const STAGE_SELECTOR = '.con-zoom .card-zoom-stage';
 

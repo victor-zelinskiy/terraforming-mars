@@ -108,6 +108,30 @@ function key(en: string): string {
   return en;
 }
 
+/**
+ * CANONICAL GROUP ORDER (top → bottom on the card face): the requirements bar,
+ * then actions, passive effects, and the on-play «при розыгрыше» zone LAST,
+ * then the VP badge. Mirrors the reordered premium mechanics panel
+ * (mechanicsModel.orderMechGroups), so the structured rule text matches the
+ * face 1:1 — «при розыгрыше» always reads last, on every card type.
+ */
+const GROUP_ORDER: Readonly<Record<string, number>> = {
+  'requirements': 0,
+  'action': 1,
+  'effect': 2,
+  'immediate': 3,
+  'victory-points': 4,
+};
+
+/** Stable-sort a card's information groups into `GROUP_ORDER` (same-rank groups
+ *  keep insertion order, e.g. two effect frames stay in render order). */
+function orderInfoGroups(groups: ReadonlyArray<CardInfoGroup>): Array<CardInfoGroup> {
+  return groups
+    .map((group, index) => ({group, index}))
+    .sort((a, b) => ((GROUP_ORDER[a.group.kind] ?? 9) - (GROUP_ORDER[b.group.kind] ?? 9)) || (a.index - b.index))
+    .map((entry) => entry.group);
+}
+
 /* ── requirement blocks ─────────────────────────────────────────────── */
 
 const EN_RESOURCE: Readonly<Record<Resource, [string, string]>> = {
@@ -658,7 +682,7 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
   const unlinked = [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]
     .filter((b) => b.graphicId === undefined)
     .map((b) => (b.kind === 'note' ? `${b.id}(note)` : b.id));
-  return {information: {groups}, status, unlinked};
+  return {information: {groups: orderInfoGroups(groups)}, status, unlinked};
 }
 
 /**
@@ -910,7 +934,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     notes,
   });
 
-  return groups.length > 0 ? {groups} : undefined;
+  return groups.length > 0 ? {groups: orderInfoGroups(groups)} : undefined;
 }
 
 function hasBespokePlay(card: ICard): boolean {
