@@ -472,7 +472,7 @@ export default defineComponent({
     /** Right stick: free vertical scroll; the scroll handler nudges selection. */
     stickScroll(dy: number): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid == null || !this.plan.scrolls) {
+      if (grid === undefined || !this.plan.scrolls) {
         return;
       }
       grid.scrollBy({top: dy * STICK_SCROLL_STEP, behavior: 'auto'});
@@ -489,7 +489,7 @@ export default defineComponent({
     },
     applyScroll(): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid == null) {
+      if (grid === undefined) {
         return;
       }
       const p = this.plan;
@@ -535,7 +535,7 @@ export default defineComponent({
     ensureSelectedVisible(): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
       const p = this.plan;
-      if (grid == null || !p.scrolls || p.cols <= 0) {
+      if (grid === undefined || !p.scrolls || p.cols <= 0) {
         return;
       }
       const row = Math.floor(this.index / p.cols);
@@ -567,7 +567,7 @@ export default defineComponent({
      */
     transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean}>, scrollTop: number} {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid == null || this.entries.length === 0) {
+      if (grid === undefined || this.entries.length === 0) {
         return {pairs: [], scrollTop: 0};
       }
       const gr = grid.getBoundingClientRect();
@@ -622,13 +622,13 @@ export default defineComponent({
      *  returning proxies land on rects measured at THIS scroll. */
     restoreScroll(px: number): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid != null) {
+      if (grid !== undefined) {
         grid.scrollTop = px;
       }
     },
     measure(): void {
       const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid == null) {
+      if (grid === undefined) {
         return;
       }
       const w = grid.clientWidth;
@@ -653,7 +653,7 @@ export default defineComponent({
   },
   mounted() {
     const grid = this.$refs.grid as HTMLElement | undefined;
-    if (grid != null && typeof ResizeObserver !== 'undefined') {
+    if (grid !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ro = markRaw(new ResizeObserver(() => this.scheduleMeasure()));
       this.ro.observe(grid);
     }

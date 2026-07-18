@@ -650,7 +650,7 @@ export default defineComponent({
         return;
       }
       const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body == null) {
+      if (body === undefined || body === null) {
         return;
       }
       const tableau = body.querySelector('.played-tableau') as HTMLElement | null;
@@ -704,7 +704,7 @@ export default defineComponent({
         return;
       }
       const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body == null) {
+      if (body === undefined || body === null) {
         return;
       }
       const tableau = body.querySelector('.played-tableau') as HTMLElement | null;

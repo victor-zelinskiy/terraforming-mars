@@ -114,7 +114,6 @@ describe('electron/consoleExport', () => {
       const fakeConsole: Record<string, (...a: unknown[]) => void> = {
         log() {}, info() {}, warn() {}, error() {}, debug() {},
       };
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
       new Function('window', 'console', CONSOLE_CAPTURE)(win, fakeConsole);
       return {win, listeners};
     }

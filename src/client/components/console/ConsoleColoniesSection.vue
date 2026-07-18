@@ -206,7 +206,7 @@ export default defineComponent({
       const scroll = this.$refs.scroll as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
-      if (scroll == null || root == null || count === 0) {
+      if (scroll === undefined || scroll === null || root === undefined || root === null || count === 0) {
         return;
       }
       const availW = scroll.clientWidth;

@@ -784,7 +784,7 @@ export default defineComponent({
     // because column count shifts with zoom — a sqrt step converges fast.
     fit(): void {
       const body = this.$refs.body as HTMLElement | null | undefined;
-      if (body == null) {
+      if (body === undefined || body === null) {
         return;
       }
       const grid = body.querySelector('.hand-board__grid') as HTMLElement | null;
