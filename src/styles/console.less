@@ -43,6 +43,14 @@
 @sem-prestige: #ffd87a; // milestones / awards / finale (= @con-ma-gold)
 @sem-idle: rgba(150, 175, 205, 0.6); // disabled / off chrome
 
+/* ── CARD-ELEMENT accents (the premium face's own material colours, used
+   by the fullscreen rules panel to colour-match a block to its element):
+   requirement plate copper (--pcard-req-copper-hi), action frame gold
+   (the pcard gold band), effect frame blue (the azure frame family). */
+@con-req-copper: #b87f42;
+@con-action-gold: #f2d795;
+@con-effect-blue: #5aa9e6;
+
 /* ── DESIGN TOKENS (base logical space; the TV profile overrides VALUES
    in console_tv.less — same names, so components consume var() and get
    the right size on every profile). Base values mirror today's shipped
@@ -3436,9 +3444,15 @@ html.console-mode {
         &--playable > :is(.card-container, .pcard) {
             box-shadow: 0 0 0 .05rem fade(@con-mint, 26%);
         }
-        /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card. */
+        /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card.
+           The dim EASES IN on mount (the reveal flies the cards in from the
+           dock UNfiltered → a hard grayscale snap on landing read cheap).
+           The animation plays once per grid mount = exactly when the reveal
+           lands; a re-focus doesn't remount the card, so it never re-runs.
+           `both` holds the dimmed end state. reduced-motion → instant. */
         &--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.42) brightness(0.78);
+            animation: con-hand-dim-in calc(300ms * var(--motion-scale, 1)) ease both;
         }
         /* SELECTED: the focus pop — a cheap ring + glow + slight scale (the
            transform composes on top of the slot `zoom`), state-coloured. */
@@ -3475,18 +3489,21 @@ html.console-mode {
            rule's TV double-scale guard (same property → this would drop it). */
         .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
     }
-    /* Compact blocker chip on an unavailable card (short reason — the full
-       requirement lives in the info panel below). */
+    /* Compact blocker chip on an unavailable card (short reason). Placed
+       over the CARD ART (vertical centre), NEVER over the bottom mechanics
+       plate: the art is decorative, the mechanics icons explain the card
+       and must stay legible (user rule — cover the art, not the mechanics).
+       The full requirement lives in the info panel below. */
     &__chip {
         position: absolute;
         left: 50%;
-        bottom: .4rem;
-        transform: translateX(-50%);
-        max-width: 94%;
-        padding: .15rem .55rem;
+        top: 42%;
+        transform: translate(-50%, -50%);
+        max-width: 88%;
+        padding: .25rem .6rem;
         border-radius: .55rem;
-        background: rgba(8, 13, 20, 0.86);
-        box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
+        background: rgba(8, 13, 20, 0.92);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
         color: #ffc9c4;
         font-size: .75rem;
         font-weight: 700;
@@ -3495,7 +3512,7 @@ html.console-mode {
            centred line instead of ellipsizing. */
         white-space: normal;
         text-align: center;
-        line-height: 1.15;
+        line-height: 1.18;
         /* ADAPTIVE counter-zoom: the chip reads at a CONSTANT size whatever
            the card zoom (the fill-pass grows TV cards far past the old
            fixed ×1.5 tuning; 0.99/0.66 reproduces it exactly at the base
@@ -3841,6 +3858,16 @@ html.console-mode {
         font-size: 1.1rem;
         letter-spacing: .03rem;
     }
+}
+
+/* The unavailable-card dim EASES in (never a hard grayscale snap when the
+   reveal flies the cards into the hand grid from the dock). */
+@keyframes con-hand-dim-in {
+    from { filter: grayscale(0) brightness(1); }
+    to { filter: grayscale(0.42) brightness(0.78); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-hand__slot--unplayable > :is(.card-container, .pcard) { animation: none; }
 }
 
 /* ── P27: RT / LT QUICK SELECTORS (direct-input command cross) ───── */
@@ -6135,6 +6162,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     flex-shrink: 0;
     z-index: 11700;
     --con-bar-h: 2.6rem;
+
+    /* A TALL bottom-reaching overlay is up (the «Разыграно» table — manual
+       AND the hero landing, composers, sheets, inspectors — the shell's
+       `footerUnderScene`): drop the whole footer just BELOW the console
+       overlay band so the panel covers the dock's PACK where they overlap
+       (their boxes end ≥4rem above the viewport bottom, over the rising
+       pack) while the «КАРТЫ» plate + counter + the command hints — all
+       below that line — keep peeking below the panel's edge. The dock is a
+       PHYSICAL PART of the bar and is never hidden; overlays only ever
+       cover it by Z. The card-flow surfaces (start ceremony / task host /
+       the raised reveal modal) deliberately keep the footer ON TOP — cards
+       fly into a bright dock there. */
+    &--under-scene {
+        z-index: 11390;
+    }
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -6346,6 +6388,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
+        }
+    }
+    /* A card just LANDED (hand intake): the pack breathes open a touch and
+       the plate glows — "the hand accepts the card". Rides the cards' own
+       340ms transform transition; the class drops after ~240ms so the
+       spread eases back on its own. */
+    &--receiving {
+        --hd-spread: 1.05;
+
+        .con-handdock__plate-face {
+            box-shadow: inset 0 .05rem .9rem fade(@con-cyan, 20%);
         }
     }
     /* The playable mint hairline along the plate's top edge. */
@@ -8973,6 +9026,22 @@ html.con-scale-focus-venus .arc-scale--venus {
             max-width: 16rem;
             text-align: center;
         }
+        /* Start-scene context rail: a reached pick LIMIT is a NORMAL state —
+           calm amber (never the red error look, never a ✕ that collides with
+           the controller's X), one line of cause + recovery. The one-shot
+           settle plays on mount; a blocked A re-keys the chip to replay it
+           as the restrained "press was heard" feedback. */
+        &--limit {
+            display: inline-block;
+            background: fade(@con-amber, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+            color: #ffe6b0;
+            max-width: 36rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            animation: con-start-limit-in calc(240ms * var(--motion-scale, 1)) ease-out;
+        }
     }
     &__strip {
         flex: 1;
@@ -9219,6 +9288,17 @@ html.con-scale-focus-venus .arc-scale--venus {
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .5rem fade(@con-mint, 10%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 95%), 0 0 1.1rem fade(@con-mint, 26%); }
 }
+/* One-shot mount beats of the start-scene polish: the limit chip's settle
+   (replayed by a blocked A via re-key) and the pick counter's nudge
+   (replayed by a blocked RB). Transform/opacity + shadow only. */
+@keyframes con-start-limit-in {
+    from { opacity: 0.35; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes con-start-count-nudge {
+    0% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 95%), 0 0 .9rem fade(@con-amber, 35%); transform: scale(1.04); }
+    100% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); transform: scale(1); }
+}
 /* The summary's waiting state (transform/opacity only — see the launch block). */
 @keyframes con-start-scan {
     0% { transform: translateX(-100%); }
@@ -9238,6 +9318,8 @@ html.con-scale-focus-venus .arc-scale--venus {
 }
 @media (prefers-reduced-motion: reduce) {
     .con-cards__verdict--go,
+    .con-cards__verdict--limit,
+    .con-start__count--nudge,
     .con-start__beginline,
     .con-start__wait-scan,
     .con-start__beginline-flash,
@@ -9761,6 +9843,11 @@ body.con-start-ceremony {
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .7rem fade(@con-mint, 14%);
             b { color: @con-mint; }
         }
+        /* Blocked RB: the counter IS the step's gating reason — one calm
+           amber nudge (re-keyed per press), never a modal / focus change. */
+        &--nudge {
+            animation: con-start-count-nudge calc(420ms * var(--motion-scale, 1)) ease-out;
+        }
     }
 
     /* ── Body ──────────────────────────────────────────────────────── *
@@ -10165,6 +10252,66 @@ body.con-start-ceremony {
         gap: .2rem;
         .con-start__mc { width: .85rem; height: .85rem; }
     }
+    /* ── The ceremony PAYMENT beat ────────────────────────────────────────
+       The bought project cards shown FACE UP (a compact, non-navigable grid
+       — the player sees exactly WHICH cards they are buying) over the
+       cost + «Оплатить» CTA. On confirm these cards physically fly into the
+       hand dock (handDeliveryDirector); they are held out of the dock until
+       then, so this grid is their only home in the meantime. */
+    &__pay {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .5rem;
+    }
+    &__pay-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .55rem;
+        padding: .7rem .85rem;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, background calc(160ms * var(--motion-scale, 1)) ease;
+        &--focused {
+            background: fade(@con-mint, 14%);
+            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 30%);
+        }
+    }
+    &__pay-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--con-pay-cols, 4), auto);
+        gap: .45rem;
+        justify-content: center;
+        align-items: start;
+    }
+    /* Each bought card: a compact FACE (readable enough to identify), zeroed
+       legacy margin, inert. Same footprint feel as a hand card, never
+       navigable inside the payment element. */
+    &__pay-proxy {
+        display: flex;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: calc(0.36 * var(--con-ui-scale, 1));
+        }
+    }
+    &__pay-meta {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    &__pay-cards {
+        font-size: .72rem; color: @con-text-dim;
+        b { font-size: .85rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__pay-amount {
+        display: inline-flex; align-items: center; gap: .15rem;
+        font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
+    }
+    &__pay-cta {
+        margin-left: .1rem;
+    }
     &__right {
         flex: 1;
         min-width: 0;
@@ -10264,6 +10411,11 @@ body.con-start-ceremony {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* RAISED above the hand-dock zone (dock top ≈ 6.25rem + breathing):
+       cards are taken ONE BY ONE here and each must visibly fly into a
+       fully UNCOVERED dock below the panel — the modal never overlaps the
+       hand. The backdrop child still dims the full viewport. */
+    padding-bottom: 6.9rem;
     font-family: @con-font;
     color: @con-text;
 
@@ -10284,7 +10436,7 @@ body.con-start-ceremony {
     &__card {
         position: relative;
         width: min(70rem, 94vw);
-        max-height: 90vh;
+        max-height: calc(100vh - 8.9rem); /* the raise (6.9rem) + top air */
         display: flex;
         flex-direction: column;
         padding: 1.1rem 1.4rem .7rem;
@@ -10297,7 +10449,7 @@ body.con-start-ceremony {
        stable height makes the header / centre stage / bottom-air structure
        read the same at every card count, with the received cards vertically
        centred in the freed body (the body is flex:1 + centred). */
-    &__card--drawn { height: min(42rem, 84vh); }
+    &__card--drawn { height: ~"min(42rem, calc(100vh - 8.9rem))"; }
     &__head { margin-bottom: .7rem; }
     /* Header body: title + short intro + source chip grouped on the LEFT, a
        COMPACT count chip vertically CENTRED against them on the RIGHT (one
@@ -11269,6 +11421,87 @@ html.console-mode .notifications-layer {
         font-family: monospace;
         font-size: .65rem;
         color: fade(@con-amber, 75%);
+    }
+}
+
+/* ── System ALERT (pad-navigable replacement for App's native <dialog>
+      alert — server outage / rejected input / unexpected response). RED
+      accent so it reads as an ABNORMAL situation, not a routine prompt.
+      z ABOVE the game surfaces + the system menu, below the gamepad ring. */
+.con-alert {
+    position: fixed;
+    inset: 0;
+    z-index: 12900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck)
+    }
+    &__card {
+        position: relative;
+        min-width: 24rem;
+        max-width: 34rem;
+        padding: 1.3rem 1.6rem 1.1rem;
+        border-radius: .7rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%), 0 1.2rem 4rem rgba(0, 0, 0, 0.7), 0 0 2.4rem fade(@con-red, 12%);
+        font-family: @con-font;
+        color: @con-text;
+        text-align: center;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .95rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-red;
+        margin-bottom: .6rem;
+    }
+    &__mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: .3rem;
+        background: fade(@con-red, 18%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 70%);
+        font-weight: 700;
+    }
+    &__title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: .5rem;
+        line-height: 1.35;
+    }
+    &__body {
+        font-size: 1rem;
+        line-height: 1.45;
+        color: @con-text-dim;
+        margin-bottom: .9rem;
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .95rem;
+        color: @con-text;
+    }
+    &__queued {
+        margin-left: .3rem;
+        padding: .1rem .45rem;
+        border-radius: .3rem;
+        background: fade(@con-red, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+        font-size: .8rem;
+        color: fade(@con-red, 92%);
     }
 }
 
@@ -12807,6 +13040,10 @@ html.con-profile-handheld {
     /* The dock's rise is shallower on the Deck — hand the freed clearance
        back to the board (every px is board scale there). */
     .con-board { padding-bottom: 2.9rem; }
+    /* The reveal raise follows the shorter Deck dock (top ≈ 5.15rem). */
+    .con-reveal { padding-bottom: 5.6rem; }
+    .con-reveal__card { max-height: calc(100vh - 7.2rem); }
+    .con-reveal__card--drawn { height: ~"min(42rem, calc(100vh - 7.2rem))"; }
 
     /* ── 4 · right context + command panel (placement dossier) ───── */
     .con-inspector {
@@ -13251,6 +13488,7 @@ html.con-profile-handheld {
     .con-quit__btn { font-size: .75rem; padding: .5rem .8rem; }
     .con-confirm__card { zoom: 0.92; }
     .con-stranded { zoom: 0.92; }
+    .con-alert { zoom: 0.92; }
 }
 
 /* ── LARGE (4K / big TV): a gentle readability boost only ─────────── */
@@ -13391,10 +13629,10 @@ html.con-profile-large {
     align-self: center;
     display: flex;
 }
-/* The panel HOST: carries the schematic leaders (an SVG overhanging LEFT
-   into the card↔panel gap) — so the panel itself may keep overflow:hidden.
-   `--closing` hides the whole rules surface in ~90ms the instant the close
-   flight begins: the panel must never visibly lag the departing card. */
+/* The panel HOST. `--closing` hides the whole rules surface in ~90ms the
+   instant the close flight begins: the panel must never visibly lag the
+   departing card. (The schematic leader lines were removed — the COLOUR
+   link, chip accent = card element, is the connection now.) */
 .con-zoom-rules-host {
     position: relative;
     display: flex;
@@ -13405,21 +13643,9 @@ html.con-profile-large {
         transition-duration: 60ms;
     }
 }
-.con-zoom-rules__links {
-    position: absolute;
-    top: 0;
-    pointer-events: none;
-    overflow: visible;
-}
-.con-zoom-rules__node {
-    fill: fade(@con-cyan, 78%);
-    stroke: rgba(6, 12, 20, 0.9);
-    stroke-width: 2;
-}
-.con-zoom-rules__wire {
-    stroke: fade(@con-cyan, 38%);
-    stroke-width: 2;
-}
+/* The «ПРИ РОЗЫГРЫШЕ» play-rail is MINT at the source (premium_card.less
+   --pcard-onplay — the unified premium-wide colour of on-play), so it
+   already matches its mint rules chip everywhere. */
 .con-zoom-rules {
     display: flex;
     flex-direction: column;
@@ -13478,6 +13704,31 @@ html.con-profile-large {
         font-weight: 700;
         letter-spacing: .09rem;
         text-transform: uppercase;
+    }
+    /* ── COLOUR-CODED kinds — each chip carries the EXACT accent of its
+       card element (the user-approved linkage language): requirement =
+       the copper plate, action = the gold frame, effect = the blue frame,
+       «при розыгрыше» = the mint-recoloured play-rail (see the .con-zoom
+       .pcard-play-rail override below), VP = prestige gold, note = amber. */
+    &__group--requirement &__kind {
+        background: fade(@con-req-copper, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-req-copper, 55%);
+        color: #e8c496;
+    }
+    &__group--immediate &__kind {
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
+        color: #bdf3dc;
+    }
+    &__group--effect &__kind {
+        background: fade(@con-effect-blue, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-effect-blue, 55%);
+        color: #bfe0ff;
+    }
+    &__group--action &__kind {
+        background: fade(@con-action-gold, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-action-gold, 55%);
+        color: #f2e3bb;
     }
     &__group--victory-points &__kind {
         background: fade(@sem-prestige, 12%);
