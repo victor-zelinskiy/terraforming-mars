@@ -498,12 +498,6 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
 
-/** The absolute minimum grid card scale — a readability guard only. Kept
- *  PROFILE-INDEPENDENT (never `× conUiScale`): the ancestor `--con-ui-scale`
- *  already magnifies the rendered card for the couch, so a scaled floor would
- *  overshoot the body height and clip rows (the TV 8-corp grid bug). */
-const FIT_GRID_MIN_ZOOM = 0.34;
-
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
  *  survives a reload mid-ceremony and matches between the summary-submit arm
  *  and the in-ceremony re-affirm). */
@@ -547,14 +541,9 @@ export default defineComponent({
        *  run it on resize; never per focus. */
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopStripObs: undefined as (() => void) | undefined,
-      stopBodyObs: undefined as (() => void) | undefined,
       stopResize: undefined as (() => void) | undefined,
       fitScheduled: false,
       fitRetries: 0,
-      /** Bumped by every fitCardStrip run; a verifyFit recursion bails when a
-       *  fresher fit has superseded it (kills the stale-fit ↔ settle-fit race
-       *  that left the TV grid over-shrunk into extra rows). */
-      fitGen: 0,
       /** The post-frame-swap re-verify fit (out-in leaves no strip to measure
        *  at the watcher's nextTick). */
       fitTimer: undefined as number | undefined,
@@ -1016,7 +1005,6 @@ export default defineComponent({
       void this.$nextTick(() => {
         this.scrollFocusedIntoView();
         this.fitCardStrip();
-        this.observeBody(); // the body remounts with the keyed frame
       });
       // Re-verify once after the out-in frame swap (160ms) has settled —
       // belt-and-braces for a stale/absent strip ref at the nextTick fit.
@@ -1039,16 +1027,6 @@ export default defineComponent({
     /** Grid↔row transition re-fits the single row (never per focus). */
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
-    },
-    /** Re-fit once the deal cinematic ends — the entry fit can land while
-     *  the frame swap / deal still inflates the measured heights (TV 4K:
-     *  the strip kept an overshot zoom and pushed the context rail below
-     *  the fold). The TaskHost twin of the same fix; rAF-coalesced,
-     *  idempotent, never per focus. */
-    'deal.state.active'(active: boolean) {
-      if (!active) {
-        this.scheduleFit();
-      }
     },
     focusables(now: Array<Focusable>) {
       // Only clamp the CEREMONY focus cursor here — the wizard summary reuses
@@ -1123,7 +1101,6 @@ export default defineComponent({
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();
-      this.observeBody();
     });
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
@@ -1133,7 +1110,6 @@ export default defineComponent({
     document.body.classList.remove('con-start-ceremony');
     document.body.style.removeProperty('--con-start-rail-inset');
     this.stopStripObs?.();
-    this.stopBodyObs?.();
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
       window.clearTimeout(this.dealLaunchTimer);
@@ -1420,23 +1396,6 @@ export default defineComponent({
         }
       }
     },
-    /**
-     * Observe the BODY's own box — not just the (fixed-size) scene root — so
-     * the card fit re-runs on the body's SETTLE, not on a stale mid-transition
-     * height. The fit measures `body.clientHeight` for its vertical budget, and
-     * at TV 4K the frame-swap / deal window briefly reports a taller body; the
-     * fit then over-picks a multi-row grid that overflows once the body
-     * collapses. The body remounts inside the keyed frame, so re-attach each
-     * frame (frameKey watcher). Idempotent: a resize-driven re-fit only ever
-     * corrects the layout, never enlarges past the fit.
-     */
-    observeBody(): void {
-      this.stopBodyObs?.();
-      const body = this.$refs.body as HTMLElement | undefined;
-      if (body !== undefined && body !== null) {
-        this.stopBodyObs = useResizeObserver(body, () => this.scheduleFit()).stop;
-      }
-    },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
     scheduleFit(): void {
       if (this.fitScheduled) {
@@ -1531,9 +1490,6 @@ export default defineComponent({
         return;
       }
       this.fitRetries = 0;
-      // A fresh fit supersedes any in-flight verifyFit recursion (the stale
-      // first-fit's shrink loop must not fight this settled measurement).
-      const gen = ++this.fitGen;
       const cs = window.getComputedStyle(strip);
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
       const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
@@ -1550,7 +1506,6 @@ export default defineComponent({
         const heightZoom = availH / slotH;
         const zoom = Math.min(1 * s, Math.max(0.5 * s, Math.min(widthZoom, heightZoom)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
-        this.verifyFit(strip, false, zoom, gen);
         return;
       }
       // GRID: pick the balanced rows×cols with the LARGEST zoom fitting both axes.
@@ -1564,57 +1519,12 @@ export default defineComponent({
           best = {zoom, cols};
         }
       }
-      // `best.zoom` is the TRUE both-axes fit — honour it directly (the floor
-      // is only a tiny absolute readability guard, NEVER scaled by the profile:
-      // a profile-scaled floor `0.4 * s` reached 0.8 at TV and OVERRODE the
-      // fit, forcing the 8-corp grid to overflow its body [row 2 clipped]).
-      // An absolute floor can only ever SHRINK a card that already overflowed;
-      // it can never enlarge one that fit, so the working profiles are
-      // untouched (their fit already sits above the floor).
-      const zoom = Math.max(FIT_GRID_MIN_ZOOM, best.zoom);
+      const zoom = Math.max(0.4 * s, best.zoom);
       strip.style.setProperty('--con-cards-grid-zoom', zoom.toFixed(3));
       // Cap the content width at the planned columns — leftover width from a
       // height-governed zoom must not let flex-wrap unbalance the rows.
       // Zoom quantizes tiles to device px — rounding room (see TaskHost).
       strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
-      this.verifyFit(strip, true, zoom, gen);
-    },
-    /**
-     * The measured SAFETY NET (mirrors PlayedCardsOverlay.verifyShrink). The
-     * analytic fit reads `body.clientHeight` for its vertical budget, but at TV
-     * 4K the frame-swap / profile-scale window can report a taller body than
-     * the settled one, so the search over-picks rows and the cards overflow
-     * (row clipped under the command bar). After the layout commits, this reads
-     * the REAL result: if the body still SCROLLS, shrink the applied zoom by the
-     * exact overflow ratio and let the narrower cards repack into fewer rows.
-     * Coordinate-agnostic (scroll/clientHeight are one space), bounded, and it
-     * can ONLY shrink — a body that already fits returns on the first frame, so
-     * the profiles that fit are never touched.
-     */
-    verifyFit(strip: HTMLElement, grid: boolean, zoom: number, gen: number, iter = 0): void {
-      requestAnimationFrame(() => {
-        const body = this.$refs.body as HTMLElement | undefined;
-        // A newer fit ran (settle / resize) — its own verify is authoritative;
-        // this stale recursion must not keep shrinking against an old plan.
-        if (body === undefined || body === null || gen !== this.fitGen || iter > 4 || strip.children.length === 0) {
-          return;
-        }
-        const over = body.scrollHeight - body.clientHeight;
-        if (over <= 2) {
-          return; // fits — never enlarge
-        }
-        const ratio = body.clientHeight / body.scrollHeight;
-        const next = Math.max(FIT_GRID_MIN_ZOOM, zoom * ratio * 0.98);
-        if (next >= zoom - 0.003) {
-          return; // already at the readability floor — accept the scroll
-        }
-        strip.style.setProperty(grid ? '--con-cards-grid-zoom' : '--con-cards-zoom', next.toFixed(3));
-        // Narrower cards repack — drop the column cap so they fill fewer rows.
-        if (grid) {
-          strip.style.removeProperty('max-width');
-        }
-        this.verifyFit(strip, grid, next, gen, iter + 1);
-      });
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
     // LB/RB(prev/nextSection) the symmetric wizard-step navigation, B(back)

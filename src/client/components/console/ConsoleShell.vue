@@ -572,14 +572,16 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': !handDockVisible, 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
-      <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — it is NEVER hidden
-           during a game (two lifecycle exceptions unmount it: the endgame,
-           and the pre-game INITIAL SETUP where no actual hand exists yet —
-           see `handDockVisible`; the bar drops its bay with it, so no empty
-           socket is reserved). The player must always see how many cards
-           they hold; the bar carries the command hints LEFT + RIGHT of the
-           permanent centre bay. Surfaces interact with it by Z ONLY: tall
+    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
+      <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — its CARDS are hidden
+           in two lifecycle windows (the endgame; and the pre-game INITIAL
+           SETUP where no actual hand exists yet — see `handDockVisible`, so
+           the «КАРТЫ 0/0» readout never lies), but the command bar KEEPS its
+           reserved bay track through the whole in-game lifecycle (see the bar
+           below) — only the dock's own cards `v-show` off. The player must
+           always see how many cards they hold; the bar carries the command
+           hints LEFT + RIGHT of the permanent centre bay. Surfaces interact
+           with it by Z ONLY: tall
            bottom-reaching panels (the «Разыграно» table, composers, sheets,
            inspectors — `footerUnderScene`) drop the footer BELOW themselves
            so they cover the PACK where they overlap while the plate +
@@ -600,7 +602,13 @@
                        :lifted="handRevealState.dockLifted"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
-      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="handDockVisible" />
+      <!-- The command bar keeps its BAY (centre track) for the whole in-game
+           lifecycle — the bay-mode fit (planCommandRun drops/splits commands
+           to the width) is what keeps the setup's 5-command run from clipping
+           at TV 4K. Only the DOCK CARDS (the «КАРТЫ 0/0» readout) are hidden
+           during the pre-game setup (handDockVisible); the reserved bay track
+           stays, so the bar layout is identical to in-game. -->
+      <ConsoleCommandBar :context="commandContext" :commands="commands" :bay="game.phase !== 'end'" />
     </div>
 
     <!-- HEADLESS transport: the WaitingFor brain (polling / holds / modal
