@@ -32,7 +32,6 @@
       </ConsoleScrollArea>
       <!-- Its own gliding frame, scoped to this panel (the tableau's frame
            is gated off while the list is open). -->
-      <ConsoleCardFocusFrame selector=".con-played-events__slot.con-played__slot--focused .con-played__focusbox" />
     </div>
   </div>
 </template>
@@ -41,12 +40,11 @@
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 
 export default defineComponent({
   name: 'ConsolePlayedEventsOverlay',
-  components: {ConsoleScrollArea, ConsoleCardFocusFrame, ConsolePlayedCardLite},
+  components: {ConsoleScrollArea, ConsolePlayedCardLite},
   props: {
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
     focusKey: {type: String, required: true},

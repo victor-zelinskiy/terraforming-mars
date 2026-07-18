@@ -57,7 +57,9 @@ export default defineComponent({
     orLabel(): string {
       return translateText('OR');
     },
-    /** First group of the play zone; groups.length = no zone → no rail. */
+    /** First group of the play zone; groups.length = no zone → no rail.
+     *  `buildMechanics` reorders every card (corporations included) so the
+     *  on-play run is always trailing — one code path for the rail. */
     playStart(): number {
       return playZoneStart(this.mechanics.groups);
     },

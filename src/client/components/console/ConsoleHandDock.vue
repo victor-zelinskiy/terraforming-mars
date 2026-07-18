@@ -6,6 +6,7 @@
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
          'con-handdock--lifted': lifted,
+         'con-handdock--receiving': receiving,
        }"
        role="button"
        tabindex="-1"
@@ -90,6 +91,7 @@
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 
@@ -128,26 +130,37 @@ export default defineComponent({
      */
     lifted: {type: Boolean, default: false},
     /**
-     * Starting-cards DELIVERY hold: names still in flight from the project
-     * deck (handDeliveryDirector.ts). The pack still LAYS OUT at the full
-     * count (proxies land on final positions), but a held card renders
-     * hidden-with-layout and is EXCLUDED from the shown count — so a paid
-     * card never appears in the dock before its delivery lands, and the
-     * counter ticks up 0 → N as the cards arrive.
+     * HAND-INTAKE hold: names withheld from the shown pack while they are
+     * still on their way in (handDeliveryDirector.ts — the starting-cards
+     * delivery, an untaken reveal batch, a card mid-flight from a take).
+     * A MULTISET: a duplicated name hides only as many copies as are held.
+     * The pack still LAYS OUT at the full count (proxies land on final
+     * positions), but a held card renders hidden-with-layout and is
+     * EXCLUDED from the shown count — the counter only ever ticks up when
+     * a card PHYSICALLY lands in the dock.
      */
     deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   emits: ['open'],
+  data() {
+    return {
+      /** A card just landed — the short "the pack accepts it" pulse. */
+      receiving: false,
+      receiveTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    };
+  },
   computed: {
-    heldSet(): Set<string> {
-      return new Set(this.deliveryHeld);
-    },
-    /** The count the STATUS LINE shows — held (in-flight) cards excluded. */
-    count(): number {
-      if (this.heldSet.size === 0) {
-        return this.cards.length;
+    /** Held copies per name (multiset — see the prop doc). */
+    heldCounts(): Map<string, number> {
+      const m = new Map<string, number>();
+      for (const n of this.deliveryHeld) {
+        m.set(n, (m.get(n) ?? 0) + 1);
       }
-      return this.cards.reduce((n, c) => n + (this.heldSet.has(c.name) ? 0 : 1), 0);
+      return m;
+    },
+    /** The count the STATUS LINE shows — held (in-flight) copies excluded. */
+    count(): number {
+      return this.packSlots.reduce((n, s) => n + (s.held ? 0 : 1), 0);
     },
     /** The pack LAYOUT is always the full hand (proxies must land on final
      *  positions) — the count above is the display-only, delivery-aware one. */
@@ -157,13 +170,21 @@ export default defineComponent({
     /** EVERY card gets its slot (index ↔ index: the plan's slots are in
      *  hand order — oldest first, the deep-thickness head, then the
      *  distinct tail). Keys stay unique even if a variant duplicate ever
-     *  lands in hand. Card sizes stay CSS-owned (console.less defaults
-     *  mirror the model constants; profiles override them). */
+     *  lands in hand. A held name hides its NEWEST copies (arriving cards
+     *  are the hand's tail — an already-shown older copy never blinks).
+     *  Card sizes stay CSS-owned (console.less defaults mirror the model
+     *  constants; profiles override them). */
     packSlots(): Array<PackSlot> {
+      const totals = new Map<string, number>();
+      for (const card of this.cards) {
+        totals.set(card.name, (totals.get(card.name) ?? 0) + 1);
+      }
       const seen = new Map<string, number>();
       return this.cards.map((card, i) => {
         const n = (seen.get(card.name) ?? 0) + 1;
         seen.set(card.name, n);
+        const total = totals.get(card.name) ?? 1;
+        const heldK = Math.min(this.heldCounts.get(card.name) ?? 0, total);
         const slot = this.plan.slots[i];
         return {
           key: n === 1 ? card.name : `${card.name}#${n}`,
@@ -172,13 +193,34 @@ export default defineComponent({
           dy: slot.dy,
           tilt: slot.tilt,
           deep: slot.deep,
-          held: this.heldSet.has(card.name),
+          held: n > total - heldK,
         };
       });
     },
     ariaLabel(): string {
       return `${translateText('Cards in hand')}: ${this.count}`;
     },
+  },
+  watch: {
+    /** A landing (or any growth) — the pack "accepts" the card: a short
+     *  spread-breathe + plate glow, riding the cards' own transitions. */
+    count(now: number, was: number) {
+      if (now > was) {
+        if (this.receiveTimer !== undefined) {
+          clearTimeout(this.receiveTimer);
+        }
+        this.receiving = true;
+        this.receiveTimer = setTimeout(() => {
+          this.receiving = false;
+          this.receiveTimer = undefined;
+        }, motionMs(240));
+      }
+    },
+  },
+  beforeUnmount() {
+    if (this.receiveTimer !== undefined) {
+      clearTimeout(this.receiveTimer);
+    }
   },
   methods: {
     onClick(): void {

@@ -1,23 +1,27 @@
 /*
- * HAND DELIVERY STATE — the registry behind the "you paid for your starting
- * cards, and now they physically fly into your hand" cinematic
- * (handDeliveryDirector + ConsoleHandDeliveryLayer).
+ * HAND INTAKE STATE — the registry behind every "cards physically arrive in
+ * the player's hand" cinematic (handDeliveryDirector + ConsoleHandDeliveryLayer):
+ * the starting-cards delivery, the reveal-modal takes («взять» / «взять все»),
+ * the single-card fullscreen take and the research-buy purchase.
  *
- * The starting-projects buy is ONE atomic server submit — the paid cards
- * land in `cardsInHand` on the very next playerView. A plain reactive jump
- * would read as "the cards were already mine the instant I clicked". This
- * layer sequences the DELIVERY so the moment reads honestly: the bought
- * cards are HELD out of the dock (never shown before the payment lands),
- * then flown from the project deck (top HUD) down into the hand dock bay
- * and materialized under the landed proxies.
+ * TWO hold ledgers keep an arriving card out of the dock until it PHYSICALLY
+ * lands (the dock hides it with layout + excludes it from the shown count):
  *
- *  - `held` — bought card names withheld from the dock (hidden + excluded
- *    from the shown count) until each one's proxy touches down. Set at
- *    SUBMIT time so the cards can never flash in the dock before delivery.
- *  - `flights` — one proxy per delivered card on the fixed delivery layer.
+ *  - `held` — the EPISODIC pre-flight hold (armDeliveryHold): the start
+ *    ceremony withholds the bought cards from the wizard submit until the
+ *    payment confirm fires the flight. Names move `held` → `inFlight` the
+ *    moment their flight begins (the dock union makes that hand-off
+ *    invisible).
+ *  - `inFlight` — a MULTISET of names currently being flown into the dock by
+ *    a live intake run. One copy is released per touchdown — that release IS
+ *    what materializes the real dock card and ticks the «КАРТЫ» counter, so
+ *    the count can only ever grow on a physical landing.
  *
- * All motion lives in handDeliveryDirector.ts. Mirrors the reveal / exit
- * layers' function-ref element registry (v-for order is not guaranteed).
+ * `flights` — one face→back flip proxy per travelling card on the fixed
+ * delivery layer, each carrying its DOCK-ORDER z (a later hand card always
+ * paints over the one it will cover). All motion / lifecycle lives in
+ * handDeliveryDirector.ts. Mirrors the reveal / exit layers' function-ref
+ * element registry (v-for order is not guaranteed).
  */
 
 import {reactive} from 'vue';
@@ -26,15 +30,29 @@ import {CardName} from '@/common/cards/CardName';
 export type DeliveryFlight = {
   id: number,
   name: CardName,
+  /** Stacking inside the delivery layer — the card's DOCK order (a card that
+   *  ends up higher in the hand pack flies above its neighbours too). */
+  z: number,
 };
 
 export const handDeliveryState = reactive({
-  /** A delivery is armed or in flight (the dock withholds `held`). */
-  active: false,
-  /** Names still IN FLIGHT — hidden in the dock, excluded from the count. */
+  /** Episodic pre-flight hold (start ceremony) — see the module doc. */
   held: [] as Array<CardName>,
+  /** Cards mid-flight into the dock (multiset) — released per touchdown. */
+  inFlight: [] as Array<CardName>,
   flights: [] as Array<DeliveryFlight>,
 });
+
+/** Remove ONE copy of `name` from the in-flight multiset (a touchdown). */
+export function releaseInFlight(name: CardName): void {
+  const i = handDeliveryState.inFlight.indexOf(name);
+  if (i >= 0) {
+    handDeliveryState.inFlight = [
+      ...handDeliveryState.inFlight.slice(0, i),
+      ...handDeliveryState.inFlight.slice(i + 1),
+    ];
+  }
+}
 
 const els = new Map<number, HTMLElement>();
 let seq = 0;
@@ -53,6 +71,13 @@ export function registerDeliveryEl(id: number, el: HTMLElement | null): void {
 
 export function deliveryEl(id: number): HTMLElement | undefined {
   return els.get(id);
+}
+
+/** Drop a finished run's proxies (concurrent runs keep theirs). */
+export function removeDeliveryFlights(ids: ReadonlyArray<number>): void {
+  const drop = new Set(ids);
+  handDeliveryState.flights = handDeliveryState.flights.filter((f) => !drop.has(f.id));
+  ids.forEach((id) => els.delete(id));
 }
 
 export function clearDeliveryFlights(): void {

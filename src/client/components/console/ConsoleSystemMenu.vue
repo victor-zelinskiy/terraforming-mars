@@ -143,7 +143,7 @@ export default defineComponent({
       updates: number,
       clientVersion: string,
       serverVersion: string,
-    } {
+      } {
       const s = realtimeState;
       const healthy = realtimeHealthy();
       let statusLabel: string;

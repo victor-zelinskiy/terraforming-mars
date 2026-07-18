@@ -96,15 +96,15 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   await page.waitForTimeout(3500); // deal cinematic settles
 
   // Start wizard: corp → preludes ×2 → projects (buy N) → verdict. Longer
-  // settles after each step-advance (Period) — a press landing mid step
+  // settles after each step-advance (KeyE = RB) — a press landing mid step
   // transition doesn't move the focus.
-  const walk: Array<string> = ['Enter', 'Period', 'Enter', 'ArrowRight', 'Enter', 'Period'];
+  const walk: Array<string> = ['Enter', 'KeyE', 'Enter', 'ArrowRight', 'Enter', 'KeyE'];
   for (let i = 0; i < buyProjects; i++) {
     walk.push('Enter', 'ArrowRight');
   }
-  walk.push('Period', 'Period', 'Period'); // verdict → start (zero-buy double-confirm safe)
+  walk.push('KeyE', 'KeyE', 'KeyE'); // verdict → summary (RB stops there — zero-buy double-confirm safe)
   for (const code of walk) {
-    await key(page, code, code === 'Period' ? 1600 : 1000);
+    await key(page, code, code === 'KeyE' ? 1600 : 1000);
   }
   await page.waitForTimeout(3000);
   // Finish adaptively until the CALM board home — the dock is `live` (no
@@ -120,7 +120,7 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   const quick = page.locator('.con-quick'); // a drifted RT/LT wheel
   const handSec = page.locator('.con-hand');
   const banner = page.locator('.con-banner'); // the placement band
-  const finishers = ['ArrowRight', 'Enter', 'Period'];
+  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
   // Rounds: a follow-up prompt (e.g. a drifted corp pick's mandatory first
   // action) may mount right AFTER the home flashes live — settle, re-check,
   // finish it too.

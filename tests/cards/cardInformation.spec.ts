@@ -182,9 +182,11 @@ describe('card information model', function() {
     expect(new Set(ids).size).to.eq(ids.length);
   });
 
-  it('group order is stable: requirements → immediate → effects/actions → VP', () => {
+  it('group order is stable: requirements → actions → effects → on-play → VP', () => {
+    // Matches the reordered premium mechanics panel (mechanicsModel.orderMechGroups):
+    // «при розыгрыше» (immediate) always reads LAST, actions above effects.
     const orderOf = (kind: string) =>
-      ({'requirements': 0, 'immediate': 1, 'effect': 2, 'action': 2, 'victory-points': 3}[kind] ?? 9);
+      ({'requirements': 0, 'action': 1, 'effect': 2, 'immediate': 3, 'victory-points': 4}[kind] ?? 9);
     for (const card of cards) {
       const kinds = (info(card)?.groups ?? []).map((g) => orderOf(g.kind));
       const sorted = [...kinds].sort((a, b) => a - b);

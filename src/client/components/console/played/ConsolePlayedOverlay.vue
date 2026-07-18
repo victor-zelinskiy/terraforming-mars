@@ -105,7 +105,6 @@
       <!-- The gliding selection frame — gated off while the events list owns
            the pad (it mounts its own), the fullscreen viewer is up, or the
            hero card is still airborne (it glides to the landed card at reveal). -->
-      <ConsoleCardFocusFrame selector=".con-played__table .con-played__slot--focused .con-played__focusbox" :active="!eventsOpen && (!heroActive || heroRevealed)" />
     </div>
 
     <transition name="con-layer">
@@ -141,7 +140,6 @@ import {
 import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
 import ConsolePlayedEventsOverlay from '@/client/components/console/played/ConsolePlayedEventsOverlay.vue';
@@ -155,7 +153,7 @@ const MIN_PILE_BUDGET = 280;
 
 export default defineComponent({
   name: 'ConsolePlayedOverlay',
-  components: {ConsoleScrollArea, ConsoleCardFocusFrame, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedEventsOverlay},
+  components: {ConsoleScrollArea, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedEventsOverlay},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},

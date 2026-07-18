@@ -37,6 +37,8 @@ export interface PadFrame {
   btnX?: boolean;
   /** Monotonic counter — bumped each time the DevTools "Экспорт консоли" button is clicked. */
   exportReq?: number;
+  /** Monotonic counter — bumped each time the DevTools "Закрыть консоль" button is clicked. */
+  closeReq?: number;
 }
 
 /** One synthesized input action (the pure step function's output, unit-testable). */
@@ -114,20 +116,34 @@ const BOOTSTRAP = `(() => {
     'fill="#f5f7fa" stroke="#1c2733" stroke-width="1.3"/></svg>';
   document.documentElement.appendChild(cur);
 
-  // "Экспорт консоли" button — clicked with the pad cursor (a real, trusted mouse click), so
-  // its onclick fires like a mouse would. Bumps a counter the main loop watches; main writes the
-  // file and calls __tmExportDone to flash the result on the button.
+  // Injected DevTools toolbar — the "Экспорт консоли" + "Закрыть консоль" buttons, in a
+  // right-anchored flex bar so they sit side by side no matter the button text width (the
+  // export button relabels itself on a toast). Each is clicked with the pad cursor (a real,
+  // trusted mouse click), so its onclick fires like a mouse would, and bumps a counter the
+  // main loop watches: export → write the file + __tmExportDone flashes the result; close →
+  // main calls closeDevTools() (the page can't reliably close its own DevTools window).
   window.__tmExportReq = 0;
-  const btn = document.createElement('button');
-  btn.textContent = '\\u2b07 Экспорт консоли';
-  btn.style.cssText = 'position:fixed;top:40px;right:12px;z-index:2147483646;' +
-    'font:600 12px system-ui,sans-serif;color:#eaf2ff;background:#1d2c3a;' +
-    'border:1px solid #3d566e;border-radius:6px;padding:6px 11px;cursor:pointer;' +
-    'box-shadow:0 2px 8px rgba(0,0,0,.5);opacity:.92;';
-  btn.onmouseenter = () => { btn.style.background = '#264057'; };
-  btn.onmouseleave = () => { btn.style.background = '#1d2c3a'; };
+  window.__tmCloseReq = 0;
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;top:40px;right:12px;z-index:2147483646;' +
+    'display:flex;gap:8px;align-items:flex-start;';
+  const mkBtn = (label, accent) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'font:600 12px system-ui,sans-serif;color:#eaf2ff;background:#1d2c3a;' +
+      'border:1px solid ' + accent + ';border-radius:6px;padding:6px 11px;cursor:pointer;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,.5);opacity:.92;white-space:nowrap;';
+    b.onmouseenter = () => { b.style.background = '#264057'; };
+    b.onmouseleave = () => { b.style.background = '#1d2c3a'; };
+    return b;
+  };
+  const closeBtn = mkBtn('\\u2715 Закрыть консоль', '#c04747');
+  closeBtn.onclick = () => { window.__tmCloseReq = (window.__tmCloseReq | 0) + 1; };
+  const btn = mkBtn('\\u2b07 Экспорт консоли', '#3d566e');
   btn.onclick = () => { window.__tmExportReq = (window.__tmExportReq | 0) + 1; };
-  document.documentElement.appendChild(btn);
+  bar.appendChild(closeBtn);
+  bar.appendChild(btn);
+  document.documentElement.appendChild(bar);
   let toastTimer = 0;
   window.__tmExportDone = (ok, msg) => {
     btn.textContent = ok ? '\\u2705 ' + (msg || 'Сохранено') : '\\u26a0 ' + (msg || 'Ошибка');
@@ -151,7 +167,7 @@ const BOOTSTRAP = `(() => {
       } catch (e) { /* gamepad API unavailable */ }
       cur.style.display = p ? 'block' : 'none';
       cur.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-      const base = {w: innerWidth, h: innerHeight, exportReq: window.__tmExportReq | 0};
+      const base = {w: innerWidth, h: innerHeight, exportReq: window.__tmExportReq | 0, closeReq: window.__tmCloseReq | 0};
       if (!p) return Object.assign({ok: false}, base);
       return Object.assign({
         ok: true,
@@ -203,6 +219,7 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
   let timer: ReturnType<typeof setInterval> | undefined;
   let inFlight = false;
   let lastExportReq = 0;
+  let lastCloseReq = 0;
   let exporting = false;
   let state: PadCursorState = {x: 80, y: 80, aHeld: false, xHeld: false};
 
@@ -232,6 +249,7 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
     }
     state = {x: 80, y: 80, aHeld: false, xHeld: false};
     lastExportReq = 0;
+    lastCloseReq = 0;
     void dtc.executeJavaScript(BOOTSTRAP).catch(() => {/* frontend not ready — the tick retries */});
     timer = setInterval(() => {
       if (inFlight || dtc.isDestroyed()) {
@@ -271,6 +289,15 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
               });
           } else if (req > lastExportReq) {
             lastExportReq = req; // no handler wired — swallow so it can't re-fire
+          }
+          // Close-button edge: shut the DevTools window from the main process (the injected
+          // page can't reliably close its own DevTools). devtools-closed then fires → stop().
+          const closeReq = Number(frame.closeReq ?? 0);
+          if (closeReq > lastCloseReq) {
+            lastCloseReq = closeReq;
+            if (win.webContents.isDevToolsOpened()) {
+              win.webContents.closeDevTools();
+            }
           }
         })
         .catch(() => {

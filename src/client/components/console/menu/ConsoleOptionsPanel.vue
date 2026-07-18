@@ -77,9 +77,15 @@ import {
   cycleConsoleProfileOverride,
 } from '@/client/console/consoleLayoutProfile';
 import {consoleModeState, setConsoleMode} from '@/client/console/consoleModeState';
+import {
+  GLYPHSET_LABELS,
+  cycleGlyphSetOverride,
+  glyphSetState,
+  resolveGlyphSetId,
+} from '@/client/gamepad/glyphSets';
 import {translateText} from '@/client/directives/i18n';
 
-type OptionRowId = 'interface' | 'display';
+type OptionRowId = 'interface' | 'display' | 'controller';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
@@ -87,7 +93,7 @@ export default defineComponent({
   components: {GamepadGlyph},
   emits: ['close'],
   data() {
-    return {consoleLayoutState, consoleModeState, cursor: 0};
+    return {consoleLayoutState, consoleModeState, glyphSetState, cursor: 0};
   },
   computed: {
     rows(): ReadonlyArray<OptionRow> {
@@ -109,7 +115,24 @@ export default defineComponent({
           glyph: '🖥',
           value: this.displayValue,
         },
+        {
+          id: 'controller',
+          label: 'Controller',
+          sub: 'Button glyph set',
+          glyph: '🎮',
+          value: this.controllerValue,
+        },
       ];
+    },
+    controllerValue(): string {
+      // Reads glyphSetState (override + detected) so the row reacts to both a
+      // manual change and a newly-detected pad.
+      const choice = this.glyphSetState.override;
+      const value = translateText(GLYPHSET_LABELS[choice]);
+      // Auto shows the set it currently resolves to, so the pick is informed.
+      return choice === 'auto' ?
+        `${value} (${translateText(GLYPHSET_LABELS[resolveGlyphSetId()])})` :
+        value;
     },
     displayValue(): string {
       const override = currentProfileOverride();
@@ -155,6 +178,11 @@ export default defineComponent({
         // Cycle Auto → Handheld → Standard → Large → TV 4K in place — the
         // change applies instantly (reversible) and the diag block reacts.
         cycleConsoleProfileOverride();
+        break;
+      case 'controller':
+        // Cycle Auto → Xbox → PlayStation → Steam in place — every button
+        // glyph across the shell re-renders instantly and the choice persists.
+        cycleGlyphSetOverride();
         break;
       }
     },

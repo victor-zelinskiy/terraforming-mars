@@ -82,7 +82,7 @@ async function walkIntoGame(page: Page): Promise<void> {
     await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
     await page.waitForTimeout(400);
     const before = (await activeStep.innerText()).toLowerCase();
-    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'Period', 1200);
+    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'KeyE', 1200);
     for (let w = 0; w < 20 && await summary.count() === 0 &&
          (await activeStep.innerText()).toLowerCase() === before; w++) {
       await page.waitForTimeout(250);

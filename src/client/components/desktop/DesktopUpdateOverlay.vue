@@ -36,7 +36,8 @@
       <!-- pending: a newer build is in flight, so the installed version is already outdated and
            the newest release isn't downloadable yet. Hold here and poll rather than install an
            intermediate version the player would be updated off again minutes later. The poll
-           starts the download by itself; Try again just nudges it. -->
+           starts the download by itself — there is nothing for the player to do, so no button
+           (a "Try again" here just nudged the same poll and read as a required action). -->
       <div v-if="state.mode === 'pending'" class="desktop-update__cta-block">
         <div class="desktop-update__status desktop-update__wait">
           <span class="desktop-update__spinner"></span>
@@ -44,10 +45,6 @@
           <span v-else v-i18n>Update is building — waiting…</span>
         </div>
         <p class="desktop-update__lead" v-i18n>The download will start on its own as soon as it is ready. This usually takes a few minutes.</p>
-        <button class="desktop-update__btn desktop-update__btn--primary" data-gp-verb="Try again" @click="retry">
-          <span class="gp-btn-glyph" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
-          <span v-i18n>Try again</span>
-        </button>
       </div>
 
       <!-- downloading -->
@@ -230,6 +227,17 @@ export default defineComponent({
   color: #cfe9f5;
   font-size: 12.5px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+/* TV 4K (con-profile-tv): the compact corner pill is tiny from the couch.
+   Scale it — and its edge offset — by the shared console UI scale so it stays
+   a small corner pill (never a panel), just readable across the room. The
+   `zoom` pattern mirrors the other legacy fallback surfaces on the tv profile. */
+:global(html.con-profile-tv) .desktop-update--pill {
+  top: calc(14px * var(--con-ui-scale, 1));
+  right: calc(18px * var(--con-ui-scale, 1));
+}
+:global(html.con-profile-tv) .desktop-update__pill {
+  zoom: var(--con-ui-scale, 1);
 }
 .desktop-update__spinner {
   width: 12px;

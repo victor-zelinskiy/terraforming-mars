@@ -100,11 +100,12 @@ test.describe('console corp first-action modal', () => {
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
     await page.waitForTimeout(3500);
 
-    // Walk the start wizard adaptively (A picks, RT continues, LT launches on
-    // the summary — pressed twice for the zero-projects double-confirm) until
-    // the start scene is gone — this also carries the corporation-play press.
+    // Walk the start wizard adaptively (A picks / launches on the summary —
+    // pressed twice for the zero-projects double-confirm; RB advances a
+    // completed multi-pick step; extra presses are inert) until the start
+    // scene is gone — this also carries the corporation-play press.
     const startScene = page.locator('.con-start__frame');
-    const cycle = ['Enter', 'Period', 'Comma', 'Comma'];
+    const cycle = ['Enter', 'KeyE', 'Comma', 'Comma'];
     for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
       await key(page, cycle[i % cycle.length], 1100);
     }

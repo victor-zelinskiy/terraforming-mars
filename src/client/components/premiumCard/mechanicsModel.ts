@@ -399,14 +399,15 @@ function isProseTextItem(node: ItemType): boolean {
 
 /**
  * THE PLAY ZONE — the card's on-play mechanics («при розыгрыше») — is the
- * TRAILING run of plain/production groups (the DSL convention draws
- * effect/action frames first, immediate mechanics last; guard-tested against
- * the card-information model in premiumCardViewModel.spec, so a future card
- * breaking the invariant fails with its name). Returns the index of the
- * first group of that run, or `groups.length` when the card has no play
- * zone (pure effect/action cards). The premium face draws the card-native
- * play-rail accent right before this index; the fullscreen rule overlay
- * tethers its «При розыгрыше» block to that rail.
+ * TRAILING run of plain/production groups. `buildMechanics` reorders every
+ * card into the canonical top→bottom layout (actions, then passive effects,
+ * then the on-play zone LAST — see `orderMechGroups`), so this run is always
+ * trailing on EVERY card type, corporations included (their starting-resources
+ * run, authored at the top of the DSL, is moved to the bottom). Returns the
+ * index of the first group of that run, or `groups.length` when the card has
+ * no play zone (pure effect/action cards). The premium face draws the
+ * card-native play-rail accent right before this index; the fullscreen rule
+ * overlay tethers its «При розыгрыше» block to that rail.
  */
 export function playZoneStart(groups: ReadonlyArray<MechGroup>): number {
   const isPlayKind = (kind: MechGroupKind) => kind === 'plain' || kind === 'production';
@@ -415,6 +416,37 @@ export function playZoneStart(groups: ReadonlyArray<MechGroup>): number {
     start--;
   }
   return start;
+}
+
+/**
+ * CANONICAL LAYOUT RANK (top → bottom on the card face): actions, then passive
+ * effects, then the on-play zone (плашка «при розыгрыше») at the very BOTTOM —
+ * unified across every card type. A corporation's starting-resources run,
+ * authored at the TOP of the DSL, is moved to the bottom exactly like a project
+ * card's trailing immediate mechanics, so «при розыгрыше» always reads last.
+ * The structured card-information text is ordered the same way, so the face and
+ * the rule text match 1:1.
+ */
+const GROUP_RANK: Readonly<Record<MechGroupKind, number>> = {
+  'action': 0,
+  'corp-action': 0,
+  'effect': 1,
+  'corp-effect': 1,
+  'plain': 2,
+  'production': 2,
+};
+
+/**
+ * Reorder a card's mech groups into `GROUP_RANK`. A STABLE sort: same-rank
+ * groups keep their source order, so an OR-choice run — which only ever links
+ * same-rank groups (action↔action, plain↔plain) — stays contiguous and keeps
+ * its «ИЛИ» divider intact.
+ */
+export function orderMechGroups(groups: ReadonlyArray<MechGroup>): Array<MechGroup> {
+  return groups
+    .map((group, index) => ({group, index}))
+    .sort((a, b) => (GROUP_RANK[a.group.kind] - GROUP_RANK[b.group.kind]) || (a.index - b.index))
+    .map((entry) => entry.group);
 }
 
 export type BuildMechanicsOptions = {
@@ -501,17 +533,33 @@ export function buildMechanics(renderData: CardComponent | undefined, options: B
     groups.push(group);
   }
 
-  for (let i = 1; i < groups.length; i++) {
-    if (groups[i].kind === 'action' && groups[i - 1].kind === 'action' && groups[i].orJoin !== true) {
-      groups[i].orJoin = true;
+  // Reorder into the canonical layout (actions → effects → on-play at the
+  // bottom) so «при розыгрыше» always reads last, unified across card types.
+  const ordered = orderMechGroups(groups);
+
+  // orJoin only ever links SAME-rank neighbours (a choice is between
+  // alternatives of the same nature); the stable sort keeps those adjacent, but
+  // a group promoted to the head of its rank must shed an orJoin it inherited
+  // from a now-distant neighbour of another rank.
+  for (let i = 0; i < ordered.length; i++) {
+    if (ordered[i].orJoin === true && (i === 0 || GROUP_RANK[ordered[i - 1].kind] !== GROUP_RANK[ordered[i].kind])) {
+      ordered[i].orJoin = false;
+    }
+  }
+  // One card = one activatable action, so consecutive action groups ARE
+  // alternatives — draw the «ИЛИ» divider even where the printed OR was lost in
+  // a per-branch split (the Vermin class). Recomputed on the FINAL adjacency.
+  for (let i = 1; i < ordered.length; i++) {
+    if (ordered[i].kind === 'action' && ordered[i - 1].kind === 'action' && ordered[i].orJoin !== true) {
+      ordered[i].orJoin = true;
     }
   }
 
-  const score = groups.reduce((acc, g) => acc + g.weight, 0);
+  const score = ordered.reduce((acc, g) => acc + g.weight, 0);
   return {
-    groups,
-    density: densityOf(groups.length, score),
+    groups: ordered,
+    density: densityOf(ordered.length, score),
     score,
-    textOnly: groups.length === 0,
+    textOnly: ordered.length === 0,
   };
 }

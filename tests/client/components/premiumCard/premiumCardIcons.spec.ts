@@ -1,6 +1,7 @@
 import {expect} from 'chai';
-import {tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
-import {ICardRenderTile} from '@/common/cards/render/Types';
+import {mechItemIcon, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
+import {ICardRenderItem, ICardRenderTile} from '@/common/cards/render/Types';
+import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {TileType} from '@/common/TileType';
 
 // A pure helper (no Vue deps) — runs under the server runner, like
@@ -8,6 +9,44 @@ import {TileType} from '@/common/TileType';
 function tileNode(tile: TileType, opts: {isAres?: true, hasSymbol?: true} = {}): ICardRenderTile {
   return {is: 'tile', tile, isAres: opts.isAres, hasSymbol: opts.hasSymbol};
 }
+
+function itemNode(type: CardRenderItemType, amount = -1): ICardRenderItem {
+  return {is: 'item', type, amount} as ICardRenderItem;
+}
+
+describe('premiumCardIcons.mechItemIcon', () => {
+  it('colonies + trade resolve to their shipped tile art (no fallback chip)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.COLONIES))).to.deep.equal({kind: 'img', url: 'assets/tiles/colony.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.TRADE))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade.png'});
+  });
+
+  it('trade fleet is the trade canvas inverted', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_FLEET))).to.deep.equal({kind: 'img', url: 'assets/tiles/trade.png', mod: 'invert'});
+  });
+
+  it('corporation + self-replicating use the generic premium card cover', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.CORPORATION))).to.deep.equal({kind: 'img', url: 'assets/resources/card.webp'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.SELF_REPLICATING))).to.deep.equal({kind: 'img', url: 'assets/resources/card.webp'});
+  });
+
+  it('tag markers + promo icons resolve to shipped art', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.NO_TAGS))).to.deep.equal({kind: 'img', url: 'assets/tags/tag-none.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.DIVERSE_TAG))).to.deep.equal({kind: 'img', url: 'assets/tags/diverse.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.CATHEDRAL))).to.deep.equal({kind: 'img', url: 'assets/promo/cathedral.png'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.CITY_OR_SPECIAL_TILE))).to.deep.equal({kind: 'img', url: 'assets/promo/city-or-special-tile.png'});
+  });
+
+  it('concept plates carry an i18n KEY + accent (prelude / award / milestone / global req)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.PRELUDE))).to.deep.equal({kind: 'label', text: 'Prelude', accent: 'prelude'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.AWARD))).to.deep.equal({kind: 'label', text: 'Award', accent: 'award'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.MILESTONE))).to.deep.equal({kind: 'label', text: 'Milestone', accent: 'award'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS))).to.deep.equal({kind: 'label', text: 'Global requirements'});
+  });
+
+  it('trade discount is a value-bearing token', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_DISCOUNT))).to.deep.equal({kind: 'token'});
+  });
+});
 
 describe('premiumCardIcons.tileIcon', () => {
   it('base Capital renders the plain city tile (no Ares art)', () => {

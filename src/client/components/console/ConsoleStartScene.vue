@@ -28,10 +28,14 @@
                 <span>{{ $t(chip.label) }}</span>
               </span>
             </div>
-            <!-- Card-step pick counter (wizard). -->
-            <span v-if="currentStep !== undefined" class="con-start__count" :class="{'con-start__count--ready': currentStepComplete}">
-              {{ $t('Selected') }}: <b>{{ picksHere.length }}</b> /
-              {{ currentStep.input.min === currentStep.input.max ? currentStep.input.max : currentStep.input.min + '–' + currentStep.input.max }}
+            <!-- Card-step pick counter (wizard): a plain «Выбрано N из M» —
+                 never the «2 / 0–10» range fraction. Re-keyed on a blocked
+                 RB press so the chip replays its one-shot nudge (the calm
+                 "this is what still gates the step" feedback). -->
+            <span v-if="currentStep !== undefined" :key="'cnt' + counterNudge"
+                  class="con-start__count"
+                  :class="{'con-start__count--ready': currentStepComplete, 'con-start__count--nudge': counterNudge > 0}">
+              {{ $t('Selected') }} <b>{{ picksHere.length }}</b> {{ ofMaxText }}
             </span>
             <!-- P15/P17: the economy capsule reads as labelled columns —
                  never a bare «40 −7 × 3» math string. ONE megacredit
@@ -44,8 +48,12 @@
                 <b>{{ budget.start }}
                   <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
+              <!-- The cost column NAMES its source — «ПРОЕКТЫ», never an
+                   abstract «ПОКУПКА» (on the prelude step it reads as the
+                   preludes' price otherwise). The value keeps the honest
+                   count × per-card price math. -->
               <span v-if="budget.buys > 0" class="con-start__budget-col">
-                <span class="con-start__budget-label">{{ $t('Purchase') }}</span>
+                <span class="con-start__budget-label">{{ $t('Projects') }}</span>
                 <b>{{ budget.buys }} × {{ budget.cardCost }} = −{{ budget.buys * budget.cardCost }}
                   <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b>
               </span>
@@ -95,32 +103,29 @@
                 <span v-if="isPickedHere(card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
               </div>
             </div>
-            <!-- P15 grammar: multi-pick → A select/deselect + Y continue;
-                 single-pick (corp / CEO) → A SELECTS + advances (draft parity).
-                 Hidden while the deal cinematic runs (the bar must never
-                 promise a selection that isn't interactive yet); the focused
-                 card's context swaps smoothly on d-pad moves (con-verdict-swap). -->
+            <!-- The CONTEXT / STATUS RAIL (2026-07 polish): the focused
+                 card's name + its state ONLY — controller prompts live in
+                 the shell's ONE bottom command bar, never duplicated here.
+                 Hidden while the deal cinematic runs (nothing is
+                 interactive yet); the focused card's context swaps
+                 smoothly on d-pad moves (con-verdict-swap); the bar keeps
+                 its pinned height so a message never shifts the cards. -->
             <div v-if="focusedCard !== undefined && !deal.state.active" class="con-cards__verdictbar">
               <transition name="con-verdict-swap" mode="out-in">
                 <div class="con-cards__verdict-inner" :key="focusedCard.name">
                   <span class="con-cards__verdict-name">{{ $t(focusedCard.name) }}</span>
-                  <span v-if="singlePickStep" class="con-cards__verdict con-cards__verdict--ok">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                  <span v-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
+                    <span aria-hidden="true">✓</span>
+                    <span>{{ $t('Card selected') }}<template v-if="!singlePickStep"> · {{ picksHere.length }} {{ ofMaxText }}</template></span>
                   </span>
-                  <span v-else-if="isPickedHere(focusedCard.name)" class="con-cards__verdict con-cards__verdict--picked">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
-                  </span>
-                  <span v-else-if="canPickFocused" class="con-cards__verdict con-cards__verdict--ok">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                  </span>
-                  <span v-else class="con-cards__verdict con-cards__verdict--blocked">
-                    <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
-                  </span>
-                  <span class="con-cards__verdict con-cards__verdict--zoom">
-                    <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
-                  </span>
-                  <span v-if="!singlePickStep && currentStepComplete" class="con-cards__verdict con-cards__verdict--go">
-                    <GamepadGlyph control="triggerR" /><span>{{ $t('Continue') }}</span>
+                  <!-- A reached pick limit is a NORMAL state, not an error:
+                       calm amber, cause + recovery, no ✕ (it collides with
+                       the controller's X button). Re-keyed on a blocked A
+                       press → the chip replays its one-shot settle as the
+                       restrained "the press was heard" feedback. -->
+                  <span v-else-if="!singlePickStep && !canPickFocused" :key="'lim' + blockedNudge"
+                        class="con-cards__verdict con-cards__verdict--limit">
+                    {{ limitText }}
                   </span>
                 </div>
               </transition>
@@ -189,7 +194,7 @@
             <div v-if="budget !== undefined" class="con-start__money">
               <div class="con-start__money-line"><span>{{ $t('Starting funds') }}</span>
                 <b>{{ budget.start }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
-              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Purchase') }}: {{ budget.buys }} × {{ budget.cardCost }}</span>
+              <div v-if="budget.buys > 0" class="con-start__money-line"><span>{{ $t('Projects') }}: {{ budget.buys }} × {{ budget.cardCost }}</span>
                 <b>−{{ budget.buys * budget.cardCost }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
               <div v-if="budget.preludes !== 0" class="con-start__money-line"><span>{{ $t('Prelude effects') }}</span>
                 <b>{{ budget.preludes > 0 ? '+' : '' }}{{ budget.preludes }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
@@ -287,15 +292,32 @@
                are IN the panel, and this press is what spends them on the
                cards bought at setup (the server holds the deduction until
                it — see Player.payForBoughtCardsInput). Skipped entirely when
-               nothing was bought. -->
+               nothing was bought. The bought PROJECT cards are shown FACE UP
+               here (a compact, non-navigable grid — same footprint as the
+               hand) so the player sees exactly WHICH cards they are buying:
+               these are held out of the dock until the payment confirms, and
+               on confirm THESE cards physically fly into the hand. -->
           <transition name="con-start-corpout">
             <div v-if="corpPayCost !== undefined" class="con-start__pay">
               <span class="con-start__section-title">{{ $t('Payment') }}</span>
-              <div class="con-start__pay-card" :class="{'con-start__pay-card--focused': isFocused('pay', PAY_KEY)}">
-                <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
-                <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
-                <div class="con-start__slot-a con-start__pay-cta">
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+              <div class="con-start__pay-card"
+                   :class="{
+                     'con-start__pay-card--focused': isFocused('pay', PAY_KEY),
+                     'con-start__pay-card--grid': payProjects.length > 0,
+                   }">
+                <div v-if="payProjects.length > 0" class="con-start__pay-grid" ref="payGrid"
+                     :style="{'--con-pay-cols': payGridCols}">
+                  <div v-for="name in payProjects" :key="name"
+                       class="con-start__pay-proxy" :data-pay-card="name">
+                    <Card :card="{name}" :key="name" lightweight />
+                  </div>
+                </div>
+                <div class="con-start__pay-meta">
+                  <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
+                  <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                  <div class="con-start__slot-a con-start__pay-cta">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -373,14 +395,6 @@
       </div>
     </transition>
 
-    <!-- The gliding selection frame (motion-v springs) — mounts OUTSIDE the
-         keyed frame so it survives step swaps and glides across them.
-         Self-resolving: finds the focused card inside this scene itself. -->
-    <ConsoleCardFocusFrame :active="!deal.state.active"
-                           selector=".con-cards__slot--focused > :is(.card-container, .pcard),
-                                     .con-start__mini--focused > :is(.card-container, .pcard),
-                                     .con-start__corp--focused > :is(.card-container, .pcard),
-                                     .con-start__prelude--focused > :is(.card-container, .pcard)" />
     <!-- The deal cinematic stage: deck + lite proxy flyers (GSAP). Alive
          only while a deal runs — will-change is scoped by construction. -->
     <ConsoleCardDealLayer v-if="deal.state.active" ref="dealLayer"
@@ -408,13 +422,15 @@
  *  a dedicated candidate strip. All predicates are REUSED from
  *  startGameFlowState (one brain, marker-driven — never title text).
  *
- * Grammar (P15): ←/→/↑/↓ navigate · A = select / deselect ONLY (single-
- * pick replaces; picked → deselect — never a hidden continue) · X = the
- * focused card fullscreen (the viewer's A toggles the pick via the select
- * context) · Y = the ONE continue / begin (zero-projects arms an inline
- * warning first) · LB/RB = STEP navigation (labelled as steps, hidden
- * when unavailable) · B = minimize to inspect the board (intentional —
- * the amber chip returns; ceremony B = defer as before).
+ * Grammar (the 2026-07 polish pass): ←/→/↑/↓ navigate · A = the exact
+ * contextual verb — select / deselect a card (single-pick replaces +
+ * advances; a limit-blocked card has NO A at all — the context rail
+ * explains), and the ONE launch commit on the summary (zero-projects arms
+ * an inline warning first) · X = the focused card fullscreen (the
+ * viewer's A toggles the pick via the select context) · LB/RB = the
+ * symmetric STEP navigation (RB gated on step validity; stops AT the
+ * summary) · B = minimize to inspect the board (intentional — the amber
+ * chip returns; ceremony B = defer as before). RT/LT are unused here.
  * Picks live in module state (consoleStartState) so defer / re-renders
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
@@ -429,11 +445,10 @@ import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, consoleStartState, ensureStartWizard, initialCardsInputOf,
@@ -448,12 +463,13 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
+import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {setConsoleStartCommands, resetConsoleStartUi} from '@/client/console/consoleStartUi';
+import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, StartCommand} from '@/client/console/consoleStartUi';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, runCardCollect, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
@@ -461,7 +477,6 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
-import ConsoleCardFocusFrame from '@/client/components/console/cardDeal/ConsoleCardFocusFrame.vue';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -483,9 +498,16 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
 
+/** The stable delivery-hold key for a bought-cards set (name-derived, so it
+ *  survives a reload mid-ceremony and matches between the summary-submit arm
+ *  and the in-ceremony re-affirm). */
+function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
+  return 'ceremony|' + [...names].sort().join(',');
+}
+
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardFocusFrame},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -497,8 +519,14 @@ export default defineComponent({
     return {
       state: consoleStartState,
       focusIdx: 0,
-      /** Zero-projects submit armed (second X confirms — the skip warning). */
+      /** Zero-projects submit armed (second A confirms — the skip warning). */
       armedSkip: false,
+      /** A pressed on a limit-blocked card → the rail message replays its
+       *  one-shot settle (restrained feedback; state never changes). */
+      blockedNudge: 0,
+      /** RB pressed on an incomplete step → the pick counter replays its
+       *  one-shot nudge (the header names what still gates the step). */
+      counterNudge: 0,
       /** THIS session showed the deferred corporationPlay prompt → a played
        *  corp has physically moved to the «Разыграно» table (see corpColumn). */
       sawCorpPlayPrompt: false,
@@ -664,6 +692,25 @@ export default defineComponent({
       }
       return stepComplete(step, this.picks);
     },
+    /** «из M» — the counter's / picked-chip's plain denominator (the server's
+     *  pick max; readiness styling carries the min). */
+    ofMaxText(): string {
+      const step = this.currentStep;
+      if (step === undefined) {
+        return '';
+      }
+      return translateTextWithParams('of ${0}', [String(step.input.max)]);
+    },
+    /** The limit message: cause + recovery, calm amber (never an error). */
+    limitText(): string {
+      const step = this.currentStep;
+      if (step === undefined) {
+        return '';
+      }
+      const max = String(step.input.max);
+      return translateTextWithParams(
+        'Limit ${0}/${1} reached — deselect one of the marked cards', [max, max]);
+    },
     cardCost(): number {
       return cardCostForCorp(this.state.corp);
     },
@@ -702,6 +749,55 @@ export default defineComponent({
      *  the step is skipped entirely, exactly as the rules read). */
     corpPayCost(): {megacredits: number, cards: number} | undefined {
       return this.mode === 'ceremony' ? startFlowCorpPayPrompt(this.playerView) : undefined;
+    },
+    /**
+     * The bought project cards (the ceremony's held + payment-grid set). The
+     * player's wizard picks are the explicit intent; a reload mid-ceremony
+     * (module state reset) falls back to the current hand, which at the pay
+     * step IS exactly the bought projects (corp is played, preludes/CEO are
+     * not in `cardsInHand`). Empty until the ceremony (never held on the
+     * wizard, never on a returning save with no picks + no hand).
+     */
+    ceremonyBoughtNames(): ReadonlyArray<CardName> {
+      if (this.mode !== 'ceremony') {
+        return [];
+      }
+      if (this.state.projects.length > 0) {
+        return this.state.projects;
+      }
+      return this.playerView.cardsInHand.map((c) => c.name);
+    },
+    /** The face-up cards shown in the payment element (only during the pay
+     *  beat — the corp-play beat holds them silently out of the dock). */
+    payProjects(): ReadonlyArray<CardName> {
+      return this.corpPayCost !== undefined ? this.ceremonyBoughtNames : [];
+    },
+    /** A balanced column count for the compact pay grid (rows stay even —
+     *  never a lone orphan on a second row). */
+    payGridCols(): number {
+      const n = this.payProjects.length;
+      if (n <= 4) {
+        return n;
+      }
+      const cols = Math.min(6, Math.ceil(Math.sqrt(n)));
+      const rows = Math.ceil(n / cols);
+      return Math.ceil(n / rows);
+    },
+    /**
+     * The stable key of the delivery HOLD episode: non-empty from the first
+     * ceremony frame (corp-play or pay beat) while cards were bought, so the
+     * bought projects are withheld from the dock until the payment flies them
+     * in. Name-derived (not the module signature) so it survives a reload
+     * mid-ceremony. Empty = nothing to hold (wizard / nothing bought).
+     */
+    deliveryHoldSignature(): string {
+      if (this.mode !== 'ceremony' || this.ceremonyBoughtNames.length === 0) {
+        return '';
+      }
+      if (this.corpPlayPrompt === undefined && this.corpPayCost === undefined) {
+        return '';
+      }
+      return deliveryHoldKey(this.ceremonyBoughtNames);
     },
     /**
      * The corporation column. Two honest shapes:
@@ -852,63 +948,28 @@ export default defineComponent({
       return this.mode === 'ceremony' && !this.sawCorpPlayPrompt &&
         this.corpPlayCard === undefined && corporationCardNames(this.playerView).length > 0;
     },
-    footHints(): Array<{control: GlyphControl, label: string, enabled?: boolean}> {
-      // While the deal cinematic runs, selection is NOT interactive yet —
-      // the bar advertises only the skip (any button skips).
-      if (this.deal.state.active) {
-        return [{control: 'confirm', label: 'Skip'}];
-      }
-      if (this.mode === 'wizard') {
-        const onSummary = this.currentStep === undefined;
-        if (onSummary) {
-          // The launch is A now — the same control the CTA plate names (and
-          // the same one every other console surface confirms with). RT/RB are
-          // step navigation only and stop at the summary, so they are not
-          // advertised here at all.
-          const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [];
-          if (this.summaryCards.length > 0) {
-            hints.push({control: 'dpad', label: 'Navigate'});
-          }
-          hints.push({control: 'confirm', label: this.launchVerb, enabled: this.wizardReady});
-          if (this.summaryCards.length > 0) {
-            hints.push({control: 'secondary', label: 'Inspect'});
-          }
-          hints.push({control: 'bumperL', label: 'Prev step'});
-          hints.push({control: 'back', label: 'Minimize'});
-          return hints;
-        }
-        // P15 grammar: multi-pick → A select/deselect + Y the ONE continue;
-        // single-pick (corp / CEO) → A SELECTS + advances in one press (draft
-        // parity), so no separate Continue. X = fullscreen card; LB is STEP
-        // navigation (hidden on step 1, never a generic «back»); B = minimize
-        // to inspect the board (intentional — the amber chip returns).
-        const hints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
-          {control: this.wizardGrid ? 'dpad' : 'dpadH', label: 'Navigate'},
-          {control: 'confirm', label: this.singlePickStep ? 'Select' : 'Select / Deselect'},
-          {control: 'secondary', label: 'Inspect'},
-        ];
-        if (!this.singlePickStep) {
-          hints.push({control: 'triggerR', label: 'Continue', enabled: this.currentStepComplete});
-        }
-        if (this.railPos > 0) {
-          hints.push({control: 'bumperL', label: 'Prev step'});
-        }
-        hints.push({control: 'back', label: 'Minimize'});
-        return hints;
-      }
-      // The card-payment beat: ONE press, and it names its own cost.
-      if (this.corpPayCost !== undefined) {
-        return [
-          {control: 'confirm', label: 'Pay'},
-          {control: 'back', label: 'Minimize'},
-        ];
-      }
-      return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now', enabled: this.focusables.length > 0},
-        {control: 'secondary', label: 'Inspect', enabled: this.focusables.length > 0},
-        {control: 'back', label: 'Minimize'},
-      ];
+    /** The live command contract — ONE pure derivation (startSceneCommands),
+     *  mirrored verbatim by the shell's bar. See consoleStartUi.ts for the
+     *  setup grammar (context-exact A · X · LB/RB steps · B; no RT, no
+     *  generic «Навигация»). */
+    footHints(): Array<StartCommand> {
+      return startSceneCommands({
+        dealActive: this.deal.state.active,
+        mode: this.mode,
+        onSummary: this.onSummary,
+        singlePick: this.singlePickStep,
+        focusedPicked: this.focusedCard !== undefined && this.isPickedHere(this.focusedCard.name),
+        canPickFocused: this.canPickFocused,
+        hasCards: this.onSummary ? this.summaryCards.length > 0 : this.stepEntries.length > 0,
+        stepComplete: this.currentStepComplete,
+        hasPrevStep: this.railPos > 0,
+        launchVerb: this.launchVerb,
+        launches: this.launch.launches,
+        wizardReady: this.wizardReady,
+        payBeat: this.corpPayCost !== undefined,
+        ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
+        hasFocusables: this.focusables.length > 0,
+      });
     },
   },
   watch: {
@@ -935,8 +996,12 @@ export default defineComponent({
       },
     },
     frameKey() {
-      this.focusIdx = 0;
+      // Entering a step focuses the player's OWN pick when one exists (a
+      // LB/RB return lands on the chosen card) — else the first card.
+      this.focusIdx = this.stepInitialFocus();
       this.armedSkip = false;
+      this.blockedNudge = 0;
+      this.counterNudge = 0;
       void this.$nextTick(() => {
         this.scrollFocusedIntoView();
         this.fitCardStrip();
@@ -1003,10 +1068,10 @@ export default defineComponent({
       },
     },
     /** Mirror the scene's live contract into the shell's command bar (the bar
-     *  is the ONE hint surface; the inline footer echoes the same list). */
+     *  is the ONE hint surface — no inline duplicates anywhere in the scene). */
     'footHints': {
       immediate: true,
-      handler(hints: Array<{control: GlyphControl, label: string, enabled?: boolean}>) {
+      handler(hints: Array<StartCommand>) {
         setConsoleStartCommands(hints);
       },
     },
@@ -1016,6 +1081,19 @@ export default defineComponent({
       immediate: true,
       handler() {
         void this.$nextTick(() => this.syncCeremonyLayout());
+      },
+    },
+    /** Withhold the bought project cards from the dock the instant the
+     *  ceremony opens (so they are never in the hand before the player pays);
+     *  they are shown face-up in the payment element and fly in on the pay
+     *  confirm. Idempotent per deal (armDeliveryHold no-ops after the flight);
+     *  survives defer + reload. */
+    'deliveryHoldSignature': {
+      immediate: true,
+      handler(key: string) {
+        if (key !== '') {
+          armDeliveryHold(key, this.ceremonyBoughtNames);
+        }
       },
     },
   },
@@ -1127,6 +1205,16 @@ export default defineComponent({
       }
       const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
+    },
+    /** The focus a freshly-entered frame opens on: a wizard step with an
+     *  existing pick focuses the FIRST picked card (LB/RB returns land on
+     *  the player's own choice); everything else starts at 0. */
+    stepInitialFocus(): number {
+      if (this.mode !== 'wizard' || this.currentStep === undefined) {
+        return 0;
+      }
+      const idx = this.stepEntries.findIndex((c) => this.picksHere.includes(c.name));
+      return idx > 0 ? idx : 0;
     },
     onNav(dir: NavDirection): void {
       // The summary browses the whole chosen setup (corp → preludes → CEO →
@@ -1439,7 +1527,9 @@ export default defineComponent({
       strip.style.maxWidth = `${Math.ceil(best.cols * slotW * zoom + (best.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
-    // RT(nextTab) continue, LB/RB(prev/nextSection) wizard step, B(back) minimize.
+    // LB/RB(prev/nextSection) the symmetric wizard-step navigation, B(back)
+    // minimize. RT/LT are deliberately UNUSED in the initial setup (RT keeps
+    // its in-game role; the setup never trains a trigger habit).
     onPress(action: ConsoleAction): void {
       switch (action) {
       case 'primary':
@@ -1449,16 +1539,6 @@ export default defineComponent({
         // P13 global rule: X reads the focused card fullscreen.
         this.zoomFocused();
         return;
-      case 'nextTab':
-        // RT = continue a wizard STEP (with the group-hero / discard exit on a
-        // completed multi-pick step). It deliberately does NOT reach the
-        // summary's launch: starting the game is the explicit A CTA now, and
-        // leaving a second, invisible way to fire it on a trigger is exactly
-        // the "non-obvious button" this replaced.
-        if (!this.onSummary) {
-          this.continueWithExit();
-        }
-        return;
       case 'prevSection':
         // LB is STEP navigation (back one wizard step); B always minimizes.
         if (this.mode === 'wizard') {
@@ -1466,8 +1546,9 @@ export default defineComponent({
         }
         return;
       case 'nextSection':
-        // RB = forward step navigation (LB's pair); gated on completion. Like
-        // RT it stops AT the summary — there is no step beyond it.
+        // RB = forward step navigation (LB's pair); gated on completion. It
+        // stops AT the summary — starting the game is ONLY the explicit A
+        // commit there, never a shoulder press.
         if (this.mode === 'wizard' && !this.onSummary) {
           this.continueWithExit();
         }
@@ -1530,7 +1611,11 @@ export default defineComponent({
         return;
       }
       if (this.picksHere.length >= step.input.max) {
-        return; // slots full — the verdict bar explains (deselect first)
+        // Slots full: state / focus never change — the context rail names the
+        // limit + recovery, and replays its one-shot settle as the restrained
+        // "the press was heard" feedback.
+        this.blockedNudge++;
+        return;
       }
       this.writePicks(step.id, [...this.picksHere, name]);
     },
@@ -1631,6 +1716,9 @@ export default defineComponent({
       }
       if (this.currentStep !== undefined) {
         if (!this.currentStepComplete) {
+          // Blocked RB: no transition — the header's pick counter (the step's
+          // gating reason) replays its one-shot nudge instead.
+          this.counterNudge++;
           return;
         }
         this.state.stepIdx = this.railPos + 1;
@@ -1648,6 +1736,13 @@ export default defineComponent({
       if (hasProjectsStep && this.state.projects.length === 0 && !this.armedSkip) {
         this.armedSkip = true;
         return;
+      }
+      // Withhold the bought cards from the dock BEFORE the submit brings them
+      // into `cardsInHand`, so they never flash in the hand on the way into
+      // the ceremony (the reactive watcher re-affirms the SAME hold once in
+      // ceremony — idempotent). They fly in on the payment confirm.
+      if (this.state.projects.length > 0) {
+        armDeliveryHold(deliveryHoldKey(this.state.projects), [...this.state.projects]);
       }
       this.$emit('submit', buildInitialCardsResponse(input, this.picks));
     },
@@ -1678,9 +1773,13 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return;
       }
-      // The card-payment beat: a bare confirm — the server holds the exact
-      // deduction behind it (no hero flight; nothing physical moves).
+      // The card-payment beat: the server holds the exact M€ deduction behind
+      // this confirm. The bought cards were shown FACE UP in the pay grid;
+      // now they physically fly from there into the hand dock — measure their
+      // rects BEFORE the submit (the grid unmounts as the payment resolves),
+      // fire the delivery, then submit.
       if (item.kind === 'pay') {
+        this.launchStartCardsDelivery();
         this.$emit('submit', {type: 'option'});
         return;
       }
@@ -1729,6 +1828,33 @@ export default defineComponent({
         }
       }
       submit();
+    },
+    /**
+     * The starting-cards DELIVERY (handDeliveryDirector). Fire on the payment
+     * confirm: capture the FACE-UP card rects from the payment grid NOW (the
+     * grid unmounts as the payment resolves), so the same cards can lift off
+     * exactly where they sat, flip to their backs and arc down into the hand
+     * dock. Only fires while the delivery is holding this deal (the arm
+     * watcher) — a no-op otherwise.
+     */
+    launchStartCardsDelivery(): void {
+      const names = [...this.ceremonyBoughtNames];
+      if (names.length === 0) {
+        return;
+      }
+      const grid = this.$refs.payGrid as HTMLElement | undefined;
+      const rects = new Map<CardName, DOMRect>();
+      if (grid !== undefined && grid !== null) {
+        for (const el of grid.querySelectorAll<HTMLElement>('[data-pay-card]')) {
+          const name = el.getAttribute('data-pay-card') as CardName | null;
+          const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
+          const r = card.getBoundingClientRect();
+          if (name !== null && r.width > 4) {
+            rects.set(name, r);
+          }
+        }
+      }
+      runHandDelivery(names, rects);
     },
     /** Arm the played-card hero for a START-SCENE press: the card lifts out
      *  of its scene slot (never the play composer), carrying the prelude's

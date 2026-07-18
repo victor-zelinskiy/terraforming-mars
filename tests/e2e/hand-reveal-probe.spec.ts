@@ -87,13 +87,23 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   await page.waitForTimeout(3500);
-  const walk: Array<string> = ['Enter', 'Period', 'Enter', 'ArrowRight', 'Enter', 'Period'];
+  const walk: Array<string> = ['Enter', 'KeyE', 'Enter', 'ArrowRight', 'Enter', 'KeyE'];
   for (let i = 0; i < buyProjects; i++) {
     walk.push('Enter', 'ArrowRight');
   }
-  walk.push('Period', 'Period', 'Period');
   for (const code of walk) {
-    await key(page, code, code === 'Period' ? 1600 : 1000);
+    await key(page, code, code === 'KeyE' ? 1600 : 1000);
+  }
+  // Deterministically submit the start summary: RB (KeyE) is INERT on the
+  // summary (the launch is the explicit A CTA), so continue to the launch
+  // CTA «НАЧАТЬ ПАРТИЮ», then press Enter (A) to pay + start. Relying on the
+  // self-healing loop's rotating Enter to hit it was the boot's flake source.
+  const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
+  for (let i = 0; i < 5 && await launch.count() === 0; i++) {
+    await key(page, 'KeyE', 1300);
+  }
+  if (await launch.count() > 0) {
+    await key(page, 'Enter', 2200); // pay + start
   }
   await page.waitForTimeout(3000);
   const live = page.locator('.con-handdock--live');
@@ -103,21 +113,30 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   const handSec = page.locator('.con-hand');
   const composer = page.locator('.con-composer');
   const banner = page.locator('.con-banner');
-  const finishers = ['ArrowRight', 'Enter', 'Period'];
+  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
   for (let round = 0; round < 3; round++) {
     for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
       if (await quick.count() > 0) {
         await key(page, 'Escape', 1100);
       } else if (await composer.count() > 0) {
-        await key(page, 'KeyX', 1600); // the play composer confirms on X
+        // The PLAY composer confirms on X; the CORP FIRST-ACTION composer
+        // (`--corpfirst`, e.g. Tharsis Republic's mandatory city) confirms
+        // on A — X there is «Осмотреть» (inspect) and never advances.
+        const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
+        await key(page, corpFirst ? 'Enter' : 'KeyX', 1600);
       } else if (await handSec.count() > 0) {
         await key(page, await banner.count() > 0 ? 'Escape' : 'Enter', 1400);
       } else if (await wizard.count() > 0) {
         await key(page, finishers[i % finishers.length], 900);
       } else if (await placement.count() > 0) {
-        await key(page, dirs[i % dirs.length], 700);
-        await key(page, 'Enter', 1500);
+        // The cursor is seeded on a LEGAL cell — try it directly first;
+        // only walk if that cell was already taken.
+        await key(page, 'Enter', 1200);
+        if (await placement.count() > 0) {
+          await key(page, dirs[i % dirs.length], 600);
+          await key(page, 'Enter', 1400);
+        }
       } else {
         await key(page, 'Enter', 1500);
       }
@@ -133,7 +152,7 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
 
 /** Wait for the first reveal proxy (spawn is a couple frames after A). */
 async function expectProxies(page: Page): Promise<void> {
-  await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 2000});
+  await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 3500});
 }
 
 /** Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle — the reveal

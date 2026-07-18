@@ -321,7 +321,20 @@ export function applyPerformanceSwitches(app: App, probe: HardwareProbe = detect
       // the allowlist by design (gpu_finch_features.cc checks it FIRST). If
       // Graphite init still fails on this Mesa, Chromium falls back to
       // Ganesh-Vulkan (still GPU) — graceful, not a black screen.
-      sw('enable-skia-graphite');
+      //
+      // GATED OFF on the Steam Machine: Skia Graphite on Linux-Vulkan is still
+      // Chromium bring-up (the "Ship Skia Graphite on Linux-Vulkan" tracker is
+      // open — we ride it only via this bypass), and the Machine's RDNA3/Mesa
+      // stack shows a flicker regression on fullscreen card open/close (the
+      // layer-heavy top-layer <dialog> + GSAP FLIP + CSS-zoom path — exactly the
+      // first-layer-allocation glitch class early Graphite is known for). The
+      // Deck (Jupiter/Galileo) is CONFIRMED good on Graphite, so it keeps it.
+      // Falling back to Ganesh-Vulkan here is still full GPU. This is an A/B
+      // test first; re-enable without a rebuild via
+      // TM_ELECTRON_SWITCHES="enable-skia-graphite".
+      if (probe.steamHardware !== 'steam-machine') {
+        sw('enable-skia-graphite');
+      }
     }
   } else if (forceSoftware) {
     // ── Software path (TM_ELECTRON_SOFTWARE=1 — the rollback) ───────────────
@@ -367,9 +380,11 @@ export function applyPerformanceSwitches(app: App, probe: HardwareProbe = detect
       // Electron/driver without a rebuild:
       //   TM_ELECTRON_SWITCHES="skia-graphite-dawn-backend=d3d12"
       sw('skia-graphite-dawn-backend', 'd3d11');
-    } else if (process.platform === 'linux') {
+    } else if (process.platform === 'linux' && probe.steamHardware !== 'steam-machine') {
       // Vulkan is the only sensible Dawn backend on Linux — pinned explicitly
       // for determinism and [TM perf] readability (mirrors the Windows pin).
+      // Only meaningful while Graphite is on, so skipped on the Steam Machine
+      // (Graphite gated off above → Ganesh-Vulkan, no Dawn backend to pin).
       sw('skia-graphite-dawn-backend', 'vulkan');
     }
   }

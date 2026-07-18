@@ -1,6 +1,14 @@
 name: CI
 
-on: [pull_request, push]
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same ref cancels the in-flight CI run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-linux:
@@ -12,10 +20,15 @@ jobs:
     - uses: actions/setup-node@v5
       with:
         node-version: 22
+        cache: npm
     - run: npm ci
     - run: npm run make:static
     - run: npm run lint
+    # lint (above) already type-checks the client via vue-tsc, so skip the
+    # duplicate fork-ts-checker pass inside the webpack build.
     - run: npm run build
+      env:
+        SKIP_TS_CHECK: '1'
     - run: npm run build:tests
     - run: npm test
 
@@ -27,18 +40,30 @@ jobs:
     - uses: actions/setup-node@v5
       with:
         node-version: 22
+        cache: npm
     - run: npm ci
     - run: npm run make:static
-    - run: npm run lint
+    # No lint here — eslint / vue-tsc / i18n audit are OS-independent and already
+    # run on build-linux. Windows only verifies the build + test compilation, to
+    # catch Windows-specific path / build issues without doubling CI time.
+    # Type checking is OS-independent (covered by build-linux's lint), so skip the
+    # in-build fork-ts-checker pass here too.
     - run: npm run build
+      env:
+        SKIP_TS_CHECK: '1'
     - run: npm run build:tests
-    - run: npm test
 
   build-docker:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v5
-    - run: docker build .
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: false
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
 
