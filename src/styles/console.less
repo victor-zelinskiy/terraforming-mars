@@ -5974,7 +5974,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     left: 50%;
     bottom: 4.8rem;
     transform: translateX(-50%);
-    z-index: 11540;
+    /* Above the footer band (11700 — the command bar + the hand dock cards
+       at 11705, which RISE past this toast's 4.8rem line when the pack is
+       raised/hovered) so a validation/notice is never covered by a dock
+       card. Kept under the stranded guard (11900) / fallback modals (12000). */
+    z-index: 11740;
     padding: .6rem 1.3rem;
     border-radius: .5rem;
     background: @con-glass;
