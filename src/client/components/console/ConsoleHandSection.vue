@@ -98,8 +98,10 @@
         <div class="con-hand__scrollthumb" :style="thumbStyle"></div>
       </div>
 
-      <!-- Empty state, centred in the glass frame (filter vs truly-empty). -->
-      <div v-if="entries.length === 0" class="con-hand__empty">
+      <!-- Empty state, centred in the glass frame (filter vs truly-empty).
+           Held back while a reveal/filter episode owns the cards — the
+           message must not pop over cards still gathering into the dock. -->
+      <div v-if="entries.length === 0 && !transitHold" class="con-hand__empty">
         <span class="con-hand__empty-glyph" aria-hidden="true">◍</span>
         <span class="con-hand__empty-text">{{ emptyMessage }}</span>
       </div>

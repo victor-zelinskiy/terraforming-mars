@@ -7,6 +7,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   MAX_COLS,
+  TV_FILL_MAX_ZOOM,
 } from '@/client/components/console/consoleHandGrid';
 
 function reason(type: UnplayableReasonType, message: string): UnplayableReason {
@@ -75,6 +76,43 @@ describe('consoleHandGrid', () => {
       expect(p.cols).to.eq(1);
       expect(p.rows).to.eq(0);
       expect(p.scrolls).to.be.false;
+    });
+  });
+
+  describe('TV fill pass (uiScale > 1)', () => {
+    // A 4K-ish shelf box in real px (the tv profile feeds uiScale ≈ 2).
+    const box = {availW: 3400, availH: 1500, uiScale: 2};
+
+    it('fewer cards are never smaller: zoom is monotone non-increasing in count', () => {
+      let prev = Infinity;
+      for (const count of [1, 2, 3, 4, 5, 6, 8, 12]) {
+        const p = planHandGrid({...box, count});
+        expect(p.cardZoom, `count ${count}`).to.be.at.most(prev + 1e-9);
+        prev = p.cardZoom;
+      }
+    });
+
+    it('a 1–3 card hand shares the same fill ceiling (no solo shrink)', () => {
+      const z1 = planHandGrid({...box, count: 1}).cardZoom;
+      const z2 = planHandGrid({...box, count: 2}).cardZoom;
+      const z3 = planHandGrid({...box, count: 3}).cardZoom;
+      expect(z1).to.be.closeTo(z3, 1e-9);
+      expect(z2).to.be.closeTo(z3, 1e-9);
+    });
+
+    it('the grown zoom never exceeds the art ceiling and never overflows the box', () => {
+      for (const count of [1, 2, 3, 4, 6, 9]) {
+        const p = planHandGrid({...box, count});
+        expect(p.cardZoom, `count ${count}`).to.be.at.most(TV_FILL_MAX_ZOOM + 1e-9);
+        if (!p.scrolls) {
+          expect(p.contentH, `count ${count}`).to.be.at.most(box.availH + 0.5);
+        }
+      }
+    });
+
+    it('uiScale 1 (non-tv profiles) skips the fill pass entirely', () => {
+      const p = planHandGrid({availW: 1400, availH: 800, count: 3, uiScale: 1});
+      expect(p.cardZoom).to.be.closeTo(0.72, 1e-9);
     });
   });
 

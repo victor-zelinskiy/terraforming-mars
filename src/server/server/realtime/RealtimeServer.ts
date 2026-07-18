@@ -5,7 +5,9 @@ import type {Duplex} from 'stream';
 import prometheus from 'prom-client';
 import {paths} from '@/common/app/paths';
 import {GameId} from '@/common/Types';
+import {buildVersionLabel} from '@/common/utils/buildVersion';
 import {runId} from '@/server/utils/server-ids';
+import raw_settings from '@/genfiles/settings.json';
 import {RealtimeHub} from './RealtimeHub';
 import {
   ClientMessageType,
@@ -224,7 +226,7 @@ export class RealtimeServer {
       conn.participantId = message.participantId;
       conn.helloReceived = true;
       vlog(`[realtime] hello #${conn.id} client=${message.clientVersion} participant=${message.participantId ?? '(none)'}`);
-      this.send(conn, serverHello(runId, message.correlationId));
+      this.send(conn, serverHello(runId, buildVersionLabel(raw_settings), message.correlationId));
       break;
     case ClientMessageType.PING:
       conn.isAlive = true;

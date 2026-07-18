@@ -41,7 +41,14 @@ export interface RealtimeState {
   lastConnectedAt: number | undefined;
   lastPongAt: number | undefined;
   reconnectAttempts: number;
+  /** Server per-restart runId (restart detection). */
   serverVersion: string | undefined;
+  /**
+   * The server's human build version (release tag / git head), reported in the
+   * HELLO in the SAME format the client reports for itself — for the
+   * Diagnostics comparison. Undefined until HELLO, or against an older server.
+   */
+  serverBuildVersion: string | undefined;
   participantId: string | undefined;
   /**
    * Authoritative version cursor last reported by the server for the subscribed
@@ -70,6 +77,7 @@ export const realtimeState: RealtimeState = reactive({
   lastPongAt: undefined,
   reconnectAttempts: 0,
   serverVersion: undefined,
+  serverBuildVersion: undefined,
   participantId: undefined,
   lastKnownGameAge: undefined,
   lastKnownUndoCount: undefined,
@@ -277,7 +285,8 @@ class RealtimeService {
     case ServerMessageType.HELLO:
       realtimeState.helloAcked = true;
       realtimeState.serverVersion = message.serverVersion;
-      log('hello acked; server=', message.serverVersion);
+      realtimeState.serverBuildVersion = message.serverBuildVersion;
+      log('hello acked; server=', message.serverVersion, 'build=', message.serverBuildVersion);
       // Join our game room as soon as the handshake completes (also re-runs
       // automatically after a reconnect, since connect() always re-hellos).
       this.subscribe();

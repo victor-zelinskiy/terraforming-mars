@@ -599,7 +599,7 @@
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
-                       :lifted="handRevealState.dockLifted"
+                       :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
       <!-- The command bar keeps its BAY (centre track) for the whole in-game
@@ -770,8 +770,8 @@ import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
-  isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode, runHandOpenEpisode,
-  setHandRevealHooks, RevealPair, RevealRect,
+  finishInstant, isHandRevealEpisodeRunning, resetHandReveal, reverseHandReveal, runHandCloseEpisode,
+  runHandFilterEpisode, runHandOpenEpisode, runningHandRevealKind, setHandRevealHooks, RevealPair, RevealRect,
 } from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
@@ -1131,6 +1131,26 @@ export default defineComponent({
         }
       });
       return out;
+    },
+    /**
+     * Dock backs the hand OVERLAY owns right now (hidden in the tray) —
+     * DERIVED, never stored, so it can't drift from the live hand:
+     *  - the VISIBLE (filtered) entries while the overlay owns the cards —
+     *    phase `open`/`closing`, or `opening` once its proxies stand (the
+     *    old whole-pack `dockLifted` timing). A card OUTSIDE the tag filter
+     *    is not in `handEntries`, so its back stays physically in the tray
+     *    the whole time the hand is open;
+     *  - plus `dockExtraLift`: tag-filter leavers still airborne on their
+     *    way back to the pack (released at the episode's materialization).
+     */
+    dockLiftedNames(): ReadonlyArray<string> {
+      const st = handRevealState;
+      const overlayOwns = st.phase === 'open' || st.phase === 'closing' ||
+        (st.phase === 'opening' && st.flights.length > 0);
+      if (!overlayOwns) {
+        return st.dockExtraLift;
+      }
+      return [...this.handEntries.map((e) => e.card.name), ...st.dockExtraLift];
     },
     /**
      * The dock renders IDENTICALLY in every shell state (welded into the
@@ -3010,15 +3030,15 @@ export default defineComponent({
       // just the choreographed ones. While an episode runs the director owns
       // these flips (it switches the section itself — skip). Otherwise:
       //  - hand opened by ANY route (a serving task, sale) → the dock pack
-      //    reads "cards are in the hand" (lifted), no proxies;
+      //    reads "cards are in the hand" (the derived dockLiftedNames hides
+      //    the visible entries' backs), no proxies;
       //  - hand closed by ANY route (sale cancel, a task replacing the
       //    section) → the pack returns; a stuck hold is impossible.
       if (!isHandRevealEpisodeRunning()) {
         if (section === 'hand' && handRevealState.phase === 'docked') {
           handRevealState.phase = 'open';
-          handRevealState.dockLifted = true;
         } else if (section !== 'hand' && (handRevealState.phase === 'open' ||
-            (handRevealState.phase === 'docked' && (handRevealState.holdSlots || handRevealState.dockLifted)))) {
+            (handRevealState.phase === 'docked' && (handRevealState.holdSlots || handRevealState.dockExtraLift.length > 0)))) {
           // NOT 'opening'/'closing': those belong to a director episode in
           // its pre-install flush — resetting there would kill it mid-birth.
           resetHandReveal();
@@ -4145,8 +4165,12 @@ export default defineComponent({
     handleSectionNav(dir: NavDirection): void {
       // Mid-reveal the hand grid must not scroll (the flight targets were
       // measured against the current layout) — nav resumes at touchdown.
+      // A FILTER episode never blocks input: snap it and navigate at once.
       if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
-        return;
+        if (runningHandRevealKind() !== 'filter') {
+          return;
+        }
+        finishInstant();
       }
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
@@ -4187,8 +4211,12 @@ export default defineComponent({
     handleSectionConfirm(): void {
       // No accidental card activation under the flying reveal proxies —
       // A waits out the episode (navigation stays free; B reverses).
+      // A FILTER episode never blocks input: snap it and confirm at once.
       if (this.consoleState.section === 'hand' && isHandRevealEpisodeRunning()) {
-        return;
+        if (runningHandRevealKind() !== 'filter') {
+          return;
+        }
+        finishInstant();
       }
       if (this.consoleState.section === 'board') {
         const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
@@ -4270,11 +4298,17 @@ export default defineComponent({
       // A running hand-reveal episode owns B: mid-open it REVERSES the same
       // timeline from its current progress (the hard `B` contract);
       // mid-close it's swallowed — the gather is already going home.
+      // A FILTER episode is a state answer, not a journey: snap it and let
+      // B proceed to the normal close below (responsiveness rule).
       if (isHandRevealEpisodeRunning()) {
-        if (handRevealState.phase === 'opening') {
-          reverseHandReveal();
+        if (runningHandRevealKind() === 'filter') {
+          finishInstant();
+        } else {
+          if (handRevealState.phase === 'opening') {
+            reverseHandReveal();
+          }
+          return;
         }
-        return;
       }
       // A DEFERRED task comes back first — B toggles task ↔ board-inspect.
       if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
@@ -5589,6 +5623,11 @@ export default defineComponent({
       if (this.handEntries.length === 0) {
         return;
       }
+      // X mid-filter-glide: snap the episode first — the zoom flight measures
+      // the slot rect, which is held-invisible under a flying proxy.
+      if (runningHandRevealKind() === 'filter') {
+        finishInstant();
+      }
       const origin = this.handZoomOrigin();
       if (this.consoleState.sale.active) {
         openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
@@ -5662,17 +5701,66 @@ export default defineComponent({
      *  the selected card when it survives the new filter, else focus the first
      *  card of the filtered set (never a lost / dangling selection). */
     cycleHandFilter(dir: 1 | -1): void {
-      const selectedName = this.handEntries[this.consoleState.handIndex]?.card.name;
-      this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
-      this.refocusAfterFilter(selectedName);
+      this.applyHandFilterChange(() => {
+        this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
+      });
     },
     resetHandFilter(): void {
       if (this.consoleState.handTagFilter === 'all') {
         return;
       }
+      this.applyHandFilterChange(() => {
+        this.consoleState.handTagFilter = 'all';
+      });
+    },
+    /**
+     * Apply a tag-filter mutation as a PHYSICAL transition (the cards are
+     * objects in the player's hand, they never blink): measure the OLD slot
+     * rects + the dock homes BEFORE the change, apply it (entries recompute
+     * synchronously — the director's state writes ride the SAME patch flush,
+     * so nothing flashes), then hand the episode to `runHandFilterEpisode`:
+     * leavers gather into the dock, enterers fan out of it, survivors glide
+     * to their re-planned slots. Rapid re-filtering stays responsive: a
+     * still-running episode is SNAPPED to its end state first (never queued).
+     * Falls back to the plain instant switch outside the browsable open hand
+     * (sale/select never reach here; staged-card / reduced-motion / unmounted
+     * refs degrade the same way).
+     */
+    applyHandFilterChange(apply: () => void): void {
       const selectedName = this.handEntries[this.consoleState.handIndex]?.card.name;
-      this.consoleState.handTagFilter = 'all';
+      if (isHandRevealEpisodeRunning()) {
+        // Re-filter mid-glide (or mid-open): snap the running episode to its
+        // end state, then answer the new input from settled geometry.
+        finishInstant();
+      }
+      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const canAnimate = this.consoleState.section === 'hand' &&
+        handRevealState.phase === 'open' && !isHandRevealEpisodeRunning() &&
+        this.stagedHandCard === undefined &&
+        section !== undefined && dock !== undefined;
+      if (!canAnimate) {
+        apply();
+        this.refocusAfterFilter(selectedName);
+        return;
+      }
+      const before = section.transitionTargets();
+      apply();
       this.refocusAfterFilter(selectedName);
+      const newNames = this.handEntries.map((e) => e.card.name);
+      const involved = new Set<string>([...before.pairs.map((p) => p.name), ...newNames]);
+      const dockRects = dock.sourceRects([...involved]);
+      void runHandFilterEpisode({
+        before: before.pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible})),
+        dock: dockRects,
+        newNames,
+        measureAfter: () => {
+          // Seat the grid scroll on the refocused card FIRST (sync layout),
+          // so the measured targets are the settled post-filter geometry.
+          section.ensureSelectedVisible();
+          return section.transitionTargets().pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible}));
+        },
+      });
     },
     refocusAfterFilter(selectedName: CardName | undefined): void {
       const list = this.handEntries; // recomputed for the new filter

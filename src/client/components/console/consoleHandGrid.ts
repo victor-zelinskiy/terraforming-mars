@@ -42,11 +42,11 @@ export const MAX_ZOOM = 0.78;
  * TV FILL pass (plan §3.5): on the tv profile a non-scrolling hand GROWS to
  * use the 4K stage instead of stopping at the 1080-tuned baseZoom — this is
  * the absolute art-quality ceiling for that growth (applied zoom, not ×s).
+ * It is the ONE ceiling for every fitting hand size: an earlier per-count
+ * "hero" cap (a 0.72 height share for 1–2 cards) made a 3-card row render
+ * LARGER than a 1–2 card hand — fewer cards must never be smaller.
  */
 export const TV_FILL_MAX_ZOOM = 3.2;
-/** A 1–2 card hand caps at this share of the box height (a lone card should
- *  read as a hero object, not a wall). */
-export const TV_FILL_SOLO_FRAC = 0.72;
 /** When the grid scrolls, keep at least this many rows visible at once. */
 export const MIN_VISIBLE_ROWS = 2;
 /*
@@ -180,13 +180,15 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   // The base plan above is written "only ever shrink" for the handheld /
   // standard profiles (byte-identical there: s === 1 skips this). On the tv
   // profile a hand that FITS grows into the freed 4K stage: keep the chosen
-  // cols/rows layout and raise the zoom to the width/height fit — capped by
-  // the art ceiling and, for a 1–2 card hand, by a hero-object height share
-  // so a lone card never becomes a wall.
+  // cols/rows layout and raise the zoom to the width/height fit, capped by
+  // the ONE art ceiling. The budget is deliberately count-INDEPENDENT so the
+  // card size is predictable and monotone: 1–3 cards share the same ceiling
+  // (width binds as columns multiply), and a smaller hand can never render
+  // SMALLER than a fuller one (the old 1–2-card "hero share" did exactly
+  // that — a 3-card row towered over a lone card).
   if (s > 1 && rows * (naturalH * zoom + gapY) - gapY <= availH + 0.5) {
     const widthFit = (availW - rowSlack - (cols - 1) * gapX) / (cols * naturalW);
-    const heightBudget = availH * (count <= 2 ? TV_FILL_SOLO_FRAC : 1);
-    const heightFit = (heightBudget - (rows - 1) * gapY) / (rows * naturalH);
+    const heightFit = (availH - (rows - 1) * gapY) / (rows * naturalH);
     const grown = Math.min(widthFit, heightFit, TV_FILL_MAX_ZOOM);
     if (grown > zoom) {
       zoom = grown;

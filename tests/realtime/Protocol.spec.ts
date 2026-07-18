@@ -5,6 +5,7 @@ import {
   GameStateInvalidatedMessage,
   ResumeGameMessage,
   ServerErrorMessage,
+  ServerHelloMessage,
   ServerMessageType,
   SubscribeGameMessage,
   SubscribedMessage,
@@ -62,9 +63,10 @@ describe('realtime/Protocol', () => {
   });
 
   it('round-trips server hello / pong / error and preserves correlationId', () => {
-    const hello = parseServerMessage(serializeMessage(serverHello('srv-9', 'corr-1')));
+    const hello = parseServerMessage(serializeMessage(serverHello('srv-9', 'v1.2.3', 'corr-1'))) as ServerHelloMessage | undefined;
     expect(hello?.type).to.eq(ServerMessageType.HELLO);
     expect(hello?.correlationId).to.eq('corr-1');
+    expect(hello?.serverBuildVersion).to.eq('v1.2.3');
 
     const pong = parseServerMessage(serializeMessage(serverPong('corr-2')));
     expect(pong?.type).to.eq(ServerMessageType.PONG);

@@ -93,8 +93,14 @@ export type ClientMessage =
 
 export interface ServerHelloMessage extends BaseMessage {
   type: typeof ServerMessageType.HELLO;
-  /** Build id of the server (runId), for diagnostics. */
+  /** Build id of the server (runId), for diagnostics + restart detection. */
   serverVersion: string;
+  /**
+   * The server's human build version (release tag / git head), in the SAME
+   * format the client reports for itself — so Diagnostics can compare the two.
+   * Optional: an older server omits it (client falls back gracefully).
+   */
+  serverBuildVersion?: string;
 }
 
 export interface ServerPongMessage extends BaseMessage {
@@ -176,8 +182,8 @@ export function unsubscribeGame(correlationId?: string, now: number = Date.now()
   return {...envelope(now, correlationId), type: ClientMessageType.UNSUBSCRIBE};
 }
 
-export function serverHello(serverVersion: string, correlationId?: string, now: number = Date.now()): ServerHelloMessage {
-  return {...envelope(now, correlationId), type: ServerMessageType.HELLO, serverVersion};
+export function serverHello(serverVersion: string, serverBuildVersion?: string, correlationId?: string, now: number = Date.now()): ServerHelloMessage {
+  return {...envelope(now, correlationId), type: ServerMessageType.HELLO, serverVersion, serverBuildVersion};
 }
 
 export function serverPong(correlationId?: string, now: number = Date.now()): ServerPongMessage {

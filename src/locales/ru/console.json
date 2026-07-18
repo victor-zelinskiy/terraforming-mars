@@ -79,6 +79,7 @@
     "Updates received": "Получено обновлений",
     "Client version": "Версия клиента",
     "Server version": "Версия сервера",
+    "Client and server versions differ": "Версии клиента и сервера различаются",
     "ms": "мс",
     "Realtime active": "Активно",
     "Realtime off": "Выключено",

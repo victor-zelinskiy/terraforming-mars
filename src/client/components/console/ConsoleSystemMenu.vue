@@ -37,7 +37,11 @@
         </div>
         <div class="con-sysmenu__diag-row">
           <span class="con-sysmenu__diag-key">{{ $t('Server version') }}</span>
-          <span class="con-sysmenu__diag-val con-sysmenu__diag-val--mono">{{ diag.serverVersion }}</span>
+          <span class="con-sysmenu__diag-val con-sysmenu__diag-val--mono"
+                :class="{'con-sysmenu__diag-val--bad': diag.versionMismatch}">{{ diag.serverVersion }}</span>
+        </div>
+        <div v-if="diag.versionMismatch" class="con-sysmenu__diag-note con-sysmenu__diag-note--bad">
+          {{ $t('Client and server versions differ') }}
         </div>
       </div>
       <div class="con-sysmenu__foot" aria-hidden="true">
@@ -95,6 +99,8 @@ import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import raw_settings from '@/genfiles/settings.json';
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
+import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {buildVersionLabel} from '@/common/utils/buildVersion';
 
 export type SystemMenuItem = {
   id: 'controls' | 'diagnostics' | 'exit' | 'return',
@@ -121,6 +127,24 @@ export default defineComponent({
     /** 'Return to game' reads oddly outside the game — swap the label. */
     inGame: {type: Boolean, default: true},
   },
+  data() {
+    return {
+      /**
+       * Baked Electron app version, fetched once on mount. Mirrors the main
+       * menu so the Diagnostics «Client version» row reads the SAME friendly
+       * version the menu shows (not the raw git head) on the desktop/TV build.
+       */
+      desktopVersion: '',
+    };
+  },
+  mounted() {
+    const bridge = desktopBridge();
+    if (bridge !== undefined) {
+      void bridge.getVersion().then((v) => {
+        this.desktopVersion = typeof v === 'string' ? v : '';
+      }).catch(() => undefined);
+    }
+  },
   computed: {
     items(): ReadonlyArray<SystemMenuItem> {
       if (this.inGame) {
@@ -143,6 +167,7 @@ export default defineComponent({
       updates: number,
       clientVersion: string,
       serverVersion: string,
+      versionMismatch: boolean,
       } {
       const s = realtimeState;
       const healthy = realtimeHealthy();
@@ -164,15 +189,38 @@ export default defineComponent({
         statusLabel = 'Connecting';
         statusTone = 'warn';
       }
+      const clientVersion = this.resolveClientVersion();
+      const serverVersion = s.serverBuildVersion ?? '—';
+      // Only a REAL mismatch flags red — both sides must be genuinely known
+      // (a '—' just means "not reported yet / older server", not a conflict).
+      const versionMismatch =
+        clientVersion !== '—' && serverVersion !== '—' && clientVersion !== serverVersion;
       return {
         statusLabel,
         statusTone,
         pollMs: realtimePollIntervalMs(raw_settings.waitingForTimeout),
         pollTone: healthy ? 'ok' : 'warn',
         updates: s.invalidationsReceived,
-        clientVersion: (raw_settings as {head?: string}).head ?? '—',
-        serverVersion: s.serverVersion ?? '—',
+        clientVersion,
+        serverVersion,
+        versionMismatch,
       };
+    },
+  },
+  methods: {
+    /**
+     * The same client version the main menu shows (ConsoleMainMenu.version):
+     * baked Electron app version → settings.json `version` → git `head`. The
+     * settings-derived part goes through the SHARED buildVersionLabel — the
+     * exact resolver the server runs — so «Client version» and «Server version»
+     * are directly comparable. Falls back to '—' when nothing is available.
+     */
+    resolveClientVersion(): string {
+      if (this.desktopVersion !== '') {
+        return this.desktopVersion;
+      }
+      const label = buildVersionLabel(raw_settings);
+      return label !== '' ? label : '—';
     },
   },
 });

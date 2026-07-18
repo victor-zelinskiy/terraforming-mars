@@ -6371,14 +6371,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         pointer-events: auto;
         cursor: pointer;
     }
-    /* The reveal transition owns the cards ("in the player's hand"): the
-       PACK is held invisible the same frame its proxies stand over it —
-       instant, no transition (the proxies ARE the cards); the chassis,
-       status line and counter stay exactly where they are. */
-    &--lifted {
-        .con-handdock__card {
-            visibility: hidden;
-        }
+    /* The hand overlay (or a reveal flight) owns SOME cards ("in the
+       player's hand"): those backs are held invisible the same frame their
+       proxies stand over them — instant, no transition (the proxies ARE
+       the cards); the chassis, status line and counter stay exactly where
+       they are. PER-CARD (not the whole pack): a card outside the active
+       tag filter keeps its back physically in the tray while the hand is
+       open (the shell derives the set — see `dockLiftedNames`). */
+    &__card--lifted {
+        visibility: hidden;
     }
     /* The pack rises + opens a notch: on hover, AND while the RT wheel is
        open (its centre «КАРТЫ» slot is the entry to the hand — the dock
@@ -11745,8 +11746,18 @@ html.console-mode .notifications-layer {
 
         &--ok { color: @con-mint; }
         &--warn { color: @con-amber; }
+        &--bad { color: @con-red; }
         &--dim { color: @con-text-dim; font-weight: 600; }
         &--mono { font-family: monospace; font-size: .95rem; letter-spacing: .01rem; }
+    }
+    &__diag-note {
+        margin-top: .5rem;
+        font-size: .9rem;
+        font-weight: 600;
+        text-align: center;
+        letter-spacing: .02rem;
+
+        &--bad { color: @con-red; }
     }
 }
 

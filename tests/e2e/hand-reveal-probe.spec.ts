@@ -176,13 +176,13 @@ test.describe('hand reveal · standard 1080', () => {
     await expectProxies(page); // mid-flight — the episode is airborne
     // ONE visible representation: proxies exist, slots held, dock lifted.
     await expect(page.locator('.con-hand--transit')).toHaveCount(1);
-    await expect(page.locator('.con-handdock--lifted')).toHaveCount(1);
+    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0);
     await shoot(page, '01-mid-open');
 
     await page.waitForTimeout(2100); // settle (open ≈ lift 140 + flight 600 + spread + handoff)
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-    await expect(page.locator('.con-handdock--lifted')).toHaveCount(1); // cards live in the hand
+    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0); // cards live in the hand
     const slots = await page.locator('.con-hand__slot').count();
     expect(slots).toBeGreaterThan(0);
     await shoot(page, '02-open-settled');
@@ -194,7 +194,7 @@ test.describe('hand reveal · standard 1080', () => {
     await shoot(page, '03-mid-close');
     await page.waitForTimeout(1700);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
-    await expect(page.locator('.con-handdock--lifted')).toHaveCount(0);
+    await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
     await expect(page.locator('.con-board')).toBeVisible();
     expect(await page.locator('.con-handdock__card').count()).toBe(dockBacks);
     await shoot(page, '04-docked-again');
@@ -218,7 +218,7 @@ test.describe('hand reveal · standard 1080', () => {
       await page.waitForTimeout(1900);
       // Back home: board + full dock pack, nothing stuck.
       await expect(page.locator('.con-board')).toBeVisible();
-      await expect(page.locator('.con-handdock--lifted')).toHaveCount(0);
+      await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
       await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
       expect(await page.locator('.con-handdock__card').count()).toBeGreaterThan(0);
     }
@@ -261,12 +261,12 @@ test.describe('hand reveal · reduced motion', () => {
     await expect(page.locator('.con-hand')).toHaveCount(1);
     await expect(page.locator('.con-handreveal-layer .con-deal-proxy')).toHaveCount(0);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
-    await expect(page.locator('.con-handdock--lifted')).toHaveCount(1);
+    await expect(page.locator('.con-handdock__card--lifted')).not.toHaveCount(0);
     await shoot(page, '09-reduced-open');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(250);
     await expect(page.locator('.con-board')).toBeVisible();
-    await expect(page.locator('.con-handdock--lifted')).toHaveCount(0);
+    await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);
   });
 });
 

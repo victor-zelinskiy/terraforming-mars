@@ -5,7 +5,6 @@
          'con-handdock--raised': raised,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
-         'con-handdock--lifted': lifted,
          'con-handdock--receiving': receiving,
        }"
        role="button"
@@ -32,7 +31,7 @@
         <span v-for="(slot, i) in packSlots"
               :key="slot.key"
               class="con-handdock__card"
-              :class="{'con-handdock__card--deep': slot.deep, 'con-handdock__card--held': slot.held}"
+              :class="{'con-handdock__card--deep': slot.deep, 'con-handdock__card--held': slot.held, 'con-handdock__card--lifted': slot.lifted}"
               :data-hand-dock-card="slot.name"
               :style="{'--hd-dx': slot.dx + 'rem', '--hd-dy': slot.dy + 'rem', '--hd-tilt': slot.tilt + 'deg', zIndex: 3 + i}"></span>
       </transition-group>
@@ -104,6 +103,9 @@ type PackSlot = {
   deep: boolean,
   /** In flight from the deck — laid out but hidden (delivery hold). */
   held: boolean,
+  /** Owned by the open hand overlay (or a reveal flight) — back hidden,
+   *  still counted (the card IS in the hand, just displayed elsewhere). */
+  lifted: boolean,
 };
 
 export default defineComponent({
@@ -124,11 +126,15 @@ export default defineComponent({
     /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
     raised: {type: Boolean, default: false},
     /**
-     * The reveal transition owns the cards (they are "in the player's
-     * hand"): the PACK renders held — backs/slabs/ghost invisible, the
-     * chassis + status line stay put (handRevealDirector.ts).
+     * Names the hand OVERLAY (or a reveal flight) owns right now — those
+     * backs render hidden while the chassis + status line stay put
+     * (handRevealDirector.ts; the shell derives the set from the visible
+     * hand entries + airborne filter-leavers). A MULTISET like
+     * `deliveryHeld`: a duplicated name hides only as many copies as are
+     * listed, so a card OUTSIDE the active tag filter keeps its back
+     * physically in the tray while the hand is open.
      */
-    lifted: {type: Boolean, default: false},
+    liftedNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
     /**
      * HAND-INTAKE hold: names withheld from the shown pack while they are
      * still on their way in (handDeliveryDirector.ts — the starting-cards
@@ -154,6 +160,14 @@ export default defineComponent({
     heldCounts(): Map<string, number> {
       const m = new Map<string, number>();
       for (const n of this.deliveryHeld) {
+        m.set(n, (m.get(n) ?? 0) + 1);
+      }
+      return m;
+    },
+    /** Overlay-owned copies per name (multiset — see the prop doc). */
+    liftedCounts(): Map<string, number> {
+      const m = new Map<string, number>();
+      for (const n of this.liftedNames) {
         m.set(n, (m.get(n) ?? 0) + 1);
       }
       return m;
@@ -185,7 +199,9 @@ export default defineComponent({
         seen.set(card.name, n);
         const total = totals.get(card.name) ?? 1;
         const heldK = Math.min(this.heldCounts.get(card.name) ?? 0, total);
+        const liftK = Math.min(this.liftedCounts.get(card.name) ?? 0, total - heldK);
         const slot = this.plan.slots[i];
+        const held = n > total - heldK;
         return {
           key: n === 1 ? card.name : `${card.name}#${n}`,
           name: card.name,
@@ -193,7 +209,9 @@ export default defineComponent({
           dy: slot.dy,
           tilt: slot.tilt,
           deep: slot.deep,
-          held: n > total - heldK,
+          held,
+          // The next-newest copies after the held ones are the lifted ones.
+          lifted: !held && n > total - heldK - liftK,
         };
       });
     },

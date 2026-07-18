@@ -15,7 +15,12 @@
  *    off-screen tail of a huge hand flies back-only, see the director);
  *  - `holdSlots` — the overlay slots render held (`.con-hand--transit`)
  *    while proxies are the single visible representation of each card;
- *  - `dockLifted` — the dock's pack renders held (cards are "in the hand").
+ *  - `dockExtraLift` — names whose DOCK backs stay hidden BEYOND the
+ *    visible-entries set: the tag-filter episode's leavers are no longer in
+ *    the overlay's entries but are still airborne on their way back to the
+ *    pack. (The dock's main hidden set is DERIVED in the shell from
+ *    `phase` + the visible hand entries — see `dockLiftedNames` — so a
+ *    filtered-out card's back never leaves the tray while the hand is open.)
  *
  * All motion lives in handRevealDirector.ts. Mirrors cardExitState's
  * function-ref element registry (v-for order is not guaranteed).
@@ -38,8 +43,8 @@ export const handRevealState = reactive({
   flights: [] as Array<RevealFlight>,
   /** Overlay slots held empty (the proxies are the cards right now). */
   holdSlots: false,
-  /** Dock pack held empty (the cards left the tray). */
-  dockLifted: false,
+  /** Extra dock backs held hidden: filter-episode leavers still in flight. */
+  dockExtraLift: [] as Array<string>,
 });
 
 const els = new Map<number, HTMLElement>();
