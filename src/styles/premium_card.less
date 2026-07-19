@@ -1178,6 +1178,9 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   text-shadow: none;
+  // A plate is a single LABEL — never break it across lines (a wide plate like
+  // «ГЛОБАЛЬНЫЕ ПАРАМЕТРЫ» was wrapping to two lines inside an effect frame).
+  white-space: nowrap;
 }
 /* semantic accents for the concept plates (prelude pink, award/milestone
    orange) — keeps the premium plate silhouette while preserving the
@@ -1329,6 +1332,15 @@
   align-items: center;
   justify-content: center;
   gap: 2px 4px;
+}
+/* A plate-bearing effect («ГЛОБАЛЬНЫЕ ПАРАМЕТРЫ : +/- 2») is a short label rule
+   — keep it on ONE compact row (icon-heavy effects without a plate keep their
+   wrap safety). */
+.pcard-effect:has(.pcard-plate) {
+  flex-wrap: nowrap;
+}
+.pcard-effect:has(.pcard-plate) .pcard-effect__part {
+  flex-wrap: nowrap;
 }
 
 /* TILE pictogram */

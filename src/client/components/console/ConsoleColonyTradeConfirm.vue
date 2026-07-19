@@ -172,6 +172,15 @@
                 </div>
               </div>
 
+              <!-- Card-resource reward with no card to hold it ⇒ LOST. A
+                   prominent client-side warning (always shown, independent of
+                   the server preview's notices). -->
+              <div v-if="resourceLost" class="con-trade__notice con-trade__notice--warn con-trade__notice--lost">
+                <span aria-hidden="true">⚠</span>
+                <i v-if="metadata !== undefined" class="con-trade__notice-icon" :class="resourceIconClass(metadata.cardResource)" aria-hidden="true"></i>
+                <span>{{ $t('Resource will be lost — no card') }}</span>
+              </div>
+
               <!-- Display-only notices: explicit auto target / lost resource /
                    what still follows after confirming. -->
               <div v-for="(notice, i) in noticeRows" :key="'n' + i"
@@ -220,6 +229,7 @@ import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -609,6 +619,23 @@ export default defineComponent({
         return {type: ColonyBenefit.GAIN_RESOURCES, quantity: [1]};
       }
       return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+    },
+    /** The trade reward is a card resource the viewer has NO card to hold ⇒
+     *  it is LOST. Computed CLIENT-SIDE (not only from the server preview's
+     *  notices, which may not surface when there is no card-selection step),
+     *  so the warning always shows at the confirm. Mirrors the section rail. */
+    resourceLost(): boolean {
+      const meta = this.metadata;
+      if (meta === undefined || meta.cardResource === undefined) {
+        return false;
+      }
+      const t = meta.trade.type;
+      if (t !== ColonyBenefit.ADD_RESOURCES_TO_CARD && t !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+        return false;
+      }
+      const viewer = this.players.find((p) => p.color === this.viewerColor);
+      const tableau = viewer?.tableau ?? [];
+      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
     },
     otherOwners(): Array<{color: Color, count: number, name: string}> {
       if (this.colony === undefined) {

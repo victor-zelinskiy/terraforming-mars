@@ -7266,8 +7266,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         margin: .2rem .9rem .1rem;
         padding: .6rem 1rem;
         border-radius: .6rem;
-        background: linear-gradient(160deg, rgba(20, 34, 50, 0.6) 0%, rgba(11, 18, 28, 0.66) 100%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+        /* FIXED height: the rail's CONTENT differs per mode (trade / build /
+           select) and per focused colony, and a varying height made the tile
+           grid re-fit → the tiles JUMPED on focus change. A constant height
+           pins the grid area rock-solid; content is vertically centred, any
+           spill clipped (never reflows the grid). */
+        height: 4.6rem;
+        box-sizing: border-box;
+        overflow: hidden;
+        /* Near-opaque so the parked hand-dock cards behind it don't bleed
+           through (the dock now lives UNDER the rail by z-index). */
+        background: linear-gradient(160deg, rgba(18, 30, 44, 0.95) 0%, rgba(9, 15, 24, 0.97) 100%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%), 0 -.3rem .9rem rgba(0, 0, 0, 0.4);
     }
     &__summary-id { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex-shrink: 0; }
     &__summary-name { font-size: 1.1rem; font-weight: 800; letter-spacing: .02rem; }
@@ -7564,7 +7574,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .4rem;
-        padding: .2rem .55rem;
+        /* Extra RIGHT padding so the reward glyph has breathing room from the
+           button edge (it sat flush against the border — not premium). */
+        padding: .2rem .8rem .2rem .55rem;
         border-radius: .4rem;
         background: rgba(255, 255, 255, 0.04);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
@@ -8304,6 +8316,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 35%);
 
             span[aria-hidden] { font-weight: 800; }
+        }
+        /* The resource-lost warning is a real consequence — prominent. */
+        &--lost {
+            font-size: .85rem; font-weight: 700;
+            background: fade(@con-amber, 12%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 55%);
         }
     }
     &__notice-icon {

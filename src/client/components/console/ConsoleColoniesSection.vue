@@ -89,6 +89,8 @@
             <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResource="focusedMeta.cardResource" />
           </span>
           <span v-else class="con-colonies__summary-none">{{ $t('No placement bonus') }}</span>
+          <!-- The placement bonus is a card resource with no card to hold it. -->
+          <span v-if="focusedBuildLost" class="con-colonies__summary-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
         </div>
       </div>
 
@@ -349,20 +351,14 @@ export default defineComponent({
     focusedBuildQty(): number {
       return this.focusedMeta === undefined ? 0 : (this.focusedMeta.build.quantity[this.focusedBuildSlot] ?? 0);
     },
-    /** A card-resource trade reward with NO card in the viewer's tableau to
-     *  hold it ⇒ the resource is lost (a heads-up mirroring the confirm). */
+    /** A card-resource TRADE reward with no card to hold it ⇒ it is lost. */
     focusedTradeLost(): boolean {
-      const meta = this.focusedMeta;
-      if (meta === undefined || meta.cardResource === undefined) {
-        return false;
-      }
-      const t = meta.trade.type;
-      if (t !== ColonyBenefit.ADD_RESOURCES_TO_CARD && t !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
-        return false;
-      }
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const tableau = viewer?.tableau ?? [];
-      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
+      return this.focusedMeta !== undefined && this.benefitResourceLost(this.focusedMeta.trade.type);
+    },
+    /** A card-resource BUILD (placement) bonus with no card to hold it ⇒ lost
+     *  (the placement bonus is a card resource — e.g. Miranda's animals). */
+    focusedBuildLost(): boolean {
+      return this.focusedMeta !== undefined && this.benefitResourceLost(this.focusedMeta.build.type);
     },
   },
   watch: {
@@ -377,6 +373,21 @@ export default defineComponent({
     },
   },
   methods: {
+    /** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
+     *  LOST when the viewer owns no card able to hold that resource — shared
+     *  by the trade + build rails (and mirrored at the trade confirm). */
+    benefitResourceLost(type: ColonyBenefit): boolean {
+      const meta = this.focusedMeta;
+      if (meta === undefined || meta.cardResource === undefined) {
+        return false;
+      }
+      if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+        return false;
+      }
+      const viewer = this.players.find((p) => p.color === this.viewerColor);
+      const tableau = viewer?.tableau ?? [];
+      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
+    },
     /**
      * Size the tiles to FILL the free area for the count layout: the largest
      * uniform scale at which `cols × rows` base-size tiles (+ gaps + padding)

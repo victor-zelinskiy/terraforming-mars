@@ -548,8 +548,9 @@ html.con-profile-tv {
         &__fleetchip-count { font-size: var(--con-t-secondary); }
         &__fleetchip-count .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
         .colony-fleet-pad { width: 2.2rem; height: 1.05rem; }
-        /* Focused-colony summary — the couch hero band. */
-        &__summary { gap: 1.6rem; padding: 0.8rem 1.3rem; }
+        /* Focused-colony summary — the couch hero band. FIXED height (content
+           varies per mode/colony; a varying height jumped the tile grid). */
+        &__summary { gap: 1.6rem; padding: 0.8rem 1.3rem; height: 5.2rem; }
         &__summary-name { font-size: 1.35rem; }
         &__summary-track { font-size: var(--con-t-secondary); }
         &__summary-label { font-size: var(--con-t-floor); }
@@ -577,6 +578,9 @@ html.con-profile-tv {
         &__payrow { min-height: var(--con-hit-min); }
         &__payrow-icon { width: 1.6rem; height: 1.6rem; }
         &__row-label { font-size: var(--con-t-secondary); }
+        &__notice { font-size: var(--con-t-caption); }
+        &__notice--lost { font-size: var(--con-t-secondary); }
+        &__notice-icon { width: 1.3rem; height: 1.3rem; }
     }
 
     /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══

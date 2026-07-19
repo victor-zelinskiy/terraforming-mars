@@ -294,6 +294,15 @@ overflow/пересечения/микро-данные. Исправлено:
 (устаревший `build/src/server` без tsc-alias, работа пользователя, НЕ мои правки) → лечится
 `npm run build:server` (tsc + tsc-alias). Build-rail/trade-warning ждут живой проверки.
 
+## Итерация 2e (2026-07-19) — колонии, полировка 4 замечаний
+1. **Иконка ТОРГОВАТЬ на самой грани** → `__cell` right-padding .55→.8rem (отступ от края, премиум).
+2. **Rail просвечивал dock** → `__summary` background 0.6/0.66 → 0.95/0.97 (почти непрозрачный) + тень сверху.
+3. **Тайлы скакали при смене фокуса** (переменная высота rail меняла grid-area → re-fit) → `__summary`
+   ФИКСИРОВАННАЯ высота (base 4.6rem, TV 5.2rem, overflow hidden, контент по центру) → grid-area стабильна.
+4. **Warning «ресурс пропадёт»**: (а) добавлен в BUILD-режим rail (`focusedBuildLost` по `build.type`);
+   (б) добавлен на trade-confirm — client-side `resourceLost` (не только серверный `tradeNotices`,
+   который не всегда всплывает) + prominent `__notice--lost`. Общий метод `benefitResourceLost(type)`.
+
 ## Не выполнено / следующие волны
 - `.con-info__effects` (Info Mode) — px-эффекты в rem-гриде, требует раздельного канала (§S3);
   `.con-task__source-label` bare zoom 1.1 (некритично).
