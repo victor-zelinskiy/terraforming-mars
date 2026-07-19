@@ -1,0 +1,87 @@
+/* ══ CONSOLE COLONY BUILD — the premium "build a colony" hero scene ═══════
+   (ConsoleColonyBuildLayer + colonyBuildDirector + consoleColonyBuild)
+
+   The player's cube physically drops into the colony's build slot while that
+   slot's ONE-TIME build bonus is displaced upward out of the cell (a resource
+   glyph rises + hands off to the shared resource-transfer chips; a card lifts
+   via the board-card-bonus cover) and the cube takes the vacated place. The
+   real filled-cell cube paints under the settled proxy (frame-perfect handoff).
+
+   Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
+   `transition: all`; `will-change` scoped to elements that exist only for the
+   duration of the scene (the layer is v-if'd on the transaction).
+
+   rem-authored (1rem = 20px logical) — the captured slot/glyph rects arrive as
+   px inline styles from getBoundingClientRect (already TV-scaled), so the
+   proxies land exactly on the live geometry regardless of profile. */
+
+.con-colonybuild {
+    position: fixed;
+    inset: 0;
+    /* Above the colonies section content; UNDER the resource-transfer chips
+       (11670 — the payout flies over its own source) + the command bar (11700). */
+    z-index: 11650;
+    pointer-events: none;
+    contain: layout style;
+
+    /* ── the dropping cube — a twin of the real filled-cell owner cube ───── */
+    &__cube {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        border-radius: .35rem;
+        /* Relief: a dark rim + a top sheen + a cast shadow — reads as a solid
+           marker filling the cell (the `player_bg_color_*` class paints it). */
+        box-shadow:
+            inset 0 0 0 .06rem rgba(0, 0, 0, 0.55),
+            inset 0 .14rem .3rem rgba(255, 255, 255, 0.24),
+            inset 0 -.14rem .3rem rgba(0, 0, 0, 0.4),
+            0 .18rem .45rem rgba(0, 0, 0, 0.55);
+        will-change: transform, opacity;
+    }
+
+    /* ── the build-bonus glyph proxy (a resource bonus only) ─────────────── */
+    &__glyph {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        will-change: transform, opacity;
+    }
+    &__glyph-icon {
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        display: block;
+        filter: drop-shadow(0 .12rem .22rem rgba(0, 0, 0, 0.5));
+    }
+    /* A production bonus lifted a brown production plate out of the cell —
+       mirror the resource-transfer production chip so the handoff is seamless. */
+    &__glyph--production {
+        border-radius: .3rem;
+        background: linear-gradient(180deg, #8a5a30, #6b4322);
+        box-shadow:
+            inset 0 0 0 .07rem rgba(214, 158, 96, 0.7),
+            0 .12rem .3rem rgba(0, 0, 0, 0.45);
+        padding: .14rem;
+    }
+    &__glyph--production &__glyph-icon {
+        filter: drop-shadow(0 .08rem .15rem rgba(0, 0, 0, 0.45));
+    }
+}
+
+/* Reduced motion: the cube snaps in place, nothing rises (the controller
+   already degrades to the no-proxy path — this is belt-and-braces for any
+   residual proxy the safety net leaves briefly on screen). */
+@media (prefers-reduced-motion: reduce) {
+    .con-colonybuild__cube,
+    .con-colonybuild__glyph {
+        transition: none !important;
+    }
+}

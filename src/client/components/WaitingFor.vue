@@ -15,7 +15,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForTilePlacementHero">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForTilePlacementHero || holdingForColonyBuild">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -197,6 +197,13 @@ import {
   runTilePlacement,
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {
+  abortColonyBuild,
+  detectColonyBuild,
+  endColonyBuild,
+  runColonyBuild,
+  seedColonyBuildRewardHold,
+} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
@@ -405,6 +412,15 @@ type DataModel = {
    */
   holdingForTilePlacementHero: boolean;
   /*
+   * Console COLONY-BUILD HERO gate: the commit is held through the cube's
+   * drop into the colony slot (the real filled-cell cube paints under the
+   * settled proxy) + the one-time build bonus lift. Gated on
+   * `colonyBuildState.active` (only ever armed by the console colonies-screen
+   * Build confirm), so desktop + every non-build submit are unaffected.
+   * See src/client/console/colonyBuild/consoleColonyBuild.ts.
+   */
+  holdingForColonyBuild: boolean;
+  /*
    * Bound `visibilitychange` / `focus` handler. Browsers throttle (and
    * eventually freeze) the setTimeout poll chain in a backgrounded tab, so a
    * player on another tab/window would return to STALE state (e.g. an
@@ -478,6 +494,7 @@ export default defineComponent({
       holdingForPlayedHero: false,
       holdingForPatentSale: false,
       holdingForTilePlacementHero: false,
+      holdingForColonyBuild: false,
       holdingForHazardCleanup: false,
       onVisibilityChange: undefined,
       realtimeWakeOff: undefined,
@@ -683,6 +700,7 @@ export default defineComponent({
     seedRewardHolds(): void {
       seedPlayedHeroRewardHold();
       seedTilePlacementRewardHold();
+      seedColonyBuildRewardHold();
     },
     fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean) {
       const root = vueRoot(this);
@@ -982,6 +1000,28 @@ export default defineComponent({
               this.holdingForHydroMarker = true;
               await runHydroMarker();
             }
+            /*
+             * Console COLONY-BUILD hero gate (build a colony from the colonies
+             * screen). Detect the ARMED build (undefined on desktop / every
+             * non-build submit): VERIFY the viewer's cube landed in the armed
+             * colony's next slot + CAPTURE the slot's benefit glyph while it is
+             * still rendered. HOLD the commit through the cube drop; the build
+             * bonus commits under the panel reward hold, and the post-commit
+             * reward beat (the glyph lifts → resource chips fly → delta chips at
+             * contact, OR a card cover lifts via board-card-bonus) runs in
+             * endColonyBuild next tick. A build response never carries fresh bot
+             * turns (building doesn't end the turn), so it composes here with the
+             * other client-armed colony-screen gates — never in the staged path.
+             */
+            const colonyBuildEvent = detectColonyBuild(this.playerView, newView);
+            if (colonyBuildEvent !== undefined) {
+              this.holdingForColonyBuild = true;
+              try {
+                await runColonyBuild();
+              } finally {
+                this.holdingForColonyBuild = false;
+              }
+            }
             this.seedRewardHolds();
             this.updatePlayerView(newView);
             if (hazardCleanups.length > 0) {
@@ -1008,6 +1048,15 @@ export default defineComponent({
               // materialized on the new stop under the locked proxy — end on
               // the next tick so it gets the one-shot settle glow.
               nextTick(() => endHydroMarker());
+            }
+            if (colonyBuildEvent !== undefined) {
+              // Post-commit reward beat: the real filled-cell cube just painted
+              // under the settled proxy — crossfade it off, then the hovering
+              // build-bonus glyph hands off to its resource chips (delta chip at
+              // each touchdown), OR a card cover continues under board-card-bonus.
+              nextTick(() => {
+                void endColonyBuild(newView);
+              });
             }
             if (playedHeroEvent !== undefined) {
               // Post-commit half of the hero scene: the real slot just painted
@@ -1059,6 +1108,10 @@ export default defineComponent({
           // tile flies, no bonus is ever collected, the board stays intact.
           this.holdingForTilePlacementHero = false;
           abortTilePlacement();
+          // …and the colony-build hero: the build did NOT happen — no cube
+          // drops, no bonus is collected, the colonies screen stays intact.
+          this.holdingForColonyBuild = false;
+          abortColonyBuild();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -1084,6 +1137,8 @@ export default defineComponent({
           abortPatentSale(); // …and the patent sale — the hand cards un-blank
           this.holdingForTilePlacementHero = false;
           abortTilePlacement(); // …and the tile hero — the board stays intact
+          this.holdingForColonyBuild = false;
+          abortColonyBuild(); // …and the colony-build hero — no ghost cube, ever
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })

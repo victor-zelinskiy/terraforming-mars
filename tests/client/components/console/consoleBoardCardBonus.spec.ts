@@ -37,6 +37,16 @@ describe('consoleBoardCardBonus', () => {
     expect(revealMatchesSource({type: 'tile'}, VENUS)).to.be.false;
   });
 
+  it('matches a colony-cell scene to its OWN colony reveal (Pluto build bonus)', () => {
+    const pluto = {kind: 'colony-cell', colonyName: 'Pluto', slotIndex: 0} as const;
+    expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, pluto)).to.be.true;
+    // A reveal from a DIFFERENT colony never claims this scene.
+    expect(revealMatchesSource({type: 'colony', colonyName: 'Titan'} as any, pluto)).to.be.false;
+    // Neither a tile nor a venus reveal claims a colony-cell scene.
+    expect(revealMatchesSource({type: 'tile'}, pluto)).to.be.false;
+    expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, CELL)).to.be.false;
+  });
+
   it('a venus-scale scene arms from its own descriptor', () => {
     armBoardCardBonus(VENUS);
     expect(boardCardBonusState.source).to.deep.eq({kind: 'venus-scale'});

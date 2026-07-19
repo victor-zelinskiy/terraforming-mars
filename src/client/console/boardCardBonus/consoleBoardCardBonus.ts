@@ -31,11 +31,14 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 /**
  * WHERE the lifting cover comes from. `board-cell` carries the placed
  * space's id (its `.board-space-bonus--card` icon is the anchor); the
- * `venus-scale` marker is a fixed anchor (`[data-arc-marker="venus-8"]`).
+ * `venus-scale` marker is a fixed anchor (`[data-arc-marker="venus-8"]`);
+ * `colony-cell` carries the built colony + slot (the build slot's benefit
+ * glyph is the anchor — the Pluto DRAW_CARDS build bonus).
  */
 export type BonusCoverSource =
   | {kind: 'board-cell', spaceId: string}
-  | {kind: 'venus-scale'};
+  | {kind: 'venus-scale'}
+  | {kind: 'colony-cell', colonyName: string, slotIndex: number};
 
 /** The reveal source a `venus-scale` scene claims (the Venus 8% draw). */
 export function isVenusScaleReveal(source: CardDrawRevealSource | undefined): boolean {
@@ -49,6 +52,9 @@ export function revealMatchesSource(
 ): boolean {
   if (sceneSource.kind === 'board-cell') {
     return revealSource?.type === 'tile';
+  }
+  if (sceneSource.kind === 'colony-cell') {
+    return revealSource?.type === 'colony' && revealSource.colonyName === sceneSource.colonyName;
   }
   return isVenusScaleReveal(revealSource);
 }

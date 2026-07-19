@@ -50,11 +50,17 @@
       <div class="con-coltile__build">
         <div v-for="idx in [0, 1, 2]" :key="idx"
              class="con-coltile__build-slot"
-             :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}">
-          <BenefitGlyph :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+             :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}"
+             :data-colony-build-slot="colony.name + '#' + idx">
+          <!-- Each build bonus is ONE-TIME: once a settlement is built here the
+               bonus is consumed, so the owner cube FILLS the whole cell (the
+               reward glyph is gone). An empty slot shows what building here
+               would grant. The `data-colony-build-slot` anchor is the landing
+               geometry of the console colony-build hero (consoleColonyBuild). -->
           <span v-if="colony.colonies[idx] !== undefined"
-                class="con-coltile__cube"
+                class="con-coltile__cube con-coltile__cube--filled"
                 :class="'player_bg_color_' + colony.colonies[idx]"></span>
+          <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
         </div>
       </div>
       <div class="con-coltile__track" aria-hidden="true">

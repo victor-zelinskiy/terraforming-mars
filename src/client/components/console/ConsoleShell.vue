@@ -565,6 +565,14 @@
          (consoleTilePlacement.ts / tilePlacementDirector.ts). -->
     <ConsoleTilePlacementLayer />
 
+    <!-- The COLONY-BUILD HERO stage — the player's cube physically drops into
+         the built colony's slot while the slot's one-time build bonus is
+         lifted out of the cell (a resource glyph rises + hands off to the
+         resource chips; a card lifts via the board-card-bonus cover), then the
+         cube takes the vacated place
+         (consoleColonyBuild.ts / colonyBuildDirector.ts). -->
+    <ConsoleColonyBuildLayer />
+
     <!-- The SHARED RESOURCE-TRANSFER stage — every "receiving resources"
          chip (the sale's M€ payout, a played card's reward beat, a placed
          cell's printed bonuses) flies here: real resource art + the amount,
@@ -836,6 +844,8 @@ import ConsoleResourceTransferLayer from '@/client/components/console/resourceTr
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
+import {armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -946,6 +956,7 @@ export default defineComponent({
     ConsolePatentSaleLayer,
     ConsoleResourceTransferLayer,
     ConsoleTilePlacementLayer,
+    ConsoleColonyBuildLayer,
     CardZoomModal,
     CardZoomCard,
     Card,
@@ -4317,6 +4328,10 @@ export default defineComponent({
         // T4: a server SelectColony pick outranks the trade flow.
         const pick = this.colonyPick;
         if (pick !== undefined) {
+          // A colony-build hero is already playing — never re-submit.
+          if (isColonyBuildActive()) {
+            return;
+          }
           const selected = this.coloniesForRail[this.consoleState.colonyIndex];
           if (selected === undefined) {
             return;
@@ -4328,11 +4343,22 @@ export default defineComponent({
           }
           closeConsoleLayers();
           this.consoleState.task.deferred = false;
+          // BUILD: arm the premium colony-build hero and STAY on the colonies
+          // screen — the cube drop + one-time bonus lift plays where it
+          // happens. A board follow-up (an ocean/hazard build bonus) self-heals
+          // via the `placementActive` watcher, which flips to the board on the
+          // next `space` prompt. (Mirrors the trade-fleet arm-then-submit.)
+          if (pick.buttonLabel === 'Build') {
+            const slotIndex = Math.min(2, selected.colonies.length);
+            armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
+            this.submit(colonyResponse(selected.name));
+            return;
+          }
           this.submit(colonyResponse(selected.name));
-          // The SelectColony pick is a ONE-SHOT action (Aridor's extra tile,
-          // a build target …). Leave the colonies screen so the player isn't
-          // stranded wondering whether another colony choice is expected — the
-          // server's next prompt (or the turn) drives what surfaces next.
+          // The other SelectColony picks (Aridor's extra tile, setup remove …)
+          // are ONE-SHOT: leave the colonies screen so the player isn't stranded
+          // wondering whether another colony choice is expected — the server's
+          // next prompt (or the turn) drives what surfaces next.
           this.consoleState.section = 'board';
           return;
         }

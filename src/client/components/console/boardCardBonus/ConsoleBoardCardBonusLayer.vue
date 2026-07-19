@@ -184,11 +184,12 @@ export default defineComponent({
       this.onRevealArrived(e);
     },
     commitAge() {
-      // BOARD only: the commit landed but no tile reveal followed → the bonus
+      // BOARD + COLONY: the commit landed but no reveal followed → the bonus
       // produced nothing (deck empty / a non-placement pick). Recall the
       // cover instead of hovering forever. (Venus self-arms FROM its reveal,
       // so a venus scene always has its batch — this path never applies.)
-      if (!boardCardBonusState.active || boardCardBonusState.source.kind !== 'board-cell') {
+      const source = boardCardBonusState.source;
+      if (!boardCardBonusState.active || source.kind === 'venus-scale') {
         return;
       }
       if (boardCardBonusState.stagedEventId !== undefined) {
@@ -200,14 +201,19 @@ export default defineComponent({
       if (ctx.noRevealTimer !== undefined) {
         return;
       }
-      const spaceId = boardCardBonusState.source.spaceId;
       ctx.noRevealTimer = setTimeout(() => {
         ctx.noRevealTimer = undefined;
         if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
           return;
         }
-        const space = this.playerView.game.spaces.find((sp) => sp.id === spaceId);
-        abortBoardCardBonus(space?.tileType !== undefined ? 'absorb' : 'return');
+        // Board: the cover sinks into the placed tile if one landed, else
+        // flies back. Colony: no tile — the cover always flies back to the cell.
+        let mode: BoardCardBonusAbortMode = 'return';
+        if (source.kind === 'board-cell') {
+          const space = this.playerView.game.spaces.find((sp) => sp.id === source.spaceId);
+          mode = space?.tileType !== undefined ? 'absorb' : 'return';
+        }
+        abortBoardCardBonus(mode);
       }, motionMs(NO_REVEAL_GRACE_MS));
     },
   },
@@ -239,9 +245,15 @@ export default defineComponent({
      */
     resolveSourceIcons(): Array<HTMLElement> {
       const source = boardCardBonusState.source;
-      const sel = source.kind === 'board-cell' ?
-        `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card` :
-        VENUS_MARKER_SEL;
+      let sel: string;
+      if (source.kind === 'board-cell') {
+        sel = `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card`;
+      } else if (source.kind === 'colony-cell') {
+        // The build slot's benefit glyph (a card icon) is the cover's source.
+        sel = `[data-colony-build-slot="${cssEscape(source.colonyName + '#' + source.slotIndex)}"] .benefit-glyph`;
+      } else {
+        sel = VENUS_MARKER_SEL;
+      }
       return Array.from(document.querySelectorAll<HTMLElement>(sel));
     },
     // ── The scene ────────────────────────────────────────────────────────
