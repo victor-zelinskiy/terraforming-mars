@@ -373,21 +373,15 @@ body.con-zoom-open .con-root {
     box-shadow: none;
 }
 
-/* ── The command bar yields to the inspector ──────────────────────────
+/* ── The command bar STAYS under the inspector (dimmed, not hidden) ─────
    While fullscreen is open the viewer's OWN bar (`.con-zoom__bar` in the
-   dialog) is the source of button truth, so the game's command bar is
-   redundant — and it must not be half-there: it sits UNDER the veil
-   (11700 < 11890), and since the veil is translucent (unlike the former
-   top-layer ::backdrop, which covered it outright) its glass panel washes
-   out while the cyan rim + glyphs keep ghosting through. Fade it out with
-   the veil. The transition lives on the BASE (not the state) so it fades
-   BOTH ways — on the state rule alone the bar would snap back the instant
-   the class is dropped. */
-.con-cmdbar {
-    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
-}
+   dialog) is the source of button truth and sits ABOVE (top layer), but
+   the game's command bar must NOT blink out — a bar that pops away on open
+   and back on close reads non-premium. It sits UNDER the veil (11700 <
+   11890), so the strong translucent dim already darkens it in place: it
+   stays present as a silhouette beneath the fullscreen bar, no fade cycle.
+   Just kill its pointer events (the top-layer dialog owns input anyway). */
 body.con-zoom-open .con-cmdbar {
-    opacity: 0;
     pointer-events: none;
 }
 

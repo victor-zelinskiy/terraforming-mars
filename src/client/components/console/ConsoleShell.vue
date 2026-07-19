@@ -1179,7 +1179,16 @@ export default defineComponent({
      * in CSS so per-card takes land in a fully visible hand.
      */
     footerUnderScene(): boolean {
+      const phase = this.playerView.game.phase;
       return (
+        // The draft PICK screen (a `card` hostTask in the drafting phase) is
+        // a tall bottom-reaching surface, but — unlike the research buy — no
+        // card flies into the dock during a pick (the drafted card lands in
+        // the separate `draftedCards` stack). So drop the footer BELOW it,
+        // exactly like the hand overlay, so the dock's pack tucks under the
+        // draft cards instead of poking over them. Ends at RESEARCH (buy /
+        // rise), where the footer returns on top for the deck→dock flights.
+        ((phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) && this.handDockVisible) ||
         this.playedTableVisible ||
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
