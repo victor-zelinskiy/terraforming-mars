@@ -15,6 +15,10 @@
     <span v-else-if="labelText !== undefined" class="pcard-plate" :class="labelAccentClass">{{ labelText }}</span>
     <!-- trade-discount light value token -->
     <span v-else-if="isDiscountToken" class="pcard-token">{{ insideText }}</span>
+    <!-- premium player cube (community / nomads) — the same 3D board marker -->
+    <span v-else-if="cubeColor !== undefined" class="pcard-cube">
+      <player-cube :color="cubeColor" :glow="true" :shadow="false" :overlay-symbol="false" />
+    </span>
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
@@ -91,6 +95,8 @@ import {
 import {effectKindOf, effectParts, EffectParts, itemRepeats, renderableNodes} from './mechanicsModel';
 import {mechItemIcon, MechIconSpec, tagIconUrl, tileIcon, TileIconSpec} from './premiumCardIcons';
 import {translateText} from '@/client/directives/i18n';
+import {Color} from '@/common/Color';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
 
@@ -101,6 +107,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
+  components: {PlayerCube},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -183,6 +190,10 @@ export default defineComponent({
     /** Trade-discount light value token (the −N rides `insideText`). */
     isDiscountToken(): boolean {
       return this.mechIcon?.kind === 'token';
+    },
+    /** Premium player-cube colour for community / nomads markers. */
+    cubeColor(): Color | undefined {
+      return this.mechIcon?.kind === 'cube' ? this.mechIcon.color : undefined;
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

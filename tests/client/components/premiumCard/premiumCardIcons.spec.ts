@@ -46,6 +46,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
   it('trade discount is a value-bearing token', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_DISCOUNT))).to.deep.equal({kind: 'token'});
   });
+
+  it('community + nomads reuse the premium player cube (representative colour)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.COMMUNITY))).to.deep.equal({kind: 'cube', color: 'orange'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.NOMADS))).to.deep.equal({kind: 'cube', color: 'bronze'});
+  });
 });
 
 describe('premiumCardIcons.tileIcon', () => {

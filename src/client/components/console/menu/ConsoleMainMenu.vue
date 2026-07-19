@@ -105,7 +105,10 @@
     </div>
 
     <!-- ── Profile editor ──────────────────────────────────────────────── -->
-    <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" />
+    <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" @manage-friends="openFriends" />
+
+    <!-- ── Friends editor (opened from the profile) ────────────────────── -->
+    <ConsoleFriendsEditor v-if="overlay === 'friends'" ref="friends" @close="backToProfileFromFriends" />
 
     <!-- ── Language picker (Y) ─────────────────────────────────────────── -->
     <ConsoleLanguagePicker v-if="overlay === 'language'" ref="language" @close="closeOverlay" />
@@ -191,6 +194,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
+import ConsoleFriendsEditor from '@/client/components/console/menu/ConsoleFriendsEditor.vue';
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
@@ -210,11 +214,11 @@ import {$t} from '@/client/directives/i18n';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'language' | 'options' | 'quit' | 'steam' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'friends' | 'language' | 'options' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -300,6 +304,9 @@ export default defineComponent({
       if (this.overlay === 'profile') {
         return 'Player profile';
       }
+      if (this.overlay === 'friends') {
+        return 'Friends';
+      }
       if (this.overlay === 'options') {
         return 'Options';
       }
@@ -325,6 +332,14 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Change'},
           {control: 'back', label: 'Done'},
+        ];
+      }
+      if (this.overlay === 'friends') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Add friend'},
+          {control: 'inspect', label: 'Remove'},
+          {control: 'back', label: 'Back'},
         ];
       }
       if (this.overlay === 'quit') {
@@ -415,6 +430,16 @@ export default defineComponent({
         }
         if (action === 'back') {
           this.closeOverlay();
+        }
+        return true;
+      }
+      if (this.overlay === 'friends') {
+        const friends = this.$refs.friends as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        if (friends?.handleIntent?.(intent) === true) {
+          return true;
+        }
+        if (action === 'back') {
+          this.backToProfileFromFriends();
         }
         return true;
       }
@@ -536,6 +561,14 @@ export default defineComponent({
       }
     },
     openProfile(): void {
+      this.overlay = 'profile';
+    },
+    openFriends(): void {
+      this.overlay = 'friends';
+    },
+    /** Friends is a sub-panel of the profile — B there returns to the profile. */
+    backToProfileFromFriends(): void {
+      menuPadState.textEntry = false;
       this.overlay = 'profile';
     },
     closeOverlay(): void {

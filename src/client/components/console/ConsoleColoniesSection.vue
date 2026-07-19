@@ -61,6 +61,46 @@
         </div>
       </div>
     </div>
+
+    <!-- FOCUSED-COLONY SUMMARY — the big glance readout the couch needs
+         (pay → receive → bonus + availability), filling the space below the
+         grid. Reuses the tile's exact reward/bonus glyph logic so the two
+         can never disagree. -->
+    <footer v-if="focusedMeta !== undefined" class="con-colonies__summary">
+      <div class="con-colonies__summary-id">
+        <span class="con-colonies__summary-name">{{ $t(colonies[index].name) }}</span>
+        <span class="con-colonies__summary-track">{{ focusedTrackDisplay }}</span>
+      </div>
+      <div class="con-colonies__summary-flow">
+        <div class="con-colonies__summary-cell">
+          <span class="con-colonies__summary-label">{{ $t('You pay') }}</span>
+          <span class="con-colonies__summary-pay">
+            <ColonyFleetIcon v-if="viewerColor !== undefined" :color="viewerColor" :free="true" />
+            <span class="con-colonies__summary-paytext">{{ $t('Trade fleet') }}</span>
+          </span>
+        </div>
+        <span class="con-colonies__summary-arrow" aria-hidden="true">→</span>
+        <div class="con-colonies__summary-cell">
+          <span class="con-colonies__summary-label">{{ $t('You receive') }}</span>
+          <span class="con-colonies__summary-get">
+            <b v-if="focusedReward.quantity > 1">{{ focusedReward.quantity }}</b>
+            <BenefitGlyph :benefit="focusedTradeBenefit" :idx="focusedPosition" :cardResource="focusedMeta.cardResource" />
+            <span v-if="focusedOffset > 0" class="con-colonies__summary-offset">+{{ focusedOffset }}</span>
+          </span>
+        </div>
+        <span class="con-colonies__summary-sep" aria-hidden="true">·</span>
+        <div class="con-colonies__summary-cell">
+          <span class="con-colonies__summary-label">{{ $t('Bonus') }}</span>
+          <span class="con-colonies__summary-get">
+            <b v-if="focusedBonusQty > 1">{{ focusedBonusQty }}</b>
+            <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
+          </span>
+        </div>
+      </div>
+      <div class="con-colonies__summary-status" :class="'con-colonies__summary-status--' + focusedStatus.kind">
+        {{ focusedStatus.text !== '' ? focusedStatus.text : $t('Trade available') }}
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -89,11 +129,14 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {colonyGridLayout, colonyGridCols, ColonyGridLayout} from '@/client/console/consoleColoniesModel';
-import {freeTradeFleets} from '@/client/components/colonies/colonyTradePlan';
+import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
+import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
+import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -131,7 +174,7 @@ const FIT_SLACK = 12;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad},
+  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -180,6 +223,56 @@ export default defineComponent({
         me: player.color === this.viewerColor,
       }));
       return chips.sort((a, b) => Number(b.me) - Number(a.me));
+    },
+    // ── Focused-colony summary (mirrors ConsoleColonyTile's reward/bonus
+    //    logic so the big glance readout can never disagree with the tile). ──
+    focusedMeta(): ColonyMetadata | undefined {
+      const colony = this.colonies[this.index];
+      return colony === undefined ? undefined : getColony(colony.name);
+    },
+    focusedPosition(): number {
+      const colony = this.colonies[this.index];
+      if (colony === undefined || this.focusedMeta === undefined) {
+        return 0;
+      }
+      const offset = colony.isActive ? this.tradeOffset : 0;
+      return effectiveTradePosition(colony, this.focusedMeta, offset);
+    },
+    focusedTrackMax(): number {
+      return this.focusedMeta === undefined ? 0 : this.focusedMeta.trade.quantity.length - 1;
+    },
+    focusedOffset(): number {
+      const colony = this.colonies[this.index];
+      if (colony === undefined) {
+        return 0;
+      }
+      return Math.max(0, this.focusedPosition - Math.min(colony.trackPosition, this.focusedTrackMax));
+    },
+    focusedReward(): TradeRewardAt {
+      return rewardAtPosition(this.focusedMeta as ColonyMetadata, this.focusedPosition);
+    },
+    focusedTradeBenefit(): {type: ColonyMetadata['trade']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
+      const t = (this.focusedMeta as ColonyMetadata).trade;
+      const resource = Array.isArray(t.resource) ? t.resource[this.focusedPosition] : t.resource;
+      return {type: t.type, quantity: t.quantity, resource};
+    },
+    focusedColonyBenefit(): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
+      const c = (this.focusedMeta as ColonyMetadata).colony;
+      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+    },
+    focusedBonusQty(): number {
+      return this.focusedMeta === undefined ? 1 : (this.focusedMeta.colony.quantity ?? 1);
+    },
+    focusedTrackDisplay(): string {
+      const colony = this.colonies[this.index];
+      if (colony === undefined) {
+        return '';
+      }
+      return `${Math.min(colony.trackPosition, this.focusedTrackMax) + 1}/${this.focusedTrackMax + 1}`;
+    },
+    focusedStatus(): ConsoleColonyTileStatus {
+      const colony = this.colonies[this.index];
+      return colony === undefined ? {kind: 'none', text: ''} : this.tileStatus(colony);
     },
   },
   watch: {

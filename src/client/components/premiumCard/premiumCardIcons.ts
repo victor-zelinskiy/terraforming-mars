@@ -21,6 +21,7 @@ import {GameModule} from '@/common/cards/GameModule';
 import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
+import {Color} from '@/common/Color';
 
 export type MechIconSpec =
   | {kind: 'img', url: string, mod?: string}
@@ -29,6 +30,9 @@ export type MechIconSpec =
   | {kind: 'label', text: string, accent?: 'prelude' | 'award'}
   /** A value-bearing light token (trade discount) — the amount rides `amountInside`. */
   | {kind: 'token'}
+  /** A premium player cube (community / nomads) — the SAME 3D board marker,
+   *  rendered on the card in a representative colour (player-agnostic face). */
+  | {kind: 'cube', color: Color}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -323,6 +327,14 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     return {kind: 'label', text: 'Milestone', accent: 'award'};
   case CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS:
     return {kind: 'label', text: 'Global requirements'};
+  case CardRenderItemType.COMMUNITY:
+    // Arcadian Communities marker — the board renders it as a player cube;
+    // the card shows the SAME cube, orange (its identity + legacy tone).
+    return {kind: 'cube', color: 'orange'};
+  case CardRenderItemType.NOMADS:
+    // Mars Nomads token — a bronze/gold cube (matches the physical nomad token
+    // + the legacy gold tint).
+    return {kind: 'cube', color: 'bronze'};
   default: {
     const url = ITEM_ICON_URL[item.type];
     if (url !== undefined) {

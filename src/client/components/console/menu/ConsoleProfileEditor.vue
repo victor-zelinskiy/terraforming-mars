@@ -30,6 +30,15 @@
             ></button>
           </span>
         </div>
+
+        <!-- Friends — a primitive local list for quick picks when inviting. -->
+        <div class="cm-field" :class="{'cm-field--cursor': cursor === 2}" @mousemove="cursor = 2" @click="cursor = 2; $emit('manage-friends')">
+          <span class="cm-field__label">{{ $t('Friends') }}</span>
+          <span class="cm-field__value">
+            <span :class="{'cm-field__missing': friendCount === 0}">{{ friendCount > 0 ? friendCount : '—' }}</span>
+            <span class="cm-field__hint" aria-hidden="true"><GamepadGlyph control="confirm" />{{ $t('Manage') }}</span>
+          </span>
+        </div>
       </div>
 
       <div class="cm-overlay__foot">
@@ -68,6 +77,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {identityState, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {DEFAULT_IDENTITY_COLOR} from '@/client/components/mainMenu/identity/playerIdentity';
+import {friendsState, ensureFriendsLoaded} from '@/client/components/mainMenu/friendsState';
 import {validatePlayerName} from '@/common/utils/playerName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
@@ -75,7 +85,7 @@ import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirt
 export default defineComponent({
   name: 'ConsoleProfileEditor',
   components: {GamepadGlyph, ConsoleVirtualKeyboard},
-  emits: ['close'],
+  emits: ['close', 'manage-friends'],
   data() {
     return {
       cursor: 0,
@@ -90,6 +100,12 @@ export default defineComponent({
     colors(): ReadonlyArray<Color> {
       return PLAYER_COLORS;
     },
+    friendCount(): number {
+      return friendsState.friends.length;
+    },
+  },
+  created() {
+    ensureFriendsLoaded();
   },
   beforeUnmount() {
     menuPadState.textEntry = false;
@@ -104,7 +120,7 @@ export default defineComponent({
       }
       if (intent.kind === 'nav') {
         if (intent.dir === 'up' || intent.dir === 'down') {
-          this.cursor = this.cursor === 0 ? 1 : 0;
+          this.cursor = Math.min(2, Math.max(0, this.cursor + (intent.dir === 'down' ? 1 : -1)));
           return true;
         }
         if (this.cursor === 1 && (intent.dir === 'left' || intent.dir === 'right')) {
@@ -116,8 +132,10 @@ export default defineComponent({
       if (consoleActionOf(intent) === 'primary') {
         if (this.cursor === 0) {
           this.startNameEntry();
-        } else {
+        } else if (this.cursor === 1) {
           this.cycleColor(1);
+        } else {
+          this.$emit('manage-friends');
         }
         return true;
       }

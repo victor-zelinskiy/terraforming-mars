@@ -97,6 +97,35 @@
       @commit="commitNameEntry"
       @cancel="cancelNameEntry"
     />
+
+    <!-- Quick-pick a saved friend for this seat (or fall back to typing). -->
+    <div v-if="pickingFriend" class="cm-overlay cm-overlay--nested" role="dialog" :aria-label="$t('Choose a friend')">
+      <div class="cm-overlay__card cm-overlay__card--wide">
+        <div class="cm-overlay__title">{{ $t('Choose a friend') }}</div>
+        <ConsoleScrollArea ref="friendScroll" class="cm-friends-scroll">
+          <div class="cm-fields">
+            <div
+              v-for="(row, i) in friendPickRows"
+              :key="row.kind === 'type' ? '__type' : row.name"
+              class="cm-field"
+              :class="{'cm-field--cursor': i === friendCursor, 'cm-field--disabled': row.kind === 'friend' && row.seated}"
+              @mousemove="friendCursor = i"
+              @click="chooseFriendRow(i)"
+            >
+              <span class="cm-friend__name">{{ row.kind === 'type' ? $t('Type a new name') : row.name }}</span>
+              <span class="cm-field__value">
+                <span v-if="row.kind === 'friend' && row.seated" class="cm-field__missing">{{ $t('Already in the party') }}</span>
+                <span v-else class="cm-field__hint" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+              </span>
+            </div>
+          </div>
+        </ConsoleScrollArea>
+        <div class="cm-overlay__foot">
+          <span class="cm-overlay__foot-hint"><GamepadGlyph control="confirm" />{{ $t('Select') }}</span>
+          <span class="cm-overlay__foot-hint"><GamepadGlyph control="back" />{{ $t('Cancel') }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -124,13 +153,18 @@ import {
 } from '@/client/console/menu/consoleCreateModel';
 import {createGameState, setSlotColor, setSlotName} from '@/client/components/create/premium/createGameState';
 import {botDifficultyMeta} from '@/client/components/create/premium/createGameMeta';
-import {validatePlayerName} from '@/common/utils/playerName';
+import {friendsState, ensureFriendsLoaded} from '@/client/components/mainMenu/friendsState';
+import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
+
+/** A row of the friend quick-pick: a saved friend, or the "type a name" escape. */
+type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
 
 export default defineComponent({
   name: 'ConsoleParticipantEditor',
-  components: {GamepadGlyph, ConsoleVirtualKeyboard},
+  components: {GamepadGlyph, ConsoleScrollArea, ConsoleVirtualKeyboard},
   props: {
     target: {type: Object as PropType<EditorTarget>, required: true},
     cursor: {type: Number, required: true},
@@ -141,6 +175,8 @@ export default defineComponent({
       entering: false,
       entryDraft: '',
       nameIssue: '',
+      pickingFriend: false,
+      friendCursor: 0,
     };
   },
   computed: {
@@ -177,6 +213,29 @@ export default defineComponent({
     difficultyDesc(): string {
       return botDifficultyMeta(createGameState.config.botDifficulty).descKey;
     },
+    /** Saved friends offered for this seat + a final "type a new name" row.
+     * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */
+    friendPickRows(): ReadonlyArray<FriendPickRow> {
+      if (this.target.kind !== 'human') {
+        return [];
+      }
+      const myIndex = this.target.index;
+      const takenNorms = new Set(
+        createGameState.config.players
+          .filter((_, i) => i !== myIndex)
+          .map((p) => normalizePlayerName(p.name)),
+      );
+      const rows: Array<FriendPickRow> = friendsState.friends.map((name) => ({
+        kind: 'friend',
+        name,
+        seated: takenNorms.has(normalizePlayerName(name)),
+      }));
+      rows.push({kind: 'type'});
+      return rows;
+    },
+  },
+  created() {
+    ensureFriendsLoaded();
   },
   beforeUnmount() {
     menuPadState.textEntry = false;
@@ -188,6 +247,25 @@ export default defineComponent({
         // The on-screen keyboard owns every intent while name entry is active.
         const vk = this.$refs.vkeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
         return vk?.handleIntent?.(intent) ?? true;
+      }
+      if (this.pickingFriend) {
+        // The friend quick-pick owns every intent while it is open.
+        if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+          const count = this.friendPickRows.length;
+          this.friendCursor = Math.min(count - 1, Math.max(0, this.friendCursor + (intent.dir === 'down' ? 1 : -1)));
+          this.keepFriendCursorVisible();
+          return true;
+        }
+        const pickAction = consoleActionOf(intent);
+        if (pickAction === 'primary') {
+          this.chooseFriendRow(this.friendCursor);
+          return true;
+        }
+        if (pickAction === 'back') {
+          this.pickingFriend = false;
+          return true;
+        }
+        return true; // Swallow the rest — nothing behind the picker reacts.
       }
       const field = this.fields[this.cursor];
       if (intent.kind === 'nav') {
@@ -221,7 +299,12 @@ export default defineComponent({
       }
       switch (field.id) {
       case 'name':
-        this.startNameEntry();
+        // With saved friends, offer the quick-pick first; otherwise type directly.
+        if (this.target.kind === 'human' && friendsState.friends.length > 0) {
+          this.openFriendPick();
+        } else {
+          this.startNameEntry();
+        }
         break;
       case 'color':
       case 'trBoost':
@@ -232,6 +315,34 @@ export default defineComponent({
         this.$emit('remove-request');
         break;
       }
+    },
+    openFriendPick(): void {
+      this.friendCursor = 0;
+      this.pickingFriend = true;
+    },
+    keepFriendCursorVisible(): void {
+      void this.$nextTick(() => {
+        const scroll = this.$refs.friendScroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        scroll?.ensureVisible?.(this.$el.querySelector('.cm-overlay--nested .cm-field--cursor'));
+      });
+    },
+    chooseFriendRow(i: number): void {
+      const row = this.friendPickRows[i];
+      if (row === undefined) {
+        return;
+      }
+      if (row.kind === 'type') {
+        this.pickingFriend = false;
+        this.startNameEntry();
+        return;
+      }
+      if (row.seated) {
+        return; // Already used by another seat — the row is disabled.
+      }
+      if (this.target.kind === 'human') {
+        setSlotName(this.target.index, row.name);
+      }
+      this.pickingFriend = false;
     },
     startNameEntry(): void {
       if (this.target.kind !== 'human') {

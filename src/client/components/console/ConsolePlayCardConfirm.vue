@@ -87,8 +87,11 @@
 
             <!-- ── REVIEW: result + decisions. ───────────────────────── -->
             <template v-else>
+              <!-- RESULT HERO: the decision-carrying data (what you get) is the
+                   dominant, glance-readable block — not the CTA. -->
+              <div class="con-composer__resulthero">
               <!-- RESULT: variants (selectable) or the single immediate effect. -->
-              <div class="con-composer__sub-title">{{ $t('Result') }}</div>
+              <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t('Result') }}</div>
               <template v-if="hasVariants">
                 <div v-for="row in variantRows" :key="row.id"
                      class="con-composer__variant"
@@ -128,6 +131,7 @@
                 </span>
                 <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
               </div>
+              </div><!-- /__resulthero -->
 
               <!-- SILENT-LOSS warnings (verbatim desktop parity): NAME the skipped
                    effect + the magnitude lost, then the reason. -->

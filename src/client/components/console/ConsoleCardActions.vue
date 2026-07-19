@@ -141,11 +141,15 @@
             </div>
           </div>
 
-          <!-- The printed action rule (recognizable graphic). -->
+          <!-- The printed action rule (recognizable graphic). A text-override
+               action reads as a labelled «ДЕЙСТВИЕ» prose block here (the ONE
+               full copy — the master tile shows a 2-line preview), never a
+               giant duplicate. -->
+          <div class="con-cardactions__detail-label" v-if="focusedTile.node.actionNode === undefined && focusedTile.node.renderRoot === undefined">{{ $t('Action') }}</div>
           <div class="con-cardactions__detail-graphic card-container" v-i18n v-strip-action-prefix>
             <CardRenderEffectBoxComponent v-if="focusedTile.node.actionNode !== undefined" :effectData="focusedTile.node.actionNode" />
             <CardRenderData v-else-if="focusedTile.node.renderRoot !== undefined" :renderData="focusedTile.node.renderRoot" />
-            <span v-else class="con-cardactions__graphic-text">{{ focusedTile.node.text }}</span>
+            <span v-else class="con-cardactions__graphic-text con-cardactions__graphic-text--detail">{{ focusedTile.node.text }}</span>
           </div>
 
           <!-- The complete cost / reward breakdown (static + variable). -->

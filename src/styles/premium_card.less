@@ -1192,6 +1192,21 @@
   border-color: #8a561c;
   color: #3a2408;
 }
+/* community / nomads — host for the premium 3D player cube (the SAME
+   PlayerCube.vue the board uses). The cube's `--pc-size` is a public knob set
+   inline by the component; we override it (only legit use of !important here)
+   so the marker tracks the mechanics-icon size across density tiers instead of
+   its fixed board default. */
+.pcard-cube {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 2px;
+  .player-cube {
+    --pc-size: calc(var(--pcard-mech-icon) * 1.08) !important;
+  }
+}
 /* trade-discount — a light value token (mirrors the legacy white square, the
    −N reduction of a colony's trade fee). */
 .pcard-token {

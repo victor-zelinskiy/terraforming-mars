@@ -678,6 +678,54 @@
     &--on { background: @cm-gold; box-shadow: 0 0 .4rem fade(@cm-gold, 45%); }
 }
 
+/* ── Friends (profile → friends editor + invite quick-pick) ──────── */
+.cm-overlay--nested { z-index: 11600; }
+.cm-friends-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: 44vh;
+}
+.cm-friends__empty {
+    padding: 1.1rem .4rem;
+    text-align: center;
+    color: @con-text-dim;
+    font-size: .85rem;
+}
+.cm-friends__foot {
+    display: flex;
+    justify-content: flex-start;
+    padding-top: .1rem;
+}
+.cm-friend__name {
+    flex: 1;
+    min-width: 0;
+    font-size: .95rem;
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-friend__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 0;
+    border-radius: .4rem;
+    background: rgba(20, 12, 14, 0.9);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+    color: mix(#ffffff, @con-red, 55%);
+    font-family: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+}
+.cm-field--disabled {
+    opacity: 0.5;
+    cursor: default;
+    &.cm-field--cursor { box-shadow: inset 0 0 0 .1rem fade(@con-amber, 55%); }
+}
+
 .cm-cube {
     width: 1.3rem;
     height: 1.3rem;

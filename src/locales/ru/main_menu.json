@@ -37,5 +37,17 @@
     "Continue or join your unfinished games": "Продолжить или присоединиться к незавершённым партиям",
     "Several players share your name here": "Здесь несколько игроков с вашим именем",
     "No seat with your name": "Нет места с вашим именем",
-    "Your name and cube colour prefill every party you create or join.": "Имя и цвет кубика подставляются в каждую партию, которую вы создаёте или к которой присоединяетесь."
+    "Your name and cube colour prefill every party you create or join.": "Имя и цвет кубика подставляются в каждую партию, которую вы создаёте или к которой присоединяетесь.",
+
+    "Friends": "Друзья",
+    "Manage": "Управлять",
+    "Add friend": "Добавить друга",
+    "Friend name": "Имя друга",
+    "You have no friends yet.": "У вас пока нет друзей.",
+    "Add friends' names for quick selection when inviting them to a game.": "Добавьте имена друзей для быстрого выбора при приглашении в партию.",
+    "This name is already in your friends": "Это имя уже есть в списке друзей",
+    "Your friends list is full": "Список друзей заполнен",
+    "Choose a friend": "Выберите друга",
+    "Type a new name": "Ввести новое имя",
+    "Already in the party": "Уже в партии"
 }

@@ -259,11 +259,15 @@ html.con-profile-tv {
        never below. The backdrop rises to dim-strong via the §0 dim vars. */
     .con-quick {
         &__kicker { font-size: 1.3rem; }
-        &__slot { min-height: 3.9rem; min-width: 13rem; padding: 0.8rem 1.1rem; }
-        &__slot-label { font-size: 1.25rem; }
+        /* WIDER columns + more gap so a wrapped side label (КОНВЕРТАЦИЯ
+           РАСТЕНИЙ / ТЕПЛА) has room and never crowds the centre slot. The
+           labels wrap (base rule) inside these boxes. */
+        &__cross { grid-template-columns: repeat(3, 18rem); gap: 1rem 1.4rem; }
+        &__slot { min-height: 5.2rem; min-width: 0; padding: 0.9rem 1.1rem; }
+        &__slot-label { font-size: 1.2rem; line-height: 1.15; }
         &__slot-meta { font-size: 0.95rem; }
         &__slot-glyph { font-size: 1.8rem; }
-        &__slot-reason { font-size: var(--con-t-floor); }
+        &__slot-reason { font-size: var(--con-t-floor); max-width: 100%; }
         &__slot-badge { min-width: 1.4rem; height: 1.4rem; font-size: 0.9rem; }
         &__slot-icon {
             .bar-btn-icon { width: 2.4rem; height: 2.4rem; }
@@ -537,12 +541,22 @@ html.con-profile-tv {
     /* The header fleet dock (all players' fleets) — the berths and ships
        were near-invisible marks on the panel. */
     .con-colonies {
-        &__fleetberth { width: 1.9rem; height: 1.9rem; }
-        &__fleetship { width: 1.45rem; height: 1.45rem; }
-        &__fleetship .colony-fleet-icon { width: 1.45rem; height: 1.45rem; }
+        &__fleetchip-name { font-size: var(--con-t-secondary); max-width: 10rem; }
+        &__fleetberth { width: 2.2rem; height: 2.2rem; }
+        &__fleetship { width: 1.7rem; height: 1.7rem; }
+        &__fleetship .colony-fleet-icon { width: 1.7rem; height: 1.7rem; }
         &__fleetchip-count { font-size: var(--con-t-secondary); }
-        &__fleetchip-count .colony-fleet-icon { width: 1.4rem; height: 1.4rem; }
-        .colony-fleet-pad { width: 1.9rem; height: 0.9rem; }
+        &__fleetchip-count .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
+        .colony-fleet-pad { width: 2.2rem; height: 1.05rem; }
+        /* Focused-colony summary — the couch hero band. */
+        &__summary { gap: 1.6rem; padding: 0.8rem 1.3rem; }
+        &__summary-name { font-size: 1.35rem; }
+        &__summary-track { font-size: var(--con-t-secondary); }
+        &__summary-label { font-size: var(--con-t-floor); }
+        &__summary-paytext { font-size: var(--con-t-secondary); }
+        &__summary-pay .colony-fleet-icon { width: 2.1rem; height: 2.1rem; }
+        &__summary-arrow, &__summary-sep { font-size: 1.9rem; }
+        &__summary-status { font-size: var(--con-t-secondary); padding: 0.4rem 1rem; }
     }
     .con-colinspect {
         &__frame { width: min(62rem, 94vw); }
@@ -761,11 +775,15 @@ html.con-profile-tv {
             b { font-size: var(--con-t-caption); }
         }
         &__fgroup-keys .gp-glyph { transform: none; }
-        /* The action GRAPHIC is the heart of the screen — px card-render
-           content scaled through the ui-scale zoom channel. */
-        &__graphic { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
-        &__detail-graphic { zoom: calc(1.9 * var(--con-ui-scale, 1)); }
-        &__graphic-text { font-size: var(--con-t-body); }
+        /* The action GRAPHIC: ICON content (px card-render) rides the
+           ui-scale zoom; a TEXT-override action must NOT be zoomed (it read
+           as a page-filling, overflowing duplicate) — `:not(:has())` keeps
+           the zoom off the prose branch. */
+        &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
+        &__detail-graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.9 * var(--con-ui-scale, 1)); }
+        /* Text actions: readable couch prose, wrapping, never zoomed. */
+        &__graphic-text { font-size: var(--con-t-secondary); }
+        &__graphic-text--detail { font-size: var(--con-t-body); }
         &__group-name { font-size: 1.3rem; }
         &__group-status { font-size: var(--con-t-floor); }
         &__group-res b { font-size: 1.05rem; }
@@ -832,6 +850,31 @@ html.con-profile-tv {
         &__foot-item { font-size: 1.05rem; }
         &__cta { min-height: var(--con-hit-min); }
         &__cta-label { font-size: 1.15rem; }
+        /* ── PLAY-CONFIRM RESULT HERO — the "что получаем" is the dominant
+           block (user: the CTA must not be the most readable thing). Result
+           chips + production/tag rows read at hero size; the source card
+           (left) is slightly reined so the two columns balance. */
+        &__resulthero { padding: 0.9rem 1.1rem; gap: 0.7rem; }
+        &__sub-title--result { font-size: var(--con-t-body); }
+        &__result-chips .action-effect-chip,
+        &__variant-chips .action-effect-chip {
+            font-size: ~"calc(var(--con-chip-fs, 1.05rem) + .15rem)";
+        }
+        &__result-chips .action-effect-chip__icon,
+        &__variant-chips .action-effect-chip__icon {
+            width: ~"calc(var(--con-chip-icon, 1.6rem) + .3rem)";
+            height: ~"calc(var(--con-chip-icon, 1.6rem) + .3rem)";
+        }
+        &__rescat { min-height: var(--con-hit-min); font-size: var(--con-t-body); }
+        &__rescat-tag { width: 1.5rem; height: 1.5rem; }
+        &__variant-title { font-size: var(--con-t-body); }
+        &--play &__playcard { zoom: calc(0.86 * var(--con-ui-scale, 1)); }
+        /* Payment reads as a clear price line. */
+        &__pay-title { font-size: var(--con-t-secondary); }
+        &__pay-cost { font-size: var(--con-t-secondary); b { font-size: 1.3rem; } }
+        &__pay-total { font-size: var(--con-t-body); }
+        &__playhead { font-size: var(--con-t-body); }
+        &__paycost b { font-size: 1.4rem; }
     }
 
     /* ═══ 19b · MARSBOT TURN REVIEW («Разбор хода») ═══════════════
