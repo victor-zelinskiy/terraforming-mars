@@ -23,6 +23,7 @@ export class ValuableGases extends PreludeCard implements IProjectCard {
 
       metadata: {
         cardNumber: 'PfP02',
+        reimplements: CardName.VALUABLE_GASES,
         renderData: CardRenderer.builder((b) => {
           b.megacredits(10);
           b.text('play', Size.MEDIUM, true).cards(1, {secondaryTag: AltSecondaryTag.FLOATER}).asterix().br.projectRequirements().br;

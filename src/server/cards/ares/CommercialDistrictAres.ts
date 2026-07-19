@@ -12,6 +12,7 @@ export class CommercialDistrictAres extends CommercialDistrict {
       {bonus: [SpaceBonus.MEGACREDITS, SpaceBonus.MEGACREDITS]},
       {
         cardNumber: 'A06',
+        reimplements: CardName.COMMERCIAL_DISTRICT,
         description: 'Place this tile which grants an ADJACENCY BONUS of 2 M€. Decrease your energy production 1 step and increase your M€ production 4 steps.',
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {

@@ -11,6 +11,7 @@ export class RestrictedAreaAres extends RestrictedArea {
       {bonus: [SpaceBonus.DRAW_CARD]},
       {
         cardNumber: 'A24',
+        reimplements: CardName.RESTRICTED_AREA,
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 2 M€ to draw a card.', (eb) => {
             eb.megacredits(2).startAction.cards(1);

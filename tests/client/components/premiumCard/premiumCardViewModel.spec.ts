@@ -50,11 +50,34 @@ describe('cardArt', () => {
   });
 
   it('falls back for cards without art', () => {
-    // Donation is prelude P36 — no art shipped.
-    expect(cardArtUrl(CardName.DONATION)).to.eq(undefined);
-    const art = premiumCardArt(CardName.DONATION);
+    // Sell Patents is a standard project (SP8) — never illustrated.
+    expect(cardArtUrl(CardName.SELL_PATENTS_STANDARD_PROJECT)).to.eq(undefined);
+    const art = premiumCardArt(CardName.SELL_PATENTS_STANDARD_PROJECT);
     expect(art.url).to.eq(CARD_ART_FALLBACK_URL);
     expect(art.fallback).to.eq(true);
+  });
+
+  it('a reimplementation borrows the base card art when it has none of its own', () => {
+    // Deimos Down Promo (X31 — no art of its own) reimplements Deimos Down
+    // (039, real art), so it resolves to the base card's illustration rather
+    // than the generic fallback. Same for the Ares reissue.
+    expect(cardArtUrl(CardName.DEIMOS_DOWN)).to.eq('assets/card-images/039.webp');
+    expect(cardArtUrl(CardName.DEIMOS_DOWN_PROMO)).to.eq('assets/card-images/039.webp');
+    expect(cardArtUrl(CardName.DEIMOS_DOWN_ARES)).to.eq('assets/card-images/039.webp');
+    expect(premiumCardArt(CardName.DEIMOS_DOWN_PROMO).fallback).to.eq(false);
+    // Great Dam (136) and Magnetic Field Generators (165) reissues too.
+    expect(cardArtUrl(CardName.GREAT_DAM_PROMO)).to.eq('assets/card-images/136.webp');
+    expect(cardArtUrl(CardName.MAGNETIC_FIELD_GENERATORS_PROMO)).to.eq('assets/card-images/165.webp');
+    // Every Ares reissue borrows its base card's art (none have Ares art of
+    // their own): Capital (008), Restricted Area (199), Nuclear Zone (097).
+    expect(cardArtUrl(CardName.CAPITAL_ARES)).to.eq('assets/card-images/008.webp');
+    expect(cardArtUrl(CardName.RESTRICTED_AREA_ARES)).to.eq('assets/card-images/199.webp');
+    expect(cardArtUrl(CardName.NUCLEAR_ZONE_ARES)).to.eq('assets/card-images/097.webp');
+    // Underworld reissues borrow the base art too: Hackers (125),
+    // Hired Raiders (124), Standard Technology (156).
+    expect(cardArtUrl(CardName.HACKERS_UNDERWORLD)).to.eq('assets/card-images/125.webp');
+    expect(cardArtUrl(CardName.HIRED_RAIDERS_UNDERWORLD)).to.eq('assets/card-images/124.webp');
+    expect(cardArtUrl(CardName.STANDARD_TECHNOLOGY_UNDERWORLD)).to.eq('assets/card-images/156.webp');
   });
 });
 

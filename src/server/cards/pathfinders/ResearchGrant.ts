@@ -16,6 +16,7 @@ export class ResearchGrant extends PreludeCard {
 
       metadata: {
         cardNumber: 'PfP05',
+        reimplements: CardName.RESEARCH_GRANT,
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.energy(1)).br;
           b.megacredits(14);

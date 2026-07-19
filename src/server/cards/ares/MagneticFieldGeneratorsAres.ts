@@ -12,6 +12,7 @@ export class MagneticFieldGeneratorsAres extends MagneticFieldGeneratorsPromo {
       {bonus: [SpaceBonus.PLANT, SpaceBonus.MICROBE]},
       {
         cardNumber: 'Axx',
+        reimplements: CardName.MAGNETIC_FIELD_GENERATORS,
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => {
             pb.minus().energy(4, {digit}).br;

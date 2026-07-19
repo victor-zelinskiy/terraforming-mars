@@ -11,6 +11,7 @@ export class NaturalPreserveAres extends NaturalPreserve {
       {bonus: [SpaceBonus.MEGACREDITS]},
       {
         cardNumber: 'A18',
+        reimplements: CardName.NATURAL_PRESERVE,
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.megacredits(1)).nbsp.tile(TileType.NATURAL_PRESERVE, false, true).asterix();
         }),

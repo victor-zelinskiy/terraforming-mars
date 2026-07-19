@@ -3,6 +3,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {TileType} from '../../../common/TileType';
 import {CardName} from '../../../common/cards/CardName';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardRenderer} from '../render/CardRenderer';
 
@@ -10,7 +11,7 @@ export class LavaFlows extends Card implements IProjectCard {
   constructor(
     name = CardName.LAVA_FLOWS,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: '140',
       renderData: CardRenderer.builder((b) => {
         b.temperature(2).br;

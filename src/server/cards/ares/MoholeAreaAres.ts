@@ -12,6 +12,7 @@ export class MoholeAreaAres extends MoholeArea {
       {bonus: [SpaceBonus.HEAT, SpaceBonus.HEAT]},
       {
         cardNumber: 'A16',
+        reimplements: CardName.MOHOLE_AREA,
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.heat(4, {digit})).br;
           b.tile(TileType.MOHOLE_AREA, false, true);

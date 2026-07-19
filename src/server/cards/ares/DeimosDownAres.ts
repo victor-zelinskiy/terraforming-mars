@@ -12,6 +12,7 @@ export class DeimosDownAres extends DeimosDownPromo {
       {bonus: [SpaceBonus.ASTEROID, SpaceBonus.STEEL]},
       {
         cardNumber: 'A26',
+        reimplements: CardName.DEIMOS_DOWN,
         renderData: CardRenderer.builder((b) => {
           b.temperature(3).br;
           b.tile(TileType.DEIMOS_DOWN, false, true).asterix().br;

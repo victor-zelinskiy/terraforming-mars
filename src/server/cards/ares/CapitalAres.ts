@@ -12,6 +12,7 @@ export class CapitalAres extends Capital {
       {bonus: [SpaceBonus.MEGACREDITS, SpaceBonus.MEGACREDITS]},
       {
         cardNumber: 'A05',
+        reimplements: CardName.CAPITAL,
         description: {
           text: 'Requires 4 ocean tiles. Place tile with ADJACENCY BONUS of 2 M€. Energy prod -2 and M€ prod +5.',
           align: 'left',

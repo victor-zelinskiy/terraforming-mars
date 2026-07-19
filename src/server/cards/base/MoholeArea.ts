@@ -4,6 +4,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IProjectCard} from '../IProjectCard';
 import {Tag} from '../../../common/cards/Tag';
 import {CardName} from '../../../common/cards/CardName';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardRenderer} from '../render/CardRenderer';
 import {digit} from '../Options';
@@ -12,7 +13,7 @@ export class MoholeArea extends Card implements IProjectCard {
   constructor(
     name = CardName.MOHOLE_AREA,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: '142',
       renderData: CardRenderer.builder((b) => {
         b.production((pb) => pb.heat(4, {digit})).br;

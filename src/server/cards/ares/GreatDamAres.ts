@@ -11,6 +11,7 @@ export class GreatDamAres extends GreatDamPromo {
       {bonus: [SpaceBonus.ENERGY, SpaceBonus.ENERGY]},
       {
         cardNumber: 'A25',
+        reimplements: CardName.GREAT_DAM,
         renderData: CardRenderer.builder((b) => {
           b.production((pb) => pb.energy(2)).tile(TileType.GREAT_DAM, false, true).asterix();
         }),

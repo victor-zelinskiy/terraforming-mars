@@ -11,6 +11,7 @@ export class NuclearZoneAres extends NuclearZone {
       {bonus: [], cost: 2},
       {
         cardNumber: 'A19',
+        reimplements: CardName.NUCLEAR_ZONE,
         renderData: CardRenderer.builder((b) => {
           b.tile(TileType.NUCLEAR_ZONE, false, true).temperature(2);
         }),

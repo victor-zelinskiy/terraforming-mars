@@ -10,6 +10,7 @@ export class MiningAreaAres extends MiningArea {
       CardName.MINING_AREA_ARES,
       {
         cardNumber: 'A14',
+        reimplements: CardName.MINING_AREA,
         infoText: [
           {text: 'Place this tile on an area with a steel or titanium placement bonus, adjacent to another of your tiles.', tokens: ['tile-']},
           {text: 'This tile provides an adjacency bonus of the same resource as the area.', tokens: ['tile-']},

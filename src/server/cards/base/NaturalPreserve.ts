@@ -4,6 +4,7 @@ import {TileType} from '../../../common/TileType';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardRenderer} from '../render/CardRenderer';
 import {max} from '../Options';
@@ -12,7 +13,7 @@ export class NaturalPreserve extends Card implements IProjectCard {
   constructor(
     name = CardName.NATURAL_PRESERVE,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: '044',
       renderData: CardRenderer.builder((b) => {
         b.production((pb) => pb.megacredits(1)).nbsp.tile(TileType.NATURAL_PRESERVE, true).asterix();

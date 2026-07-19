@@ -11,6 +11,7 @@ export class LavaFlowsAres extends LavaFlows {
       {bonus: [SpaceBonus.HEAT, SpaceBonus.HEAT]},
       {
         cardNumber: 'A11',
+        reimplements: CardName.LAVA_FLOWS,
         renderData: CardRenderer.builder((b) => {
           b.temperature(2).br;
           b.tile(TileType.LAVA_FLOWS, false, true);

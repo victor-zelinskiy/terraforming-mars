@@ -1,4 +1,5 @@
 import {IProjectCard} from '../IProjectCard';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
@@ -12,8 +13,9 @@ export class DeimosDownPromo extends Card implements IProjectCard {
   constructor(
     name = CardName.DEIMOS_DOWN_PROMO,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: 'X31',
+      reimplements: CardName.DEIMOS_DOWN,
       renderData: CardRenderer.builder((b) => {
         b.temperature(3).br;
         b.tile(TileType.DEIMOS_DOWN, true).asterix().br;

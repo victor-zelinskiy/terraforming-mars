@@ -1,4 +1,5 @@
 import {IProjectCard} from '../IProjectCard';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {Tag} from '../../../common/cards/Tag';
 import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
@@ -12,8 +13,9 @@ export class MagneticFieldGeneratorsPromo extends Card implements IProjectCard {
   constructor(
     name = CardName.MAGNETIC_FIELD_GENERATORS_PROMO,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: 'X33',
+      reimplements: CardName.MAGNETIC_FIELD_GENERATORS,
       renderData: CardRenderer.builder((b) => {
         b.production((pb) => {
           pb.minus().energy(4, {digit}).br;

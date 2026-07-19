@@ -27,6 +27,7 @@ export class GreatDamPromo extends Card implements IProjectCard {
         {text: 'Place this tile adjacent to an ocean tile.', tokens: ['tile-']},
       ],
       cardNumber: 'X32',
+      reimplements: CardName.GREAT_DAM,
       renderData: CardRenderer.builder((b) => {
         b.production((pb) => pb.energy(2)).tile(TileType.GREAT_DAM, true, false).asterix();
       }),

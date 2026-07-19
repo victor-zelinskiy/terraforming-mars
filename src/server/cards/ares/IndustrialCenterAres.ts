@@ -11,6 +11,7 @@ export class IndustrialCenterAres extends IndustrialCenter {
       {bonus: [SpaceBonus.STEEL]},
       {
         cardNumber: 'A10',
+        reimplements: CardName.INDUSTRIAL_CENTER,
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 7 M€ to increase your steel production 1 step.', (eb) => {
             eb.megacredits(7).startAction.production((pb) => pb.steel(1));

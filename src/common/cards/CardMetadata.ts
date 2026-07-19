@@ -2,6 +2,7 @@ import {CardRenderDynamicVictoryPoints} from './render/CardRenderDynamicVictoryP
 import {ICardRenderDescription} from './render/ICardRenderDescription';
 import {CardComponent} from './render/CardComponent';
 import {CardInformation, CardInfoText} from './CardInformation';
+import {CardName} from './CardName';
 
 export type CardMetadata = {
   /**
@@ -10,6 +11,14 @@ export type CardMetadata = {
    * It could be rendered on the card again, or used as part of card search.
    */
   cardNumber?: string;
+  /**
+   * The card this one REIMPLEMENTS / replaces (a promo reissue of a base card,
+   * e.g. Deimos Down Promo → Deimos Down). Used by the art resolver
+   * (`cardArt.ts`): when this card has no artwork of its own (its `cardNumber`
+   * is absent from the art manifest), it borrows the reimplemented card's art
+   * instead of the generic fallback — the two cards share the same illustration.
+   */
+  reimplements?: CardName;
   description?: string | ICardRenderDescription;
   renderData?: CardComponent;
   victoryPoints?: number | CardRenderDynamicVictoryPoints;

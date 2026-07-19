@@ -26,6 +26,7 @@ export class EcologicalZoneAres extends EcologicalZone {
           {kind: 'victory-points', text: '1 VP per 2 animals on this card.'},
         ],
         cardNumber: 'A08',
+        reimplements: CardName.ECOLOGICAL_ZONE,
         renderData: CardRenderer.builder((b) => {
           b.effect('When you play an animal or plant tag INCLUDING THESE, add an animal to this card.', (eb) => {
             eb.tag(Tag.ANIMAL).slash().tag(Tag.PLANT).startEffect.resource(CardResource.ANIMAL);

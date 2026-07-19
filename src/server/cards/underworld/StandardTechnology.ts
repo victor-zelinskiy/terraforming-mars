@@ -19,6 +19,7 @@ export class StandardTechnology extends Card implements IActionCard, IProjectCar
 
       metadata: {
         cardNumber: 'UX00',
+        reimplements: CardName.STANDARD_TECHNOLOGY,
         renderData: CardRenderer.builder((b) => {
           b.empty().startAction.text('REPEAT').br;
           b.plate('Standard projects').asterix().megacredits(-8).br;

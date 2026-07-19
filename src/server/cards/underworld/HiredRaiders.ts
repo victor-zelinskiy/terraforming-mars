@@ -22,6 +22,7 @@ export class HiredRaiders extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'UX02',
+        reimplements: CardName.HIRED_RAIDERS,
         renderData: CardRenderer.builder((b) => {
           b.text('steal', Size.MEDIUM, true).megacredits(4, {all})
             .plus().megacredits(1, {all}).slash().corruption();

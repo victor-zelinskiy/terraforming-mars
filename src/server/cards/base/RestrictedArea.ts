@@ -4,6 +4,7 @@ import {ActionCard} from '../ActionCard';
 import {CardType} from '../../../common/cards/CardType';
 import {TileType} from '../../../common/TileType';
 import {CardName} from '../../../common/cards/CardName';
+import {CardMetadata} from '../../../common/cards/CardMetadata';
 import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
 import {CardRenderer} from '../render/CardRenderer';
 
@@ -11,7 +12,7 @@ export class RestrictedArea extends ActionCard implements IProjectCard {
   constructor(
     name = CardName.RESTRICTED_AREA,
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
-    metadata = {
+    metadata: CardMetadata = {
       cardNumber: '199',
       renderData: CardRenderer.builder((b) => {
         b.action('Spend 2 M€ to draw a card.', (eb) => {

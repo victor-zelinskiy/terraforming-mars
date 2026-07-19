@@ -32,8 +32,20 @@ export const CARD_ART_FALLBACK_URL = 'assets/card-images/-1.webp';
 const available: ReadonlySet<string> = new Set(artManifest as Array<string>);
 
 function artKey(name: CardName): string | undefined {
-  const num = getCard(name)?.metadata.cardNumber;
-  return (num !== undefined && available.has(num)) ? num : undefined;
+  const metadata = getCard(name)?.metadata;
+  if (metadata === undefined) {
+    return undefined;
+  }
+  const num = metadata.cardNumber;
+  if (num !== undefined && available.has(num)) {
+    return num;
+  }
+  // A reimplemented card (a promo reissue of a base card) with no art of its
+  // own borrows the base card's illustration rather than the generic fallback.
+  if (metadata.reimplements !== undefined) {
+    return artKey(metadata.reimplements);
+  }
+  return undefined;
 }
 
 /** URL of the card's REAL art, or undefined when the card has none (legacy contract). */
