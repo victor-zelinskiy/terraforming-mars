@@ -23,19 +23,11 @@ import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
-import {marsBotOf} from './AutomaUtil';
+import {humansInTieOrder, marsBotOf, pickVictim} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /** Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay in their holding pool. */
 export type BonusCardOutcome = 'discard' | 'destroy';
-
-function humanOf(game: IGame): IPlayer {
-  const human = game.players.find((p) => !p.isMarsBot);
-  if (human === undefined) {
-    throw new Error('This game has no human player');
-  }
-  return human;
-}
 
 /** Steps left to the NEAREST bonus step / completion above the current value; undefined when complete. */
 function stepsToNextTarget(current: number, targets: ReadonlyArray<number>, stepSize: number): number | undefined {
@@ -158,27 +150,41 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
  * "no" (nothing to take / protected), which the snapshot diff can't see.
  */
 function meteorShower(game: IGame): BonusCardOutcome {
-  const human = humanOf(game);
-  if (human.plantsAreProtected()) {
-    game.log('${0} plants are protected — Meteor Shower is destroyed', (b) => b.player(human));
+  const humans = humansInTieOrder(game);
+  // Victim canon (§12 Q9): the human with the MOST plants among the VALID
+  // (unprotected, plant-holding) candidates — the bot never "attacks into the
+  // shield" while a valid target exists; ties go to the next human after the
+  // bot in turn order. Official solo (one human) degenerates to the old rule.
+  const victim = pickVictim(humans.filter((h) => h.plants > 0 && !h.plantsAreProtected()), (h) => h.plants);
+  if (victim === undefined) {
+    const shielded = pickVictim(humans.filter((h) => h.plantsAreProtected()), (h) => h.plants);
+    if (shielded !== undefined) {
+      // No valid target and somebody IS protected — the printed outcome:
+      // nothing removed, the card is destroyed (FAQ).
+      game.log('${0} plants are protected — Meteor Shower is destroyed', (b) => b.player(shielded));
+      AutomaTurnLog.note(game, {kind: 'attack', attack: {
+        target: shielded.color, resource: Resource.PLANTS, demanded: 5, removed: 0,
+        before: shielded.plants, after: shielded.plants, outcome: 'protected',
+      }}, {consumeLog: true});
+      return 'destroy';
+    }
+    // Nobody has a plant at all — say so; silence reads as a bug.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: human.color, resource: Resource.PLANTS, demanded: 5, removed: 0,
-      before: human.plants, after: human.plants, outcome: 'protected',
-    }}, {consumeLog: true});
-    return 'destroy';
+      target: humans[0].color, resource: Resource.PLANTS, demanded: 5, removed: 0,
+      before: 0, after: 0, outcome: 'nothing-to-lose',
+    }});
+    return 'discard';
   }
-  const before = human.plants;
+  const before = victim.plants;
   const removed = Math.min(5, before);
-  if (removed > 0) {
-    // `from` attributes the removal to the bot — the LawSuit / Crash Site
-    // Cleanup resource hooks must see WHO removed the resources (FAQ: both
-    // promo cards work against MarsBot).
-    human.stock.deduct(Resource.PLANTS, removed, {log: true, from: {player: marsBotOf(game)}});
-  }
+  // `from` attributes the removal to the bot — the LawSuit / Crash Site
+  // Cleanup resource hooks must see WHO removed the resources (FAQ: both
+  // promo cards work against MarsBot).
+  victim.stock.deduct(Resource.PLANTS, removed, {log: true, from: {player: marsBotOf(game)}});
   AutomaTurnLog.note(game, {kind: 'attack', attack: {
-    target: human.color, resource: Resource.PLANTS, demanded: 5, removed,
-    before, after: before - removed, outcome: removed > 0 ? 'hit' : 'nothing-to-lose',
-  }}, {consumeLog: removed > 0}); // The deduct's own log line rides the step — never narrated twice.
+    target: victim.color, resource: Resource.PLANTS, demanded: 5, removed,
+    before, after: before - removed, outcome: 'hit',
+  }}, {consumeLog: true}); // The deduct's own log line rides the step — never narrated twice.
   return removed >= 3 ? 'destroy' : 'discard';
 }
 
@@ -193,7 +199,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const human = humanOf(game);
+  const humans = humansInTieOrder(game);
 
   if (game.gameOptions.venusNextExtension || game.gameOptions.coloniesExtension) {
     bot.stock.add(Resource.MEGACREDITS, 2, {log: true});
@@ -203,43 +209,60 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }
 
-  const cubeHolders = human.tableau.filter((card) =>
-    (card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
-    card.resourceCount > 0);
+  // Every animal/microbe cube holder across ALL humans, in the canonical tie
+  // order (owner-major — the first max-rate entry below IS the §12 Q9 victim).
+  type Holder = {owner: IPlayer, card: ICard};
+  const cubeHolders: Array<Holder> = [];
+  for (const owner of humans) {
+    for (const card of owner.tableau) {
+      if ((card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
+          card.resourceCount > 0) {
+        cubeHolders.push({owner, card});
+      }
+    }
+  }
   // Official FAQ (rulebook p.11): Protected Habitats DOES block Invasive Species.
   // Per-card protection (Pets' protectedResources) blocks the same way — mirrors
   // the opponent branch of RemoveResourcesFromCard.getAvailableTargetCards.
-  const holders = human.tableau.has(CardName.PROTECTED_HABITATS) ? [] :
-    cubeHolders.filter((card) => card.protectedResources !== true);
-  if (holders.length > 0) {
+  const removable = cubeHolders.filter(({owner, card}) =>
+    !owner.tableau.has(CardName.PROTECTED_HABITATS) && card.protectedResources !== true);
+  if (removable.length > 0) {
+    // Victim canon (§12 Q9): the GLOBAL highest cube rate; ties across players
+    // go to the first owner in tie order. The prompt below only settles ties
+    // WITHIN that victim's own equal-rate cards (scoring-equivalent by
+    // construction — never "pick the loss you prefer").
+    const maxRate = Math.max(...removable.map(({card}) => cubeVpRate(card)));
+    const victim = (removable.find(({card}) => cubeVpRate(card) === maxRate) ?? removable[0]).owner;
+    const targets = removable
+      .filter((h) => h.owner === victim && cubeVpRate(h.card) === maxRate)
+      .map((h) => h.card);
     // The attack is announced NOW (target + demand); the actual cube leaves
     // via the target's own follow-up pick, after this turn commits.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: human.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
+      target: victim.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'target-chooses',
     }});
-    const maxRate = Math.max(...holders.map(cubeVpRate));
-    const targets = holders.filter((card) => cubeVpRate(card) === maxRate);
     // The pick is shown even for a single candidate (the fork's no-auto-select
-    // rule): the human confirms WHICH cube leaves.
-    game.defer(new SimpleDeferredAction(human, () => new SelectCard(
+    // rule): the victim confirms WHICH cube leaves.
+    game.defer(new SimpleDeferredAction(victim, () => new SelectCard(
       'Select the highest-scoring animal/microbe card to remove 1 resource from (Invasive Species)',
       'Remove resource', targets, {min: 1, max: 1})
       .andThen(([card]) => {
         // `removingPlayer` attributes the cube loss to the bot (LawSuit hook).
-        human.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
+        victim.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
         return undefined;
       })));
   } else if (cubeHolders.length > 0) {
-    // Cubes exist, but Protected Habitats / a per-card protection blocks the
+    // Cubes exist, but Protected Habitats / a per-card protection blocks every
     // removal (official FAQ). The card still resolves (M€ above) and discards.
-    game.log('${0} animals and microbes are protected — Invasive Species removes nothing', (b) => b.player(human));
+    const shielded = (pickVictim(cubeHolders, ({card}) => cubeVpRate(card)) ?? cubeHolders[0]).owner;
+    game.log('${0} animals and microbes are protected — Invasive Species removes nothing', (b) => b.player(shielded));
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: human.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'protected',
+      target: shielded.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'protected',
     }}, {consumeLog: true});
   } else {
     // No animal/microbe cube anywhere — say so; silence reads as a bug.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
-      target: human.color, resource: 'cube', demanded: 1, removed: 0,
+      target: humans[0].color, resource: 'cube', demanded: 1, removed: 0,
       before: 0, after: 0, outcome: 'nothing-to-lose',
     }});
   }
@@ -451,7 +474,7 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const human = humanOf(game);
+  const humans = humansInTieOrder(game);
 
   // Can't afford the 5 M€ cost → the card does nothing (rulebook: needs 5+ M€).
   if (bot.megaCredits < 5) {
@@ -460,10 +483,12 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
 
   // Try to help the CLOSEST funded award (leftmost on ties); a resolved help
   // costs 5 M€. With no funded awards this loop simply doesn't run.
+  // §12 Q12: "the human's lead" generalizes to the BEST human per award.
   if (game.fundedAwards.length > 0) {
     const withMargin = game.fundedAwards.map(({award}) => {
       const scorer = new AwardScorer(game, award);
-      return {award, humanLead: scorer.get(human) - scorer.get(bot)};
+      const bestHuman = Math.max(...humans.map((h) => scorer.get(h)));
+      return {award, humanLead: bestHuman - scorer.get(bot)};
     });
     const humanLeads = withMargin.filter((e) => e.humanLead >= 0).sort((a, b) => a.humanLead - b.humanLead);
     const botLeads = withMargin.filter((e) => e.humanLead < 0).sort((a, b) => b.humanLead - a.humanLead);

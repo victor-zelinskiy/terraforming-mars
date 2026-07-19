@@ -31,8 +31,18 @@ export type TrackDefinition = {
 export type DifficultyLevel = 'easy' | 'normal' | 'hard' | 'brutal';
 
 /** The `gameOptions.automa` payload: present ⇒ this is a solo game against MarsBot. */
+/**
+ * 'official-solo' — 1 human vs MarsBot, strict official rules (bans incl.).
+ * 'multiplayer' — 2–4 humans + MarsBot, the project's house-rule mode
+ * (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12). The server derives the mode
+ * AUTHORITATIVELY from the seat count in Game.newInstance; an absent value
+ * (older saves) reads as 'official-solo'.
+ */
+export type AutomaMode = 'official-solo' | 'multiplayer';
+
 export type AutomaOptions = {
   difficulty: DifficultyLevel;
+  mode?: AutomaMode;
 };
 
 export enum BonusCardId {

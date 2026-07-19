@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
-import {testAutomaGame} from '../automa/AutomaTestGame';
+import {testAutomaGame, testAutomaMultiplayerGame} from '../automa/AutomaTestGame';
 import {RematchManager} from '../../src/server/rematch/RematchManager';
 import {IGame} from '../../src/server/IGame';
 import {IGameLoader} from '../../src/server/database/IGameLoader';
@@ -273,5 +273,22 @@ describe('RematchManager', () => {
     expect(rematch.first.isMarsBot).to.not.eq(true);
     const joinSlot = rematch.players.find((p) => p.color === human.color);
     expect(model.joinId).to.eq(joinSlot?.id);
+  });
+
+  it('a multiplayer-with-Automa rematch: humans vote, a fresh bot is re-seated (mode B)', async () => {
+    const [game, humans] = testAutomaMultiplayerGame(2, {difficulty: 'hard'});
+    const {loader, added} = fakeLoader();
+    const manager = RematchManager.getInstance();
+
+    await manager.offer(game, humans[0].color, loader);
+    expect(added).to.have.length(0); // The second human still owes a vote.
+    await manager.accept(game, humans[1].color, loader);
+
+    expect(added).to.have.length(1);
+    const rematch = added[0];
+    expect(rematch.players).to.have.length(3);
+    expect(rematch.players.filter((p) => p.isMarsBot)).to.have.length(1);
+    expect(rematch.gameOptions.automa?.mode).to.eq('multiplayer');
+    expect(rematch.gameOptions.automa?.difficulty).to.eq('hard');
   });
 });

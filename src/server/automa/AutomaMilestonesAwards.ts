@@ -3,18 +3,9 @@ import {IAward} from '../awards/IAward';
 import {AwardScorer} from '../awards/AwardScorer';
 import {IMilestone} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
-import {IPlayer} from '../IPlayer';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
-import {marsBotOf} from './AutomaUtil';
-
-function humanOf(game: IGame): IPlayer {
-  const human = game.players.find((p) => !p.isMarsBot);
-  if (human === undefined) {
-    throw new Error('This game has no human player');
-  }
-  return human;
-}
+import {humansInTieOrder, marsBotOf} from './AutomaUtil';
 
 /**
  * The Claim Milestone / Fund Award track actions (rulebook p.8). Evaluation
@@ -40,9 +31,10 @@ export class AutomaMilestonesAwards {
     if (eligible.length === 0) {
       return undefined;
     }
-    const human = humanOf(game);
+    // §12 Q12: "the human" generalizes to ANY / the BEST human.
+    const humans = humansInTieOrder(game);
     if (eligible.length > 1) {
-      const humanAlsoMeets = eligible.filter((m) => m.canClaim(human));
+      const humanAlsoMeets = eligible.filter((m) => humans.some((h) => m.canClaim(h)));
       if (humanAlsoMeets.length > 0) {
         eligible = humanAlsoMeets;
       }
@@ -50,12 +42,12 @@ export class AutomaMilestonesAwards {
     if (eligible.length > 1) {
       // "Whichever you're closest to meeting": progress = score / threshold,
       // capped at 1 (several already-met milestones are equally "close" — the
-      // leftmost rule below settles them).
+      // leftmost rule below settles them). Multiplayer: the CLOSEST human.
       const progress = (m: IMilestone): number => {
         const threshold = m.getThreshold !== undefined ?
           m.getThreshold(game) :
           ((m as unknown as {threshold?: number}).threshold ?? 1);
-        return Math.min(1, m.getScore(human) / Math.max(1, threshold));
+        return Math.max(...humans.map((h) => Math.min(1, m.getScore(h) / Math.max(1, threshold))));
       };
       const max = Math.max(...eligible.map(progress));
       eligible = eligible.filter((m) => progress(m) === max);
@@ -113,12 +105,13 @@ export class AutomaMilestonesAwards {
       return undefined;
     }
     const bot = marsBotOf(game);
-    const human = humanOf(game);
+    // §12 Q12: the bot's margin is measured against the BEST human per award.
+    const humans = humansInTieOrder(game);
     const unfunded = game.awards.filter((a) => !game.hasBeenFunded(a));
     const margin = new Map<IAward, number>();
     for (const award of unfunded) {
       const scorer = new AwardScorer(game, award);
-      margin.set(award, scorer.get(bot) - scorer.get(human));
+      margin.set(award, scorer.get(bot) - Math.max(...humans.map((h) => scorer.get(h))));
     }
     const ahead = unfunded.filter((a) => (margin.get(a) ?? 0) > 0);
     if (ahead.length === 0) {

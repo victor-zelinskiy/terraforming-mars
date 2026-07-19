@@ -7,7 +7,7 @@ import {Phase} from '../../src/common/Phase';
 import {cardsFromJSON, corporationCardsFromJSON} from '../../src/server/createCard';
 import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
-import {testAutomaGame} from './AutomaTestGame';
+import {testAutomaGame, testAutomaMultiplayerGame} from './AutomaTestGame';
 
 /**
  * Drive the REAL start flow to the human's first ACTION-phase turn (gen 1): seed
@@ -82,6 +82,17 @@ describe('Automa serialization', () => {
     const serialized = game.serialize();
     delete (serialized.automa as {pendingTurn?: boolean}).pendingTurn;
     expect(Game.deserialize(structuredClone(serialized)).automa!.pendingTurn).is.false;
+  });
+
+  it('round-trips the mode marker; multiplayer restores all seats', () => {
+    const [solo] = testAutomaGame(undefined, '-mode-solo');
+    expect(Game.deserialize(structuredClone(solo.serialize())).gameOptions.automa?.mode).eq('official-solo');
+
+    const [multi] = testAutomaMultiplayerGame(3, undefined, '-mode-multi');
+    const restored = Game.deserialize(structuredClone(multi.serialize()));
+    expect(restored.gameOptions.automa?.mode).eq('multiplayer');
+    expect(restored.players).has.length(4);
+    expect(restored.players.filter((p) => p.isMarsBot)).has.length(1);
   });
 
   it('restores the bot as the MarsBot player', () => {

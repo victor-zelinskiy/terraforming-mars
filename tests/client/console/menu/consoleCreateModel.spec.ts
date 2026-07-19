@@ -3,6 +3,8 @@ import {BoardName} from '@/common/boards/BoardName';
 import {
   createGameState,
   resetCreateGameState,
+  setGameMode,
+  setPlayerCount,
   setSlotName,
 } from '@/client/components/create/premium/createGameState';
 import {
@@ -126,25 +128,35 @@ describe('consoleCreateModel', () => {
   });
 
   describe('MarsBot participant', () => {
-    it('seats the bot as a roster row and blocks further adds with a reason', () => {
-      seatBot();
+    it('a seated bot lets the party shrink to a LONE human — the server runs that as official solo', () => {
+      seatBot(); // 2 humans → the multiplayer bot seat.
+      removeHuman(1);
+      expect(createGameState.config.players).to.have.length(1);
       expect(botSeated()).to.eq(true);
-      const rows = crewRows();
-      expect(rows.map((r) => r.kind)).to.deep.eq(['human', 'bot', 'add']);
-      expect(addDisabledReason()).to.eq('MarsBot currently plays one-on-one only');
+      expect(crewRows().map((r) => r.kind)).to.deep.eq(['human', 'bot', 'add']);
+      // A second bot is still impossible; humans can be re-added (up to 4).
       const options = participantTypeOptions();
-      expect(options[0].enabled).to.eq(false);
+      expect(options[0].enabled).to.eq(true);
       expect(options[1].enabled).to.eq(false);
       expect(options[1].disabledReasonKey).to.eq('Only one MarsBot per party');
     });
 
-    it('warns before seating the bot when humans would be dropped, and restores them on unseat', () => {
-      expect(seatBotNeedsConfirm()).to.eq(true); // 2 humans
+    it("the desktop 'marsbot' mode reads as a seated bot with the solo add-seat reason", () => {
+      setGameMode('marsbot');
+      expect(botSeated()).to.eq(true);
+      expect(addDisabledReason()).to.eq('Solo vs MarsBot keeps one human seat — unseat the bot to grow the party');
+      const options = participantTypeOptions();
+      expect(options[0].enabled).to.eq(false);
+    });
+
+    it('seating the bot never shrinks the roster (mode B) — no confirm needed', () => {
+      expect(seatBotNeedsConfirm()).to.eq(false);
       const names = createGameState.config.players.map((p) => p.name);
-      seatBot();
-      expect(createGameState.config.players).to.have.length(1);
-      unseatBot();
+      seatBot(); // 2 humans → the multiplayer bot seat.
+      expect(createGameState.config.gameMode).to.eq('multiplayer');
       expect(createGameState.config.players.map((p) => p.name)).to.deep.eq(names);
+      unseatBot();
+      expect(botSeated()).to.eq(false);
     });
 
     it('exposes difficulty + remove fields for the bot editor', () => {
@@ -218,6 +230,22 @@ describe('consoleCreateModel', () => {
     it('reports duplicate names', () => {
       setSlotName(1, 'Player 1');
       expect(launchIssues().some((i) => i.textKey === 'Player names must be unique')).to.eq(true);
+    });
+
+    it('seating the bot with several humans KEEPS the roster (mode B) and caps it at 4', () => {
+      expect(createGameState.config.players.length).to.be.gte(2);
+      const before = createGameState.config.players.length;
+      seatBot();
+      expect(createGameState.config.gameMode).to.eq('multiplayer');
+      expect(createGameState.config.seatMarsBot).to.eq(true);
+      expect(createGameState.config.players).to.have.length(before);
+      expect(crewRows().some((r) => r.kind === 'bot')).to.eq(true);
+      // The bot takes the fifth seat: humans cap at 4.
+      setPlayerCount(5);
+      expect(createGameState.config.players).to.have.length(4);
+      unseatBot();
+      expect(createGameState.config.seatMarsBot).to.eq(false);
+      expect(crewRows().some((r) => r.kind === 'bot')).to.eq(false);
     });
 
     it('maps automa conflicts to their decks', () => {

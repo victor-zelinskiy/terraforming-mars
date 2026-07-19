@@ -18,6 +18,15 @@ export class Production extends BaseStock {
     // track instead (rulebook pp.4–5), leaving the no-reactivation marker.
     if (this.player.isMarsBot && amount < 0) {
       AutomaTargeting.regressForProduction(this.player.game, resource, -amount);
+      // Mode B (§12 Q10): the bot is a full Mons Insurance beneficiary — a
+      // track regress IS its production decrease. Dormant in official solo
+      // (the corp is banned there, so monsInsuranceOwner is never set). An
+      // attribution-less decrease (Mons' own on-play −2, "does not trigger
+      // the effect below") correctly stays uninsured.
+      const from = options?.from;
+      if (isFromPlayer(from) && from.player.id !== this.player.id) {
+        this.player.resolveInsurance();
+      }
       return;
     }
     // A positive write would land in dead fields the bot never reads. The

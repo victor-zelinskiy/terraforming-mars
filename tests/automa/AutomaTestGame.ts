@@ -31,3 +31,29 @@ export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = '')
   }
   return [game, human, marsBotOf(game)];
 }
+
+const MULTI_COLORS = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPlayer.YELLOW] as const;
+
+/**
+ * Creates a MULTIPLAYER-with-Automa game (mode B, §12): `humanCount` humans
+ * (2–4; blue/red/green/yellow, blue first) + the bot the engine seats itself.
+ * Returns [game, humans[], bot].
+ */
+export function testAutomaMultiplayerGame(
+  humanCount: number, customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, ReadonlyArray<TestPlayer>, IPlayer] {
+  const {difficulty, keepInitialCardSelection, ...gameOptions} = customOptions ?? {};
+  const humans = MULTI_COLORS.slice(0, humanCount)
+    .map((factory, i) => factory.newPlayer({name: `player${i + 1}`, idSuffix}));
+  const game = Game.newInstance(`game-id${idSuffix}`, humans, humans[0], `spectator-id${idSuffix}`, {
+    automa: {difficulty: difficulty ?? 'normal'},
+    ...gameOptions,
+  });
+  if (keepInitialCardSelection !== true) {
+    for (const human of humans) {
+      if (human.getWaitingFor() instanceof SelectInitialCards) {
+        human.popWaitingFor();
+      }
+    }
+  }
+  return [game, humans, marsBotOf(game)];
+}

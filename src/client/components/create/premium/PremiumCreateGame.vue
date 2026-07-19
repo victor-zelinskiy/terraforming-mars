@@ -35,7 +35,20 @@
         <section class="pc-section">
           <div class="pc-section__head"><span class="pc-section__tick" aria-hidden="true"></span><h2 class="pc-section__label" v-i18n>Party players</h2></div>
           <player-slots />
-          <mars-bot-slot v-if="marsBotMode" />
+          <button
+            v-if="!marsBotMode"
+            type="button"
+            class="pc-botseat"
+            :class="{'pc-botseat--on': seatMarsBot}"
+            role="switch"
+            :aria-checked="seatMarsBot ? 'true' : 'false'"
+            @click="toggleSeatBot"
+          >
+            <span class="pc-botseat__toggle" aria-hidden="true"></span>
+            <span class="pc-botseat__label" v-i18n>Seat MarsBot in this party</span>
+          </button>
+          <mars-bot-slot v-if="marsBotMode || seatMarsBot" />
+          <p v-if="seatMarsBot" class="pc-botseat__note" v-i18n>Automa in multiplayer: the official rules are designed for solo play. This mode adapts the Automa as an additional participant of a multiplayer party.</p>
         </section>
 
         <section class="pc-section">
@@ -112,7 +125,7 @@ import PartyBriefing from '@/client/components/create/premium/PartyBriefing.vue'
 import CreateInfoPanel from '@/client/components/create/premium/CreateInfoPanel.vue';
 import BriefingActions from '@/client/components/create/premium/BriefingActions.vue';
 import {createGameState, resetCreateGameState, setPlayerCount, applyCreatorIdentity, canCreateGame,
-  restoreCreateGameState, clearSavedCreateGameState} from './createGameState';
+  restoreCreateGameState, clearSavedCreateGameState, setSeatMarsBot} from './createGameState';
 import {submitPremiumCreateGame} from './submitCreateGame';
 import {$t} from '@/client/directives/i18n';
 
@@ -157,6 +170,9 @@ export default defineComponent({
     marsBotMode(): boolean {
       return createGameState.config.gameMode === 'marsbot';
     },
+    seatMarsBot(): boolean {
+      return createGameState.config.gameMode === 'multiplayer' && createGameState.config.seatMarsBot;
+    },
     mapPickerOpen(): boolean {
       return createGameState.mapPickerOpen;
     },
@@ -194,6 +210,9 @@ export default defineComponent({
     this.clearRestoreNoticeTimer();
   },
   methods: {
+    toggleSeatBot(): void {
+      setSeatMarsBot(!createGameState.config.seatMarsBot);
+    },
     editIdentity(): void {
       this.modalOpen = true;
     },

@@ -251,11 +251,19 @@ describe('AutomaSetup', () => {
     expect(game.automa).is.not.undefined;
   });
 
-  it('rejects an automa game with two human players', () => {
+  it('accepts 2 human players — the multiplayer house-rule mode (frame §12 Q1)', () => {
     const p1 = TestPlayer.BLUE.newPlayer({name: 'p1'});
     const p2 = TestPlayer.RED.newPlayer({name: 'p2'});
-    expect(() => Game.newInstance('game-2h', [p1, p2], p1, 's-2h', {automa: {difficulty: 'normal'}}))
-      .to.throw(/exactly one human player/);
+    const game = Game.newInstance('game-2h', [p1, p2], p1, 's-2h', {automa: {difficulty: 'normal'}});
+    expect(game.players).has.length(3);
+    expect(game.gameOptions.automa?.mode).eq('multiplayer');
+  });
+
+  it('rejects an automa game with five human players', () => {
+    const humans = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPlayer.YELLOW, TestPlayer.BLACK]
+      .map((f, i) => f.newPlayer({name: `p${i + 1}`}));
+    expect(() => Game.newInstance('game-5h', humans, humans[0], 's-5h', {automa: {difficulty: 'normal'}}))
+      .to.throw(/1-4 human players/);
   });
 
   it('an ordinary game is untouched: no automa state, no bot', () => {

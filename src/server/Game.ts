@@ -326,25 +326,38 @@ export class Game implements IGame, Logger {
     // first-player rotation, game end without a Venus requirement, no neutral
     // solo tiles) then applies for free.
     if (gameOptions.automa !== undefined) {
-      // The start-of-game DRAFT variants DEGENERATE with a single human: there
-      // is nobody to pass cards to, and MarsBot never joins the human's
-      // starting picks (the official Automa setup deals the standard 2 corps /
-      // 4 preludes / 10 project cards; the bot gets its prelude compensation
-      // as extra action-deck cards instead). Normalize them off rather than
-      // rejecting — the human's setup is identical either way, and the fork's
-      // default create template ships with the prelude draft enabled.
-      gameOptions.initialDraftVariant = false;
-      gameOptions.preludeDraftVariant = false;
-      gameOptions.ceosDraftVariant = false;
       AutomaSetup.validateOptions(gameOptions);
-      if (players.length === 1 && !players[0].isMarsBot) {
+      if (!players.some((p) => p.isMarsBot)) {
         players = [...players, AutomaSetup.createBotPlayer(id, players.map((p) => p.color))];
       }
-      if (players.length !== 2 || players.filter((p) => p.isMarsBot).length !== 1) {
-        throw new Error('An automa game is exactly one human player against MarsBot');
+      const automaHumans = players.filter((p) => !p.isMarsBot);
+      if (players.filter((p) => p.isMarsBot).length !== 1 ||
+          automaHumans.length < 1 || automaHumans.length > 4) {
+        throw new Error('An automa game seats 1-4 human players against exactly one MarsBot');
       }
+      // The MODE is derived AUTHORITATIVELY from the seat count and persisted
+      // via gameOptions (Mode B canon: docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md
+      // §12 Q1) — the ban / instant-loss predicates read it downstream.
+      gameOptions.automa = {
+        ...gameOptions.automa,
+        mode: automaHumans.length === 1 ? 'official-solo' : 'multiplayer',
+      };
       if (firstPlayer.isMarsBot) {
-        throw new Error('The human player is the starting player of an automa game');
+        throw new Error('A human player is the starting player of an automa game');
+      }
+      if (gameOptions.automa.mode === 'official-solo') {
+        // The start-of-game DRAFT variants DEGENERATE with a single human:
+        // there is nobody to pass cards to, and MarsBot never joins the
+        // human's starting picks (the official Automa setup deals the standard
+        // 2 corps / 4 preludes / 10 project cards; the bot gets its prelude
+        // compensation as extra action-deck cards instead). Normalize them off
+        // rather than rejecting — the human's setup is identical either way,
+        // and the fork's default template ships with the prelude draft on.
+        // Mode B (§12 Q8): humans DO draft among themselves — the bot is
+        // excluded from the start-of-game circles via Draft.participants().
+        gameOptions.initialDraftVariant = false;
+        gameOptions.preludeDraftVariant = false;
+        gameOptions.ceosDraftVariant = false;
       }
     }
 
@@ -1089,7 +1102,10 @@ export class Game implements IGame, Logger {
     // (Automa rulebook p.10 / Adding Expansions p.1). Checked AFTER the
     // terraforming end (postProductionPhase) had its chance — reaching here
     // means Mars is not terraformed and the next generation would begin.
-    if (this.automa !== undefined &&
+    // The solo instant-loss deadline is an OFFICIAL-SOLO rule only — in the
+    // multiplayer house-rule mode the game ends by ordinary terraforming
+    // (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12 Q3).
+    if (this.automa !== undefined && this.gameOptions.automa?.mode !== 'multiplayer' &&
         this.generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension)) {
       this.automa.instantWin = true;
       this.log('${0} instantly wins — the game entered generation ${1}',

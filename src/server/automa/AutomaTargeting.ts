@@ -117,12 +117,23 @@ export class AutomaTargeting {
     };
 
     let removed = 0;
+    let supplyTaken = 0;
     if (resource === Resource.MEGACREDITS) {
-      removed += takeFromSupply(count);
+      supplyTaken = takeFromSupply(count);
+      removed += supplyTaken;
       removed += takeFromStorage(ColonyName.LUNA, count - removed);
     } else {
       removed += takeFromStorage(AutomaTargeting.RESOURCE_STORAGE[resource], count);
-      removed += takeFromSupply(count - removed);
+      supplyTaken = takeFromSupply(count - removed);
+      removed += supplyTaken;
+    }
+
+    // Mode B (§12 Q10): the bot is a full Mons Insurance beneficiary. A
+    // supply loss already fired the insurance hook (the stock.deduct above
+    // carries `from`); a STORAGE-only loss must claim it too — exactly once
+    // per attack. Dormant in official solo (the corp is banned there).
+    if (removed > 0 && supplyTaken === 0 && perpetrator.id !== bot.id) {
+      bot.resolveInsurance();
     }
 
     if (options?.stealing && removed > 0) {

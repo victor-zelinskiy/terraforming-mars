@@ -35,6 +35,9 @@ export function buildPlayers(state: PremiumCreateGameState, randomFirstPlayer: b
 export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameState): NewGameConfig {
   const d = defaultCreateGameModel();
   const marsBot = state.gameMode === 'marsbot';
+  // Mode B (§12 Q14): the bot seated as an EXTRA participant of the ordinary
+  // multiplayer party. Either way the bot seat itself is created by the server.
+  const botSeated = marsBot || (state.gameMode === 'multiplayer' && state.seatMarsBot === true);
   const players = buildPlayers(state, d.randomFirstPlayer);
 
   const expansions: Record<Expansion, boolean> = {...d.expansions};
@@ -63,15 +66,17 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     aresExtremeVariant: d.aresExtremeVariant,
     politicalAgendasExtension: d.politicalAgendasExtension,
     // Venus solar phase follows the Venus expansion, like the legacy form.
-    // MarsBot: never — the Government Intervention bonus card plays the WGT
-    // role per the official Automa rules (the server rejects the combination).
-    solarPhaseOption: venusOn && !marsBot,
+    // With the bot seated (either mode): never — the Government Intervention
+    // bonus card plays the WGT role per the official Automa rules (the server
+    // rejects the combination).
+    solarPhaseOption: venusOn && !botSeated,
     removeNegativeGlobalEventsOption: d.removeNegativeGlobalEventsOption,
     modularMA: d.modularMA,
     draftVariant: state.rules.draftVariant,
-    // MarsBot: the start-of-game draft variants degenerate with one human
+    // SOLO MarsBot: the start-of-game draft variants degenerate with one human
     // (the server normalizes them off too) — never send the form defaults
-    // (the fork's template ships with the prelude draft ON).
+    // (the fork's template ships with the prelude draft ON). Mode B keeps
+    // them: the humans draft among themselves, the bot stays out (§12 Q8).
     initialDraft: marsBot ? false : d.initialDraft,
     preludeDraftVariant: marsBot ? false : (d.preludeDraftVariant ?? false),
     ceosDraftVariant: marsBot ? false : (d.ceosDraftVariant ?? false),
@@ -97,7 +102,8 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     customCeos: d.customCeos,
     startingCeos: d.startingCeos,
     startingPreludes: d.startingPreludes,
-    // Solo vs the official Automa: the bot seat is created by the server.
-    automa: marsBot ? {difficulty: state.botDifficulty} : undefined,
+    // The bot seat is created by the server; the server also derives the
+    // official-solo vs multiplayer mode from the seat count.
+    automa: botSeated ? {difficulty: state.botDifficulty} : undefined,
   };
 }

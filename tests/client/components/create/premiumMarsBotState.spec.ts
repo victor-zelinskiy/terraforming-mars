@@ -1,12 +1,15 @@
 import {expect} from 'chai';
 import {BoardName} from '@/common/boards/BoardName';
 import {
+  HUMANS_WITH_BOT_MAX,
   canCreateGame,
   createGameState,
   firstBlocker,
   resetCreateGameState,
   setGameMode,
   setBotDifficulty,
+  setPlayerCount,
+  setSeatMarsBot,
   setSlotName,
   stateAutomaConflicts,
   stateAutomaConflictKeys,
@@ -55,6 +58,47 @@ describe('premium create — MarsBot mode', () => {
     setGameMode('marsbot');
     expect(createGameState.config.selectedExpansions.promo).is.true;
     expect(stateAutomaConflicts()).is.empty;
+  });
+
+  describe('mode B — the multiplayer bot seat (§12 Q14)', () => {
+    it('seating the bot applies the compatibility preset and gates the same conflict rules', () => {
+      createGameState.config.rules.randomMilestonesAwards = true;
+      expect(stateAutomaConflicts()).is.empty; // No bot — no automa rules.
+      setSeatMarsBot(true);
+      expect(createGameState.config.seatMarsBot).is.true;
+      // The preset dropped the genuine conflict; the rules now apply.
+      expect(createGameState.config.rules.randomMilestonesAwards).is.false;
+      expect(stateAutomaConflicts()).is.empty;
+      createGameState.config.rules.randomBoardTiles = true;
+      expect(stateAutomaConflictKeys().has('rule:randomBoardTiles')).is.true;
+    });
+
+    it('the payload seats the bot and turns the solar phase off; drafts stay for the humans', () => {
+      setSeatMarsBot(true);
+      setBotDifficulty('hard');
+      createGameState.config.selectedExpansions.venus = true;
+      const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
+      expect(payload.automa).deep.eq({difficulty: 'hard'});
+      expect(payload.solarPhaseOption).is.false;
+      expect(payload.players).has.length(createGameState.config.players.length);
+      // Mode B keeps the start-of-game draft template values (§12 Q8) —
+      // unlike the SOLO marsbot mode, which forces them off.
+      expect(payload.preludeDraftVariant).eq(buildCreateGamePayloadFromPremiumState({...createGameState.config, seatMarsBot: false}).preludeDraftVariant);
+    });
+
+    it('the human roster caps at 4 while the bot is seated', () => {
+      setSeatMarsBot(true);
+      setPlayerCount(5);
+      expect(createGameState.config.players).has.length(HUMANS_WITH_BOT_MAX);
+    });
+
+    it('a mode switch never carries the bot seat flag', () => {
+      setSeatMarsBot(true);
+      setGameMode('marsbot');
+      expect(createGameState.config.seatMarsBot).is.false;
+      setGameMode('multiplayer');
+      expect(createGameState.config.seatMarsBot).is.false;
+    });
   });
 
   it('a non-Tharsis map conflicts in marsbot mode', () => {

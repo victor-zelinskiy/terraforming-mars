@@ -51,6 +51,12 @@ export type PremiumRules = {
 export type PremiumCreateGameState = {
   gameMode: GameMode;
   botDifficulty: DifficultyLevel;
+  /**
+   * Mode B (frame §12 Q14): seat MarsBot as an EXTRA participant of the
+   * ordinary multiplayer party (2–4 humans + the bot). Only meaningful while
+   * `gameMode === 'multiplayer'`; the solo 'marsbot' mode implies the bot.
+   */
+  seatMarsBot: boolean;
   players: Array<PremiumPlayerSlot>;
   selectedExpansions: Record<Expansion, boolean>;
   mapMode: MapMode;
@@ -97,6 +103,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
   return {
     gameMode: 'multiplayer',
     botDifficulty: 'normal',
+    seatMarsBot: false,
     players,
     selectedExpansions,
     mapMode: isRandom ? 'random-all' : 'specific',
@@ -218,6 +225,9 @@ export function setGameMode(mode: GameMode): void {
     return;
   }
   config.gameMode = mode;
+  // The solo 'marsbot' mode implies the bot — the multiplayer bot SEAT flag
+  // never carries across a mode switch (it would double-count the bot).
+  config.seatMarsBot = false;
   if (mode === 'marsbot') {
     multiplayerSnapshot = {
       players: config.players.map((p) => ({...p})),
@@ -264,13 +274,58 @@ export function setBotDifficulty(difficulty: DifficultyLevel): void {
   createGameState.info = {kind: 'bot', difficulty};
 }
 
+/** True when the party seats the bot — solo 'marsbot' mode OR the multiplayer bot seat. */
+export function botSeatedInState(): boolean {
+  const config = createGameState.config;
+  return config.gameMode === 'marsbot' || (config.gameMode === 'multiplayer' && config.seatMarsBot);
+}
+
+/** The human-seat cap: the bot takes one of the game's five seats (§12 Q1: 2–4 humans). */
+export const HUMANS_WITH_BOT_MAX = 4;
+
+/**
+ * Seat / unseat MarsBot in the ORDINARY multiplayer party (mode B, §12 Q14).
+ * Seating applies the same conflict preset `setGameMode('marsbot')` applies
+ * (drop random M&A / shuffled tiles / a random map — the genuinely
+ * incompatible options) and caps the roster at 4 humans. Unseating changes
+ * nothing else — the player re-enables options themselves.
+ */
+export function setSeatMarsBot(on: boolean): void {
+  const config = createGameState.config;
+  if (config.gameMode !== 'multiplayer' || config.seatMarsBot === on) {
+    return;
+  }
+  config.seatMarsBot = on;
+  if (on) {
+    if (config.players.length > HUMANS_WITH_BOT_MAX) {
+      setPlayerCount(HUMANS_WITH_BOT_MAX);
+    }
+    for (const conflict of stateAutomaConflicts()) {
+      if (conflict.key === 'board') {
+        config.mapMode = 'specific';
+        config.mapId = BoardName.THARSIS;
+      } else if (conflict.key.startsWith('expansion:')) {
+        config.selectedExpansions[conflict.key.substring('expansion:'.length) as Expansion] = false;
+      } else if (conflict.key === 'rule:randomMilestonesAwards') {
+        config.rules.randomMilestonesAwards = false;
+      } else if (conflict.key === 'rule:randomBoardTiles') {
+        config.rules.randomBoardTiles = false;
+      }
+    }
+    createGameState.info = {kind: 'bot', difficulty: config.botDifficulty};
+  }
+}
+
 // ── Player-slot mutations (keep colours unique) ─────────────────────────────
 
 /** Grow / shrink the slot list to `count`, assigning free colours to new slots. */
 export function setPlayerCount(count: number): void {
   const config = createGameState.config;
-  const min = config.gameMode === 'marsbot' ? 1 : PLAYER_COUNT_MIN;
-  const c = clamp(count, min, PLAYER_COUNT_MAX);
+  // A seated bot keeps the party playable from ONE human (the server derives
+  // official-solo vs multiplayer from the seat count) up to four.
+  const min = botSeatedInState() ? 1 : PLAYER_COUNT_MIN;
+  const max = config.gameMode === 'multiplayer' && config.seatMarsBot ? HUMANS_WITH_BOT_MAX : PLAYER_COUNT_MAX;
+  const c = clamp(count, min, max);
   const players = config.players;
   while (players.length < c) {
     players.push(makeSlot(players.length, freeColor(players.map((p) => p.color), players.length)));
@@ -291,7 +346,7 @@ export function setPlayerCount(count: number): void {
  */
 export function removePlayerSlot(index: number): void {
   const config = createGameState.config;
-  const min = config.gameMode === 'marsbot' ? 1 : PLAYER_COUNT_MIN;
+  const min = botSeatedInState() ? 1 : PLAYER_COUNT_MIN;
   if (index <= 0 || index >= config.players.length || config.players.length <= min) {
     return;
   }
@@ -352,7 +407,7 @@ export function applyCreatorIdentity(name: string, color: Color): void {
  */
 export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
   const config = createGameState.config;
-  if (config.gameMode !== 'marsbot') {
+  if (!botSeatedInState()) {
     return [];
   }
   const on = (id: Expansion) => config.selectedExpansions[id] === true;
@@ -545,10 +600,16 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     }
   }
 
+  const seatMarsBot = gameMode === 'multiplayer' && saved.seatMarsBot === true;
+  const players = sanitizePlayers(saved.players, gameMode);
+  if (seatMarsBot && players.length > HUMANS_WITH_BOT_MAX) {
+    players.splice(HUMANS_WITH_BOT_MAX);
+  }
   return {
     gameMode,
     botDifficulty,
-    players: sanitizePlayers(saved.players, gameMode),
+    seatMarsBot,
+    players,
     selectedExpansions,
     mapMode,
     mapId,

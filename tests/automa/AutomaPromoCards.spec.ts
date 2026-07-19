@@ -1,7 +1,6 @@
 import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {CardName} from '../../src/common/cards/CardName';
-import {Resource} from '../../src/common/Resource';
 import {IGame} from '../../src/server/IGame';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';

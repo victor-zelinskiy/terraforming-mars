@@ -33,17 +33,20 @@ import {BoardName} from '@/common/boards/BoardName';
 import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {
+  HUMANS_WITH_BOT_MAX,
   PLAYER_COUNT_MAX,
   PremiumPlayerSlot,
   SlotNameIssue,
   TR_BOOST_MAX,
   TR_BOOST_MIN,
   automaBlockerText,
+  botSeatedInState,
   createGameState,
   hasDuplicateColors,
   removePlayerSlot,
   setGameMode,
   setPlayerCount,
+  setSeatMarsBot,
   setSlotColor,
   setSlotTrBoost,
   slotNameIssue,
@@ -136,15 +139,19 @@ export type CrewRow =
   | {kind: 'add', enabled: boolean, reasonKey: string | undefined};
 
 export function botSeated(): boolean {
-  return createGameState.config.gameMode === 'marsbot';
+  return botSeatedInState();
 }
 
 /** Why "Add participant" is disabled right now, or undefined when it works. */
 export function addDisabledReason(): string | undefined {
-  if (botSeated()) {
-    return 'MarsBot currently plays one-on-one only';
+  const config = createGameState.config;
+  if (config.gameMode === 'marsbot') {
+    // The solo preset keeps exactly one human; a bigger party seats the bot
+    // from the ordinary multiplayer roster instead (mode B).
+    return 'Solo vs MarsBot keeps one human seat — unseat the bot to grow the party';
   }
-  if (createGameState.config.players.length >= PLAYER_COUNT_MAX) {
+  const max = botSeated() ? HUMANS_WITH_BOT_MAX : PLAYER_COUNT_MAX;
+  if (config.players.length >= max) {
     return 'The party is full';
   }
   return undefined;
@@ -178,23 +185,35 @@ export function addHuman(): number | undefined {
   return createGameState.config.players.length > before ? before : undefined;
 }
 
-/** Seat the MarsBot (callers confirm first when humans would be dropped). */
+/**
+ * Seat the MarsBot. One human at the table → the official solo mode; a bigger
+ * party → mode B: the bot joins as an EXTRA multiplayer participant (§12 Q14) —
+ * the human roster is KEPT (capped at 4).
+ */
 export function seatBot(): void {
-  setGameMode('marsbot');
+  if (createGameState.config.players.length === 1) {
+    setGameMode('marsbot');
+  } else {
+    setSeatMarsBot(true);
+  }
 }
 
-/** Remove the MarsBot — `setGameMode` restores the snapshotted human roster. */
+/** Remove the MarsBot (either the solo mode or the multiplayer bot seat). */
 export function unseatBot(): void {
-  setGameMode('multiplayer');
+  if (createGameState.config.gameMode === 'marsbot') {
+    setGameMode('multiplayer');
+  } else {
+    setSeatMarsBot(false);
+  }
 }
 
 export function removeHuman(index: number): void {
   removePlayerSlot(index);
 }
 
-/** True when seating the bot needs the "roster will shrink to you" confirm. */
+/** Seating the bot never shrinks the roster anymore (mode B keeps the party). */
 export function seatBotNeedsConfirm(): boolean {
-  return createGameState.config.players.length > 1;
+  return false;
 }
 
 // ── Participant type picker ─────────────────────────────────────────────────
@@ -227,10 +246,13 @@ export function participantTypeOptions(): ReadonlyArray<ParticipantTypeOption> {
       id: 'bot',
       labelKey: 'MarsBot',
       descKey: 'The official Automa opponent. It takes its turns automatically.',
-      noteKey: undefined,
+      // Mode B (§12 Q15): the sober house-rule note, lobby-only.
+      noteKey: createGameState.config.players.length > 1 ?
+        'Automa in multiplayer: the official rules are designed for solo play. This mode adapts the Automa as an additional participant of a multiplayer party.' :
+        undefined,
       enabled: !botAlready,
       disabledReasonKey: botAlready ? 'Only one MarsBot per party' : undefined,
-      warnKey: !botAlready && seatBotNeedsConfirm() ? 'MarsBot currently plays one-on-one only — the roster will shrink to just you' : undefined,
+      warnKey: undefined,
     },
   ];
 }

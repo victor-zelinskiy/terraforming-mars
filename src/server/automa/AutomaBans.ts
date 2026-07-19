@@ -27,8 +27,12 @@ export function isCardBannedForAutoma(cardName: CardName, gameOptions: GameOptio
   if (gameOptions.automa === undefined) {
     return false;
   }
-  // Every automa game today IS the official solo mode. When the
-  // multiplayer-with-bot house-rule mode lands, it carries its own mode marker
-  // and skips these official-solo bans.
+  // The multiplayer house-rule mode keeps these cards AVAILABLE — their bot
+  // interactions ride the generic adapters + the insurance hooks instead
+  // (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12 Q10). An absent mode (older
+  // saves) reads as official solo.
+  if (gameOptions.automa.mode === 'multiplayer') {
+    return false;
+  }
   return OFFICIAL_SOLO_AUTOMA_BANS.includes(cardName);
 }

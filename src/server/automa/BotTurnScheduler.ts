@@ -37,6 +37,12 @@ import {marsBotOf} from './AutomaUtil';
 export const BOT_TURN_INITIAL_DELAY_MS = 200;
 export const BOT_TURN_EXTENSION_MS = 500;
 export const BOT_TURN_MAX_EXTENSIONS = 3;
+/**
+ * A multiplayer-with-Automa table (mode B) gets more headroom: the LAST slow
+ * viewer gates the next bot turn (§12 Q17 — everyone acks, with a timeout
+ * safety), still a hard bound (~200 + 6×500 ≈ 3.2 s worst case).
+ */
+export const BOT_TURN_MAX_EXTENSIONS_MULTI = 6;
 /** Bound the per-game unacked-turn map (a game is finite, but be tidy). */
 const UNACKED_TURN_CAP = 12;
 
@@ -215,7 +221,7 @@ export class BotTurnScheduler {
       this.sessions.delete(gameId);
       return;
     }
-    if (session.extensions < BOT_TURN_MAX_EXTENSIONS && this.hasOutstandingNotifications(game)) {
+    if (session.extensions < this.maxExtensionsFor(game) && this.hasOutstandingNotifications(game)) {
       session.extensions++;
       session.timer = this.setTimer(() => this.onDue(gameId, token), BOT_TURN_EXTENSION_MS);
       return;
@@ -300,6 +306,13 @@ export class BotTurnScheduler {
       }
       perGame.delete(oldest);
     }
+  }
+
+  /** The extension budget scales with the table: one shared window suffices
+   *  for the lone solo viewer; several viewers get the raised (still hard)
+   *  bound. */
+  private maxExtensionsFor(game: IGame): number {
+    return this.relevantConnected(game).size > 1 ? BOT_TURN_MAX_EXTENSIONS_MULTI : BOT_TURN_MAX_EXTENSIONS;
   }
 
   private hasOutstandingNotifications(game: IGame): boolean {

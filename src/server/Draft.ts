@@ -36,19 +36,42 @@ export abstract class Draft {
   protected abstract endRound(): void;
 
   /**
+   * The players in this draft circle, in seat order. Default: everybody.
+   * The START-OF-GAME drafts override this to exclude MarsBot (it has no
+   * corporation / preludes / starting hand — humans draft among themselves;
+   * frame §12 Q8), while the generation draft keeps the bot as an ordinary
+   * link in the circle (Q7). For a game without a bot this is `game.players`
+   * either way — byte-identical to the historical behavior.
+   */
+  protected participants(): ReadonlyArray<IPlayer> {
+    return this.game.players;
+  }
+
+  /** The circle neighbor `offset` seats away, WITHIN the draft participants. */
+  private neighbor(player: IPlayer, offset: 1 | -1): IPlayer {
+    const circle = this.participants();
+    const index = circle.indexOf(player);
+    if (index === -1) {
+      throw new Error(`${player.id} is not part of this draft`);
+    }
+    return circle[(index + offset + circle.length) % circle.length];
+  }
+
+  /**
    * Start an entire draft iteration (or draft round). Saves the game, sets all the cards up, and asks players to make their first choice.
    *
    * When save is true or unspecified, the game is saved after set-up. It is not appropriate to save when restoring a game.
    */
   // TODO(kberg): Create a startDraft() which draws, and a continueDraft() which uses the cards a player is handed.
   public startDraft(save: boolean = true) {
+    const participants = this.participants();
     const arrays: Array<Array<IProjectCard>> = [];
     if (this.game.draftRound === 1) {
-      for (const player of this.game.players) {
+      for (const player of participants) {
         arrays.push(this.draw(player));
       }
     } else {
-      arrays.push(...this.game.players.map((player) => player.draftHand));
+      arrays.push(...participants.map((player) => player.draftHand));
       if (this.passDirection() === 'after') {
         const array = arrays.pop();
         if (array) {
@@ -62,7 +85,7 @@ export abstract class Draft {
       }
     }
 
-    for (const [player, draftHand] of zip(this.game.players, arrays)) {
+    for (const [player, draftHand] of zip([...participants], arrays)) {
       player.draftHand = draftHand;
       player.needsToDraft = true;
       this.askPlayerToDraft(player, false);
@@ -79,7 +102,7 @@ export abstract class Draft {
    * stored after round. So restoring the draft is a bit tricky.
    */
   public restoreDraft() {
-    const players = this.game.players;
+    const players = this.participants();
 
     // When restoring drafting, it might be that nothing was dealt yet.
     if (!players.some((p) => p.needsToDraft !== undefined)) {
@@ -104,12 +127,12 @@ export abstract class Draft {
 
   /** The player this player is taking their cards from when everybody passes their draft hands */
   private takingFrom(player: IPlayer): IPlayer {
-    return this.passDirection() === 'after' ? this.game.getPlayerBefore(player) : this.game.getPlayerAfter(player);
+    return this.passDirection() === 'after' ? this.neighbor(player, -1) : this.neighbor(player, 1);
   }
 
   /** The player this player is givign their cards to when everybody passes their draft hands */
   private givingTo(player: IPlayer): IPlayer {
-    return this.passDirection() === 'after' ? this.game.getPlayerAfter(player) : this.game.getPlayerBefore(player);
+    return this.passDirection() === 'after' ? this.neighbor(player, 1) : this.neighbor(player, -1);
   }
 
   /**
@@ -172,15 +195,16 @@ export abstract class Draft {
   protected onCardDrafted(player: IPlayer): void {
     player.needsToDraft = false;
 
+    const participants = this.participants();
     // If anybody still needs to draft, stop here.
-    if (this.game.players.some((p) => p.needsToDraft)) {
+    if (participants.some((p) => p.needsToDraft)) {
       this.askPlayerToDraft(player, true);
       this.game.save();
       return;
     }
 
     // Clear all pending Repick waitingFor.
-    for (const p of this.game.players) {
+    for (const p of participants) {
       if (p.getWaitingFor() !== undefined) {
         p.clearWaitingFor();
       }
@@ -194,9 +218,9 @@ export abstract class Draft {
     }
 
     // Push last cards for each player
-    for (const player of this.game.players) {
-      player.draftedCards.push(...copyAndEmpty(this.takingFrom(player).draftHand));
-      player.needsToDraft = undefined;
+    for (const participant of participants) {
+      participant.draftedCards.push(...copyAndEmpty(this.takingFrom(participant).draftHand));
+      participant.needsToDraft = undefined;
     }
 
     this.endRound();
@@ -252,6 +276,12 @@ class InitialDraft extends Draft {
     super('initial', game);
   }
 
+  protected override participants(): ReadonlyArray<IPlayer> {
+    // MarsBot has no starting picks — humans draft among themselves (§12 Q8).
+    // A game without a bot filters nothing.
+    return this.game.players.filter((p) => !p.isMarsBot);
+  }
+
   override draw(_player: IPlayer) {
     const cardsToDraw = this.game.gameOptions.testMode ?
       constants.TEST_MODE_INITIAL_DRAFT_PROJECT_CARDS_PER_ITERATION :
@@ -299,6 +329,11 @@ class PreludeDraft extends Draft {
     super('prelude', game);
   }
 
+  protected override participants(): ReadonlyArray<IPlayer> {
+    // MarsBot has no preludes (its compensation is extra action-deck cards).
+    return this.game.players.filter((p) => !p.isMarsBot);
+  }
+
   override draw(player: IPlayer) {
     // Return a copy. Otherwise inplaceRemove on draftHand later mutates
     // dealtPreludeCards, leaking other players' picks.
@@ -332,6 +367,11 @@ class PreludeDraft extends Draft {
 class CEOsDraft extends Draft {
   constructor(game: IGame) {
     super('ceos', game);
+  }
+
+  protected override participants(): ReadonlyArray<IPlayer> {
+    // MarsBot has no CEOs.
+    return this.game.players.filter((p) => !p.isMarsBot);
   }
 
   override draw(player: IPlayer) {

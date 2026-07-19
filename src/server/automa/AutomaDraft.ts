@@ -36,8 +36,11 @@ export class AutomaDraft extends Draft {
   }
 
   override passDirection(): 'before' | 'after' {
-    // With exactly two participants "before" and "after" are the same swap.
-    return 'after';
+    // Mirrors the standard draft's alternation so a MULTIPLAYER circle (mode
+    // B: 2-4 humans + the bot as an ordinary link, §12 Q7) feels exactly like
+    // the ordinary game. With exactly two participants (official solo) both
+    // directions are the same swap — byte-identical to the historical 'after'.
+    return this.game.generation % 2 === 0 ? 'after' : 'before';
   }
 
   protected override askPlayerToDraft(player: IPlayer, repick: boolean): void {

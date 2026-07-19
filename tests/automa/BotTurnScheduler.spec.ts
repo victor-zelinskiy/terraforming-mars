@@ -3,7 +3,7 @@ import {Phase} from '../../src/common/Phase';
 import {IGame} from '../../src/server/IGame';
 import {CardName} from '../../src/common/cards/CardName';
 import {botTurnKey} from '../../src/common/automa/MarsBotTurn';
-import {BotTurnScheduler, BOT_TURN_MAX_EXTENSIONS} from '../../src/server/automa/BotTurnScheduler';
+import {BotTurnScheduler, BOT_TURN_MAX_EXTENSIONS, BOT_TURN_MAX_EXTENSIONS_MULTI} from '../../src/server/automa/BotTurnScheduler';
 import {Game} from '../../src/server/Game';
 import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 import {testAutomaGame} from './AutomaTestGame';
@@ -169,6 +169,64 @@ describe('BotTurnScheduler', () => {
     expect(resolved).to.eq(1);
     expect(scheduler.extensionsForTesting(game.id)).to.eq(BOT_TURN_MAX_EXTENSIONS);
     await scheduler.fireDueForTesting(game.id); // extensions === MAX → resolve
+    expect(resolved).to.eq(2);
+  });
+
+  it('multiplayer (§12 Q17): waits for EVERY connected human — one ack is not enough', async () => {
+    const {game, raw, bot} = fakeGame('g-multi-ack');
+    const h1 = raw.players[0];
+    const h2 = fakePlayer('g-multi-ack-h2', 'red2', false);
+    raw.players.splice(1, 0, h2); // [h1, h2, bot]
+    let resolved = 0;
+    scheduler.enableForTesting();
+    scheduler.configureForTesting({
+      setTimer: noopTimer,
+      connectedProvider: () => new Set([h1.id, h2.id]),
+      gameProvider: () => Promise.resolve(game),
+      resolveTurn: (g) => {
+        resolved++; g.automa!.lastTurn = {id: 9, generation: 3, steps: []};
+      },
+    });
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id); // turn 9 resolved, unacked {h1, h2}
+    expect(resolved).to.eq(1);
+    raw.automa.pendingTurn = true;
+    scheduler.onBotTurnDue(game);
+
+    await scheduler.fireDueForTesting(game.id); // nobody acked → extend
+    expect(resolved).to.eq(1);
+    scheduler.ack(game.id, h1.id, botTurnKey(bot.color, {generation: 3, id: 9}));
+    await scheduler.fireDueForTesting(game.id); // h2 still outstanding → extend
+    expect(resolved).to.eq(1);
+    scheduler.ack(game.id, h2.id, botTurnKey(bot.color, {generation: 3, id: 9}));
+    await scheduler.fireDueForTesting(game.id); // everyone acked → resolve
+    expect(resolved).to.eq(2);
+  });
+
+  it('multiplayer raises the extension cap — still a hard bound', async () => {
+    const {game, raw} = fakeGame('g-multi-max');
+    const h2 = fakePlayer('g-multi-max-h2', 'red2', false);
+    raw.players.splice(1, 0, h2);
+    let resolved = 0;
+    scheduler.enableForTesting();
+    scheduler.configureForTesting({
+      setTimer: noopTimer,
+      connectedProvider: () => new Set([raw.players[0].id, h2.id]),
+      gameProvider: () => Promise.resolve(game),
+      resolveTurn: (g) => {
+        resolved++; g.automa!.lastTurn = {id: 4, generation: 1, steps: []};
+      },
+    });
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id);
+    raw.automa.pendingTurn = true;
+    scheduler.onBotTurnDue(game);
+    for (let i = 0; i < BOT_TURN_MAX_EXTENSIONS_MULTI; i++) {
+      await scheduler.fireDueForTesting(game.id);
+    }
+    expect(resolved).to.eq(1);
+    expect(scheduler.extensionsForTesting(game.id)).to.eq(BOT_TURN_MAX_EXTENSIONS_MULTI);
+    await scheduler.fireDueForTesting(game.id);
     expect(resolved).to.eq(2);
   });
 
