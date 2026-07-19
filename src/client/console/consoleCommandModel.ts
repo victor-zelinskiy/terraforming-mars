@@ -28,6 +28,13 @@ export type ConsoleCommand = {
   control: GlyphControl,
   /** A paired second glyph (LB+RB acting as ONE command, e.g. «Бонус»). */
   control2?: GlyphControl,
+  /**
+   * Render the pair as a SPREAD prev/next hint — `control ◀ label ▶ control2`
+   * (glyph · left arrow · label · right arrow · glyph). Used for LB/RB
+   * previous/next controls (hand tag filter, card paging) so the two glyphs
+   * sit on the OUTER edges with the direction arrows framing the label.
+   */
+  spread?: boolean,
   /** English i18n key. */
   label: string,
   enabled?: boolean,

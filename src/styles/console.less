@@ -6099,6 +6099,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-transform: uppercase;
         white-space: nowrap;
     }
+    /* Direction arrows framing a SPREAD prev/next hint (LB ◀ label ▶ RB). */
+    &__spread-arrow {
+        font-size: .8rem;
+        line-height: 1;
+        opacity: .75;
+    }
     &__badge {
         min-width: 1.2rem;
         height: 1.2rem;
@@ -9503,6 +9509,12 @@ html.console-mode {
     gap: .3rem;
     color: @con-text-dim;
     font-size: .75rem;
+}
+/* Direction arrows framing the card-paging SPREAD hint (LB ◀ ЛИСТАТЬ ▶ RB). */
+.con-zoom__flip-arrow {
+    font-size: .7rem;
+    line-height: 1;
+    opacity: .75;
 }
 /* The right-stick DEFLECTION plate (rule-overlay traversal) — bespoke: the
    glyph set's stickR means R3 (a press), which would mislead here. */

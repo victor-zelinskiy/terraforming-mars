@@ -8,7 +8,7 @@
         <span v-if="countText !== ''" class="con-hand__count">{{ countText }}</span>
         <span v-if="!selectActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
       </div>
-      <!-- Tag filter (LT/RT cycle, R3 reset — advertised in the footer). The
+      <!-- Tag filter (LB/RB cycle, R3 reset — advertised in the footer). The
            active chip is the always-visible source of truth for the filter. -->
       <div v-if="showFilters" class="con-hand__filters" role="group" :aria-label="$t('Tag filter')">
         <div v-for="opt in tagFilters"
@@ -171,7 +171,7 @@
  * `move()` (mirrors `ConsoleBoardSection.move()`), and the shell just delegates.
  *
  * A premium HEADER hosts the title + live counts + the console-native tag
- * filter (LT/RT cycle, R3 reset — the shell owns those inputs; the panel is
+ * filter (LB/RB cycle, R3 reset — the shell owns those inputs; the panel is
  * pure state). PLAYABLE-FIRST sort is applied by the shell; the info panel
  * under the grid carries the play state + the SERVER's structured unplayable
  * reasons (unit-suffixed "Сейчас: …"). Button hints live ONLY in the footer.

@@ -494,9 +494,12 @@
             <span class="con-zoom__swap-sep" aria-hidden="true">·</span>
             <span class="con-zoom__swap-name">{{ zoomSourceInfo.name }}</span>
           </span>
-          <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd">
-            <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+          <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
+            <GamepadGlyph control="bumperL" />
+            <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
             <span>{{ $t('Browse') }}</span>
+            <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
+            <GamepadGlyph control="bumperR" />
           </span>
           <!-- A MANDATORY viewer (single-card reveal) has NO close — the only
                completion is taking the received card. -->
@@ -1179,16 +1182,17 @@ export default defineComponent({
      * in CSS so per-card takes land in a fully visible hand.
      */
     footerUnderScene(): boolean {
-      const phase = this.playerView.game.phase;
+      const task = this.hostTask;
       return (
-        // The draft PICK screen (a `card` hostTask in the drafting phase) is
-        // a tall bottom-reaching surface, but — unlike the research buy — no
-        // card flies into the dock during a pick (the drafted card lands in
-        // the separate `draftedCards` stack). So drop the footer BELOW it,
-        // exactly like the hand overlay, so the dock's pack tucks under the
-        // draft cards instead of poking over them. Ends at RESEARCH (buy /
-        // rise), where the footer returns on top for the deck→dock flights.
-        ((phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) && this.handDockVisible) ||
+        // The draft PICK screen (`cardSelect` mode `draft` in the task host) is
+        // a tall bottom-reaching surface with a full dim backdrop, but — unlike
+        // the research BUY (mode `buy`) — no card flies into the dock during a
+        // pick (the drafted card lands in the separate `draftedCards` stack).
+        // So drop the footer BELOW it, exactly like the hand overlay / played
+        // table, so the dock's pack tucks under the host's veil instead of
+        // poking bright over the draft cards. The buy/rise scene keeps the
+        // footer on top for its deck→dock flights (not matched here).
+        (task?.kind === 'cardSelect' && task.mode === 'draft') ||
         this.playedTableVisible ||
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
@@ -2709,11 +2713,12 @@ export default defineComponent({
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Inspect'},
         ];
-        // The tag filter owns LT/RT (+ R3 reset) — shown only when there's a
+        // The tag filter owns LB/RB (+ R3 reset) — shown only when there's a
         // real tag to filter by (more options than just "All"). This is the
         // ONE place these controls are advertised (no inline duplication).
+        // Rendered as a spread prev/next hint: LB ◀ ФИЛЬТР ▶ RB.
         if (this.handTagFilterOptions.length > 1) {
-          cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Tag filter'});
+          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Tag filter', spread: true});
           cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
         }
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
@@ -4103,13 +4108,19 @@ export default defineComponent({
         // Stable board semantics: LB = Milestones (viewable any time).
         // (P29c: the temporary board-scale tuner is gone — ×1.05 shipped
         // as the compiled default in ConsoleBoardSection.)
+        // In the browse hand LB cycles the tag filter to the PREVIOUS tag.
         if (onBoard) {
           this.openSheet('milestones');
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+          this.cycleHandFilter(-1);
         }
         return true;
       case 'nextSection':
+        // In the browse hand RB cycles the tag filter to the NEXT tag.
         if (onBoard) {
           this.openSheet('awards');
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+          this.cycleHandFilter(1);
         }
         return true;
       case 'reset':
@@ -4118,9 +4129,7 @@ export default defineComponent({
       case 'nextTab':
         // P27: RT = the action-category QUICK SELECTOR from the board home
         // (P20: including during placement — inspection is always allowed). In
-        // the hand: sale mode CONFIRMS the sale; otherwise RT cycles the tag
-        // filter to the NEXT tag (the old "next playable" was retired — the
-        // grid + tag filter make a linear jump redundant).
+        // the hand: sale mode CONFIRMS the sale; the tag filter moved to LB/RB.
         if (onBoard) {
           this.openQuick('actions');
           return true;
@@ -4134,21 +4143,17 @@ export default defineComponent({
             if (!this.handSelectSingle) {
               this.confirmHandSelect();
             }
-          } else {
-            this.cycleHandFilter(1);
           }
         }
         return true;
       case 'prevTab':
         // P27: LT = the basic-actions QUICK SELECTOR (board home only). In the
-        // hand: SELECT mode toggles the "suitable only" filter; otherwise LT
-        // cycles the tag filter to the PREVIOUS tag.
+        // hand: SELECT mode toggles the "suitable only" filter; the tag filter
+        // moved to LB/RB.
         if (onBoard) {
           this.openQuick('basics');
         } else if (this.consoleState.section === 'hand' && this.handSelectTaskActive) {
           this.toggleSuitableOnly();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
-          this.cycleHandFilter(-1);
         }
         return true;
       case 'primary':

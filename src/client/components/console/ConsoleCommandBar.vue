@@ -7,10 +7,19 @@
               :key="'l' + i"
               class="con-cmdbar__cmd"
               :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
-          <GamepadGlyph :control="cmd.control" />
-          <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
-          <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
-          <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+          <template v-if="cmd.spread === true && cmd.control2 !== undefined">
+            <GamepadGlyph :control="cmd.control" />
+            <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>
+            <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+            <span class="con-cmdbar__spread-arrow" aria-hidden="true">▶</span>
+            <GamepadGlyph :control="cmd.control2" />
+          </template>
+          <template v-else>
+            <GamepadGlyph :control="cmd.control" />
+            <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
+            <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+            <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+          </template>
         </span>
       </div>
     </div>
@@ -23,10 +32,19 @@
             :key="i"
             class="con-cmdbar__cmd"
             :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
-        <GamepadGlyph :control="cmd.control" />
-        <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
-        <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
-        <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+        <template v-if="cmd.spread === true && cmd.control2 !== undefined">
+          <GamepadGlyph :control="cmd.control" />
+          <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>
+          <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+          <span class="con-cmdbar__spread-arrow" aria-hidden="true">▶</span>
+          <GamepadGlyph :control="cmd.control2" />
+        </template>
+        <template v-else>
+          <GamepadGlyph :control="cmd.control" />
+          <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
+          <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
+          <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
+        </template>
       </span>
     </div>
   </div>
