@@ -5,7 +5,7 @@ import {IMilestone} from '../milestones/IMilestone';
 import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
-import {humansInTieOrder, marsBotOf} from './AutomaUtil';
+import {humansOf, marsBotOf} from './AutomaUtil';
 
 /**
  * The Claim Milestone / Fund Award track actions (rulebook p.8). Evaluation
@@ -32,7 +32,7 @@ export class AutomaMilestonesAwards {
       return undefined;
     }
     // §12 Q12: "the human" generalizes to ANY / the BEST human.
-    const humans = humansInTieOrder(game);
+    const humans = humansOf(game);
     if (eligible.length > 1) {
       const humanAlsoMeets = eligible.filter((m) => humans.some((h) => m.canClaim(h)));
       if (humanAlsoMeets.length > 0) {
@@ -106,7 +106,7 @@ export class AutomaMilestonesAwards {
     }
     const bot = marsBotOf(game);
     // §12 Q12: the bot's margin is measured against the BEST human per award.
-    const humans = humansInTieOrder(game);
+    const humans = humansOf(game);
     const unfunded = game.awards.filter((a) => !game.hasBeenFunded(a));
     const margin = new Map<IAward, number>();
     for (const award of unfunded) {

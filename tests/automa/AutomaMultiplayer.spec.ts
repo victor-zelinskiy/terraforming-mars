@@ -84,13 +84,18 @@ describe('Automa multiplayer (mode B)', () => {
       expect(h2.plants).eq(2);
     });
 
-    it('B01 tie goes to the next human after the bot in turn order', () => {
-      const [game, [h1, h2]] = testAutomaMultiplayerGame(2);
-      h1.plants = 5;
-      h2.plants = 5;
-      resolve(game, BonusCardId.B01_METEOR_SHOWER);
-      expect(h1.plants).eq(0);
-      expect(h2.plants).eq(5);
+    it('B01 tie resolves RANDOMLY among the tied — exactly one is hit; the seeded rng replays the same victim', () => {
+      const roll = (suffix: string) => {
+        const [game, [h1, h2]] = testAutomaMultiplayerGame(2, undefined, suffix);
+        h1.plants = 5;
+        h2.plants = 5;
+        resolve(game, BonusCardId.B01_METEOR_SHOWER);
+        // Exactly one tied human loses everything, the other is untouched.
+        expect([h1.plants, h2.plants].sort((a, b) => a - b)).deep.eq([0, 5]);
+        return h1.plants === 0 ? 'h1' : 'h2';
+      };
+      // The same seed → the same victim (replay safety of the seeded rng).
+      expect(roll('-tieA')).eq(roll('-tieB'));
     });
 
     it('B01 never attacks into the shield while a valid target exists', () => {
@@ -129,6 +134,20 @@ describe('Automa multiplayer (mode B)', () => {
       expect(birds.resourceCount).eq(1);
       expect(tardigrades.resourceCount).eq(3);
       expect(h2.removingPlayers).contains(bot.id);
+    });
+
+    it('B02: an equal-rate tie prompts exactly ONE owner (random, equal weight per player)', () => {
+      const [game, [h1, h2]] = testAutomaMultiplayerGame(2);
+      const birds1 = new Birds(); // rate 1
+      birds1.resourceCount = 1;
+      h1.playedCards.push(birds1);
+      const birds2 = new Birds(); // rate 1 — a cross-player tie.
+      birds2.resourceCount = 2;
+      h2.playedCards.push(birds2);
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+      const prompted = [h1, h2].filter((h) => h.getWaitingFor() !== undefined);
+      expect(prompted).has.length(1);
     });
 
     it('B02: protection on the best owner moves the attack to the other human', () => {

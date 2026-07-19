@@ -16,37 +16,36 @@ export function marsBotOf(game: IGame): IPlayer {
 }
 
 /**
- * The human players of an automa game in the CANONICAL tie order of the
- * victim-selection rule (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12 Q9):
- * generation order starting from the seat AFTER the bot, wrapping. In the
- * official solo mode this is simply [the human], so every consumer runs ONE
- * code path for both modes.
+ * The human players of an automa game, in a STABLE order (generation order).
+ * In the official solo mode this is simply [the human], so every consumer
+ * runs ONE code path for both modes.
  */
-export function humansInTieOrder(game: IGame): ReadonlyArray<IPlayer> {
-  const players = game.playersInGenerationOrder;
-  const botIndex = players.findIndex((p) => p.isMarsBot);
-  if (botIndex === -1) {
-    throw new Error('This game has no MarsBot player');
-  }
-  const rotated = [...players.slice(botIndex + 1), ...players.slice(0, botIndex)];
-  return rotated.filter((p) => !p.isMarsBot);
+export function humansOf(game: IGame): ReadonlyArray<IPlayer> {
+  return game.playersInGenerationOrder.filter((p) => !p.isMarsBot);
 }
 
 /**
- * The §12 Q9 victim canon: the candidate with the STRICTLY highest score;
- * ties resolve to the earliest candidate in the given order (callers pass
- * `humansInTieOrder` — the next human after the bot wins ties). Undefined for
- * an empty candidate list. Deterministic and bot-owned — never a prompt.
+ * The §12 Q9 victim canon: the candidate with the highest score; ties resolve
+ * RANDOMLY among the tied candidates via the game's SEEDED rng (the same
+ * source the bot's flips and draft picks use) — fair between players, yet
+ * deterministic within a game and replay-safe. A fixed tie order (e.g. "next
+ * after the bot") would systematically punish one seat. Undefined for an
+ * empty candidate list. Bot-owned — never a prompt.
  */
-export function pickVictim<T>(candidates: ReadonlyArray<T>, score: (candidate: T) => number): T | undefined {
-  let best: T | undefined;
+export function pickVictim<T>(game: IGame, candidates: ReadonlyArray<T>, score: (candidate: T) => number): T | undefined {
   let bestScore = -Infinity;
+  let tied: Array<T> = [];
   for (const candidate of candidates) {
     const s = score(candidate);
     if (s > bestScore) {
-      best = candidate;
       bestScore = s;
+      tied = [candidate];
+    } else if (s === bestScore) {
+      tied.push(candidate);
     }
   }
-  return best;
+  if (tied.length === 0) {
+    return undefined;
+  }
+  return tied.length === 1 ? tied[0] : tied[game.rng.nextInt(tied.length)];
 }

@@ -130,6 +130,75 @@ describe('ApiCreateGame', () => {
   });
 
 
+  it('multiplayer with Automa (mode B): the route seats the bot and derives the mode', async () => {
+    const post = scaffolding.post(apiCreateGame, res);
+    const emit = Promise.resolve().then(() => {
+      const newGameConfig: NewGameConfig = {
+        players: [
+          {name: 'Alice', color: 'blue', beginner: false, handicap: 0, first: true},
+          {name: 'Bob', color: 'red', beginner: false, handicap: 0, first: false},
+        ],
+        expansions: {
+          corpera: true, promo: true, venus: false, colonies: false, prelude: false,
+          prelude2: false, turmoil: false, community: false, ares: false, moon: false,
+          pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false,
+        },
+        board: BoardName.THARSIS,
+        seed: 0,
+        randomFirstPlayer: false,
+        clonedGamedId: undefined,
+        undoOption: false,
+        showTimers: false,
+        testMode: false,
+        fastModeOption: false,
+        showOtherPlayersVP: false,
+        aresExtremeVariant: false,
+        politicalAgendasExtension: 'Standard',
+        solarPhaseOption: false,
+        removeNegativeGlobalEventsOption: false,
+        modularMA: false,
+        draftVariant: false,
+        initialDraft: false,
+        preludeDraftVariant: false,
+        ceosDraftVariant: false,
+        startingCorporations: 2,
+        shuffleMapOption: false,
+        randomMA: RandomMAOptionType.NONE,
+        includeFanMA: false,
+        soloTR: false,
+        customCorporationsList: [],
+        bannedCards: [],
+        includedCards: [],
+        customColoniesList: [],
+        customPreludes: [],
+        requiresMoonTrackCompletion: false,
+        requiresVenusTrackCompletion: false,
+        moonStandardProjectVariant: false,
+        moonStandardProjectVariant1: false,
+        altVenusBoard: false,
+        escapeVelocity: undefined,
+        twoCorpsVariant: false,
+        customCeos: [],
+        startingCeos: 0,
+        startingPreludes: 0,
+        automa: {difficulty: 'hard'},
+      };
+      req.emitter.emit('data', JSON.stringify(newGameConfig));
+      req.emitter.emit('end');
+    });
+    await Promise.all(([emit, post]));
+    expect(res.statusCode).eq(statusCode.ok);
+    const model = JSON.parse(res.content) as SimpleGameModel;
+    const game = await scaffolding.ctx.gameLoader.getGame(model.id);
+    expect(game).is.not.undefined;
+    expect(game!.players).has.length(3);
+    expect(game!.players.filter((p) => p.isMarsBot)).has.length(1);
+    expect(game!.gameOptions.automa?.mode).eq('multiplayer');
+    expect(game!.gameOptions.automa?.difficulty).eq('hard');
+    expect(game!.automa).is.not.undefined;
+    expect(game!.first.isMarsBot).is.not.true;
+  });
+
   it('red rover solo game', async () => {
     const post = scaffolding.post(apiCreateGame, res);
     const emit = Promise.resolve().then(() => {

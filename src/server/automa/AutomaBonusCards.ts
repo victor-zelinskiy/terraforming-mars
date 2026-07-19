@@ -23,7 +23,7 @@ import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
-import {humansInTieOrder, marsBotOf, pickVictim} from './AutomaUtil';
+import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
 import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /** Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay in their holding pool. */
@@ -150,14 +150,14 @@ export function resolveBonusCard(game: IGame, id: BonusCardId): BonusCardOutcome
  * "no" (nothing to take / protected), which the snapshot diff can't see.
  */
 function meteorShower(game: IGame): BonusCardOutcome {
-  const humans = humansInTieOrder(game);
+  const humans = humansOf(game);
   // Victim canon (§12 Q9): the human with the MOST plants among the VALID
   // (unprotected, plant-holding) candidates — the bot never "attacks into the
-  // shield" while a valid target exists; ties go to the next human after the
-  // bot in turn order. Official solo (one human) degenerates to the old rule.
-  const victim = pickVictim(humans.filter((h) => h.plants > 0 && !h.plantsAreProtected()), (h) => h.plants);
+  // shield" while a valid target exists; ties resolve randomly (seeded rng).
+  // Official solo (one human) degenerates to the old rule.
+  const victim = pickVictim(game, humans.filter((h) => h.plants > 0 && !h.plantsAreProtected()), (h) => h.plants);
   if (victim === undefined) {
-    const shielded = pickVictim(humans.filter((h) => h.plantsAreProtected()), (h) => h.plants);
+    const shielded = pickVictim(game, humans.filter((h) => h.plantsAreProtected()), (h) => h.plants);
     if (shielded !== undefined) {
       // No valid target and somebody IS protected — the printed outcome:
       // nothing removed, the card is destroyed (FAQ).
@@ -199,7 +199,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const humans = humansInTieOrder(game);
+  const humans = humansOf(game);
 
   if (game.gameOptions.venusNextExtension || game.gameOptions.coloniesExtension) {
     bot.stock.add(Resource.MEGACREDITS, 2, {log: true});
@@ -209,8 +209,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }
 
-  // Every animal/microbe cube holder across ALL humans, in the canonical tie
-  // order (owner-major — the first max-rate entry below IS the §12 Q9 victim).
+  // Every animal/microbe cube holder across ALL humans (owner-major, stable order).
   type Holder = {owner: IPlayer, card: ICard};
   const cubeHolders: Array<Holder> = [];
   for (const owner of humans) {
@@ -228,11 +227,14 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     !owner.tableau.has(CardName.PROTECTED_HABITATS) && card.protectedResources !== true);
   if (removable.length > 0) {
     // Victim canon (§12 Q9): the GLOBAL highest cube rate; ties across players
-    // go to the first owner in tie order. The prompt below only settles ties
-    // WITHIN that victim's own equal-rate cards (scoring-equivalent by
-    // construction — never "pick the loss you prefer").
+    // resolve RANDOMLY with EQUAL weight per PLAYER (never per card — a player
+    // with more equal-rate cards must not attract the hit more often). The
+    // prompt below only settles ties WITHIN that victim's own equal-rate cards
+    // (scoring-equivalent by construction — never "pick the loss you prefer").
     const maxRate = Math.max(...removable.map(({card}) => cubeVpRate(card)));
-    const victim = (removable.find(({card}) => cubeVpRate(card) === maxRate) ?? removable[0]).owner;
+    const tiedOwners = humans.filter((h) =>
+      removable.some(({owner, card}) => owner === h && cubeVpRate(card) === maxRate));
+    const victim = pickVictim(game, tiedOwners, () => 0) ?? tiedOwners[0];
     const targets = removable
       .filter((h) => h.owner === victim && cubeVpRate(h.card) === maxRate)
       .map((h) => h.card);
@@ -254,7 +256,7 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
   } else if (cubeHolders.length > 0) {
     // Cubes exist, but Protected Habitats / a per-card protection blocks every
     // removal (official FAQ). The card still resolves (M€ above) and discards.
-    const shielded = (pickVictim(cubeHolders, ({card}) => cubeVpRate(card)) ?? cubeHolders[0]).owner;
+    const shielded = (pickVictim(game, cubeHolders, ({card}) => cubeVpRate(card)) ?? cubeHolders[0]).owner;
     game.log('${0} animals and microbes are protected — Invasive Species removes nothing', (b) => b.player(shielded));
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
       target: shielded.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'protected',
@@ -474,7 +476,7 @@ function corporateCompetition(game: IGame): BonusCardOutcome {
     throw new Error('Not an automa game');
   }
   const bot = marsBotOf(game);
-  const humans = humansInTieOrder(game);
+  const humans = humansOf(game);
 
   // Can't afford the 5 M€ cost → the card does nothing (rulebook: needs 5+ M€).
   if (bot.megaCredits < 5) {
