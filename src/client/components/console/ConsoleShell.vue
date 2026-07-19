@@ -1233,15 +1233,27 @@ export default defineComponent({
      *  BELOW the section content by z-index so its cards never poke over the
      *  rail. Board home keeps the dock on top as usual. */
     dockBehindWorkspace(): boolean {
-      const task = this.hostTask;
-      return this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro' ||
-        // The draft PICK task host lives INSIDE `.con-main` (z1), so `footerUnderScene`
-        // (z11390) can never drop the footer below it — only `behind-workspace` (z0)
-        // beats con-main. No card flies into the dock during a pick (the drafted card
-        // lands in the separate `draftedCards` stack), so parking the dock BELOW the
-        // host is safe. The research BUY (mode 'buy') keeps the footer on top for its
-        // deck→dock flights (not matched here).
-        (task?.kind === 'cardSelect' && task.mode === 'draft');
+      const phase = this.playerView.game.phase;
+      // The DRAFT pick task host lives INSIDE `.con-main` (z1), so `footerUnderScene`
+      // (z11390) can never drop the footer below it — only `behind-workspace` (z0)
+      // beats con-main. Detect the draft by the game PHASE (the pick prompt's
+      // buttonLabel is 'Select', so the task router classifies it as cardSelect
+      // mode 'target', NOT 'draft' — a mode check can't see it). No card flies into
+      // the dock during a pick (the drafted card lands in the separate `draftedCards`
+      // stack), so parking the dock BELOW the host is safe. The research BUY is phase
+      // RESEARCH, so the deck→dock buy flights keep the footer on top (not matched).
+      if (phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) {
+        return true;
+      }
+      // The bare colonies / hydro section grid. ⚠ ONLY the bare grid — while a
+      // dimming OVERLAY is up (the trade / hydro confirm, inspect, a sheet…)
+      // the footer MUST stay at its high z so the command bar reads BRIGHT
+      // above the overlay's backdrop (dropping it left the bar dimmed under the
+      // trade confirm — "не понятно какую кнопку нажать"). Those states are
+      // exactly `dockParkedUnderScene` (where the dock is hidden anyway, so
+      // nothing needs to tuck behind) + the hydro confirm.
+      return (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') &&
+        !this.dockParkedUnderScene && !consoleHydroUi.confirmOpen;
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —

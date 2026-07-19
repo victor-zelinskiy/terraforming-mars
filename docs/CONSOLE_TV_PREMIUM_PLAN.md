@@ -303,6 +303,13 @@ overflow/пересечения/микро-данные. Исправлено:
    (б) добавлен на trade-confirm — client-side `resourceLost` (не только серверный `tradeNotices`,
    который не всегда всплывает) + prominent `__notice--lost`. Общий метод `benefitResourceLost(type)`.
 
+## Итерация 2f (2026-07-20) — регрессия: trade-confirm затенял командный бар
+Мой #4-фикс (footer z:0 на секции colonies) ронял бар ПОД backdrop trade-confirm → «не понятно
+какую кнопку нажать». Фикс: `dockBehindWorkspace` теперь срабатывает на colonies/hydro ТОЛЬКО
+когда НЕ открыт dimming-overlay (`!dockParkedUnderScene && !consoleHydroUi.confirmOpen`) — во время
+confirm footer остаётся z:11700, бар яркий над backdrop. Draft-ветка (пользовательская) сохранена.
+ПРАВИЛО: опускать footer ниже con-main можно только на голой секции, не под центральным overlay.
+
 ## Не выполнено / следующие волны
 - `.con-info__effects` (Info Mode) — px-эффекты в rem-гриде, требует раздельного канала (§S3);
   `.con-task__source-label` bare zoom 1.1 (некритично).

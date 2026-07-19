@@ -229,5 +229,24 @@ test.describe('tv-4k decision screens', () => {
       await page.waitForTimeout(1000);
       await shoot(page, '08-colonies-build');
     }
+    await toBoard(page);
+
+    // TRADE confirm — the command bar must NOT be dimmed under the confirm
+    // backdrop (the regression the footer-behind-workspace z-drop caused).
+    await key(page, 'Period', 1000); // RT wheel
+    if (await page.locator('.con-quick').count() > 0) {
+      const trading = page.locator('.con-quick__slot').filter({hasText: /Торг|Trad|Колони|Colon/i}).first();
+      if (await trading.count() > 0) {
+        await trading.click();
+        await page.waitForTimeout(1200);
+      }
+    }
+    if (await page.locator('.con-colonies').count() > 0) {
+      await key(page, 'Enter', 1400); // A = trade the focused colony → confirm
+      if (await page.locator('.con-trade').count() > 0) {
+        await page.waitForTimeout(800);
+        await shoot(page, '09-trade-confirm');
+      }
+    }
   });
 });
