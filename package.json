@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.15",
+  "version": "1.2.16",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": "22.x"
@@ -116,6 +116,8 @@
     "electron:pack:dir": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --config electron-builder.yml",
     "pack:dir:win": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",
     "pack:dir:linux": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml",
+    "pack:only:win": "rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",
+    "pack:only:linux": "rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

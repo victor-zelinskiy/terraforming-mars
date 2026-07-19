@@ -3,6 +3,26 @@
 # VELOPACK (vpk) for the installers + self-updating packages. The repo is public, so the built-in
 # GITHUB_TOKEN both writes the release and lets the client read the feed with no token.
 #
+# This workflow is INDEPENDENT of CI (.github/workflows/main.yml — lint/build/tests). Both trigger
+# on the same push and run in parallel; the release does NOT wait for tests, so a new build reaches
+# your machine as fast as possible while the commit still shows ❌ if CI (a separate check) fails.
+#
+# SHAPE (optimised for shortest push→download latency):
+#   build   — ONE ubuntu job: build:desktop (make:static + webpack client + electron main) ONCE and
+#             publish it as an artifact. The webpack output is OS-independent, so both OS packagers
+#             reuse it instead of each rebuilding the (slow) client. This job also PRE-CREATES the
+#             empty GitHub Release for the tag so the two packagers can run in PARALLEL.
+#   windows — needs build: download the shared build, electron-builder --win, vpk pack + upload --merge.
+#   linux   — needs build: SAME, in PARALLEL with windows (both --merge into the pre-created release).
+#   prune   — keep newest 5 releases.
+# windows and linux no longer run sequentially (linux used to `needs: windows` only so windows could
+# CREATE the release first) — the `build` job creates it up front, so both just merge their own
+# channel (win / linux) into it concurrently. Each OS writes a DISTINCT feed file
+# (releases.win.json / releases.linux.json) + distinctly-named nupkg/AppImage, so the concurrent
+# `--merge` uploads touch different assets. (Tradeoff: the release is created before assets exist,
+# so a total build failure can leave an empty release; it's transient — per-commit version bumps
+# make each tag unique and `prune` keeps only the newest 5.)
+#
 # Versioning: the version is the COMMITTED package.json `version` (bumped +1 patch per commit by the
 # .githooks/pre-commit hook — see scripts/bump-version.mjs). It is the SINGLE SOURCE OF TRUTH shared
 # with the Heroku server (which reads the same committed package.json at build), so the client and
@@ -12,11 +32,8 @@
 #
 # Delivery: `vpk download github` fetches the previous release so `vpk pack` can build a DELTA
 # (users download only the diff); `vpk upload github --publish` writes the release + the
-# releases.<channel>.json feed the client's UpdateManager reads. Each OS uploads its OWN channel
-# (win / linux) to the SAME tag: the jobs run SEQUENTIALLY (linux needs windows) and pass --merge
-# so the windows job CREATES the release and the linux job MERGES its channel into it (without
-# --merge, vpk fails on the already-existing tag). A fixed-URL AppImage alias keeps the Steam Deck
-# bootstrap (scripts/steamdeck/install-steamdeck.sh) working unchanged.
+# releases.<channel>.json feed the client's UpdateManager reads. A fixed-URL AppImage alias keeps
+# the Steam Deck bootstrap (scripts/steamdeck/install-steamdeck.sh) working unchanged.
 #
 # NOTE: vpk is a .NET global tool → setup-dotnet + `dotnet tool install -g vpk` on each runner.
 # Code signing is out of scope for now (unsigned; Windows SmartScreen warns — accepted).
@@ -44,7 +61,69 @@ env:
   # "Resolve release version" step) into $GITHUB_ENV — not hardcoded here.
 
 jobs:
+  # Build the OS-independent desktop assets ONCE and pre-create the release, so windows + linux can
+  # package in parallel without each re-running the (slow) webpack client build.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve release version (from committed package.json)
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "VELO_VERSION=$V" >> "$GITHUB_ENV"
+          echo "VELO_TAG=v$V" >> "$GITHUB_ENV"
+          echo "release version: $V"
+
+      # Pre-create the (empty) release for this tag so the windows + linux packagers can BOTH
+      # `vpk upload --merge` into it in parallel. Idempotent: a re-run of the same version (or a
+      # tag that already exists) is a no-op. Pinned to this exact commit via --target.
+      - name: Pre-create GitHub Release (so packagers can merge in parallel)
+        shell: bash
+        run: |
+          if gh release view "$VELO_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "release $VELO_TAG already exists — reusing"
+          else
+            gh release create "$VELO_TAG" \
+              --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" \
+              --title "${{ env.VELO_PACK_TITLE }} $VELO_TAG" \
+              --notes "Automated Velopack release."
+            echo "created release $VELO_TAG"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # make:static + DESKTOP_BUILD=1 webpack client + electron main tsc. Everything the packagers
+      # consume that isn't in the checkout: build/ (electron main + styles.css), build-desktop/ (the
+      # renderer bundle), src/genfiles/ (settings.json build identity + generated manifests).
+      - name: Build desktop assets (client + electron main)
+        run: npm run build:desktop
+
+      - name: Upload shared build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-build
+          path: |
+            build/
+            build-desktop/
+            src/genfiles/
+          retention-days: 1
+          if-no-files-found: error
+
   windows:
+    needs: build
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -72,8 +151,6 @@ jobs:
       - name: Install vpk
         run: dotnet tool install -g vpk --version 1.2.0
 
-      # Version = the committed package.json version (per-commit bump). Publish it into $GITHUB_ENV
-      # so every later step (pack / upload / tag) sees the same VELO_VERSION / VELO_TAG.
       - name: Resolve release version (from committed package.json)
         shell: bash
         run: |
@@ -82,8 +159,16 @@ jobs:
           echo "VELO_TAG=v$V" >> "$GITHUB_ENV"
           echo "release version: $V"
 
-      - name: Build unpacked app dir (win)
-        run: npm run pack:dir:win
+      # Reuse the client + electron-main build produced ONCE by the `build` job (restores build/,
+      # build-desktop/, src/genfiles/ at the workspace root).
+      - name: Download shared build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-build
+
+      # Package the pre-built assets (electron-builder --dir --win) — NO client rebuild.
+      - name: Package unpacked app dir (win)
+        run: npm run pack:only:win
 
       # Fetch the previous release into the default Releases/ dir so vpk pack can build a delta.
       # continue-on-error: the very FIRST release has no prior (404) — that's expected, not a failure.
@@ -103,9 +188,9 @@ jobs:
           --mainExe "Terraforming Mars.exe"
           --icon electron/build-resources/icon.ico
 
-      # --merge: create the release if the tag is new, else merge into it (idempotent on a
-      # re-run of the same run_number). The linux job then merges its own channel into this tag.
-      - name: Upload to GitHub Release (win channel — creates/merges the release)
+      # --merge into the release the `build` job pre-created for this tag. The linux job merges its
+      # own channel into the SAME tag in parallel; the two channels are distinct feed files + assets.
+      - name: Upload to GitHub Release (win channel)
         run: >
           vpk upload github
           --repoUrl "${{ env.VELO_REPO_URL }}"
@@ -117,7 +202,7 @@ jobs:
           VPK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   linux:
-    needs: windows
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -151,11 +236,16 @@ jobs:
           echo "VELO_TAG=v$V" >> "$GITHUB_ENV"
           echo "release version: $V"
 
-      - name: Build unpacked app dir (linux)
-        run: npm run pack:dir:linux
+      - name: Download shared build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-build
 
-      # Fetch the previous LINUX release for the delta. The tag created by the windows job holds
-      # only the win channel; vpk searches back to the prior release that has the linux channel.
+      - name: Package unpacked app dir (linux)
+        run: npm run pack:only:linux
+
+      # Fetch the previous LINUX release for the delta. vpk searches back to the prior release that
+      # has the linux channel.
       - name: Download previous release (for deltas)
         continue-on-error: true
         run: vpk download github --repoUrl "${{ env.VELO_REPO_URL }}"
@@ -172,10 +262,8 @@ jobs:
           --mainExe terraforming-mars
           --icon electron/build-resources/linuxIcon.png
 
-      # --merge: adds the linux channel (releases.linux.json + AppImage/nupkg) to the EXISTING
-      # release the windows job created for this tag — the win channel files are untouched
-      # (different channel = different releases.<channel>.json), so both platforms coexist.
-      - name: Upload to GitHub Release (linux channel — merges into the release)
+      # --merge the linux channel into the SAME pre-created release (in parallel with the win job).
+      - name: Upload to GitHub Release (linux channel)
         run: >
           vpk upload github
           --repoUrl "${{ env.VELO_REPO_URL }}"
