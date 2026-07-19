@@ -382,10 +382,14 @@
              card area (flex:1 body above) fills all the space down to it,
              and a message swap never shifts the cards. Wizard card step only;
              hidden while the deal cinematic runs (nothing interactive yet). -->
-        <div v-if="mode === 'wizard' && currentStep !== undefined && !deal.state.active"
-             class="con-start__statusrail" :class="'con-start__statusrail--' + statusRailKind">
+        <div v-if="mode === 'wizard' && currentStep !== undefined"
+             class="con-start__statusrail" :class="statusRailClass">
+          <!-- The rail's HEIGHT is reserved for the whole card step; only its
+               CONTENT is hidden while the deal cinematic runs — so the card
+               area never resizes / jumps when the rail's text appears. -->
           <transition name="con-verdict-swap" mode="out-in">
-            <div class="con-start__status-inner" :key="focusedCard ? focusedCard.name : 'none'">
+            <div v-if="!deal.state.active" class="con-start__status-inner"
+                 :key="focusedCard ? focusedCard.name : 'none'">
               <span class="con-start__status-name">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
               <span v-if="statusRailText !== ''" class="con-start__status-state"
                     :key="'st' + blockedNudge">{{ statusRailText }}</span>
@@ -764,6 +768,12 @@ export default defineComponent({
         return 'limit';
       }
       return 'hint';
+    },
+    /** The rail's kind modifier — applied only while the deal is idle, so the
+     *  height-reserving empty rail during the cinematic stays neutral (no
+     *  coloured border) until its content fades in. */
+    statusRailClass(): string {
+      return this.deal.state.active ? '' : 'con-start__statusrail--' + this.statusRailKind;
     },
     statusRailText(): string {
       switch (this.statusRailKind) {
