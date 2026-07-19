@@ -20,9 +20,9 @@ import * as path from 'node:path';
 
 const OUT = path.resolve('screenshots', 'tv-decisions');
 
-function cfg() {
+function cfg(withColonies = false) {
   const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
+    corpera: true, promo: false, venus: false, colonies: withColonies,
     prelude: false, prelude2: false, turmoil: false, community: false,
     ares: false, moon: false, pathfinders: false, ceo: false,
     starwars: false, underworld: false, deltaProject: false,
@@ -144,6 +144,56 @@ test.describe('tv-4k decision screens', () => {
       if (await page.locator('.con-cardactions').count() > 0) {
         await shoot(page, '06-card-actions');
       }
+    }
+  });
+
+  // A SEPARATE colonies-enabled game — colonies:true adds a "remove a colony"
+  // solo-setup step that blocks the board in the main flow, so it lives in its
+  // own test. It exercises the SAME tile + summary-rail render path as a live
+  // trade window (setup mode ⇒ no settlement owners ⇒ the honest «нет
+  // владельцев» bonus state).
+  test('captures the colonies screen', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const created = await request.post('/api/creategame', {data: cfg(true)});
+    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
+    const model = await created.json() as {players: Array<{id: string}>};
+    const id = model.players[0].id;
+
+    await page.goto(`/player?id=${id}&console=1`);
+    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+    await page.waitForTimeout(3500);
+
+    const startUp = async () => await page.locator('.con-start__frame, .con-task-host').count() > 0;
+    if (await startUp()) {
+      await key(page, 'Enter', 1100);
+      await key(page, 'KeyE', 1000);
+      for (let k = 0; k < 5; k++) {
+        await key(page, 'Enter', 650);
+        await key(page, 'ArrowRight', 450);
+      }
+      await key(page, 'KeyE', 1000);
+      await key(page, 'Enter', 1200);
+    }
+    // The colony-removal setup renders the colonies section directly; capture
+    // it (or navigate RT → «Торговля» if the board came up clean).
+    for (let i = 0; i < 6; i++) {
+      if (await page.locator('.con-colonies').count() > 0) {
+        break;
+      }
+      await key(page, 'Enter', 900);
+    }
+    if (await page.locator('.con-colonies').count() === 0) {
+      await key(page, 'Period', 1000);
+      const trading = page.locator('.con-quick__slot').filter({hasText: /Торг|Trad/i}).first();
+      if (await trading.count() > 0) {
+        await trading.click();
+        await page.waitForTimeout(1200);
+      }
+    }
+    if (await page.locator('.con-colonies').count() > 0) {
+      await page.waitForTimeout(1000);
+      await shoot(page, '07-colonies');
     }
   });
 });

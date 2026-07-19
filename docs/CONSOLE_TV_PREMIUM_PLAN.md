@@ -269,6 +269,15 @@ overflow/пересечения/микро-данные. Исправлено:
   [glyph] · БОНУС [glyph] · статус) — заполняет низ, glance-читаемо; reuse tile reward/bonus
   логики (не расходятся). Флоты header 2.2/1.7rem + summary 2.1rem (единый вес). Верифицировано.
 
+## Итерация 2c (2026-07-19) — фидбек по колониям (4 пункта, верифицировано 4K)
+1. **Иконка «ТОРГОВАТЬ» клипалась** → `__cell-value zoom 1.22→1.0×ui-scale` + `__cell 2→2.5rem`.
+2. **Build-иконки (×N ряд) мелкие** → `__build-slot .benefit-glyph zoom .82×ui-scale` + слот 2.1→2.5rem
+   + production scale .82 + `__num 15px` (px-глиф компенсируется тем же каналом, что `__cell-value`).
+3. **Hand-dock перекрывал rail** → `dockParkedUnderScene` расширен секциями colonies/hydro.
+4. **Rail семантика (игровая правда)** → «ВЫ ПЛАТИТЕ: флот» ❌ → «ОТПРАВЛЯЕТЕ + Оплата — далее»;
+   БОНУС КОЛОНИИ только реальным владельцам поселений (`colony.colonies`), иначе «Нет владельцев».
+Верифицировано кадром `screenshots/tv-decisions/07-colonies.png`.
+
 ## Не выполнено / следующие волны
 - `.con-info__effects` (Info Mode) — px-эффекты в rem-гриде, требует раздельного канала (§S3);
   `.con-task__source-label` bare zoom 1.1 (некритично).

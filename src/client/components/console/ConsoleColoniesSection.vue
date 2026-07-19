@@ -72,14 +72,18 @@
         <span class="con-colonies__summary-track">{{ focusedTrackDisplay }}</span>
       </div>
       <div class="con-colonies__summary-flow">
+        <!-- DISPATCH — a trade LAUNCHES a fleet; the M€/resource PAYMENT is
+             chosen at the next step (NOT "you pay: a fleet"). -->
         <div class="con-colonies__summary-cell">
-          <span class="con-colonies__summary-label">{{ $t('You pay') }}</span>
+          <span class="con-colonies__summary-label">{{ $t('You send') }}</span>
           <span class="con-colonies__summary-pay">
             <ColonyFleetIcon v-if="viewerColor !== undefined" :color="viewerColor" :free="true" />
             <span class="con-colonies__summary-paytext">{{ $t('Trade fleet') }}</span>
           </span>
+          <span class="con-colonies__summary-sub">{{ $t('Payment chosen next') }}</span>
         </div>
         <span class="con-colonies__summary-arrow" aria-hidden="true">→</span>
+        <!-- TRADE INCOME — goes to YOU (the trader), at the effective position. -->
         <div class="con-colonies__summary-cell">
           <span class="con-colonies__summary-label">{{ $t('You receive') }}</span>
           <span class="con-colonies__summary-get">
@@ -89,12 +93,23 @@
           </span>
         </div>
         <span class="con-colonies__summary-sep" aria-hidden="true">·</span>
+        <!-- COLONY BONUS — granted to every SETTLEMENT OWNER here (incl. you if
+             you own one). With NO owners it is granted to no one — never shown
+             as an unconditional gain. -->
         <div class="con-colonies__summary-cell">
-          <span class="con-colonies__summary-label">{{ $t('Bonus') }}</span>
-          <span class="con-colonies__summary-get">
-            <b v-if="focusedBonusQty > 1">{{ focusedBonusQty }}</b>
-            <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
-          </span>
+          <span class="con-colonies__summary-label">{{ $t('Colony bonus') }}</span>
+          <template v-if="focusedOwners.length > 0">
+            <span class="con-colonies__summary-get">
+              <b v-if="focusedBonusQty > 1">{{ focusedBonusQty }}</b>
+              <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
+            </span>
+            <span class="con-colonies__summary-owners">
+              <span v-for="c in focusedOwners" :key="c"
+                    class="con-colonies__summary-owner" :class="['player_bg_color_' + c, {'con-colonies__summary-owner--me': c === viewerColor}]"></span>
+              <span v-if="focusedViewerOwns" class="con-colonies__summary-ownernote">{{ $t('incl. you') }}</span>
+            </span>
+          </template>
+          <span v-else class="con-colonies__summary-none">{{ $t('No colony owners') }}</span>
         </div>
       </div>
       <div class="con-colonies__summary-status" :class="'con-colonies__summary-status--' + focusedStatus.kind">
@@ -273,6 +288,14 @@ export default defineComponent({
     focusedStatus(): ConsoleColonyTileStatus {
       const colony = this.colonies[this.index];
       return colony === undefined ? {kind: 'none', text: ''} : this.tileStatus(colony);
+    },
+    /** Settlement OWNERS on the focused colony — the recipients of the colony
+     *  bonus when anyone trades here (empty ⇒ the bonus goes to no one). */
+    focusedOwners(): ReadonlyArray<Color> {
+      return this.colonies[this.index]?.colonies ?? [];
+    },
+    focusedViewerOwns(): boolean {
+      return this.viewerColor !== undefined && this.focusedOwners.includes(this.viewerColor);
     },
   },
   watch: {

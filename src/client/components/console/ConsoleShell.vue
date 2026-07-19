@@ -1219,6 +1219,12 @@ export default defineComponent({
      */
     dockParkedUnderScene(): boolean {
       return (
+        // Workspace SECTIONS that own the bottom of the screen (colonies has
+        // the focus-colony summary rail there, hydro its CTA zone) — the dock
+        // cards must not poke over their content (the "dock over the rail" z
+        // overlap). The dock lives on the board home only.
+        this.consoleState.section === 'colonies' ||
+        this.consoleState.section === 'hydro' ||
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
         this.corpFirstActionOpen ||

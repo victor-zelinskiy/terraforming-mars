@@ -7258,6 +7258,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__summary-pay { display: inline-flex; align-items: center; gap: .4rem; }
     &__summary-pay .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
     &__summary-paytext { font-size: .9rem; font-weight: 700; color: @con-text; }
+    &__summary-sub { font-size: .625rem; color: fade(@con-cyan, 75%); }
+    /* Colony-bonus recipients (settlement owner cubes) + the honest no-owners
+       state — the bonus is NEVER shown as an unconditional gain. */
+    &__summary-owners { display: inline-flex; align-items: center; gap: .3rem; }
+    &__summary-owner {
+        width: .8rem; height: .8rem; border-radius: .15rem;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.6);
+        &--me { box-shadow: 0 0 0 .075rem #fff, 0 0 .35rem fade(@con-mint, 55%); }
+    }
+    &__summary-ownernote { font-size: .625rem; font-weight: 700; color: @con-mint; }
+    &__summary-none { font-size: .8rem; font-weight: 700; color: @con-text-dim; }
     &__summary-get {
         display: inline-flex; align-items: center; gap: .35rem;
         zoom: calc(1.35 * var(--con-ui-scale, 1));
@@ -7410,7 +7421,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* ── Build slots (owner cubes) + the live track, one band. ────── */
     &__mid {
         flex: 0 0 auto;
-        height: 1.9rem;
+        height: 2.3rem;
         display: flex;
         align-items: center;
         gap: .7rem;
@@ -7418,13 +7429,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__build {
         display: flex;
-        gap: .35rem;
+        gap: .4rem;
         flex: 0 0 auto;
     }
     &__build-slot {
         position: relative;
-        width: 2.1rem;
-        height: 1.9rem;
+        width: 2.5rem;
+        height: 2.3rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -7453,7 +7464,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             background-position: center;
             margin: 0;
         }
-        .benefit-glyph__production { transform: scale(0.6); }
+        .benefit-glyph__production { transform: scale(0.82); }
+        /* The build-reward glyph is px content (32px) — on TV it scales only
+           by the tile's coltile-scale zoom, NOT the rem base, so it read tiny
+           next to the rem cells. Add the ui-scale compensation (same channel
+           as __cell-value) so the top preview icons + their ×N badge match
+           the trade/bonus icons' weight. */
+        .benefit-glyph { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
+        .benefit-glyph__num { font-size: 15px; right: 2px; bottom: 1px; } /* keep-px: inside the zoomed glyph */
     }
     &__cube {
         position: absolute;
@@ -7510,11 +7528,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .4rem;
-        padding: .2rem .5rem;
+        padding: .2rem .55rem;
         border-radius: .4rem;
         background: rgba(255, 255, 255, 0.04);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
-        height: 2rem;
+        /* Taller so the reward glyph FITS (was clipping the icon on the right
+           edge — the zoomed value overflowed a 2rem box under overflow:hidden). */
+        height: 2.5rem;
         overflow: hidden;
 
         &--trade { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 25%); }
@@ -7531,7 +7551,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: inline-flex;
         align-items: center;
         gap: .25rem;
-        zoom: calc(1.22 * var(--con-ui-scale, 1));
+        flex-shrink: 0;
+        /* Sized to FIT the (now taller) cell — 1.22 overflowed the box and the
+           icon was clipped on the right. */
+        zoom: calc(1.0 * var(--con-ui-scale, 1));
 
         /* The quantity is shown ONCE — the big mint `cell-num`; suppress the
            glyph's own `×N` badge so "3 [×3]" never double-reads. */
