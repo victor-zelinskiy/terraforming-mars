@@ -4,15 +4,22 @@
 
 # Terraforming Mars — Console Edition
 
-An **unofficial, open-source** desktop build of the board game *Terraforming Mars*, made
-for the living room: **Steam Deck, Steam Machine, and Windows**. It ships a controller-first
-console UI you can play end-to-end with a gamepad on a TV, a built-in solo AI opponent
-(**MarsBot**), and every major expansion. It installs per-user and
-**updates itself on launch** — nothing to maintain.
+An **unofficial, open-source** desktop application for the board game *Terraforming Mars*,
+built for the living room: a **controller-first console UI** you can play entirely with a
+gamepad, optimized for **TVs, Steam Deck, Steam Machine, and Windows**. It is a standalone
+[Electron](https://www.electronjs.org/) client, installs per-user (no administrator rights),
+and updates itself on launch.
+
+> **Project status — fully playable, but a work in progress.** A complete game can be played
+> from start to finish today. The project is under active development: many individual UI
+> elements, animations, controller interactions, and visual details are not finished yet and
+> still need polish.
 
 It is a fork of the open-source
-[terraforming-mars](https://github.com/terraforming-mars/terraforming-mars) engine, with a
-rebuilt client for handhelds and TVs.
+[terraforming-mars](https://github.com/terraforming-mars/terraforming-mars) engine. It
+already supports several major expansions and includes **MarsBot**, a built-in solo opponent
+that plays by the official Automa rules. Turmoil support is planned once the core polish is
+complete, followed by the gradual addition of unofficial (fan-made) expansions.
 
 > Not affiliated with FryxGames, Asmodee Digital, Valve, or Steam. The board game is
 > excellent — [buy it](https://www.amazon.com/Stronghold-Games-6005SG-Terraforming-Board/dp/B01GSYA4K2).
@@ -23,9 +30,9 @@ rebuilt client for handhelds and TVs.
 
 ### 🎮 Steam Deck / Steam Machine
 
-One command, about 5 minutes — it downloads the game, sets up the launcher, and adds
-**Terraforming Mars** to your Steam library with artwork. Full step-by-step walkthrough:
-**[scripts/steamdeck/GUIDE.md](scripts/steamdeck/GUIDE.md)**.
+A single command downloads the game, sets up the launcher, and adds **Terraforming Mars** to
+your Steam library with artwork — it usually takes a few minutes. Full step-by-step
+walkthrough: **[scripts/steamdeck/GUIDE.md](scripts/steamdeck/GUIDE.md)**.
 
 In Desktop Mode, open **Konsole** and paste:
 
@@ -64,8 +71,5 @@ Other tasks: `npm run test` (server + client), `npm run lint`.
 
 ## License
 
-GPLv3 — same as the upstream project it is based on.
-
-- Russian Prototype font: https://fonts-online.ru/fonts/prototype-rus-daymarius (copyright 2001, free for personal use)
-- Polish Prototype font: https://www.gry-planszowe.pl/viewtopic.php?p=1489006#p1489006 (copyright 2001, free for personal use)
-- Board game icons: http://www.kenney.nl/ (Creative Commons Zero, CC0)
+The source code is licensed under **GPLv3**, the same license as the upstream project it is
+based on.
