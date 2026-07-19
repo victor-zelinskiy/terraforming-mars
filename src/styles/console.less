@@ -3606,6 +3606,37 @@ html.console-mode {
     &__verdictbar.con-cards__verdictbar {
         min-height: 2.7rem;
     }
+    /* The STATUS RAIL rides ABOVE the footer/dock band: with the PER-CARD
+       dock lift a card outside the active tag filter keeps its back in the
+       tray, and the raised pack (dock z 11705) was painting OVER the rail
+       text. z 11711 also clears the reveal-flight stage (11710), so filter
+       leavers/enterers dive BEHIND the HUD rail into/out of the tray —
+       never over its text. (.con-root is the one stacking context here —
+       .con-main is z-auto — so the rail competes with those bands directly.
+       Kept under the notice toast 11740 / ceremonies 11720+ / fallbacks.) */
+    &__verdictbar {
+        position: relative;
+        z-index: 11711;
+
+        /* The settle materialization: the held text fades back in. */
+        > * {
+            transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    /* A bottom-reaching scene is up (play composer — the same contract that
+       drops the footer itself — or the reveal modal): the rail returns
+       under the overlay band so it can never float over a scene backdrop. */
+    &--under-scene &__verdictbar {
+        z-index: auto;
+    }
+    /* A tag-FILTER episode is airborne: the rail HOLDS its text — the
+       already-swapped verdict/«Показано X из Y» must not read over cards
+       still gathering. Instant hide (same flush as the switch), the fade
+       back rides the settle release above. */
+    &__verdictbar--hold > * {
+        opacity: 0;
+        transition: none;
+    }
     &__reason {
         padding: .4rem .7rem;
         border-radius: .4rem;

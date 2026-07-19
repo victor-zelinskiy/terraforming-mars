@@ -45,6 +45,9 @@ export const handRevealState = reactive({
   holdSlots: false,
   /** Extra dock backs held hidden: filter-episode leavers still in flight. */
   dockExtraLift: [] as Array<string>,
+  /** A tag-FILTER episode is airborne — the status rail holds its text
+   *  until the cards settle (the section's `--hold` class). */
+  filterActive: false,
 });
 
 const els = new Map<number, HTMLElement>();

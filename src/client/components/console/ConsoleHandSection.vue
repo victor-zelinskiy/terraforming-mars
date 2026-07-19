@@ -1,5 +1,5 @@
 <template>
-  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold}" :style="rootStyle">
+  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene}" :style="rootStyle">
     <!-- HEADER: title + live counts + the premium tag-filter chips. Button
          hints live ONLY in the footer command bar — never here. -->
     <div class="con-hand__header">
@@ -116,6 +116,7 @@
            'con-hand__verdictbar--blocked': !saleActive && !selectActive && !selectedPlayable,
            'con-hand__verdictbar--sale': saleActive,
            'con-hand__verdictbar--select': selectActive,
+           'con-hand__verdictbar--hold': filterBusy,
          }">
       <span class="con-cards__verdict-name">{{ $t(selected.name) }}</span>
       <template v-if="selectActive">
@@ -277,6 +278,22 @@ export default defineComponent({
      * a mid-episode patch can't wash the hold off.
      */
     transitHold: {type: Boolean, default: false},
+    /**
+     * A tag-FILTER episode is airborne (`handRevealState.filterActive`):
+     * the status rail HOLDS its text (the already-swapped verdict/counts
+     * must not read over cards still gathering) — it fades back in with
+     * the settle.
+     */
+    filterBusy: {type: Boolean, default: false},
+    /**
+     * A bottom-reaching scene is up (the shell's `footerUnderScene` — play
+     * composer etc. — or the reveal modal): the status rail DROPS back
+     * under the overlay band. In the calm open hand it rides ABOVE the
+     * footer/dock (z 11711) so the non-filtered backs staying in the tray
+     * (per-card lift) and the reveal flights pass BEHIND it, never over
+     * its text.
+     */
+    underScene: {type: Boolean, default: false},
   },
   data() {
     return {

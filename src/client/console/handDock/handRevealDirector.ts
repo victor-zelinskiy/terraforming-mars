@@ -458,6 +458,7 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
   buildingKind = 'filter';
   pendingReverse = false;
   handRevealState.holdSlots = true; // same-flush: every slot hides under a proxy
+  handRevealState.filterActive = true; // the status rail holds its text
   // Leaver backs STAY hidden while airborne (they just left the derived
   // visible-entries lift set) — released at the finalize materialization.
   handRevealState.dockExtraLift = leavers.map((p) => p.name as string);
@@ -568,9 +569,11 @@ function finalizeFilter(instant: boolean): void {
   }
   episode.finished = true;
   // The hand stays open: slots + leaver dock backs materialize under the
-  // proxies' teardown fade (phase was 'open' the whole time).
+  // proxies' teardown fade (phase was 'open' the whole time); the status
+  // rail's text fades back in with them.
   handRevealState.holdSlots = false;
   handRevealState.dockExtraLift = [];
+  handRevealState.filterActive = false;
   teardown(instant);
 }
 
@@ -662,5 +665,6 @@ export function resetHandReveal(): void {
   handRevealState.phase = 'docked';
   handRevealState.holdSlots = false;
   handRevealState.dockExtraLift = [];
+  handRevealState.filterActive = false;
   clearRevealFlights();
 }

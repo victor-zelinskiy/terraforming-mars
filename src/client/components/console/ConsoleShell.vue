@@ -127,7 +127,9 @@
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
                           :stagedCard="stagedHandCard"
-                          :transitHold="handRevealState.holdSlots" />
+                          :transitHold="handRevealState.holdSlots"
+                          :filterBusy="handRevealState.filterActive"
+                          :underScene="footerUnderScene || consoleRevealMode !== undefined" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
