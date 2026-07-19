@@ -1,5 +1,5 @@
 /*
- * PURE hint model (GAMEPAD_SUPPORT_DESIGN.md §6): (scope, focus kind) →
+ * PURE hint model (docs/GAMEPAD_SUPPORT_DESIGN.md §6): (scope, focus kind) →
  * the contextual hint-bar actions. Derived from the SAME scope id the focus
  * engine routes input by — the single source of truth, so the bar cannot
  * lie about what a button will do. Labels are English i18n keys (ru values

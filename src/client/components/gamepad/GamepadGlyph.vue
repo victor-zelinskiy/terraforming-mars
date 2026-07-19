@@ -4,7 +4,7 @@
 
 <script lang="ts">
 /**
- * One controller button badge (GAMEPAD_SUPPORT_DESIGN.md §6). Drawn with
+ * One controller button badge (docs/GAMEPAD_SUPPORT_DESIGN.md §6). Drawn with
  * CSS only (no image assets, mirrors BarButtonIcon's asset-free approach):
  * a dark-glass chassis + the glyph-set's toned label. Semantic `control`
  * in, platform presentation out — the Xbox set is the only one today.

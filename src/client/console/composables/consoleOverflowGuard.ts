@@ -1,7 +1,7 @@
 /*
  * CONSOLE OVERFLOW GUARD — dev-only diagnostics for the "no browser
  * scrollbars in console-native" invariant (foundation layer;
- * CONSOLE_FOUNDATION.md §3.4).
+ * docs/CONSOLE_FOUNDATION.md §3.4).
  *
  * The CSS policy (html.console-native → overflow:hidden) makes a page-level
  * scrollbar IMPOSSIBLE — but it also makes genuine layout overflow

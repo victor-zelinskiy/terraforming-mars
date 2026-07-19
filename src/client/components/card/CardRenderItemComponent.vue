@@ -1,7 +1,7 @@
 <template>
   <div class="card-item-container">
     <div class="card-res-amount" v-if="item.showDigit">{{ amountAbs }}</div>
-    <!-- CARD-1 (PERFORMANCE_AUDIT.md): a pure CSS-icon item (the common multiplied
+    <!-- CARD-1 (docs/PERFORMANCE_AUDIT.md): a pure CSS-icon item (the common multiplied
          case — "gain 8 plants" → 8 copies, all with EMPTY content) renders as plain
          class-divs, skipping a per-copy `v-html` innerHTML write. `v-html=""` and no
          v-html produce the identical (childless) box, so this is visual-identical. -->

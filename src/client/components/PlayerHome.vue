@@ -3,7 +3,7 @@
 All UI work goes into console native (`?console=1`, ConsoleShell.vue); the next
 desktop UI will be rebuilt from it. Unreachable from ConsoleShell, so changes
 here cannot affect console. Fix only what breaks the shared layer or play.
-See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
+See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
 -->
 <template>
   <div id="player-home" :class="[(game.turmoil ? 'with-turmoil': ''), playerTintClass, {'viewing-other': isViewingOther, 'journal-open': journalOpen, 'overlay-active': activeOverlay !== null}]">
@@ -1153,7 +1153,7 @@ export default defineComponent({
     'playerView.game.undoCount': 'syncBoardInfo',
     /*
      * The transient-UI RESET EPOCH (the former `:key="playerkey"` remount,
-     * see REMOUNT_ANIMATION_REWORK_DESIGN.md Phase 1). App / WaitingFor /
+     * see docs/REMOUNT_ANIMATION_REWORK_DESIGN.md Phase 1). App / WaitingFor /
      * the draft & start-flow overlays bump `playerkey` exactly where they
      * used to force a remount — behind the very same preserve guards — and
      * this watcher performs the reset the remount used to do implicitly.
@@ -1445,7 +1445,7 @@ export default defineComponent({
     // Perf instrumentation (Perf-0): counts PlayerHome mounts. With the
     // no-remount update model this fires ONCE per game session; under the
     // legacy `tm_remount` flag it fires on every server response — the
-    // before/after comparison for the rework (PERFORMANCE_AUDIT.md A3/B1).
+    // before/after comparison for the rework (docs/PERFORMANCE_AUDIT.md A3/B1).
     perfMark('playerHome:mount');
     this.syncStartGameActionLockBody();
     this.syncActionLockGuards();
@@ -2462,7 +2462,7 @@ export default defineComponent({
     },
     /*
      * Explicit replacement for the implicit reset the `:key="playerkey"`
-     * remount used to perform (REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1).
+     * remount used to perform (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1).
      * Reproduces "fresh mount" semantics:
      *   1. data()-parity — the transient fields return to their defaults
      *      (pending modals, confirms, colonies overlay, pickers).

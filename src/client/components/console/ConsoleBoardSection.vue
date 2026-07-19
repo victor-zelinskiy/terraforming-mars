@@ -13,7 +13,7 @@
 
 <script lang="ts">
 /**
- * Console Board section (CONSOLE_MODE_CONCEPT.md §7). Reuses the REAL board
+ * Console Board section (docs/CONSOLE_MODE_CONCEPT.md §7). Reuses the REAL board
  * (GameBoardView — auto-scaled, premium) and adds controller-native cell
  * selection: geometric hex traversal (spatialNav over cell rects), a
  * spotlight class on the selected cell, and the dossier panel fed by the

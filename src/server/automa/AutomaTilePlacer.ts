@@ -82,7 +82,7 @@ export class AutomaTilePlacer {
       b.player(marsBotOf(game)).card(flipped).number(cost));
     // Counting starts at 1 on the first tied space and loops. A cost of 0 is not
     // defined by the official text — normalized to the first space (OQ-5 in
-    // AUTOMA_DATA_AUDIT.md).
+    // docs/AUTOMA_DATA_AUDIT.md).
     const index = cost <= 0 ? 0 : (cost - 1) % ordered.length;
     return ordered[index];
   }

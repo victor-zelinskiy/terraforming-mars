@@ -1,7 +1,7 @@
 <!--
 @console-shared LIVE — console native stands on this file, so it is NOT covered
 by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
-Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
+Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
 -->
 <template>
   <Teleport to="body">
@@ -130,7 +130,7 @@ type DataModel = {
   eventsAbort: AbortController | undefined;
   stopPoller: (() => void) | undefined;
   fetching: boolean;
-  // A1 (PERFORMANCE_AUDIT.md): the last (gameAge:undoCount) version the
+  // A1 (docs/PERFORMANCE_AUDIT.md): the last (gameAge:undoCount) version the
   // update()-path fetched for. The log/event streams can only grow when the
   // game advanced, so a playerView re-commit that did NOT advance the game
   // (structural-sharing re-swap, same-state repoll, a PoV read) must not

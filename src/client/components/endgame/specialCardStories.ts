@@ -19,7 +19,7 @@ import type {InsightCandidate, InsightContext, InsightParam} from '@/client/comp
  * engine), read from the `cardAttack` fact. The other classes from the brief (huge
  * single-card VP, penalty tradeoff, economy/colony/blue-action/card-flow engines,
  * Vermin/Predators counters) are ALREADY covered by existing analyzers — re-adding them
- * would be duplication/spam (see the audit in EVENT_STAT_FOUNDATION.md), so they are
+ * would be duplication/spam (see the audit in docs/EVENT_STAT_FOUNDATION.md), so they are
  * intentionally not repeated here.
  */
 

@@ -1,5 +1,5 @@
 /*
- * The gamepad FOCUS ENGINE (GAMEPAD_SUPPORT_DESIGN.md §5) — a DOM-driving
+ * The gamepad FOCUS ENGINE (docs/GAMEPAD_SUPPORT_DESIGN.md §5) — a DOM-driving
  * spatial navigator over the SAME elements the mouse clicks.
  *
  * Central ideas (why this survives the fork's architecture):

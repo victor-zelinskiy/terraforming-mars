@@ -1,7 +1,7 @@
 /**
  * @console-shared LIVE — console native stands on this file, so it is NOT covered
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
- * Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
+ * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
 /*
  * Resource Change Feedback System — core manager.

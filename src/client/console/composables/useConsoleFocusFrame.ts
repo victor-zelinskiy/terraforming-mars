@@ -1,6 +1,6 @@
 /*
  * useConsoleFocusFrame — measured-rect provider for a MOVING premium
- * selection frame (foundation layer; CONSOLE_FOUNDATION.md §6).
+ * selection frame (foundation layer; docs/CONSOLE_FOUNDATION.md §6).
  *
  * The console navigation model is STATE-driven (`--cursor` classes), never
  * DOM :focus — so a future Ark-Nova-style gliding highlight needs the

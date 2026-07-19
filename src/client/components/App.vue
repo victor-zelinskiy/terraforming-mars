@@ -68,7 +68,7 @@
         :game="game"
       ></game-home>
       <!--
-        No-remount update model (REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1):
+        No-remount update model (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1):
         the game subtree is NOT keyed on `playerkey` anymore — a fresh
         playerView snapshot applies reactively and the tree lives across
         server responses. `playerkey` is passed as `reset-epoch` instead:
@@ -79,7 +79,7 @@
         restores the legacy full-remount behavior.
       -->
       <!--
-        Console Mode (CONSOLE_MODE_CONCEPT.md): a runtime SHELL SPLIT — the
+        Console Mode (docs/CONSOLE_MODE_CONCEPT.md): a runtime SHELL SPLIT — the
         console-first TV shell mounts INSTEAD of PlayerHome, same game brain
         (playerView + its own headless WaitingFor transport). Toggled by the
         consented entry prompt / hold-Menu / `?console=1|0`.
@@ -325,11 +325,11 @@
         :participant-id="realtimeParticipantId" />
 
       <!--
-        Premium GAMEPAD layer (GAMEPAD_SUPPORT_DESIGN.md). App-level (like
+        Premium GAMEPAD layer (docs/GAMEPAD_SUPPORT_DESIGN.md). App-level (like
         NotificationLayer) so the controller mode / focus survives the
         legacy-flag remount and every server response. Mounted on EVERY
         screen (full console lifecycle: menu → create → lobby → game →
-        endgame — CONSOLE_MODE_CONCEPT.md). Fully inert until a pad button
+        endgame — docs/CONSOLE_MODE_CONCEPT.md). Fully inert until a pad button
         is pressed; `?gp=0` / the gamepad_enabled preference kill it
         entirely (mouse/keyboard players byte-identical).
       -->
@@ -481,7 +481,7 @@ export type MainAppData = {
     playerView?: PlayerViewModel;
     // The transient-UI RESET EPOCH. Historically this was the `:key` of
     // <player-home> — bumping it forced a full remount per server response.
-    // Since the no-remount rework (REMOUNT_ANIMATION_REWORK_DESIGN.md) the
+    // Since the no-remount rework (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md) the
     // subtree is no longer keyed on it: a bump now only triggers PlayerHome's
     // explicit `resetTransientUi()` (close overlays / pending modals — the
     // same reset the remount used to perform implicitly). The bump SITES and
@@ -617,7 +617,7 @@ export default defineComponent({
   },
   computed: {
     // Console Mode flag (module reactive) exposed to the template — drives
-    // the ConsoleShell vs PlayerHome shell split (CONSOLE_MODE_CONCEPT.md).
+    // the ConsoleShell vs PlayerHome shell split (docs/CONSOLE_MODE_CONCEPT.md).
     consoleModeState() {
       return consoleModeState;
     },

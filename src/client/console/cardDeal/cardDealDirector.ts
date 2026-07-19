@@ -7,7 +7,7 @@
  * slightly before touchdown so the materialization reads continuous) →
  * deck exit → `onDone`.
  *
- * Contracts (CONSOLE_FOUNDATION.md §7 + the fork motion system):
+ * Contracts (docs/CONSOLE_FOUNDATION.md §7 + the fork motion system):
  *  - transform/opacity ONLY — geometry (per-proxy height) is SET once
  *    before the first frame, never animated;
  *  - every duration resolves through `motionMs()` (speed presets scale the

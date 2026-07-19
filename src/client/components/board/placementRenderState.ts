@@ -26,7 +26,7 @@ import {SpaceId} from '@/common/Types';
 
 type PlacementRenderState = {
   hiddenTiles: ReadonlySet<SpaceId>;
-  // BRD-3 (PERFORMANCE_AUDIT.md): a reactive mirror of "`.board-space--available`
+  // BRD-3 (docs/PERFORMANCE_AUDIT.md): a reactive mirror of "`.board-space--available`
   // currently exists on the board". SelectSpace is the ONLY source of that class
   // (bulk-added in `animateSpaces`, bulk-removed in `disableAnimation`), so it
   // sets this flag at those exact points. Board.vue's `placementActive()` and

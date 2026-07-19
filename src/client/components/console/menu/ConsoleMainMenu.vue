@@ -170,7 +170,7 @@
  * (Electron only). The command bar at the bottom is the single source of
  * button truth; Menu/system stays global (GamepadLayer).
  *
- * FOUNDATION PILOT (CONSOLE_FOUNDATION.md): a console-native SURFACE — it
+ * FOUNDATION PILOT (docs/CONSOLE_FOUNDATION.md): a console-native SURFACE — it
  * acquires the page-level overflow lock (html.console-native, body scroll
  * lock) for its lifetime; the games list scrolls inside a ConsoleScrollArea
  * (never the page) and keeps the cursored row visible via ensureVisible;

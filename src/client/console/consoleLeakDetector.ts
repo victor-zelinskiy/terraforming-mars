@@ -1,5 +1,5 @@
 /*
- * CONSOLE LEAK DETECTOR — CTS phase T0 (CONSOLE_MODE_CONCEPT.md §CTS-7).
+ * CONSOLE LEAK DETECTOR — CTS phase T0 (docs/CONSOLE_MODE_CONCEPT.md §CTS-7).
  *
  * Makes mixed/broken input states VISIBLE instead of silent. Two checks,
  * run on a light 1 s interval while console mode is active:

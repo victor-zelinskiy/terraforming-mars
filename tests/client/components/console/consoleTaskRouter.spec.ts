@@ -16,7 +16,7 @@ function kindOf(wf: any, hand: Array<string> = [], srr: Array<string> = []): Con
 }
 
 /**
- * THE CTS-2 COVERAGE TABLE (CONSOLE_MODE_CONCEPT.md) as fixtures. Every
+ * THE CTS-2 COVERAGE TABLE (docs/CONSOLE_MODE_CONCEPT.md) as fixtures. Every
  * user-input case the server can send maps to a TaskKind here; the RED
  * LIST printed at the bottom is the CTS work queue — when a phase lands a
  * kind natively, add it to NATIVE_KINDS and update EXPECTED_RED below

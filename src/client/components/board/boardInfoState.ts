@@ -1,7 +1,7 @@
 /**
  * @console-shared LIVE — console native stands on this file, so it is NOT covered
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
- * Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
+ * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
 import {reactive} from 'vue';
 import {SpaceId} from '@/common/Types';
@@ -32,7 +32,7 @@ type State = {
   spaceId: SpaceId | undefined;
   info: BoardCellInfo | undefined;
   loading: boolean;
-  // BRD-3 (PERFORMANCE_AUDIT.md): the hovered cell's bounding rect captured at
+  // BRD-3 (docs/PERFORMANCE_AUDIT.md): the hovered cell's bounding rect captured at
   // hover-ENTER (the delegate already holds the element), so the popover reads a
   // stored rect instead of running a `querySelector` + layout-forcing
   // `getBoundingClientRect` inside its position computed. undefined when the

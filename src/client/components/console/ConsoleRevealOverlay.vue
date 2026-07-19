@@ -176,7 +176,7 @@
 
 <script lang="ts">
 /**
- * CONSOLE REVEAL OVERLAY — CTS T6 row 25 (CONSOLE_MODE_CONCEPT.md). The
+ * CONSOLE REVEAL OVERLAY — CTS T6 row 25 (docs/CONSOLE_MODE_CONCEPT.md). The
  * console-native surface for the three REVEAL flows, replacing the desktop
  * modals (gated off in console) with one calm card-reveal frame:
  *

@@ -12,7 +12,7 @@ import {EventImpact} from './EventImpact';
  * machine-readable record of what actually happened, for the insightEngine,
  * the effect-statistics overlay and future post-game analytics.
  *
- * See LOGGING_EVENT_MODEL_PROPOSAL.md for the full design.
+ * See docs/LOGGING_EVENT_MODEL_PROPOSAL.md for the full design.
  */
 
 export type GameEventType =

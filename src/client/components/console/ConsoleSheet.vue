@@ -34,7 +34,7 @@
 
 <script lang="ts">
 /**
- * Generic console bottom sheet (CONSOLE_MODE_CONCEPT.md §9) — big TV rows
+ * Generic console bottom sheet (docs/CONSOLE_MODE_CONCEPT.md §9) — big TV rows
  * for the bounded lists (basic actions / standard projects / card actions /
  * the hydro pick). Rows are DATA; the shell supplies them + executes A on
  * the selected available row. The selected row carries the inline Ⓐ glyph.

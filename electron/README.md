@@ -394,5 +394,5 @@ Game-boundary reset, command transport rewrite, signing/notarization (any OS),
 performance refactors. A strict CSP for the `app://` handler is deferred (needs tuning
 against the live bundle); an `Origin` allowlist on the `/ws` upgrade is optional
 hardening; a stricter offline-block policy (vs today's fail-open) is a Phase 8 option.
-See `ELECTRON_MIGRATION_PLAN.md` for the phased roadmap and the parallel Performance
+See `../docs/ELECTRON_MIGRATION_PLAN.md` for the phased roadmap and the parallel Performance
 Initiative (§17).

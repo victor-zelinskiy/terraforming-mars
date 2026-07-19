@@ -1,6 +1,6 @@
 /*
  * Identity-preserving snapshot application — "structural sharing"
- * (REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 3 / the "умная модель" of the
+ * (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 3 / the "умная модель" of the
  * brief's Цель A).
  *
  * Every server response carries a full fresh-parsed PlayerViewModel. Applying

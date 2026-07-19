@@ -1,6 +1,6 @@
 /*
  * Gamepad core — the DOM shell around the pure poll model
- * (GAMEPAD_SUPPORT_DESIGN.md §4.2).
+ * (docs/GAMEPAD_SUPPORT_DESIGN.md §4.2).
  *
  * Owns: `gamepadconnected` / `gamepaddisconnected`, the poll loop (runs
  * ONLY while ≥1 pad is connected AND the document is visible), the

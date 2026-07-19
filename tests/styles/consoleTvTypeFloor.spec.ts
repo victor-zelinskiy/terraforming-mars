@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * TV TYPE-FLOOR GUARD (CONSOLE_TV_PREMIUM_PLAN.md §3.4 / §8.1): the TV
+ * TV TYPE-FLOOR GUARD (docs/CONSOLE_TV_PREMIUM_PLAN.md §3.4 / §8.1): the TV
  * profile's own stylesheet must never set text below the couch floor —
  * 0.8rem = 16 logical px. Base sheets may keep smaller handheld sizes;
  * the TV recomposition exists precisely to raise them, so a sub-floor

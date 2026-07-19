@@ -1,6 +1,6 @@
 /**
  * consoleCommandModel — the PURE fit model of the console command bar
- * (CONSOLE_TV_PREMIUM_PLAN.md §3.2).
+ * (docs/CONSOLE_TV_PREMIUM_PLAN.md §3.2).
  *
  * The TV rule: a hint label is NEVER truncated. When a state's command run
  * does not fit the bar's two bay zones, whole low-priority commands are

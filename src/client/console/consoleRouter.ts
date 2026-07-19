@@ -1,5 +1,5 @@
 /*
- * Console Mode router state + intent bridge (CONSOLE_MODE_CONCEPT.md §5/§13).
+ * Console Mode router state + intent bridge (docs/CONSOLE_MODE_CONCEPT.md §5/§13).
  *
  * The console shell's navigation model is Zones → Objects → Commands: this
  * module owns the module-level reactive state (survives console↔desktop

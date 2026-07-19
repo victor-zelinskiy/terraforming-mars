@@ -3,7 +3,7 @@
 All UI work goes into console native (`?console=1`, ConsoleShell.vue); the next
 desktop UI will be rebuilt from it. Unreachable from ConsoleShell, so changes
 here cannot affect console. Fix only what breaks the shared layer or play.
-See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
+See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
 -->
 <template>
   <!--
@@ -136,7 +136,7 @@ type DataModel = {
   fitScheduled: boolean;
   measureScheduled: boolean;
   cols: number;
-  // OV-2 (PERFORMANCE_AUDIT.md): last overlay width fit() wrote, so an unchanged
+  // OV-2 (docs/PERFORMANCE_AUDIT.md): last overlay width fit() wrote, so an unchanged
   // re-fit skips the CSS-var write — the ResizeObserver observes `root` and the
   // write resizes `root`, so writing the same value would self-trigger the RO.
   lastFitWidth: number | undefined;

@@ -1,6 +1,6 @@
 /*
  * CONSOLE START SCENE state + pure wizard logic — CTS T5
- * (CONSOLE_MODE_CONCEPT.md §CTS-1). Serves the `initialCards` prompt (the
+ * (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). Serves the `initialCards` prompt (the
  * game-opening corporation / preludes / CEO / project-buy composite) as a
  * console-native multi-step wizard.
  *

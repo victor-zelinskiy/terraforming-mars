@@ -1,6 +1,6 @@
 /*
  * PURE payment-lane math for the console-native payment task — CTS T3
- * (CONSOLE_MODE_CONCEPT.md §CTS-3). Reuses the EXACT desktop rate/available
+ * (docs/CONSOLE_MODE_CONCEPT.md §CTS-3). Reuses the EXACT desktop rate/available
  * sources (paymentModelUtils + PaymentDefaults + the PaymentWidgetMixin
  * ledger rules) so a console payment is always a mix the desktop
  * PaymentFormV2 could also produce — byte-parity by construction:

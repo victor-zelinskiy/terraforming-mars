@@ -9,7 +9,7 @@
 
 <script lang="ts">
 /**
- * The contextual hint bar (GAMEPAD_SUPPORT_DESIGN.md §6): bottom-center,
+ * The contextual hint bar (docs/GAMEPAD_SUPPORT_DESIGN.md §6): bottom-center,
  * pointer-events:none, lists what the buttons do in the ACTIVE scope +
  * focus kind. Hints derive from hintModel.ts — the same scope id the focus
  * engine routes by, so the bar can't disagree with actual behavior.

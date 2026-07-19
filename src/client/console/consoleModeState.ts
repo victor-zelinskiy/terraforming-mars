@@ -1,5 +1,5 @@
 /*
- * Console Mode state (CONSOLE_MODE_CONCEPT.md §13) — the runtime SHELL SPLIT
+ * Console Mode state (docs/CONSOLE_MODE_CONCEPT.md §13) — the runtime SHELL SPLIT
  * flag. When enabled, App.vue mounts <ConsoleShell> INSTEAD of <PlayerHome>:
  * same game brain (playerView, WaitingFor transport, module states), a
  * console-first TV shell.

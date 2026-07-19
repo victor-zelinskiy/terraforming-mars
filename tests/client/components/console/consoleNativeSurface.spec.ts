@@ -7,7 +7,7 @@ import {
 } from '@/client/console/composables/consoleNativeSurface';
 
 /**
- * Foundation layer (CONSOLE_FOUNDATION.md §3): the refcounted page-level
+ * Foundation layer (docs/CONSOLE_FOUNDATION.md §3): the refcounted page-level
  * overflow lock — `html.console-native` + the VueUse body scroll lock.
  * Module state is bundle-shared in mochapack → every test resets.
  */

@@ -12,7 +12,7 @@ export class LogMessage implements Message {
   // Bridge to the structured GameEvent stream — lets the premium journal build a
   // grouped "action → effect → result" view WITHOUT parsing the message text.
   // Set only when the log is emitted inside an action/effect scope (most are);
-  // absent → a flat, ungrouped system/legacy line. See LOGGING_EVENT_MODEL_PROPOSAL.md.
+  // absent → a flat, ungrouped system/legacy line. See docs/LOGGING_EVENT_MODEL_PROPOSAL.md.
   public correlationId?: number;
   public parentId?: number;
   public role?: JournalEntryRole;

@@ -12,7 +12,7 @@ import {TrackDefinition} from '../../../common/automa/AutomaTypes';
  *
  * Layout source: transcription from the official component image
  * (TM-Automa-rulebook-A, p.2 "1 Venus Next MarsBot board", rendered at high resolution).
- * See AUTOMA_DATA_AUDIT.md for the transcription notes.
+ * See docs/AUTOMA_DATA_AUDIT.md for the transcription notes.
  *
  * Positions: 0 (start, no action), 1 floater, 2 floater×2, 3 venus, 4 floater×2, 5 venus,
  * 6 empty, 7 floater×2, 8 venus, 9 advance-Bio-track (circular tag icon), 10 venus,

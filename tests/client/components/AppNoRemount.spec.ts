@@ -1,6 +1,6 @@
 /*
  * Phase-1 guards for the no-remount update model
- * (REMOUNT_ANIMATION_REWORK_DESIGN.md).
+ * (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md).
  *
  * The game subtree is no longer keyed on `playerkey`: an update applies the
  * fresh playerView reactively and `playerkey` acts as the transient-UI reset

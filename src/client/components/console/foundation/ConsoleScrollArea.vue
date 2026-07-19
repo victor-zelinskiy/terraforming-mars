@@ -14,7 +14,7 @@
 <script lang="ts">
 /**
  * ConsoleScrollArea — THE controlled scroll primitive of the console-native
- * UI (foundation layer; CONSOLE_FOUNDATION.md §3.3).
+ * UI (foundation layer; docs/CONSOLE_FOUNDATION.md §3.3).
  *
  * The overflow policy is: the PAGE never scrolls (html.console-native locks
  * it), panel shells clip (`overflow: hidden`), and the ONLY place content

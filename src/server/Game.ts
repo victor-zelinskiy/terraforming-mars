@@ -123,7 +123,7 @@ export class Game implements IGame, Logger {
   public gameAge: number = 0; // Each log event increases it
   public gameLog: Array<LogMessage> = createGameLog();
   // Structured analytics event stream (alongside the text gameLog). See
-  // LOGGING_EVENT_MODEL_PROPOSAL.md. Reads generation/phase lazily, so this
+  // docs/LOGGING_EVENT_MODEL_PROPOSAL.md. Reads generation/phase lazily, so this
   // field initializer running before those is safe.
   public events: EventRecorder = new EventRecorder(this);
   public undoCount: number = 0; // Each undo increases it
@@ -1550,7 +1550,7 @@ export class Game implements IGame, Logger {
       if (this.venusScaleLevel < constants.VENUS_LEVEL_FOR_CARD_BONUS &&
         this.venusScaleLevel + steps * 2 >= constants.VENUS_LEVEL_FOR_CARD_BONUS) {
         // MarsBot has no hand — the official Automa material never grants the bot
-        // the Venus 8% card-draw bonus (OQ-7 in AUTOMA_DATA_AUDIT.md), so it is
+        // the Venus 8% card-draw bonus (OQ-7 in docs/AUTOMA_DATA_AUDIT.md), so it is
         // skipped for it. The 16% TR bonus below applies normally ("per the
         // normal rules", Adding Expansions p.2).
         if (!player.isMarsBot) {

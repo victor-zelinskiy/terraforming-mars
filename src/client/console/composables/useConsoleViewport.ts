@@ -1,6 +1,6 @@
 /*
  * CONSOLE VIEWPORT — the ONE reactive viewport/media state of the console UI
- * (foundation layer; CONSOLE_FOUNDATION.md §4).
+ * (foundation layer; docs/CONSOLE_FOUNDATION.md §4).
  *
  * Components must not hand-roll `window.innerWidth` reads, `resize`
  * listeners or `matchMedia` queries — they read THIS. The layout PROFILE

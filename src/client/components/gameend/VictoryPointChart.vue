@@ -8,7 +8,7 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 
-// BND-1 (PERFORMANCE_AUDIT.md): chart.js is used ONLY by this endgame chart, so
+// BND-1 (docs/PERFORMANCE_AUDIT.md): chart.js is used ONLY by this endgame chart, so
 // load it lazily (its own async chunk — see the `chartjs` splitChunks cacheGroup)
 // instead of parsing it eagerly in vendors.js on the login / menu / board. The
 // one-time register + defaults run inside the cached loader.

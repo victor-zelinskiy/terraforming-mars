@@ -16,7 +16,7 @@ const zlib = require('zlib');
 // Desktop (Electron) renderer build. Emits to a SEPARATE dir with an app://
 // publicPath so it never clobbers the browser build/ (publicPath '/'). The
 // browser production build is byte-identical when DESKTOP_BUILD is unset.
-// See ELECTRON_MIGRATION_PLAN.md §9 / Phase 2A.
+// See docs/ELECTRON_MIGRATION_PLAN.md §9 / Phase 2A.
 const DESKTOP_BUILD = process.env.DESKTOP_BUILD === '1';
 
 // Skip the in-build type check when the caller already type-checks separately.
@@ -123,7 +123,7 @@ module.exports = {
     splitChunks: {
       chunks: 'all',
       cacheGroups: {
-        // BND-1 (PERFORMANCE_AUDIT.md): carve the two heavy lazy-only libs into
+        // BND-1 (docs/PERFORMANCE_AUDIT.md): carve the two heavy lazy-only libs into
         // their OWN async chunks so the single fixed-name `vendors` group below
         // can't merge them into the eager bundle. chart.js (endgame VP chart) and
         // markdown-it (card-help popup) are now dynamic-import()ed by their sole

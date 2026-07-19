@@ -119,7 +119,7 @@
 
 <script lang="ts">
 /**
- * Console status strip (CONSOLE_MODE_CONCEPT.md §6; P27 rework) — the
+ * Console status strip (docs/CONSOLE_MODE_CONCEPT.md §6; P27 rework) — the
  * TV-scale top HUD: global parameters + generation on the left, compact
  * premium PLAYER STATUS chips on the right. Read-only.
  *

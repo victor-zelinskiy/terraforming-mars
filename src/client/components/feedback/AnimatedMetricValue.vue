@@ -168,13 +168,13 @@ export default defineComponent({
     },
   },
   mounted() {
-    // Perf instrumentation (A3, PERFORMANCE_AUDIT.md): counts metric-host
+    // Perf instrumentation (A3, docs/PERFORMANCE_AUDIT.md): counts metric-host
     // mounts. With the no-remount update model this fires once per genuinely
     // new host (overlay open, etc.), not once per server response.
     perfMark('metricValue:mount');
     this.fullScopeKey = this.computeFullScopeKey();
     /*
-     * HONEST old→new transitions (REMOUNT_ANIMATION_REWORK_DESIGN.md §3.3):
+     * HONEST old→new transitions (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md §3.3):
      * with the no-remount update model this component persists across server
      * responses, so every REAL value change arrives through the `value`
      * watcher (`reconcile()`), which owns the chip firing + the seat-switch

@@ -6,7 +6,7 @@ import {
 } from '@/client/console/composables/consoleOverflowGuard';
 
 /**
- * Foundation layer (CONSOLE_FOUNDATION.md §3.4): the PURE measurement model
+ * Foundation layer (docs/CONSOLE_FOUNDATION.md §3.4): the PURE measurement model
  * behind the dev-only "no page scrollbars in console-native" diagnostics.
  */
 describe('consoleOverflowGuard (foundation, pure model)', () => {

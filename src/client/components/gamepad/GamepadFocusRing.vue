@@ -14,7 +14,7 @@
 
 <script lang="ts">
 /**
- * THE focus ring (GAMEPAD_SUPPORT_DESIGN.md §5.8) — one fixed,
+ * THE focus ring (docs/GAMEPAD_SUPPORT_DESIGN.md §5.8) — one fixed,
  * pointer-events-none element that morphs to the focused element's rect.
  * A single ring needs no per-component CSS and survives any re-render (it
  * tracks RECTS, not elements). Motion rides the unified system: the CSS

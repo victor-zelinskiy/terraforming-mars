@@ -18,7 +18,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CARD_HELP_TEXT} from '@/client/cards/CardHelpText';
 import PopupPanel from '@/client/components/common/PopupPanel.vue';
 
-// BND-1 (PERFORMANCE_AUDIT.md): markdown-it is used ONLY to render this
+// BND-1 (docs/PERFORMANCE_AUDIT.md): markdown-it is used ONLY to render this
 // click-triggered card-help popup. Load it lazily (its own async chunk — see
 // the `markdownit` splitChunks cacheGroup) so it isn't parsed eagerly in
 // vendors.js by every session that never opens a card help. Instance cached

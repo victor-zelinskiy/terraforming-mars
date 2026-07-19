@@ -1,6 +1,6 @@
 /*
  * CONSOLE NATIVE SURFACE — the page-level overflow & scroll-lock authority
- * (foundation layer; CONSOLE_FOUNDATION.md §3).
+ * (foundation layer; docs/CONSOLE_FOUNDATION.md §3).
  *
  * A "console-native surface" is a screen that OWNS the whole viewport with
  * state-driven pad navigation (ConsoleShell, the console main menu, the

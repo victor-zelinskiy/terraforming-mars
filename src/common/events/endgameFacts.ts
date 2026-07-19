@@ -18,7 +18,7 @@ import {
  * aggregates to ANALYSIS-READY facts a future endgame analyzer turns into insights.
  *
  * GameEvents/Stats → Facts → (later) Insights. This module is the middle arrow: it
- * does NOT write insight prose (deliberately — see EVENT_STAT_FOUNDATION.md Iteration 3
+ * does NOT write insight prose (deliberately — see docs/EVENT_STAT_FOUNDATION.md Iteration 3
  * §17) and adds NO parallel data — every fact is derived from the existing stream, so
  * it stays the single source of truth. No Vue / DOM / manifest, so it runs under the
  * server runner and could run server-side at endgame OR client-side over a fetched

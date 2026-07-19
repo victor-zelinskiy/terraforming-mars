@@ -1,5 +1,5 @@
 /*
- * Controller GLYPH SETS (GAMEPAD_SUPPORT_DESIGN.md §6) — semantic control →
+ * Controller GLYPH SETS (docs/GAMEPAD_SUPPORT_DESIGN.md §6) — semantic control →
  * presentation. The rest of the subsystem speaks ONLY semantics
  * ('confirm'/'back'/…); platform naming (Xbox letters, PlayStation shapes,
  * Steam labels, colors) lives HERE, so the resolved set is a pure function

@@ -1,6 +1,6 @@
 /*
  * CONSOLE KEY BRIDGE — the ONE keyboard→intent adapter of the console flow
- * (foundation layer; CONSOLE_FOUNDATION.md §2).
+ * (foundation layer; docs/CONSOLE_FOUNDATION.md §2).
  *
  * Installed by GamepadLayer while console mode is ENABLED (watch on
  * `consoleModeState.enabled`), so EVERY console surface — pre-game menu,

@@ -19,7 +19,7 @@
 
 <script lang="ts">
 /**
- * The CONSENTED console-mode entry prompt (CONSOLE_MODE_CONCEPT.md §13):
+ * The CONSENTED console-mode entry prompt (docs/CONSOLE_MODE_CONCEPT.md §13):
  * shown once per session on the first gamepad input while in desktop mode.
  * A full layout swap must never be silent. Input is handled by
  * GamepadLayer (A = switch, B = stay) — this component is presentation.

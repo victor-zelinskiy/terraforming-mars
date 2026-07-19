@@ -1,5 +1,5 @@
 /*
- * Gamepad subsystem config (GAMEPAD_SUPPORT_DESIGN.md §4.4). Mirrors the
+ * Gamepad subsystem config (docs/GAMEPAD_SUPPORT_DESIGN.md §4.4). Mirrors the
  * motion-system flag ladder: URL param wins, then localStorage / preference,
  * then the default. Pure & DOM-optional (safe under JSDOM/tests).
  *

@@ -1,6 +1,6 @@
 /**
  * PURE gamepad poll model — the testable half of the input core
- * (design: GAMEPAD_SUPPORT_DESIGN.md §4.1).
+ * (design: docs/GAMEPAD_SUPPORT_DESIGN.md §4.1).
  *
  * Turns two consecutive W3C "standard"-mapping gamepad snapshots into
  * SEMANTIC intents. No DOM, no Vue, no Date.now() — the caller supplies

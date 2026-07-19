@@ -1,5 +1,5 @@
 /*
- * Input-mode machine (GAMEPAD_SUPPORT_DESIGN.md §4.3): gamepad ↔ pointer.
+ * Input-mode machine (docs/GAMEPAD_SUPPORT_DESIGN.md §4.3): gamepad ↔ pointer.
  *
  * Module-level reactive (survives everything, like journalState). Entering
  * gamepad mode adds `gp-mode` to <html> — CSS hides the cursor and gates

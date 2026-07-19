@@ -6,7 +6,7 @@ import {marsBotOf} from './AutomaUtil';
 
 /**
  * MarsBot's Ares house rules (the official Automa material predates Ares and
- * does not cover it — see AUTOMA_DATA_AUDIT.md):
+ * does not cover it — see docs/AUTOMA_DATA_AUDIT.md):
  *
  * 1. NEIGHBORHOOD BONUSES count like printed placement bonuses: the placement
  *    evaluation values each Ares adjacency-bonus unit exactly like a printed

@@ -7,7 +7,7 @@ import {Response} from '../Response';
  *
  * ADDITIVE + allowlist-only. A browser is same-origin and sends no cross-origin
  * `Origin`, so none of this ever fires for web users. Guardrails
- * (ELECTRON_MIGRATION_PLAN.md §10/§11):
+ * (docs/ELECTRON_MIGRATION_PLAN.md §10/§11):
  *   - EXPLICIT, environment-configured allowlist — NEVER a wildcard `*`;
  *   - NO credentials: gameplay authenticates with the `?id=` URL token, not a
  *     cookie, so `Access-Control-Allow-Credentials` is deliberately absent;

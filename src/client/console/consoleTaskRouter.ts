@@ -1,5 +1,5 @@
 /*
- * CONSOLE TASK ROUTER — CTS phase T0 (CONSOLE_MODE_CONCEPT.md §CTS-1/2).
+ * CONSOLE TASK ROUTER — CTS phase T0 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1/2).
  *
  * The ONE place that knows which console surface owns a server prompt.
  * `taskFor(view)` maps `playerView.waitingFor` to a typed `ConsoleTask` —

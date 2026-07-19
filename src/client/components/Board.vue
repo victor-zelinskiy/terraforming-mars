@@ -394,7 +394,7 @@ export default defineComponent({
     // legal cells with `.board-space--available` (added in `animateSpaces`,
     // removed in `disableAnimation`) and mirrors that into `placementRenderState`
     // — read the reactive flag instead of a full-DOM `querySelector` on every
-    // mouseover (BRD-3, PERFORMANCE_AUDIT.md).
+    // mouseover (BRD-3, docs/PERFORMANCE_AUDIT.md).
     placementActive(): boolean {
       return placementRenderState.highlightActive;
     },
@@ -467,7 +467,7 @@ export default defineComponent({
     },
   },
   computed: {
-    // BRD-1 (PERFORMANCE_AUDIT.md): spaceMap was built in data() and never updated when
+    // BRD-1 (docs/PERFORMANCE_AUDIT.md): spaceMap was built in data() and never updated when
     // `spaces` changed — it only "refreshed" because the board full-remounts on every
     // poll (a latent staleness bug). As a computed it tracks `this.spaces` correctly,
     // with zero behavior change today, and unblocks moving the board off the remount.

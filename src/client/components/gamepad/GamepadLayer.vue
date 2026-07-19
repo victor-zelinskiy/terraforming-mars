@@ -58,7 +58,7 @@
 
 <script lang="ts">
 /**
- * App-level gamepad layer (GAMEPAD_SUPPORT_DESIGN.md §5/§6) — mounts next
+ * App-level gamepad layer (docs/GAMEPAD_SUPPORT_DESIGN.md §5/§6) — mounts next
  * to NotificationLayer in App.vue (survives everything; the game screen
  * gates it). Owns the subsystem lifecycle: installs the core, routes
  * intents into the focus engine, runs the 400 ms focus-validity tick while
@@ -114,7 +114,7 @@ const LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'view', label: 'Log'},
 ];
 
-/** The console-mode mapping (CONSOLE_MODE_CONCEPT.md §11; P27 command model). */
+/** The console-mode mapping (docs/CONSOLE_MODE_CONCEPT.md §11; P27 command model). */
 const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'dpad', label: 'Navigate'},
   {control: 'confirm', label: 'Select'},

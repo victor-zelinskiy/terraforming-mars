@@ -414,7 +414,7 @@
 
 <script lang="ts">
 /**
- * CONSOLE START SCENE — CTS T5 (CONSOLE_MODE_CONCEPT.md §CTS-1). The
+ * CONSOLE START SCENE — CTS T5 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
  * console-native game-opening experience, replacing BOTH desktop start
  * surfaces (InitialDraftFlowOverlay + StartGameFlowOverlay) in console
  * mode with one cohesive full-screen scene:

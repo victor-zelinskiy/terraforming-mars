@@ -2,7 +2,7 @@
 // Prepends a `@deprecated` / `@console-shared` banner to client files so the
 // frozen-vs-live boundary is visible in the editor, not only in the audit doc.
 // Idempotent: a file that already carries its marker is skipped.
-// Inventory + rationale: DESKTOP_DEPRECATION_AUDIT.md
+// Inventory + rationale: docs/DESKTOP_DEPRECATION_AUDIT.md
 import {readFileSync, writeFileSync, existsSync} from 'node:fs';
 import {resolve, extname} from 'node:path';
 
@@ -14,13 +14,13 @@ const DEPRECATED_NOTE = [
   'All UI work goes into console native (`?console=1`, ConsoleShell.vue); the next',
   'desktop UI will be rebuilt from it. Unreachable from ConsoleShell, so changes',
   'here cannot affect console. Fix only what breaks the shared layer or play.',
-  'See DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.',
+  'See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.',
 ];
 
 const SHARED_NOTE = [
   '@console-shared LIVE — console native stands on this file, so it is NOT covered',
   'by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).',
-  'Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.',
+  'Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.',
 ];
 
 // Desktop-only ENTRY surfaces. The audit lists ~93 frozen files; stamping every

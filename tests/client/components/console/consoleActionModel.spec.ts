@@ -9,7 +9,7 @@ import {
 } from '@/client/console/composables/consoleActionModel';
 
 /**
- * Foundation layer (CONSOLE_FOUNDATION.md §2): the PURE semantic vocabulary —
+ * Foundation layer (docs/CONSOLE_FOUNDATION.md §2): the PURE semantic vocabulary —
  * physical input → SemanticButton/GamepadIntent → ConsoleAction. The ONE
  * keyboard map of the whole console flow also lives here.
  */

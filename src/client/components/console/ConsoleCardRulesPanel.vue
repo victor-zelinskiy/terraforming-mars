@@ -24,7 +24,7 @@
 
 <script lang="ts">
 /**
- * CONSOLE fullscreen-card RULES PANEL (CONSOLE_TV_PREMIUM_PLAN.md Этап 1-R2
+ * CONSOLE fullscreen-card RULES PANEL (docs/CONSOLE_TV_PREMIUM_PLAN.md Этап 1-R2
  * + the perfection pass) — the stable right-hand rules surface of the
  * console card viewer. A projection of the build-time Card Information
  * Model via the SAME annotationModel the desktop floating callouts use

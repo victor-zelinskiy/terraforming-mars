@@ -1,6 +1,6 @@
 /*
  * Phase-2 guards for the honest old→new metric feedback
- * (REMOUNT_ANIMATION_REWORK_DESIGN.md §3.3).
+ * (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md §3.3).
  *
  * With the no-remount update model the AnimatedMetricValue host persists
  * across server responses, so:

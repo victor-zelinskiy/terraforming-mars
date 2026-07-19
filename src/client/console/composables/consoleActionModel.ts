@@ -1,6 +1,6 @@
 /*
  * CONSOLE ACTION MODEL — the PURE semantic vocabulary of the console-native
- * UI (foundation layer; rules in CONSOLE_FOUNDATION.md §2).
+ * UI (foundation layer; rules in docs/CONSOLE_FOUNDATION.md §2).
  *
  * Three layers, strictly ordered:
  *   physical input (KeyboardEvent / Gamepad API)

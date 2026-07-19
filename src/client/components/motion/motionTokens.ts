@@ -1,11 +1,11 @@
 /**
  * @console-shared LIVE — console native stands on this file, so it is NOT covered
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
- * Before changing it, check the console consumers in DESKTOP_DEPRECATION_AUDIT.md.
+ * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
 /*
  * Unified premium motion system — the single source of truth for animation
- * SPEED, easing and frame-rate policy (REMOUNT_ANIMATION_REWORK_DESIGN.md,
+ * SPEED, easing and frame-rate policy (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md,
  * Phase 2 / brief Цель B).
  *
  * Design rules (CLAUDE.md goal #3 — Ark Nova BGA feel):

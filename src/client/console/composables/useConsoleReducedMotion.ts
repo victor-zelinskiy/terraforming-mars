@@ -1,6 +1,6 @@
 /*
  * CONSOLE REDUCED-MOTION POLICY — the console-facing reduced-motion helpers
- * (foundation layer; CONSOLE_FOUNDATION.md §5).
+ * (foundation layer; docs/CONSOLE_FOUNDATION.md §5).
  *
  * The reactive SOURCE is now shared fork-wide: `src/client/utils/reducedMotion`
  * (VueUse `usePreferredReducedMotion` behind `createGlobalState` — ONE

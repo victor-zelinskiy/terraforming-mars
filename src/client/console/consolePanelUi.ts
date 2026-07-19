@@ -1,7 +1,7 @@
 /**
  * consolePanelUi — the ONE mirror through which a mounted console panel
  * publishes its live command contract to the shell's command bar
- * (CONSOLE_TV_PREMIUM_PLAN.md §3.2: a hint lives EITHER on the object OR
+ * (docs/CONSOLE_TV_PREMIUM_PLAN.md §3.2: a hint lives EITHER on the object OR
  * in the bar — never in a panel-local footer AND the bar at once).
  *
  * The former per-panel `.con-*__foot` hint rows (TaskHost / Government

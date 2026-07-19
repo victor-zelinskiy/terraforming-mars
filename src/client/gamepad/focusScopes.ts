@@ -1,6 +1,6 @@
 /*
  * Focus SCOPES — "which layer owns the controller right now"
- * (GAMEPAD_SUPPORT_DESIGN.md §5.1).
+ * (docs/GAMEPAD_SUPPORT_DESIGN.md §5.1).
  *
  * An ordered, highest-priority-first list of scope definitions resolved
  * against the RENDERED DOM (never the Vue tree — teleports and structural

@@ -1,5 +1,5 @@
 /*
- * CONSOLE BLUE-CARD ACTION CENTER — the PURE view model (CONSOLE_MODE_CONCEPT.md
+ * CONSOLE BLUE-CARD ACTION CENTER — the PURE view model (docs/CONSOLE_MODE_CONCEPT.md
  * §9 "Actions"; the console-native rewrite of the desktop ДЕЙСТВИЯ overlay).
  *
  * Turns the SHARED desktop action data (`buildActionEntries` → per-source

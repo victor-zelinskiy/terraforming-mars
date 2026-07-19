@@ -11,7 +11,7 @@
  * (CardZoomCard hosted by ConsoleShell on `.con-zoom-flight-layer`, a
  * normal fixed layer) — the same pattern as every other console flight
  * (deal / exit / board-bonus). This is the fix for the Graphite first-open
- * bug (ZOOM_BUG_HANDOFF.md): a fresh top-layer dialog whose stage was born
+ * bug (docs/ZOOM_BUG_HANDOFF.md): a fresh top-layer dialog whose stage was born
  * hidden and GSAP-transformed (+ an animated ::backdrop) on its first
  * frames could come up with a DEAD compositor surface on Windows —
  * DOM/styles perfect, pixels never presented, unrecoverable by any DOM

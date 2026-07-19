@@ -1,5 +1,5 @@
 /*
- * Turn-intent walkers for Console Mode (CONSOLE_MODE_CONCEPT.md §13) — PURE
+ * Turn-intent walkers for Console Mode (docs/CONSOLE_MODE_CONCEPT.md §13) — PURE
  * functions over `playerView.waitingFor` implementing the SAME detection
  * contracts PlayerHome's dedicated buttons use (CLAUDE.md "Action UI
  * Rework": the option's presence in the server's action OR IS the source of
@@ -381,7 +381,7 @@ export function optionResponseForPath(path: ReadonlyArray<number>): InputRespons
 }
 
 // ---------------------------------------------------------------------------
-// Turn Menu verbs (CONSOLE_MODE_CONCEPT.md §5) — everything the server offers
+// Turn Menu verbs (docs/CONSOLE_MODE_CONCEPT.md §5) — everything the server offers
 // RIGHT NOW, with availability + honest reasons, derived from the same tree.
 // ---------------------------------------------------------------------------
 

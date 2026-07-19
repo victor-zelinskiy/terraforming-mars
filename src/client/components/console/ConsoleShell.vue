@@ -672,7 +672,7 @@
 
 <script lang="ts">
 /**
- * ConsoleShell — the console-first TV shell (CONSOLE_MODE_CONCEPT.md;
+ * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
  *
  *  MAIN BOARD = the console home screen. Stable semantics from it (P27 —
@@ -965,7 +965,7 @@ export default defineComponent({
     waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
   },
   setup() {
-    // Foundation (CONSOLE_FOUNDATION.md): the in-game shell is a
+    // Foundation (docs/CONSOLE_FOUNDATION.md): the in-game shell is a
     // console-native SURFACE — page-level scroll is locked for its lifetime
     // (html.console-native + body scroll lock); anything that overflows must
     // live inside a ConsoleScrollArea, never scroll the page.

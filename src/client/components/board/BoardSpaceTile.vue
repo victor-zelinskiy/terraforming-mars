@@ -1,5 +1,5 @@
 <template>
-  <!-- BRD-2 (PERFORMANCE_AUDIT.md): native :title dropped — it ran $t(description) for
+  <!-- BRD-2 (docs/PERFORMANCE_AUDIT.md): native :title dropped — it ran $t(description) for
        every tile on every board remount, and the fork's design bans native tooltips in
        favor of the premium board-cell hover popover (which already shows this info). -->
   <div :class="klass"

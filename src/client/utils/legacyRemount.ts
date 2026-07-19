@@ -1,6 +1,6 @@
 /*
  * Rollback lever for the no-remount update model (see
- * REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1).
+ * docs/REMOUNT_ANIMATION_REWORK_DESIGN.md, Phase 1).
  *
  * By default the in-game update path applies a fresh playerView snapshot
  * REACTIVELY — <player-home> is no longer keyed on `playerkey`, so the game
@@ -8,7 +8,7 @@
  * "reset transient UI" epoch. Setting this flag restores the legacy behavior
  * (`:key="playerkey"` → full remount per update) — an instant, client-side,
  * non-destructive kill-switch mirroring the realtime flag ladder
- * (WEBSOCKET_MIGRATION_PLAN.md §L.6).
+ * (docs/WEBSOCKET_MIGRATION_PLAN.md §L.6).
  *
  * Enable with `?remount=1` or `localStorage.tm_remount = '1'`.
  */

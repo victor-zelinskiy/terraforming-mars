@@ -1,5 +1,5 @@
 /**
- * PURE spatial-navigation geometry (GAMEPAD_SUPPORT_DESIGN.md §5.3).
+ * PURE spatial-navigation geometry (docs/GAMEPAD_SUPPORT_DESIGN.md §5.3).
  *
  * Classic directional scoring tuned for this UI's layouts (button rails,
  * card grids, master-detail columns, the hex board): candidates in the

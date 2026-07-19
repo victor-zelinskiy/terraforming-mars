@@ -29,7 +29,7 @@ export default defineComponent({
   data() {
     return {
       timerText: '',
-      // RT-1 (PERFORMANCE_AUDIT.md): hold the tick timer so it can be cleared. Without
+      // RT-1 (docs/PERFORMANCE_AUDIT.md): hold the tick timer so it can be cleared. Without
       // this, the self-re-arming 1 Hz chain kept firing on a DESTROYED instance after
       // each playerkey remount (the fired timeout wrote timerText → the watcher re-armed
       // → the chain resurrected), leaking a growing set of 1 Hz timers across a match.

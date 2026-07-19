@@ -54,7 +54,7 @@ files:
   - '!node_modules/**/*'
   - node_modules/velopack/**/*
   - node_modules/@neon-rs/**/*
-  # PKG-1 (PERFORMANCE_AUDIT.md): drop dead tooling/backup art + source maps from the artifact
+  # PKG-1 (docs/PERFORMANCE_AUDIT.md): drop dead tooling/backup art + source maps from the artifact
   # (grep-verified 0 runtime references; maps only used by DevTools). The REAL generated icons
   # (generated/tags, generated/resources, generated/custom_tiles, …) are NOT under refs/ and stay.
   - '!assets/generated/refs/**/*'

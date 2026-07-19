@@ -31,7 +31,7 @@ import {ViewModel} from '@/common/models/PlayerModel';
  */
 const store = ref(new Map<CardName, number>());
 
-// A2 (PERFORMANCE_AUDIT.md): the `players` branch reference the last rebuild
+// A2 (docs/PERFORMANCE_AUDIT.md): the `players` branch reference the last rebuild
 // was derived from. Post-remount, structural sharing (viewSnapshotShare.ts)
 // keeps this reference IDENTICAL whenever no player object changed, so a
 // board-only / sub-prompt / same-state commit can skip rebuilding the map

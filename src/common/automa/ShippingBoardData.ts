@@ -24,7 +24,7 @@ import {Tag} from '../cards/Tag';
  * (TM-Automa-rulebook-A, p.2 "1 Colonies shipping board", rendered at high resolution).
  * Each storage area prints "5 [resource] → [circular tag icon]": the circular tag icon is the
  * "advance the track matching this tag" notation (same notation as the Advance Another Track
- * action). See AUTOMA_DATA_AUDIT.md.
+ * action). See docs/AUTOMA_DATA_AUDIT.md.
  */
 export type ShippingAreaData = {
   readonly colony: ColonyName;

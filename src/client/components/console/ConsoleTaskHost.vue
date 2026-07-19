@@ -330,7 +330,7 @@
 
 <script lang="ts">
 /**
- * CONSOLE TASK HOST — CTS T1–T3 (CONSOLE_MODE_CONCEPT.md §CTS-1). The
+ * CONSOLE TASK HOST — CTS T1–T3 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
  * single console-native surface for the prompt kinds: T1 primitives
  * (choice / player / amount / resource / distribute) + the T2 CARD
  * BROWSER (draft / buy / select / target — inspector + filmstrip, pick

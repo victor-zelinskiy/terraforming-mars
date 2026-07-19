@@ -1,6 +1,6 @@
 /*
  * useConsoleInput — the component-facing SEMANTIC input composable
- * (foundation layer; CONSOLE_FOUNDATION.md §2).
+ * (foundation layer; docs/CONSOLE_FOUNDATION.md §2).
  *
  * A console-native SCREEN claims the single console intent slot for its
  * lifetime and receives SEMANTIC callbacks — it never touches raw

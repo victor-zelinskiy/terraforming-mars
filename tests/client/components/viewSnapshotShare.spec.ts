@@ -1,6 +1,6 @@
 /*
  * Phase-3 guards for the identity-preserving snapshot application
- * (viewSnapshotShare.ts — REMOUNT_ANIMATION_REWORK_DESIGN.md).
+ * (viewSnapshotShare.ts — docs/REMOUNT_ANIMATION_REWORK_DESIGN.md).
  *
  * Contract: `shareViewSnapshot(prev, next)` returns a tree CONTENT-IDENTICAL
  * to `next`, in which every branch deep-equal to the matching `prev` branch
