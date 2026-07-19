@@ -1194,17 +1194,7 @@ export default defineComponent({
      * hand dock instead (`dockParkedUnderScene`).
      */
     footerUnderScene(): boolean {
-      const task = this.hostTask;
       return (
-        // The draft PICK screen (`cardSelect` mode `draft` in the task host) is
-        // a tall bottom-reaching surface with a full dim backdrop, but — unlike
-        // the research BUY (mode `buy`) — no card flies into the dock during a
-        // pick (the drafted card lands in the separate `draftedCards` stack).
-        // So drop the footer BELOW it, exactly like the played table, so the
-        // dock's pack tucks under the host's veil instead of poking bright
-        // over the draft cards. The buy/rise scene keeps the footer on top
-        // for its deck→dock flights (not matched here).
-        (task?.kind === 'cardSelect' && task.mode === 'draft') ||
         this.playedTableVisible ||
         this.botTurnReviewState.open ||
         this.leakDetectorState.stranded !== undefined
@@ -1243,7 +1233,15 @@ export default defineComponent({
      *  BELOW the section content by z-index so its cards never poke over the
      *  rail. Board home keeps the dock on top as usual. */
     dockBehindWorkspace(): boolean {
-      return this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro';
+      const task = this.hostTask;
+      return this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro' ||
+        // The draft PICK task host lives INSIDE `.con-main` (z1), so `footerUnderScene`
+        // (z11390) can never drop the footer below it — only `behind-workspace` (z0)
+        // beats con-main. No card flies into the dock during a pick (the drafted card
+        // lands in the separate `draftedCards` stack), so parking the dock BELOW the
+        // host is safe. The research BUY (mode 'buy') keeps the footer on top for its
+        // deck→dock flights (not matched here).
+        (task?.kind === 'cardSelect' && task.mode === 'draft');
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —

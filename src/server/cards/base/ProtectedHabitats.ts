@@ -14,15 +14,13 @@ export class ProtectedHabitats extends Card implements IProjectCard {
 
       metadata: {
 
-        infoText: [
-
-          {kind: 'effect', text: 'Your plants, animals and microbes are protected from removal by other players.', tokens: ['protection']},
-
-        ],
         cardNumber: '173',
         renderData: CardRenderer.builder((b) => {
-          b.protection().br;
-          b.plants(1).resource(CardResource.ANIMAL).resource(CardResource.MICROBE);
+          // Pure passive effect → an EFFECT frame (renders in the ЭФФЕКТ block,
+          // NOT under «при розыгрыше»); the description auto-derives the info.
+          b.effect('Your plants, animals and microbes are protected from removal by other players.', (eb) => {
+            eb.plants(1).resource(CardResource.ANIMAL).resource(CardResource.MICROBE).startEffect.protection();
+          });
         }),
       },
     });

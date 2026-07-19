@@ -1,7 +1,10 @@
 {
   "1 VP for each asteroid on this card.": "1 ПО за каждый астероид на этой карте.",
-  "Animals may not be removed from this card.": "Животных с этой карты удалять нельзя.",
-  "Opponents may not remove your plants.": "Другие игроки не могут удалять ваши растения.",
+  "Effect: Animals may not be removed from this card.": "Эффект: животных с этой карты удалять нельзя.",
+  "Effect: Opponents may not remove your plants.": "Эффект: другие игроки не могут удалять ваши растения.",
+  "Effect: Your plants, animals and microbes are protected from removal by other players.": "Эффект: другие игроки не могут удалять ваши растения, животных и бактерий.",
+  "Action: Place a community (player marker) on a non-reserved area next to one of your tiles or marked areas.": "Действие: разместите поселение (маркер игрока) на незарезервированной зоне рядом с одним из ваших тайлов или отмеченных зон.",
+  "Effect: Marked areas are reserved for you. When you place a tile on a marked area, gain 3 M€.": "Эффект: отмеченные зоны зарезервированы за вами. Когда вы размещаете тайл на отмеченной зоне, получите 3 М€.",
   "A card here may be played as if from hand, with its cost reduced by the number of resources on it.": "Здешние карты можно разыгрывать по аналогии с картами с руки, уменьшая их стоимость на число здешних ресурсов.",
   "1 VP for each hydroelectric resource on this card.": "1 ПО за каждый гидроресурс на этой карте.",
   "1 VP per 3 floaters on this card.": "1 ПО за каждые 3 аэростата на этой карте.",

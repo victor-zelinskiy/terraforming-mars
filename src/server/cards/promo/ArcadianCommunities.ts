@@ -4,7 +4,6 @@ import {Space} from '../../boards/Space';
 import {IActionCard} from '../ICard';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {digit} from '../Options';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
@@ -29,20 +28,24 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
         // frame), so both are authored here and tethered to the community
         // marker on the starting row.
         description: 'You start with 40 M€ and 10 steel. AS YOUR FIRST ACTION, PLACE A COMMUNITY [PLAYER MARKER] ON A NON-RESERVED AREA.',
+        // The action + effect texts are the CO-LOCATED descriptions of the two
+        // corp-box frames below (auto-extracted into their ДЕЙСТВИЕ / ЭФФЕКТ
+        // blocks). Only the first-action immediate is authored (it has no frame).
         infoText: [
           {text: 'As your first action, place a community (player marker) on a non-reserved area.', tokens: ['community']},
-          {kind: 'action', text: 'Place a community (player marker) on a non-reserved area next to one of your tiles or marked areas.', tokens: ['community']},
-          {kind: 'effect', text: 'Marked areas are reserved for you. When you place a tile on a marked area, gain 3 M€.', tokens: ['community']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.megacredits(40).nbsp.steel(10, {digit}).nbsp.community().asterix();
-          b.corpBox('action', (ce) => {
-            // Action: place a community marker (grants an adjacency bonus).
-            ce.community().emptyTile('golden');
-            ce.vSpace(Size.MEDIUM);
-            // Effect: place a tile on a marked area → gain 3 M€.
-            ce.emptyTile().startEffect.megacredits(3);
+          b.corpBox('effect-action', (ce) => {
+            // ACTION: place a community marker — simple cube + «*» (see rule text).
+            ce.action('Place a community (player marker) on a non-reserved area next to one of your tiles or marked areas.', (eb) => {
+              eb.empty().startAction.community().asterix();
+            });
+            // EFFECT: place a tile on a marked area → gain 3 M€.
+            ce.effect('Marked areas are reserved for you. When you place a tile on a marked area, gain 3 M€.', (eb) => {
+              eb.emptyTile().startEffect.megacredits(3);
+            });
           });
         }),
       },

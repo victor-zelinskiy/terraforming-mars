@@ -28,20 +28,17 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
       },
 
       metadata: {
-        // The plant-protection rule lived ONLY in the render text (absent from
-        // the fullscreen info); authored here. Authored infoText replaces the
-        // behavior-derived immediate, so «decrease energy production» is
-        // re-stated. The reveal action frame + VP are auto-derived.
-        infoText: [
-          {kind: 'immediate', text: 'Decrease your energy production 1 step.', tokens: ['production(energy)']},
-          {kind: 'effect', text: 'Opponents may not remove your plants.', tokens: ['protection']},
-        ],
         cardNumber: 'X14',
         renderData: CardRenderer.builder((b) => {
           b.action('REVEAL AND DISCARD the top card of the deck. If it has a space tag, add an asteroid here.', (eb) => {
             eb.empty().startAction.cards(1).asterix().nbsp.tag(Tag.SPACE).colon().resource(CardResource.ASTEROID);
           }).br;
-          b.production((pb) => pb.minus().energy(1)).protection().plants(1);
+          b.production((pb) => pb.minus().energy(1)).br;
+          // Passive plant-protection EFFECT frame (renders in the ЭФФЕКТ block);
+          // the −energy on-play + VP auto-derive — no authored infoText needed.
+          b.effect('Opponents may not remove your plants.', (eb) => {
+            eb.plants(1).startEffect.protection();
+          });
         }),
         description: {
           text: 'Decrease your energy production 1 step. 1 VP per asteroid on this card.',

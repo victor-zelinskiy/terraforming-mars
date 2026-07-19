@@ -185,6 +185,14 @@ body.con-zoom-open .con-handdock {
     border-radius: .5rem;
     background: @con-glass-soft;
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
+       any state. The dock rides the footer band (z11700, card pack z11705) or,
+       under a workspace/scene, drops to z0; either way this sits ABOVE it, so
+       the status rail is never covered by the hand. Below the big cinematic /
+       modal layers (ceremony 11720, reveal 11890, flight 11900, mandatory modal
+       12000) which legitimately take over the whole screen. */
+    position: relative;
+    z-index: 11706;
 
     &__params {
         display: flex;
