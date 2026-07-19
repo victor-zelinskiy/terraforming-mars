@@ -358,6 +358,28 @@ abstract class Builder<T> {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.MULTIPLIER_WHITE));
   }
 
+  /* ── fork premium primitives (graphic replacements for bespoke prose) ── */
+
+  /** «Protected from removal» shield. */
+  public protection(options?: ItemOptions) {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.PROTECTION, -1, options));
+  }
+
+  /** Look at / reveal cards (amount = how many looked at). */
+  public deckLook(amount: number = -1, options?: ItemOptions) {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.DECK_LOOK, amount, options));
+  }
+
+  /** Discard cards (amount = how many). */
+  public discard(amount: number = -1, options?: ItemOptions) {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.DISCARD, amount, options));
+  }
+
+  /** Reuse a card action already used this generation. */
+  public replayAction(options?: ItemOptions) {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.ACTION_REPLAY, -1, options));
+  }
+
   public description(description: string | undefined = undefined): this {
     return this._appendToRow(description);
   }

@@ -1047,6 +1047,13 @@ html.con-profile-handheld .con-terracere {
     /* The console journal is an ABSOLUTE overlay anchored to this box —
        it may overlap the board, the board never reflows for it. */
     position: relative;
+    /* A tiny positive stacking level so a WORKSPACE section (colonies/hydro)
+       can drop the footer BELOW it (`.con-footer--behind-workspace`) — the
+       rising hand-dock cards then tuck behind the section's bottom rail
+       instead of poking over it, while the dock stays MOUNTED as the trade
+       animation's landing target. Fixed overlays (sheets/confirm/flights at
+       z ≥ 11480) still sit far above this. */
+    z-index: 1;
 }
 
 /* ── Resource + tag panel (left rail — never hide the key numbers) ──
@@ -6306,6 +6313,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &--under-scene {
         z-index: 11390;
     }
+    /* Colonies / hydro WORKSPACE: drop the whole footer BELOW `.con-main`
+       (z:1) so the rising hand-dock cards tuck BEHIND the section's bottom
+       rail (never poke over it). The command bar sits in normal flow below
+       `.con-main` (no vertical overlap), so it stays fully visible; the dock
+       stays MOUNTED (the trade card-draw animation lands in it). */
+    &--behind-workspace {
+        z-index: 0;
+    }
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -7269,6 +7284,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__summary-ownernote { font-size: .625rem; font-weight: 700; color: @con-mint; }
     &__summary-none { font-size: .8rem; font-weight: 700; color: @con-text-dim; }
+    /* Build mode: the settlement cube the player would place. */
+    &__summary-cube {
+        width: 1rem; height: 1rem; border-radius: .15rem;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.6), 0 0 .35rem fade(@con-cyan, 40%);
+    }
+    /* Resource-lost heads-up (trade reward with no eligible card). */
+    &__summary-warn {
+        display: inline-flex; align-items: center; gap: .25rem;
+        font-size: .75rem; font-weight: 700; color: @con-amber;
+    }
+    &__summary-selectnote {
+        font-size: 1rem; font-weight: 700; letter-spacing: .04rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
+    }
     &__summary-get {
         display: inline-flex; align-items: center; gap: .35rem;
         zoom: calc(1.35 * var(--con-ui-scale, 1));
@@ -7552,9 +7580,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: center;
         gap: .25rem;
         flex-shrink: 0;
-        /* Sized to FIT the (now taller) cell — 1.22 overflowed the box and the
-           icon was clipped on the right. */
-        zoom: calc(1.0 * var(--con-ui-scale, 1));
+        /* SAME zoom channel as the build-slot glyph (0.82×ui-scale) → the trade
+           reward icon and the top build-preview icons read at ONE consistent
+           weight, and the narrower num+icon fits the cell (1.0 overflowed the
+           right edge whenever a NUMBER was present — clipping the icon). */
+        zoom: calc(0.82 * var(--con-ui-scale, 1));
 
         /* The quantity is shown ONCE — the big mint `cell-num`; suppress the
            glyph's own `×N` badge so "3 [×3]" never double-reads. */

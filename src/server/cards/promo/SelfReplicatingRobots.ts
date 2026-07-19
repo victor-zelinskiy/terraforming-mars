@@ -7,7 +7,6 @@ import {IPlayer} from '../../IPlayer';
 import {SelectCard} from '../../inputs/SelectCard';
 import {OrOptions} from '../../inputs/OrOptions';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {SerializedCard} from '../../SerializedCard';
 import {newProjectCard} from '../../createCard';
 import * as actionReason from '../actionReasons';
@@ -22,6 +21,13 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
 
       requirements: {tag: Tag.SCIENCE, count: 2},
       metadata: {
+        // The play-from-here effect lived ONLY in the render text (absent from
+        // the fullscreen rule blocks). Authored as an `effect` block; the two
+        // action frames + the requirement are auto-derived (an `effect`/`action`
+        // infoText entry augments, it does not replace the frames).
+        infoText: [
+          {kind: 'effect', text: 'A card here may be played as if from hand, with its cost reduced by the number of resources on it.'},
+        ],
         cardNumber: '210',
         renderData: CardRenderer.builder((b) => {
           // TWO separate action rows (one per branch) so the premium per-branch
@@ -34,8 +40,7 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
           }).br;
           b.action('Double the resources on a card here.', (eb) => {
             eb.empty().startAction.multiplierWhite().text('x2');
-          }).br;
-          b.text('Effect: Card here may be played as if from hand with its cost reduced by the number of resources on it.', Size.TINY, true);
+          });
         }),
         description: 'Requires 2 science tags.',
       },

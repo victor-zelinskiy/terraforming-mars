@@ -6,7 +6,6 @@ import {CardName} from '../../../common/cards/CardName';
 import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../ICard';
 import {SelectCard} from '../../inputs/SelectCard';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
@@ -23,12 +22,12 @@ export class ProjectInspection extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Use a card action that has been used this generation.', tokens: ['text']},
+          {text: 'Use a card action that has been used this generation.', tokens: ['action-replay']},
 
         ],
         cardNumber: 'X02',
         renderData: CardRenderer.builder((b) => {
-          b.text('Use a card action that has been used this generation.', Size.SMALL, true);
+          b.replayAction();
         }),
       },
     });

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- circular "reuse an action" loop -->
+  <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="#e6c169" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- arrowhead -->
+  <path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="#e6c169" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- inner spark -->
+  <circle cx="12" cy="12" r="2.3" fill="#f6e3a8"/>
+</svg>

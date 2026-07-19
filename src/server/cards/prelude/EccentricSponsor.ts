@@ -3,7 +3,6 @@ import {CardName} from '../../../common/cards/CardName';
 import {PreludeCard} from './PreludeCard';
 import {PlayProjectCard} from '../../deferredActions/PlayProjectCard';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {PreludesExpansion} from '../../preludes/PreludesExpansion';
 
 /** M€ off the one card this prelude lets the player play. */
@@ -18,12 +17,12 @@ export class EccentricSponsor extends PreludeCard {
 
         infoText: [
 
-          {text: 'Play a card from hand, reducing its cost by 25 M€.', tokens: ['text']},
+          {text: 'Play a card from hand, reducing its cost by 25 M€.', tokens: ['megacredits']},
 
         ],
         cardNumber: 'P11',
         renderData: CardRenderer.builder((b) => {
-          b.text('Play a card from hand, reducing its cost by 25 M€', Size.SMALL, true);
+          b.cards(1).nbsp.megacredits(-25);
         }),
       },
     });

@@ -68,6 +68,13 @@ export enum CardRenderItemType {
   HAZARD_TILE = 'hazard-tile',
   ADJACENCY_BONUS = 'adjacency-bonus',
 
+  // Fork premium primitives (icons-only face — replace bespoke prose blocks
+  // with graphics; the full rule lives in the fullscreen info blocks).
+  PROTECTION = 'protection',        // «protected from removal» shield
+  DECK_LOOK = 'deck-look',          // look at / reveal cards
+  DISCARD = 'discard',              // discard cards
+  ACTION_REPLAY = 'action-replay',  // reuse a card action
+
   // Underworld
   IDENTIFY = 'identify',
   EXCAVATE = 'excavate',

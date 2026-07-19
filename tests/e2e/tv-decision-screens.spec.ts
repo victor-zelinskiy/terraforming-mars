@@ -195,5 +195,39 @@ test.describe('tv-4k decision screens', () => {
       await page.waitForTimeout(1000);
       await shoot(page, '07-colonies');
     }
+
+    // Past the setup-remove into the ACTION turn, then BUILD a colony (the
+    // «Колония» standard project → the SelectColony 'Build' pick renders the
+    // colonies section in BUILD mode — the rail + dock-behind + icon-fit case
+    // the user flagged).
+    for (let i = 0; i < 8; i++) {
+      if (await page.locator('.con-cmdbar').count() > 0 &&
+          await page.locator('.con-colonies, .con-start__frame, .con-task-host').count() === 0) {
+        break;
+      }
+      await key(page, 'Enter', 900);
+    }
+    await toBoard(page);
+    await key(page, 'Comma', 1000); // basics wheel
+    if (await page.locator('.con-quick').count() > 0) {
+      await key(page, 'Enter', 1200); // → standard projects
+    }
+    if (await page.locator('.con-stdp').count() > 0) {
+      // Walk the grid to «КОЛОНИЯ» and select it.
+      const colonyRow = page.locator('.con-stdp__card').filter({hasText: /Колони|Colony/i}).first();
+      if (await colonyRow.count() > 0) {
+        await colonyRow.click();
+        await page.waitForTimeout(700);
+        await key(page, 'Enter', 1400); // pay / confirm
+      }
+    }
+    // The build pick renders the colonies section (build mode) + dock behind.
+    for (let i = 0; i < 4 && await page.locator('.con-colonies').count() === 0; i++) {
+      await key(page, 'Enter', 900);
+    }
+    if (await page.locator('.con-colonies').count() > 0) {
+      await page.waitForTimeout(1000);
+      await shoot(page, '08-colonies-build');
+    }
   });
 });

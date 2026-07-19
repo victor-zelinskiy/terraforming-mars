@@ -5,7 +5,6 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {IGame} from '../../IGame';
 import {Card} from '../Card';
-import {Size} from '../../../common/cards/render/Size';
 import {CardRenderer} from '../render/CardRenderer';
 import {SelectColony} from '../../inputs/SelectColony';
 import {LogHelper} from '../../LogHelper';
@@ -24,16 +23,12 @@ export class MarketManipulation extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Increase one colony tile track 1 step. Decrease another colony tile track 1 step.', tokens: ['text']},
+          {text: 'Increase one colony tile track 1 step. Decrease another colony tile track 1 step.', tokens: ['colonies']},
 
         ],
         cardNumber: 'C23',
         renderData: CardRenderer.builder((b) => {
-          b.text(
-            'Increase one colony tile track 1 step. Decrease another colony tile track 1 step.',
-            Size.SMALL,
-            true,
-          );
+          b.plus().colonies().slash().minus().colonies();
         }),
       },
     });

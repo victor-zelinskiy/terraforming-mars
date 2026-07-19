@@ -278,6 +278,22 @@ overflow/пересечения/микро-данные. Исправлено:
    БОНУС КОЛОНИИ только реальным владельцам поселений (`colony.colonies`), иначе «Нет владельцев».
 Верифицировано кадром `screenshots/tv-decisions/07-colonies.png`.
 
+## Итерация 2d (2026-07-19) — колонии, ещё 4 замечания
+1. **Режим СТРОИТЬ показывал trade-бонус** → rail стал MODE-AWARE (`railMode: trade|build|select`):
+   build (`pick.buttonLabel==='Build'`) → «Вы строите → получите [build-бонус слота]»; select
+   (remove/add) → только идентичность; trade → флот/доход/бонус.
+2. **Торговля с колонией, чей ресурс некуда класть** (животные Миранды) → warning «Ресурс пропадёт
+   — нет карты» в rail (`focusedTradeLost`: trade.type ∈ ADD_RESOURCES_TO_CARD/VENUS + нет карты
+   с matching `getCard().resourceType`); в trade-confirm уже был (`noticeRows` lostResource).
+3. **Клип иконки «ТОРГОВАТЬ» при наличии ЧИСЛА** (не исправлено ит.2c) → `__cell-value` zoom
+   1.0→0.82×ui-scale (тот же, что build-глиф — консистентно + число+иконка помещаются). Верифицировано 4K.
+4. **Dock убран вместо z-index** → возвращён (нужен для анимации покупки карт при торговле с Плутоном):
+   `.con-main z-index:1` + `.con-footer--behind-workspace z-index:0` на секциях colonies/hydro —
+   dock смонтирован, но карты уходят ПОД rail; командный бар (вне overlap) виден.
+⚠️ Гоча окружения: сервер не стартовал для e2e — `Cannot find module '@/...'` из community/Aerotech.js
+(устаревший `build/src/server` без tsc-alias, работа пользователя, НЕ мои правки) → лечится
+`npm run build:server` (tsc + tsc-alias). Build-rail/trade-warning ждут живой проверки.
+
 ## Не выполнено / следующие волны
 - `.con-info__effects` (Info Mode) — px-эффекты в rem-гриде, требует раздельного канала (§S3);
   `.con-task__source-label` bare zoom 1.1 (некритично).

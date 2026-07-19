@@ -22,13 +22,11 @@ export class PublicPlans extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Reveal any number of other cards from your hand (your opponents may inspect them). Gain 1 M€ for each revealed card.', tokens: ['text']},
+          {text: 'Reveal any number of other cards from your hand (your opponents may inspect them). Gain 1 M€ for each revealed card.', tokens: ['deck-look']},
 
         ],
         cardNumber: 'X77',
-        renderData: CardRenderer.builder((b) => b.text(
-          'REVEAL ANY NUMBER OF OTHER CARDS FROM YOUR HAND. (YOUR OPPONENTS MAY INSPECT THEM.) GAIN 1 M€ FOR EACH REVEALED CARD.',
-        )),
+        renderData: CardRenderer.builder((b) => b.deckLook().nbsp.megacredits(1).slash().cards(1)),
       },
     });
   }

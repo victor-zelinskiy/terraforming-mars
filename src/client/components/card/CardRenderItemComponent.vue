@@ -287,6 +287,14 @@ export default defineComponent({
         return [cardResource, 'card-resource-cathedral'];
       case CardRenderItemType.NOMADS:
         return [cardResource, 'card-resource-nomads'];
+      case CardRenderItemType.PROTECTION:
+        return ['card-protection-icon'];
+      case CardRenderItemType.DECK_LOOK:
+        return ['card-deck-look-icon'];
+      case CardRenderItemType.DISCARD:
+        return ['card-discard-icon'];
+      case CardRenderItemType.ACTION_REPLAY:
+        return ['card-action-replay-icon'];
       case CardRenderItemType.IDENTIFY:
         return ['card-identification'];
       case CardRenderItemType.EXCAVATE:

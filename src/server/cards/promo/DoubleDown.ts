@@ -2,7 +2,6 @@ import {PreludeCard} from '../prelude/PreludeCard';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {PreludesExpansion} from '../../preludes/PreludesExpansion';
 
 export class DoubleDown extends PreludeCard {
@@ -14,13 +13,13 @@ export class DoubleDown extends PreludeCard {
 
         infoText: [
 
-          {text: 'Copy your other prelude’s direct effect.', tokens: ['text']},
+          {text: 'Copy your other prelude’s direct effect.', tokens: ['prelude']},
 
         ],
         cardNumber: 'X40',
         description: '',
         renderData: CardRenderer.builder((b) => {
-          b.text('Copy your other prelude\'s direct effect.', Size.SMALL, true);
+          b.prelude().nbsp.replayAction();
         }),
       },
     });

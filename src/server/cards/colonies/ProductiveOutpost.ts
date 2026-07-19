@@ -4,7 +4,6 @@ import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
-import {Size} from '../../../common/cards/render/Size';
 import {IColony} from '../../colonies/IColony';
 import {ColonyName} from '../../../common/colonies/ColonyName';
 import {Resource} from '../../../common/Resource';
@@ -29,12 +28,12 @@ export class ProductiveOutpost extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Gain all your colony bonuses.', tokens: ['text']},
+          {text: 'Gain all your colony bonuses.', tokens: ['colonies']},
 
         ],
         cardNumber: 'C30',
         renderData: CardRenderer.builder((b) => {
-          b.text('Gain all your colony bonuses.', Size.SMALL, true);
+          b.colonies().asterix();
         }),
       },
     });

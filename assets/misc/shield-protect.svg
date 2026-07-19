@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 26" width="24" height="26">
+  <defs>
+    <linearGradient id="sp-body" x1="12" y1="1" x2="12" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f6e3a8"/>
+      <stop offset="0.5" stop-color="#e6c169"/>
+      <stop offset="1" stop-color="#b98a34"/>
+    </linearGradient>
+    <linearGradient id="sp-rim" x1="12" y1="1" x2="12" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff6da"/>
+      <stop offset="1" stop-color="#7c5a20"/>
+    </linearGradient>
+  </defs>
+  <!-- shield silhouette -->
+  <path d="M12 1 2.6 4.3v7.1c0 6.4 4.3 10.3 9.4 12.6 5.1-2.3 9.4-6.2 9.4-12.6V4.3L12 1Z"
+        fill="url(#sp-body)" stroke="url(#sp-rim)" stroke-width="1.1" stroke-linejoin="round"/>
+  <!-- inner bevel line -->
+  <path d="M12 3.4 4.7 5.9v5.5c0 5.2 3.4 8.5 7.3 10.4 3.9-1.9 7.3-5.2 7.3-10.4V5.9L12 3.4Z"
+        fill="none" stroke="#fff6da" stroke-opacity="0.35" stroke-width="0.7"/>
+  <!-- checkmark -->
+  <path d="M8.2 12.6l2.7 2.7 5.1-5.4" fill="none" stroke="#3a2708" stroke-width="2.1"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -689,20 +689,30 @@ each(@resource_types, {
     left: 0;
 }
 
+// Premium protection badge — the SHARED «protected resource» primitive
+// (assets/misc/shield-protect.svg): a gold heraldic shield with a check.
+// The same asset + language is reused on the premium card face (Pets /
+// Protected Habitats / Asteroid Deflection System). A soft warm bloom lifts
+// it off the panel; no legacy invert.
 .shield_icon {
-    background-image: url(./assets/misc/shield-icon.png);
-    filter: invert(1);
-    background-size: 25px;
-    width: 25px;
-    height: 25px;
+    background-image: url(./assets/misc/shield-protect.svg);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 20px;
+    height: 22px;
     position: relative;
-    bottom: -18%;
-    right: -20%;
+    bottom: -16%;
+    right: -22%;
+    filter: drop-shadow(0 0 3px rgba(240, 200, 110, 0.55)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
+// Half protection (Botanical Experience) — the same shield, read as «partial»
+// via a dimmer, cooler treatment so it never reads as full protection.
 .shield_icon_half {
     &:extend(.shield_icon);
-    background-image: url(./assets/misc/half-shield-icon.png);
+    opacity: 0.72;
+    filter: grayscale(0.35) drop-shadow(0 0 2px rgba(200, 210, 225, 0.45));
 }
 
 .shield_resource_protection {

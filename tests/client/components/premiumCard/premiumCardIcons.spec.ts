@@ -51,6 +51,13 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.COMMUNITY))).to.deep.equal({kind: 'cube', color: 'orange'});
     expect(mechItemIcon(itemNode(CardRenderItemType.NOMADS))).to.deep.equal({kind: 'cube', color: 'bronze'});
   });
+
+  it('fork premium primitives resolve to their SVG (graphic replacements for prose)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.PROTECTION))).to.deep.equal({kind: 'img', url: 'assets/misc/shield-protect.svg'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.DECK_LOOK))).to.deep.equal({kind: 'img', url: 'assets/misc/deck-look.svg'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.DISCARD))).to.deep.equal({kind: 'img', url: 'assets/misc/card-discard.svg'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.ACTION_REPLAY))).to.deep.equal({kind: 'img', url: 'assets/misc/action-replay.svg'});
+  });
 });
 
 describe('premiumCardIcons.tileIcon', () => {

@@ -71,7 +71,34 @@
         <span class="con-colonies__summary-name">{{ $t(colonies[index].name) }}</span>
         <span class="con-colonies__summary-track">{{ focusedTrackDisplay }}</span>
       </div>
-      <div class="con-colonies__summary-flow">
+      <!-- ── BUILD mode: the rail shows what BUILDING here grants (a
+           settlement + the build-slot bonus), NOT trade income/bonus. ── -->
+      <div v-if="railMode === 'build'" class="con-colonies__summary-flow">
+        <div class="con-colonies__summary-cell">
+          <span class="con-colonies__summary-label">{{ $t('You build') }}</span>
+          <span class="con-colonies__summary-pay">
+            <span class="con-colonies__summary-cube" :class="viewerColor !== undefined ? 'player_bg_color_' + viewerColor : ''" aria-hidden="true"></span>
+            <span class="con-colonies__summary-paytext">{{ $t('Colony') }}</span>
+          </span>
+        </div>
+        <span class="con-colonies__summary-arrow" aria-hidden="true">→</span>
+        <div class="con-colonies__summary-cell">
+          <span class="con-colonies__summary-label">{{ $t('You receive') }}</span>
+          <span v-if="focusedBuildQty > 0" class="con-colonies__summary-get">
+            <b v-if="focusedBuildQty > 1">{{ focusedBuildQty }}</b>
+            <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResource="focusedMeta.cardResource" />
+          </span>
+          <span v-else class="con-colonies__summary-none">{{ $t('No placement bonus') }}</span>
+        </div>
+      </div>
+
+      <!-- ── SELECT mode (setup remove / add-tile): identity only, no reward. -->
+      <div v-else-if="railMode === 'select'" class="con-colonies__summary-flow">
+        <span class="con-colonies__summary-selectnote">{{ $t(pick ? pick.buttonLabel : '') }}</span>
+      </div>
+
+      <!-- ── TRADE mode. ── -->
+      <div v-else class="con-colonies__summary-flow">
         <!-- DISPATCH — a trade LAUNCHES a fleet; the M€/resource PAYMENT is
              chosen at the next step (NOT "you pay: a fleet"). -->
         <div class="con-colonies__summary-cell">
@@ -91,6 +118,9 @@
             <BenefitGlyph :benefit="focusedTradeBenefit" :idx="focusedPosition" :cardResource="focusedMeta.cardResource" />
             <span v-if="focusedOffset > 0" class="con-colonies__summary-offset">+{{ focusedOffset }}</span>
           </span>
+          <!-- No card to hold the reward resource ⇒ it is LOST — warn here as
+               well as at the trade confirm. -->
+          <span v-if="focusedTradeLost" class="con-colonies__summary-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
         </div>
         <span class="con-colonies__summary-sep" aria-hidden="true">·</span>
         <!-- COLONY BONUS — granted to every SETTLEMENT OWNER here (incl. you if
@@ -146,7 +176,9 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {colonyGridLayout, colonyGridCols, ColonyGridLayout} from '@/client/console/consoleColoniesModel';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
+import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
@@ -296,6 +328,41 @@ export default defineComponent({
     },
     focusedViewerOwns(): boolean {
       return this.viewerColor !== undefined && this.focusedOwners.includes(this.viewerColor);
+    },
+    /** Which rail the summary shows: a SelectColony pick titled 'Build' grants
+     *  a settlement + placement bonus (NOT trade); other picks (setup remove /
+     *  Aridor add-tile) are identity-only; no pick ⇒ the trade rail. */
+    railMode(): 'trade' | 'build' | 'select' {
+      if (this.pick === undefined) {
+        return 'trade';
+      }
+      return this.pick.buttonLabel === 'Build' ? 'build' : 'select';
+    },
+    /** The slot a new settlement lands in (next empty build slot, ≤ 2). */
+    focusedBuildSlot(): number {
+      return Math.min(2, this.focusedOwners.length);
+    },
+    focusedBuildBenefit(): {type: ColonyMetadata['build']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
+      const b = (this.focusedMeta as ColonyMetadata).build;
+      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
+    },
+    focusedBuildQty(): number {
+      return this.focusedMeta === undefined ? 0 : (this.focusedMeta.build.quantity[this.focusedBuildSlot] ?? 0);
+    },
+    /** A card-resource trade reward with NO card in the viewer's tableau to
+     *  hold it ⇒ the resource is lost (a heads-up mirroring the confirm). */
+    focusedTradeLost(): boolean {
+      const meta = this.focusedMeta;
+      if (meta === undefined || meta.cardResource === undefined) {
+        return false;
+      }
+      const t = meta.trade.type;
+      if (t !== ColonyBenefit.ADD_RESOURCES_TO_CARD && t !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+        return false;
+      }
+      const viewer = this.players.find((p) => p.color === this.viewerColor);
+      const tableau = viewer?.tableau ?? [];
+      return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
     },
   },
   watch: {

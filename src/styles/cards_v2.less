@@ -1609,6 +1609,24 @@
       background-size: 18px;
     }
 
+    /* Fork premium primitives (shared SVG, legacy fallback render) */
+    .card-protection-icon,
+    .card-deck-look-icon,
+    .card-discard-icon,
+    .card-action-replay-icon {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      vertical-align: middle;
+    }
+    .card-protection-icon { background-image: url(./assets/misc/shield-protect.svg); }
+    .card-deck-look-icon { background-image: url(./assets/misc/deck-look.svg); }
+    .card-discard-icon { background-image: url(./assets/misc/card-discard.svg); }
+    .card-action-replay-icon { background-image: url(./assets/misc/action-replay.svg); }
+
     /* Underworld Assets */
     .card-identification {
       background-image: url(./assets/underworld/identify.png);

@@ -38,9 +38,11 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
           b.br;
           b.megacredits(40).nbsp.steel(10, {digit}).nbsp.community().asterix();
           b.corpBox('action', (ce) => {
-            ce.text('ACTION: PLACE A COMMUNITY (PLAYER MARKER) ON A NON-RESERVED AREA ADJACENT TO ONE OF YOUR TILES OR MARKED AREAS.', Size.TINY, true);
+            // Action: place a community marker (grants an adjacency bonus).
+            ce.community().emptyTile('golden');
             ce.vSpace(Size.MEDIUM);
-            ce.text('EFFECT: MARKED AREAS ARE RESERVED FOR YOU. WHEN YOU PLACE A TILE THERE, GAIN 3 M€.', Size.TINY, true);
+            // Effect: place a tile on a marked area → gain 3 M€.
+            ce.emptyTile().startEffect.megacredits(3);
           });
         }),
       },

@@ -579,7 +579,7 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene}" :style="footerVars">
+    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene, 'con-footer--behind-workspace': dockBehindWorkspace}" :style="footerVars">
       <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — its CARDS are hidden
            in two lifecycle windows (the endgame; and the pre-game INITIAL
            SETUP where no actual hand exists yet — see `handDockVisible`, so
@@ -1219,12 +1219,6 @@ export default defineComponent({
      */
     dockParkedUnderScene(): boolean {
       return (
-        // Workspace SECTIONS that own the bottom of the screen (colonies has
-        // the focus-colony summary rail there, hydro its CTA zone) — the dock
-        // cards must not poke over their content (the "dock over the rail" z
-        // overlap). The dock lives on the board home only.
-        this.consoleState.section === 'colonies' ||
-        this.consoleState.section === 'hydro' ||
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
         this.corpFirstActionOpen ||
@@ -1242,6 +1236,14 @@ export default defineComponent({
      *  verdict-bar z-drop keys off (`:underScene`). */
     sceneOverHand(): boolean {
       return this.footerUnderScene || this.dockParkedUnderScene;
+    },
+    /** The colonies / hydro WORKSPACE sections own the bottom of the screen
+     *  (colonies' focus-colony summary rail, hydro's CTA zone). The dock STAYS
+     *  MOUNTED there (a Pluto card-draw trade animates INTO it), but drops
+     *  BELOW the section content by z-index so its cards never poke over the
+     *  rail. Board home keeps the dock on top as usual. */
+    dockBehindWorkspace(): boolean {
+      return this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro';
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —

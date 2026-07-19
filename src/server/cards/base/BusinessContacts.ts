@@ -4,7 +4,6 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 
 export class BusinessContacts extends Card implements IProjectCard {
   constructor() {
@@ -22,11 +21,11 @@ export class BusinessContacts extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Look at the top 4 cards from the deck. Take 2 of them into hand and discard the other 2.', tokens: ['cards', 'text']},
+          {text: 'Look at the top 4 cards from the deck. Take 2 of them into hand and discard the other 2.', tokens: ['deck-look']},
 
         ],
         cardNumber: '111',
-        renderData: CardRenderer.builder((b) => b.text('Look at the top 4 cards from the deck. Take 2 of them into hand and discard the other 2.', Size.SMALL, true)),
+        renderData: CardRenderer.builder((b) => b.deckLook().arrow().cards(2)),
       },
     });
   }

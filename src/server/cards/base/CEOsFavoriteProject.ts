@@ -3,7 +3,6 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 
 export class CEOsFavoriteProject extends Card implements IProjectCard {
   constructor() {
@@ -25,11 +24,11 @@ export class CEOsFavoriteProject extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Add 1 resource to a card with at least 1 resource on it.', tokens: ['wild', 'text']},
+          {text: 'Add 1 resource to a card with at least 1 resource on it.', tokens: ['wild']},
 
         ],
         cardNumber: '149',
-        renderData: CardRenderer.builder((b) => b.text('Add 1 resource to a card with at least 1 resource on it', Size.SMALL, true)),
+        renderData: CardRenderer.builder((b) => b.wild(1)),
       },
     });
   }

@@ -6,7 +6,6 @@ import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {CardName} from '../../../common/cards/CardName';
 import {LogHelper} from '../../LogHelper';
 import {CardRenderer} from '../render/CardRenderer';
-import {Size} from '../../../common/cards/render/Size';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
@@ -23,12 +22,12 @@ export class LandClaim extends Card implements IProjectCard {
 
         infoText: [
 
-          {text: 'Place your marker on a non-reserved area. Only you may place a tile there.', tokens: ['text']},
+          {text: 'Place your marker on a non-reserved area. Only you may place a tile there.', tokens: ['community']},
 
         ],
         cardNumber: '066',
         renderData: CardRenderer.builder((b) => {
-          b.text('Place your marker on a non-reserved area. Only you may place a tile there.', Size.SMALL, true);
+          b.community().emptyTile();
         }),
       },
     });

@@ -127,6 +127,12 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chairman.png`,
   [CardRenderItemType.INFLUENCE]: `${MISC}/influence.png`,
   [CardRenderItemType.FIRST_PLAYER]: `${MISC}/first-player.png`,
+
+  // Fork premium primitives (SVG) — graphic replacements for bespoke prose.
+  [CardRenderItemType.PROTECTION]: `${MISC}/shield-protect.svg`,
+  [CardRenderItemType.DECK_LOOK]: `${MISC}/deck-look.svg`,
+  [CardRenderItemType.DISCARD]: `${MISC}/card-discard.svg`,
+  [CardRenderItemType.ACTION_REPLAY]: `${MISC}/action-replay.svg`,
 };
 
 /** One-shot dev warning per unmapped type so a gap is visible but never spams. */
