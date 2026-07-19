@@ -17,6 +17,8 @@ files here are the deeper dives it points at.
 
 ## Desktop UI / rendering / performance
 - [DESKTOP_DEPRECATION_AUDIT.md](DESKTOP_DEPRECATION_AUDIT.md) — desktop-only vs shared vs console-only file inventory (read before touching a UI file).
+- [DESKTOP_UI_PHILOSOPHY.md](DESKTOP_UI_PHILOSOPHY.md) — dedicated buttons vs mandatory-input modals (frozen desktop spec / console-port design ref), extracted from CLAUDE.md.
+- [MODAL_INPUTS.md](MODAL_INPUTS.md) — modern modal-input components (ModalInputHost router, Modern* inputs, contextual-choice, option-metadata prose), extracted from CLAUDE.md. Routing invariants + the metadata CHECKLIST stay in CLAUDE.md.
 - [REMOUNT_ANIMATION_REWORK_DESIGN.md](REMOUNT_ANIMATION_REWORK_DESIGN.md) / [REMOUNT_ANIMATION_REWORK_BRIEF.md](REMOUNT_ANIMATION_REWORK_BRIEF.md) — the no-remount update model + motion system.
 - [PERFORMANCE_AUDIT.md](PERFORMANCE_AUDIT.md) / [PERF_INVESTIGATION.md](PERF_INVESTIGATION.md) — rendering/perf findings and fixes.
 - [ZOOM_BUG_HANDOFF.md](ZOOM_BUG_HANDOFF.md) — zoom-rendering bug investigation notes.
@@ -37,6 +39,7 @@ files here are the deeper dives it points at.
 
 ## Events / journal / stats / endgame
 - [EVENT_STAT_FOUNDATION.md](EVENT_STAT_FOUNDATION.md) — event/stat foundation + endgame storytelling.
+- [ENDGAME_STORYTELLING.md](ENDGAME_STORYTELLING.md) — endgame insight-engine iteration history (Iter 5–17), extracted from CLAUDE.md.
 - [JOURNAL_GAIN_AUDIT.md](JOURNAL_GAIN_AUDIT.md) — direct-mutation-bypasses-recorder audit.
 - [LOGGING_EVENT_MODEL_PROPOSAL.md](LOGGING_EVENT_MODEL_PROPOSAL.md) / [LOGGING_EVENT_COVERAGE_MATRIX.md](LOGGING_EVENT_COVERAGE_MATRIX.md) — structured event model + coverage.
 - [MILESTONE_AWARD_DEDUP_AUDIT.md](MILESTONE_AWARD_DEDUP_AUDIT.md) — milestone/award journal-root dedup.
