@@ -6,8 +6,8 @@
 
 An **unofficial, open-source** desktop build of the board game *Terraforming Mars*, made
 for the living room: **Steam Deck, Steam Machine, and Windows**. It ships a controller-first
-console UI you can play end-to-end with a gamepad on a TV, alongside the classic mouse UI, a
-built-in solo AI opponent (**MarsBot**), and every major expansion. It installs per-user and
+console UI you can play end-to-end with a gamepad on a TV, a built-in solo AI opponent
+(**MarsBot**), and every major expansion. It installs per-user and
 **updates itself on launch** — nothing to maintain.
 
 It is a fork of the open-source
