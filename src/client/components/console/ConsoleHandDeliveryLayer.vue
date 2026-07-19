@@ -8,8 +8,9 @@
     mid-flight as it arcs down into the hand dock (the hand is backs). Each
     proxy carries its DOCK-ORDER z, so mid-flight overlap always matches the
     final pack stacking (a later hand card paints over the one it covers).
-    Pointer-inert, clipped; ABOVE the footer so the flights land INTO the
-    dock plate.
+    Pointer-inert, clipped; UNDER the footer band (console_card_deal.less)
+    so an arriving card dives BEHIND the tray plate/bar texture and
+    materializes as its dock back — never painting over the furniture.
   -->
   <div class="con-handdelivery-layer" aria-hidden="true">
     <div v-for="f in handDeliveryState.flights" :key="f.id"

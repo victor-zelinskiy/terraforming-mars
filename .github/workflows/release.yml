@@ -3,10 +3,12 @@
 # VELOPACK (vpk) for the installers + self-updating packages. The repo is public, so the built-in
 # GITHUB_TOKEN both writes the release and lets the client read the feed with no token.
 #
-# Versioning: each run gets 1.1.<github.run_number> — unique + monotonic, and 1.1.x is always above
-# the older 1.0.x line, so the client's compat gate always treats a fresh build as newer. Set ONLY
-# for the build (not committed). The release tag is v<version>; the compat-gate server reads
-# releases/latest's tag as the "latest version".
+# Versioning: the version is the COMMITTED package.json `version` (bumped +1 patch per commit by the
+# .githooks/pre-commit hook — see scripts/bump-version.mjs). It is the SINGLE SOURCE OF TRUTH shared
+# with the Heroku server (which reads the same committed package.json at build), so the client and
+# server report the SAME version for the same commit. Each job resolves it into VELO_VERSION /
+# VELO_TAG from package.json. The release tag is v<version>; the compat-gate server reads
+# releases/latest's tag as the "latest version". (Per-commit patch bumps stay unique + monotonic.)
 #
 # Delivery: `vpk download github` fetches the previous release so `vpk pack` can build a DELTA
 # (users download only the diff); `vpk upload github --publish` writes the release + the
@@ -37,9 +39,9 @@ concurrency:
 env:
   VELO_PACK_ID: TerraformingMars
   VELO_PACK_TITLE: Terraforming Mars
-  VELO_VERSION: 1.1.${{ github.run_number }}
   VELO_REPO_URL: https://github.com/${{ github.repository }}
-  VELO_TAG: v1.1.${{ github.run_number }}
+  # VELO_VERSION / VELO_TAG are resolved per-job from the committed package.json (see the
+  # "Resolve release version" step) into $GITHUB_ENV — not hardcoded here.
 
 jobs:
   windows:
@@ -70,9 +72,15 @@ jobs:
       - name: Install vpk
         run: dotnet tool install -g vpk --version 1.2.0
 
-      # Unique, monotonic version per push (not committed — build artifacts only).
-      - name: Set release version
-        run: npm version "${{ env.VELO_VERSION }}" --no-git-tag-version --allow-same-version
+      # Version = the committed package.json version (per-commit bump). Publish it into $GITHUB_ENV
+      # so every later step (pack / upload / tag) sees the same VELO_VERSION / VELO_TAG.
+      - name: Resolve release version (from committed package.json)
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "VELO_VERSION=$V" >> "$GITHUB_ENV"
+          echo "VELO_TAG=v$V" >> "$GITHUB_ENV"
+          echo "release version: $V"
 
       - name: Build unpacked app dir (win)
         run: npm run pack:dir:win
@@ -135,8 +143,13 @@ jobs:
       - name: Install vpk
         run: dotnet tool install -g vpk --version 1.2.0
 
-      - name: Set release version
-        run: npm version "${{ env.VELO_VERSION }}" --no-git-tag-version --allow-same-version
+      - name: Resolve release version (from committed package.json)
+        shell: bash
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "VELO_VERSION=$V" >> "$GITHUB_ENV"
+          echo "VELO_TAG=v$V" >> "$GITHUB_ENV"
+          echo "release version: $V"
 
       - name: Build unpacked app dir (linux)
         run: npm run pack:dir:linux

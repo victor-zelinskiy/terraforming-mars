@@ -515,13 +515,15 @@
 
     <!-- The dock ↔ hand-overlay REVEAL stage — the compact pack physically
          opens into the real hand grid and gathers back (one reversible
-         timeline per episode; handRevealDirector.ts). Above the footer:
-         the flights land INTO the command bar's dock bay. -->
+         timeline per episode; handRevealDirector.ts). UNDER the footer
+         band: the dock/bar furniture occludes the flights per pixel, so a
+         card slots in BEHIND the tray texture, never over it. -->
     <ConsoleHandRevealLayer />
 
     <!-- The STARTING-CARDS DELIVERY stage — the cards you paid for fly from
          the top-HUD project deck down into the hand dock bay
-         (handDeliveryDirector.ts). Above the footer; lands into the dock. -->
+         (handDeliveryDirector.ts). Under the footer band, like the reveal
+         stage: an arriving card dives BEHIND the tray plate/bar texture. -->
     <ConsoleHandDeliveryLayer />
 
     <!-- The colony-trade LAUNCH flight stage (send a trade fleet to the

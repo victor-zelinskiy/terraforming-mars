@@ -3,7 +3,8 @@
  * transition (ConsoleHandRevealLayer + handRevealDirector).
  *
  * The transition flies ONE proxy per hand card on a fixed app-level layer
- * (above the footer — the flights land INTO the command bar's dock bay).
+ * (UNDER the footer band — the dock/bar furniture occludes a landing card
+ * per pixel, so it slots in BEHIND the tray texture; console_card_deal.less).
  * This module owns only the reactive pieces the Vue side renders from:
  *
  *  - `phase` — the presentation state machine:

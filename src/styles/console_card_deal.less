@@ -463,33 +463,27 @@ dialog.con-zoom {
    (handRevealDirector.ts / ConsoleHandRevealLayer.vue). The compact pack
    in the footer bay opens into the real hand grid and gathers back; one
    reversible GSAP timeline per episode, one deal-language proxy per card
-   (the 3D flip chassis is shared — `.con-deal-proxy*`). ABOVE the footer
-   (11700): the flights depart from / land into the command bar's dock bay. */
+   (the 3D flip chassis is shared — `.con-deal-proxy*`).
+
+   ⚠️ UNDER the footer band (11700) BY DESIGN — the .con-exit-layer
+   convention: the dock, its tray plate, the shoulder rails and the whole
+   bottom bar are FOREGROUND FURNITURE, and a card interacting with the
+   tray must be occluded by the REAL texture, per pixel — a descending
+   card sinks BEHIND the plate/bar exactly where their pixels are opaque
+   and stays visible through the bay's open gap; a card lifting out of
+   the tray emerges from behind the same silhouette. This replaced the
+   old straight-line `clip-path` at the plate's top edge, which let
+   flights paint OVER the bar rim/wings above that line (the "cards fly
+   through the dock texture" defect) and needed per-profile geometry
+   mirroring. Still above every card-flow SOURCE surface (task host /
+   start scene 11480, reveal modal 11520, info mode 11560, exit 11640). */
 .con-handreveal-layer {
     position: fixed;
     inset: 0;
-    z-index: 11710;
+    z-index: 11645;
     pointer-events: none;
     overflow: clip;
     contain: layout style;
-}
-
-/* ── THE TRAY SLOT LINE (physicality contract) ────────────────────────
-   Both hand flight stages are CLIPPED at the dock plate's TOP EDGE: a card
-   descending into the dock vanishes progressively behind that line — it
-   SLOTS INTO the tray from above (the plate + command bar visually overlap
-   it), never paints over the bottom bar's texture; a card lifting OUT of
-   the dock emerges across the same line. The offset mirrors the dock
-   geometry in console.less (standard: dock bottom .35rem + plate 2.7rem =
-   3.05rem; handheld: .3rem + 2.05rem = 2.35rem) — keep them in sync when
-   retuning the plate. */
-.con-handreveal-layer,
-.con-handdelivery-layer {
-    clip-path: inset(0 0 var(--con-hand-slot-clip, 3.05rem) 0);
-}
-html.con-profile-handheld .con-handreveal-layer,
-html.con-profile-handheld .con-handdelivery-layer {
-    --con-hand-slot-clip: 2.35rem;
 }
 
 /* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
@@ -497,12 +491,13 @@ html.con-profile-handheld .con-handdelivery-layer {
    proxies depart whatever surface released the cards (the start-ceremony
    pay grid, the reveal modal strip, the fullscreen stage, the research-buy
    strip) and arc down into the dock bay, each carrying its DOCK-ORDER z.
-   Same fixed-stage contract as the reveal layer; above the footer so the
-   flights land INTO the dock plate. */
+   Same fixed-stage contract as the reveal layer — UNDER the footer band
+   (see above): the arriving card dives BEHIND the tray plate/bar texture
+   and materializes as its dock back, never painting over the furniture. */
 .con-handdelivery-layer {
     position: fixed;
     inset: 0;
-    z-index: 11712;
+    z-index: 11646;
     pointer-events: none;
     overflow: clip;
     contain: layout style;

@@ -44,9 +44,9 @@ export interface RealtimeState {
   /** Server per-restart runId (restart detection). */
   serverVersion: string | undefined;
   /**
-   * The server's human build version (release tag / git head), reported in the
-   * HELLO in the SAME format the client reports for itself — for the
-   * Diagnostics comparison. Undefined until HELLO, or against an older server.
+   * The server's human build version (package.json), reported in the HELLO in
+   * the SAME format the client reports for itself — for the Diagnostics
+   * comparison. Undefined until HELLO, or against an older server.
    */
   serverBuildVersion: string | undefined;
   participantId: string | undefined;

@@ -134,10 +134,12 @@ async function githubLatestVersion(): Promise<string | undefined> {
 
 // The version a release build currently RUNNING on CI will publish, or undefined when none is
 // active. Reads the in-progress/queued runs of the release workflow (public repo, no auth) and
-// derives the version from the run number — the CI versions each run `1.1.<run_number>` (see
-// .github/workflows/release.yml `VELO_VERSION`). Cached briefly (builds change faster than
-// releases). Fail-open (a blip → undefined → no pending signal). `concurrency: cancel-in-progress`
-// means at most one run is active, so the max active run_number is the pending build.
+// derives the version from the COMMITTED package.json AT THE RUN'S HEAD COMMIT — release.yml packs
+// the committed version (see its "Resolve release version" step), so the head commit's package.json
+// `version` is exactly what that build will publish. (It used to derive `1.1.<run_number>`, but the
+// version is no longer tied to the run number.) Cached briefly (builds change faster than releases).
+// Fail-open (a blip → undefined → no pending signal). `concurrency: cancel-in-progress` means at most
+// one run is active, so the most-recent active run (max run_number) is the pending build.
 const GITHUB_RUNS_URL =
   'https://api.github.com/repos/victor-zelinskiy/terraforming-mars/actions/workflows/release.yml/runs?branch=main&per_page=10';
 // Builds change faster than releases; with a token poll them tightly (20s) so the pending→required
@@ -157,16 +159,41 @@ async function githubPendingBuildVersion(): Promise<string | undefined> {
     if (!res.ok) {
       return githubRunsCache?.version;
     }
-    const body = await res.json() as {workflow_runs?: Array<{run_number?: number; status?: string}>};
+    const body = await res.json() as {workflow_runs?: Array<{run_number?: number; status?: string; head_sha?: string}>};
     // Any run not yet `completed` is active (queued / in_progress / requested / waiting / pending).
-    const maxActiveRun = (body.workflow_runs ?? [])
-      .filter((r) => r.status !== 'completed' && typeof r.run_number === 'number')
-      .reduce((m, r) => Math.max(m, r.run_number ?? 0), 0);
-    const version = maxActiveRun > 0 ? `1.1.${maxActiveRun}` : undefined;
+    // Pick the most-recent active run (max run_number) and read the version its head commit will ship.
+    const latestActive = (body.workflow_runs ?? [])
+      .filter((r) => r.status !== 'completed' && typeof r.run_number === 'number' &&
+        typeof r.head_sha === 'string' && r.head_sha !== '')
+      .reduce<{run_number: number; head_sha: string} | undefined>(
+        (best, r) => ((r.run_number ?? 0) > (best?.run_number ?? -1) ?
+          {run_number: r.run_number as number, head_sha: r.head_sha as string} : best),
+        undefined);
+    const version = latestActive !== undefined ? await githubVersionAtSha(latestActive.head_sha) : undefined;
     githubRunsCache = {version, at: now};
     return version;
   } catch {
     return githubRunsCache?.version;
+  }
+}
+
+// The committed package.json `version` at a specific commit — i.e. the version release.yml will
+// publish for that commit. Read from raw.githubusercontent (a CDN, so it does NOT consume the GitHub
+// REST rate budget). Validated to `\d+.\d+.\d+`. Fail-open (undefined on any trouble → no pending
+// signal), so a fetch blip never freezes a client on a phantom build.
+async function githubVersionAtSha(sha: string): Promise<string | undefined> {
+  try {
+    const res = await githubFetch(
+      `https://raw.githubusercontent.com/victor-zelinskiy/terraforming-mars/${sha}/package.json`,
+      'tm-desktop-gate');
+    if (!res.ok) {
+      return undefined;
+    }
+    const body = await res.json() as {version?: string};
+    const version = (body.version ?? '').trim();
+    return /^\d+\.\d+\.\d+/.test(version) ? version : undefined;
+  } catch {
+    return undefined;
   }
 }
 

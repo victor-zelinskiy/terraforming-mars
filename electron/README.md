@@ -280,9 +280,11 @@ error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
 
 1. **Feed (automatic).** `.github/workflows/release.yml` runs on **every push to `main`** (not
    only on a `v*` tag) and publishes ONE GitHub Release under
-   `victor-zelinskiy/terraforming-mars`, versioned `1.1.<run_number>`, carrying the Windows
-   `.exe` + `latest.yml` + `.blockmap` (and the Linux AppImage). The repo is public, so
-   electron-updater reads the feed with no token.
+   `victor-zelinskiy/terraforming-mars`, versioned from the **committed `package.json`** (bumped
+   +1 patch per commit by the `.githooks/pre-commit` hook — the same version the Heroku server
+   reports, so client/server match for the same commit), carrying the Windows `.exe` + `latest.yml`
+   + `.blockmap` (and the Linux AppImage). The repo is public, so electron-updater reads the feed
+   with no token.
 2. **Gate (automatic).** `GET /api/desktop/version` (`ApiDesktopVersion`) reads the newest
    release LIVE from the GitHub API (`TM_DESKTOP_REQUIRE_LATEST` defaults on) and tells any
    client below it `updateRequired: true`. So a new push → older clients are required to update,
@@ -311,7 +313,8 @@ error+retry / manualDownloadRequired. Inert on the web (no `desktopBridge`).
 
 That's it — no feed to "make real" anymore (it's the auto-publishing release workflow). To
 verify by hand: `curl "https://<server>/api/desktop/version?platform=win32&current=1.0.0"` —
-it should return `latestVersion: "1.1.<n>"` and `updateRequired: true`. To force everyone to
+it should return `latestVersion: "<version>"` (the newest release tag, e.g. `1.2.5`) and
+`updateRequired: true`. To force everyone to
 update immediately (e.g. a protocol break), set the server env `TM_DESKTOP_FORCE_UPDATE=1`.
 
 **Not yet done (separate sub-phase):** Windows **code signing** — until then SmartScreen
@@ -342,8 +345,9 @@ npm run pack:dir:linux   # dist-desktop/linux-unpacked/ → vpk pack … --mainE
 `vpk` is a .NET global tool (`dotnet tool install -g vpk --version 1.2.0`). The CI flow is
 `vpk download github` (fetch prior release → delta) → `vpk pack` → `vpk upload github --publish`.
 
-**Cut a release** — just push to `main`. The workflow versions each run `1.1.<run_number>`, packs
-with Velopack, and publishes ONE release tagged `v1.1.<run_number>` carrying the Windows Setup.exe,
+**Cut a release** — just push to `main`. The workflow reads the version from the committed
+`package.json` (bumped per commit; see `scripts/bump-version.mjs` + `.githooks/pre-commit`), packs
+with Velopack, and publishes ONE release tagged `v<version>` carrying the Windows Setup.exe,
 the Linux AppImage, the full/delta `.nupkg`, the `releases.<channel>.json` feed, and a fixed-URL
 `TerraformingMars-x86_64.AppImage` alias for the Steam Deck bootstrap. Old releases are pruned to
 the newest 5 (a delta chain needs the prior full present).

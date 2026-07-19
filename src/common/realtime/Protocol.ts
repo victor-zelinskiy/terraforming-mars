@@ -96,8 +96,8 @@ export interface ServerHelloMessage extends BaseMessage {
   /** Build id of the server (runId), for diagnostics + restart detection. */
   serverVersion: string;
   /**
-   * The server's human build version (release tag / git head), in the SAME
-   * format the client reports for itself — so Diagnostics can compare the two.
+   * The server's human build version (package.json), in the SAME format the
+   * client reports for itself — so Diagnostics can compare the two.
    * Optional: an older server omits it (client falls back gracefully).
    */
   serverBuildVersion?: string;

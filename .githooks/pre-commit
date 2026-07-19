@@ -1,0 +1,15 @@
+#!/bin/sh
+# Bump the package.json patch version on every commit, then re-stage it so the
+# bump rides IN the commit being made (no follow-up commit, no loop). Wired via
+# `git config core.hooksPath .githooks` by scripts/setup-hooks.mjs (npm prepare).
+#
+# bump-version.mjs is fail-open (exit 0 on any trouble) so a commit is never
+# blocked by versioning. Skip when a rebase/merge is in progress — replaying old
+# commits must not re-bump.
+git_dir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+if [ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] || [ -f "$git_dir/MERGE_HEAD" ]; then
+  exit 0
+fi
+node scripts/bump-version.mjs || exit 0
+git add package.json package-lock.json 2>/dev/null || true
+exit 0
