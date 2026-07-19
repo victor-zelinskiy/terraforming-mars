@@ -67,6 +67,14 @@ html.console-native {
     --con-cta-h: 3.2rem;
     --con-focus-ring: 0.1rem;
     --con-glow-r: 0.9rem;
+    /* Effect-chip system (ActionEffectChip inside console surfaces): ONE
+       token set so every confirm/composer/detail shows the same chip
+       weight; the TV profile raises only the values (console_tv.less),
+       handheld compacts them. */
+    --con-chip-fs: 0.85rem;
+    --con-chip-icon: 1.3rem;
+    --con-chip-pad: 0.3rem 0.65rem 0.3rem 0.4rem;
+    --con-chip-note: 0.7rem;
 }
 
 /* ── THE focus mixin — one ring language for every focused/selected state.
@@ -114,6 +122,39 @@ body.con-zoom-open .con-drafttray,
 body.con-zoom-open .con-journal,
 body.con-zoom-open .con-handdock {
     visibility: hidden;
+}
+
+/* ── Console effect-chip system ──────────────────────────────────────
+   ActionEffectChip is px-authored desktop content (13px text / 22px icon +
+   px gap/padding). Inside the console-native decision surfaces it resolves
+   through the --con-chip-* tokens instead, so «будет списано / вы получите»
+   reads with the SAME weight on every screen and the TV profile scales it
+   by retuning ONLY the tokens. Per-surface rules may still tweak hierarchy
+   (hero slightly bigger, nested options slightly smaller) but MUST derive
+   from the tokens, never restate raw sizes.
+   ⚠ Never give the chip rem sizes inside a container that zooms by
+   var(--con-ui-scale) — rem already scales with the TV rem base, the zoom
+   would multiply it a second time. */
+.con-task-host,
+.con-composer,
+.con-cardactions,
+.con-reveal,
+.con-govsupport,
+.con-trade,
+.con-prodloss {
+    .action-effect-chip {
+        font-size: var(--con-chip-fs, 0.85rem);
+        gap: 0.3rem;
+        padding: var(--con-chip-pad, 0.3rem 0.65rem 0.3rem 0.4rem);
+    }
+    .action-effect-chip__icon {
+        width: var(--con-chip-icon, 1.3rem);
+        height: var(--con-chip-icon, 1.3rem);
+    }
+    .action-effect-chip__note,
+    .action-effect-chip__basis {
+        font-size: var(--con-chip-note, 0.7rem);
+    }
 }
 
 /* ── Root frame (overscan-safe) ──────────────────────────────────── */
@@ -1566,7 +1607,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         zoom: calc(1.05 * var(--con-ui-scale, 1));
     }
     &__stop-or {
-        font-size: .6rem;
+        font-size: 12px; /* keep-px: lives inside the ×ui-scale reward zoom — rem here would double-scale on TV */
         text-transform: uppercase;
         color: @con-text-dim;
     }
@@ -1791,7 +1832,9 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--warn { color: #ffe3b0; }
         &--muted { opacity: 0.85; }
     }
-    &__def-reward { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; zoom: 1.15; }
+    /* px HydroReward chips inside → the container zoom must ride the TV
+       scale (a bare zoom froze these at desktop size on 4K). */
+    &__def-reward { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; zoom: calc(1.15 * var(--con-ui-scale, 1)); }
     &__vpline {
         display: flex;
         align-items: center;
@@ -1832,7 +1875,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
         cursor: pointer;
-        zoom: 1.1;
+        /* px HydroReward content — the row zoom rides the TV scale. */
+        zoom: calc(1.1 * var(--con-ui-scale, 1));
         .con-visual-transition(140ms);
 
         &--selected {
@@ -1841,6 +1885,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         }
     }
     &__bonus-tick { color: @con-hydro-mint; font-size: .9rem; font-weight: 800; }
+    /* Inside the ×ui-scale zoomed bonus row the tick must be px (rem would double-scale on TV). */
+    &__bonus &__bonus-tick { font-size: 18px; } /* keep-px */
     &__gains { display: flex; flex-direction: column; gap: .4rem; }
     &__gains--chosen { margin-top: .1rem; }
     &__delta {
@@ -2105,8 +2151,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         text-transform: none;
         letter-spacing: .02rem;
     }
-    &__bonus { cursor: pointer; zoom: 1.1; }
+    /* px HydroReward content — the row zoom rides the TV scale. */
+    &__bonus { cursor: pointer; zoom: calc(1.1 * var(--con-ui-scale, 1)); }
     &__tick { color: @con-hydro-mint; font-size: .9rem; font-weight: 800; margin-left: auto; }
+    &__bonus &__tick { font-size: 18px; } /* keep-px: inside the zoomed bonus row */
     &__gains { display: flex; flex-direction: column; gap: .4rem; }
     &__delta { display: flex; align-items: center; gap: .45rem; font-size: .85rem; }
     &__delta-ico {
@@ -2154,7 +2202,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-size: .75rem;
         font-weight: 800;
     }
-    &__rawchips { zoom: 1.15; }
+    &__rawchips { zoom: calc(1.15 * var(--con-ui-scale, 1)); }
     &__vpline { display: flex; align-items: center; gap: .5rem; font-size: .8rem; color: @con-text-dim; }
     &__card {
         display: flex;
@@ -5482,10 +5530,38 @@ html.console-mode {
         opacity: 0.1;
     }
 
-    /* TV-size the reused desktop journal rows (info parity, console scale). */
+    /* ── The reused desktop journal rows, re-authored in REM for the console
+       (TV-4K iteration 2). journal.less is px-authored for the desktop side
+       panel; inside the console the px internals never scaled — timestamps,
+       child rows, impact chips and dividers read as desktop specks on the TV.
+       Every row-internal the console shows resolves here in rem (base values
+       mirror the desktop look at the 20px rem base), so the TV profile scales
+       them for free and §15 of console_tv.less retunes only the couch values.
+       Desktop journal surfaces are untouched (scope: .con-journal). */
     .journal-text, .journal-em { font-size: .75rem; }
     .journal-player { font-size: .7rem; }
     .journal-token, .journal-chip, .journal-cardchip, .journal-card-chip { font-size: .7rem; }
+    .journal-entry__time, .journal-group__time { font-size: .65rem; color: rgba(196, 216, 236, 0.66); }
+    .journal-group__root-body { font-size: .75rem; }
+    .journal-group__count { font-size: .65rem; }
+    .journal-group__replay { font-size: .65rem; }
+    .journal-group__replay-glyph { font-size: .55rem; }
+    .journal-group__child { font-size: .7rem; }
+    .journal-group__child--detail { font-size: .675rem; }
+    .journal-child-row__chip { font-size: .7rem; }
+    .journal-child-row__chip-icon { width: .9rem; height: .9rem; }
+    .journal-child-row__chip--prod .journal-child-row__chip-icon { width: 1rem; height: 1rem; }
+    .journal-child-row__src { font-size: .65rem; }
+    .journal-child-row__tile { font-size: .7rem; }
+    .journal-child-row__copied, .journal-child-row__player, .journal-child-row__arrow { font-size: .65rem; }
+    .journal-child-row__discount-badge { font-size: .6rem; }
+    .journal-chip__dot { width: .4rem; height: .4rem; }
+    .journal-chip__tag { width: .8rem; height: .8rem; }
+    .journal-chip__cost-value { font-size: .65rem; }
+    .journal-player__dot { width: .35rem; height: .35rem; }
+    .journal-res .journal-res__icon { width: .8rem; height: .8rem; }
+    .journal-gen-divider__label { font-size: .65rem; }
+    .journal-token--space { font-size: .65rem; }
 }
 /* P29: the journal REPLACES the right panel — the context panel keeps its
    LAYOUT slot (the board must not reflow) but is fully hidden under it. */
@@ -7407,14 +7483,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            glyph's own `×N` badge so "3 [×3]" never double-reads. */
         .benefit-glyph__num { display: none; }
     }
+    /* keep-px (both): they live INSIDE the ×ui-scale zoomed __cell-value —
+       rem here double-scales on TV (the "huge mint digit beside a smaller
+       icon" defect). px rides the zoom once, in step with the glyph. */
     &__cell-num {
-        font-size: .8rem;
+        font-size: 20px; /* keep-px */
         font-weight: 800;
         color: @con-mint;
         font-variant-numeric: tabular-nums;
     }
     &__cell-offset {
-        font-size: .575rem;
+        font-size: 12px; /* keep-px */
         font-weight: 700;
         color: @con-cyan;
     }
@@ -12245,7 +12324,9 @@ html.console-mode {
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    padding: 1.6vh 1.8vw 1vh;
+    /* The bottom command bar stays ON TOP of the sheet (its contract
+       renders there) — keep the frame clear of the bar band. */
+    padding: 1.6vh 1.8vw calc(1vh + 3rem);
     font-family: @con-font;
     color: @con-text;
 
@@ -12494,11 +12575,9 @@ html.console-mode {
 
     /* TV enlargement of the shared effect chips — the nesting adds the
        `.con-cardactions` ancestor, so (0,3,0) reliably beats the scoped 13px. */
-    &__formula .action-effect-chip,
-    &__detail-chips .action-effect-chip { font-size: .85rem; padding: .3rem .65rem .3rem .4rem; }
-    &__formula--lg .action-effect-chip { font-size: .95rem; }
-    &__formula .action-effect-chip__icon,
-    &__detail-chips .action-effect-chip__icon { width: 1.3rem; height: 1.3rem; }
+    /* Chip sizes come from the console chip system (--con-chip-*); only
+       the hierarchy accent stays local. */
+    &__formula--lg .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
 }
 
 @keyframes con-cardact-shake {
@@ -12525,7 +12604,9 @@ html.console-mode {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2vh 2vw;
+    /* The bottom command bar stays ON TOP of the composer (its contract
+       renders there) — keep the panel clear of the bar band. */
+    padding: 2vh 2vw calc(2vh + 3rem);
     font-family: @con-font;
     color: @con-text;
 
@@ -12544,6 +12625,27 @@ html.console-mode {
         border-radius: .8rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%), 0 1.1rem 3rem rgba(0, 0, 0, 0.66);
+    }
+    /* The ACTION composer/confirm hosts a source-card column — wider panel. */
+    &__panel--act { width: min(56rem, 94vw); }
+    /* Source card (inert printed face) · decision column. */
+    &__actmain {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 1.1rem;
+        align-items: start;
+        min-height: 0;
+    }
+    &__actcard {
+        zoom: calc(0.85 * var(--con-ui-scale, 1));
+        pointer-events: none;
+        > :is(.card-container, .pcard) { margin: 0; }
+    }
+    &__actright {
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        min-height: 0;
     }
 
     &__kicker {
@@ -12566,8 +12668,13 @@ html.console-mode {
     &__hero-label { font-size: .6rem; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
     &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__hero-arrow { font-size: 1.3rem; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
-    &__hero .action-effect-chip { font-size: .9rem; padding: .3rem .65rem .3rem .4rem; }
-    &__hero .action-effect-chip__icon { width: 1.3rem; height: 1.3rem; }
+    /* Hero «списано → получите» leads the hierarchy: one notch above the
+       system chip size (tokens; TV raises the tokens themselves). */
+    &__hero .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
+    &__hero .action-effect-chip__icon {
+        width: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
+        height: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
+    }
 
     /* Neutral "your choice" chip (a bare amount with no structural hint). */
     &__varchip {
@@ -12613,8 +12720,7 @@ html.console-mode {
     &__branch-title { font-size: .9rem; font-weight: 700; }
     &__branch-needs { font-size: .7rem; color: fade(@con-cyan, 88%); }
     &__branch-reason { font-size: .7rem; color: #ffb0a6; }
-    &__branch .action-effect-chip { font-size: .85rem; padding: .25rem .6rem .25rem .35rem; }
-    &__branch .action-effect-chip__icon { width: 1.25rem; height: 1.25rem; }
+    /* Branch cards ride the system chip size (tokens). */
 
     &__row {
         display: flex; flex-direction: column; gap: .3rem;
@@ -12674,8 +12780,12 @@ html.console-mode {
         &--plant { color: #8ff0c4; background: rgba(20, 60, 44, 0.5); }
     }
     /* The premium metadata chip of an OrOptions option (steal/gain preview). */
-    &__opt-chip .action-effect-chip { font-size: .75rem; padding: .2rem .5rem .2rem .3rem; }
-    &__opt-chip .action-effect-chip__icon { width: 1.1rem; height: 1.1rem; }
+    /* Nested or-option chips: one notch under the system size. */
+    &__opt-chip .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) - .05rem)"; }
+    &__opt-chip .action-effect-chip__icon {
+        width: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
+        height: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
+    }
     /* Nested-input indicator (an option that opens a target sub-pick). */
     &__opt-chevron { flex: 0 0 auto; font-size: 1rem; font-weight: 800; color: fade(@con-cyan, 70%); }
     &__opt-res {
@@ -12894,8 +13004,7 @@ html.console-mode {
     &__pay-rows { display: flex; flex-direction: column; gap: .3rem; }
     &__pay-row {
         position: relative; display: flex; align-items: center; gap: .5rem;
-        .action-effect-chip { font-size: .8rem; padding: .25rem .6rem .25rem .35rem; }
-        .action-effect-chip__icon { width: 1.2rem; height: 1.2rem; }
+        /* Payment chips ride the system chip size (tokens). */
     }
     &__pay-badge {
         font-size: .6rem; letter-spacing: .03rem; text-transform: uppercase;
@@ -13019,6 +13128,10 @@ html.con-profile-handheld .con-composer {
     .con-composer__panel--play { width: min(58rem, 97vw); }
     .con-composer__playmain { gap: .7rem; }
     .con-composer__playcard { zoom: 0.82; }
+    /* Handheld: the composer's inert source-card column costs width the
+       Deck doesn't have — the name + chips carry the context there. */
+    .con-composer__actcard { display: none; }
+    .con-composer__panel--act { width: min(44rem, 94vw); }
     .con-composer__name { font-size: 1.05rem; }
     .con-composer__stepper-value { font-size: 1.2rem; min-width: 2.6rem; }
     .con-composer__opt-name { font-size: .75rem; }
@@ -13075,6 +13188,13 @@ html.con-profile-large .con-cardactions {
    ═══════════════════════════════════════════════════════════════════ */
 
 html.con-profile-handheld {
+    /* Effect-chip system: keep the pre-token compact weight on the Deck
+       (the surfaces used .75–.8rem chips before the tokens unified them). */
+    --con-chip-fs: 0.75rem;
+    --con-chip-icon: 1.1rem;
+    --con-chip-pad: 0.2rem 0.5rem 0.2rem 0.3rem;
+    --con-chip-note: 0.65rem;
+
     /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
     .con-root { padding: 0.6vh 0.7vw; gap: .25rem; }
     .con-main { gap: .4rem; }

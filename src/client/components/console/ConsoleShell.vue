@@ -129,7 +129,7 @@
                           :stagedCard="stagedHandCard"
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
-                          :underScene="footerUnderScene || consoleRevealMode !== undefined" />
+                          :underScene="sceneOverHand || consoleRevealMode !== undefined" />
       <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
                               :colonies="coloniesForRail"
                               :index="consoleState.colonyIndex"
@@ -599,7 +599,7 @@
            therefore stay laid out + measurable at all times WHILE VISIBLE —
            the hand-intake director can always land a card, and the counter
            only ticks on the physical touchdown. -->
-      <ConsoleHandDock v-show="handDockVisible"
+      <ConsoleHandDock v-show="handDockVisible && !dockParkedUnderScene"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
@@ -801,6 +801,7 @@ import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, rese
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
+import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
@@ -1181,6 +1182,17 @@ export default defineComponent({
      * modal (`consoleRevealMode`) — its panel is RAISED above the dock zone
      * in CSS so per-card takes land in a fully visible hand.
      */
+    /**
+     * Surfaces that drop the FOOTER below themselves. TV-4K iteration 2:
+     * this list is now ONLY the bottom-anchored surfaces (played table,
+     * draft pick) + surfaces carrying their OWN command bar (bot review) or
+     * an inline contract (stranded guard). The CENTERED decision surfaces
+     * (composers / sheets / inspectors / task panels) used to be here too —
+     * which buried the ONE command bar under their near-opaque TV backdrops
+     * (the "куда-то пропала панель действий" defect): their hints are
+     * published TO that bar, so the bar must stay on top. They park the
+     * hand dock instead (`dockParkedUnderScene`).
+     */
     footerUnderScene(): boolean {
       const task = this.hostTask;
       return (
@@ -1188,12 +1200,25 @@ export default defineComponent({
         // a tall bottom-reaching surface with a full dim backdrop, but — unlike
         // the research BUY (mode `buy`) — no card flies into the dock during a
         // pick (the drafted card lands in the separate `draftedCards` stack).
-        // So drop the footer BELOW it, exactly like the hand overlay / played
-        // table, so the dock's pack tucks under the host's veil instead of
-        // poking bright over the draft cards. The buy/rise scene keeps the
-        // footer on top for its deck→dock flights (not matched here).
+        // So drop the footer BELOW it, exactly like the played table, so the
+        // dock's pack tucks under the host's veil instead of poking bright
+        // over the draft cards. The buy/rise scene keeps the footer on top
+        // for its deck→dock flights (not matched here).
         (task?.kind === 'cardSelect' && task.mode === 'draft') ||
         this.playedTableVisible ||
+        this.botTurnReviewState.open ||
+        this.leakDetectorState.stranded !== undefined
+      );
+    },
+    /**
+     * The centered decision surfaces: the footer BAR stays on top (their
+     * command contract renders there), so the dock's card pack must not
+     * poke over their veil — the dock parks (v-show) for their lifetime.
+     * Flights into the dock only happen AFTER these surfaces close, so a
+     * parked dock never robs a landing target.
+     */
+    dockParkedUnderScene(): boolean {
+      return (
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
         this.corpFirstActionOpen ||
@@ -1204,10 +1229,13 @@ export default defineComponent({
         this.colonyInspectModel !== undefined ||
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
-        this.botTurnReviewState.open ||
-        this.infoModeState.open ||
-        this.leakDetectorState.stranded !== undefined
+        this.infoModeState.open
       );
+    },
+    /** The OLD full под-сценой predicate — still what the HAND SECTION's
+     *  verdict-bar z-drop keys off (`:underScene`). */
+    sceneOverHand(): boolean {
+      return this.footerUnderScene || this.dockParkedUnderScene;
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —
@@ -2323,6 +2351,11 @@ export default defineComponent({
       if (this.consoleState.quick !== undefined) {
         return this.quickTitle;
       }
+      if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open) {
+        // The composer over the Action Center: the bar names the DECISION,
+        // not the grid behind it.
+        return 'Confirmation';
+      }
       if (this.consoleState.sheet !== undefined) {
         return this.sheetTitle;
       }
@@ -2634,9 +2667,17 @@ export default defineComponent({
         return [{control: 'back', label: this.stdBackLabel}];
       }
       if (this.consoleState.sheet === 'cardActions') {
-        // The Action Center (and, while open, its composer) publishes the
-        // live contract — grid browse vs branch/dial/payment states differ.
-        return [...(panelCommands('actionComposer') ?? panelCommands('cardActions') ?? [
+        // While the COMPOSER (setup / confirmation) is up, its dedicated
+        // store is the authority — with an honest Confirm/Cancel fallback,
+        // never the grid verbs (the shared-slot fallback once showed
+        // Perform/Inspect/Close under a confirm).
+        if (consoleActionComposerUi.open) {
+          return consoleActionComposerUi.commands.length > 0 ?
+            [...consoleActionComposerUi.commands] :
+            [{control: 'confirm', label: 'Confirm'}, {control: 'back', label: 'Cancel'}];
+        }
+        // The Action Center grid publishes the live contract.
+        return [...(panelCommands('cardActions') ?? [
           {control: 'confirm', label: 'Perform'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'back', label: 'Close'},

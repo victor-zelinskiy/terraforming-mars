@@ -2,13 +2,21 @@
   <div class="con-composer" role="dialog" :aria-label="$t('Confirmation')">
     <div class="con-composer__backdrop" aria-hidden="true"></div>
 
-    <div class="con-composer__panel">
+    <div class="con-composer__panel con-composer__panel--act">
       <!-- ── Header ────────────────────────────────────────────────── -->
       <div class="con-composer__kicker">
         <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
         <span>{{ $t(hasDecisions ? 'Action setup' : 'Confirmation') }}</span>
       </div>
       <div class="con-composer__name">{{ $t(entry.cardName) }}</div>
+
+      <!-- ── Two columns: the SOURCE CARD (inert printed face — the player
+           must SEE what they are confirming) · the decision/summary column. -->
+      <div class="con-composer__actmain">
+      <div class="con-composer__actcard" aria-hidden="true">
+        <ConsoleCardFaceLite :name="entry.cardName" />
+      </div>
+      <div class="con-composer__actright">
 
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
@@ -212,8 +220,26 @@
           <div v-for="(n, i) in afterNotes" :key="'n' + i" class="con-composer__next">
             <span aria-hidden="true">›</span><span>{{ n }}</span>
           </div>
+
+          <!-- The explicit CTA — a FOCUSABLE row drawing the Ⓐ glyph (mirrors
+               the play composer): what A does is never ambiguous, and the
+               confirm is a deliberate, visible press target. -->
+          <div class="con-composer__cta"
+               :class="{
+                 'con-composer__cta--off': !canConfirm,
+                 'con-composer__cta--ready': canConfirm,
+                 'con-composer__cta--focused': ctaFocused,
+               }"
+               :ref="ctaFocused ? 'focusedEl' : undefined"
+               @click="submit">
+            <GamepadGlyph control="confirm" class="con-composer__cta-glyph" />
+            <span class="con-composer__cta-label">{{ $t('Confirm action') }}</span>
+          </div>
         </template>
       </ConsoleScrollArea>
+
+      </div><!-- /__actright -->
+      </div><!-- /__actmain -->
 
       <!-- The command contract (composer context) lives in the global
            command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
@@ -239,7 +265,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
+import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
@@ -264,6 +290,8 @@ import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/cons
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -318,7 +346,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, ConsoleScrollArea},
+  components: {ActionEffectChip, ConsoleScrollArea, ConsoleCardFaceLite, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     entry: {type: Object as PropType<ActionEntry>, required: true},
@@ -424,7 +452,7 @@ export default defineComponent({
         return hints;
       }
       const hints: Array<ConsoleCommand> = [];
-      if (this.items.length > 0) {
+      if (this.items.length > 0 && !this.ctaFocused) {
         const focused = this.focusedItem;
         if (focused?.kind === 'choice' && (focused.choice.kind === 'amount' || focused.choice.kind === 'spendHeat')) {
           hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
@@ -568,6 +596,13 @@ export default defineComponent({
     focusedItem(): Item | undefined {
       return this.items[this.focusIdx];
     },
+    /** The CTA row's virtual focus index — one past the decision items. */
+    ctaIndex(): number {
+      return this.items.length;
+    },
+    ctaFocused(): boolean {
+      return this.sub === undefined && this.focusIdx >= this.ctaIndex;
+    },
   },
   watch: {
     preview: {immediate: true, handler() {
@@ -580,12 +615,12 @@ export default defineComponent({
       immediate: true,
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('actionComposer', cmds);
+        setConsoleActionComposerCommands(cmds);
       },
     },
   },
   beforeUnmount() {
-    clearPanelCommands('actionComposer');
+    resetConsoleActionComposerUi();
   },
   methods: {
     iconClass(icon: string | undefined): string {
@@ -1014,7 +1049,8 @@ export default defineComponent({
         return;
       }
       if (dir === 'up' || dir === 'down') {
-        this.focusIdx = Math.min(this.items.length - 1, Math.max(0, this.focusIdx + (dir === 'up' ? -1 : 1)));
+        // The focus walk includes the CTA row (index items.length).
+        this.focusIdx = Math.min(this.ctaIndex, Math.max(0, this.focusIdx + (dir === 'up' ? -1 : 1)));
         this.scrollFocused();
         return;
       }
@@ -1031,7 +1067,7 @@ export default defineComponent({
       const item = this.focusedItem;
       switch (action) {
       case 'primary':
-        if (item === undefined) {
+        if (this.ctaFocused || item === undefined) {
           this.submit();
         } else if (item.kind === 'branch') {
           this.selectBranch(item.pos);

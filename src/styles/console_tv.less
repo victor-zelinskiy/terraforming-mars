@@ -75,6 +75,13 @@ html.con-profile-tv {
        .con-backdrop-dim() rises to "фон нечитаем" on the TV — one knob. */
     --con-dim-a: 0.86;
     --con-dim-b: 0.965;
+    /* Effect-chip system (ActionEffectChip inside console surfaces): the
+       couch weight — chip text ≈ body, icon ≈ 32 logical px. ONE knob for
+       every «будет списано / вы получите» chip in the game. */
+    --con-chip-fs: 1.05rem;
+    --con-chip-icon: 1.6rem;
+    --con-chip-pad: 0.35rem 0.8rem 0.35rem 0.5rem;
+    --con-chip-note: 0.8rem;
 }
 
 /* ═══ 0b · CONTROLLER GLYPHS — the couch floor, EVERYWHERE ══════════
@@ -160,6 +167,27 @@ html.con-profile-tv {
         zoom: calc(1.35 * var(--con-ui-scale, 1));
     }
     .con-home__value b { font-size: 1.5rem; }
+    /* ── TV-4K iteration 2: the dashboard CONTENT reads from the couch
+       WITHOUT growing the panel footprint (26% / max 27rem stays — the
+       board keeps its scale). Rows rise to ~t-secondary, the progress
+       bars become real bars, the award pennant/crown/cube marks reach
+       glance size. Paddings stay tight so modular-MA lists still fit. */
+    .con-home__title { font-size: 0.95rem; }
+    .con-home__state { font-size: 0.9rem; }
+    .con-home__foot { font-size: var(--con-t-caption); }
+    .con-home__ma { font-size: 0.9rem; padding: 0.3rem 0.5rem 0.3rem 0.7rem; }
+    .con-home__ma-bar { width: 3.2rem; height: 0.35rem; }
+    .con-home__ma-progress { font-size: 1rem; i { font-size: var(--con-t-floor); } }
+    .con-home__ma-owner-name { max-width: 5.6rem; }
+    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 2.8rem 5.6rem; }
+    .con-award-row { font-size: 0.9rem; padding: 0.3rem 0.5rem 0.3rem 0.7rem; }
+    .con-award__flag { width: 1rem; height: 1rem; }
+    .con-award__crown { width: 1.15rem; height: 0.95rem; }
+    .con-award__cube { width: 0.85rem; height: 0.85rem; }
+    .con-award__leader-val { font-size: 0.95rem; }
+    .con-award__leader-more { font-size: var(--con-t-floor); }
+    .con-award__legend-glyph.con-award__flag { width: 0.75rem; height: 0.75rem; }
+    .con-award__legend-glyph.con-award__crown { width: 0.85rem; height: 0.7rem; }
     /* Floor rule (§3.4): the smallest legend on the board home reads at the
        service floor, never below it. */
     .con-award__legend-span { font-size: var(--con-t-floor); }
@@ -362,13 +390,26 @@ html.con-profile-tv {
         &__emblem { width: 2.9rem; .bar-btn-icon { width: 1.9rem; height: 1.9rem; } }
         &__wallet { font-size: 1.05rem; }
         &__wallet-label { font-size: var(--con-t-floor); }
-        &__wallet-now b { font-size: 1.3rem; }
+        &__wallet-now b { font-size: 1.4rem; }
+        &__wallet .resource_icon { width: 1.6rem; height: 1.6rem; }
         &__grid { gap: 0.9rem; }
-        &__card { min-height: var(--con-hit-min); }
-        &__stage { width: 3.6rem; }
-        &__icon { width: 2.6rem; height: 2.6rem; }
-        &__name { font-size: 1.3rem; }
-        &__desc { font-size: var(--con-t-secondary); }
+        &__card { min-height: var(--con-hit-min); padding: 0.7rem 0.9rem; gap: 0.9rem; }
+        &__stage { width: 4.2rem; height: 4.2rem; }
+        &__icon { width: 3rem; height: 3rem; }
+        &__name { font-size: 1.35rem; }
+        &__desc { font-size: var(--con-t-body); }
+        /* The cost / gain badges: the M€ number + the coin read together. */
+        &__cost, &__gain {
+            font-size: 1.2rem;
+            b { font-size: 1.5rem; }
+            .resource_icon { width: 1.7rem; height: 1.7rem; }
+        }
+        &__gain-note { font-size: var(--con-t-caption); }
+        /* The per-row Ⓐ verb pill — a real couch control. */
+        &__btn { font-size: var(--con-t-secondary); padding: 0.35rem 0.8rem; }
+        /* The focused item's context line (reason / «можно использовать»). */
+        &__context { font-size: var(--con-t-secondary); }
+        &__wallet-price, &__wallet-after, &__wallet-shortfall { font-size: var(--con-t-secondary); }
     }
 
     /* ═══ 12 · MA STRATEGIC PANEL + CONFIRM + CEREMONY ════════════ */
@@ -421,16 +462,53 @@ html.con-profile-tv {
            reads top (what) → bottom (act), no orphan void beneath it. */
         &__cta-zone { margin-top: auto; }
         &__section-label { font-size: var(--con-t-floor); }
+        &__req-tag { padding: 0.5rem 0.7rem; min-height: var(--con-hit-min); }
         &__req-tag .resource-tag { width: 2.1rem; height: 2.1rem; }
+        &__req-mark { font-size: var(--con-t-secondary); }
+        &__req-energy { font-size: 1.05rem; b { font-size: 1.25rem; } }
+        &__req-have { font-size: var(--con-t-secondary); }
+        &__req-note { font-size: var(--con-t-caption); }
         &__req-legend { font-size: var(--con-t-floor); }
+        /* Track stops: the VP / flag / position marks read from the couch. */
+        &__stop-vp { font-size: 1.25rem; }
+        &__stop-flag { font-size: 1.3rem; }
+        &__stop-num { font-size: var(--con-t-floor); }
+        &__stop-badge { font-size: var(--con-t-caption); }
+        /* Stage identity column. */
+        &__stage-tag { width: 3rem; height: 3rem; }
+        &__stage-vp { font-size: 1.1rem; }
+        &__stage-badge { font-size: var(--con-t-caption); }
+        &__route { font-size: var(--con-t-secondary); b { font-size: 1.1rem; } }
+        &__route-cost { font-size: var(--con-t-caption); }
+        &__history-row { font-size: var(--con-t-caption); }
+        &__start-note { font-size: var(--con-t-caption); }
+        /* «You will gain» deltas — the outcome numbers lead. */
+        &__delta-img { width: 1.7rem; height: 1.7rem; }
+        &__beforeafter b { font-size: 1.2rem; }
+        &__plus { font-size: var(--con-t-secondary); }
+        &__zero { font-size: var(--con-t-caption); }
+        &__pick-chosen, &__pick-pending { font-size: var(--con-t-secondary); padding: 0.45rem 0.7rem; }
         &__delta-note { font-size: var(--con-t-floor); }
         &__skip-or { font-size: var(--con-t-floor); }
+        &__skips { font-size: var(--con-t-secondary); }
         small { font-size: var(--con-t-floor); }
     }
     .con-hydroconfirm {
-        &__frame { width: min(40rem, 90vw); }
-        &__stage-name { font-size: 1.2rem; }
-        &__spend-num { font-size: 1.3rem; }
+        &__frame { width: min(46rem, 90vw); }
+        &__stage-name { font-size: 1.3rem; }
+        &__spend-num { font-size: 1.4rem; }
+        &__delta { font-size: 1.1rem; }
+        &__delta-img { width: 1.7rem; height: 1.7rem; }
+        &__delta-note { font-size: var(--con-t-caption); }
+        &__plus { font-size: var(--con-t-secondary); }
+        &__zero { font-size: var(--con-t-caption); }
+        &__card { font-size: var(--con-t-secondary); }
+        &__note { font-size: var(--con-t-caption); }
+        &__skips { font-size: var(--con-t-secondary); }
+        &__vpline { font-size: var(--con-t-secondary); }
+        &__bonus-keys { font-size: var(--con-t-floor); }
+        /* (__tick inside the ×ui-scale zoomed bonus row stays px — see the
+           keep-px rule in console.less; a rem bump here would double-scale.) */
     }
 
     /* ═══ 14 · COLONIES ═══════════════════════════════════════════
@@ -439,22 +517,52 @@ html.con-profile-tv {
        feedback: colonies blew up / wrapped). Only typography moves. */
     .con-coltile {
         &__name { font-size: var(--con-t-body); }
-        &__cell-num { font-size: 1.1rem; }
+        /* (__cell-num / __cell-offset are px INSIDE the ×ui-scale zoomed
+           cell-value — see the keep-px rules in console.less; a rem bump
+           here double-scaled the digit against the glyph.) */
+        &__cell-label { font-size: var(--con-t-floor); }
         &__status { font-size: var(--con-t-caption); }
+        /* The colony track — a real progress rail, not a hairline. */
+        &__track-cell { height: 0.6rem; }
+        &__track-pos { font-size: var(--con-t-floor); }
+        /* Docked trade fleet on the tile: visible from the couch. */
+        &__dock { width: 1.45rem; height: 1.45rem; }
+        &__dock .colony-fleet-icon { width: 1.45rem; height: 1.45rem; }
+        /* Build slots: the px production glyph rides scale(0.6) for the
+           desktop density — on the TV the slot has grown with the rem base,
+           the glyph must follow. */
+        &__build-slot .benefit-glyph__production { transform: scale(1.05); }
+        &__cube { width: 0.85rem; height: 0.85rem; }
+    }
+    /* The header fleet dock (all players' fleets) — the berths and ships
+       were near-invisible marks on the panel. */
+    .con-colonies {
+        &__fleetberth { width: 1.9rem; height: 1.9rem; }
+        &__fleetship { width: 1.45rem; height: 1.45rem; }
+        &__fleetship .colony-fleet-icon { width: 1.45rem; height: 1.45rem; }
+        &__fleetchip-count { font-size: var(--con-t-secondary); }
+        &__fleetchip-count .colony-fleet-icon { width: 1.4rem; height: 1.4rem; }
+        .colony-fleet-pad { width: 1.9rem; height: 0.9rem; }
     }
     .con-colinspect {
         &__frame { width: min(62rem, 94vw); }
         &__name { font-size: 1.6rem; }
         &__row { font-size: var(--con-t-secondary); }
+        &__fleet-line .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
     }
     .con-trade {
         &__frame { width: min(58rem, 94vw); }
         &__title { font-size: 1.4rem; }
         &__payrow { min-height: var(--con-hit-min); }
+        &__payrow-icon { width: 1.6rem; height: 1.6rem; }
         &__row-label { font-size: var(--con-t-secondary); }
     }
 
-    /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══ */
+    /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══
+       The feed-row internals were re-authored in rem inside .con-journal
+       (console.less) — this block retunes them to the couch scale: body ≈
+       t-body, chips/child rows ≈ t-secondary, timestamps/dividers ≥ floor
+       with real contrast. */
     .con-journal {
         width: min(44rem, 40vw);
 
@@ -469,11 +577,47 @@ html.con-profile-tv {
             overflow: visible;
             text-overflow: clip;
         }
+        /* Timestamps: floor size + REAL contrast (they were the least
+           readable element of the whole feed on the panel). */
+        .journal-entry__time, .journal-group__time { font-size: var(--con-t-floor); color: rgba(214, 230, 245, 0.82); }
+        .journal-group__root-body { font-size: 1.05rem; }
+        .journal-group__count { font-size: var(--con-t-caption); }
+        .journal-group__replay { font-size: var(--con-t-caption); }
+        .journal-group__replay-glyph { font-size: var(--con-t-floor); }
+        .journal-group__child { font-size: var(--con-t-secondary); }
+        .journal-group__child--detail { font-size: var(--con-t-secondary); }
+        .journal-child-row__chip { font-size: var(--con-t-secondary); }
+        .journal-child-row__chip-icon { width: 1.3rem; height: 1.3rem; }
+        .journal-child-row__chip--prod .journal-child-row__chip-icon { width: 1.45rem; height: 1.45rem; }
+        .journal-child-row__src { font-size: var(--con-t-caption); }
+        .journal-child-row__tile { font-size: var(--con-t-secondary); }
+        .journal-child-row__copied, .journal-child-row__player, .journal-child-row__arrow { font-size: var(--con-t-caption); }
+        .journal-child-row__discount-badge { font-size: var(--con-t-floor); }
+        .journal-chip__dot { width: 0.55rem; height: 0.55rem; }
+        .journal-chip__tag { width: 1.1rem; height: 1.1rem; }
+        .journal-chip__cost-value { font-size: var(--con-t-caption); }
+        .journal-player__dot { width: 0.5rem; height: 0.5rem; }
+        .journal-res .journal-res__icon { width: 1.1rem; height: 1.1rem; }
+        .journal-gen-divider__label { font-size: var(--con-t-caption); }
+        .journal-token--space { font-size: var(--con-t-caption); }
+        /* Row rhythm: the 10-foot feed breathes — rows separate clearly. */
+        .con-journal__node { margin: 0.2rem 0; }
     }
     .con-journal__title { font-size: 1.35rem; }
     .con-journal__gen-label b { font-size: 1.1rem; }
+    /* Header controls: the mode segment / filter captions ride the floor —
+       they were .55–.625rem service specks. */
+    .con-journal__filter-caption { font-size: var(--con-t-floor); }
+    .con-journal__filter-label { font-size: var(--con-t-caption); }
+    .con-journal__mode-seg { font-size: var(--con-t-caption); }
+    .con-journal__gen-label { font-size: var(--con-t-caption); }
+    .con-journal__filterpop-title { font-size: var(--con-t-floor); }
     .con-journal__filterpop-row { font-size: var(--con-t-secondary); }
     .con-journal__inspect-name { font-size: 1.35rem; }
+    .con-journal__inspect-kicker { font-size: var(--con-t-floor); }
+    .con-journal__inspect-desc { font-size: var(--con-t-secondary); }
+    .con-journal__inspect-cost { font-size: var(--con-t-caption); }
+    .con-journal__placeholder { font-size: var(--con-t-secondary); }
 
     /* ═══ 16 · NOTIFICATIONS ══════════════════════════════════════ */
     .con-notif {
@@ -483,6 +627,16 @@ html.con-profile-tv {
         &__actor { font-size: 0.95rem; }
         &__body { font-size: 1.05rem; }
         &__tokens .journal-text { font-size: 0.95rem; }
+        /* The bot-turn card carries the turn's outcome — the summary lines,
+           impact chips and the on-card X/B contract read from the couch. */
+        &__summary-line { font-size: 0.95rem; }
+        &__summary-line--more { font-size: var(--con-t-floor); }
+        &__chip { font-size: 0.95rem; }
+        &__chip-icon { width: 1.2rem; height: 1.2rem; }
+        &__meta, &__result { font-size: var(--con-t-floor); }
+        &__dim { font-size: var(--con-t-caption); }
+        &__hint { font-size: var(--con-t-caption); }
+        &__action { font-size: var(--con-t-caption); }
     }
 
     /* ═══ 17 · CONFIRM / NOTICE / SYSTEM / GUARD / QUIT ═══════════ */
@@ -593,20 +747,109 @@ html.con-profile-tv {
     /* ═══ 19 · ACTION CENTER + COMPOSERS ══════════════════════════ */
     .con-cardactions {
         &__title { font-size: 1.9rem; }
-        &__detail-name { font-size: 1.6rem; }
+        &__kicker { font-size: var(--con-t-caption); }
+        &__stat {
+            b { font-size: 1.5rem; }
+            i { font-size: var(--con-t-floor); }
+        }
+        &__player { font-size: 1rem; }
+        /* Filters — real couch chips, not desktop specks. */
+        &__filter-label { font-size: var(--con-t-floor); }
+        &__chip {
+            padding: 0.35rem 0.85rem;
+            font-size: var(--con-t-secondary);
+            b { font-size: var(--con-t-caption); }
+        }
+        &__fgroup-keys .gp-glyph { transform: none; }
+        /* The action GRAPHIC is the heart of the screen — px card-render
+           content scaled through the ui-scale zoom channel. */
+        &__graphic { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
+        &__detail-graphic { zoom: calc(1.9 * var(--con-ui-scale, 1)); }
+        &__graphic-text { font-size: var(--con-t-body); }
         &__group-name { font-size: 1.3rem; }
+        &__group-status { font-size: var(--con-t-floor); }
+        &__group-res b { font-size: 1.05rem; }
+        &__res-icon { width: 1.4rem; height: 1.4rem; }
+        &__or { font-size: var(--con-t-floor); }
+        &__tile { padding: 0.8rem 0.9rem; min-height: var(--con-hit-min); }
+        &__tile-reason { font-size: var(--con-t-secondary); }
+        &__tile-choices { font-size: var(--con-t-caption); }
+        &__varchip {
+            font-size: var(--con-t-secondary);
+            em { font-size: var(--con-t-floor); }
+        }
+        &__varchip-icon { width: 1.5rem; height: 1.5rem; }
+        /* Detail panel — the decision dossier reads at couch body sizes. */
+        &__detail-kicker { font-size: var(--con-t-floor); }
+        &__detail-name { font-size: 1.6rem; }
+        &__detail-variant { font-size: var(--con-t-caption); }
+        &__verdict-head { font-size: var(--con-t-body); }
+        &__verdict-reason { font-size: var(--con-t-secondary); }
+        &__detail-label { font-size: var(--con-t-floor); }
+        &__detail-res b { font-size: 1.4rem; }
+        &__detail-next { font-size: var(--con-t-secondary); }
+        &__usage-line {
+            font-size: var(--con-t-secondary);
+            b { font-size: 1.1rem; }
+        }
+        &__usage-icon { width: 1.3rem; height: 1.3rem; }
+        &__usage-gen,
+        &__usage-note { font-size: var(--con-t-caption); }
+        &__usage-scope { font-size: var(--con-t-floor); }
+        &__empty { max-width: 30rem; }
+        &__empty-title { font-size: 1.5rem; }
+        &__empty-body { font-size: var(--con-t-body); }
+        &__empty-filters { font-size: var(--con-t-secondary); }
         &__row { min-height: var(--con-hit-min); }
         &__foot-item { font-size: 1.05rem; }
-        &__verdict-reason { font-size: var(--con-t-secondary); }
     }
     .con-composer {
         &__panel { width: min(58rem, 90vw); }
         &--play &__panel, &__panel--play { width: min(66rem, 94vw); }
+        /* The action composer/confirm: source card + decision column. */
+        &__panel--act { width: min(70rem, 94vw); }
+        &__actmain { gap: 1.5rem; }
+        &__kicker { font-size: var(--con-t-caption); }
         &__name { font-size: 1.7rem; }
+        &__hero-label,
+        &__sub-title { font-size: var(--con-t-secondary); }
+        &__hero-arrow { font-size: 1.7rem; }
+        &__varchip { font-size: var(--con-t-secondary); }
+        &__varchip-icon { width: 1.5rem; height: 1.5rem; }
         &__opt-name { font-size: 1.1rem; }
+        &__opt-reason,
+        &__branch-reason,
+        &__branch-needs { font-size: var(--con-t-secondary); }
         &__row { min-height: var(--con-hit-min); }
+        &__row-label,
+        &__row-value { font-size: var(--con-t-secondary); }
+        &__stepper-value { font-size: 1.8rem; }
+        &__stepper-icon { width: 1.8rem; height: 1.8rem; }
+        &__lane-icon { width: 1.6rem; height: 1.6rem; }
+        &__lane-name { font-size: var(--con-t-secondary); }
+        &__warn-text,
+        &__next { font-size: var(--con-t-secondary); }
         &__foot-item { font-size: 1.05rem; }
+        &__cta { min-height: var(--con-hit-min); }
         &__cta-label { font-size: 1.15rem; }
+    }
+
+    /* ═══ 19b · MARSBOT TURN REVIEW («Разбор хода») ═══════════════
+       The review body (.mbr, bot_review.less) is deliberately px-authored
+       (shared with the desktop overlay) — on the TV it rendered at raw
+       desktop size inside a 1500px panel on a 3840px screen: the single
+       most unadapted in-game surface. The fix is the ONE-CHANNEL rule
+       (plan §S3/S5): the px body scales through a ui-scale zoom on the
+       scroll viewport (content lays out at the same logical 1500px and
+       renders ×scale), while the SHELL (panel width, title, command bar)
+       is rem/couch-tuned. */
+    .con-bot-review {
+        &__panel { width: min(78rem, 96vw); padding: 0.8rem 1.6rem 0; }
+        &__title { font-size: var(--con-t-section); letter-spacing: 0.2rem; }
+        &__scroll { zoom: var(--con-ui-scale, 1); }
+        /* The LB/RB edge notice lives OUTSIDE the scroll viewport — same
+           one-channel scaling. */
+        .mbr-edge { zoom: var(--con-ui-scale, 1); }
     }
 
     /* ═══ 20 · INFORMATION MODE (LT) ══════════════════════════════ */
