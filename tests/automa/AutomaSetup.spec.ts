@@ -1,10 +1,13 @@
 import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {CardName} from '../../src/common/cards/CardName';
 import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {AutomaState} from '../../src/server/automa/AutomaState';
+import {isCardBannedForAutoma} from '../../src/server/automa/AutomaBans';
+import {DEFAULT_GAME_OPTIONS} from '../../src/server/game/GameOptions';
 import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from './AutomaTestGame';
 
@@ -179,7 +182,9 @@ describe('AutomaSetup', () => {
     const cases: ReadonlyArray<[string, object]> = [
       ['Turmoil', {turmoilExtension: true}],
       ['Prelude 2', {prelude2Expansion: true}],
-      ['promo cards', {promoCardsOption: true}],
+      // NOTE: PROMO is SUPPORTED (official FAQ p.11: generic adapters + the
+      // LawSuit / St. Joseph / ADS per-card rules + the Mons Insurance ban) —
+      // covered positively below + in AutomaPromoCards.spec.ts.
       ['community cards', {communityCardsOption: true}],
       // NOTE: ARES is SUPPORTED (house rules: neighborhood bonuses → 1 M€ per
       // unit, hazard avoidance + the random-track consequence) — covered
@@ -207,6 +212,27 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts promo cards; Mons Insurance is banned from the official-solo deck (FAQ p.11)', () => {
+    const [game, human] = testAutomaGame({promoCardsOption: true});
+    expect(game.gameOptions.promoCardsOption).is.true;
+    expect(game.automa).is.not.undefined;
+    // The predicate-based official-solo ban: the corp never enters the game —
+    // neither the draw pile nor the human's dealt corporations.
+    const corpNames = [
+      ...game.corporationDeck.drawPile.map((c) => c.name),
+      ...human.dealtCorporationCards.map((c) => c.name),
+    ];
+    expect(corpNames).does.not.contain('Mons Insurance');
+    expect(corpNames.length).is.greaterThan(0);
+  });
+
+  it('the Mons Insurance ban is predicate-based — an ordinary game keeps the corporation', () => {
+    const automaOptions = {...DEFAULT_GAME_OPTIONS, automa: {difficulty: 'normal' as const}};
+    expect(isCardBannedForAutoma(CardName.MONS_INSURANCE, DEFAULT_GAME_OPTIONS)).is.false;
+    expect(isCardBannedForAutoma(CardName.MONS_INSURANCE, automaOptions)).is.true;
+    expect(isCardBannedForAutoma(CardName.BIRDS, automaOptions)).is.false;
   });
 
   it('accepts Ares (house rules: adjacency bonuses as M€, hazard avoidance + track consequence)', () => {

@@ -205,8 +205,8 @@ let multiplayerSnapshot: {
  *
  * MarsBot mode keeps exactly ONE human seat (the creator — the bot itself is
  * seated by the server) and applies the POC PRESET: the fork's default lineup
- * includes modules the Automa doesn't cover yet (Promo,
- * random M&A, shuffled tiles, random board), so entering the mode starts from
+ * includes options the Automa doesn't cover yet (random M&A, shuffled tiles,
+ * random board), so entering the mode starts from
  * the clean supported set instead of a wall of conflict highlights. Options
  * the USER toggles afterwards are never silently reverted — they highlight as
  * conflicts and block creation with a reason. Switching back restores the
@@ -360,7 +360,6 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     boardName: config.mapMode === 'random-all' ? RandomBoardOption.ALL : config.mapId,
     turmoil: on('turmoil'),
     prelude2: on('prelude2'),
-    promo: on('promo'),
     community: on('community'),
     moon: on('moon'),
     pathfinders: on('pathfinders'),
@@ -391,7 +390,6 @@ export function stateAutomaConflictKeys(): ReadonlySet<string> {
  */
 const AUTOMA_BLOCKER_TEXT: Partial<Record<string, string>> = {
   'board': 'MarsBot plays on the Tharsis map only for now',
-  'expansion:promo': 'MarsBot does not support Promos yet',
   'rule:randomMilestonesAwards': 'MarsBot uses the printed milestones and awards',
   'rule:randomBoardTiles': 'MarsBot needs the printed board layout',
 };

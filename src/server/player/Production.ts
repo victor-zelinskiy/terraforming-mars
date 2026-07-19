@@ -16,10 +16,16 @@ export class Production extends BaseStock {
   ) {
     // MarsBot has no production: a production DECREASE regresses the mapped
     // track instead (rulebook pp.4–5), leaving the no-reactivation marker.
-    // No in-scope effect ever increases the bot's production.
     if (this.player.isMarsBot && amount < 0) {
       AutomaTargeting.regressForProduction(this.player.game, resource, -amount);
       return;
+    }
+    // A positive write would land in dead fields the bot never reads. The
+    // official Automa rules define no "increase MarsBot's production" — fail
+    // loudly instead of inventing a hidden house rule; a card that hits this
+    // needs an explicit per-card rule (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §5).
+    if (this.player.isMarsBot && amount > 0) {
+      throw new Error(`Positive production (${resource} +${amount}) to MarsBot is unsupported — needs an explicit Automa rule`);
     }
     const adj = resource === Resource.MEGACREDITS ? -5 : 0;
     const delta = (amount >= 0) ? amount : Math.max(amount, -(this[resource] - adj));

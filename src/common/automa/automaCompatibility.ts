@@ -17,7 +17,6 @@ export type AutomaConflictKey =
   | 'board'
   | 'expansion:turmoil'
   | 'expansion:prelude2'
-  | 'expansion:promo'
   | 'expansion:community'
   | 'expansion:moon'
   | 'expansion:pathfinders'
@@ -47,7 +46,6 @@ export type AutomaCompatibilityInput = {
   boardName: string;
   turmoil: boolean;
   prelude2: boolean;
-  promo: boolean;
   community: boolean;
   moon: boolean;
   pathfinders: boolean;
@@ -84,7 +82,11 @@ const RULES: ReadonlyArray<Rule> = [
   // Unsupported expansions / modules.
   {key: 'expansion:turmoil', test: (o) => o.turmoil, reason: () => 'Turmoil in the POC'},
   {key: 'expansion:prelude2', test: (o) => o.prelude2, reason: () => 'Prelude 2 (per the official rules, and out of POC scope)'},
-  {key: 'expansion:promo', test: (o) => o.promo, reason: () => 'promo cards in the POC'},
+  // NOTE: PROMO is NOT a conflict — the official FAQ (rulebook p.11) covers it:
+  // generic remove/steal/production adapters + the per-card rules for LawSuit,
+  // St. Joseph of Cupertino Mission, Asteroid Deflection System, and the Mons
+  // Insurance official-solo ban (src/server/automa/AutomaBans.ts). See
+  // docs/AUTOMA_DATA_AUDIT.md §9 + docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md.
   {key: 'expansion:community', test: (o) => o.community, reason: () => 'community cards'},
   // NOTE: ARES is NOT a conflict — MarsBot plays it via house rules (mirrors the
   // alt-Venus-board / Delta Project precedents): Ares neighborhood bonuses pay

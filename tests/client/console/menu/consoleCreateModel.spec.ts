@@ -189,10 +189,12 @@ describe('consoleCreateModel', () => {
 
     it('flags MarsBot conflicts on the exact rows', () => {
       seatBot();
-      // The POC preset cleaned everything — turn a conflicting option back on.
+      // Promo is SUPPORTED with MarsBot (official FAQ p.11) — never flagged.
+      // Every OFFERED expansion is now automa-compatible, so the flaggable
+      // conflicts left in the console decks are the map and the rules.
       toggleExpansion('promo');
-      const row = expansionRows().find((r) => r.meta.id === 'promo');
-      expect(row?.conflictKey).to.eq('expansion:promo');
+      const promoRow = expansionRows().find((r) => r.meta.id === 'promo');
+      expect(promoRow?.conflictKey).to.eq(undefined);
       selectMap(BoardName.HELLAS);
       expect(mapRows().find((m) => m.selected)?.conflict).to.eq(true);
     });
@@ -220,11 +222,13 @@ describe('consoleCreateModel', () => {
 
     it('maps automa conflicts to their decks', () => {
       seatBot();
-      toggleExpansion('promo');
+      // Promo is automa-supported now — a RULES conflict stands in for the
+      // former expansions-deck one.
+      createGameState.config.rules.randomBoardTiles = true;
       selectMap(BoardName.HELLAS);
       const issues = launchIssues();
       const decks = issues.map((i) => i.target.deck);
-      expect(decks).to.include('expansions');
+      expect(decks).to.include('rules');
       expect(decks).to.include('map');
     });
 

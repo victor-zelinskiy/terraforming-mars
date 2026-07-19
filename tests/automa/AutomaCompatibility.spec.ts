@@ -7,7 +7,6 @@ function cleanInput(): AutomaCompatibilityInput {
     boardName: BoardName.THARSIS,
     turmoil: false,
     prelude2: false,
-    promo: false,
     community: false,
     moon: false,
     pathfinders: false,
@@ -38,17 +37,19 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
   });
 
   it('reports EVERY conflict (the UI highlights all of them at once)', () => {
+    // NOTE: PROMO is deliberately NOT a conflict anymore — the official FAQ
+    // (rulebook p.11) covers it; see AutomaPromoCards.spec.ts.
     const conflicts = automaConflicts({
       ...cleanInput(),
-      promo: true,
+      community: true,
       moon: true,
       shuffleMapOption: true,
       randomMA: true,
     });
     expect(conflicts.map((c) => c.key)).deep.eq(
-      ['expansion:promo', 'expansion:moon', 'rule:randomMilestonesAwards', 'rule:randomBoardTiles']);
+      ['expansion:community', 'expansion:moon', 'rule:randomMilestonesAwards', 'rule:randomBoardTiles']);
     expect(conflictFor(conflicts, 'expansion:moon')?.reason).eq('The Moon');
-    expect(conflictFor(conflicts, 'expansion:promo')?.reason).eq('promo cards in the POC');
+    expect(conflictFor(conflicts, 'expansion:community')?.reason).eq('community cards');
     expect(conflictFor(conflicts, 'expansion:turmoil')).is.undefined;
   });
 

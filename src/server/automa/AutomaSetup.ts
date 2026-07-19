@@ -18,7 +18,6 @@ export class AutomaSetup {
       boardName: gameOptions.boardName,
       turmoil: gameOptions.turmoilExtension,
       prelude2: gameOptions.prelude2Expansion,
-      promo: gameOptions.promoCardsOption,
       community: gameOptions.communityCardsOption,
       moon: gameOptions.moonExpansion,
       pathfinders: gameOptions.pathfindersExpansion,

@@ -122,6 +122,12 @@ describe('Automa targeting — the human turn vs MarsBot', () => {
       expect(bot.canHaveProductionReduced(Resource.PLANTS, 1, human)).is.true;
       expect(bot.canHaveProductionReduced(Resource.PLANTS, 3, human)).is.false;
     });
+
+    it('a positive production write to the bot throws (no silent dead state — frame §5)', () => {
+      const [/* game */, /* human */, bot] = testAutomaGame();
+      expect(() => bot.production.add(Resource.ENERGY, 1)).to.throw(/unsupported/);
+      expect(bot.production.energy).eq(0);
+    });
   });
 
   describe('counting what all players have → the tracks', () => {

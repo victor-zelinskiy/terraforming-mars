@@ -9,6 +9,7 @@ import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {THARSIS_TRACK} from '../../src/server/automa/boards/TharsisMarsBot';
 import {Birds} from '../../src/server/cards/base/Birds';
+import {Pets} from '../../src/server/cards/base/Pets';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {ProtectedHabitats} from '../../src/server/cards/base/ProtectedHabitats';
 import {GeneRepair} from '../../src/server/cards/base/GeneRepair';
@@ -84,6 +85,48 @@ describe('Automa bonus cards', () => {
       runAllActions(game);
       expect(bot.megaCredits).eq(5);
       expect(human.getWaitingFor()).is.undefined;
+    });
+
+    it('Protected Habitats blocks the removal (FAQ) — the M€ still flows, no prompt, no cube lost', () => {
+      const [game, human, bot] = testAutomaGame();
+      const birds = new Birds();
+      birds.resourceCount = 2;
+      human.playedCards.push(birds, new ProtectedHabitats());
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+      expect(bot.megaCredits).eq(5);
+      expect(human.getWaitingFor()).is.undefined;
+      expect(birds.resourceCount).eq(2);
+    });
+
+    it('per-card protectedResources (Pets) blocks that card; an unprotected holder is still targeted', () => {
+      const [game, human] = testAutomaGame();
+      const pets = new Pets(); // protectedResources — 1/2 VP per animal (rate 0.5).
+      pets.resourceCount = 4;
+      const tardigrades = new Tardigrades(); // 1/4 VP per microbe (rate 0.25).
+      tardigrades.resourceCount = 3;
+      human.playedCards.push(pets, tardigrades);
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+      // Pets outranks Tardigrades by cube VP rate, but its cubes are protected —
+      // the pick falls to the best REMOVABLE holder.
+      const prompt = cast(human.popWaitingFor(), SelectCard);
+      expect(prompt.cards.map((c) => c.name)).deep.eq([CardName.TARDIGRADES]);
+      prompt.process({type: 'card', cards: [CardName.TARDIGRADES]});
+      expect(pets.resourceCount).eq(4);
+      expect(tardigrades.resourceCount).eq(2);
+    });
+
+    it('only protected holders exist → no prompt, nothing removed', () => {
+      const [game, human, bot] = testAutomaGame();
+      const pets = new Pets();
+      pets.resourceCount = 2;
+      human.playedCards.push(pets);
+      resolve(game, BonusCardId.B02_INVASIVE_SPECIES);
+      runAllActions(game);
+      expect(bot.megaCredits).eq(5);
+      expect(human.getWaitingFor()).is.undefined;
+      expect(pets.resourceCount).eq(2);
     });
   });
 

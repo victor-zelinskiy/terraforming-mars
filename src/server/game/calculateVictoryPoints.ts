@@ -126,7 +126,13 @@ export function calculateVictoryPoints(player: IPlayer) {
   // Victory points from cards
   let playerOwnsVermin = false; // For Vermin
   let negativeVP = 0; // For Underworld.
-  for (const playedCard of player.tableau) {
+  // MarsBot's card VP is exclusively AutomaScoring's business (Hard/Brutal reads
+  // automa.playedPile): its Player pile only ever holds cards OTHER players put
+  // there (LawSuit) — per the official FAQ (rulebook p.11) the bot neither
+  // resolves their icons nor loses points from them. The board-based Vermin
+  // penalty below still applies (the bot's cities are real tiles).
+  const scoredCards = player.isMarsBot ? [] : player.tableau;
+  for (const playedCard of scoredCards) {
     if (playedCard.victoryPoints !== undefined) {
       const vp = playedCard.getVictoryPoints(player);
       builder.setVictoryPoints('victoryPoints', vp, playedCard.name, undefined, classifyCardVictoryPoints(playedCard, vp));

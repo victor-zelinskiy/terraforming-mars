@@ -59,6 +59,19 @@ export class LawSuit extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     return new SelectPlayer(this.targets(player), 'Select player to sue (steal 3 M€ from)', 'Steal M€', {icon: 'megacredits', amount: 3})
       .andThen((suedPlayer: IPlayer) => {
+        // Automa FAQ (rulebook p.11): "You steal 3 resources from MarsBot and
+        // put the card in MarsBot's played pile, but MarsBot doesn't resolve
+        // the icons on the card, nor does it lose points from the card." The
+        // steal rides the generic adapter (M€ supply first, then Luna storage);
+        // the bot's tableau is never card-scored (calculateVictoryPoints) and
+        // never enters automa.playedPile (Hard/Brutal card VP), so the −1 VP
+        // icon stays unresolved.
+        if (suedPlayer.isMarsBot) {
+          suedPlayer.playedCards.push(this);
+          player.warmongerCards++;
+          suedPlayer.attack(player, Resource.MEGACREDITS, 3, {log: true, stealing: true});
+          return undefined;
+        }
         const amount = Math.min(3, suedPlayer.megaCredits);
         if (amount === 0) {
           player.game.log('${0} sued ${1} who had 0 MC.', (b) => b.player(player).player(suedPlayer));

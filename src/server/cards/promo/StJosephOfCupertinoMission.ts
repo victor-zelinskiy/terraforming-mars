@@ -18,6 +18,7 @@ import {message} from '../../logs/MessageBuilder';
 import {Resource} from '../../../common/Resource';
 import {skip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
+import {AutomaResolver} from '../../automa/AutomaResolver';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
@@ -110,6 +111,18 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
             player.game.stJosephCathedrals.push(space.id);
             const spaceOwner = space.player;
             if (spaceOwner === undefined || spaceOwner.color === 'neutral') {
+              return undefined;
+            }
+            // Automa FAQ (rulebook p.11): "If you place a cathedral at one of
+            // MarsBot's cities, it spends 2 MC if able, but instead of drawing
+            // a card, it advances its least-advanced track (topmost if tied)."
+            // Never a prompt — the bot resolves deterministically.
+            if (spaceOwner.isMarsBot) {
+              const automa = player.game.automa;
+              if (automa !== undefined && spaceOwner.megaCredits >= 2) {
+                spaceOwner.stock.deduct(Resource.MEGACREDITS, 2, {log: true});
+                AutomaResolver.advanceTrack(player.game, automa.board.getLeastAdvancedTrackIndex());
+              }
               return undefined;
             }
             if (spaceOwner.canAfford(2)) {

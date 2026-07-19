@@ -24,6 +24,7 @@ import {ICeoCard} from './cards/ceos/ICeoCard';
 import {PRELUDE2_CARD_MANIFEST} from './cards/prelude2/Prelude2CardManifest';
 import {STAR_WARS_CARD_MANIFEST} from './cards/starwars/StarwarsCardManifest';
 import {UNDERWORLD_CARD_MANIFEST} from './cards/underworld/UnderworldCardManifest';
+import {isCardBannedForAutoma} from './automa/AutomaBans';
 
 /**
  * Returns the cards available to a game based on its `GameOptions`.
@@ -143,6 +144,11 @@ export class GameCards {
   /* Remove cards excluded by choice in game options */
   private filterBannedCards<T extends ICard>(cards: Array<T>): Array<T> {
     return cards.filter((card) => {
+      // Official-solo Automa bans (FAQ p.11: Mons Insurance) — predicate-based,
+      // see src/server/automa/AutomaBans.ts.
+      if (isCardBannedForAutoma(card.name, this.gameOptions)) {
+        return false;
+      }
       return this.gameOptions.bannedCards.includes(card.name) !== true;
     });
   }

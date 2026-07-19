@@ -40,13 +40,21 @@ describe('premium create — MarsBot mode', () => {
     createGameState.config.mapId = BoardName.THARSIS;
     expect(canCreateGame()).is.true;
 
+    // Promo is SUPPORTED with MarsBot (official FAQ p.11) — never a conflict.
     createGameState.config.selectedExpansions.promo = true;
     createGameState.config.rules.randomBoardTiles = true;
     const keys = stateAutomaConflictKeys();
-    expect(keys.has('expansion:promo')).is.true;
+    expect(keys.has('expansion:promo')).is.false;
     expect(keys.has('rule:randomBoardTiles')).is.true;
     expect(canCreateGame()).is.false;
-    expect(firstBlocker()).eq('MarsBot does not support Promos yet');
+    expect(firstBlocker()).eq('MarsBot needs the printed board layout');
+  });
+
+  it('entering marsbot mode keeps promo enabled (the preset only drops genuine conflicts)', () => {
+    createGameState.config.selectedExpansions.promo = true;
+    setGameMode('marsbot');
+    expect(createGameState.config.selectedExpansions.promo).is.true;
+    expect(stateAutomaConflicts()).is.empty;
   });
 
   it('a non-Tharsis map conflicts in marsbot mode', () => {

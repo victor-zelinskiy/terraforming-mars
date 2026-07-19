@@ -43,5 +43,6 @@ files here are the deeper dives it points at.
 
 ## MarsBot / Automa (solo AI)
 - [MARSBOT_STATUS_AUDIT.md](MARSBOT_STATUS_AUDIT.md) — bot lifecycle / player-chip status audit.
-- [AUTOMA_DATA_AUDIT.md](AUTOMA_DATA_AUDIT.md) — Automa data tables audit.
+- [AUTOMA_DATA_AUDIT.md](AUTOMA_DATA_AUDIT.md) — Automa data tables audit (§9 = official FAQ card-specific rules + coverage status).
+- [AUTOMA_PROMO_MULTIPLAYER_FRAME.md](AUTOMA_PROMO_MULTIPLAYER_FRAME.md) — binding design frame for MarsBot promo adaptation + future multiplayer-with-bot mode (two modes, no global card patches, positive-production policy, per-card hook rules).
 - [BOT_TURN_REVIEW_CONCEPT.md](BOT_TURN_REVIEW_CONCEPT.md) — bot-turn "review" screen concept.

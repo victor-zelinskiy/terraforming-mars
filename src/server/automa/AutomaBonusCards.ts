@@ -1,5 +1,6 @@
 import * as constants from '../../common/constants';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {CardName} from '../../common/cards/CardName';
 import {CardResource} from '../../common/CardResource';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Phase} from '../../common/Phase';
@@ -169,7 +170,10 @@ function meteorShower(game: IGame): BonusCardOutcome {
   const before = human.plants;
   const removed = Math.min(5, before);
   if (removed > 0) {
-    human.stock.deduct(Resource.PLANTS, removed, {log: true});
+    // `from` attributes the removal to the bot — the LawSuit / Crash Site
+    // Cleanup resource hooks must see WHO removed the resources (FAQ: both
+    // promo cards work against MarsBot).
+    human.stock.deduct(Resource.PLANTS, removed, {log: true, from: {player: marsBotOf(game)}});
   }
   AutomaTurnLog.note(game, {kind: 'attack', attack: {
     target: human.color, resource: Resource.PLANTS, demanded: 5, removed,
@@ -199,9 +203,14 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     bot.stock.add(Resource.MEGACREDITS, 5, {log: true});
   }
 
-  const holders = human.tableau.filter((card) =>
+  const cubeHolders = human.tableau.filter((card) =>
     (card.resourceType === CardResource.ANIMAL || card.resourceType === CardResource.MICROBE) &&
     card.resourceCount > 0);
+  // Official FAQ (rulebook p.11): Protected Habitats DOES block Invasive Species.
+  // Per-card protection (Pets' protectedResources) blocks the same way — mirrors
+  // the opponent branch of RemoveResourcesFromCard.getAvailableTargetCards.
+  const holders = human.tableau.has(CardName.PROTECTED_HABITATS) ? [] :
+    cubeHolders.filter((card) => card.protectedResources !== true);
   if (holders.length > 0) {
     // The attack is announced NOW (target + demand); the actual cube leaves
     // via the target's own follow-up pick, after this turn commits.
@@ -216,9 +225,17 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
       'Select the highest-scoring animal/microbe card to remove 1 resource from (Invasive Species)',
       'Remove resource', targets, {min: 1, max: 1})
       .andThen(([card]) => {
-        human.removeResourceFrom(card, 1, {log: true});
+        // `removingPlayer` attributes the cube loss to the bot (LawSuit hook).
+        human.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});
         return undefined;
       })));
+  } else if (cubeHolders.length > 0) {
+    // Cubes exist, but Protected Habitats / a per-card protection blocks the
+    // removal (official FAQ). The card still resolves (M€ above) and discards.
+    game.log('${0} animals and microbes are protected — Invasive Species removes nothing', (b) => b.player(human));
+    AutomaTurnLog.note(game, {kind: 'attack', attack: {
+      target: human.color, resource: 'cube', demanded: 1, removed: 0, outcome: 'protected',
+    }}, {consumeLog: true});
   } else {
     // No animal/microbe cube anywhere — say so; silence reads as a bug.
     AutomaTurnLog.note(game, {kind: 'attack', attack: {
