@@ -389,19 +389,30 @@ html.con-profile-tv {
        a wide working surface, not a desktop dialog: ≥85% of the stage
        width, tall hit-target rows, couch typography. */
     .con-stdp {
-        &__panel { width: min(84rem, 94vw); max-height: 90vh; }
+        &__panel { width: min(84rem, 94vw); max-height: 90vh; gap: .9rem; padding: 1.1rem 1.35rem .8rem; }
         &__title { font-size: var(--con-t-title); }
-        &__emblem { width: 2.9rem; .bar-btn-icon { width: 1.9rem; height: 1.9rem; } }
+        &__emblem { width: 3.2rem; height: 3.2rem; .bar-btn-icon { width: 2.05rem; height: 2.05rem; } }
         &__wallet { font-size: 1.05rem; }
         &__wallet-label { font-size: var(--con-t-floor); }
         &__wallet-now b { font-size: 1.4rem; }
         &__wallet .resource_icon { width: 1.6rem; height: 1.6rem; }
-        &__grid { gap: 0.9rem; }
-        &__card { min-height: var(--con-hit-min); padding: 0.7rem 0.9rem; gap: 0.9rem; }
-        &__stage { width: 4.2rem; height: 4.2rem; }
-        &__icon { width: 3rem; height: 3rem; }
+        &__grid { gap: .85rem 1rem; }
+        &__card { min-height: 6.2rem; padding: .8rem 1rem; gap: 1.1rem; }
+        &__rail { width: .2rem; top: .65rem; bottom: .65rem; }
+        &__stage { width: 5.2rem; height: 5.2rem; border-radius: .75rem; }
+        &__icon {
+            --con-stdp-art: 3.85rem;
+            --con-stdp-art-compact: 3.45rem;
+            width: 4.4rem;
+            height: 4.4rem;
+
+            &.std-icon--excavate,
+            &.std-icon--delegate,
+            &.std-icon--generic { font-size: 2.25rem; }
+        }
         &__name { font-size: 1.35rem; }
-        &__desc { font-size: var(--con-t-body); }
+        &__desc { font-size: var(--con-t-body); line-height: 1.35; }
+        &__status { min-width: 5.4rem; padding-left: 1rem; }
         /* The cost / gain badges: the M€ number + the coin read together. */
         &__cost, &__gain {
             font-size: 1.2rem;
@@ -409,10 +420,9 @@ html.con-profile-tv {
             .resource_icon { width: 1.7rem; height: 1.7rem; }
         }
         &__gain-note { font-size: var(--con-t-caption); }
-        /* The per-row Ⓐ verb pill — a real couch control. */
-        &__btn { font-size: var(--con-t-secondary); padding: 0.35rem 0.8rem; }
         /* The focused item's context line (reason / «можно использовать»). */
         &__context { font-size: var(--con-t-secondary); }
+        &__foot { min-height: 2.3rem; padding-top: .45rem; }
         &__wallet-price, &__wallet-after, &__wallet-shortfall { font-size: var(--con-t-secondary); }
     }
 

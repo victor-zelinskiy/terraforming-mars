@@ -2802,9 +2802,18 @@ export default defineComponent({
         return [{control: 'back', label: 'Close'}];
       }
       if (this.consoleState.sheet === 'standardProjects') {
-        // Every project row renders its own Ⓐ verb chip — the bar anchors
-        // only the retreat.
-        return [{control: 'back', label: this.stdBackLabel}];
+        // One context-sensitive CTA belongs in the canonical command rail;
+        // repeating it on every project card adds noise and weakens focus.
+        const focused = this.stdProjectItems[this.consoleState.sheetIndex];
+        return [
+          {
+            control: 'confirm',
+            label: focused?.key === 'sell-patents' ? 'Sell' : 'Select',
+            enabled: focused?.available === true,
+            highlight: focused?.available === true,
+          },
+          {control: 'back', label: this.stdBackLabel},
+        ];
       }
       if (this.consoleState.sheet === 'cardActions') {
         // While the COMPOSER (setup / confirmation) is up, its dedicated

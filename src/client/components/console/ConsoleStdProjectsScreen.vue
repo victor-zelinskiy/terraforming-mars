@@ -46,20 +46,18 @@
               <b>{{ it.gain }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
               <span class="con-stdp__gain-note">/ {{ $t('card') }}</span>
             </span>
-            <span v-if="it.available" class="con-stdp__btn" :class="{'con-stdp__btn--focus': i === index}">
-              <GamepadGlyph control="confirm" />
-              <span>{{ $t(it.key === 'sell-patents' ? 'Sell' : 'Select') }}</span>
-            </span>
           </div>
         </article>
       </ConsoleScrollArea>
 
       <!-- Footer: the FOCUSED item's one-line context (controller hints live
            in the global command bar — CONSOLE_TV_PREMIUM_PLAN §3.2). -->
-      <div class="con-stdp__foot">
+      <div class="con-stdp__foot" aria-live="polite">
         <div class="con-stdp__context" :class="contextClass">
-          <span v-if="focused !== undefined && !focused.available">{{ focusedReason }}</span>
-          <span v-else-if="focused !== undefined" class="con-stdp__context-ready">{{ $t('Ready to use now') }}</span>
+          <span v-if="focused !== undefined" class="con-stdp__context-name">{{ $t(focused.title) }}</span>
+          <span v-if="focused !== undefined" class="con-stdp__context-divider" aria-hidden="true"></span>
+          <span v-if="focused !== undefined && !focused.available" class="con-stdp__context-state">{{ focusedReason }}</span>
+          <span v-else-if="focused !== undefined" class="con-stdp__context-state">{{ $t('Ready to use now') }}</span>
         </div>
       </div>
     </div>
@@ -77,7 +75,6 @@
  * input handling (grid nav / A / B) stays in ConsoleShell, like every sheet.
  */
 import {defineComponent, PropType} from 'vue';
-import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
@@ -85,7 +82,7 @@ import {StdProjectItem} from '@/client/console/consoleQuickModel';
 
 export default defineComponent({
   name: 'ConsoleStdProjectsScreen',
-  components: {ConsoleScrollArea, GamepadGlyph, BarButtonIcon},
+  components: {ConsoleScrollArea, BarButtonIcon},
   props: {
     items: {type: Array as PropType<ReadonlyArray<StdProjectItem>>, required: true},
     index: {type: Number, required: true},

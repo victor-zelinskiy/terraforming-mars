@@ -5069,8 +5069,9 @@ html.console-mode {
         position: relative;
         display: flex;
         align-items: center;
-        gap: .7rem;
-        padding: .6rem .8rem;
+        gap: .85rem;
+        min-height: 4.6rem;
+        padding: .7rem .85rem;
         border-radius: .55rem;
         background: rgba(14, 23, 34, 0.86);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
@@ -5083,6 +5084,11 @@ html.console-mode {
         &--go&--focused {
             box-shadow: inset 0 0 0 .1rem fade(@con-mint, 85%), 0 0 1.1rem fade(@con-mint, 24%);
         }
+        &--focused .con-stdp__stage {
+            background: linear-gradient(145deg, rgba(35, 69, 84, 0.88), rgba(11, 23, 32, 0.96));
+            box-shadow: inset 0 0 0 .06rem fade(@con-mint, 50%), 0 0 .9rem fade(@con-mint, 18%);
+        }
+        &--focused .con-stdp__icon { transform: scale(1.06); }
         &:last-child:nth-child(odd) { grid-column: 1 / -1; }
     }
     &__rail {
@@ -5096,17 +5102,83 @@ html.console-mode {
         box-shadow: 0 0 .4rem fade(@con-mint, 60%);
     }
     &__stage {
+        position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 2.9rem;
-        height: 2.9rem;
+        width: 3.8rem;
+        height: 3.8rem;
         flex-shrink: 0;
-        border-radius: .5rem;
-        background: radial-gradient(circle at 50% 40%, rgba(50, 78, 108, 0.55), rgba(14, 23, 34, 0.2) 72%);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        border-radius: .6rem;
+        background: linear-gradient(145deg, rgba(28, 45, 63, 0.86), rgba(10, 18, 28, 0.94));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28), 0 .35rem .9rem rgba(0, 0, 0, 0.28);
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: .22rem;
+            border: .05rem solid rgba(132, 172, 204, 0.2);
+            border-radius: .43rem;
+            pointer-events: none;
+        }
+        &::after {
+            content: '';
+            position: absolute;
+            left: 22%;
+            right: 22%;
+            bottom: .18rem;
+            height: .05rem;
+            border-radius: .05rem;
+            background: fade(@con-cyan, 45%);
+            box-shadow: 0 0 .35rem fade(@con-cyan, 28%);
+            pointer-events: none;
+        }
     }
-    &__icon { display: inline-block; width: 2rem; height: 2rem; }
+    &__icon {
+        --con-stdp-art: 2.8rem;
+        --con-stdp-art-compact: 2.5rem;
+        position: relative;
+        z-index: 1;
+        display: inline-block;
+        width: 3.2rem;
+        height: 3.2rem;
+        transition: transform calc(150ms * var(--motion-scale, 1)) ease;
+
+        /* The shared std-icon family uses fixed px artwork sizes for the
+           desktop overlay. Console owns its rem scale so the art itself,
+           not only its empty box, grows with the TV profile. */
+        &.std-icon--energy { background-size: var(--con-stdp-art) var(--con-stdp-art); }
+        &.std-icon--temperature { background-size: auto var(--con-stdp-art); }
+        &.std-icon--ocean,
+        &.std-icon--greenery,
+        &.std-icon--city { background-size: var(--con-stdp-art) var(--con-stdp-art); }
+        &.std-icon--venus { background-size: var(--con-stdp-art) auto; }
+        &.std-icon--colony,
+        &.std-icon--tr,
+        &.std-icon--moon-habitat,
+        &.std-icon--moon-mining,
+        &.std-icon--moon-logistics {
+            background-size: var(--con-stdp-art-compact) var(--con-stdp-art-compact);
+        }
+        &.std-icon--excavate,
+        &.std-icon--delegate,
+        &.std-icon--generic { font-size: 1.65rem; }
+        &.std-icon--sell-patents {
+            &::before {
+                left: 12%;
+                top: 8%;
+                width: 58%;
+                height: 76%;
+            }
+            &::after {
+                right: 2%;
+                bottom: 3%;
+                width: 48%;
+                height: 48%;
+            }
+        }
+    }
     &__body { flex: 1; min-width: 0; }
     &__name {
         font-size: 1rem;
@@ -5124,7 +5196,11 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
-        gap: .4rem;
+        justify-content: center;
+        align-self: stretch;
+        min-width: 4rem;
+        padding-left: .7rem;
+        border-left: .05rem solid rgba(120, 150, 180, 0.16);
         flex-shrink: 0;
     }
     &__cost {
@@ -5146,48 +5222,54 @@ html.console-mode {
         .resource_icon { width: 1.3rem; height: 1.3rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
     }
     &__gain-note { font-size: .75rem; color: @con-text-dim; }
-    &__btn {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        padding: .25rem .6rem;
-        border-radius: .4rem;
-        font-size: .8rem;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        background: rgba(16, 26, 38, 0.7);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
-        color: fade(@con-mint, 88%);
-
-        &--focus {
-            background: fade(@con-mint, 18%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 85%), 0 0 .7rem fade(@con-mint, 30%);
-            color: #eafff5;
-        }
-    }
     &__foot {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: .8rem;
-        padding-top: .2rem;
+        min-height: 1.9rem;
+        padding: .35rem .15rem 0;
         border-top: .05rem solid rgba(120, 150, 180, 0.18);
     }
     &__context {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        min-width: 0;
         font-size: .85rem;
         color: @con-text-dim;
-        &--ready { color: @con-mint; }
-        &--blocked { color: @con-amber; }
+        &--ready .con-stdp__context-state { color: @con-mint; }
+        &--blocked .con-stdp__context-state { color: @con-amber; }
     }
-    &__context-ready { color: @con-mint; }
-    &__hints { display: flex; gap: 1.1rem; }
-    &__hint {
+    &__context-name {
+        overflow: hidden;
+        color: @con-text;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-overflow: ellipsis;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    &__context-divider {
+        width: .05rem;
+        height: .9rem;
+        flex-shrink: 0;
+        background: rgba(120, 150, 180, 0.28);
+    }
+    &__context-state {
         display: inline-flex;
         align-items: center;
         gap: .4rem;
-        color: @con-text-dim;
-        font-size: .85rem;
-        &--off { opacity: 0.45; }
+
+        &::before {
+            content: '';
+            width: .32rem;
+            height: .32rem;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 .35rem currentColor;
+        }
     }
 }
 
