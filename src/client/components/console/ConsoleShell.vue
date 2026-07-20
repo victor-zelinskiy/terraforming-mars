@@ -16,16 +16,9 @@
          P15: the return verb is CONTEXT-AWARE (selection / draft / start
          setup / decision) — never a generic «return to game» while the
          player is already in the game. -->
-    <div v-if="(hostTask !== undefined || shellTask !== undefined || startTask !== undefined) && consoleState.task.deferred" class="con-banner con-banner--deferred" :aria-label="deferKicker + ': ' + deferAsk">
-      <span class="con-banner__pulse" aria-hidden="true"></span>
-      <!-- WHAT KIND of decision (the classification chip) … -->
-      <span class="con-banner__kicker">{{ deferKicker }}</span>
-      <!-- … and the CONCRETE ask — never a bare «ожидает решения». -->
-      <span class="con-banner__ask">{{ deferAsk }}</span>
-      <!-- WHO asks, when the server named a source card. -->
-      <span v-if="deferSourceCard !== undefined" class="con-banner__src">{{ $t(deferSourceCard) }}</span>
-      <span class="con-banner__hint"><GamepadGlyph control="back" /><span>{{ $t(deferReturnLabel) }}</span></span>
-    </div>
+    <!-- (The legacy amber "deferred" banner was UNIFIED into the mandatory
+         prompt card below — one premium surface, its CTA relabels by state
+         (Открыть / Вернуться к решению). No second visual style. -->
 
     <!-- PRESENTATION FLOW: the quiet pending-queue chip — events are waiting
          their FIFO turn behind the active foreground item. Informational
@@ -1656,8 +1649,16 @@ export default defineComponent({
      * beat stays HELD but the announcement waits — the player sees only their
      * chip status until they've "closed the screen / finished the animations".
      */
+    /** A task the player OPENED then DEFERRED (set aside) — the "return" state
+     *  of the unified mandatory prompt (replaces the legacy amber chip). */
+    mandatoryDeferredActive(): boolean {
+      return (this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) &&
+        this.consoleState.task.deferred;
+    },
     mandatoryAnnounceVisible(): boolean {
-      return this.mandatoryGateHeld &&
+      // ONE premium surface for BOTH states: a fresh HELD decision (opens with
+      // A) and a DEFERRED one (returns with A). Board-home + idle either way.
+      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
         // The player is on the MAIN board view (they've "closed the screen /
         // finished the animations") — not in the hand carousel / a sheet / an
         // overlay / an inspection mode / a placement.
@@ -1679,10 +1680,16 @@ export default defineComponent({
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
     },
-    /** The announcement's copy — reuses the SAME consoleTaskSummary the deferred
-     *  chip uses (kicker + concrete ask + source card), so they can't diverge. */
+    /** The prompt card's copy (one consoleTaskSummary source, so nothing can
+     *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
+     *  decision, «Вернуться к решению» for a deferred one. */
     mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, openLabel: string} {
-      return {kicker: this.deferKicker, ask: this.deferAsk, sourceCard: this.deferSourceCard, openLabel: 'Open'};
+      return {
+        kicker: this.deferKicker,
+        ask: this.deferAsk,
+        sourceCard: this.deferSourceCard,
+        openLabel: this.mandatoryGateHeld ? 'Open' : this.deferReturnLabel,
+      };
     },
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
@@ -2033,7 +2040,11 @@ export default defineComponent({
      *  but not playable in this window — the honest alternative to a bare block
      *  when the server has no rules-reason (opponent's turn / mid-placement). */
     handSoftReason(): string {
-      return this.placementActive ? 'Finish your current action first' : 'Not your turn to take any actions';
+      // On the viewer's OWN turn a card that isn't playable now is blocked by a
+      // pending decision (a mandatory corp/forced prompt, a placement, a mid-sub
+      // action) — «Сначала завершите текущее действие», NOT «Сейчас не ваш ход»
+      // (which is only true when it is genuinely an opponent's turn).
+      return this.placementActive || this.myTurn ? 'Finish your current action first' : 'Not your turn to take any actions';
     },
     /** True when the hand grid is the surface the right stick should scroll —
      *  in the hand section with nothing layered on top (a play-confirm / task /
@@ -2114,7 +2125,9 @@ export default defineComponent({
     },
     colonyTradeBlockReason(): string {
       if (this.tradeColonyContext === undefined) {
-        return 'Not your turn to take any actions';
+        // My turn but no trade window → a pending decision blocks it first;
+        // «Сейчас не ваш ход» only when it is genuinely an opponent's turn.
+        return this.myTurn ? 'Finish your current action first' : 'Not your turn to take any actions';
       }
       const selected = this.game.colonies[this.consoleState.colonyIndex];
       if (selected !== undefined && selected.visitor !== undefined) {
@@ -2976,10 +2989,11 @@ export default defineComponent({
         {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
       ];
-      // A pending INTERRUPTIVE mandatory action is announced on the board home
-      // and OPENED with B (consoleMandatoryGate) — anchor its B verb in the bar.
+      // A pending mandatory decision is announced on the board home and opened
+      // / returned-to with A (consoleMandatoryGate) — anchor its A verb in the
+      // bar (A is otherwise free on the board home).
       if (this.mandatoryAnnounceVisible) {
-        home.unshift({control: 'back', label: this.mandatoryAnnounceView.openLabel});
+        home.unshift({control: 'confirm', label: this.mandatoryAnnounceView.openLabel});
       }
       return home;
     },
@@ -3609,14 +3623,18 @@ export default defineComponent({
       if (this.consoleCardZoom.card !== undefined) {
         return this.handleZoomIntent(intent);
       }
-      // MANDATORY ANNOUNCEMENT (consoleMandatoryGate): while the announcement
-      // is visible the pending interruptive mandatory action is the priority —
-      // B OPENS it (the surface was held closed so it never popped over what the
-      // player was watching). Navigation / other presses pass through so the
-      // player can keep inspecting the board until they choose to open it. This
-      // takes B ahead of a transient toast (the mandatory decision dominates).
-      if (this.mandatoryAnnounceVisible && intent.kind === 'press' && action === 'back') {
-        this.openMandatoryAnnounce();
+      // MANDATORY PROMPT (consoleMandatoryGate): while the prompt card is
+      // visible the pending mandatory decision is the priority — A OPENS a held
+      // one / RETURNS to a deferred one (A is free on the board home; the
+      // surface was held closed so it never popped over what the player was
+      // watching). Navigation / other presses pass through so the player can
+      // keep inspecting the board. Takes A ahead of a transient toast.
+      if (this.mandatoryAnnounceVisible && intent.kind === 'press' && action === 'primary') {
+        if (this.mandatoryGateHeld) {
+          this.openMandatoryAnnounce();
+        } else {
+          this.restoreDeferredTask();
+        }
         return true;
       }
       // PRESENTATION FLOW: ANY visible console notification is dismissable with
@@ -4539,14 +4557,11 @@ export default defineComponent({
           return;
         }
       }
-      // A DEFERRED task comes back first — B toggles task ↔ board-inspect.
+      // A DEFERRED task comes back first — B toggles task ↔ board-inspect (the
+      // prompt card's A does the same; B stays a global fallback / other-section
+      // return, since the card only shows on the board home).
       if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
-        this.consoleState.task.deferred = false;
-        // A shell-section task re-opens its serving surface (the start
-        // scene and the host re-render via their own v-if).
-        if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
-          this.openShellTaskSurface(this.shellTask);
-        }
+        this.restoreDeferredTask();
         return;
       }
       if (this.consoleState.sale.active) {
@@ -5389,10 +5404,20 @@ export default defineComponent({
       // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once the
       // gate releases — nothing else to open here.
     },
-    /** Navigating away from a shell task's surface DEFERS it (amber chip). */
+    /** Navigating away from a shell task's surface DEFERS it (the prompt card
+     *  flips to its «Вернуться к решению» state). */
     deferShellTask(): void {
       if (this.shellTask !== undefined && !this.consoleState.task.deferred) {
         this.consoleState.task.deferred = true;
+      }
+    },
+    /** Return to a DEFERRED task — clear the defer + re-open its surface (a
+     *  shell-section task; host / start scenes re-render via their own v-if).
+     *  Shared by the prompt card's A and the global B-back. */
+    restoreDeferredTask(): void {
+      this.consoleState.task.deferred = false;
+      if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
+        this.openShellTaskSurface(this.shellTask);
       }
     },
     onTaskSpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {

@@ -9980,7 +9980,18 @@ body.con-start-ceremony {
 
     &__bg {
         position: absolute;
-        inset: 0;
+        /* NOT `inset: 0`: an absolute child fills the PADDING box, so the
+           ceremony's `padding-left` on `.con-start` shifts the content frame
+           but NOT this backdrop — it kept dimming the left resource rail during
+           the corp-reveal / prelude-PLAY (the whole point of yielding the rail
+           was defeated). Inset the veil's LEFT by the SAME measured rail width
+           (`--con-start-rail-inset`, set by syncCeremonyLayout in ceremony mode;
+           unset → 0 in the wizard, so the veil stays full-width there). Now the
+           left rail reads BRIGHT on the start-of-game screens. */
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: var(--con-start-rail-inset, 0);
         /* Themed dim (cyan top / warm bottom) — NO blur (Steam Deck); the
            0.92 base carries the occlusion the frost used to. */
         background:
@@ -11671,64 +11682,15 @@ html.console-mode .notifications-layer {
 .con-task-swap-enter-from { opacity: 0; transform: translateY(.5rem); }
 .con-task-swap-leave-to { opacity: 0; }
 
-/* Deferred-task chip flavor of the banner. */
-.con-banner--deferred {
-    top: calc(1.2vh + 4.8rem); /* P21: below the prompt banner (both overlay) */
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 60%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.4), 0 0 .9rem fade(@con-amber, 14%);
-    /* The chip is now TWO-LEVEL (kind + concrete ask + source card), so it can
-       outgrow the board's clear centre. Bound it and let the ASK ellipsize —
-       the kicker + the B hint must never be the part that gets cut. */
-    max-width: ~"min(58rem, 78vw)"; /* LESS owns min() — escape to keep the CSS one. */
-    .con-banner__pulse {
-        background: @con-amber;
-        box-shadow: 0 0 .5rem fade(@con-amber, 85%);
-    }
-    /* The classification chip — the decision TYPE, read first. */
-    .con-banner__kicker {
-        flex: 0 0 auto;
-        color: @con-amber;
-        font-weight: 700;
-    }
-    /* The concrete ask — the sentence the player actually needs. Sentence
-       case (the band is uppercase by default, which mangles a real prompt). */
-    .con-banner__ask {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        padding-left: .55rem;
-        border-left: .05rem solid fade(@con-amber, 30%);
-        color: fade(#ffffff, 92%);
-        text-transform: none;
-        letter-spacing: .02rem;
-    }
-    /* WHO asks — the source card the server named. */
-    .con-banner__src {
-        flex: 0 0 auto;
-        max-width: 14rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        padding: .05rem .45rem;
-        border-radius: 49.95rem;
-        background: fade(@con-amber, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
-        color: fade(#ffffff, 82%);
-        font-size: .8rem;
-        text-transform: none;
-        letter-spacing: .02rem;
-    }
-    .con-banner__hint {
-        flex: 0 0 auto;
-        border-left-color: fade(@con-amber, 25%);
-    }
-}
+/* (The legacy .con-banner--deferred amber chip was UNIFIED into the mandatory
+   prompt card (.con-mandatory) — one premium surface whose CTA relabels by
+   state. Its two-level copy sub-elements moved there with it.) */
 
 /* PRESENTATION FLOW: the quiet pending-events chip — notifications waiting
    their FIFO turn behind the active foreground item. Informational only;
    the journal (View) is the event center. Critical accent when the queue
-   holds a hostile loss / an AI turn. Sits BELOW the deferred chip's band so
-   the two never overlap. */
+   holds a hostile loss / an AI turn. Sits BELOW the mandatory prompt card's
+   band so the two never overlap. */
 .con-banner--events {
     top: calc(1.2vh + 7.4rem);
 

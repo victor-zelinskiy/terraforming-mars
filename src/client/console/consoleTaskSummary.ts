@@ -261,7 +261,11 @@ export function consoleTaskSummary(
     };
 
   case 'corpFirstAction':
-    return {kickerKey: 'Corporation', ask: ask(wf, 'Take the first action of your corporation'), returnKey: 'Return to the decision'};
+    // The kicker NAMES it as the corporation's FIRST action (not a vague
+    // "Corporation"); the ask is a FIXED phrase — the server ships a generic
+    // Message title ("Select an option") that would otherwise read as
+    // «Выберите вариант», and there aren't always literal "options".
+    return {kickerKey: 'First corporation action', ask: 'Take your corporation action', returnKey: 'Return to the decision'};
 
   case 'aresGlobal':
     return {kickerKey: 'Ares', ask: ask(wf, 'Shift an Ares global parameter'), returnKey: 'Return to the decision'};

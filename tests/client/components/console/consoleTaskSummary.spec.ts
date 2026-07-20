@@ -51,7 +51,7 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'colony', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, kicker: 'Colony'},
   {row: 'award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, kicker: 'Award sponsorship'},
   {row: 'initial draft', wf: {type: 'initialCards', title: 'Select initial cards'}, kicker: 'Start of the game'},
-  {row: 'corp first action', wf: {type: 'or', title: 'Take first action of X', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, kicker: 'Corporation'},
+  {row: 'corp first action', wf: {type: 'or', title: 'Take first action of X', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, kicker: 'First corporation action'},
   {row: 'start: corp play', wf: {type: 'card', title: 'Play your corporation', cards: [], startGamePrompt: {kind: 'corporationPlay'}}, kicker: 'Corporation'},
   {row: 'start: corp pay', wf: {type: 'card', title: 'Pay for your cards', cards: [], startGamePrompt: {kind: 'corporationPay'}}, kicker: 'Payment'},
   {row: 'start: prelude', wf: {type: 'card', title: 'Select prelude card to play', cards: [], startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'}}, kicker: 'Prelude'},
