@@ -185,12 +185,14 @@ body.con-zoom-open .con-handdock {
     border-radius: .5rem;
     background: @con-glass-soft;
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
-    /* The top HUD is chrome — sits ABOVE the z0 hand dock so the cards can
-       never paint over the status rail. z1 (not higher) keeps its existing
-       relationship with `.con-main` (also z1, but DOM-later so it still wins)
-       and every scene/modal, changing ONLY dock-vs-status. */
+    /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
+       any state. The dock rides the footer band (z11700, card pack z11705) or,
+       under a workspace/scene, drops to z0; either way this sits ABOVE it, so
+       the status rail is never covered by the hand. Below the big cinematic /
+       modal layers (ceremony 11720, reveal 11890, flight 11900, mandatory modal
+       12000) which legitimately take over the whole screen. */
     position: relative;
-    z-index: 1;
+    z-index: 11706;
 
     &__params {
         display: flex;
@@ -6300,18 +6302,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    mirrors the bar height per profile (kept in sync with the .con-cmdbar
    height rules) — the dock anchors its shoulder rails to it. */
 .con-footer {
-    /* position: relative ONLY as the hand-dock's offset parent + layout — it
-       MUST NOT set a z-index (that would make the footer a stacking context
-       and re-TRAP the dock's z inside the 11700 band). The footer's two
-       children carry their OWN z relative to `.con-root`: the command bar
-       stays HIGH (`.con-cmdbar` z11700 — above every modal backdrop, always
-       bright) while the hand dock drops LOW (`.con-handdock` z0 — below
-       `.con-main` (z1) and thus below every scene/modal/board content). So
-       the DOCK CARDS never cover anything, anywhere, while the bottom command
-       bar keeps showing. This replaced the old per-scene footer-z toggling
-       (`--under-scene` / `--behind-workspace`), which could only move the
-       WHOLE footer (dock + bar together) and so kept leaking the dock over
-       task-host / buy / prelude surfaces it wasn't enumerated for. */
+    /* NO z-index — the footer must NOT be a stacking context, so its children
+       carry their OWN z relative to `.con-root` and can straddle `.con-main`
+       (z1): the command bar (`.con-cmdbar` z11700), the dock's chassis (wings
+       z11703 + plate/counter z11705) stay ABOVE every scene/modal — bright,
+       welded, always readable — while ONLY the rising card PACK drops BELOW
+       `.con-main` (z0) so it sits UNDER a modal instead of over it (see
+       `.con-handdock__pack`). position: relative kept only as the dock's
+       offset parent. (The old per-scene footer-z drop is gone — the pack's own
+       z now does the tucking, so the plate/counter never go under with it.) */
     position: relative;
     flex-shrink: 0;
     --con-bar-h: 2.6rem;
@@ -6324,26 +6323,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    the model constants (HAND_DOCK_CARD_*_REM) — keep them in sync. */
 .con-handdock {
     position: absolute;
-    left: 50%;
+    /* Centre WITHOUT transform (left:0/right:0 + margin:auto) — a `transform`
+       would make the dock a stacking context and re-TRAP the pack in the
+       chassis band, defeating the whole point. NO z-index on the root either;
+       the chassis (wings/plate, high z) and the pack (low z in scenes) are
+       given their OWN z below, relative to `.con-root`. Width-agnostic, so the
+       per-profile width overrides still centre. */
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
     bottom: .35rem;
-    transform: translateX(-50%);
     width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
     height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
-    /* The footer is NOT a stacking context (no z-index), so this z is relative
-       to `.con-root`. DEFAULT high (above `.con-main` z1) — the interactive
-       board-home hand: visible, clickable, and its raised pack sits over the
-       board. The instant ANY full surface is up (`--behind`, below) the dock
-       drops BELOW `.con-main` so its cards can never cover a scene/modal. The
-       command bar carries its OWN z (`.con-cmdbar` z11700) so it stays bright
-       either way. */
-    z-index: 11705;
-    /* Every non-board-home state (`!handDockInteractive` → `dockBehind`): the
-       dock cards must NEVER paint over the scene/modal — drop below `.con-main`
-       (z1). The card pack still lands here (the hand-intake director measures
-       position, not z); overlays simply cover it. */
-    &--behind {
-        z-index: 0;
-    }
     /* Pack presentation knobs (the hover/focused state retunes them). */
     --hd-card-w: 3.15rem;
     --hd-card-h: 4.4rem;
@@ -6364,6 +6356,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .12rem;
         border-radius: .06rem;
         pointer-events: none;
+        /* Bar chrome — above `.con-main` (z1) so the rim stays with the bar
+           over any scene, just behind the pack. */
+        z-index: 11703;
     }
     &__wing--l {
         right: calc(100% + .45rem);
@@ -6382,6 +6377,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         width: 0; /* cards centre themselves around this axis */
         height: var(--hd-card-h);
         pointer-events: none;
+        /* Board home: ABOVE `.con-main` (z1) so the raised pack sits over the
+           board, but UNDER the plate (z11705) which paints in front of the card
+           bottoms. In a scene it drops to z0 (below) — see the `:not(--live)`
+           rule after this block. The card children keep their own inline
+           z (3+i), stacked WITHIN this pack. */
+        z-index: 11704;
     }
     &__card {
         position: absolute;
@@ -6432,11 +6433,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         bottom: 0;
         height: 2.7rem;
         pointer-events: none;
-        /* ABOVE the pack (cards carry z 3..N+2, and EVERY hand card is a
-           physical element now — a 40-card hand tops out near 42): the
-           card bottoms sink INTO the tray — the physical read the whole
-           dock is built on. Far above any realistic hand size. */
-        z-index: 200;
+        /* The CHASSIS counter — ABOVE the pack (z11704) so the card bottoms
+           sink INTO the tray, and ABOVE `.con-main` (z1) so «КАРТЫ N/M» is
+           ALWAYS readable, welded in the bar, over any scene/modal. (Now that
+           the dock is not a stacking context, this z is relative to
+           `.con-root`; the cards keep their own inline z WITHIN the pack.) */
+        z-index: 11705;
         /* kant layer (the crisp angular rim) */
         background: linear-gradient(180deg, fade(@con-cyan, 62%), fade(@con-cyan, 20%) 45%, rgba(90, 130, 170, 0.34));
         clip-path: polygon(.8rem 0, calc(100% - .8rem) 0, 100% .55rem, calc(100% - 1.15rem) 100%, 1.15rem 100%, 0 .55rem);
@@ -6563,6 +6565,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .1rem;
         background: linear-gradient(90deg, transparent, fade(@con-mint, 55%), transparent);
     }
+}
+
+/* ── The rising card PACK slides UNDER any scene/modal — the ONE dock fix ────
+   The dock chassis NEVER moves: the «КАРТЫ N/M» plate/counter (z11705), the
+   wings (z11703) and the command bar (z11700) stay ABOVE every scene/modal —
+   bright, welded, always readable. Only the rising card PACK changes layer:
+   the instant the dock is not the interactive board-home hand (`:not(--live)`
+   ⟺ `!handDockInteractive` — a task host / buy / draft / prelude / sheet /
+   colonies·hydro section / … owns the screen) it drops to z0, BELOW `.con-main`
+   (z1), so the cards sit UNDER the modal instead of over it. It stays fully
+   RENDERED (a z change, NOT visibility/opacity) → the pack never blinks in/out,
+   just re-layers; the modal's own backdrop is what sits over it. Board home
+   (`--live`) keeps the pack at z11704, over the board, exactly as before. */
+.con-handdock:not(.con-handdock--live) .con-handdock__pack {
+    z-index: 0;
 }
 
 /* Pack enter/leave (a card joins / leaves the hand): rise out of / sink
