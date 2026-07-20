@@ -38,6 +38,20 @@
       <span class="con-banner__count">+{{ pendingEvents.count }}</span>
     </div>
 
+    <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): an INTERRUPTIVE mandatory
+         prompt (corp first action / drawn-cards reveal / forced hand pick /
+         off-turn reaction) is ANNOUNCED here — not popped open — and the player
+         opens it with B when they're ready. Shown only once the foreground is
+         idle (screens closed, animations done). -->
+    <transition name="con-layer">
+      <ConsoleMandatoryAnnounce v-if="mandatoryAnnounceVisible"
+                                :variant="mandatoryAnnounceView.variant"
+                                :kicker="mandatoryAnnounceView.kicker"
+                                :ask="mandatoryAnnounceView.ask"
+                                :sourceCard="mandatoryAnnounceView.sourceCard"
+                                :openLabel="mandatoryAnnounceView.openLabel" />
+    </transition>
+
     <!-- THE DRAFT TRAY — the ONE persistent "selected cards area" of the
          draft (top-centre, ON the table, under the task modal): picked
          cards fly hero-style into it, the calm draftWait banner lives on
@@ -890,6 +904,16 @@ import {boardInfoState, configureBoardInfo, fetchBoardCellPreview} from '@/clien
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {journalState} from '@/client/components/journal/journalState';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
+import ConsoleMandatoryAnnounce from '@/client/components/console/ConsoleMandatoryAnnounce.vue';
+import {
+  MandatoryBeat,
+  mandatoryBeatFor,
+  isMandatoryBeatHeld,
+  acknowledgeMandatoryBeat,
+  resetMandatoryGate,
+  setMandatoryGateHeld,
+} from '@/client/console/consoleMandatoryGate';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -914,6 +938,7 @@ export default defineComponent({
   name: 'ConsoleShell',
   components: {
     ConsoleStatusStrip,
+    ConsoleMandatoryAnnounce,
     ConsoleTerraformingCeremony,
     ConsoleBotTurnReview,
     ConsoleCommandBar,
@@ -1438,8 +1463,10 @@ export default defineComponent({
     activeConsoleTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — the task host (and, cascading
       // off it, the gov-support panel) does not serve under it (see startTask).
+      // Also held while a drawn reveal is pending, and while THIS interruptive
+      // host prompt is still GATED (announced, not yet opened — consoleMandatoryGate).
       if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds ||
-          this.consoleRevealMode !== undefined) {
+          this.consoleRevealMode !== undefined || this.rawDrawnRevealPending || this.taskGateHeld) {
         return undefined;
       }
       return taskServedByHost(this.playerView);
@@ -1492,7 +1519,12 @@ export default defineComponent({
     shellTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — no shell section activates
       // under it (see startTask). It re-opens once the reveal is finished.
-      if (this.presentationHeld || this.playedHeroHolds || this.consoleRevealMode !== undefined) {
+      // Also suppressed while a drawn reveal is PENDING (even gated — the
+      // Pluto discard waits for the WHOLE reveal beat: announce → open → take →
+      // clear), and while THIS interruptive task is still GATED (announced, not
+      // yet opened via B — consoleMandatoryGate).
+      if (this.presentationHeld || this.playedHeroHolds || this.consoleRevealMode !== undefined ||
+          this.rawDrawnRevealPending || this.taskGateHeld) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -1526,7 +1558,7 @@ export default defineComponent({
       // the start scene must NOT mount / grab focus under the reveal. It
       // re-activates the instant the reveal closes (the consoleForegroundBusy
       // watcher opens the serving surface then).
-      if (this.presentationHeld || this.consoleRevealMode !== undefined) {
+      if (this.presentationHeld || this.consoleRevealMode !== undefined || this.rawDrawnRevealPending) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -1557,25 +1589,29 @@ export default defineComponent({
     draftedCards(): ReadonlyArray<CardModel> {
       return this.playerView.draftedCards ?? [];
     },
+    /**
+     * A DRAWN-cards reveal is pending — the RAW signal, BEFORE the mandatory-
+     * announce gate. Kept separate from `consoleRevealMode` so the gate
+     * derivation stays acyclic (the gate suppresses the overlay by making
+     * `consoleRevealMode` undefined while the reveal beat is held).
+     */
+    rawDrawnRevealPending(): boolean {
+      // The tile-placement hero owns the screen through its landing + reward
+      // beat, and the deck-draw scene deals the cards out first — the drawn
+      // reveal assembles only after those (same holds as the old 'drawn' branch).
+      if (this.tilePlacementHolds || deckDrawHolds()) {
+        return false;
+      }
+      return currentRevealEvent() !== undefined;
+    },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
-      // The tile-placement hero owns the screen through its landing +
-      // reward beat — a card-draw reveal earned by the SAME placement (a
-      // cell with a resource AND a card) opens right after, never over the
-      // still-flying bonuses (the computed re-evaluates on `done`).
-      if (this.tilePlacementHolds) {
-        return undefined;
-      }
-      // The cards are still physically coming off the top-bar deck: the
-      // player watches the board, the deck and the hold zone. The modal must
-      // not exist yet — it assembles AROUND the found cards once the search
-      // is over (the scene releases this at its 'assemble' phase, where the
-      // overlay mounts veiled so its slots can be measured).
-      if (deckDrawHolds()) {
-        return undefined;
-      }
-      if (currentRevealEvent() !== undefined) {
-        return 'drawn';
+      // A GATED (not-yet-opened) drawn reveal is ANNOUNCED first
+      // (consoleMandatoryGate): treat it as not-yet-shown so nothing — the
+      // overlay, its input routing, the command bar, foreground-busy — activates
+      // for it until the player opens it (B). Once opened it shows normally.
+      if (this.rawDrawnRevealPending) {
+        return this.revealGateHeld ? undefined : 'drawn';
       }
       const lr = this.playerView.lastReveal;
       if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey) {
@@ -1585,6 +1621,78 @@ export default defineComponent({
         return 'viewer';
       }
       return undefined;
+    },
+    // ── MANDATORY ANNOUNCEMENT GATE (consoleMandatoryGate.ts) ────────────
+    /**
+     * The viewer's status is an OFF-TURN FORCED REACTION (not their own active
+     * turn) — reuses the canonical player-status classifier so the gate and the
+     * chip can never disagree. Gates the triggered host sub-prompts (an
+     * opponent's card forcing a SelectPlayer / production loss); the viewer's
+     * OWN turn continuations stay `turn` and open immediately.
+     */
+    viewerForcedReaction(): boolean {
+      return actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers)) === 'forcedaction';
+    },
+    /** The current interruptive mandatory BEAT (a drawn reveal or a gated task). */
+    mandatoryBeat(): MandatoryBeat | undefined {
+      const wf = this.playerView.waitingFor;
+      return mandatoryBeatFor({
+        revealDrawnBatchId: this.rawDrawnRevealPending ? currentRevealEvent()?.id : undefined,
+        task: taskFor(this.playerView),
+        taskKey: wf === undefined ? '' : `${wf.type}|${inputTitleText(wf.title) ?? ''}`,
+        forcedReaction: this.viewerForcedReaction,
+      });
+    },
+    /** The current beat is HELD (announced, not yet OPENED by the player). While
+     *  held, its surface is suppressed — only the chip status + the announcement
+     *  show; B opens it. */
+    mandatoryGateHeld(): boolean {
+      return isMandatoryBeatHeld(this.mandatoryBeat);
+    },
+    /** The held beat is a TASK → suppress its surface (shellTask / hostTask). */
+    taskGateHeld(): boolean {
+      return this.mandatoryGateHeld && this.mandatoryBeat?.kind === 'task';
+    },
+    /** The held beat is a drawn REVEAL → suppress the reveal overlay. */
+    revealGateHeld(): boolean {
+      return this.mandatoryGateHeld && this.mandatoryBeat?.kind === 'reveal';
+    },
+    /**
+     * Is the player idle/free enough to SHOW the announcement (and press B to
+     * open)? While an animation / hero / another full surface owns the screen the
+     * beat stays HELD but the announcement waits — the player sees only their
+     * chip status until they've "closed the screen / finished the animations".
+     */
+    mandatoryAnnounceVisible(): boolean {
+      return this.mandatoryGateHeld &&
+        // The player is on the MAIN board view (they've "closed the screen /
+        // finished the animations") — not in the hand carousel / a sheet / an
+        // overlay / an inspection mode / a placement.
+        this.consoleState.section === 'board' &&
+        !isAnimationHoldActive() &&
+        !this.presentationHeld &&
+        !this.playedHeroHolds &&
+        !this.tilePlacementHolds &&
+        this.consoleCardZoom.card === undefined &&
+        !journalState.open &&
+        this.consoleState.sheet === undefined &&
+        this.consoleState.quick === undefined &&
+        this.consoleState.confirm === undefined &&
+        !this.consoleState.fallbackActive &&
+        !this.consoleState.inspecting &&
+        !this.consoleState.scaleInspecting &&
+        !this.placementActive &&
+        !this.botTurnReviewState.open &&
+        !this.govScaleFocusState.holding &&
+        !this.govScaleFocusState.closing;
+    },
+    /** The announcement's copy — a drawn reveal vs a task (the task reuses the
+     *  SAME consoleTaskSummary the deferred chip uses, so they can't diverge). */
+    mandatoryAnnounceView(): {variant: 'action' | 'reveal', kicker: string, ask: string, sourceCard: CardName | undefined, openLabel: string} {
+      if (this.mandatoryBeat?.kind === 'reveal') {
+        return {variant: 'reveal', kicker: this.$t('New cards'), ask: this.$t('Review the cards you received'), sourceCard: undefined, openLabel: 'Review'};
+      }
+      return {variant: 'action', kicker: this.deferKicker, ask: this.deferAsk, sourceCard: this.deferSourceCard, openLabel: 'Open'};
     },
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
@@ -2864,7 +2972,7 @@ export default defineComponent({
       // The LB/RB hints moved INTO the right panel's Milestones/Awards
       // blocks (they sit right on the objects they open) — the freed slots
       // bring the Menu/System indicator back to the bar.
-      return [
+      const home: Array<ConsoleCommand> = [
         {control: 'inspect', label: 'Information'},
         {control: 'secondary', label: 'Played'},
         {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
@@ -2878,6 +2986,12 @@ export default defineComponent({
         {control: 'stickR', label: 'Scale inspection'},
         {control: 'view', label: 'Log'},
       ];
+      // A pending INTERRUPTIVE mandatory action is announced on the board home
+      // and OPENED with B (consoleMandatoryGate) — anchor its B verb in the bar.
+      if (this.mandatoryAnnounceVisible) {
+        home.unshift({control: 'back', label: this.mandatoryAnnounceView.openLabel});
+      }
+      return home;
     },
     // ── P15: the fullscreen viewer's select context ─────────────────────
     /** The TV rules panel shows for cards with structured information —
@@ -3149,7 +3263,10 @@ export default defineComponent({
     // isn't left with NO surface (the stranded guard). Respects an explicit
     // defer (the player chose to inspect the board).
     consoleForegroundBusy(busy: boolean, wasBusy: boolean): void {
-      if (wasBusy && !busy && !this.consoleState.task.deferred) {
+      // Don't auto-open an interruptive task that is still GATED (announced,
+      // not yet opened via B) — it waits for the player's press, not for the
+      // foreground to clear (consoleMandatoryGate).
+      if (wasBusy && !busy && !this.consoleState.task.deferred && !this.taskGateHeld) {
         const task = taskFor(this.playerView);
         if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
           this.openShellTaskSurface(task);
@@ -3165,6 +3282,15 @@ export default defineComponent({
       if (open) {
         this.consoleState.section = 'board';
       }
+    },
+    // Mirror the live gate-held state into the module so the leak detector (a
+    // timer that can't recompute the shell signals) treats a held prompt as
+    // legitimately served — the announcement / chip is its surface (B opens it).
+    mandatoryGateHeld: {
+      immediate: true,
+      handler(held: boolean): void {
+        setMandatoryGateHeld(held);
+      },
     },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
@@ -3492,6 +3618,16 @@ export default defineComponent({
       // consoleCardZoom, so they still route to the DOM engine below.
       if (this.consoleCardZoom.card !== undefined) {
         return this.handleZoomIntent(intent);
+      }
+      // MANDATORY ANNOUNCEMENT (consoleMandatoryGate): while the announcement
+      // is visible the pending interruptive mandatory action is the priority —
+      // B OPENS it (the surface was held closed so it never popped over what the
+      // player was watching). Navigation / other presses pass through so the
+      // player can keep inspecting the board until they choose to open it. This
+      // takes B ahead of a transient toast (the mandatory decision dominates).
+      if (this.mandatoryAnnounceVisible && intent.kind === 'press' && action === 'back') {
+        this.openMandatoryAnnounce();
+        return true;
       }
       // PRESENTATION FLOW: ANY visible console notification is dismissable with
       // B — a global rule (every toast advertises «B Закрыть» on the card). The
@@ -5243,6 +5379,28 @@ export default defineComponent({
         this.consoleState.section = 'board';
       }
     },
+    /**
+     * OPEN the announced interruptive mandatory beat (the player pressed B on
+     * the announcement — consoleMandatoryGate). Acknowledging the beat releases
+     * the gate: a reveal / host / corp-first modal auto-mounts once its
+     * suppression clears, and a shell-section task (hand discard / colony /
+     * play-from-hand) is opened onto its surface.
+     */
+    openMandatoryAnnounce(): void {
+      const beat = this.mandatoryBeat;
+      if (beat === undefined) {
+        return;
+      }
+      acknowledgeMandatoryBeat(beat.key);
+      if (beat.kind === 'task') {
+        const task = taskFor(this.playerView);
+        if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
+          this.openShellTaskSurface(task);
+        }
+        // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once
+        // the gate releases; a reveal beat auto-mounts its overlay. Nothing else.
+      }
+    },
     /** Navigating away from a shell task's surface DEFERS it (amber chip). */
     deferShellTask(): void {
       if (this.shellTask !== undefined && !this.consoleState.task.deferred) {
@@ -5984,6 +6142,7 @@ export default defineComponent({
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
+    resetMandatoryGate(); // a fresh shell starts with no acknowledged beat
     // The hand-reveal director owns WHEN the section switches during its
     // episodes (and re-seats the grid scroll on a mid-close reopen).
     setHandRevealHooks({
@@ -6016,6 +6175,7 @@ export default defineComponent({
     this.releasePresentationLease?.();
     this.releasePresentationLease = undefined;
     this.consoleState.shellMounted = false;
+    resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

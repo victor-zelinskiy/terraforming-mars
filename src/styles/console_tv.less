@@ -706,6 +706,18 @@ html.con-profile-tv {
            only grows from there as the couch scale grows — the first pass at
            0.7rem undershot and read too small on real hardware. */
         &__slot-a { zoom: calc(1 / var(--con-ui-scale, 1)); font-size: 0.85rem; padding: .2rem .6rem; }
+        /* The PAYMENT cta (`.con-start__pay-cta`, same element also carries
+           `.con-start__slot-a`) sits in `.con-start__pay-meta` — a plain flex
+           row with NO ambient BASE·--con-ui-scale card zoom around it (unlike
+           corp/prelude/candidate, where the pill's own ÷scale cancels the
+           card's ×scale down to a stable BASE). With nothing to cancel, the
+           shared rule above left it at a fixed, scale-INDEPENDENT ~17px slab
+           on a real 4K panel — it never grew with the couch scale, reading
+           tiny next to «A РАЗЫГРАТЬ». Give it its OWN direct ×scale (same net
+           magnitude the prelude context settles at, 0.76) instead of
+           cancelling one that isn't there, so it grows with the panel like
+           every other pill and matches «A РАЗЫГРАТЬ» visually. */
+        &__pay-cta { zoom: calc(0.76 * var(--con-ui-scale, 1)); }
         /* CEREMONY fit: the corp column + the candidate strip stacked OVER the
            prelude rail must not overflow the frame's vertical budget on TV.
            The base BASE·--con-ui-scale zooms (corp 0.92 · prelude 0.86 ·

@@ -11740,6 +11740,127 @@ html.console-mode .notifications-layer {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .5rem 1.3rem rgba(0, 0, 0, 0.45);
 }
 
+/* ── MANDATORY ANNOUNCEMENT (consoleMandatoryGate) ────────────────────
+   The calm "you have a pending decision — press B to open it" card. Shown
+   INSTEAD of popping an interruptive mandatory surface (corp first action,
+   drawn-cards reveal, forced hand pick, off-turn reaction). More prominent
+   than the amber deferred chip (it's the primary open affordance), but calm:
+   a soft one-shot entrance + a gentle idle pulse, never aggressive motion. */
+.con-mandatory {
+    position: absolute;
+    top: calc(1.2vh + 4.6rem); /* the prompt band, below the status strip */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 62; /* a nose above the plain banner chips */
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    max-width: ~"min(60rem, 82vw)"; /* LESS owns min() — escape to keep the CSS one. */
+    padding: .55rem 1rem .55rem .85rem;
+    border-radius: .7rem;
+    background: @con-glass;
+    box-shadow:
+        inset 0 0 0 .06rem fade(@con-cyan, 55%),
+        0 .5rem 1.5rem rgba(0, 0, 0, 0.45),
+        0 0 1.1rem fade(@con-cyan, 16%);
+    animation: con-mandatory-in calc(320ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1) both;
+
+    &__pulse {
+        flex: 0 0 auto;
+        width: .55rem;
+        height: .55rem;
+        border-radius: 50%;
+        background: @con-cyan;
+        box-shadow: 0 0 .6rem fade(@con-cyan, 85%);
+        animation: con-pulse calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__glyph {
+        flex: 0 0 auto;
+        font-size: 1.35rem;
+        line-height: 1;
+        color: @con-cyan;
+        text-shadow: 0 0 .7rem fade(@con-cyan, 55%);
+    }
+    &__body {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .1rem;
+    }
+    /* The classification chip — the decision TYPE, read first. */
+    &__kicker {
+        color: @con-cyan;
+        font-weight: 700;
+        font-size: .82rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+    }
+    /* The concrete ask — the sentence the player actually needs (sentence case). */
+    &__ask {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: fade(#ffffff, 94%);
+        font-size: 1rem;
+        letter-spacing: .01rem;
+    }
+    /* WHO asks — the source card the server named. */
+    &__src {
+        align-self: flex-start;
+        max-width: 22rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: .12rem;
+        padding: .05rem .5rem;
+        border-radius: 49.95rem;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        color: fade(#ffffff, 82%);
+        font-size: .78rem;
+        letter-spacing: .02rem;
+    }
+    /* The B affordance — the ONE thing the player does with this card. */
+    &__open {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        margin-left: .35rem;
+        padding: .28rem .7rem;
+        border-radius: 49.95rem;
+        background: fade(@con-cyan, 16%);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 55%);
+        color: fade(#ffffff, 94%);
+        font-size: .9rem;
+        letter-spacing: .02rem;
+    }
+}
+
+/* The REVEAL variant (new cards to review) — a soft blue accent instead of
+   the action cyan, so "review your cards" reads distinct from "make a choice". */
+.con-mandatory--reveal {
+    box-shadow:
+        inset 0 0 0 .06rem fade(#79b8ff, 55%),
+        0 .5rem 1.5rem rgba(0, 0, 0, 0.45),
+        0 0 1.1rem fade(#79b8ff, 16%);
+    .con-mandatory__pulse { background: #79b8ff; box-shadow: 0 0 .6rem fade(#79b8ff, 85%); }
+    .con-mandatory__glyph { color: #79b8ff; text-shadow: 0 0 .7rem fade(#79b8ff, 55%); }
+    .con-mandatory__kicker { color: #9ccbff; }
+    .con-mandatory__src { background: fade(#79b8ff, 12%); box-shadow: inset 0 0 0 .05rem fade(#79b8ff, 34%); }
+    .con-mandatory__open { background: fade(#79b8ff, 16%); box-shadow: inset 0 0 0 .06rem fade(#79b8ff, 55%); }
+}
+
+@keyframes con-mandatory-in {
+    from { opacity: 0; transform: translate(-50%, -.5rem) scale(.97); }
+    to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-mandatory { animation: none; }
+    .con-mandatory__pulse { animation: none; }
+}
+
 /* ── Stranded-prompt guard panel (CTS T0 — never a silent pill) ──── */
 .con-stranded {
     position: fixed;

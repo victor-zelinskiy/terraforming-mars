@@ -26,6 +26,7 @@ import {inputTitleText} from '@/client/console/turnIntents';
 import {translateText} from '@/client/directives/i18n';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -79,6 +80,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // for a prompt committed alongside it (e.g. the claim's payment).
   '.con-macere',
   '.con-terracere',
+  // MANDATORY ANNOUNCEMENT (consoleMandatoryGate): while an interruptive prompt
+  // is announced-not-opened, this card is its serving surface (B opens it). The
+  // `isMandatoryGateHeld()` early-return above already covers the held state
+  // even when the card isn't rendered (mid-animation); this is belt-and-braces.
+  '.con-mandatory',
 ];
 
 /**
@@ -204,6 +210,14 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // legitimate serving beat. A genuinely stranded prompt still persists after
   // the hold releases (bounded by the 35 s ceiling) and surfaces then.
   if (isAnimationHoldActive()) {
+    clearStranded();
+    return;
+  }
+  // The MANDATORY ANNOUNCEMENT GATE (consoleMandatoryGate) is deliberately
+  // holding an interruptive prompt CLOSED — it is announced (the top card +
+  // the chip status) and opens only on the player's press (B). While held the
+  // prompt legitimately has no open surface; the announcement / chip serve it.
+  if (isMandatoryGateHeld()) {
     clearStranded();
     return;
   }

@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {taskFor, SHELL_SECTION_KINDS, NATIVE_KINDS, taskServedByHost} from '@/client/console/consoleTaskRouter';
 import {runLeakDetection, leakDetectorState} from '@/client/console/consoleLeakDetector';
 import {beginAnimationHold, isAnimationHoldActive, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
+import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /**
@@ -30,11 +31,17 @@ function corpActionView(): PlayerViewModel {
 }
 
 describe('corporation first action (console routing)', () => {
-  // Module state (animation holds) is BUNDLE-SHARED in mochapack — the leak
-  // detector now consults isAnimationHoldActive(), so clear any stray manual
-  // hold a sibling spec may have left before/after each case here.
-  beforeEach(() => resetAnimationHoldsForTest());
-  afterEach(() => resetAnimationHoldsForTest());
+  // Module state (animation holds + the mandatory gate) is BUNDLE-SHARED in
+  // mochapack — the leak detector now consults isAnimationHoldActive() and the
+  // gate, so clear any stray state a sibling spec may have left, each case.
+  beforeEach(() => {
+    resetAnimationHoldsForTest();
+    resetMandatoryGate();
+  });
+  afterEach(() => {
+    resetAnimationHoldsForTest();
+    resetMandatoryGate();
+  });
 
   it('routes the untitled corp-action OrOptions to the dedicated modal, not the host', () => {
     const view = corpActionView();
@@ -89,6 +96,28 @@ describe('corporation first action (console routing)', () => {
     expect(leakDetectorState.stranded?.taskKind).to.eq('corpFirstAction');
 
     resetAnimationHoldsForTest();
+    document.body.innerHTML = '';
+  });
+
+  it('does NOT strand the corp-action prompt while the mandatory gate holds it announced', () => {
+    const view = corpActionView();
+    // The gate holds the corp first action CLOSED — it is announced (the top
+    // card + the chip status) and opens only on B. With no surface rendered the
+    // prompt is legitimately served by the announcement, never stranded.
+    document.body.innerHTML = '';
+    setMandatoryGateHeld(true);
+    runLeakDetection(view);
+    runLeakDetection(view); // past the 2-pass debounce
+    expect(leakDetectorState.stranded).to.eq(undefined);
+
+    // Once the player opens it (gate released) and there is STILL no surface,
+    // the honest guard returns.
+    setMandatoryGateHeld(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded?.taskKind).to.eq('corpFirstAction');
+
+    resetMandatoryGate();
     document.body.innerHTML = '';
   });
 });
