@@ -44,7 +44,10 @@
             </span>
             <span v-else-if="it.gain !== undefined" class="con-stdp__gain">
               <b>{{ it.gain }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-              <span class="con-stdp__gain-note">/ {{ $t('card') }}</span>
+              <span class="con-stdp__gain-note">
+                <span aria-hidden="true">/</span>
+                <i class="resource_icon resource_icon--cards" role="img" :aria-label="$t('card')"></i>
+              </span>
             </span>
           </div>
         </article>

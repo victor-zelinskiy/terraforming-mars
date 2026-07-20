@@ -5198,7 +5198,9 @@ html.console-mode {
         align-items: flex-end;
         justify-content: center;
         align-self: stretch;
-        min-width: 4rem;
+        width: 4.7rem;
+        min-width: 0;
+        box-sizing: border-box;
         padding-left: .7rem;
         border-left: .05rem solid rgba(120, 150, 180, 0.16);
         flex-shrink: 0;
@@ -5221,7 +5223,21 @@ html.console-mode {
         b { font-size: 1.2rem; }
         .resource_icon { width: 1.3rem; height: 1.3rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
     }
-    &__gain-note { font-size: .75rem; color: @con-text-dim; }
+    &__gain-note {
+        display: inline-flex;
+        align-items: center;
+        gap: .15rem;
+        font-size: .75rem;
+        color: @con-text-dim;
+
+        .resource_icon--cards {
+            width: .9rem;
+            height: 1.2rem;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+        }
+    }
     &__foot {
         display: flex;
         align-items: center;
