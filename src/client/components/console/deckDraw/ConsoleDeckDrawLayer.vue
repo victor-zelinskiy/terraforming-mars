@@ -97,7 +97,7 @@ import {
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
-import {isBoardCardBonusActive, boardCardBonusClaimsReveal} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -246,7 +246,11 @@ export default defineComponent({
       }
       // A colony BUILD card bonus (Pluto) is the board-card-bonus scene's — the
       // cover lifts off the COLONY, not off the deck; never grab it here too.
-      if (!isDeckDrawSource(e.source) || boardCardBonusClaimsReveal(e.source)) {
+      // `isBonusRevealStaged` (persisted past the scene's end) is load-bearing:
+      // the reveal stays `currentRevealEvent()` until the player TAKES the card,
+      // so once board-card-bonus ends we must STILL not re-grab it from the deck.
+      if (!isDeckDrawSource(e.source) ||
+          boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id)) {
         return undefined;
       }
       return e;
