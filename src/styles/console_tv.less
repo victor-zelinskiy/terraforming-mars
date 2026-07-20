@@ -536,7 +536,11 @@ html.con-profile-tv {
            desktop density — on the TV the slot has grown with the rem base,
            the glyph must follow. */
         &__build-slot .benefit-glyph__production { transform: scale(1.05); }
-        &__cube { width: 0.85rem; height: 0.85rem; }
+        /* The occupied cube FILLS the whole cell (`--filled`, `width/height:auto`)
+           — it must NOT be forced to a fixed corner size here, or it collapses to
+           a small square in the slot corner on the TV profile. Exclude it; the
+           bump only ever applied to a legacy corner cube (gone from the tile). */
+        &__cube:not(.con-coltile__cube--filled) { width: 0.85rem; height: 0.85rem; }
     }
     /* The header fleet dock (all players' fleets) — the berths and ships
        were near-invisible marks on the panel. */
@@ -691,14 +695,26 @@ html.con-profile-tv {
            overhangs above the card) never clips against the header. */
         &__frame { width: min(90rem, 96vw); padding-top: 2.2rem; }
         /* The «A РАЗЫГРАТЬ» affordance pill sits INSIDE a card that is itself
-           zoomed (corp 0.92·s, prelude 0.86·s, candidate 0.78·s) — so at the
-           TV ui-scale it compounded to ~50px and read disproportionately
-           huge. Cancel each context's card zoom so the pill renders at ONE
-           calm root-space size regardless of the card it decorates. */
-        &__corp &__slot-a { zoom: ~"calc(1 / (0.92 * var(--con-ui-scale, 1)))"; }
-        &__prelude &__slot-a { zoom: ~"calc(1 / (0.86 * var(--con-ui-scale, 1)))"; }
-        &__cands .con-cards__slot &__slot-a { zoom: ~"calc(1 / (0.78 * var(--con-ui-scale, 1)))"; }
-        &__slot-a { font-size: 0.8rem; padding: .22rem .6rem; }
+           zoomed (corp/prelude/candidate = BASE·--con-ui-scale) — so its
+           rem sizing compounded with the card zoom to a ~50px slab. Cancel
+           ONLY the TV double-scale (÷--con-ui-scale, mirroring the pickband
+           guard) so the pill scales ONCE with its card — the SAME proportion
+           it has on desktop, and constant across every card type — instead
+           of net-zoom-1 (which over-coupled it to root space and still read
+           large). Independent of the card zoom, so the ceremony fit trims
+           below don't need a matching divisor. */
+        &__slot-a { zoom: calc(1 / var(--con-ui-scale, 1)); font-size: 0.7rem; padding: .16rem .5rem; }
+        /* CEREMONY fit: the corp column + the candidate strip stacked OVER the
+           prelude rail must not overflow the frame's vertical budget on TV.
+           The base BASE·--con-ui-scale zooms (corp 0.92 · prelude 0.86 ·
+           candidate 0.78) compounded on a 4K panel to a body taller than the
+           scroll port — so a scrollbar appeared and clipped a card while the
+           wide frame still had unused HORIZONTAL room. Trim each ceremony card
+           a notch (kept ·--con-ui-scale, so still couch-large) so the whole
+           ceremony fits without scrolling; X = the fullscreen detailed read. */
+        &__corp { zoom: calc(0.84 * var(--con-ui-scale, 1)); }
+        &__prelude { zoom: calc(0.76 * var(--con-ui-scale, 1)); }
+        &__cands .con-cards__strip > .con-cards__slot { zoom: calc(0.68 * var(--con-ui-scale, 1)); }
         &__title { font-size: 1.6rem; }
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }

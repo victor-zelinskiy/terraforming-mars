@@ -587,7 +587,7 @@
          RT/LT quick cross (fixed inset:0 + flex centre). `--con-hd-bay`
          is written HERE from the model so the bar's grid track and the
          dock's plate can never disagree. -->
-    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end', 'con-footer--under-scene': footerUnderScene, 'con-footer--behind-workspace': dockBehindWorkspace}" :style="footerVars">
+    <div class="con-footer" :class="{'con-footer--nodock': game.phase === 'end'}" :style="footerVars">
       <!-- THE DOCK IS A PHYSICAL PART OF THE BOTTOM BAR — its CARDS are hidden
            in two lifecycle windows (the endgame; and the pre-game INITIAL
            SETUP where no actual hand exists yet — see `handDockVisible`, so
@@ -608,6 +608,7 @@
            the hand-intake director can always land a card, and the counter
            only ticks on the physical touchdown. -->
       <ConsoleHandDock v-show="handDockVisible && !dockParkedUnderScene"
+                       :class="{'con-handdock--behind': dockBehind}"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
@@ -1238,33 +1239,17 @@ export default defineComponent({
     sceneOverHand(): boolean {
       return this.footerUnderScene || this.dockParkedUnderScene;
     },
-    /** The colonies / hydro WORKSPACE sections own the bottom of the screen
-     *  (colonies' focus-colony summary rail, hydro's CTA zone). The dock STAYS
-     *  MOUNTED there (a Pluto card-draw trade animates INTO it), but drops
-     *  BELOW the section content by z-index so its cards never poke over the
-     *  rail. Board home keeps the dock on top as usual. */
-    dockBehindWorkspace(): boolean {
-      const phase = this.playerView.game.phase;
-      // The DRAFT pick task host lives INSIDE `.con-main` (z1), so `footerUnderScene`
-      // (z11390) can never drop the footer below it — only `behind-workspace` (z0)
-      // beats con-main. Detect the draft by the game PHASE (the pick prompt's
-      // buttonLabel is 'Select', so the task router classifies it as cardSelect
-      // mode 'target', NOT 'draft' — a mode check can't see it). No card flies into
-      // the dock during a pick (the drafted card lands in the separate `draftedCards`
-      // stack), so parking the dock BELOW the host is safe. The research BUY is phase
-      // RESEARCH, so the deck→dock buy flights keep the footer on top (not matched).
-      if (phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) {
-        return true;
-      }
-      // The bare colonies / hydro section grid. ⚠ ONLY the bare grid — while a
-      // dimming OVERLAY is up (the trade / hydro confirm, inspect, a sheet…)
-      // the footer MUST stay at its high z so the command bar reads BRIGHT
-      // above the overlay's backdrop (dropping it left the bar dimmed under the
-      // trade confirm — "не понятно какую кнопку нажать"). Those states are
-      // exactly `dockParkedUnderScene` (where the dock is hidden anyway, so
-      // nothing needs to tuck behind) + the hydro confirm.
-      return (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') &&
-        !this.dockParkedUnderScene && !consoleHydroUi.confirmOpen;
+    /** The hand-dock CARDS drop BELOW `.con-main` (z0 via `--behind`) whenever
+     *  the dock is NOT the interactive board-home hand — i.e. ANY full surface
+     *  is up (task host / buy / draft / prelude start scene / sheet / composer
+     *  / colonies·hydro section / bot review / …). ONE condition, mirroring
+     *  `handDockInteractive`, so the cards can NEVER cover a scene/modal/HUD
+     *  anywhere. Plain board home keeps the dock HIGH (visible + clickable +
+     *  raised pack over the board). The command bar carries its OWN z
+     *  (`.con-cmdbar` z11700), so it stays bright above every backdrop either
+     *  way — that is why the footer no longer toggles z per scene. */
+    dockBehind(): boolean {
+      return !this.handDockInteractive;
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —

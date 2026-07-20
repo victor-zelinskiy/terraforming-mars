@@ -185,14 +185,12 @@ body.con-zoom-open .con-handdock {
     border-radius: .5rem;
     background: @con-glass-soft;
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
-    /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
-       any state. The dock rides the footer band (z11700, card pack z11705) or,
-       under a workspace/scene, drops to z0; either way this sits ABOVE it, so
-       the status rail is never covered by the hand. Below the big cinematic /
-       modal layers (ceremony 11720, reveal 11890, flight 11900, mandatory modal
-       12000) which legitimately take over the whole screen. */
+    /* The top HUD is chrome — sits ABOVE the z0 hand dock so the cards can
+       never paint over the status rail. z1 (not higher) keeps its existing
+       relationship with `.con-main` (also z1, but DOM-later so it still wins)
+       and every scene/modal, changing ONLY dock-vs-status. */
     position: relative;
-    z-index: 11706;
+    z-index: 1;
 
     &__params {
         display: flex;
@@ -6302,33 +6300,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
    mirrors the bar height per profile (kept in sync with the .con-cmdbar
    height rules) — the dock anchors its shoulder rails to it. */
 .con-footer {
+    /* position: relative ONLY as the hand-dock's offset parent + layout — it
+       MUST NOT set a z-index (that would make the footer a stacking context
+       and re-TRAP the dock's z inside the 11700 band). The footer's two
+       children carry their OWN z relative to `.con-root`: the command bar
+       stays HIGH (`.con-cmdbar` z11700 — above every modal backdrop, always
+       bright) while the hand dock drops LOW (`.con-handdock` z0 — below
+       `.con-main` (z1) and thus below every scene/modal/board content). So
+       the DOCK CARDS never cover anything, anywhere, while the bottom command
+       bar keeps showing. This replaced the old per-scene footer-z toggling
+       (`--under-scene` / `--behind-workspace`), which could only move the
+       WHOLE footer (dock + bar together) and so kept leaking the dock over
+       task-host / buy / prelude surfaces it wasn't enumerated for. */
     position: relative;
     flex-shrink: 0;
-    z-index: 11700;
     --con-bar-h: 2.6rem;
-
-    /* A TALL bottom-reaching overlay is up (the «Разыграно» table — manual
-       AND the hero landing, composers, sheets, inspectors — the shell's
-       `footerUnderScene`): drop the whole footer just BELOW the console
-       overlay band so the panel covers the dock's PACK where they overlap
-       (their boxes end ≥4rem above the viewport bottom, over the rising
-       pack) while the «КАРТЫ» plate + counter + the command hints — all
-       below that line — keep peeking below the panel's edge. The dock is a
-       PHYSICAL PART of the bar and is never hidden; overlays only ever
-       cover it by Z. The card-flow surfaces (start ceremony / task host /
-       the raised reveal modal) deliberately keep the footer ON TOP — cards
-       fly into a bright dock there. */
-    &--under-scene {
-        z-index: 11390;
-    }
-    /* Colonies / hydro WORKSPACE: drop the whole footer BELOW `.con-main`
-       (z:1) so the rising hand-dock cards tuck BEHIND the section's bottom
-       rail (never poke over it). The command bar sits in normal flow below
-       `.con-main` (no vertical overlap), so it stays fully visible; the dock
-       stays MOUNTED (the trade card-draw animation lands in it). */
-    &--behind-workspace {
-        z-index: 0;
-    }
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -6343,8 +6329,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     transform: translateX(-50%);
     width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
     height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
-    /* Above the bar (11700-local) — the plate descends INTO the bay. */
+    /* The footer is NOT a stacking context (no z-index), so this z is relative
+       to `.con-root`. DEFAULT high (above `.con-main` z1) — the interactive
+       board-home hand: visible, clickable, and its raised pack sits over the
+       board. The instant ANY full surface is up (`--behind`, below) the dock
+       drops BELOW `.con-main` so its cards can never cover a scene/modal. The
+       command bar carries its OWN z (`.con-cmdbar` z11700) so it stays bright
+       either way. */
     z-index: 11705;
+    /* Every non-board-home state (`!handDockInteractive` → `dockBehind`): the
+       dock cards must NEVER paint over the scene/modal — drop below `.con-main`
+       (z1). The card pack still lands here (the hand-intake director measures
+       position, not z); overlays simply cover it. */
+    &--behind {
+        z-index: 0;
+    }
     /* Pack presentation knobs (the hover/focused state retunes them). */
     --hd-card-w: 3.15rem;
     --hd-card-h: 4.4rem;

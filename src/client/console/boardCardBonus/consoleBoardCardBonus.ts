@@ -59,6 +59,16 @@ export function revealMatchesSource(
   return isVenusScaleReveal(revealSource);
 }
 
+/**
+ * Will the ACTIVE board-card-bonus scene claim this reveal? The deck-draw
+ * cinematic consults this so it never ALSO grabs a reveal the cover-lift owns
+ * (a colony BUILD card bonus lifts off the colony cell — NOT off the deck). A
+ * colony reveal with no such scene (a Pluto TRADE bonus) stays the deck-draw's.
+ */
+export function boardCardBonusClaimsReveal(source: CardDrawRevealSource | undefined): boolean {
+  return boardCardBonusState.active && revealMatchesSource(source, boardCardBonusState.source);
+}
+
 export type BoardCardBonusPhase =
   | 'idle'
   /** The cover separates from the cell (client-armed at submit). */

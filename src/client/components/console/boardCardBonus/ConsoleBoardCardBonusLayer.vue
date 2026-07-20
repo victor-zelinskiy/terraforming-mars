@@ -249,8 +249,10 @@ export default defineComponent({
       if (source.kind === 'board-cell') {
         sel = `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card`;
       } else if (source.kind === 'colony-cell') {
-        // The build slot's benefit glyph (a card icon) is the cover's source.
-        sel = `[data-colony-build-slot="${cssEscape(source.colonyName + '#' + source.slotIndex)}"] .benefit-glyph`;
+        // The build slot's card ICON (`.benefit-glyph__card` = the SAME
+        // card.webp art as the cover, card aspect 24×32) — NOT the square
+        // `.benefit-glyph` container, which would squash the cover.
+        sel = `[data-colony-build-slot="${cssEscape(source.colonyName + '#' + source.slotIndex)}"] .benefit-glyph__card`;
       } else {
         sel = VENUS_MARKER_SEL;
       }

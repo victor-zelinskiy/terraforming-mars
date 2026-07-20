@@ -4,6 +4,7 @@ import {
   bonusZoomOriginEl, endBoardCardBonus, isBoardCardBonusActive, isBonusRevealStaged,
   isVenusScaleReveal, markBonusZoomEntryReady, registerBoardCardBonusHandle,
   registerBonusZoomOrigin, resetBoardCardBonus, revealMatchesSource, setBoardCardBonusPhase,
+  boardCardBonusClaimsReveal,
   stageBoardCardBonusReveal, BoardCardBonusAbortMode,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 
@@ -45,6 +46,17 @@ describe('consoleBoardCardBonus', () => {
     // Neither a tile nor a venus reveal claims a colony-cell scene.
     expect(revealMatchesSource({type: 'tile'}, pluto)).to.be.false;
     expect(revealMatchesSource({type: 'colony', colonyName: 'Pluto'} as any, CELL)).to.be.false;
+  });
+
+  it('boardCardBonusClaimsReveal — the deck-draw defers to an active colony-cell scene', () => {
+    const plutoReveal = {type: 'colony', colonyName: 'Pluto'} as any;
+    // No scene → the deck-draw owns a colony reveal (e.g. a Pluto TRADE bonus).
+    expect(boardCardBonusClaimsReveal(plutoReveal)).to.be.false;
+    // An active colony-cell BUILD scene claims its own colony reveal.
+    armBoardCardBonus({kind: 'colony-cell', colonyName: 'Pluto', slotIndex: 0});
+    expect(boardCardBonusClaimsReveal(plutoReveal)).to.be.true;
+    expect(boardCardBonusClaimsReveal({type: 'colony', colonyName: 'Titan'} as any)).to.be.false;
+    expect(boardCardBonusClaimsReveal({type: 'tile'})).to.be.false;
   });
 
   it('a venus-scale scene arms from its own descriptor', () => {
