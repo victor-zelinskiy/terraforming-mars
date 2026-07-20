@@ -1334,26 +1334,20 @@
   gap: 2px 4px;
 }
 /* A plate-bearing effect («ГЛОБАЛЬНЫЕ ПАРАМЕТРЫ : +/- 2») is a short label rule
-   — keep it on ONE compact row. Nothing inside may wrap or shrink; the plate
-   uses a slightly smaller font so the whole «plate : value» always fits the
-   panel width (icon-heavy effects without a plate keep their wrap safety). */
+   — keep it on ONE compact row. The plate + its value never break internally;
+   a slightly smaller plate font + tighter frame keeps «plate : value» narrow.
+   If a pathologically narrow tier still can't fit, the effect wraps cleanly
+   (plate / value on two lines) rather than overflowing — flex-wrap stays. */
 .pcard-effect:has(.pcard-plate) {
-  flex-wrap: nowrap;
   gap: 3px;
   padding-left: 6px;
   padding-right: 6px;
 }
-.pcard-effect:has(.pcard-plate) .pcard-effect__part {
-  flex-wrap: nowrap;
-  flex-shrink: 0;
-}
 .pcard-effect:has(.pcard-plate) .pcard-plate {
-  font-size: calc(var(--pcard-mech-font) * 0.64);
-  flex-shrink: 0;
+  font-size: calc(var(--pcard-mech-font) * 0.68);
 }
 .pcard-effect:has(.pcard-plate) .pcard-mi__text {
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 /* TILE pictogram */
@@ -1410,6 +1404,16 @@
 .pcard__lower .pcard-mech-group:last-child {
   padding-left: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
   padding-right: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
+}
+/* A WIDE plate-label row (e.g. «ГЛОБАЛЬНЫЕ ПАРАМЕТРЫ : +/- 2») must not stay
+   centered — the equal inset wastes the free LEFT space and shoves the row past
+   the card edge. Reserve only the ACTUAL corner each side needs (left = the
+   resource slot if any, right = the VP badge), so the row spreads into the left
+   space and fits one line. */
+.pcard__lower .pcard-mech-group:last-child:has(.pcard-plate) {
+  padding-left: var(--pcard-res-safe, 0px);
+  padding-right: var(--pcard-vp-safe, 0px);
+  justify-content: flex-start;
 }
 /* content rows paint above the engraved corner stamp (see .pcard__exp) */
 .pcard__lower .pcard-mech-group { position: relative; z-index: 1; }
