@@ -38,31 +38,21 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
     });
   });
 
-  describe('mandatoryBeatFor — beat derivation + reveal priority', () => {
-    it('a drawn reveal OUTRANKS a pending task (the Pluto sequence)', () => {
-      // Pluto: the reveal batch AND the discard handSelect arrive together.
+  describe('mandatoryBeatFor — decision-beat derivation', () => {
+    it('a drawn-cards reveal is NEVER a beat — only the discard decision is (Pluto)', () => {
+      // Pluto: the reveal + the discard arrive together, but the reveal flows
+      // straight through its draw cinematic. The DISCARD (a distinct surface,
+      // reached after the reveal settles) is the only gated beat.
       const beat = mandatoryBeatFor({
-        revealDrawnBatchId: 7,
         task: {kind: 'handSelect'},
         taskKey: 'card|Select a card to discard',
         forcedReaction: false,
       });
-      expect(beat).to.deep.eq({kind: 'reveal', key: 'reveal:7'});
-    });
-
-    it('falls to the task beat once the reveal has cleared', () => {
-      const beat = mandatoryBeatFor({
-        revealDrawnBatchId: undefined,
-        task: {kind: 'handSelect'},
-        taskKey: 'card|Select a card to discard',
-        forcedReaction: false,
-      });
-      expect(beat).to.deep.eq({kind: 'task', key: 'task:card|Select a card to discard', taskKind: 'handSelect'});
+      expect(beat).to.deep.eq({key: 'task:card|Select a card to discard', taskKind: 'handSelect'});
     });
 
     it('is undefined for a non-interruptive task (own turn)', () => {
       expect(mandatoryBeatFor({
-        revealDrawnBatchId: undefined,
         task: {kind: 'player'},
         taskKey: 'player|Select player',
         forcedReaction: false,
@@ -72,11 +62,11 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
 
   describe('held / acknowledge lifecycle', () => {
     it('a beat is held until its exact key is acknowledged', () => {
-      const reveal = {kind: 'reveal', key: 'reveal:7'} as const;
-      const discard = {kind: 'task', key: 'task:card|discard', taskKind: 'handSelect'} as const;
-      expect(isMandatoryBeatHeld(reveal)).to.be.true;
-      acknowledgeMandatoryBeat(reveal.key);
-      expect(isMandatoryBeatHeld(reveal)).to.be.false; // reveal opened
+      const first = {key: 'task:or|corp', taskKind: 'corpFirstAction'} as const;
+      const discard = {key: 'task:card|discard', taskKind: 'handSelect'} as const;
+      expect(isMandatoryBeatHeld(first)).to.be.true;
+      acknowledgeMandatoryBeat(first.key);
+      expect(isMandatoryBeatHeld(first)).to.be.false; // opened
       // The NEXT beat (the discard) is a different key → still held.
       expect(isMandatoryBeatHeld(discard)).to.be.true;
       acknowledgeMandatoryBeat(discard.key);
@@ -85,9 +75,9 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
     });
 
     it('reset clears the acknowledgment', () => {
-      acknowledgeMandatoryBeat('reveal:7');
+      acknowledgeMandatoryBeat('task:or|corp');
       resetMandatoryGate();
-      expect(isMandatoryBeatHeld({kind: 'reveal', key: 'reveal:7'})).to.be.true;
+      expect(isMandatoryBeatHeld({key: 'task:or|corp', taskKind: 'corpFirstAction'})).to.be.true;
     });
   });
 });

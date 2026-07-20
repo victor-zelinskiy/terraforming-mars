@@ -39,13 +39,13 @@
     </div>
 
     <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): an INTERRUPTIVE mandatory
-         prompt (corp first action / drawn-cards reveal / forced hand pick /
-         off-turn reaction) is ANNOUNCED here — not popped open — and the player
-         opens it with B when they're ready. Shown only once the foreground is
-         idle (screens closed, animations done). -->
+         DECISION (corp first action / forced hand pick / off-turn reaction) is
+         ANNOUNCED here — not popped open — and the player opens it with B when
+         they're ready. Shown only once the foreground is idle (screens closed,
+         animations done). A drawn-cards reveal is NOT announced — it flows
+         straight through from its draw cinematic (never split from it). -->
     <transition name="con-layer">
       <ConsoleMandatoryAnnounce v-if="mandatoryAnnounceVisible"
-                                :variant="mandatoryAnnounceView.variant"
                                 :kicker="mandatoryAnnounceView.kicker"
                                 :ask="mandatoryAnnounceView.ask"
                                 :sourceCard="mandatoryAnnounceView.sourceCard"
@@ -1590,15 +1590,17 @@ export default defineComponent({
       return this.playerView.draftedCards ?? [];
     },
     /**
-     * A DRAWN-cards reveal is pending — the RAW signal, BEFORE the mandatory-
-     * announce gate. Kept separate from `consoleRevealMode` so the gate
-     * derivation stays acyclic (the gate suppresses the overlay by making
-     * `consoleRevealMode` undefined while the reveal beat is held).
+     * A DRAWN-cards reveal is pending — the RAW signal (`currentRevealEvent`
+     * minus the tile/deck holds). The drawn reveal is NEVER gated (it is the
+     * continuous endpoint of its draw cinematic — see consoleMandatoryGate), but
+     * a pending draw still HOLDS the follow-up task surface (the Pluto discard
+     * waits for the whole reveal beat), so `shellTask`/`activeConsoleTask`/
+     * `startTask` read this.
      */
     rawDrawnRevealPending(): boolean {
       // The tile-placement hero owns the screen through its landing + reward
       // beat, and the deck-draw scene deals the cards out first — the drawn
-      // reveal assembles only after those (same holds as the old 'drawn' branch).
+      // reveal assembles only after those (same holds as the 'drawn' branch).
       if (this.tilePlacementHolds || deckDrawHolds()) {
         return false;
       }
@@ -1606,12 +1608,8 @@ export default defineComponent({
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
-      // A GATED (not-yet-opened) drawn reveal is ANNOUNCED first
-      // (consoleMandatoryGate): treat it as not-yet-shown so nothing — the
-      // overlay, its input routing, the command bar, foreground-busy — activates
-      // for it until the player opens it (B). Once opened it shows normally.
       if (this.rawDrawnRevealPending) {
-        return this.revealGateHeld ? undefined : 'drawn';
+        return 'drawn';
       }
       const lr = this.playerView.lastReveal;
       if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey) {
@@ -1633,11 +1631,10 @@ export default defineComponent({
     viewerForcedReaction(): boolean {
       return actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers)) === 'forcedaction';
     },
-    /** The current interruptive mandatory BEAT (a drawn reveal or a gated task). */
+    /** The current interruptive mandatory DECISION beat (never a reveal). */
     mandatoryBeat(): MandatoryBeat | undefined {
       const wf = this.playerView.waitingFor;
       return mandatoryBeatFor({
-        revealDrawnBatchId: this.rawDrawnRevealPending ? currentRevealEvent()?.id : undefined,
         task: taskFor(this.playerView),
         taskKey: wf === undefined ? '' : `${wf.type}|${inputTitleText(wf.title) ?? ''}`,
         forcedReaction: this.viewerForcedReaction,
@@ -1645,17 +1642,13 @@ export default defineComponent({
     },
     /** The current beat is HELD (announced, not yet OPENED by the player). While
      *  held, its surface is suppressed — only the chip status + the announcement
-     *  show; B opens it. */
+     *  show; B opens it. Equivalent to `taskGateHeld` (a beat is always a task). */
     mandatoryGateHeld(): boolean {
       return isMandatoryBeatHeld(this.mandatoryBeat);
     },
-    /** The held beat is a TASK → suppress its surface (shellTask / hostTask). */
+    /** The held beat suppresses its task surface (shellTask / hostTask). */
     taskGateHeld(): boolean {
-      return this.mandatoryGateHeld && this.mandatoryBeat?.kind === 'task';
-    },
-    /** The held beat is a drawn REVEAL → suppress the reveal overlay. */
-    revealGateHeld(): boolean {
-      return this.mandatoryGateHeld && this.mandatoryBeat?.kind === 'reveal';
+      return this.mandatoryGateHeld;
     },
     /**
      * Is the player idle/free enough to SHOW the announcement (and press B to
@@ -1686,13 +1679,10 @@ export default defineComponent({
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
     },
-    /** The announcement's copy — a drawn reveal vs a task (the task reuses the
-     *  SAME consoleTaskSummary the deferred chip uses, so they can't diverge). */
-    mandatoryAnnounceView(): {variant: 'action' | 'reveal', kicker: string, ask: string, sourceCard: CardName | undefined, openLabel: string} {
-      if (this.mandatoryBeat?.kind === 'reveal') {
-        return {variant: 'reveal', kicker: this.$t('New cards'), ask: this.$t('Review the cards you received'), sourceCard: undefined, openLabel: 'Review'};
-      }
-      return {variant: 'action', kicker: this.deferKicker, ask: this.deferAsk, sourceCard: this.deferSourceCard, openLabel: 'Open'};
+    /** The announcement's copy — reuses the SAME consoleTaskSummary the deferred
+     *  chip uses (kicker + concrete ask + source card), so they can't diverge. */
+    mandatoryAnnounceView(): {kicker: string, ask: string, sourceCard: CardName | undefined, openLabel: string} {
+      return {kicker: this.deferKicker, ask: this.deferAsk, sourceCard: this.deferSourceCard, openLabel: 'Open'};
     },
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
@@ -5392,14 +5382,12 @@ export default defineComponent({
         return;
       }
       acknowledgeMandatoryBeat(beat.key);
-      if (beat.kind === 'task') {
-        const task = taskFor(this.playerView);
-        if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
-          this.openShellTaskSurface(task);
-        }
-        // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once
-        // the gate releases; a reveal beat auto-mounts its overlay. Nothing else.
+      const task = taskFor(this.playerView);
+      if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
+        this.openShellTaskSurface(task);
       }
+      // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once the
+      // gate releases — nothing else to open here.
     },
     /** Navigating away from a shell task's surface DEFERS it (amber chip). */
     deferShellTask(): void {

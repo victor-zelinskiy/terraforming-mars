@@ -8,12 +8,11 @@
     Driven by the mandatory-announcement gate (consoleMandatoryGate.ts).
   -->
   <div class="con-mandatory"
-       :class="'con-mandatory--' + variant"
        role="status"
        :aria-label="kicker + ': ' + ask"
        data-test="con-mandatory-announce">
     <span class="con-mandatory__pulse" aria-hidden="true"></span>
-    <span class="con-mandatory__glyph" aria-hidden="true">{{ glyph }}</span>
+    <span class="con-mandatory__glyph" aria-hidden="true">⚑</span>
     <div class="con-mandatory__body">
       <div class="con-mandatory__kicker">{{ kicker }}</div>
       <div class="con-mandatory__ask">{{ ask }}</div>
@@ -35,21 +34,14 @@ export default defineComponent({
   name: 'ConsoleMandatoryAnnounce',
   components: {GamepadGlyph},
   props: {
-    /** 'action' = a decision to make (cyan) · 'reveal' = new cards to review (blue). */
-    variant: {type: String as PropType<'action' | 'reveal'>, default: 'action'},
     /** The decision TYPE, pre-translated by the shell (consoleTaskSummary). */
     kicker: {type: String, required: true},
     /** The concrete ask, pre-translated by the shell. */
     ask: {type: String, required: true},
     /** WHO asks — a source card name (localised here), when the server named one. */
     sourceCard: {type: String as PropType<CardName>, default: undefined},
-    /** The B-verb i18n key ('Open' / 'Review'). */
+    /** The B-verb i18n key ('Open'). */
     openLabel: {type: String, default: 'Open'},
-  },
-  computed: {
-    glyph(): string {
-      return this.variant === 'reveal' ? '❖' : '⚑';
-    },
   },
 });
 </script>

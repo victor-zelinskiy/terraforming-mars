@@ -9,27 +9,36 @@
  * WHY: in console-native mode every mandatory prompt used to auto-mount its
  * surface the instant `taskFor` classified it — the corporation's first action
  * modal appeared over the still-running prelude/intake animations, and a colony
- * bonus (Pluto: draw then discard) flung the drawn-cards reveal AND the hand
- * discard open on top of each other. That reads as "modal spam" and yanks the
- * player away from whatever they were watching.
+ * bonus (Pluto: draw then discard) flung the hand discard open. That reads as
+ * "modal spam" and yanks the player away from whatever they were watching.
  *
- * THE MODEL — a per-prompt "beat". At any moment there is at most ONE current
- * interruptive mandatory BEAT (a drawn-cards reveal, or an interruptive task).
- * The gate HOLDS that beat closed (its surface is suppressed, only the player's
- * chip status shows) until the player ACKNOWLEDGES it (opens it with B). While
- * held AND the foreground is idle (screens closed, animations done) a premium
- * top ANNOUNCEMENT names the pending decision; B opens it. Beats advance one at
- * a time — this is exactly what gives Pluto the desired sequence: reveal beat →
- * B → take (the hand counter ticks on the physical landing) → THEN the discard
- * beat → B → the hand opens in select mode. No server change is needed: the
- * beats are derived from the client state the server already sends.
+ * THE MODEL — a per-DECISION "beat". At any moment there is at most ONE current
+ * interruptive mandatory task BEAT. The gate HOLDS that beat closed (its surface
+ * is suppressed, only the player's chip status shows) until the player
+ * ACKNOWLEDGES it (opens it with B). While held AND the foreground is idle
+ * (screens closed, animations done) a premium top ANNOUNCEMENT names the pending
+ * decision; B opens it. Beats advance one at a time; no server change is needed
+ * (the beats are derived from the client state the server already sends).
+ *
+ * ⚠️ A DRAWN-CARDS REVEAL IS NEVER A BEAT. The reveal overlay is the continuous
+ * ENDPOINT of a draw CINEMATIC (the deck-draw scene literally *assembles into*
+ * it — the cards peel off the deck and fly into the reveal's own slots; the
+ * board-card-bonus scene does the same off a tile/colony). Gating the reveal
+ * would SPLIT that one cinematic — the animation plays, then stops mid-flight
+ * and demands a B to "review the cards" — which is exactly the abrupt break the
+ * gate exists to remove. So the gate covers only genuine DECISION prompts; a
+ * reveal always flows straight through from its animation. The Pluto discard is
+ * still gated — but it is a distinct SURFACE (the hand) reached only after the
+ * reveal cinematic has fully settled + the card physically landed, so it is a
+ * real decision boundary, not a mid-animation split.
  *
  * SCOPE (Option A — "all interruptive / triggered"): the corporation first
- * action, a drawn-cards reveal, a forced hand pick (discard / keep / place),
- * and any triggered sub-prompt (pick a player / amount / target) that arrives
- * OUTSIDE the viewer's own active turn. The viewer's OWN turn — the action
- * menu, a tile placement after their own play, the steps of a composer they
- * opened — is NEVER gated; those flow immediately.
+ * action, a forced hand pick (discard / keep / place), and any triggered
+ * sub-prompt (pick a player / amount / target) that arrives OUTSIDE the viewer's
+ * own active turn. The viewer's OWN turn — the action menu, a tile placement
+ * after their own play, the steps of a composer they opened — is NEVER gated.
+ * And no task announcement can appear mid-animation (the shell's visibility gate
+ * requires `!isAnimationHoldActive()`), so a decision never interrupts a scene.
  *
  * This module is PURE + a tiny reactive store (mirrors journalState / the
  * presentation policy): the beat DERIVATION is pure functions the shell feeds
@@ -38,16 +47,12 @@
 import {reactive} from 'vue';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 
-/** The kind of interruptive beat currently pending. */
-export type MandatoryBeatKind = 'reveal' | 'task';
-
-/** One interruptive mandatory beat — a stable identity + what it is. */
+/** One interruptive mandatory DECISION beat — a stable identity + its task kind. */
 export type MandatoryBeat = {
-  kind: MandatoryBeatKind;
   /** Stable key for the beat (advances when the pending decision changes). */
   key: string;
-  /** For a task beat: the task kind (drives the open path on acknowledge). */
-  taskKind?: TaskKind;
+  /** The task kind (drives the open path on acknowledge). */
+  taskKind: TaskKind;
 };
 
 /**
@@ -127,10 +132,6 @@ export function isInterruptiveMandatoryTask(task: ConsoleTask | undefined, force
 
 /** The signals the shell feeds the pure beat derivation. */
 export type MandatoryBeatInput = {
-  /** The drawn-cards reveal batch id when a DRAWN reveal is pending (else
-   *  undefined). Derived from the RAW reveal state, NOT `consoleRevealMode`
-   *  (which the gate itself suppresses), to keep the derivation acyclic. */
-  revealDrawnBatchId: number | undefined;
   /** The current top-level task (taskFor(view)). */
   task: ConsoleTask | undefined;
   /** A stable identity for the current prompt (the shell's `type|title` key). */
@@ -140,17 +141,13 @@ export type MandatoryBeatInput = {
 };
 
 /**
- * The CURRENT interruptive mandatory beat, or undefined. A drawn-cards reveal
- * takes PRIORITY over a pending task beat — the reveal is always shown/announced
- * first, and the task (e.g. the Pluto discard) becomes the current beat only
- * once the reveal has cleared. PURE.
+ * The CURRENT interruptive mandatory DECISION beat, or undefined. A drawn-cards
+ * reveal is deliberately NOT a beat (see the module header) — it flows straight
+ * through from its draw cinematic. PURE.
  */
 export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | undefined {
-  if (input.revealDrawnBatchId !== undefined) {
-    return {kind: 'reveal', key: 'reveal:' + input.revealDrawnBatchId};
-  }
   if (isInterruptiveMandatoryTask(input.task, input.forcedReaction) && input.task !== undefined) {
-    return {kind: 'task', key: 'task:' + input.taskKey, taskKind: input.task.kind};
+    return {key: 'task:' + input.taskKey, taskKind: input.task.kind};
   }
   return undefined;
 }

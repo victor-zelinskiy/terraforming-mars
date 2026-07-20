@@ -710,14 +710,19 @@ html.con-profile-tv {
            `.con-start__slot-a`) sits in `.con-start__pay-meta` — a plain flex
            row with NO ambient BASE·--con-ui-scale card zoom around it (unlike
            corp/prelude/candidate, where the pill's own ÷scale cancels the
-           card's ×scale down to a stable BASE). With nothing to cancel, the
-           shared rule above left it at a fixed, scale-INDEPENDENT ~17px slab
-           on a real 4K panel — it never grew with the couch scale, reading
-           tiny next to «A РАЗЫГРАТЬ». Give it its OWN direct ×scale (same net
-           magnitude the prelude context settles at, 0.76) instead of
-           cancelling one that isn't there, so it grows with the panel like
-           every other pill and matches «A РАЗЫГРАТЬ» visually. */
-        &__pay-cta { zoom: calc(0.76 * var(--con-ui-scale, 1)); }
+           card's ×scale down to a stable net BASE — 0.76 for the prelude
+           reference). With nothing to cancel, the shared rule above left it
+           at a fixed, scale-INDEPENDENT ~17px slab — never growing with the
+           couch scale, reading tiny next to «A РАЗЫГРАТЬ».
+           ⚠️ FIRST FIX OVERSHOT: `calc(0.76 * var(--con-ui-scale, 1))` double-
+           counts the scale — the pill's `font-size` is already root-rem
+           (`20px·scale`), so the prelude reference's NET zoom (ambient
+           `BASE·scale` × own `÷scale`) is a flat `BASE` with no leftover
+           scale factor; re-multiplying by `--con-ui-scale` here squared the
+           TV factor (≈2× too big at scale≈2, matching the regression). A
+           FLAT `0.76` (no scale term) reproduces the exact same rendered px
+           as the prelude pill at every scale. */
+        &__pay-cta { zoom: 0.76; }
         /* CEREMONY fit: the corp column + the candidate strip stacked OVER the
            prelude rail must not overflow the frame's vertical budget on TV.
            The base BASE·--con-ui-scale zooms (corp 0.92 · prelude 0.86 ·

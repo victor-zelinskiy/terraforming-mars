@@ -11851,20 +11851,6 @@ html.console-mode .notifications-layer {
     }
 }
 
-/* The REVEAL variant (new cards to review) — a soft blue accent instead of
-   the action cyan, so "review your cards" reads distinct from "make a choice". */
-.con-mandatory--reveal {
-    box-shadow:
-        inset 0 0 0 .06rem fade(#79b8ff, 55%),
-        0 .5rem 1.5rem rgba(0, 0, 0, 0.45),
-        0 0 1.1rem fade(#79b8ff, 16%);
-    .con-mandatory__pulse { background: #79b8ff; box-shadow: 0 0 .6rem fade(#79b8ff, 85%); }
-    .con-mandatory__glyph { color: #79b8ff; text-shadow: 0 0 .7rem fade(#79b8ff, 55%); }
-    .con-mandatory__kicker { color: #9ccbff; }
-    .con-mandatory__src { background: fade(#79b8ff, 12%); box-shadow: inset 0 0 0 .05rem fade(#79b8ff, 34%); }
-    .con-mandatory__open { background: fade(#79b8ff, 16%); box-shadow: inset 0 0 0 .06rem fade(#79b8ff, 55%); }
-}
-
 @keyframes con-mandatory-in {
     from { opacity: 0; transform: translate(-50%, -.5rem) scale(.97); }
     to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
