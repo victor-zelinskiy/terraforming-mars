@@ -6581,6 +6581,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 .con-handdock:not(.con-handdock--live) .con-handdock__pack {
     z-index: 0;
 }
+/* EXCEPTION — the start-of-game screen (`.con-start`: corp / prelude wizard).
+   There the board-separating layer IS the start scene itself (con-start,
+   z11480, fixed over the board), and there's plenty of room (the pack never
+   overlaps the prelude grid). So instead of tucking the pack UNDER everything
+   (z0), lift it to z11490 — ABOVE the start scene's veil (it reads as start-
+   scene foreground over the dimmed board) but BELOW every modal that can open
+   there (MA 11500 / gov 11520 / info 11560 / reveal 11900 / fallback 12000) and
+   BELOW the dock's own chassis plate (z11705, counter in front of the card
+   bottoms). Detected structurally — `.con-start` only exists while `startTask`
+   is up. */
+.con-root:has(.con-start) .con-handdock:not(.con-handdock--live) .con-handdock__pack {
+    z-index: 11490;
+}
 
 /* Pack enter/leave (a card joins / leaves the hand): rise out of / sink
    into the tray. `--hd-pop` folds into the card's own transform, so the

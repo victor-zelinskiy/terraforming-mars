@@ -95,7 +95,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
 const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // '.con-composer--play' = the native play-card pre-select composer, which
   // serves the projectCard prompt on top of the hand while it is open.
-  projectCard: ['.con-hand', '.con-sheet', '.con-composer--play'],
+  // '.con-stdp' = the P27 premium Standard-Projects screen (ConsoleStdProjectsScreen),
+  // which serves a standalone standard-project prompt (EstablishedMethods'
+  // "Select your first/second standard project"). It replaced the generic
+  // '.con-sheet' for standard projects, so that class alone no longer matches.
+  projectCard: ['.con-hand', '.con-sheet', '.con-stdp', '.con-composer--play'],
   // A MANDATORY hand pick (discard / reveal / place) is served by the hand
   // section in select mode — the same `.con-hand` root as play-from-hand.
   handSelect: ['.con-hand'],
