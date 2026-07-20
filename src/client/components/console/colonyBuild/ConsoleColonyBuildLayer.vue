@@ -1,35 +1,24 @@
 <template>
   <!--
-    COLONY-BUILD HERO STAGE — the fixed, app-level layer of the "my cube drops
-    into the colony slot and the one-time build bonus is lifted out of the
-    cell" scene (consoleColonyBuild / colonyBuildDirector). Mounted for the
-    WHOLE transaction, so the drop survives any surface shuffling beneath it.
+    COLONY-BUILD HERO STAGE — the fixed, app-level layer of the "the build
+    bonus frees the slot, then my cube takes it" scene (consoleColonyBuild /
+    colonyBuildDirector). Mounted for the WHOLE transaction, so the cube
+    survives any surface shuffling beneath it.
 
-    Anatomy:
-     - the CUBE proxy is a twin of the real filled-cell owner cube (the same
-       player-hue plate + relief), placed at the captured slot rect; the
-       director drops it in and settles it, then crossfades onto the real cube;
-     - the GLYPH proxy (a resource build bonus only) is the resource sprite the
-       chip wave will carry, placed at the captured glyph rect; the director
-       rises it off the slot (displaced by the arriving cube), hovers it, then
-       hands it off to its chip on the shared ConsoleResourceTransferLayer.
-
-    Pointer-inert, empty & free when nothing is building. All motion lives in
-    the director.
+    The ONLY element is the cube proxy — a PIXEL-TWIN of the real filled-cell
+    owner cube: sized to the captured slot rect, with its border-radius +
+    inset relief computed in PX from the slot height using the SAME fractions
+    the static `.con-coltile__cube--filled` uses in rem, so the two render
+    byte-identical at any TV zoom and the one-frame handoff is invisible. The
+    director only translates it in Y (never scales it). Pointer-inert, empty &
+    free when nothing is building.
   -->
   <div v-if="colonyBuildState.active" class="con-colonybuild" aria-hidden="true">
     <div v-if="colonyBuildState.slotRect !== undefined"
          ref="cube"
          class="con-colonybuild__cube"
          :class="cubeColorClass"
-         :style="rectStyle(colonyBuildState.slotRect)"></div>
-    <div v-if="colonyBuildState.hasGlyph && colonyBuildState.glyphRect !== undefined && glyphIconClass !== ''"
-         ref="glyph"
-         class="con-colonybuild__glyph"
-         :class="{'con-colonybuild__glyph--production': isProduction}"
-         :style="rectStyle(colonyBuildState.glyphRect)">
-      <i class="con-colonybuild__glyph-icon" :class="glyphIconClass"></i>
-    </div>
+         :style="cubeStyle"></div>
   </div>
 </template>
 
@@ -37,12 +26,9 @@
 import {defineComponent} from 'vue';
 import {colonyBuildState, registerColonyBuildStage} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {ColonyBuildStageEls} from '@/client/console/colonyBuild/colonyBuildDirector';
-import {BuildRect} from '@/client/console/colonyBuild/colonyBuildModel';
-import {getColony} from '@/client/colonies/ClientColonyManifest';
-import {ColonyName} from '@/common/colonies/ColonyName';
-import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
-import {Resource} from '@/common/Resource';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {
+  CUBE_RADIUS_F, CUBE_RIM_F, CUBE_INSET_OFFSET_F, CUBE_INSET_BLUR_F,
+} from '@/client/console/colonyBuild/colonyBuildModel';
 
 export default defineComponent({
   name: 'ConsoleColonyBuildLayer',
@@ -56,44 +42,26 @@ export default defineComponent({
     cubeColorClass(): string {
       return colonyBuildState.color !== '' ? 'player_bg_color_' + colonyBuildState.color : '';
     },
-    /** The build bonus's resource (from the colony manifest) — the sprite the
-     *  pre-lift glyph shows + the chip carries. */
-    buildResourceKey(): string {
-      const name = colonyBuildState.colonyName;
-      if (name === '') {
-        return '';
+    /** The captured slot rect IS the resting pose + the material style, sized
+     *  to match the static cube on-screen (radius/relief ∝ slot height). */
+    cubeStyle(): Record<string, string> {
+      const r = colonyBuildState.slotRect;
+      if (r === undefined) {
+        return {};
       }
-      try {
-        const r = getColony(name as ColonyName).build.resource;
-        const value = Array.isArray(r) ? r[0] : r;
-        return value !== undefined ? (value as Resource).toString() : '';
-      } catch {
-        return '';
-      }
-    },
-    isProduction(): boolean {
-      const name = colonyBuildState.colonyName;
-      if (name === '') {
-        return false;
-      }
-      try {
-        return getColony(name as ColonyName).build.type === ColonyBenefit.GAIN_PRODUCTION;
-      } catch {
-        return false;
-      }
-    },
-    glyphIconClass(): string {
-      return iconClassFor(this.buildResourceKey);
-    },
-  },
-  methods: {
-    /** The captured live rect IS the resting pose (the director only transforms). */
-    rectStyle(rect: BuildRect): Record<string, string> {
+      const h = r.h;
+      const rim = (h * CUBE_RIM_F).toFixed(2);
+      const off = (h * CUBE_INSET_OFFSET_F).toFixed(2);
+      const blur = (h * CUBE_INSET_BLUR_F).toFixed(2);
       return {
-        left: `${Math.round(rect.x)}px`,
-        top: `${Math.round(rect.y)}px`,
-        width: `${Math.round(rect.w)}px`,
-        height: `${Math.round(rect.h)}px`,
+        left: `${Math.round(r.x)}px`,
+        top: `${Math.round(r.y)}px`,
+        width: `${Math.round(r.w)}px`,
+        height: `${Math.round(r.h)}px`,
+        borderRadius: `${(h * CUBE_RADIUS_F).toFixed(2)}px`,
+        boxShadow: `inset 0 0 0 ${rim}px rgba(0, 0, 0, 0.55), ` +
+          `inset 0 ${off}px ${blur}px rgba(255, 255, 255, 0.24), ` +
+          `inset 0 -${off}px ${blur}px rgba(0, 0, 0, 0.4)`,
       };
     },
   },
@@ -104,11 +72,7 @@ export default defineComponent({
         if (cube === undefined || !cube.isConnected) {
           return undefined;
         }
-        const glyph = this.$refs.glyph as HTMLElement | undefined;
-        return {
-          cube,
-          glyph: glyph !== undefined && glyph.isConnected ? glyph : undefined,
-        };
+        return {cube};
       },
     });
   },

@@ -5,7 +5,7 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Resource} from '@/common/Resource';
 import {Color} from '@/common/Color';
-import {buildRewardSpecs, buildBonusIsCard, verifyColonyBuild} from '@/client/console/colonyBuild/colonyBuildModel';
+import {buildRewardSpecs, buildBonusIsCard, buildBonusMode, verifyColonyBuild} from '@/client/console/colonyBuild/colonyBuildModel';
 
 /** A ColonyMetadata whose BUILD bonus is `build` (trade/colony are inert). */
 function metaWith(build: {type: ColonyBenefit, quantity?: Array<number>, resource?: Resource}): ColonyMetadata {
@@ -57,6 +57,16 @@ describe('colonyBuildModel', () => {
 
     it('is false for a resource bonus', () => {
       expect(buildBonusIsCard(metaWith({type: ColonyBenefit.GAIN_RESOURCES, quantity: [1, 1, 1], resource: Resource.STEEL}))).to.eq(false);
+    });
+  });
+
+  describe('buildBonusMode', () => {
+    it('classifies how the slot bonus leaves', () => {
+      expect(buildBonusMode(metaWith({type: ColonyBenefit.GAIN_PRODUCTION, quantity: [1, 1, 1], resource: Resource.MEGACREDITS}), 0)).to.eq('resource');
+      expect(buildBonusMode(metaWith({type: ColonyBenefit.GAIN_RESOURCES, quantity: [1, 1, 1], resource: Resource.TITANIUM}), 0)).to.eq('resource');
+      expect(buildBonusMode(metaWith({type: ColonyBenefit.DRAW_CARDS, quantity: [2, 2, 2]}), 0)).to.eq('card');
+      expect(buildBonusMode(metaWith({type: ColonyBenefit.GAIN_TR, quantity: [1, 1, 1]}), 0)).to.eq('none');
+      expect(buildBonusMode(metaWith({type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [1, 1, 1]}), 0)).to.eq('none');
     });
   });
 

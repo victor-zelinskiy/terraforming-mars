@@ -1050,12 +1050,12 @@ export default defineComponent({
               nextTick(() => endHydroMarker());
             }
             if (colonyBuildEvent !== undefined) {
-              // Post-commit reward beat: the real filled-cell cube just painted
-              // under the settled proxy — crossfade it off, then the hovering
-              // build-bonus glyph hands off to its resource chips (delta chip at
-              // each touchdown), OR a card cover continues under board-card-bonus.
+              // Post-commit handoff: the real filled-cell cube just painted
+              // pixel-identical under the settled proxy — remove the proxy in
+              // one frame + absorb the resting resource chip (its delta chip
+              // fired on the commit). A card cover continues under board-card-bonus.
               nextTick(() => {
-                void endColonyBuild(newView);
+                void endColonyBuild();
               });
             }
             if (playedHeroEvent !== undefined) {

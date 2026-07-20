@@ -87,17 +87,17 @@ describe('consoleColonyBuild', () => {
   it('a CARD build bonus (Pluto) arms the board-card-bonus cover lift', async () => {
     armColonyBuild(ColonyName.PLUTO, 0, 'red');
     detectColonyBuild(view([colony(ColonyName.PLUTO, [])], 'red'), view([colony(ColonyName.PLUTO, ['red'])], 'red'));
-    expect(colonyBuildState.isCard).to.eq(true);
+    expect(colonyBuildState.mode).to.eq('card');
     colonyBuildState.reducedMotion = true;
     await runColonyBuild();
     expect(isBoardCardBonusActive()).to.eq(true);
   });
 
-  it('endColonyBuild with a SPACE follow-up finishes (dispose-instant, no chip wave)', async () => {
+  it('endColonyBuild performs the seamless handoff + finishes', async () => {
     armColonyBuild(ColonyName.LUNA, 0, 'red');
     detectColonyBuild(view([colony(ColonyName.LUNA, [])], 'red'), view([colony(ColonyName.LUNA, ['red'])], 'red'));
     await runColonyBuild();
-    await endColonyBuild(view([colony(ColonyName.LUNA, ['red'])], 'red', 'space'));
+    await endColonyBuild();
     expect(isColonyBuildActive()).to.eq(false);
   });
 

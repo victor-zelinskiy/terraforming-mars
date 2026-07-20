@@ -7529,21 +7529,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: 0 0 0 .075rem rgba(0, 0, 0, 0.65), 0 .1rem .25rem rgba(0, 0, 0, 0.5);
     }
     /* Occupied slot: the one-time build bonus is consumed, so the cube FILLS
-       the whole cell (never a small corner marker over a stale glyph). Matches
-       the console-build hero's dropping cube proxy (.con-colonybuild__cube) so
-       the post-commit crossfade is seamless. */
+       the whole cell (never a small corner marker over a stale glyph). The
+       rem values here (radius .35 / rim .06 / offset .14 / blur .30 against the
+       2.3rem cell) are the SAME fractions the console-build hero's dropping cube
+       proxy (.con-colonybuild__cube) computes in px, so the post-commit handoff
+       is pixel-identical — INSET shadows only (an outer cast shadow would be
+       clipped by the slot's `overflow: hidden` and break the match). `inset: 0`
+       + auto size fills the cell; do NOT re-introduce right/top (they undo it). */
     &__cube--filled {
         inset: 0;
-        right: auto;
-        top: auto;
         width: auto;
         height: auto;
         border-radius: .35rem;
         box-shadow:
             inset 0 0 0 .06rem rgba(0, 0, 0, 0.55),
-            inset 0 .12rem .26rem rgba(255, 255, 255, 0.24),
-            inset 0 -.12rem .26rem rgba(0, 0, 0, 0.4),
-            0 .1rem .3rem rgba(0, 0, 0, 0.5);
+            inset 0 .14rem .3rem rgba(255, 255, 255, 0.24),
+            inset 0 -.14rem .3rem rgba(0, 0, 0, 0.4);
     }
     &__track {
         flex: 1;

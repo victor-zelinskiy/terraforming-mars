@@ -1,61 +1,57 @@
 /*
  * CONSOLE COLONY BUILD — the animation TRANSACTION behind the premium
- * "my cube drops into the colony slot and the one-time build bonus is lifted
- * out of the cell" hero scene (console-native only).
+ * "the build bonus frees the slot, then my cube takes it" hero scene
+ * (console-native only).
  *
- * The gate follows the established tile-placement / trade-fleet contract:
+ * The gate follows the established client-armed contract (tile-placement /
+ * trade-fleet / patent-sale):
  *
  *   the colonies-screen Build confirm ARMS the transaction (armColonyBuild —
- *   console-only, BEFORE the POST; nothing visual yet). WaitingFor DETECTS it
- *   once per response (detectColonyBuild — consumes the arm and VERIFIES the
- *   server actually put the viewer's cube in the armed colony's next slot: a
- *   refused build unwinds with zero trace), CAPTURES the build slot's + its
- *   benefit glyph's live geometry while the glyph is still rendered (it is
- *   removed once the slot is occupied), HOLDS the commit through the drop
- *   (await runColonyBuild — the cube proxy descends while the glyph is
- *   displaced upward and hovers), SEEDS the panel reward hold for a resource
- *   build bonus, then COMMITS (the real filled-cell cube paints under the
- *   proxy), and finally endColonyBuild() plays the post-commit REWARD BEAT:
- *   the hovering glyph hands off to physical resource chips (the shared
- *   Resource Transfer Framework) that pay out — each touchdown releases its
- *   metric, firing that delta chip at the contact. A CARD build bonus (Pluto)
- *   instead lifts a card cover off the same cell (board-card-bonus). A
- *   chip-less build (TR / VP / a deferred pick / a board follow-up) just
- *   drops the cube. abortColonyBuild() is wired into every error path + a
- *   safety timer.
+ *   console-only, BEFORE the POST). WaitingFor DETECTS it once per response
+ *   (detectColonyBuild — VERIFIES the viewer's cube landed in the armed
+ *   colony's next slot + CAPTURES the slot geometry while the glyph is still
+ *   rendered), HOLDS the commit through the sequence (await runColonyBuild):
+ *   the cube flies to a WAITING pose above the slot, the build bonus LEAVES
+ *   the slot (a resource flies to the panel / a card lifts into the reveal
+ *   space / an abstract glyph is vacated), and only once it has CLEARED the
+ *   slot does the cube DESCEND into the exact centre. For a resource bonus the
+ *   commit is held until the chip lands on the panel (patent-sale style), so
+ *   the resource is credited exactly as the bonus arrives. Then it COMMITS
+ *   (the real filled-cell cube paints pixel-identical UNDER the settled proxy),
+ *   and endColonyBuild() performs the seamless one-frame handoff (+ absorbs the
+ *   resting resource chip). abortColonyBuild() is wired into every error path +
+ *   a safety timer.
  *
- * Ownership map:
- *   - phases / timings / spec extraction / build proof → colonyBuildModel (pure);
- *   - GSAP work on the stage                          → colonyBuildDirector;
- *   - the fixed proxy stage                           → ConsoleColonyBuildLayer.vue.
+ * The cube is ONE physical object: placed at its FINAL size, only translated;
+ * no touchdown scale / bounce / pulse; the proxy is a pixel-twin of the static
+ * cube so the handoff is invisible. The cube and the bonus never occupy the
+ * same area (the bonus clears the slot before the cube descends).
  *
- * DESKTOP SAFETY: `armColonyBuild` is only ever called by the console shell,
- * so on desktop `colonyBuildState.active` is false and `detectColonyBuild`
- * returns undefined → the WaitingFor hold never engages.
+ * Ownership map: phases/timings/spec-extraction/proof → colonyBuildModel (pure);
+ * GSAP → colonyBuildDirector; the fixed stage → ConsoleColonyBuildLayer.vue.
+ *
+ * DESKTOP SAFETY: `armColonyBuild` is only ever called by the console shell.
  */
 
 import {reactive, nextTick} from 'vue';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
+import {ViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {
-  ColonyBuildPhase, BuildRect,
-  buildRewardSpecs, buildBonusIsCard, verifyColonyBuild,
-  CUBE_DROP_MS, CUBE_SETTLE_MS, GLYPH_PRELIFT_START_T, GLYPH_RISE_MS, GLYPH_HOVER_PX,
-  HANDOFF_BREATH_MS, REDUCED_MS, ARM_SAFETY_MS,
+  ColonyBuildPhase, BuildRect, BonusExitMode,
+  buildRewardSpecs, buildBonusMode, verifyColonyBuild,
+  CUBE_APPROACH_MS, BONUS_CLEAR_MS, CUBE_DESCENT_MS, REDUCED_MS, ARM_SAFETY_MS,
 } from '@/client/console/colonyBuild/colonyBuildModel';
 import {
-  ColonyBuildStageEls, placeCubeProxy, playCubeDrop, playGlyphPreLift, playGlyphHandoff,
+  ColonyBuildStageEls, placeCubeProxy, playCubeApproach, playCubeDescent,
   disposeCubeProxy, killColonyBuildTweens,
 } from '@/client/console/colonyBuild/colonyBuildDirector';
 import {
-  runResourceTransfers, abortResourceTransfers,
-  beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+  runResourceTransfers, abortResourceTransfers, settleResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {armBoardCardBonus, abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -67,21 +63,15 @@ export const colonyBuildState = reactive({
   nonce: 0,
   /** The colony being built (its slot is the landing anchor). */
   colonyName: '' as string,
-  /** The slot the cube lands in (its build bonus is the one being taken). */
+  /** The slot the cube lands in (its build bonus is the one leaving). */
   slotIndex: 0,
   /** The builder's cube colour. */
   color: '' as Color | '',
   reducedMotion: false,
-  /** The build bonus is a CARD (Pluto) — the cover lifts via board-card-bonus,
-   *  so this scene skips the glyph proxy (the card cover owns the cell). */
-  isCard: false,
-  /** A resource build bonus with an on-panel chip → render + pre-lift the glyph
-   *  proxy (false for card / cube-only builds). */
-  hasGlyph: false,
-  /** The captured build-slot cell rect (the cube proxy fills it). */
+  /** How the slot's bonus leaves (resource chip / card cover / vacate). */
+  mode: 'none' as BonusExitMode,
+  /** The captured build-slot cell rect (the cube proxy IS this rect). */
   slotRect: undefined as BuildRect | undefined,
-  /** The captured benefit-glyph rect (the glyph proxy's resting pose). */
-  glyphRect: undefined as BuildRect | undefined,
 });
 
 /** One-shot claim per response (mirrors the sibling transactions). */
@@ -90,11 +80,11 @@ let armSafety: number | undefined;
 let sceneSafety: number | undefined;
 /** Resolves the WaitingFor commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
-/** The resource specs the reward beat carries (captured at detect). */
+/** The resource specs the leaving bonus carries (captured at detect). */
 let pendingSpecs: ReadonlyArray<ResourceTransferSpec> = [];
-/** The hold was seeded for THIS transaction (the commit path's one-shot). */
-let rewardHoldSeeded = false;
-/** The REAL benefit glyph we blanked under the proxy — restored on finish/abort. */
+/** The resource chip's flight (resolves when it RESTS on the panel — 'hold'). */
+let bonusFlight: Promise<void> | undefined;
+/** The REAL benefit glyph we blanked as the bonus left — restored on finish/abort. */
 let heldGlyphEl: HTMLElement | undefined;
 
 // ── stage registry (the layer plugs in) ─────────────────────────────────────
@@ -117,29 +107,22 @@ export function isColonyBuildActive(): boolean {
   return colonyBuildState.active;
 }
 
-/** TRUE while the scene owns the foreground (pad inert, surfaces held).
- *  `armed` deliberately does NOT hold — nothing visual happened yet. */
+/** TRUE while the scene owns the foreground (pad inert, surfaces held). */
 export function colonyBuildHolding(): boolean {
   const p = colonyBuildState.phase;
   return colonyBuildState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
 }
 
-// The drop + the post-commit reward beat hold the presentation; releases the
-// instant the phase drops on end/abort (the scene's completion signal).
 registerAnimationHoldSupplier('colony-build', colonyBuildHolding);
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
-/**
- * ARM (the colonies-screen Build confirm, BEFORE the POST). Nothing visual
- * happens until the server proves the cube landed. Sets `active` synchronously
- * — the input gate closes at once.
- */
+/** ARM (the colonies-screen Build confirm, BEFORE the POST). Sync `active`. */
 export function armColonyBuild(colonyName: string, slotIndex: number, color: Color): void {
   clearTimers();
   claimed = false;
   pendingSpecs = [];
-  rewardHoldSeeded = false;
+  bonusFlight = undefined;
   restoreHeldGlyph();
   colonyBuildState.active = true;
   colonyBuildState.phase = 'armed';
@@ -147,25 +130,18 @@ export function armColonyBuild(colonyName: string, slotIndex: number, color: Col
   colonyBuildState.colonyName = colonyName;
   colonyBuildState.slotIndex = slotIndex;
   colonyBuildState.color = color;
-  colonyBuildState.isCard = false;
-  colonyBuildState.hasGlyph = false;
+  colonyBuildState.mode = 'none';
   colonyBuildState.slotRect = undefined;
-  colonyBuildState.glyphRect = undefined;
   colonyBuildState.reducedMotion = consoleReducedMotionActive();
   armSafety = window.setTimeout(() => abortColonyBuild(), ARM_SAFETY_MS);
 }
 
 /**
- * DETECT (WaitingFor commit path) — consume the arm exactly once per response.
- * VERIFIES the server actually put the viewer's cube in the armed colony's
- * next slot, then CAPTURES the slot + benefit-glyph geometry while the glyph
- * is still on screen (it vanishes once the slot is occupied). Undefined on
- * desktop / a refused build → the scene unwinds with zero trace.
+ * DETECT (WaitingFor commit path) — consume the arm exactly once. VERIFIES the
+ * build + CAPTURES the slot geometry while the glyph is still on screen (it
+ * vanishes once the slot is occupied). Undefined on desktop / a refused build.
  */
-export function detectColonyBuild(
-  prevView: ViewModel,
-  newView: ViewModel,
-): {colonyName: string} | undefined {
+export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {colonyName: string} | undefined {
   if (!colonyBuildState.active || claimed) {
     return undefined;
   }
@@ -184,175 +160,141 @@ export function detectColonyBuild(
   colonyBuildState.slotIndex = proof.slotIndex;
   const metadata = getColony(colonyBuildState.colonyName as ColonyName);
   pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex);
-  colonyBuildState.isCard = buildBonusIsCard(metadata);
-  colonyBuildState.hasGlyph = pendingSpecs.length > 0;
-  // Capture the live geometry NOW — the slot still shows the glyph (the commit
-  // that replaces it with the cube is gated behind runColonyBuild).
-  const rects = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
-  colonyBuildState.slotRect = rects?.slot;
-  colonyBuildState.glyphRect = rects?.glyph;
+  colonyBuildState.mode = buildBonusMode(metadata, proof.slotIndex);
+  colonyBuildState.slotRect = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
   return {colonyName: colonyBuildState.colonyName};
 }
 
 /**
- * RUN (WaitingFor await) — the PRE-COMMIT half: the cube proxy descends into
- * the live slot; the benefit glyph is displaced upward (a resource bonus) and
- * hovers, OR a card cover lifts off the cell (board-card-bonus). Resolves once
- * the cube is seated; the caller commits right after, then calls
- * endColonyBuild() on nextTick. NEVER rejects — every failure degrades and the
- * gate can never hang.
+ * RUN (WaitingFor await) — the full sequence, holding the commit throughout:
+ * the cube flies to the waiting pose, the bonus LEAVES the slot, and (once it
+ * has cleared) the cube DESCENDS into the centre. For a resource bonus the
+ * gate additionally holds until the chip RESTS on the panel. Resolves once the
+ * cube is seated (+ the bonus has landed); the caller commits right after.
+ * NEVER rejects — every failure degrades and the gate can never hang.
  */
 export function runColonyBuild(): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve = resolve;
     sceneSafety = window.setTimeout(() => {
       freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(CUBE_DROP_MS + CUBE_SETTLE_MS) + 3000);
-    void executeDrop().finally(() => freeRunGate());
+    }, motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS) + 4000);
+    void executeBuild().finally(() => freeRunGate());
   });
 }
 
-async function executeDrop(): Promise<void> {
+async function executeBuild(): Promise<void> {
   if (!colonyBuildState.active) {
     return;
   }
-  colonyBuildState.phase = 'dropping';
-  // A CARD build bonus: lift the card cover off the SAME cell (the glyph is a
-  // card icon). Armed synchronously here — while the commit is gated the glyph
-  // is still on screen, so the board-card-bonus scene captures its rect. The
-  // deferred colony reveal is claimed post-commit; the scene is non-gating.
-  if (colonyBuildState.isCard) {
-    armBoardCardBonus({kind: 'colony-cell', colonyName: colonyBuildState.colonyName, slotIndex: colonyBuildState.slotIndex});
-  }
   const slot = colonyBuildState.slotRect;
   if (colonyBuildState.reducedMotion || slot === undefined || typeof document === 'undefined') {
-    // Reduced / unmeasurable: the cube appears in place with a short beat —
-    // same commit semantics, no proxies. A resource bonus still releases at
-    // once in endColonyBuild (its chips fire, marginally late).
+    // Reduced / unmeasurable: no cube animation, but the bonus still leaves +
+    // credits (the chip self-degrades to an instant release under reduced).
+    startBonusExit();
     colonyBuildState.phase = 'landed';
     await wait(colonyBuildState.reducedMotion ? REDUCED_MS : 60);
+    await settleBonusFlight();
     return;
   }
-  await nextTick(); // the layer mounts the proxies
+  await nextTick(); // the layer mounts the cube proxy
   if (!colonyBuildState.active) {
     return;
   }
   const els = stage?.els();
-  const ui = conUiScale();
   if (els === undefined || !placeCubeProxy(els, {slot})) {
+    startBonusExit();
     colonyBuildState.phase = 'landed';
     await wait(60);
+    await settleBonusFlight();
     return;
   }
-  const dropMs = motionMs(CUBE_DROP_MS);
-  if (colonyBuildState.hasGlyph && els.glyph !== undefined && colonyBuildState.glyphRect !== undefined) {
-    // The glyph is DISPLACED upward as the cube falls — the "bonus is lifted
-    // out, the cube takes its place" beat. The proxy stands over the real
-    // glyph (blanked this same turn — no double vision); the rise finishes ≈
-    // as the cube seats and hovers through the commit.
-    holdRealGlyph();
-    playGlyphPreLift(els, {
-      delayMs: Math.round(dropMs * GLYPH_PRELIFT_START_T),
-      riseMs: motionMs(GLYPH_RISE_MS),
-      hoverPx: Math.round(GLYPH_HOVER_PX * ui),
-    });
-  }
-  await playCubeDrop(els, {
-    slot,
-    uiScale: ui,
-    dropMs,
-    settleMs: motionMs(CUBE_SETTLE_MS),
-  });
+  // 1) The cube flies in to the WAITING pose above the slot (final size).
+  colonyBuildState.phase = 'waiting';
+  await playCubeApproach(els, {slot, ms: motionMs(CUBE_APPROACH_MS)});
   if (!colonyBuildState.active) {
-    return; // aborted mid-drop — abort already cleaned up
+    return;
   }
+  // 2) The cube is waiting — NOW the bonus lifts out and leaves the slot.
+  startBonusExit();
+  // 3) Wait for the bonus to CLEAR the slot bounds before the cube may descend
+  //    (their flights may overlap, but never in the same area).
+  await wait(motionMs(BONUS_CLEAR_MS));
+  if (!colonyBuildState.active) {
+    return;
+  }
+  // 4) The cube descends into the vacated slot centre and stops (no bounce).
+  colonyBuildState.phase = 'descending';
+  await playCubeDescent(els, {ms: motionMs(CUBE_DESCENT_MS)});
+  if (!colonyBuildState.active) {
+    return;
+  }
+  // 5) Land the commit on a bonus that has already reached the panel (resource).
+  await settleBonusFlight();
   colonyBuildState.phase = 'landed';
 }
 
 /**
- * Seed the PANEL REWARD HOLD for the build's resource bonus — the caller MUST
- * call this in the SAME SYNCHRONOUS BLOCK as `updatePlayerView` (never from
- * inside the flight promise chain: the panel shows `committed − held`, so an
- * early seed lets Vue flush a phantom −N chip). Idempotent; a no-op for a
- * card / cube-only build / reduced motion.
+ * Start the bonus LEAVING the slot (called once the cube is waiting):
+ *  - resource → blank the real glyph as the chip is born + fly it to the panel
+ *    ('hold' — it rests there; the gated commit credits it, settle absorbs it);
+ *  - card → lift the card cover off the slot glyph (board-card-bonus);
+ *  - none → simply vacate the abstract glyph as the cube takes the cell.
  */
+function startBonusExit(): void {
+  const mode = colonyBuildState.mode;
+  const slot = colonyBuildState.slotRect;
+  if (mode === 'card') {
+    armBoardCardBonus({kind: 'colony-cell', colonyName: colonyBuildState.colonyName, slotIndex: colonyBuildState.slotIndex});
+    return;
+  }
+  blankSlotGlyph(); // 1:1 takeover / vacate — the glyph is gone before the cube arrives
+  if (mode === 'resource' && slot !== undefined && pendingSpecs.length > 0) {
+    const from: TransferPoint = {x: slot.x + slot.w / 2, y: slot.y + slot.h / 2};
+    bonusFlight = runResourceTransfers({
+      specs: pendingSpecs,
+      source: {point: from},
+      arrival: 'hold',
+    });
+  }
+}
+
+/** Wait for the resource chip to land on the panel (resolves at once otherwise). */
+async function settleBonusFlight(): Promise<void> {
+  const flight = bonusFlight;
+  if (flight !== undefined) {
+    await flight;
+  }
+}
+
+/** NO-OP: the resource chip credits via the gated commit ('hold' arrival), so
+ *  there is no panel-reward-hold to seed. Kept for the WaitingFor wiring. */
 export function seedColonyBuildRewardHold(): void {
-  if (!colonyBuildState.active || rewardHoldSeeded || pendingSpecs.length === 0) {
-    return;
-  }
-  if (colonyBuildState.reducedMotion) {
-    pendingSpecs = [];
-    return;
-  }
-  rewardHoldSeeded = true;
-  beginPanelRewardHold(pendingSpecs);
+  // Intentionally empty — see the doc comment.
 }
 
 /**
- * END (next tick, after the view committed) — dispose the cube proxy onto the
- * now-painted real filled-cell cube, then (for a resource bonus) the REWARD
- * BEAT: the hovering glyph hands off to physical resource chips that fly onto
- * the panel — each touchdown releases its metric (delta chip at the contact).
- * A card / cube-only build finishes right after the crossfade. A build with a
- * pending SPACE follow-up disposes instantly (the colonies section is about
- * to unmount — no crossfade at a stale rect).
+ * END (next tick, after the view committed) — the real filled-cell cube just
+ * painted pixel-identical UNDER the settled proxy, so remove the proxy in one
+ * frame (seamless) and, for a resource bonus, absorb the resting chip into the
+ * panel row (its delta chip fired on the commit). A card cover continues under
+ * board-card-bonus's own lifecycle.
  */
-export async function endColonyBuild(newView: PlayerViewModel): Promise<void> {
+export async function endColonyBuild(): Promise<void> {
   if (!colonyBuildState.active) {
     return;
   }
-  const boardFollowUp = newView.waitingFor?.type === 'space';
-  const specs = pendingSpecs;
-  pendingSpecs = [];
   const els = stage?.els();
-  const ui = conUiScale();
-  // Hand the cube proxy off onto the real cube (identical geometry). Instant
-  // when the section is about to unmount (a board follow-up) or reduced.
   if (els !== undefined) {
-    await disposeCubeProxy(els, boardFollowUp || colonyBuildState.reducedMotion ? 0 : motionMs(120));
+    disposeCubeProxy(els);
   }
-  if (!colonyBuildState.active) {
-    return;
+  if (colonyBuildState.mode === 'resource') {
+    await settleResourceTransfers();
   }
-  if (specs.length === 0 || colonyBuildState.reducedMotion || boardFollowUp) {
-    // Card / cube-only build, reduced, or a board follow-up: no chip wave. A
-    // card cover (if any) continues under board-card-bonus's own lifecycle.
-    finish();
-    return;
-  }
-  colonyBuildState.phase = 'rewarding';
-  const hoverPx = Math.round(GLYPH_HOVER_PX * ui);
-  const glyphRect = colonyBuildState.glyphRect;
-  const origin: TransferPoint | undefined = glyphRect !== undefined ?
-    {x: glyphRect.x + glyphRect.w / 2, y: glyphRect.y + glyphRect.h / 2 - hoverPx} : undefined;
-  const slotRect = colonyBuildState.slotRect;
-  const source: TransferPoint | undefined = slotRect !== undefined ?
-    {x: slotRect.x + slotRect.w / 2, y: slotRect.y + slotRect.h / 2} : undefined;
-  // One calm breath: the player reads the bonus hovering over the placed cube,
-  // then the wave goes.
-  await wait(motionMs(HANDOFF_BREATH_MS));
-  if (!colonyBuildState.active) {
-    return;
-  }
-  if (els !== undefined && colonyBuildState.hasGlyph) {
-    playGlyphHandoff(els);
-  }
-  await runResourceTransfers({
-    specs,
-    origins: origin !== undefined ? specs.map(() => origin) : undefined,
-    source: {point: source},
-    arrival: 'auto',
-    onArrive: (spec) => releasePanelRewardHold(spec),
-  });
-  clearPanelRewardHold();
   finish();
 }
 
-/**
- * ABORT — refused build, network failure, safety timer, unmount. Drops the
- * stage, the pending specs and any seeded hold; recalls a card cover; frees
- * the commit gate; flags `failed` for one flush.
- */
+/** ABORT — refused build, network failure, safety timer, unmount. */
 export function abortColonyBuild(): void {
   if (!colonyBuildState.active && runResolve === undefined) {
     return;
@@ -363,13 +305,12 @@ export function abortColonyBuild(): void {
     killColonyBuildTweens(els);
   }
   abortResourceTransfers();
-  clearPanelRewardHold();
   restoreHeldGlyph();
-  if (colonyBuildState.isCard) {
+  if (colonyBuildState.mode === 'card') {
     abortBoardCardBonus('return'); // the card never came — recall the cover
   }
   pendingSpecs = [];
-  rewardHoldSeeded = false;
+  bonusFlight = undefined;
   colonyBuildState.active = false;
   colonyBuildState.phase = 'failed';
   freeRunGate();
@@ -382,10 +323,9 @@ export function abortColonyBuild(): void {
 
 function finish(): void {
   clearTimers();
-  clearPanelRewardHold(); // safety — the reward beat leaves it empty
   restoreHeldGlyph();
   pendingSpecs = [];
-  rewardHoldSeeded = false;
+  bonusFlight = undefined;
   colonyBuildState.active = false;
   colonyBuildState.phase = 'done';
   void nextTick(() => {
@@ -403,10 +343,9 @@ export function resetColonyBuild(): void {
     killColonyBuildTweens(els);
   }
   abortResourceTransfers();
-  clearPanelRewardHold();
   restoreHeldGlyph();
   pendingSpecs = [];
-  rewardHoldSeeded = false;
+  bonusFlight = undefined;
   claimed = false;
   runResolve = undefined;
   colonyBuildState.active = false;
@@ -420,10 +359,8 @@ function resetTransient(): void {
   colonyBuildState.colonyName = '';
   colonyBuildState.slotIndex = 0;
   colonyBuildState.color = '';
-  colonyBuildState.isCard = false;
-  colonyBuildState.hasGlyph = false;
+  colonyBuildState.mode = 'none';
   colonyBuildState.slotRect = undefined;
-  colonyBuildState.glyphRect = undefined;
 }
 
 function escapeName(name: string): string {
@@ -431,7 +368,13 @@ function escapeName(name: string): string {
     CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
-function rectOf(el: HTMLElement | null): BuildRect | undefined {
+/** The live rect of the build slot (post fit/zoom). */
+function measureBuildSlot(colonyName: string, slotIndex: number): BuildRect | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const el = document.querySelector<HTMLElement>(
+    `[data-colony-build-slot="${escapeName(colonyName + '#' + slotIndex)}"]`);
   if (el === null) {
     return undefined;
   }
@@ -439,23 +382,9 @@ function rectOf(el: HTMLElement | null): BuildRect | undefined {
   return r.width > 3 && r.height > 3 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
 }
 
-/** The live rects of the build slot + its benefit glyph (post fit/zoom). */
-function measureBuildSlot(colonyName: string, slotIndex: number): {slot: BuildRect | undefined, glyph: BuildRect | undefined} | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  const slotSel = `[data-colony-build-slot="${escapeName(colonyName + '#' + slotIndex)}"]`;
-  const slotEl = document.querySelector<HTMLElement>(slotSel);
-  if (slotEl === null) {
-    return undefined;
-  }
-  const glyphEl = slotEl.querySelector<HTMLElement>('.benefit-glyph');
-  return {slot: rectOf(slotEl), glyph: rectOf(glyphEl) ?? rectOf(slotEl)};
-}
-
-/** Blank the REAL benefit glyph the same synchronous turn the proxy stands
- *  over it (the `con-deal-hold` swap discipline) — no double vision. */
-function holdRealGlyph(): void {
+/** Blank the REAL benefit glyph as the bonus leaves (the `con-deal-hold` swap
+ *  discipline) — the slot is empty before the cube descends into it. */
+function blankSlotGlyph(): void {
   if (typeof document === 'undefined') {
     return;
   }
