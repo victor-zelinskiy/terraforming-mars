@@ -276,6 +276,30 @@ body.con-zoom-open .con-handdock {
         &--burst {
             animation: con-turn-burst calc(2600ms * var(--motion-scale, 1)) ease-out 1;
         }
+        /* ── Attention beacon — a mandatory decision awaits the VIEWER while
+           its CTA card is OFF-screen (they parked in the hand / journal /
+           colonies / a sheet / a zoom): the chip is then the ONE reminder.
+           AMBER is the console's established "decision" hue — mint stays
+           "your turn", cyan stays identity — so the colour alone carries the
+           meaning before any reading. Declared LAST in this block so its rim
+           wins over --me/--active at equal specificity. Engagement is
+           debounced in the component; the CSS entrance is a one-shot calm
+           bloom (never a hard pop), the steady state a slow breath on the
+           beacon glyph + a sparse sonar ring — noticeable, never a strobe. */
+        &--attention {
+            background: rgba(40, 31, 15, 0.92);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 72%), 0 0 .9rem fade(@con-amber, 24%);
+            animation: con-attention-in calc(1100ms * var(--motion-scale, 1)) ease-out 1;
+        }
+        &--attention .con-status__pstatus {
+            color: #ffe9c4;
+            background: rgba(30, 22, 10, 0.72);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+        }
+        &--attention .con-status__pstatus-glyph,
+        &--attention .con-status__pstatus-counter {
+            color: @con-amber;
+        }
     }
     &__dot {
         width: .7rem;
@@ -326,6 +350,76 @@ body.con-zoom-open .con-handdock {
         color: @con-mint;
         font-size: .8rem;
     }
+    /* The beacon glyph: a faceted amber diamond «!» + a slow sonar ring.
+       The plate lives on ::before and the ring on ::after — clip-path on
+       the ELEMENT would clip its own pseudos, so the element stays a plain
+       positioning box whose text paints above the z:-1 plate (the badge's
+       own z-index:0 opens the stacking context that keeps -1 inside). */
+    &__beacon {
+        position: relative;
+        z-index: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.1rem;
+        height: 1.1rem;
+        flex-shrink: 0;
+        color: #241606;
+        font-size: .72rem;
+        font-weight: 800;
+        line-height: 1;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(160deg, #ffdf9a, @con-amber 52%, #b97b1e);
+            clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+            filter: drop-shadow(0 0 .3rem fade(@con-amber, 55%));
+            animation: con-beacon-breath calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
+        &::after {
+            content: '';
+            position: absolute;
+            inset: -.15rem;
+            border-radius: 50%;
+            border: .07rem solid fade(@con-amber, 75%);
+            animation: con-beacon-ping calc(3200ms * var(--motion-scale, 1)) ease-out infinite;
+        }
+    }
+}
+
+/* Attention entrance: one calm amber bloom, then the steady rim (matches the
+   --attention resting box-shadow so the animation lands seamlessly). */
+@keyframes con-attention-in {
+    0% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 0%), 0 0 0 fade(@con-amber, 0%); transform: scale(1); }
+    16% { box-shadow: inset 0 0 0 .1rem fade(@con-amber, 95%), 0 0 1.5rem fade(@con-amber, 48%); transform: scale(1.04); }
+    42% { transform: scale(1); }
+    100% { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 72%), 0 0 .9rem fade(@con-amber, 24%); }
+}
+@keyframes con-beacon-breath {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.09); }
+}
+/* Sonar ping: the visible sweep occupies ~60% of the cycle — the rest is a
+   deliberate pause so the ring reads as a sparse beacon, not a pulse train. */
+@keyframes con-beacon-ping {
+    0% { transform: scale(.55); opacity: .8; }
+    62%, 100% { transform: scale(1.9); opacity: 0; }
+}
+/* Vue <transition name="con-beacon"> — transform/opacity only. */
+.con-beacon-enter-active { transition: transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.25), opacity calc(320ms * var(--motion-scale, 1)) ease; }
+.con-beacon-leave-active { transition: transform calc(200ms * var(--motion-scale, 1)) ease, opacity calc(200ms * var(--motion-scale, 1)) ease; }
+.con-beacon-enter-from { transform: scale(.3); opacity: 0; }
+.con-beacon-leave-to { transform: scale(.5); opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .con-status__player--attention { animation: none; }
+    .con-status__beacon::before { animation: none; }
+    .con-status__beacon::after { display: none; }
+    .con-beacon-enter-active,
+    .con-beacon-leave-active { transition: none; }
 }
 
 @keyframes con-turn-burst {
@@ -4001,6 +4095,28 @@ html.console-mode {
         background-repeat: no-repeat;
         background-position: center;
         flex-shrink: 0;
+    }
+    /* SELECT-mode payout twin (a client multi pick with a per-card gain —
+       Public Plans): the same running summary, re-accented CYAN so it reads
+       as part of the select grammar, never the amber sale. */
+    &__salebar--select {
+        .con-hand__salebar-item {
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+
+            &--gain {
+                background: linear-gradient(180deg, fade(@con-cyan, 20%), fade(@con-cyan, 9%)), rgba(14, 22, 33, 0.55);
+                box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%), 0 0 .7rem fade(@con-cyan, 18%);
+                color: #d8f4ff;
+            }
+            &--zero {
+                background: rgba(14, 22, 33, 0.5);
+                box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.24);
+                color: @con-text-dim;
+            }
+        }
+        .con-hand__salebar-num--after {
+            color: #d8f4ff;
+        }
     }
 
     &__selectfilter {
@@ -9848,12 +9964,14 @@ html.con-scale-focus-venus .arc-scale--venus {
     .con-cards__verdict--go,
     .con-cards__verdict--limit,
     .con-start__count--nudge,
+    .con-start__status-name,
     .con-start__beginline,
     .con-start__wait-scan,
     .con-start__beginline-flash,
     .con-start__wait-orbit i,
     .con-start__mate--active .con-start__mate-dot,
     .con-start__mate-dots b { animation: none; }
+    .con-start__status-inner { transition: none; }
     /* The sweeps carry no information on their own — drop them entirely
        rather than parking a bright band across the plate. */
     .con-start__wait-scan,
@@ -10458,6 +10576,14 @@ body.con-start-ceremony {
         gap: .8rem;
         min-width: 0;
         width: 100%;
+        /* PERSISTENT (never unmounts): the settle back once the deal cinematic
+           releases it. Only the content opacity animates — the rail box is
+           reserved by __statusrail so the cards never reflow. */
+        transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+        &--held {
+            opacity: 0;
+            pointer-events: none;
+        }
     }
     &__status-name {
         font-weight: 700;
@@ -10468,6 +10594,9 @@ body.con-start-ceremony {
         text-overflow: ellipsis;
         flex-shrink: 1;
         min-width: 0;
+        /* Re-keyed per focused card → a one-shot opacity settle on the NAME
+           only (never the whole rail — the state chip stays put). */
+        animation: con-verdict-name-in calc(120ms * var(--motion-scale, 1)) ease-out;
     }
     &__status-state {
         flex-shrink: 0;
@@ -11854,9 +11983,11 @@ html.console-mode .notifications-layer {
     }
     &__summary-line--more { color: @con-text-dim; font-size: .65rem; }
 
-    /* ── The card's pad contract, shown ON every notification (B Закрыть is a
-       global rule; the flow-holding AI-turn card adds X Осмотреть). The command
-       bar echoes it only for the flow-holding card. ── */
+    /* ── The card's pad contract, shown ON every notification (the command
+       bar keeps the SCREEN's contract — a toast never re-labels it): the
+       DETAIL action first when the card has one (press-and-HOLD X — the
+       plate FILLS while held, mirroring the input timer 1:1), then the
+       global «B Закрыть». ── */
     &__actions {
         display: flex;
         justify-content: flex-end;
@@ -11875,6 +12006,46 @@ html.console-mode .notifications-layer {
         color: @con-text-dim;
 
         &:last-child { color: @con-text; }
+    }
+    /* The hold-to-fire DETAIL chip: a subtle plate (signals "this one is an
+       action, not a plain hint") that fills cyan while X is held. */
+    &__action--detail {
+        position: relative;
+        overflow: hidden;
+        padding: .2rem .5rem;
+        border-radius: .4rem;
+        background: rgba(14, 22, 33, 0.75);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%);
+        color: @con-text;
+        transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease-out;
+
+        > * { position: relative; } /* content above the fill layer */
+    }
+    &__action--filling {
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 80%),
+            0 0 .5rem fade(@con-cyan, 25%);
+    }
+    &__action-hold {
+        font-size: .55rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        color: fade(@con-cyan, 85%);
+    }
+    &__action-fill {
+        position: absolute;
+        inset: 0;
+        transform-origin: left center;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, fade(@con-cyan, 18%), fade(@con-cyan, 45%));
+        will-change: transform;
+        /* Duration comes INLINE from NOTIF_HOLD_MS (the input threshold), so
+           the fill and the hold timer cannot drift. Deliberately NOT
+           motion-scaled: input ergonomics (the gamepadPollModel NAV_REPEAT
+           rule), and linear — progress IS elapsed time, honestly. */
+        animation-name: con-notif-hold-fill;
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
     }
 
     /* Prestige (milestone / award): a gold ceremony rim + one-shot glow. */
@@ -11909,8 +12080,24 @@ html.console-mode .notifications-layer {
     0% { filter: brightness(1.35) saturate(1.2); }
     100% { filter: none; }
 }
+@keyframes con-notif-hold-fill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+/* While the player HOLDS X the lifetime shrink pauses — a hold must never
+   lose its card mid-fill (mirrors the desktop card's :hover pause). */
+.con-notif--hold-active .con-notif__progress {
+    animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
     .con-notif--prestige { animation: none; }
+    /* The hold fill is FUNCTIONAL feedback (input progress, not decoration):
+       keep the exact timing, swap the sweep for a calm in-place brighten. */
+    .con-notif__action-fill { animation-name: con-notif-hold-fill-rm; }
+}
+@keyframes con-notif-hold-fill-rm {
+    from { transform: scaleX(1); opacity: 0.1; }
+    to { transform: scaleX(1); opacity: 0.45; }
 }
 
 /* ── P28: the journal is console-NATIVE now (.con-journal, mounted by

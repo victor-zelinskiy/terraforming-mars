@@ -27,7 +27,7 @@
  */
 
 import {useEventListener} from '@vueuse/core';
-import {keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
+import {CONSOLE_KEY_BUTTON, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {clickDesktopUpdatePrimary, desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
@@ -68,6 +68,34 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
+/**
+ * Keyup → a synthesized RELEASE intent, so keyboard input carries the same
+ * press/release edges the gamepad poll model emits — press-and-HOLD verbs
+ * (the notification toast's X-hold detail action) work identically on the
+ * desktop-fallback keyboard. Mirrors keydown's arbitration: editable targets
+ * own the keyboard; consumption gates preventDefault. keydown REPEATS never
+ * re-fire a press (keyboardConsoleIntent filters them), so a held key is
+ * exactly one press … one release, like a pad button.
+ */
+function onKeyup(e: KeyboardEvent): void {
+  if (menuPadState.textEntry || isEditableTarget(e.target)) {
+    return;
+  }
+  const button = CONSOLE_KEY_BUTTON[e.code];
+  if (button === undefined) {
+    return;
+  }
+  if (desktopUpdateBlocking()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  if (dispatchConsoleIntent({kind: 'release', button})) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+}
+
 let stop: (() => void) | undefined;
 
 /** Idempotent — GamepadLayer installs on console-mode entry. */
@@ -75,7 +103,12 @@ export function installConsoleKeyBridge(): void {
   if (stop !== undefined || typeof window === 'undefined') {
     return;
   }
-  stop = useEventListener(window, 'keydown', onKeydown);
+  const stopDown = useEventListener(window, 'keydown', onKeydown);
+  const stopUp = useEventListener(window, 'keyup', onKeyup);
+  stop = () => {
+    stopDown();
+    stopUp();
+  };
 }
 
 export function uninstallConsoleKeyBridge(): void {

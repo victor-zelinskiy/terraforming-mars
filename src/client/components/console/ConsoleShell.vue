@@ -3,7 +3,10 @@
     <!-- P27: the strip is player IDENTITY + live turn STATUS only — the
          cards/actions counters live in the right home panel now, and the
          viewer's "your turn" reads from their own chip (no central pill). -->
-    <ConsoleStatusStrip :playerView="playerView" :waitingOnPlayers="waitingOnPlayers" :epoch="playerView.runId" />
+    <ConsoleStatusStrip :playerView="playerView"
+                        :waitingOnPlayers="waitingOnPlayers"
+                        :epoch="playerView.runId"
+                        :attentionPending="mandatoryChipAttention" />
 
     <!-- P27: the central banner is reserved for MANDATORY / critical states
          (placement, awaited decisions) — never a plain "your turn". -->
@@ -257,7 +260,10 @@
     <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
     <!-- The console-native BLUE-CARD ACTION CENTER (master-detail + confirm) —
          replaces the old bottom-sheet list + bare confirm for card actions. -->
+    <!-- v-show while a client hand pick is out (SRR link pick): the Action
+         Center + its composer stay mounted so every capture survives. -->
     <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
+                        v-show="!handPickActive"
                         ref="cardActions"
                         :playerView="playerView"
                         @submit-batch="onCardActionsSubmitBatch"
@@ -670,7 +676,10 @@
          payment here; the on-play choices arrive as NATIVE follow-up
          tasks after confirm (the legacy-supported sequential contract). -->
     <transition name="con-layer">
+      <!-- v-show (NOT v-if) while a client hand pick is out: the composer's
+           captured choices/payment must survive the hand round-trip. -->
       <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
+                              v-show="!handPickActive"
                               ref="playConfirm"
                               :playerView="playerView"
                               :cardName="pendingPlayCard.cardName"
@@ -754,6 +763,7 @@ import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/component
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
@@ -879,7 +889,8 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
-import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -1044,6 +1055,8 @@ export default defineComponent({
       infoModeState,
       leakDetectorState,
       consoleSystemAlertState,
+      /** Re-entrancy guard: an X TAP being replayed past the toast's hold capture. */
+      notifTapReplay: false,
       govScaleFocusState,
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
@@ -1051,6 +1064,10 @@ export default defineComponent({
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
+      /** The client hand-pick bridge state (composer → hand section). */
+      consoleHandPickState,
+      /** The section to restore when a client hand pick resolves/cancels. */
+      handPickReturn: undefined as ConsoleSection | undefined,
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
       returningPlayCard: undefined as CardName | undefined,
@@ -1251,6 +1268,12 @@ export default defineComponent({
      * parked dock never robs a landing target.
      */
     dockParkedUnderScene(): boolean {
+      // A live CLIENT hand pick hides the composer / Action Center (v-show) —
+      // the hand section IS the scene, so the dock unparks (the suitable-only
+      // filter episode needs its rects, and the tray belongs to the hand view).
+      if (this.handPickActive) {
+        return false;
+      }
       return (
         this.pendingPlayCard !== undefined ||
         this.pendingTradeColony !== undefined ||
@@ -1386,13 +1409,10 @@ export default defineComponent({
     consoleForegroundBusy(): boolean {
       return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds;
     },
-    /** The visible flow-holding notification (the compact AI-turn card), if any. */
-    foregroundHoldingCard(): LiveNotification | undefined {
-      return notificationState.transient.find((n) => n.holdsFlow === true);
-    },
     /** The currently VISIBLE transient notification — the topmost (the feed is
      *  serial, so at most one). GLOBAL rule: any console toast is dismissable
-     *  with B; the flow-holding AI-turn card additionally claims X / swallows A. */
+     *  with B («B Закрыть» on the card); the flow-holding AI-turn card
+     *  additionally offers its detail action on press-and-HOLD X. */
     topNotification(): LiveNotification | undefined {
       const feed = notificationState.transient;
       return feed.length > 0 ? feed[feed.length - 1] : undefined;
@@ -1694,6 +1714,19 @@ export default defineComponent({
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
     },
+    /**
+     * The viewer's TOP CHIP carries the pending-decision beacon while the CTA
+     * card is NOT on screen (the player parked in another section / screen /
+     * modal / a zoom — anywhere `mandatoryAnnounceVisible` is false): the chip
+     * is then the ONE reminder of the awaited decision. RAW (undebounced) —
+     * the strip debounces engagement so a transient off-screen window (an
+     * animation about to end on the board home) never flashes the beacon, and
+     * releases INSTANTLY when the announce card takes over — the two surfaces
+     * never double-signal.
+     */
+    mandatoryChipAttention(): boolean {
+      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) && !this.mandatoryAnnounceVisible;
+    },
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
      *  decision, «Вернуться к решению» for a deferred one. */
@@ -1960,6 +1993,17 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         return this.handEntriesAll;
       }
+      // CLIENT composer pick: same narrowing as the server select, over the
+      // pick's shown-hand universe (no staged card, no SRR-hosted cards).
+      if (this.handPickActive) {
+        const shown = new Set(this.handPickHandNames);
+        const base = this.handEntriesAll.filter((e) => shown.has(e.card.name));
+        if (this.handSelectSuitableOnly && this.handSelectFiltered) {
+          const sel = new Set(this.handSelectSelectableNames);
+          return base.filter((e) => sel.has(e.card.name));
+        }
+        return base;
+      }
       // MANDATORY hand SELECT (discard / reveal / place): the tag filter is
       // replaced by the "suitable only" filter. When on (default) a NARROWED
       // (conditional) prompt shows only the candidate cards; toggling it off
@@ -1987,10 +2031,70 @@ export default defineComponent({
     handSelectTaskActive(): boolean {
       return this.handSelectModel !== undefined;
     },
+    // ── CLIENT hand pick (composer → hand bridge, consoleHandPick) ────────
+    /** A composer (play confirm / blue-card action) handed a card pick to the
+     *  hand section — the composer is hidden (v-show) and the hand owns input. */
+    handPickActive(): boolean {
+      return consoleHandPickState.active;
+    },
+    /** The hand section is in EITHER select mode — the server `handSelect`
+     *  task OR a client composer pick. One UI, two sources. */
+    handSelectUiActive(): boolean {
+      return this.handSelectTaskActive || this.handPickActive;
+    },
+    /** The «suitable only» filter of whichever select source is active. */
+    handSelectSuitableOnly(): boolean {
+      return this.handPickActive ? consoleHandPickState.suitableOnly : this.consoleState.select.suitableOnly;
+    },
+    /** The live pick accumulation of whichever select source is active. */
+    handSelectPicked(): ReadonlyArray<string> {
+      return this.handPickActive ? consoleHandPickState.selected : this.consoleState.select.selected;
+    },
+    /** The A-verb of whichever select source is active (server buttonLabel /
+     *  the pick request's verb — 'Discard' / 'Reveal' / 'Link card' / …). */
+    handSelectVerb(): string {
+      if (this.handPickActive) {
+        return consoleHandPickState.request?.buttonLabel || 'Select';
+      }
+      return this.handSelectModel?.buttonLabel || 'Select';
+    },
+    /** Multi pick: every candidate (up to `max`) is already selected — L3 flips
+     *  between select-all and unselect-all. */
+    pickAllSelected(): boolean {
+      const req = consoleHandPickState.request;
+      if (req === undefined) {
+        return false;
+      }
+      const target = Math.min(req.selectable.length, req.max);
+      return target > 0 && consoleHandPickState.selected.length >= target;
+    },
     /** PURE derivation of the select facts (pickable set / single-vs-multi /
      *  conditional-subset / per-card «why not» reasons) — the i18n of a
      *  disabledReason is injected so the derivation module stays locale-free. */
     handSelectDerived(): HandSelectDerivation | undefined {
+      // CLIENT composer pick: the request already carries the candidate set +
+      // the server's per-card reasons (disabledCards); every OTHER shown hand
+      // card gets the honest generic line — same shape as the server path.
+      const pick = consoleHandPickState.request;
+      if (this.handPickActive && pick !== undefined) {
+        const handNames = this.handPickHandNames;
+        const selectableSet = new Set<string>(pick.selectable);
+        const reasons: Record<string, string> = {};
+        for (const [name, reason] of Object.entries(pick.reasons)) {
+          reasons[name] = reason !== '' ? reason : translateText('This card cannot be chosen here');
+        }
+        for (const name of handNames) {
+          if (!selectableSet.has(name) && reasons[name] === undefined) {
+            reasons[name] = translateText('This card cannot be chosen here');
+          }
+        }
+        return {
+          selectable: pick.selectable,
+          single: pick.min === 1 && pick.max === 1,
+          filtered: pick.selectable.length < handNames.length,
+          reasons,
+        };
+      }
       const model = this.handSelectModel;
       if (model === undefined) {
         return undefined;
@@ -2000,6 +2104,14 @@ export default defineComponent({
         r === undefined ? translateText('This card cannot be chosen here') :
           (typeof r === 'string' ? translateText(r) : translateMessage(r));
       return deriveHandSelect(model, handNames, translateReason);
+    },
+    /** The hand shown during a CLIENT pick: the real hand WITHOUT the card
+     *  staged in the play composer (it is being played — visually lifted out)
+     *  and without SRR-hosted cards (they are not "in hand" for the prompt). */
+    handPickHandNames(): ReadonlyArray<string> {
+      return this.handEntriesAll
+        .filter((e) => !e.robot && e.card.name !== this.stagedHandCard)
+        .map((e) => e.card.name);
     },
     /** The candidate (pickable) card names of the current hand-select. */
     handSelectSelectableNames(): ReadonlyArray<string> {
@@ -2025,16 +2137,27 @@ export default defineComponent({
       if (d === undefined) {
         return undefined;
       }
+      const pick = this.handPickActive ? consoleHandPickState.request : undefined;
+      const gain = pick?.gainPerCard;
       return {
         active: true,
         selectable: d.selectable,
         // Spread so the computed re-runs (and hands the section a fresh prop)
         // on every pick mutation — the section re-renders the pick bands.
-        selected: [...this.consoleState.select.selected],
+        selected: [...this.handSelectPicked],
         reasons: d.reasons,
         single: d.single,
         filtered: d.filtered,
-        suitableOnly: this.consoleState.select.suitableOnly,
+        suitableOnly: this.handSelectSuitableOnly,
+        // The honest «из Y» for the pick's shown-hand universe (the section's
+        // own total would count the staged / SRR-hosted cards the pick hides).
+        total: pick !== undefined ? this.handPickHandNames.length : undefined,
+        // Live payout summary (Public Plans: +1 M€ per revealed card).
+        payout: gain !== undefined ? {
+          icon: gain.icon,
+          amount: gain.amount,
+          current: (this.thisPlayer as unknown as Record<string, number>)[gain.icon],
+        } : undefined,
       };
     },
     /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
@@ -2046,6 +2169,10 @@ export default defineComponent({
     },
     /** The current multi-select picks satisfy the prompt bounds → RT confirms. */
     handSelectPicksValid(): boolean {
+      const pick = consoleHandPickState.request;
+      if (this.handPickActive && pick !== undefined) {
+        return handSelectPicksValid(pick, consoleHandPickState.selected.length);
+      }
       const model = this.handSelectModel;
       return model !== undefined && handSelectPicksValid(model, this.consoleState.select.selected.length);
     },
@@ -2078,7 +2205,9 @@ export default defineComponent({
     handScrollActive(): boolean {
       return this.consoleState.section === 'hand' &&
         !isHandRevealEpisodeRunning() && // flight targets pin the layout
-        this.pendingPlayCard === undefined &&
+        // A hidden play composer under a live client hand pick doesn't block —
+        // the hand grid IS the active surface for the pick's lifetime.
+        (this.pendingPlayCard === undefined || this.handPickActive) &&
         this.hostTask === undefined &&
         // A hand-served shell task (play-from-hand / mandatory hand-select)
         // keeps the grid scrollable; any OTHER shell task means the hand is
@@ -2484,6 +2613,10 @@ export default defineComponent({
         // the full ask right under it.
         return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
       }
+      if (this.handPickActive) {
+        // A composer's card pick is out on the hand — the bar names the pick.
+        return 'Card selection';
+      }
       if (this.pendingPlayCard !== undefined) {
         return 'Play project card';
       }
@@ -2594,12 +2727,10 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
-      // PRESENTATION FLOW: the compact AI-turn card is the foreground item.
-      // The card itself carries its X verb ON the card (the one visible
-      // affordance); the bar only anchors B (one place per hint — §3.2).
-      if (this.foregroundHoldingCard !== undefined && this.consoleCardZoom.card === undefined) {
-        return [{control: 'back', label: 'Close'}];
-      }
+      // PRESENTATION FLOW: a visible toast (incl. the compact AI-turn card)
+      // deliberately does NOT re-label the bar — the bar keeps the CURRENT
+      // screen's contract, and the card carries its own hints
+      // («зажать X Осмотреть ход» · «B Закрыть» in .con-notif__actions).
       // Scale-focus hold: an inert transition beat — no command hints.
       if (this.govScaleFocusState.holding || this.govScaleFocusState.closing) {
         return [];
@@ -2695,6 +2826,29 @@ export default defineComponent({
           {control: 'secondary', label: 'Confirm'},
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ])];
+      }
+      // A composer's CLIENT HAND PICK owns the pad (the composers are hidden):
+      // the pick verbs mirror the mandatory hand-select grammar, with B as a
+      // plain «Назад» to the composer (nothing is lost).
+      if (this.handPickActive) {
+        const focusName = this.handEntries[this.consoleState.handIndex]?.card.name;
+        const canPick = focusName !== undefined && this.handSelectSelectableNames.includes(focusName);
+        const verb = this.handSelectVerb;
+        const n = consoleHandPickState.selected.length;
+        const cmds: Array<ConsoleCommand> = [];
+        if (this.handSelectSingle) {
+          cmds.push({control: 'confirm', label: verb, enabled: canPick});
+        } else {
+          cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
+          cmds.push({control: 'stickL', label: this.pickAllSelected ? 'Unselect all' : 'Select all'});
+          cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
+        }
+        cmds.push({control: 'secondary', label: 'Inspect'});
+        if (this.handSelectFiltered) {
+          cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
+        }
+        cmds.push({control: 'back', label: 'Back'});
+        return cmds;
       }
       if (this.pendingPlayCard !== undefined) {
         // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
@@ -3157,6 +3311,15 @@ export default defineComponent({
     },
   },
   watch: {
+    // NOTIFICATION X-HOLD safety: the tracked card left the screen (TTL ran
+    // out despite the pause safeguard, a flow ack, a queue promotion) or a
+    // DIFFERENT card took the top slot — an in-flight hold must die with it,
+    // never fire an action for a card the player no longer sees.
+    topNotification(next: LiveNotification | undefined, prev: LiveNotification | undefined) {
+      if (next?.id !== prev?.id) {
+        cancelNotifHold();
+      }
+    },
     // Start-of-game setup reveal: while the ceremony is DEFERRED (B → inspect the
     // board), suspend the panel override so the left rail shows the REAL applied
     // state (not a mid-reveal staged snapshot). Restored on return.
@@ -3448,6 +3611,37 @@ export default defineComponent({
         resetHandDelivery();
       }
     },
+    /**
+     * CLIENT HAND PICK (composer → hand bridge): entering the pick remembers
+     * the current section, opens the hand (with the premium dock→grid reveal
+     * when coming from another section — the Action Center case) and seats the
+     * cursor on the first PICKABLE card; leaving restores the section, so the
+     * hidden composer (v-show) is back exactly where the player left it.
+     */
+    handPickActive(now: boolean): void {
+      if (now) {
+        this.handPickReturn = this.consoleState.section;
+        const selectable = new Set(this.handSelectSelectableNames);
+        const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
+        this.consoleState.handIndex = idx !== -1 ? idx : 0;
+        if (this.consoleState.section !== 'hand') {
+          void this.openHandWithReveal();
+        } else {
+          void this.$nextTick(() => {
+            (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
+          });
+        }
+        return;
+      }
+      const back = this.handPickReturn;
+      this.handPickReturn = undefined;
+      // The play-composer pick stays in the hand (the composer re-shows over
+      // it); the Action-Center pick returns to its origin section instantly —
+      // the re-shown full-screen center covers the switch.
+      if (back !== undefined && back !== 'hand' && this.consoleState.section === 'hand') {
+        this.consoleState.section = back;
+      }
+    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -3516,6 +3710,9 @@ export default defineComponent({
           this.pendingClientPayment = undefined;
           // Same for the native play confirm (its playAction path moved on).
           this.pendingPlayCard = undefined;
+          // A client hand pick belongs to a composer whose prompt just moved
+          // on — cancel it (idempotent; restores the section via the watcher).
+          cancelConsoleHandPick();
           // A NEW prompt resets the mandatory hand-SELECT picks + filter (they
           // survive a defer→resume of the SAME prompt, but never leak across
           // prompts). Cleared here rather than in closeConsoleLayers so the
@@ -3585,6 +3782,26 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
+      // NOTIFICATION X-HOLD lifecycle (consoleNotifHold): the release edge of a
+      // tracked hold is resolved FIRST — ahead of every swallowing gate — so a
+      // let-go can never be eaten by a scene/alert branch and leave the timer
+      // to fire a hold the player abandoned. A release BEFORE the threshold is
+      // a TAP: it is REPLAYED through this handler (guarded by notifTapReplay)
+      // so X keeps its normal meaning on the surface beneath the toast.
+      if (intent.kind === 'release' && intent.button === 'secondary') {
+        if (consumeNotifHoldRelease()) {
+          return true;
+        }
+        if (cancelNotifHold()) {
+          this.notifTapReplay = true;
+          try {
+            this.handleIntent({kind: 'press', button: 'secondary'});
+          } finally {
+            this.notifTapReplay = false;
+          }
+          return true;
+        }
+      }
       // SYSTEM ALERT owns the pad ABOVE everything (even mid-hero): a server
       // error / rejected input must always be acknowledgeable — A or B
       // dismisses it (running its callback + advancing the queue); every
@@ -3704,26 +3921,29 @@ export default defineComponent({
         }
         return true;
       }
-      // PRESENTATION FLOW: ANY visible console notification is dismissable with
-      // B — a global rule (every toast advertises «B Закрыть» on the card). The
-      // FLOW-HOLDING card (the compact AI-turn card) additionally OWNS the beat:
-      // X opens the «Разбор хода» review and A is swallowed so nothing submits
-      // under it. An ordinary toast claims ONLY B — navigation / actions pass
-      // through to the surface beneath, so the board/section stays usable.
+      // PRESENTATION FLOW: a visible console toast never re-labels the command
+      // bar and never swallows the screen's own verbs — the bar keeps the
+      // CURRENT screen's contract; the card carries its own hints. The toast
+      // claims exactly two overrides, both advertised ON the card:
+      //  - B closes it («B Закрыть» — every toast);
+      //  - press-and-HOLD X fires its DETAIL action (the flow-holding AI-turn
+      //    card's «Осмотреть ход»). A single X TAP falls through to the
+      //    surface beneath (the release-edge replay at the top of this
+      //    handler), so the console-wide inspect verb (open a card fullscreen
+      //    etc.) is never stolen. A / navigation pass through untouched — a
+      //    deliberate acting press auto-acknowledges the flow-holding card
+      //    (acknowledgeFlowHoldingCards in fetchPlayerInput).
       const topCard = this.topNotification;
       if (topCard !== undefined && this.consoleCardZoom.card === undefined) {
         if (action === 'back') {
+          cancelNotifHold();
           dismissNotification(topCard.id);
           return true;
         }
-        if (topCard.holdsFlow === true) {
-          if (action === 'inspect' && topCard.botTurnKey !== undefined) {
-            openBotTurnReviewByKey(topCard.botTurnKey);
-            return true;
-          }
-          if (action === 'primary') {
-            return true;
-          }
+        const detailKey = topCard.holdsFlow === true ? topCard.botTurnKey : undefined;
+        if (detailKey !== undefined && action === 'inspect' && !this.notifTapReplay) {
+          beginNotifHold(topCard.id, () => openBotTurnReviewByKey(detailKey));
+          return true;
         }
       }
       // A fallback surface (mandatory modal / dialog / draft / endgame…) on
@@ -3746,7 +3966,7 @@ export default defineComponent({
         // (the fallback for rare overflow — console layouts fit by design
         // and never show scrollbar chrome). Fallback-owned surfaces keep
         // the DOM engine's own right-stick scroll (they return earlier).
-        if (this.consoleState.sheet === 'cardActions') {
+        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive) {
           (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;
         }
@@ -3890,6 +4110,12 @@ export default defineComponent({
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
         return true;
+      }
+      // CLIENT HAND PICK (composer → hand bridge): the hand section owns the
+      // pad while the pick is out — the hidden composers (v-show) must not
+      // swallow input. Routed BEFORE the composer branches below.
+      if (this.handPickActive) {
+        return this.handleSectionIntent(intent);
       }
       // T8: the native play-card confirm owns input while open.
       if (this.pendingPlayCard !== undefined) {
@@ -4365,6 +4591,10 @@ export default defineComponent({
           this.toggleInspection();
         } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
           this.toggleSelectAllSale();
+        } else if (this.consoleState.section === 'hand' && this.handPickActive && !this.handSelectSingle) {
+          // Multi hand pick (Public Plans «reveal any number»): L3 = select all
+          // candidates (bounded by max) / clear — mirrors the sale-mode L3.
+          this.togglePickSelectAll();
         }
         return true;
       }
@@ -4379,7 +4609,7 @@ export default defineComponent({
           this.showNotice(this.consoleState.freeRoam ? 'Inspecting all cells' : 'Available cells only');
         } else if (onBoard) {
           this.toggleScaleInspect();
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
           this.resetHandFilter();
         }
         return true;
@@ -4392,7 +4622,7 @@ export default defineComponent({
         // In the browse hand LB cycles the tag filter to the PREVIOUS tag.
         if (onBoard) {
           this.openSheet('milestones');
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
           this.cycleHandFilter(-1);
         }
         return true;
@@ -4400,7 +4630,7 @@ export default defineComponent({
         // In the browse hand RB cycles the tag filter to the NEXT tag.
         if (onBoard) {
           this.openSheet('awards');
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectTaskActive) {
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
           this.cycleHandFilter(1);
         }
         return true;
@@ -4418,7 +4648,7 @@ export default defineComponent({
         if (this.consoleState.section === 'hand') {
           if (this.consoleState.sale.active) {
             this.confirmSale();
-          } else if (this.handSelectTaskActive) {
+          } else if (this.handSelectUiActive) {
             // Multi-select: RT confirms the picked set (a single-card pick
             // submits directly on A, so RT is inert there).
             if (!this.handSelectSingle) {
@@ -4433,7 +4663,7 @@ export default defineComponent({
         // moved to LB/RB.
         if (onBoard) {
           this.openQuick('basics');
-        } else if (this.consoleState.section === 'hand' && this.handSelectTaskActive) {
+        } else if (this.consoleState.section === 'hand' && this.handSelectUiActive) {
           this.toggleSuitableOnly();
         }
         return true;
@@ -4589,9 +4819,10 @@ export default defineComponent({
         this.toggleSalePick(entry.card.name);
         return;
       }
-      // MANDATORY hand SELECT: A submits the focused card (single) or toggles
-      // the pick (multi). A non-candidate card explains WHY it can't be picked.
-      if (this.handSelectTaskActive) {
+      // Hand SELECT (server task OR a client composer pick): A submits/resolves
+      // the focused card (single) or toggles the pick (multi). A non-candidate
+      // card explains WHY it can't be picked.
+      if (this.handSelectUiActive) {
         this.handSelectPress(entry.card.name);
         return;
       }
@@ -4617,12 +4848,22 @@ export default defineComponent({
       if (isHandRevealEpisodeRunning()) {
         if (runningHandRevealKind() === 'filter') {
           finishInstant();
+        } else if (this.handPickActive) {
+          // Mid-open under a client pick: snap the flight — the pick-cancel
+          // below owns the way back (a reversal would fight its section restore).
+          finishInstant();
         } else {
           if (handRevealState.phase === 'opening') {
             reverseHandReveal();
           }
           return;
         }
+      }
+      // CLIENT HAND PICK: B returns to the composer with the OLD choice kept
+      // (the pick is voluntary re-openable — never a lost decision).
+      if (this.handPickActive) {
+        cancelConsoleHandPick();
+        return;
       }
       // A DEFERRED task comes back first — B toggles task ↔ board-inspect (the
       // prompt card's A does the same; B stays a global fallback / other-section
@@ -6003,11 +6244,12 @@ export default defineComponent({
         }, undefined, {origin});
         return;
       }
-      // MANDATORY hand SELECT: fullscreen A submits the single-pick / toggles a
-      // multi-pick; a non-candidate card surfaces its «why not» reason (single)
-      // or is inert (multi — the reason is on the grid card / verdict bar).
-      if (this.handSelectTaskActive) {
-        const verb = this.handSelectModel?.buttonLabel || 'Select';
+      // Hand SELECT (server task OR client composer pick): fullscreen A
+      // answers the single-pick / toggles a multi-pick; a non-candidate card
+      // surfaces its «why not» reason (single) or is inert (multi — the reason
+      // is on the grid card / verdict bar).
+      if (this.handSelectUiActive) {
+        const verb = this.handSelectVerb;
         const selectable = (name: CardName) => this.handSelectSelectableNames.includes(name);
         if (this.handSelectSingle) {
           openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, undefined, {
@@ -6016,11 +6258,11 @@ export default defineComponent({
               const r = this.handSelectReasons[name];
               return !selectable(name) && r !== undefined && r !== '' ? [r] : [];
             },
-            execute: (name: CardName) => this.submitHandSelect([name]),
+            execute: (name: CardName) => this.handSelectExecuteSingle(name),
           }, {origin});
         } else {
           openConsoleCardZoom(this.handEntries.map((e) => e.card), this.consoleState.handIndex, {
-            isSelected: (name: CardName) => this.consoleState.select.selected.includes(name),
+            isSelected: (name: CardName) => this.handSelectPicked.includes(name),
             toggle: (name: CardName) => {
               if (selectable(name)) {
                 this.toggleHandSelectPick(name);
@@ -6102,9 +6344,13 @@ export default defineComponent({
       }
       const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
       const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      // During a CLIENT hand pick the staged (being-played) card is EXCLUDED
+      // from the entries, so the episode is safe to run under it — that's how
+      // the pick's «suitable only» toggle gets the same physical transition
+      // as the tag filter.
       const canAnimate = this.consoleState.section === 'hand' &&
         handRevealState.phase === 'open' && !isHandRevealEpisodeRunning() &&
-        this.stagedHandCard === undefined &&
+        (this.stagedHandCard === undefined || this.handPickActive) &&
         section !== undefined && dock !== undefined;
       if (!canAnimate) {
         apply();
@@ -6154,11 +6400,11 @@ export default defineComponent({
       }
       this.consoleState.sale.selected = this.saleAllSelected ? [] : [...names];
     },
-    // ── mandatory hand SELECT (server `handSelect` task) ──────────────────
-    /** A on a hand card in select mode: submit (single-pick) / toggle (multi),
-     *  or explain WHY a non-candidate card can't be chosen (never a mute A). */
+    // ── hand SELECT (server `handSelect` task OR a client composer pick) ──
+    /** A on a hand card in select mode: submit/resolve (single-pick) / toggle
+     *  (multi), or explain WHY a non-candidate can't be chosen (never a mute A). */
     handSelectPress(name: string): void {
-      if (this.handSelectModel === undefined) {
+      if (!this.handSelectUiActive) {
         return;
       }
       if (!this.handSelectSelectableNames.includes(name)) {
@@ -6167,27 +6413,59 @@ export default defineComponent({
         return;
       }
       if (this.handSelectSingle) {
-        // Single-card pick: A submits it in one press (no toggle-then-confirm).
-        this.submitHandSelect([name]);
+        // Single-card pick: A answers it in one press (no toggle-then-confirm).
+        this.handSelectExecuteSingle(name);
         return;
       }
       this.toggleHandSelectPick(name);
     },
+    /** The single-pick answer of whichever select source is active: a client
+     *  pick RESOLVES back to its composer; the server task SUBMITS. */
+    handSelectExecuteSingle(name: string): void {
+      if (this.handPickActive) {
+        resolveConsoleHandPick([name as CardName]);
+        return;
+      }
+      this.submitHandSelect([name]);
+    },
     /** Multi-select toggle (respects `max` — a full set ignores a new pick). */
     toggleHandSelectPick(name: string): void {
-      const picked = this.consoleState.select.selected;
-      const at = picked.indexOf(name);
+      const pickMode = this.handPickActive;
+      const picked = pickMode ? consoleHandPickState.selected : this.consoleState.select.selected;
+      const max = pickMode ? (consoleHandPickState.request?.max ?? 1) : (this.handSelectModel?.max ?? 1);
+      const at = picked.indexOf(name as CardName);
       if (at !== -1) {
         picked.splice(at, 1);
         return;
       }
-      if (picked.length >= (this.handSelectModel?.max ?? 1)) {
+      if (picked.length >= max) {
         return;
       }
-      picked.push(name);
+      picked.push(name as CardName);
     },
-    /** RT / confirm: submit the accumulated multi-select picks (bounds-checked). */
+    /** L3 in a multi client pick: select every candidate (bounded by `max`),
+     *  or clear the whole selection when it is already complete. */
+    togglePickSelectAll(): void {
+      const req = consoleHandPickState.request;
+      if (req === undefined) {
+        return;
+      }
+      consoleHandPickState.selected = this.pickAllSelected ?
+        [] :
+        [...req.selectable.slice(0, req.max)];
+    },
+    /** RT / confirm: deliver the accumulated multi-select picks (bounds-checked).
+     *  A client pick resolves to its composer; the server task submits. */
     confirmHandSelect(): void {
+      if (this.handPickActive) {
+        const req = consoleHandPickState.request;
+        const picked = consoleHandPickState.selected;
+        if (req === undefined || picked.length < req.min || picked.length > req.max) {
+          return;
+        }
+        resolveConsoleHandPick([...picked]);
+        return;
+      }
       const model = this.handSelectModel;
       if (model === undefined) {
         return;
@@ -6208,20 +6486,20 @@ export default defineComponent({
       this.consoleState.section = 'board';
       this.submit(cardsResponse(cards as ReadonlyArray<CardName>));
     },
-    /** LT: flip the "suitable only" filter (candidates-only ↔ the whole hand).
-     *  Keeps the focus on the same card when it survives, else the first one. */
+    /** LT: flip the "suitable only" filter (candidates-only ↔ the whole hand)
+     *  as the SAME physical card transition the tag filter plays (leavers
+     *  gather into the dock, enterers fan out, survivors glide) — the focus
+     *  stays on the surviving card, else lands on the first one. */
     toggleSuitableOnly(): void {
       if (!this.handSelectFiltered) {
         return;
       }
-      const focused = this.handEntries[this.consoleState.handIndex]?.card.name;
-      this.consoleState.select.suitableOnly = !this.consoleState.select.suitableOnly;
-      void this.$nextTick(() => {
-        const list = this.handEntries;
-        const at = focused !== undefined ? list.findIndex((e) => e.card.name === focused) : -1;
-        this.consoleState.handIndex = at >= 0 ? at : 0;
-        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        hand?.ensureSelectedVisible();
+      this.applyHandFilterChange(() => {
+        if (this.handPickActive) {
+          consoleHandPickState.suitableOnly = !consoleHandPickState.suitableOnly;
+        } else {
+          this.consoleState.select.suitableOnly = !this.consoleState.select.suitableOnly;
+        }
       });
     },
     // ── transport ────────────────────────────────────────────────────────
@@ -6249,6 +6527,7 @@ export default defineComponent({
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
     resetMandatoryGate(); // a fresh shell starts with no acknowledged beat
+    resetNotifHold(); // a fresh shell never inherits a mid-flight X-hold
     // The hand-reveal director owns WHEN the section switches during its
     // episodes (and re-seats the grid scroll on a mid-close reopen).
     setHandRevealHooks({
@@ -6275,6 +6554,7 @@ export default defineComponent({
     this.offIntent?.();
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
+    resetConsoleHandPick(); // never leak a client pick across games/sessions
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
@@ -6282,6 +6562,7 @@ export default defineComponent({
     this.releasePresentationLease = undefined;
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
+    resetNotifHold(); // never leak a hold timer across games/sessions
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

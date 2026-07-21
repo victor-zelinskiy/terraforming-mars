@@ -33,6 +33,8 @@ import {Payment} from '@/common/inputs/Payment';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {SpendableResource} from '@/common/inputs/Spendable';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
+import type {SelectCardModel} from '@/common/models/PlayerInputModel';
+import type {ComposerChoice} from '@/client/console/consoleActionComposer';
 import {autoMegacredits, laneCap, paymentCovers, paymentOverpay, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
 
 export type PlayCardBatchArgs = {
@@ -81,6 +83,59 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
     responses.push(r);
   }
   return responses;
+}
+
+// ── Choice classification (which surface hosts a pre-select choice) ──────────
+
+/**
+ * HOW the play composer serves one pre-select choice:
+ *  - `inline`   — hosted in the composer itself (a sub-list / stepper);
+ *  - `handPick` — handed to the HAND SECTION's pick mode (every candidate is a
+ *                 hand card — single AND multi-select, e.g. Public Plans);
+ *  - `followup` — an honest post-submit follow-up (repeat-action, a
+ *                 merge/dedupe multi-card branch, a candidate-less pick the
+ *                 live play auto-resolves, a TABLEAU multi-select).
+ */
+export type PlayChoiceMode = 'inline' | 'handPick' | 'followup';
+
+export function playChoiceMode(
+  c: ComposerChoice,
+  handNames: ReadonlySet<string>,
+  multiCardBranch: boolean,
+): PlayChoiceMode {
+  if (c.repeatAction === true) {
+    return 'followup';
+  }
+  if (c.input.type === 'card') {
+    const model = c.input as SelectCardModel;
+    // Astra Mechanica / Cyberia merge-or-dedupe assembly — the documented
+    // post-submit exception (its card steps are tableau picks anyway).
+    if (multiCardBranch) {
+      return 'followup';
+    }
+    // Nothing selectable (e.g. Public Plans with an otherwise-empty hand) —
+    // the live play auto-resolves; a dead un-answerable row would deadlock.
+    if (model.cards.length === 0) {
+      return 'followup';
+    }
+    if (isHandModel(model, handNames)) {
+      return 'handPick';
+    }
+    // A tableau single pick stays an inline sub-list; a tableau multi-select
+    // keeps the historical follow-up (no console surface hosts it yet).
+    return model.max <= 1 ? 'inline' : 'followup';
+  }
+  if (c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat') {
+    return 'inline';
+  }
+  return 'followup';
+}
+
+/** Local mirror of `consoleHandPick.isHandCardSelection` (kept here so this
+ *  module stays import-light for the server-runner specs). */
+function isHandModel(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
+  const candidates = [...model.cards, ...(model.disabledCards ?? [])];
+  return candidates.every((cd) => handNames.has(cd.name));
 }
 
 // ── Smart PRIMARY ACTION state machine (the A button, focus-independent) ─────

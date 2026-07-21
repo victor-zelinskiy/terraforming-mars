@@ -3,7 +3,7 @@
            :class="[
              'notification-card--variant-' + notification.variant,
              'con-notif--' + notification.kind,
-             {'con-notif--prestige': prestige, 'con-notif--holding': notification.holdsFlow === true},
+             {'con-notif--prestige': prestige, 'con-notif--holding': notification.holdsFlow === true, 'con-notif--hold-active': holdActive},
            ]"
            role="status"
            :aria-label="$t(notification.typeLabelKey)">
@@ -140,20 +140,32 @@
       </span>
     </div>
 
-    <!-- Pad contract ON the card: only the FLOW-HOLDING card (the AI turn)
-         owns the beat and offers X = expand into the turn details — the
-         on-object chip marks that special affordance. B (close) is anchored
-         by the global command bar (CONSOLE_TV_PREMIUM_PLAN §3.2), never
-         duplicated here. -->
+    <!-- Pad contract ON the card (its own hints — the command bar keeps the
+         CURRENT screen's contract, a toast never re-labels it): the DETAIL
+         action first, when the card has one (press-and-HOLD X — a single tap
+         keeps its normal screen meaning; the fill plate mirrors the input
+         timer 1:1), then the global «B Закрыть». -->
     <footer class="con-notif__actions" aria-hidden="true">
-      <span v-if="notification.holdsFlow === true && notification.botTurnKey !== undefined" class="con-notif__action">
+      <span v-if="hasDetailAction"
+            class="con-notif__action con-notif__action--detail"
+            :class="{'con-notif__action--filling': holdActive}">
+        <!-- Hold progress: duration = NOTIF_HOLD_MS (the INPUT threshold), so
+             the visual fill and the hold timer cannot drift. Deliberately not
+             motion-scaled — input ergonomics, not choreography. -->
+        <span v-if="holdActive" class="con-notif__action-fill" :style="{animationDuration: holdMs + 'ms'}"></span>
+        <span class="con-notif__action-hold" v-i18n>Hold</span>
         <GamepadGlyph control="secondary" />
         <span v-i18n>Watch turn</span>
+      </span>
+      <span class="con-notif__action con-notif__action--close">
+        <GamepadGlyph control="back" />
+        <span v-i18n>Close</span>
       </span>
     </footer>
 
     <!-- Lifetime shrink → auto-dismiss. The toast self-clears when it runs
-         out; the player can also close it early with B (the command bar). -->
+         out; the player can close it early with B («B Закрыть» above). The
+         shrink PAUSES while an X-hold fills (.con-notif--hold-active). -->
     <span v-if="showProgress"
           class="con-notif__progress"
           :style="{animationDuration: notification.ttl + 'ms'}"
@@ -171,6 +183,10 @@
  *  - NON-INTERACTIVE (pointer-events none): no ✕ / expand / CTA buttons a
  *    pad can't reach and a couch player can't hover — the journal (View)
  *    is the detail surface; reveal toasts advertise exactly that.
+ *  - The PAD CONTRACT lives ON the card (.con-notif__actions), never in the
+ *    command bar (which keeps the screen's contract): the DETAIL action
+ *    (press-and-HOLD X, the fill mirrors consoleNotifHold's timer) first,
+ *    then the global «B Закрыть».
  *  - The HOSTILE essentials (attacker, source card, −X → +X flow,
  *    stock/production, before → after) render DIRECTLY — no expand step.
  *  - The variant ACCENT is inherited from the standalone
@@ -188,6 +204,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
 
 // Mirrors the desktop card: icon-key → PublicPlayerModel field (the victim's
@@ -319,6 +336,17 @@ export default defineComponent({
     },
     showProgress(): boolean {
       return !this.notification.persistent && this.notification.ttl > 0;
+    },
+    /** The toast's DETAIL action (today only the AI-turn card's review). */
+    hasDetailAction(): boolean {
+      return this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined;
+    },
+    /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
+    holdActive(): boolean {
+      return notifHoldState.noteId === this.notification.id;
+    },
+    holdMs(): number {
+      return NOTIF_HOLD_MS;
     },
   },
   methods: {

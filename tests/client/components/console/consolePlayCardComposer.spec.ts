@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
-  computePrimaryAction, buildPaymentView,
+  computePrimaryAction, buildPaymentView, playChoiceMode,
 } from '@/client/console/consolePlayCardComposer';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
@@ -319,5 +319,62 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     const v = buildPaymentView({cost: 3, lanes: [microbeLane], counts: {microbes: 3}, mcAvailable: 10, stock: {megacredits: 10}});
     expect(v.chips[0].effect).to.deep.equal({direction: 'cost', icon: 'microbes', amount: 3});
     expect(v.chips[0].effect.current).to.be.undefined;
+  });
+});
+
+/**
+ * playChoiceMode — WHICH surface hosts a pre-select choice: the composer's own
+ * inline sub-list, the HAND SECTION's pick mode (every candidate in hand —
+ * single AND multi-select), or an honest post-submit follow-up. The regression
+ * guard for the hand-pick routing (Public Plans / Sponsored Academies / SRR).
+ */
+describe('consolePlayCardComposer.playChoiceMode', () => {
+  const HAND = new Set<string>([CardName.ANTS, CardName.BIRDS, CardName.DECOMPOSERS]);
+
+  function cardChoice(names: ReadonlyArray<string>, over: Record<string, unknown> = {}, choiceOver: Record<string, unknown> = {}) {
+    return {
+      id: 'step#0', scope: 'step', index: 0, kind: 'card',
+      input: {
+        type: 'card', title: 't', buttonLabel: 'b',
+        cards: names.map((name) => ({name})),
+        min: 1, max: 1,
+        ...over,
+      },
+      ...choiceOver,
+    } as never;
+  }
+
+  it('a single pick whose candidates are all in hand → handPick', () => {
+    expect(playChoiceMode(cardChoice([CardName.ANTS, CardName.BIRDS]), HAND, false)).to.equal('handPick');
+  });
+
+  it('a MULTI-select over the hand (Public Plans) → handPick, no longer a follow-up', () => {
+    const c = cardChoice([CardName.ANTS, CardName.BIRDS], {min: 0, max: 2});
+    expect(playChoiceMode(c, HAND, false)).to.equal('handPick');
+  });
+
+  it('disabled candidates count toward the hand check (SRR link ineligibles)', () => {
+    const c = cardChoice([CardName.ANTS], {disabledCards: [{name: CardName.BIRDS}]});
+    expect(playChoiceMode(c, HAND, false)).to.equal('handPick');
+    const off = cardChoice([CardName.ANTS], {disabledCards: [{name: CardName.PETS}]});
+    expect(playChoiceMode(off, HAND, false)).to.equal('inline');
+  });
+
+  it('a tableau single pick stays inline; a tableau multi stays a follow-up', () => {
+    expect(playChoiceMode(cardChoice([CardName.PETS]), HAND, false)).to.equal('inline');
+    expect(playChoiceMode(cardChoice([CardName.PETS], {max: 2}), HAND, false)).to.equal('followup');
+  });
+
+  it('a candidate-less pick / a merge-dedupe branch / a repeat-action → followup', () => {
+    expect(playChoiceMode(cardChoice([]), HAND, false)).to.equal('followup');
+    expect(playChoiceMode(cardChoice([CardName.ANTS]), HAND, true)).to.equal('followup');
+    expect(playChoiceMode(cardChoice([CardName.ANTS], {}, {repeatAction: true}), HAND, false)).to.equal('followup');
+  });
+
+  it('player / amount / or / spendHeat stay inline; an unknown shape is a follow-up', () => {
+    const mk = (kind: string, type: string) => ({id: 'step#0', scope: 'step', index: 0, kind, input: {type, title: ''}} as never);
+    expect(playChoiceMode(mk('player', 'player'), HAND, false)).to.equal('inline');
+    expect(playChoiceMode(mk('or', 'or'), HAND, false)).to.equal('inline');
+    expect(playChoiceMode(mk('other', 'and'), HAND, false)).to.equal('followup');
   });
 });

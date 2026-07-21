@@ -385,16 +385,19 @@
         <div v-if="mode === 'wizard' && currentStep !== undefined"
              class="con-start__statusrail" :class="statusRailClass">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
-               CONTENT is hidden while the deal cinematic runs — so the card
-               area never resizes / jumps when the rail's text appears. -->
-          <transition name="con-verdict-swap" mode="out-in">
-            <div v-if="!deal.state.active" class="con-start__status-inner"
-                 :key="focusedCard ? focusedCard.name : 'none'">
-              <span class="con-start__status-name">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
-              <span v-if="statusRailText !== ''" class="con-start__status-state"
-                    :key="'st' + blockedNudge">{{ statusRailText }}</span>
-            </div>
-          </transition>
+               CONTENT is hidden while the deal cinematic runs (--held: opacity,
+               never an unmount) — so the card area never resizes / jumps when
+               the rail's text appears. The inner is PERSISTENT: a d-pad move
+               only re-keys the NAME (a one-shot settle) — the state chip
+               («Выберите ещё N») patches in place and never blinks (the old
+               wholesale keyed out-in faded the whole rail on every move). -->
+          <div class="con-start__status-inner"
+               :class="{'con-start__status-inner--held': deal.state.active}">
+            <span class="con-start__status-name"
+                  :key="focusedCard ? focusedCard.name : 'none'">{{ focusedCard ? $t(focusedCard.name) : '' }}</span>
+            <span v-if="statusRailText !== ''" class="con-start__status-state"
+                  :key="'st' + blockedNudge">{{ statusRailText }}</span>
+          </div>
         </div>
 
         <!-- The command contract lives in the shell's command bar ONLY

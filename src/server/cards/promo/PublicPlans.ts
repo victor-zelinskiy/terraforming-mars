@@ -69,6 +69,9 @@ export class PublicPlans extends Card implements IProjectCard {
         min: 0,
         max: hand.length,
         showSelectAll: true,
+        // Self rides the disabled channel with the concrete reason, so a
+        // picker showing the WHOLE hand never leaves it a mute grey card.
+        disabled: [{card: this, reason: 'This card is being played'}],
         multiSelect: {countLabel: 'Cards to reveal', revealGain: {resource: Resource.MEGACREDITS, amount: 1}},
       }),
     ]);

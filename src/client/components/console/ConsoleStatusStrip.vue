@@ -18,6 +18,14 @@
           <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
           <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
         </span>
+        <!-- Attention beacon: a mandatory decision awaits the VIEWER while the
+             CTA card is off-screen (they parked in another section / a sheet /
+             a zoom) — the chip is then the ONE reminder. See `attention`. -->
+        <transition name="con-beacon">
+          <span v-if="attention && p.color === thisPlayerColor"
+                class="con-status__beacon"
+                aria-hidden="true">!</span>
+        </transition>
       </span>
     </div>
 
@@ -177,12 +185,27 @@ export default defineComponent({
     waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
     /** playerView.runId — drives the delta-chip feedback ('' disables). */
     epoch: {type: String, default: ''},
+    /**
+     * RAW "a mandatory decision awaits the viewer while its CTA surface is
+     * NOT on screen" signal (ConsoleShell: gate held / deferred, announce
+     * card hidden). The strip DEBOUNCES engagement (`attentionEngageMs`) so
+     * a transient off-screen window — an animation about to end on the board
+     * home, a section flip-through — never flashes the beacon; release is
+     * INSTANT the moment the announce card shows or the decision resolves,
+     * so the chip and the CTA card never double-signal.
+     */
+    attentionPending: {type: Boolean, default: false},
+    /** Engagement debounce (ms). A prop so specs can shrink it. */
+    attentionEngageMs: {type: Number, default: 1200},
   },
   data() {
     return {
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
       burstTimer: undefined as number | undefined,
+      /** Debounced attention state — drives the amber beacon on the viewer's chip. */
+      attention: false,
+      attentionTimer: undefined as number | undefined,
       /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
       celebrating: false,
       celebrateTimer: undefined as number | undefined,
@@ -220,6 +243,26 @@ export default defineComponent({
     },
   },
   watch: {
+    attentionPending: {
+      immediate: true,
+      handler(pending: boolean): void {
+        if (pending) {
+          if (this.attention || this.attentionTimer !== undefined) {
+            return;
+          }
+          this.attentionTimer = window.setTimeout(() => {
+            this.attentionTimer = undefined;
+            this.attention = true;
+          }, this.attentionEngageMs);
+        } else {
+          if (this.attentionTimer !== undefined) {
+            window.clearTimeout(this.attentionTimer);
+            this.attentionTimer = undefined;
+          }
+          this.attention = false;
+        }
+      },
+    },
     myCategory(now: StatusPresentation['category'], before: StatusPresentation['category']) {
       if (now === 'active' && before !== 'active') {
         this.turnBurst = true;
@@ -251,6 +294,9 @@ export default defineComponent({
     if (this.celebrateTimer !== undefined) {
       window.clearTimeout(this.celebrateTimer);
     }
+    if (this.attentionTimer !== undefined) {
+      window.clearTimeout(this.attentionTimer);
+    }
   },
   methods: {
     displayName(p: PublicPlayerModel): string {
@@ -277,6 +323,7 @@ export default defineComponent({
         'con-status__player--active': category === 'active',
         'con-status__player--passed': category === 'passed',
         'con-status__player--burst': me && this.turnBurst,
+        'con-status__player--attention': me && this.attention,
       };
     },
   },

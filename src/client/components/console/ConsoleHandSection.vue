@@ -50,6 +50,25 @@
         <span class="con-hand__selectfilter-dot" aria-hidden="true"></span>
         <span class="con-hand__selectfilter-label">{{ $t(select.suitableOnly ? 'Only suitable' : 'All cards') }}</span>
       </div>
+      <!-- Multi-pick PAYOUT summary (Public Plans: +1 M€ per revealed card) —
+           the select-mode twin of the sale bar: picked count, the live gain,
+           and the before → after wallet. Cyan (the select accent). -->
+      <div v-if="selectActive && selectPayout !== undefined" class="con-hand__salebar con-hand__salebar--select" role="status">
+        <span class="con-hand__salebar-item">
+          <span class="con-hand__salebar-label">{{ $t('Selected') }}:</span>
+          <b class="con-hand__salebar-num">{{ pickCount }}</b>
+        </span>
+        <span class="con-hand__salebar-item con-hand__salebar-item--gain" :class="{'con-hand__salebar-item--zero': pickCount === 0}">
+          <b class="con-hand__salebar-num">+{{ pickGain }}</b>
+          <i :class="payoutIconClass" class="con-hand__salebar-mc" aria-hidden="true"></i>
+        </span>
+        <span v-if="selectPayout.current !== undefined" class="con-hand__salebar-item con-hand__salebar-item--total" :class="{'con-hand__salebar-item--zero': pickCount === 0}">
+          <i :class="payoutIconClass" class="con-hand__salebar-mc" aria-hidden="true"></i>
+          <b class="con-hand__salebar-num">{{ selectPayout.current }}</b>
+          <span class="con-hand__salebar-arrow" aria-hidden="true">→</span>
+          <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ selectPayout.current + pickGain }}</b>
+        </span>
+      </div>
     </div>
 
     <!-- Premium hand SHELF: a smart, virtualized grid. Only the visible rows +
@@ -187,6 +206,7 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {planHandGrid, stepHandGrid, shortBlockerLabel, HandGridPlan, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
 
 export type ConsoleHandEntry = {
@@ -218,6 +238,12 @@ export type ConsoleHandSelectMode = {
   filtered: boolean,
   /** The "suitable only" filter is ON (only candidate cards shown). */
   suitableOnly: boolean,
+  /** The honest «из Y» universe for the shown-count line (a CLIENT pick hides
+   *  the staged / SRR-hosted cards, so the section's own total would lie). */
+  total?: number,
+  /** Live per-picked-card payout (Public Plans: +1 M€ each) — renders the
+   *  sale-bar-style running summary (count · +gain · before → after). */
+  payout?: {icon: string, amount: number, current?: number},
 };
 
 /** Rows kept mounted above/below the viewport so a fast page never blanks. */
@@ -336,6 +362,19 @@ export default defineComponent({
       const name = this.selected?.name;
       return name !== undefined ? this.selectReason(name) : '';
     },
+    /** Multi-pick payout summary (present only for a paying client pick). */
+    selectPayout(): {icon: string, amount: number, current?: number} | undefined {
+      return this.select?.payout;
+    },
+    pickCount(): number {
+      return this.select?.selected.length ?? 0;
+    },
+    pickGain(): number {
+      return this.pickCount * (this.selectPayout?.amount ?? 0);
+    },
+    payoutIconClass(): string {
+      return iconClassFor(this.selectPayout?.icon ?? 'megacredits');
+    },
     // ── header / filter panel ─────────────────────────────────────────────
     showFilters(): boolean {
       // Only worth a filter panel when there's a real tag beyond "All", and
@@ -365,10 +404,11 @@ export default defineComponent({
         return '';
       }
       // Select mode: "Показано X из Y" only while the "suitable only" filter is
-      // hiding non-candidate cards.
+      // hiding non-candidate cards. A CLIENT pick supplies its own honest
+      // universe (`total` — staged / SRR-hosted cards are outside the pick).
       if (this.selectActive) {
         return this.select?.filtered === true && this.select.suitableOnly ?
-          translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]) :
+          translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.select.total ?? this.totalCount)]) :
           '';
       }
       return this.activeTag !== 'all' ?

@@ -66,6 +66,9 @@ export type ComposerChoice = {
   cardResource?: string;
   /** The step's candidates are USED ACTIONS to perform again (Viron). */
   repeatAction?: boolean;
+  /** MULTI-select metadata (Public Plans "reveal any number") — the hand-pick
+   *  surface shows the count label + the live per-card payout. */
+  multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}};
 };
 
 function choiceKind(input: PlayerInputModel): ComposerChoice['kind'] {
@@ -112,6 +115,7 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
         amount: step.amount,
         cardResource: step.cardResource,
         repeatAction: step.repeatAction,
+        multiSelect: step.multiSelect,
       });
     } else if (step.kind === 'spendHeat') {
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'spendHeat', input: step.input});

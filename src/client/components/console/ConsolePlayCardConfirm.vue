@@ -190,7 +190,7 @@
                     <span v-if="chosenLabel(row.choice) !== ''">{{ chosenLabel(row.choice) }}</span>
                     <span v-else class="con-composer__row-empty">{{ pickPlaceholder(row.choice) }}…</span>
                     <span v-if="chosenImpact(row.choice) !== ''" class="con-composer__row-impact">
-                      <i v-if="row.choice.cardResource" class="con-composer__row-impact-icon" :class="iconClass(row.choice.cardResource)" aria-hidden="true"></i>{{ chosenImpact(row.choice) }}
+                      <i v-if="chosenImpactIcon(row.choice)" class="con-composer__row-impact-icon" :class="iconClass(chosenImpactIcon(row.choice))" aria-hidden="true"></i>{{ chosenImpact(row.choice) }}
                     </span>
                   </div>
                 </template>
@@ -315,6 +315,7 @@ import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -329,6 +330,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, buildPaymentView, PlayPaymentView,
+  playChoiceMode,
 } from '@/client/console/consolePlayCardComposer';
 import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
@@ -388,19 +390,8 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-/** A step the composer PRE-COLLECTS as a row (single card / player / or / amount /
- *  spendHeat). Multi-select + repeat-action stay a post-submit follow-up. */
-function isPreCollectable(c: ComposerChoice): boolean {
-  if (c.repeatAction === true) {
-    return false;
-  }
-  if (c.input.type === 'card') {
-    // A multi-select card (max > 1 — e.g. Public Plans "reveal any number") is a
-    // documented post-submit follow-up, not an inline row.
-    return (c.input as SelectCardModel).max <= 1;
-  }
-  return c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat';
-}
+// Pre-collect classification lives in the PURE `playChoiceMode` (inline sub /
+// hand-section pick / honest follow-up) — see consolePlayCardComposer.ts.
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
@@ -422,6 +413,8 @@ export default defineComponent({
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
       picks: {} as Record<string, string>,
+      /** Multi-select hand picks by choice id (display; the capture is the truth). */
+      multiPicks: {} as Record<string, ReadonlyArray<string>>,
       payCounts: {} as Partial<Record<SpendableResource, number>>,
       focusIdx: 0,
       sub: undefined as SubState | undefined,
@@ -526,13 +519,13 @@ export default defineComponent({
       return b !== undefined && (b.mergeCardSteps !== undefined ||
         b.steps.some((s) => s.kind === 'input' && s.dedupeFromSteps !== undefined));
     },
+    /** Card names in the player's hand — hand-card picks route to the hand
+     *  section's pick mode instead of an inline text list. */
+    handNamesSet(): ReadonlySet<string> {
+      return new Set(this.playerView.cardsInHand.map((c) => c.name));
+    },
     stepChoices(): ReadonlyArray<ComposerChoice> {
-      return this.allChoices.filter((c) => {
-        if (this.multiCardBranch && c.input.type === 'card') {
-          return false;
-        }
-        return isPreCollectable(c);
-      });
+      return this.allChoices.filter((c) => this.choiceMode(c) !== 'followup');
     },
     followUpChoices(): ReadonlyArray<ComposerChoice> {
       return this.allChoices.filter((c) => !this.stepChoices.includes(c));
@@ -654,30 +647,14 @@ export default defineComponent({
       if (b === undefined || !b.available || !this.paymentReady) {
         return false;
       }
-      if (this.preview !== undefined && !preChoices(this.preview).every((c) => this.capturedPre[c.index] !== undefined)) {
+      // EVERY pre-collectable choice (inline sub / hand pick — incl. a
+      // multi-select hand pick, where even an "empty" answer is an explicit
+      // visit) must be captured; follow-up choices ride the native flow.
+      if (this.stepChoices.some((c) => this.stepMissing(c))) {
         return false;
       }
-      if (b.optionInput !== undefined && this.capturedOption === undefined) {
-        return false;
-      }
-      return b.steps.every((step, i) => {
-        // A tabbedTargets step (Virus) is pre-collected — require its capture.
-        if (step.kind === 'tabbedTargets') {
-          return this.captured[i] !== undefined;
-        }
-        if (step.kind !== 'input') {
-          return true;
-        }
-        // A multi-select card / repeat-action step, and a merge/dedupe multi-card
-        // branch's card steps, are post-submit follow-ups — not captured here.
-        if (step.repeatAction === true || (step.input.type === 'card' && (step.input as SelectCardModel).max > 1)) {
-          return true;
-        }
-        if (this.multiCardBranch && step.input.type === 'card') {
-          return true;
-        }
-        return this.captured[i] !== undefined;
-      });
+      // A tabbedTargets step (Virus) is pre-collected — require its capture.
+      return b.steps.every((step, i) => step.kind !== 'tabbedTargets' || this.captured[i] !== undefined);
     },
     ctaReady(): boolean {
       return this.primaryActionState.kind === 'ready';
@@ -946,6 +923,7 @@ export default defineComponent({
       this.amounts = {};
       this.floaters = {};
       this.picks = {};
+      this.multiPicks = {};
       this.sub = undefined;
       this.submitting = false;
     },
@@ -1144,12 +1122,26 @@ export default defineComponent({
     },
     pickPlaceholder(c: ComposerChoice): string {
       switch (c.kind) {
-      case 'card': return translateText('Choose a card');
+      case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : 'Choose a card');
       case 'player': return translateText('Choose a player');
       default: return translateText('Choose an option');
       }
     },
+    isMultiCardChoice(c: ComposerChoice): boolean {
+      return c.input.type === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1;
+    },
     chosenLabel(c: ComposerChoice): string {
+      // A resolved MULTI-select shows the picked cards themselves (first two
+      // names + «+N»), so the selection stays VISIBLE in the composer — an
+      // explicit empty answer reads honestly as «Выбрано: 0».
+      const multi = this.multiPicks[c.id];
+      if (multi !== undefined && this.isMultiCardChoice(c)) {
+        if (multi.length === 0) {
+          return `${translateText('Selected')}: 0`;
+        }
+        const names = multi.slice(0, 2).map((n) => translateCardName(n as CardName)).join(', ');
+        return multi.length > 2 ? `${names} +${multi.length - 2}` : names;
+      }
       const pick = this.picks[c.id];
       if (pick === undefined) {
         return '';
@@ -1167,6 +1159,12 @@ export default defineComponent({
       return pick;
     },
     chosenImpact(c: ComposerChoice): string {
+      // Multi-select payout (Public Plans): the LIVE gain of the picked count.
+      const multi = this.multiPicks[c.id];
+      const gain = c.multiSelect?.revealGain;
+      if (multi !== undefined && gain !== undefined && this.isMultiCardChoice(c)) {
+        return `+${multi.length * gain.amount}`;
+      }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
       }
@@ -1176,6 +1174,15 @@ export default defineComponent({
       }
       const from = card.resources ?? 0;
       return `${from} → ${Math.max(0, from + c.amount)}`;
+    },
+    /** The icon beside the impact — the step's card resource, or the multi
+     *  payout's resource (M€ for Public Plans). */
+    chosenImpactIcon(c: ComposerChoice): string | undefined {
+      if (c.cardResource !== undefined) {
+        return c.cardResource;
+      }
+      const gain = c.multiSelect?.revealGain;
+      return this.multiPicks[c.id] !== undefined && gain !== undefined ? gain.resource : undefined;
     },
     playerName(color: string): string {
       return displayNameForColor(this.playerView.players, color as Color);
@@ -1356,14 +1363,65 @@ export default defineComponent({
       this.focusIdx = this.firstActionableIndex();
       this.scrollFocused();
     },
-    /** Open the pick surface a decision row needs (a list / tabbed picker). An
-     *  amount / spend-heat row adjusts inline, so opening it is a no-op. */
+    /** HOW a choice is served: inline sub / the hand section's pick mode /
+     *  an honest post-submit follow-up (the PURE classification). */
+    choiceMode(c: ComposerChoice): 'inline' | 'handPick' | 'followup' {
+      return playChoiceMode(c, this.handNamesSet, this.multiCardBranch);
+    },
+    /** Open the pick surface a decision row needs (a list / tabbed picker / the
+     *  hand section for a hand-card pick). An amount / spend-heat row adjusts
+     *  inline, so opening it is a no-op. */
     openRow(row: PlayRow): void {
-      if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
+      if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
+        this.openHandPick(row.choice);
+      } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
         this.sub = {kind: 'list', choiceId: row.choice.id, index: 0};
       } else if (row.kind === 'tabbed') {
         this.sub = {kind: 'tabbed', stepIndex: row.stepIndex, index: 0};
       }
+    },
+    /**
+     * Hand a hand-card pick (single OR multi-select — Public Plans) to the HAND
+     * SECTION's premium pick mode (consoleHandPick bridge): the shell hides
+     * this composer (v-show — every capture survives), the player picks on the
+     * real cards, and the result lands back here as the step's capture. A
+     * re-open (A = «Изменить») pre-seeds the previous selection.
+     */
+    openHandPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
+      }
+      const multi = model.max > 1;
+      const prior = multi ?
+        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
+        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
+      const gain = c.multiSelect?.revealGain;
+      enterConsoleHandPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Select',
+        selectable: model.cards.map((cd) => cd.name),
+        reasons,
+        min: model.min ?? 1,
+        max: model.max ?? 1,
+        selected: prior,
+        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+      }, (cards) => {
+        // Re-locate the choice by id — the preview may have refreshed under
+        // the pick (a poll landed) and the captured index must stay honest.
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        if (multi) {
+          this.multiPicks[cur.id] = [...cards];
+          this.picks[cur.id] = String(cards.length);
+          this.captureFor(cur, {type: 'card', cards: [...cards]});
+        } else if (cards.length > 0) {
+          this.picks[cur.id] = cards[0];
+          this.captureFor(cur, {type: 'card', cards: [cards[0]]});
+        }
+        this.focusIdx = this.firstActionableIndex();
+        this.scrollFocused();
+      });
     },
     // SUB state (pick list / payment lanes): A(primary) pick/close, X(inspect)
     // zoom the list card, B back, LB/RB(prev/nextSection) adjust lane, RT max.
@@ -1417,6 +1475,7 @@ export default defineComponent({
       this.captured = {};
       this.capturedOption = undefined;
       this.picks = {};
+      this.multiPicks = {};
       this.amounts = {};
       this.floaters = {};
       this.seedChoiceDefaults();

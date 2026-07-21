@@ -75,7 +75,11 @@ export class SponsoredAcademies extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const hand = player.cardsInHand.filter((c) => c.name !== this.name);
     const discardStep = hand.length > 1 ?
-      actionPreviews.selectCardStep(player, 'Select 1 card to discard', 'Discard', hand) :
+      actionPreviews.selectCardStep(player, 'Select 1 card to discard', 'Discard', hand, {
+        // Self rides the disabled channel with the concrete reason, so a
+        // picker showing the WHOLE hand never leaves it a mute grey card.
+        disabled: [{card: this, reason: 'This card is being played'}],
+      }) :
       undefined;
     return actionPreviews.playPreview(this, player, [
       {direction: 'cost', icon: 'cards', amount: 1},

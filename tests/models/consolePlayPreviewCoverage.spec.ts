@@ -19,16 +19,20 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  * on-play choice desktop pre-collects, in the SAME premium language. This guard
  * classifies every step of every in-scope `cardPlayPreview` hook as:
  *   - 'inline'   — a decision the console hosts before submit (card single /
- *                  player / amount / or-with-leaf-or-nested-player/card options /
+ *                  a HAND-card pick — single AND multi-select, via the hand
+ *                  section's pick mode / player / amount /
+ *                  or-with-leaf-or-nested-player/card options /
  *                  spendHeat / tabbedTargets).
  *   - 'followup' — an honest post-submit follow-up (board / colony placement /
- *                  note / a multi-card merge/dedupe branch → the documented,
- *                  safe exception, ridden by the native flow).
+ *                  note / a multi-card merge/dedupe branch / a TABLEAU
+ *                  multi-select → the documented, safe exception, ridden by
+ *                  the native flow).
  *   - 'gap'      — a shape the console CANNOT host (an `or` option nesting an
- *                  amount / and, a multi-select card with no follow-up path).
+ *                  amount / and).
  * A 'gap' FAILS — the console would silently drop or mis-submit it.
+ * MIRRORS `playChoiceMode` (consolePlayCardComposer.ts) — keep the two in sync.
  */
-function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch): 'inline' | 'followup' | 'gap' {
+function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, handNames: ReadonlySet<string>): 'inline' | 'followup' | 'gap' {
   if (step.kind === 'spendHeat' || step.kind === 'tabbedTargets') {
     return 'inline';
   }
@@ -43,12 +47,24 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch): 'in
     return 'inline';
   }
   if (t === 'card') {
-    // Multi-select / repeat-action / a merge-or-dedupe multi-card branch → the
-    // console rides the native follow-up (safe, documented).
-    if (step.repeatAction === true || (step.input as SelectCardModel).max > 1 || step.dedupeFromSteps !== undefined || branch.mergeCardSteps !== undefined) {
+    // Repeat-action / a merge-or-dedupe multi-card branch → the console rides
+    // the native follow-up (safe, documented).
+    if (step.repeatAction === true || step.dedupeFromSteps !== undefined || branch.mergeCardSteps !== undefined) {
       return 'followup';
     }
-    return 'inline';
+    const model = step.input as SelectCardModel;
+    // Nothing selectable → the live play auto-resolves (never a dead row).
+    if (model.cards.length === 0) {
+      return 'followup';
+    }
+    // Every candidate (selectable + disabled) in hand → the hand section's
+    // pick mode hosts it, single AND multi-select (Public Plans).
+    const candidates = [...model.cards, ...(model.disabledCards ?? [])];
+    if (candidates.every((c) => handNames.has(c.name))) {
+      return 'inline';
+    }
+    // A TABLEAU multi-select keeps the historical follow-up.
+    return model.max > 1 ? 'followup' : 'inline';
   }
   if (t === 'or') {
     // Hostable iff every NESTED-input option is one the console sub-picks
@@ -101,6 +117,14 @@ describe('console play-preview coverage', () => {
           (animalCard as {resourceCount: number}).resourceCount = 4;
           opponent.playedCards.push(animalCard);
           player.playedCards.push(card);
+          // The preview runs while the card is still IN HAND (the real flow) —
+          // plus a few generic hand cards, so hand-candidate steps (Public
+          // Plans reveal / Sponsored Academies discard) are populated and
+          // classify through the hand-pick branch, exactly like runtime.
+          player.cardsInHand.push(card as ICard & IProjectCard);
+          for (let i = 0; i < 3; i++) {
+            player.cardsInHand.push(fakeCard({name: `Hand Filler ${i}` as CardName, tags: [Tag.SPACE]}));
+          }
           if (card.resourceType !== undefined) {
             (card as {resourceCount: number}).resourceCount = 4;
           }
@@ -110,9 +134,10 @@ describe('console play-preview coverage', () => {
           } catch {
             continue;
           }
+          const handNames = new Set<string>(player.cardsInHand.map((c) => c.name));
           for (const b of preview.branches) {
             for (const step of b.steps) {
-              if (classifyStep(step, b) === 'gap') {
+              if (classifyStep(step, b, handNames) === 'gap') {
                 gaps.push(`${card.name} [${manifest.module}] step ${step.kind}${step.kind === 'input' ? '/' + step.input.type : ''}`);
               }
             }

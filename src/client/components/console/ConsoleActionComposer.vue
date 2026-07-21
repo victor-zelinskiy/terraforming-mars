@@ -299,7 +299,9 @@ import {skippedEffectViews} from '@/client/components/actions/skippedEffectView'
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {enterConsoleHandPick, isHandCardSelection} from '@/client/console/consoleHandPick';
 
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 type SubState =
@@ -364,6 +366,8 @@ export default defineComponent({
       floaters: {} as Record<string, number>,
       payCounts: {} as Record<string, Partial<Record<SpendableResource, number>>>,
       picks: {} as Record<string, string>,
+      /** Multi-select hand picks by choice id (display; the capture is the truth). */
+      multiPicks: {} as Record<string, ReadonlyArray<string>>,
       focusIdx: 0,
       sub: undefined as SubState | undefined,
       submitting: false,
@@ -372,6 +376,11 @@ export default defineComponent({
   computed: {
     thisPlayer() {
       return this.playerView.thisPlayer;
+    },
+    /** Card names in the player's hand — a pick whose every candidate is a
+     *  hand card routes to the hand section's pick mode. */
+    handNamesSet(): ReadonlySet<string> {
+      return new Set(this.playerView.cardsInHand.map((c) => c.name));
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
@@ -680,6 +689,9 @@ export default defineComponent({
       if (c.repeatAction === true) {
         return translateText('Choose an action to repeat');
       }
+      if (c.kind === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1) {
+        return translateText('Pick cards from hand');
+      }
       return translateText(c.kind === 'card' ? 'Choose a card' : c.kind === 'player' ? 'Choose a player' : 'Choose an option');
     },
     choiceMissing(c: ComposerChoice): boolean {
@@ -739,6 +751,7 @@ export default defineComponent({
       this.floaters = {};
       this.payCounts = {};
       this.picks = {};
+      this.multiPicks = {};
       this.sub = undefined;
       this.focusIdx = 0;
       this.submitting = false;
@@ -987,6 +1000,16 @@ export default defineComponent({
     },
     // ── pick rows ───────────────────────────────────────────────────────
     chosenLabel(c: ComposerChoice): string {
+      // A resolved MULTI-select hand pick shows the picked cards (first two
+      // names + «+N»; an explicit empty answer reads «Выбрано: 0»).
+      const multi = this.multiPicks[c.id];
+      if (multi !== undefined && c.input.type === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1) {
+        if (multi.length === 0) {
+          return `${translateText('Selected')}: 0`;
+        }
+        const names = multi.slice(0, 2).map((n) => translateCardName(n as CardName)).join(', ');
+        return multi.length > 2 ? `${names} +${multi.length - 2}` : names;
+      }
       const pick = this.picks[c.id];
       if (pick === undefined) {
         return '';
@@ -1004,6 +1027,12 @@ export default defineComponent({
       return pick;
     },
     chosenImpact(c: ComposerChoice): string {
+      // Multi-select payout (generic revealGain metadata).
+      const multi = this.multiPicks[c.id];
+      const gain = c.multiSelect?.revealGain;
+      if (multi !== undefined && gain !== undefined) {
+        return `+${multi.length * gain.amount}`;
+      }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
       }
@@ -1101,12 +1130,60 @@ export default defineComponent({
       }
     },
     openChoice(c: ComposerChoice): void {
+      // A hand-card pick (Self-Replicating Robots' link branch: every candidate
+      // — eligible AND greyed-with-reason — is a card in hand) routes to the
+      // HAND SECTION's premium pick mode, never a flat name list. A repeat-
+      // action pick (Viron — played ACTION cards) and the hosted-cards pick
+      // (SRR targetCards, not in hand) keep the inline sub-list.
+      if (c.kind === 'card' && c.repeatAction !== true &&
+          isHandCardSelection(c.input as SelectCardModel, this.handNamesSet)) {
+        this.openHandPick(c);
+        return;
+      }
       if (c.kind === 'card' || c.kind === 'player' || c.kind === 'or') {
         this.sub = {kind: 'list', choiceId: c.id, index: 0};
       } else if (c.kind === 'payment') {
         this.sub = {kind: 'payment', choiceId: c.id, index: 0};
       }
       // amount / spendHeat adjust inline (A is a no-op on them).
+    },
+    /** Hand a hand-card pick to the HAND SECTION (consoleHandPick bridge): the
+     *  shell hides the Action Center (v-show — every capture survives), the
+     *  player picks on the real cards, the result captures back here. A re-open
+     *  (A = «Изменить») pre-seeds the previous selection. */
+    openHandPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
+      }
+      const multi = (model.max ?? 1) > 1;
+      const prior = multi ?
+        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
+        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
+      const gain = c.multiSelect?.revealGain;
+      enterConsoleHandPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Select',
+        selectable: model.cards.map((cd) => cd.name),
+        reasons,
+        min: model.min ?? 1,
+        max: model.max ?? 1,
+        selected: prior,
+        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+      }, (cards) => {
+        // Re-locate by id — the preview may have refreshed under the pick.
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        if (multi) {
+          this.multiPicks[cur.id] = [...cards];
+          this.picks[cur.id] = String(cards.length);
+          this.captureFor(cur, {type: 'card', cards: [...cards]});
+        } else if (cards.length > 0) {
+          this.picks[cur.id] = cards[0];
+          this.captureFor(cur, {type: 'card', cards: [cards[0]]});
+        }
+        this.scrollFocused();
+      });
     },
     selectBranch(pos: number): void {
       if (this.selectedPos === pos || !this.branches[pos]?.available) {
@@ -1118,6 +1195,7 @@ export default defineComponent({
       this.captured = {};
       this.capturedOption = undefined;
       this.picks = {};
+      this.multiPicks = {};
       this.amounts = {};
       for (const c of this.branchChoiceList) {
         this.seedChoice(c);
