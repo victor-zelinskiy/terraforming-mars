@@ -9,13 +9,23 @@
     <GamepadHintBar v-if="(!consoleModeState.enabled || !consoleState.shellMounted) && menuPadState.mountedCount === 0" />
     <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
 
-    <!-- The console SYSTEM overlay (Menu button): Controls / Exit to menu. -->
+    <!-- The console SYSTEM overlay (Menu button): Settings / Controls / Exit. -->
     <transition name="con-layer">
-      <ConsoleSystemMenu v-if="systemMenuOpen && consoleModeState.enabled"
+      <ConsoleSystemMenu v-if="systemMenuOpen && !systemMenuSettings && consoleModeState.enabled"
                          :index="systemMenuIndex"
                          :confirmExit="systemMenuConfirmExit"
                          :showDiagnostics="systemMenuDiagnostics"
                          :inGame="screen === 'player-home'" />
+    </transition>
+    <!-- «Настройки» — the SHARED console Options panel, opened in-game from the
+         system menu (the ONE home of persistent console settings, CLAUDE.md).
+         B returns to the system list. In-game context hides the Interface
+         (console↔desktop) row — that shell switch stays a main-menu affordance. -->
+    <transition name="con-layer">
+      <ConsoleOptionsPanel v-if="systemMenuOpen && systemMenuSettings && consoleModeState.enabled"
+                           ref="systemOptions"
+                           context="game"
+                           @close="systemMenuSettings = false" />
     </transition>
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while
@@ -82,6 +92,8 @@ import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
 import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
+import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
+import {buttonLayoutState, remapConsoleIntent} from '@/client/gamepad/buttonLayout';
 import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -133,7 +145,7 @@ const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
 
 export default defineComponent({
   name: 'GamepadLayer',
-  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph, ConsoleEntryPrompt, ConsoleSystemMenu},
+  components: {GamepadFocusRing, GamepadHintBar, GamepadGlyph, ConsoleEntryPrompt, ConsoleSystemMenu, ConsoleOptionsPanel},
   props: {
     /** The App screen — drives lifecycle context (system menu labels, hints). */
     screen: {type: String, default: ''},
@@ -155,10 +167,13 @@ export default defineComponent({
       consoleState,
       menuPadState,
       leakDetectorState,
+      buttonLayoutState,
       systemMenuOpen: false,
       systemMenuIndex: 0,
       systemMenuConfirmExit: false,
       systemMenuDiagnostics: false,
+      /** «Настройки» sub-panel of the system menu — the console Options panel. */
+      systemMenuSettings: false,
       legendOpen: false,
       toast: '',
       toastTimer: undefined as number | undefined,
@@ -244,13 +259,20 @@ export default defineComponent({
     },
   },
   methods: {
-    onIntent(intent: GamepadIntent): void {
+    onIntent(rawIntent: GamepadIntent): void {
       if (this.debug) {
-        const line = intent.kind === 'press' || intent.kind === 'release' ?
-          `${intent.kind}:${intent.button}` :
-          intent.kind === 'nav' ? `nav:${intent.dir}${intent.repeat ? ' (r)' : ''}` : 'scroll';
+        const line = rawIntent.kind === 'press' || rawIntent.kind === 'release' ?
+          `${rawIntent.kind}:${rawIntent.button}` :
+          rawIntent.kind === 'nav' ? `nav:${rawIntent.dir}${rawIntent.repeat ? ' (r)' : ''}` : 'scroll';
         this.intentLog = [line, ...this.intentLog].slice(0, 5);
       }
+      // BUTTON LAYOUT (Console → Options → «Раскладка кнопок»): swap the
+      // semantic button a physical press produces ONCE here, at the pad funnel,
+      // so every downstream handler (system menu, entry prompt, console shell,
+      // focus engine) sees the remapped role — the glyph layer swaps in lockstep
+      // (glyphSets.activeGlyphSet), so nothing else needs to know. Identity for
+      // the default layout (returns the same object).
+      const intent = remapConsoleIntent(rawIntent, this.buttonLayoutState.layout);
       // MANDATORY UPDATE GATE (highest priority): while the full-cover desktop
       // update overlay owns the screen, route input STRAIGHT to the DOM focus
       // engine — its `desktopUpdate` scope is rooted at `.desktop-update--cover`,
@@ -332,13 +354,22 @@ export default defineComponent({
       this.systemMenuIndex = 0;
       this.systemMenuConfirmExit = false;
       this.systemMenuDiagnostics = false;
+      this.systemMenuSettings = false;
     },
     closeSystemMenu(): void {
       this.systemMenuOpen = false;
       this.systemMenuConfirmExit = false;
       this.systemMenuDiagnostics = false;
+      this.systemMenuSettings = false;
     },
     handleSystemMenuIntent(intent: GamepadIntent): void {
+      // The «Настройки» sub-panel is a full component that owns its own nav /
+      // primary / back — delegate the whole intent to it (it emits close on B).
+      if (this.systemMenuSettings) {
+        const options = this.$refs.systemOptions as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        options?.handleIntent?.(intent);
+        return;
+      }
       if (intent.kind === 'nav') {
         // No list navigation while a sub-panel (exit confirm / diagnostics) owns
         // the card — the menu index is hidden underneath.
@@ -375,6 +406,9 @@ export default defineComponent({
       if (intent.button === 'confirm') {
         const item = SYSTEM_MENU_ITEMS[this.systemMenuIndex];
         switch (item?.id) {
+        case 'settings':
+          this.systemMenuSettings = true;
+          break;
         case 'controls':
           this.closeSystemMenu();
           this.legendOpen = true;

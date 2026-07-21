@@ -819,6 +819,36 @@ export default defineComponent({
               }
             }
             /*
+             * Console COLONY-TRADE launch gate (send a trade fleet to the
+             * planet). Detect the ARMED client flight (undefined on desktop /
+             * every non-trade submit, so this is a no-op there): the ship is
+             * already flying to the target berth; HOLD the commit until it
+             * DOCKS, so the delta chips + docked-fleet board state land on a
+             * ship that has arrived — never during the flight. Runs BEFORE
+             * the bot staging (like the hero gates above): a trade that ENDS
+             * the turn carries the bot's turns in this same response, and the
+             * ship must dock — and the trade transaction must claim its
+             * manifest — before the bot's story starts.
+             */
+            const tradeFleetEvent = detectTradeFleet();
+            if (tradeFleetEvent !== undefined) {
+              this.holdingForTradeFleet = true;
+              await runTradeFleet();
+            }
+            /*
+             * The colony-trade REWARD transaction (armed with the fleet at the
+             * composer confirm): CLAIM this response's authoritative trade
+             * manifest BEFORE any commit path — claiming freezes the traded
+             * colony's track display at its pre-trade position and marks the
+             * tradeId, so the reveal batch can never be grabbed by the
+             * deck-draw scene, whichever path (gated commit below or the
+             * staged bot pipeline) applies the view. seedRewardHolds() hides
+             * the reward metrics in the same sync block as that commit. The
+             * reward waves start post-commit (the nextTick below for the
+             * gated path; the shell's playerView watcher for the staged one).
+             */
+            const colonyTradeEvent = detectColonyTrade(newView);
+            /*
              * MarsBot turns (the MAIN path — ending your turn is what lets
              * the bot act, so its resolved turn(s) ride THIS response).
              * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
@@ -871,6 +901,15 @@ export default defineComponent({
                 nextTick(() => {
                   void endTilePlacement();
                 });
+              }
+              // …and the docked trade fleet: the ship has landed (the gate
+              // above awaited the dock); release the proxy now — the staged
+              // pipeline commits the docked board state with the bot's last
+              // turn, and the trade-reward transaction (already claimed)
+              // continues from that commit via the shell's playerView watcher.
+              if (tradeFleetEvent !== undefined) {
+                this.holdingForTradeFleet = false;
+                nextTick(() => endTradeFleet());
               }
               return;
             }
@@ -979,32 +1018,6 @@ export default defineComponent({
               // stays raised through the await (cleared in .finally).
               await runEnergyConversion(conversionEvent);
             }
-            /*
-             * Console COLONY-TRADE launch gate (send a trade fleet to the
-             * planet). Detect the ARMED client flight (undefined on desktop /
-             * every non-trade submit, so this is a no-op there): the ship is
-             * already flying to the target berth; HOLD the commit until it
-             * DOCKS, so the delta chips + docked-fleet board state land on a
-             * ship that has arrived — never during the flight. Composed after
-             * the other holds (a trade never places a tile / converts energy).
-             */
-            const tradeFleetEvent = detectTradeFleet();
-            if (tradeFleetEvent !== undefined) {
-              this.holdingForTradeFleet = true;
-              await runTradeFleet();
-            }
-            /*
-             * The colony-trade REWARD transaction (armed with the fleet at the
-             * composer confirm): CLAIM this response's authoritative trade
-             * manifest BEFORE the commit — claiming freezes the traded
-             * colony's track display at its pre-trade position, and
-             * seedRewardHolds() below hides the reward metrics, so the commit
-             * that follows can never flash the reset track or the un-flown
-             * rewards through. The reward waves themselves run POST-commit
-             * (see the nextTick below). Undefined on desktop / every
-             * non-armed trade — a pure no-op there.
-             */
-            const colonyTradeEvent = detectColonyTrade(newView);
             /*
              * Console HYDRONETWORK marker-advance gate. Detect the ARMED
              * client advance (undefined on desktop / non-hydro submits, so a

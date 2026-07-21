@@ -21,6 +21,7 @@
 
 import {reactive} from 'vue';
 import {SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {buttonLayoutState, layoutSwapPair} from '@/client/gamepad/buttonLayout';
 
 /** Everything a hint can reference: semantic buttons + composite controls.
  * The four directional d-pad glyphs (P27) let the quick selectors hint a
@@ -218,9 +219,20 @@ export function resolveGlyphSetId(): GlyphSetId {
   return glyphSetState.override === 'auto' ? glyphSetState.detected : glyphSetState.override;
 }
 
-/** The active glyph set (reactive read — override → detected). */
+/**
+ * The active glyph set (reactive read — override → detected), with the button
+ * LAYOUT applied: a confirm/back swap flips the two specs so the glyph rendered
+ * for the `confirm` control shows the physical button that now confirms (kept
+ * in lockstep with the intent remap via the shared `layoutSwapPair`). Identity
+ * layout returns the base set unchanged.
+ */
 export function activeGlyphSet(): Record<GlyphControl, GlyphSpec> {
-  return GLYPH_SETS[resolveGlyphSetId()];
+  const base = GLYPH_SETS[resolveGlyphSetId()];
+  const pair = layoutSwapPair(buttonLayoutState.layout);
+  if (pair === undefined) {
+    return base;
+  }
+  return {...base, [pair[0]]: base[pair[1]], [pair[1]]: base[pair[0]]};
 }
 
 /** The user's current choice (for the Options picker). */

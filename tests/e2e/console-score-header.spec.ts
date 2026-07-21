@@ -114,16 +114,21 @@ async function bootIntoGame(page: Page, preset: Preset, playerId: string): Promi
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   await page.waitForTimeout(3500);
-  // Walk the start wizard state-aware (extra presses are inert per step).
-  for (let i = 0; i < 24; i++) {
+  // Walk the start wizard COMMAND-BAR-AWARE: A only when the bar offers
+  // «ВЫБРАТЬ» (picking a selected card again would UNpick it — the stall the
+  // blind alternation hit); a selected focus moves instead (left/down to
+  // escape the row-end trap), and RB advances whenever a step is complete.
+  for (let i = 0; i < 40; i++) {
     if (await page.locator('.con-start__frame').count() === 0) {
       break;
     }
-    await key(page, 'Enter', 1300);
-    await key(page, 'KeyE', 900);
-    if (i % 2 === 1) {
-      await key(page, 'ArrowRight', 400);
+    const bar = await page.locator('.con-cmdbar').innerText().catch(() => '');
+    if (bar.includes('СНЯТЬ ВЫБОР')) {
+      await key(page, i % 2 === 0 ? 'ArrowLeft' : 'ArrowDown', 450);
+    } else {
+      await key(page, 'Enter', 1100);
     }
+    await key(page, 'KeyE', 800);
   }
   await page.waitForTimeout(3000);
   for (let i = 0; i < 8; i++) {
@@ -167,9 +172,25 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '01-board');
       await shootRail(page, preset, '02-rail');
 
-      // Masked own VP (the local «Приватный счёт» display pref): eye-off in
-      // place of the number, identical footprint.
-      await page.evaluate(() => localStorage.setItem('tm.privateScoreDisplay.enabled', '1'));
+      // Live score delta chip (1080 only): the Asteroid standard project
+      // raises TR by 1 — the cap's TR cell must fire the existing score chip.
+      // Evidence-only (bounded, no assertions — the chip is transient).
+      if (preset.id === 'standard-1080') {
+        await key(page, 'Comma', 1000);        // LT wheel
+        await key(page, 'Enter', 1400);        // centre slot = Standard Projects
+        await key(page, 'ArrowDown', 400);
+        await key(page, 'ArrowDown', 400);     // → Asteroid (raise temperature)
+        await key(page, 'Enter', 900);         // open / confirm
+        await key(page, 'Enter', 700);         // confirm dialog (if shown)
+        await shootRail(page, preset, '04-rail-tr-chip');
+        await page.waitForTimeout(2500);       // chip settles
+        await key(page, 'Escape', 600);
+      }
+
+      // Masked own VP (the «Приватный счёт» display pref): eye-off in place of
+      // the number, identical footprint. The pref is PER-GAME — keyed by the
+      // viewer's participant id (playerId), the same key bindPrivateScoreGame reads.
+      await page.evaluate((id) => localStorage.setItem('tm.privateScoreDisplay.' + id, '1'), playerId);
       await page.reload();
       await page.waitForSelector('.con-root', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
@@ -178,7 +199,7 @@ for (const preset of PRESETS) {
       expect(await page.locator('.con-score__cell--vp .con-score__value').count()).toBe(0);
       await expect(page.locator('.con-score__value--tr')).toHaveText(/^\d+$/);
       await shootRail(page, preset, '03-rail-vp-masked');
-      await page.evaluate(() => localStorage.setItem('tm.privateScoreDisplay.enabled', '0'));
+      await page.evaluate((id) => localStorage.removeItem('tm.privateScoreDisplay.' + id), playerId);
     });
   });
 }

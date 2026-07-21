@@ -309,5 +309,12 @@
     "Discarded card": "Сброшенная карта",
     "Discarded pile": "Сброшенные карты",
     "Controller": "Контроллер",
-    "Button glyph set": "Набор кнопок"
+    "Button glyph set": "Набор кнопок",
+    "Settings": "Настройки",
+    "Button layout": "Раскладка кнопок",
+    "Which face button confirms": "Какая кнопка подтверждает",
+    "Swap A / B": "Обмен A / B",
+    "Hide your own victory points on screen": "Скрывать свои победные очки на экране",
+    "Hidden": "Скрыты",
+    "Shown": "Показаны"
 }

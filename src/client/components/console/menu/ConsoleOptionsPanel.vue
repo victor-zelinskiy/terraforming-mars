@@ -42,27 +42,29 @@
 
 <script lang="ts">
 /**
- * CONSOLE-NATIVE OPTIONS — the main menu's settings screen. Home of every
- * PERSISTENT preference the console shell exposes:
+ * CONSOLE-NATIVE OPTIONS — THE home of every PERSISTENT console preference
+ * (CLAUDE.md: settings live here, NOT in the fixed-shape in-game System menu).
+ * Reachable from the main menu AND, in-game, from the System overlay's
+ * «Настройки» item (GamepadLayer hosts it there with `context="game"`).
  *
- *  - INTERFACE (console ↔ desktop). The desktop UI is deprecated (CLAUDE.md):
- *    the console shell is the DEFAULT even with no controller attached, and
- *    desktop is reachable ONLY from here. Picking it stores the choice
- *    (`tm_console_mode` = '0' via setConsoleMode), so it survives reloads and
- *    the Electron/pad auto-enable heuristics (consoleModeExplicitlyDisabled)
- *    never force console back.
- *  - DISPLAY (the layout profile — Auto / Handheld / Standard / Large / TV 4K,
- *    persisted to `tm_console_profile`, the store `?consoleProfile=` uses).
- *    A cycles the value in place; the diagnostics block below shows what the
- *    choice resolves to (profile / viewport / panel / DPR / scale / why).
+ *  - INTERFACE (console ↔ desktop) — MAIN-MENU ONLY (`context !== 'game'`): the
+ *    desktop UI is deprecated and reachable ONLY from the menu, and switching
+ *    the shell mid-game is jarring. Picking Desktop stores the opt-out
+ *    (`tm_console_mode`='0') the auto-enable heuristics honour.
+ *  - DISPLAY — the layout profile (Auto / Handheld / Standard / Large / TV 4K,
+ *    `tm_console_profile`); the diag block shows what it resolves to.
+ *  - CONTROLLER — the button GLYPH set (Auto / Xbox / PlayStation / Steam).
+ *  - BUTTON LAYOUT — the confirm/cancel (A↔B) gamepad remap (buttonLayout.ts):
+ *    cycling it swaps the input funnels + the glyph layer in lockstep.
+ *  - PRIVATE SCORE — IN-GAME ONLY (`context === 'game'`): a PER-GAME display
+ *    pref masking the viewer's OWN victory points on the console score cap /
+ *    passive surfaces (privateScoreState, keyed by the game's participant id).
+ *    Hidden in the main menu, where there is no game to scope it to.
  *
- * Both settings used to live behind the in-game System menu; a value that
- * relabels in place plus a conditional diag block re-laid that fixed-shape
- * menu out under the d-pad cursor. This screen is built for it: the rows
- * carry their value on a fixed-width right rail and the diag block is
- * ALWAYS mounted (dimmed when another row is cursored), so nothing moves.
- *
- * Host (ConsoleMainMenu) routes pad intents via `handleIntent`.
+ * Every row carries its value on a fixed-width right rail and the diag block is
+ * ALWAYS mounted (dimmed when another row is cursored), so navigation never
+ * relayouts — the exact property the fixed-shape System menu lacks. Both hosts
+ * (ConsoleMainMenu / GamepadLayer) route pad intents via `handleIntent`.
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -83,22 +85,34 @@ import {
   glyphSetState,
   resolveGlyphSetId,
 } from '@/client/gamepad/glyphSets';
+import {BUTTON_LAYOUT_LABELS, buttonLayoutState, cycleButtonLayout} from '@/client/gamepad/buttonLayout';
+import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
 import {translateText} from '@/client/directives/i18n';
 
-type OptionRowId = 'interface' | 'display' | 'controller';
+type OptionRowId = 'interface' | 'display' | 'controller' | 'buttons' | 'privateScore';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
   name: 'ConsoleOptionsPanel',
   components: {GamepadGlyph},
+  props: {
+    /**
+     * Where the panel is hosted. 'game' (opened from the in-game system menu)
+     * hides the Interface (console↔desktop) row — switching the shell mid-game
+     * stays a main-menu-only affordance (CLAUDE.md). 'menu' shows every row.
+     */
+    context: {type: String as () => 'menu' | 'game', default: 'menu'},
+  },
   emits: ['close'],
   data() {
-    return {consoleLayoutState, consoleModeState, glyphSetState, cursor: 0};
+    return {consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState, cursor: 0};
   },
   computed: {
     rows(): ReadonlyArray<OptionRow> {
-      return [
-        {
+      const rows: Array<OptionRow> = [];
+      // Interface (shell switch) — main menu only; hidden in-game.
+      if (this.context !== 'game') {
+        rows.push({
           // The sub describes the SETTING, never the current value — a
           // value-dependent subtitle would relabel to a different line
           // count and move the rows under the cursor.
@@ -107,7 +121,9 @@ export default defineComponent({
           sub: 'Controller shell or mouse and keyboard',
           glyph: '◫',
           value: translateText(this.consoleModeState.enabled ? 'Console' : 'Desktop'),
-        },
+        });
+      }
+      rows.push(
         {
           id: 'display',
           label: 'Display',
@@ -122,7 +138,29 @@ export default defineComponent({
           glyph: '🎮',
           value: this.controllerValue,
         },
-      ];
+        {
+          id: 'buttons',
+          label: 'Button layout',
+          sub: 'Which face button confirms',
+          glyph: '🅰',
+          value: translateText(BUTTON_LAYOUT_LABELS[this.buttonLayoutState.layout]),
+        },
+      );
+      // Private score is a per-GAME preference — offered ONLY in-game (from the
+      // system menu), never in the main-menu Options where there is no game to
+      // scope it to (`bindPrivateScoreGame` is unbound there).
+      if (this.context === 'game') {
+        rows.push({
+          // Local display preference (not a game option) — masks the viewer's
+          // OWN victory points on the console score cap / passive surfaces.
+          id: 'privateScore',
+          label: 'Private score',
+          sub: 'Hide your own victory points on screen',
+          glyph: '🛡',
+          value: translateText(this.privateScoreState.enabled ? 'Hidden' : 'Shown'),
+        });
+      }
+      return rows;
     },
     controllerValue(): string {
       // Reads glyphSetState (override + detected) so the row reacts to both a
@@ -183,6 +221,17 @@ export default defineComponent({
         // Cycle Auto → Xbox → PlayStation → Steam in place — every button
         // glyph across the shell re-renders instantly and the choice persists.
         cycleGlyphSetOverride();
+        break;
+      case 'buttons':
+        // Cycle Standard → Swap A/B in place — the intent funnels + the glyph
+        // layer swap in lockstep (buttonLayout.ts), so the change is instant
+        // and consistent (glyph shows the button that now confirms) + persists.
+        cycleButtonLayout();
+        break;
+      case 'privateScore':
+        // Local, per-browser display pref — masks only THIS viewer's own VP on
+        // passive surfaces (the console score cap reads shouldMaskOwnPassiveVp).
+        togglePrivateScore();
         break;
       }
     },

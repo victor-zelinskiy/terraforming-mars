@@ -83,6 +83,26 @@ confirmTrade (composer X)
   «ТОРГОВАТЬ» morph + settle pulses. The focused summary reads the same
   presented helper.
 
+## The STAGED BOT PATH (the field-report root cause — read before touching)
+
+A trade that ENDS the human's turn carries the MarsBot's turns in its own
+response, so `presentFreshBotTurns` intercepts `WaitingFor.fetchPlayerInput`
+and RETURNS EARLY — the commit is buffered into the bot pipeline. Anything
+detected only BELOW that block never runs on such a response. The trade
+integration therefore lives ABOVE it (with the played-hero / patent-sale /
+tile-hero gates): the fleet gate awaits the dock and `detectColonyTrade`
+claims the manifest BEFORE the staged return; the staged branch releases the
+fleet proxy (`endTradeFleet` on nextTick), and the reward waves start from
+`noticeColonyTradeCommit` — the ConsoleShell playerView watcher that observes
+EVERY commit path (the buffered bot commit, and a poll after a lost response,
+where it also performs the FALLBACK claim without seeding — the chips then
+fly as decoration over already-committed values, the honest degrade).
+`colonyTradeClaimsReveal` additionally matches an ARMED-but-unclaimed
+transaction by colony name, so the deck-draw can never grab a trade batch in
+any claim-timing race. Known accepted compromise: in the staged path the
+bot's turn cards present BEFORE the trade's reward waves (both ride the same
+buffered commit — same as the tile-hero's staged reward beat).
+
 ## The invariants (the done-criteria)
 
 1. Nothing reward-shaped appears before the fleet docks (the existing fleet

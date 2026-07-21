@@ -134,6 +134,8 @@ type TradeCtx = {
   claimed: boolean;
   seeded: boolean;
   chipsDone: boolean;
+  /** The reward waves have been started (exactly once per transaction). */
+  rewardsKicked: boolean;
   committedTrack: number | undefined;
   glideStarted: boolean;
 };
@@ -143,6 +145,7 @@ const ctx: TradeCtx = {
   claimed: false,
   seeded: false,
   chipsDone: false,
+  rewardsKicked: false,
   committedTrack: undefined,
   glideStarted: false,
 };
@@ -215,12 +218,22 @@ export function presentedColonyModel(colony: ColonyModel): ColonyModel {
 
 // ── reveal-batch claim (vs the deck-draw scene) ─────────────────────────────
 
-/** A reveal batch belongs to THIS armed transaction (claim key = tradeId). */
+/**
+ * A reveal batch belongs to THIS armed transaction. Claim key = tradeId once
+ * the manifest is claimed; while the transaction is armed but the manifest
+ * hasn't landed yet (a commit path that bypasses the gated detect — the
+ * staged bot pipeline, a poll after a lost response), a trade-tagged batch
+ * from the ARMED COLONY is still ours — no other trade can resolve while our
+ * own is holding the moment.
+ */
 export function colonyTradeClaimsReveal(source: CardDrawRevealSource | undefined): boolean {
-  return colonyTradeState.active &&
-    colonyTradeState.tradeId !== '' &&
-    source?.type === 'colony' &&
-    source.trade?.tradeId === colonyTradeState.tradeId;
+  if (!colonyTradeState.active || source?.type !== 'colony' || source.trade === undefined) {
+    return false;
+  }
+  if (colonyTradeState.tradeId !== '') {
+    return source.trade.tradeId === colonyTradeState.tradeId;
+  }
+  return source.colonyName === colonyTradeState.colonyName;
 }
 
 /** The batch was staged by this scene (persists past the transaction's end). */
@@ -341,6 +354,7 @@ export function armColonyTrade(colonyName: ColonyName, color: Color, targets?: C
   ctx.claimed = false;
   ctx.seeded = false;
   ctx.chipsDone = false;
+  ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
   colonyTradeState.active = true;
@@ -382,6 +396,13 @@ export function detectColonyTrade(newView: PlayerViewModel): {tradeId: string} |
       seenTradeIds.has(manifest.tradeId)) {
     return undefined;
   }
+  claimManifest(manifest);
+  tradeLog('claimed', manifest.tradeId, 'track', manifest.preTradeTrackPosition, '→', manifest.postTradeTrackPosition);
+  return {tradeId: manifest.tradeId};
+}
+
+/** The one claim: mark the tradeId seen, freeze the track, start the ceiling. */
+function claimManifest(manifest: ColonyTradeManifestModel): void {
   seenTradeIds.add(manifest.tradeId);
   clearArmSafety();
   ctx.claimed = true;
@@ -390,16 +411,15 @@ export function detectColonyTrade(newView: PlayerViewModel): {tradeId: string} |
   colonyTradeState.preTrackPosition = manifest.preTradeTrackPosition;
   colonyTradeState.postTrackPosition = manifest.postTradeTrackPosition;
   colonyTradeState.trackHold = manifest.postTradeTrackPosition < manifest.preTradeTrackPosition;
-  tradeLog('claimed', manifest.tradeId, 'track', manifest.preTradeTrackPosition, '→', manifest.postTradeTrackPosition);
   // The whole transaction is bounded: whatever stalls (a lost reveal, a
   // never-arriving reset), the ceiling concludes honestly to committed truth.
+  clearCeiling();
   ceilingId = setTimeout(() => {
     if (colonyTradeState.active) {
       tradeLog('transaction ceiling — concluding to committed state');
       concludeToCommitted();
     }
   }, 60_000) as unknown as number;
-  return {tradeId: manifest.tradeId};
 }
 
 /**
@@ -430,9 +450,10 @@ export function seedColonyTradeRewardHold(): void {
  * only owns the resource chips, then hands over to `awaiting`.
  */
 export async function runColonyTradeRewards(): Promise<void> {
-  if (!ctx.claimed || ctx.manifest === undefined || !colonyTradeState.active) {
+  if (!ctx.claimed || ctx.rewardsKicked || ctx.manifest === undefined || !colonyTradeState.active) {
     return;
   }
+  ctx.rewardsKicked = true;
   const manifest = ctx.manifest;
   const viewer = colonyTradeState.color as Color;
   colonyTradeState.phase = 'chips';
@@ -500,6 +521,43 @@ export function notifyColonyTradeTrackCommitted(colonyName: ColonyName, trackPos
   }
   ctx.committedTrack = trackPosition;
   maybeAdvance();
+}
+
+/**
+ * The universal COMMIT observer (the shell's playerView watcher calls it on
+ * EVERY committed view while a transaction is live). Two jobs:
+ *
+ *   1. FALLBACK CLAIM — a commit path that bypasses the gated detect (the
+ *      staged bot pipeline applying the buffered view, a poll after a lost
+ *      response) still claims the manifest here, so the transaction can
+ *      never strand armed while its reveal/track go unclaimed. A fallback
+ *      claim runs POST-commit, so it deliberately does NOT seed the panel
+ *      hold (the delta chips already fired with that commit — seeding now
+ *      would visibly dip the values); the chip flights then play as pure
+ *      decoration over already-honest numbers.
+ *
+ *   2. KICK — start the reward waves exactly once, after whichever commit
+ *      carried the claimed manifest (the gated path also kicks explicitly;
+ *      both are idempotent via `rewardsKicked`).
+ */
+export function noticeColonyTradeCommit(view: PlayerViewModel): void {
+  if (!colonyTradeState.active) {
+    return;
+  }
+  const manifest = view.colonyTradeManifest;
+  if (!ctx.claimed) {
+    if (manifest === undefined ||
+        manifest.colonyName !== colonyTradeState.colonyName ||
+        seenTradeIds.has(manifest.tradeId)) {
+      return;
+    }
+    claimManifest(manifest);
+    tradeLog('claimed from committed view (staged/poll path)', manifest.tradeId);
+  }
+  if (!ctx.rewardsKicked && ctx.manifest !== undefined &&
+      manifest?.tradeId === ctx.manifest.tradeId) {
+    void runColonyTradeRewards();
+  }
 }
 
 /**
@@ -637,6 +695,7 @@ export function abortColonyTrade(): void {
   ctx.claimed = false;
   ctx.seeded = false;
   ctx.chipsDone = false;
+  ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
 }

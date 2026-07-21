@@ -12,8 +12,9 @@ import {
   abortColonyTrade, armColonyTrade, colonyTradeClaimsReveal, colonyTradeHoldingSingleZoom,
   colonyTradeState, colonyTradeTileStatusText, detectColonyTrade, finishColonyTrackReset,
   isColonyTradeActive, isColonyTradeInputLocked, isColonyTradeRevealStaged, isPresentedTradeReveal,
-  markColonyTradeZoomReady, notifyColonyTradeTrackCommitted, presentedColonyModel,
-  resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold, stageColonyTradeReveal,
+  markColonyTradeZoomReady, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
+  presentedColonyModel, resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold,
+  stageColonyTradeReveal,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
@@ -193,5 +194,28 @@ describe('consoleColonyTrade', () => {
     armColonyTrade(ColonyName.TRITON, 'red');
     expect(detectColonyTrade(view(manifest()))).eq(undefined); // seen
     abortColonyTrade();
+  });
+
+  it('an ARMED (not yet claimed) transaction already owns its colony’s trade batches', () => {
+    // The staged bot pipeline / a poll can land the reveal before the gated
+    // detect ran — the deck-draw must still be excluded by the colony match.
+    armColonyTrade(ColonyName.TRITON, 'red');
+    expect(colonyTradeClaimsReveal(
+      {type: 'colony', colonyName: ColonyName.TRITON, trade: {tradeId: 'Triton:g3:a120', role: 'income'}})).eq(true);
+    expect(colonyTradeClaimsReveal(
+      {type: 'colony', colonyName: ColonyName.LUNA, trade: {tradeId: 'Luna:g3:a121', role: 'income'}})).eq(false);
+  });
+
+  it('a commit that bypassed the gated detect (staged bot pipeline) still claims + kicks ONCE', async () => {
+    armColonyTrade(ColonyName.TRITON, 'red');
+    // The staged path: WaitingFor returned early; the buffered commit lands
+    // via the shell's playerView watcher → noticeColonyTradeCommit.
+    noticeColonyTradeCommit(view(manifest()));
+    expect(colonyTradeState.tradeId).eq('Triton:g3:a120');
+    expect(colonyTradeState.trackHold).eq(true);
+    // The kick started the reward waves; a second commit observation is a no-op.
+    noticeColonyTradeCommit(view(manifest()));
+    await new Promise((resolve) => setTimeout(resolve, 350)); // waves settle (no anchors under JSDOM)
+    expect(colonyTradeState.phase).eq('awaiting');
   });
 });

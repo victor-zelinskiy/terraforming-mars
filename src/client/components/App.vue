@@ -427,6 +427,7 @@ import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {reconcileDrawnCards, hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import AdditionalResourceDetailOverlay from '@/client/components/additionalResources/AdditionalResourceDetailOverlay.vue';
 import {setLiveCardResources} from '@/client/components/card/liveCardResources';
+import {bindPrivateScoreGame} from '@/client/components/overview/privateScoreState';
 import GameAtmosphere from '@/client/components/GameAtmosphere.vue';
 import {$t, setTranslationContext} from '@/client/directives/i18n';
 import {paths} from '@/common/app/paths';
@@ -613,6 +614,11 @@ export default defineComponent({
       // (journal, etc.) render the real resource count, not 0. See
       // liveCardResources.ts. Fires on EVERY playerView replacement.
       setLiveCardResources(view);
+      // Bind the PER-GAME "private score" preference to this game (the viewer's
+      // participant id). Idempotent — only a real game switch re-loads the
+      // stored value; leaving the game (view undefined) resets it to OFF. The
+      // central spot both shells (console + desktop) share.
+      bindPrivateScoreGame(view?.id);
     },
   },
   computed: {

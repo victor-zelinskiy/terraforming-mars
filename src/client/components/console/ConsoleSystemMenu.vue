@@ -103,13 +103,17 @@ import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
 
 export type SystemMenuItem = {
-  id: 'controls' | 'diagnostics' | 'exit' | 'return',
+  id: 'settings' | 'controls' | 'diagnostics' | 'exit' | 'return',
   /** English i18n key. */
   label: string,
   glyph: string,
 };
 
+// Fixed shape (see the class comment): plain constant-height labels, so d-pad
+// navigation never moves the plates. «Настройки» opens the SHARED Options panel
+// (where the variable-height rows live) — it does NOT relabel in place here.
 export const SYSTEM_MENU_ITEMS: ReadonlyArray<SystemMenuItem> = [
+  {id: 'settings', label: 'Settings', glyph: '⚙'},
   {id: 'controls', label: 'Controls', glyph: '🎮'},
   {id: 'diagnostics', label: 'Diagnostics', glyph: '📡'},
   {id: 'exit', label: 'To main menu', glyph: '⌂'},

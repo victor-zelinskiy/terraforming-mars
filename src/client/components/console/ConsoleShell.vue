@@ -814,7 +814,7 @@ import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} fro
 import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/ConsoleColonyTradeLayer.vue';
 import {
   abortColonyTrade, armColonyTrade, colonyTradeState, isColonyTradeInputLocked,
-  notifyColonyTradeTrackCommitted,
+  noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
@@ -3457,6 +3457,12 @@ export default defineComponent({
         // state, and ARM the research-rise scene on the draft→buy
         // transition (pre-flush — the buy frame mounts already knowing).
         observeDraftTransition(oldView, newView);
+        // Colony-trade transaction: observe EVERY commit path. The staged
+        // bot pipeline (a trade that ends the turn carries the bot's turns)
+        // and a poll after a lost response bypass WaitingFor's gated detect;
+        // this fallback claims the manifest there and kicks the reward waves
+        // exactly once after whichever commit carried it (idempotent).
+        noticeColonyTradeCommit(newView);
         // Government Support scale-focus gate: if the last action was a WGT
         // parameter raise, HOLD the next modal for a beat so the board scale
         // glide (+ top-HUD delta chip) is seen in one focused place. Snap to
