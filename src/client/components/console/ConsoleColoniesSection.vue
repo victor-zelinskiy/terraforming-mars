@@ -77,7 +77,9 @@
         <div class="con-colonies__summary-cell">
           <span class="con-colonies__summary-label">{{ $t('You build') }}</span>
           <span class="con-colonies__summary-pay">
-            <span class="con-colonies__summary-cube" :class="viewerColor !== undefined ? 'player_bg_color_' + viewerColor : ''" aria-hidden="true"></span>
+            <!-- The settlement marker the player would place — the same
+                 premium 3D PlayerCube token as in the build slots. -->
+            <PlayerCube v-if="viewerColor !== undefined" class="con-colonies__summary-cube" :color="viewerColor" :size="20" />
             <span class="con-colonies__summary-paytext">{{ $t('Colony') }}</span>
           </span>
         </div>
@@ -136,8 +138,13 @@
               <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
             </span>
             <span class="con-colonies__summary-owners">
+              <!-- Recipient settlement cubes — the same physical PlayerCube
+                   tokens that sit in the build slots (the viewer's one gets a
+                   soft mint seat-halo behind it). -->
               <span v-for="c in focusedOwners" :key="c"
-                    class="con-colonies__summary-owner" :class="['player_bg_color_' + c, {'con-colonies__summary-owner--me': c === viewerColor}]"></span>
+                    class="con-colonies__summary-owner" :class="{'con-colonies__summary-owner--me': c === viewerColor}">
+                <PlayerCube :color="c" :size="16" />
+              </span>
               <span v-if="focusedViewerOwns" class="con-colonies__summary-ownernote">{{ $t('incl. you') }}</span>
             </span>
           </template>
@@ -186,6 +193,7 @@ import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/co
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -224,7 +232,7 @@ const FIT_SLACK = 12;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph},
+  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph, PlayerCube},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},

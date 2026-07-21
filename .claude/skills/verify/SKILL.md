@@ -12,7 +12,9 @@ The surface is a **browser**. The server serves the *built* client from
 
 ```bash
 npm run build            # server (tsc) + client (webpack) + css/json — ~2 min
-npm run build:client     # client only — ~60 s (enough for .vue/.less/.ts client edits)
+npm run build:client     # client JS only — ~60 s (.vue/.ts edits; does NOT compile LESS)
+npm run make:css         # lessc → build/styles.css — REQUIRED after any .less edit
+                         # (stale styles.css silently serves the OLD look)
 npm start &              # serves http://localhost:8080 from build/
 curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/   # 200 = up
 ```
@@ -54,15 +56,17 @@ Config knobs that make driving tractable:
 | `Escape` | B | back |
 | `KeyQ` / `KeyE` | LB / RB | prev / next section |
 | `Comma` | LT | basic-actions wheel (**Standard Projects** = center slot) |
-| `Period` | RT | quick wheel (RT is UNUSED in the start wizard — steps advance with RB) |
+| `Period` | RT | quick wheel; in the start wizard RT = «СЛЕД. ШАГ» (steps advance with RT, per the wizard's own bottom bar — RB does NOT advance the multi-pick projects step) |
 | `KeyX` | X | secondary (inspect) |
 | `KeyR` | view | journal |
 | Arrows | d-pad | nav (board cursor moves cell-by-cell during placement) |
 
 **Reaching a tile placement** (the shortest path): walk the start wizard
-(alternate `Enter` / `KeyE` until `.con-start__frame` is gone — A commits a
-single-pick step, RB advances a multi-pick one; the summary launches on
-`Enter` only) → `Comma` →
+(alternate `Enter` / `Period` until `.con-start__frame` is gone — A commits a
+single-pick step, RT advances a multi-pick one; the summary launches on
+`Enter` only). In a solo **Colonies** game, then resolve the setup
+«убрать колонию» SelectColony picks (press `Enter` until the status chip
+reads «ДЕЙСТВИЕ» — see `tests/e2e/console-colony-cube.spec.ts`) → `Comma` →
 `Enter` (Standard Projects) → `ArrowDown` ×2 → `Enter` (a placing project) →
 the board opens with the right panel in placement mode.
 
@@ -72,7 +76,7 @@ moment a step's focus differs. Loop on a DOM/text condition:
 ```ts
 const startScene = page.locator('.con-start__frame');
 for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-  await key(page, i % 2 === 0 ? 'Enter' : 'KeyE', 1100);
+  await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
 }
 ```
 

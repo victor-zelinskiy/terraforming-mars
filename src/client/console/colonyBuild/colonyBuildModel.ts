@@ -6,13 +6,16 @@
  * bonus NEVER occupy the same area — the cube simply takes the vacated place.
  *
  * Design contract (the "bonus frees the slot → cube takes it" sequence): the
- * cube approaches a WAITING pose just above the slot at its FINAL size (never
- * scaled); the build bonus lifts out and leaves the slot; only once it has
- * CLEARED the slot does the cube descend into the exact centre it will keep as
- * the permanent colony marker. The cube is ONE physical object throughout — no
- * scale / bounce / pulse on touchdown, and the handoff onto the real committed
- * cube is pixel-identical (same coordinates, size, radius, shadow) so there is
- * no visible replacement.
+ * cube — the SAME premium 3D `PlayerCube` token the main board uses — flies in
+ * to a WAITING hover just above the slot at its FINAL size (never re-scaled in
+ * flight); the build bonus lifts out and leaves the slot; only once it has
+ * CLEARED the slot does the cube drop under gravity into the exact centre it
+ * will keep as the permanent colony marker. The landing is a PHYSICAL contact
+ * beat — a base-anchored micro-squash that recovers to exactly 1, the ground
+ * shadow tightening through the fall and spreading at impact, the token glow
+ * igniting on contact — never a size jump or an object swap: it is ONE cube
+ * throughout, and the handoff onto the real committed cube is pixel-identical
+ * (same component, size and centre) so there is no visible replacement.
  *
  * This module owns everything unit-testable: the phase vocabulary, the timing
  * constants, the build-bonus → transfer-spec extraction (stock/production
@@ -51,14 +54,19 @@ export const CUBE_WAIT_LIFT_FACTOR = 1.35;
 /** Extra height (× slot height) the cube starts above its waiting pose so it
  *  visibly FLIES IN to the waiting position (never a pop-in). */
 export const CUBE_APPROACH_EXTRA_FACTOR = 0.6;
-/** Timings (ms @ motion scale 1). The whole build reads in ≈0.8 s. */
+/** Timings (ms @ motion scale 1). The whole build reads in ≈1 s. */
 export const CUBE_APPROACH_MS = 240;
 /** How long the bonus needs to clear the slot before the cube may descend
  *  (the descent + the bonus flight may overlap — but never in the SAME area). */
 export const BONUS_CLEAR_MS = 240;
-/** The final settle: waiting pose → the slot centre. Decelerates to rest;
- *  NO scale, NO bounce (the landing effect is the slot's own occupied ring). */
-export const CUBE_DESCENT_MS = 360;
+/** The drop: a small pick-up anticipation, then a gravity-accelerated fall
+ *  from the waiting pose to contact at the slot centre. */
+export const CUBE_DESCENT_MS = 380;
+/** The contact beat after touchdown: base-anchored micro-squash → recover to
+ *  exactly 1, shadow spread, glow ignition, impact ring — to FULL visual rest
+ *  (the commit gate only opens once this has finished, so the one-frame
+ *  handoff always lands on a motionless cube). */
+export const CUBE_SETTLE_MS = 300;
 /** Reduced motion: one short controlled transition (the console 160 ms cap
  *  convention), same commit semantics. Raw ms — never preset-scaled. */
 export const REDUCED_MS = 160;
@@ -66,16 +74,18 @@ export const REDUCED_MS = 160;
 export const ARM_SAFETY_MS = 12000;
 
 /**
- * The cube's visual proportions (fractions of the slot's height) — SHARED by
- * the flying proxy (computed in px from the captured slot rect) and the static
- * `.con-coltile__cube--filled` (authored in rem against the 2.3rem cell), so
- * the two render byte-identical on screen at any TV zoom and the handoff is
- * seamless. Derived from the static rem values: .35/.06/.14/.30 ÷ 2.3rem cell.
+ * The colony marker is the SAME premium 3D `PlayerCube` token the main board
+ * uses for tile ownership — never a flat colour fill. Its footprint is SHARED
+ * by the STATIC in-cell cube (`CUBE_STATIC_SIZE` logical px inside the 2.3rem
+ * = 46 logical-px build cell, riding the `--con-ui-scale` zoom channel like
+ * the sibling benefit glyph) and the build hero's FLYING proxy (measured
+ * slot-rect height × `CUBE_SLOT_F`, already in real screen px) — the two
+ * therefore render identical at any TV zoom / tile fit-scale and the
+ * post-landing one-frame handoff is invisible. The cube deliberately does NOT
+ * fill the cell: clear air around it keeps the seating slot's depth readable.
  */
-export const CUBE_RADIUS_F = 0.152;
-export const CUBE_RIM_F = 0.026;
-export const CUBE_INSET_OFFSET_F = 0.061;
-export const CUBE_INSET_BLUR_F = 0.130;
+export const CUBE_STATIC_SIZE = 32;
+export const CUBE_SLOT_F = CUBE_STATIC_SIZE / 46;
 
 export type BuildRect = {x: number, y: number, w: number, h: number};
 

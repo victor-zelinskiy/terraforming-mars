@@ -8,7 +8,7 @@ import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel
 import {
   benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, trackGlidePlan, TRADE_COVER_STAGGER_MS, TRADE_WAVE_GAP_MS,
-  tradeCoverPlan, tradeCoverPlanBudgetMs, viewerBonusCubes,
+  tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
@@ -95,6 +95,17 @@ describe('colonyTradeModel', () => {
     // A deck that ran short: segments promise more than the batch holds.
     const short = tradeCoverPlan(1, [{role: 'income', count: 3}]);
     expect(short).has.lengthOf(1);
+  });
+
+  it('maps a batch card index to its trade wave (the reveal’s bonus-zone grouping)', () => {
+    const segments = [{role: 'income' as const, count: 2}, {role: 'bonus' as const, count: 2}];
+    expect(tradeRoleForIndex(segments, 0)).eq('income');
+    expect(tradeRoleForIndex(segments, 1)).eq('income');
+    expect(tradeRoleForIndex(segments, 2)).eq('bonus');
+    expect(tradeRoleForIndex(segments, 3)).eq('bonus');
+    expect(tradeRoleForIndex(segments, 9)).eq('income'); // out of range → plain
+    expect(tradeRoleForIndex(undefined, 0)).eq('income'); // no segments → no zone
+    expect(tradeRoleForIndex([{role: 'bonus', count: 1}], 0)).eq('bonus'); // bonus-only batch
   });
 
   it('the track glide steps LEFT through every passed cell; no movement → no plan', () => {

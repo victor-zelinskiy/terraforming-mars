@@ -78,15 +78,38 @@
               <div class="con-cards__strip con-reveal__strip"
                    :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1}]"
                    :style="stripZoomStyle">
-                <div v-for="(entry, i) in drawnUntaken" :key="entry.card.name + '#' + entry.index"
+                <!-- The trade-income cards (or the whole batch when it isn't
+                     a merged colony trade). Focus/take order is UNCHANGED —
+                     `pos` is the card's logical strip position. -->
+                <div v-for="entry in drawnGrouped.income" :key="entry.card.name + '#' + entry.index"
                      class="con-cards__slot con-start__deal"
-                     :style="dealDelay(i)"
+                     :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
-                     :class="{'con-cards__slot--focused': focusIdx === i}"
-                     :ref="focusIdx === i ? 'focusedCardSlot' : undefined">
+                     :class="{'con-cards__slot--focused': focusIdx === entry.pos}"
+                     :ref="focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
                   <Card :card="entry.card" :key="entry.card.name" lightweight />
-                  <div v-if="focusIdx === i" class="con-start__slot-a">
+                  <div v-if="focusIdx === entry.pos" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
+                  </div>
+                </div>
+                <!-- The COLONY-BONUS cards of a merged trade batch sit in
+                     their own quietly framed zone («Бонус колонии») so the
+                     player reads which cards the settlements earned —
+                     usually one, several with multiple own cubes. A pure
+                     grouping wrapper: the slots keep the strip's zoom /
+                     focus / cover-landing contracts. -->
+                <div v-if="drawnGrouped.bonus.length > 0" class="con-reveal__bonus-zone">
+                  <span class="con-reveal__bonus-zone-label">{{ $t('Colony bonus payout') }}</span>
+                  <div v-for="entry in drawnGrouped.bonus" :key="entry.card.name + '#' + entry.index"
+                       class="con-cards__slot con-start__deal"
+                       :style="dealDelay(entry.pos)"
+                       :data-zoom-slot="entry.card.name + '#' + entry.index"
+                       :class="{'con-cards__slot--focused': focusIdx === entry.pos}"
+                       :ref="focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
+                    <Card :card="entry.card" :key="entry.card.name" lightweight />
+                    <div v-if="focusIdx === entry.pos" class="con-start__slot-a">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -238,6 +261,7 @@ import {
   colonyTradeHoldingSingleZoom, colonyTradeState, colonyTradeZoomOriginEl, isColonyTradeActive,
   isColonyTradeRevealStaged,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
+import {tradeRoleForIndex} from '@/client/console/colonyTrade/colonyTradeModel';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -255,6 +279,9 @@ export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
 
 /** The compact source chip descriptor (multi-card drawn header). */
 type SourceChip = {name: string, inspectable: boolean};
+
+/** One untaken strip card: the batch index (take key) + its strip position. */
+type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
@@ -291,6 +318,28 @@ export default defineComponent({
         }
       });
       return out;
+    },
+    /**
+     * The untaken cards split by TRADE WAVE (a merged colony-trade batch):
+     * the income cards render plainly, the colony-bonus cards inside their
+     * own labelled zone. `pos` keeps each card's logical strip position, so
+     * focus / navigation / take order are byte-identical to the flat strip
+     * (income precedes bonus in the batch by construction). A batch without
+     * trade segments is all-income — no zone renders.
+     */
+    drawnGrouped(): {income: Array<StripEntry>, bonus: Array<StripEntry>} {
+      const segments = this.drawnEvent?.tradeSegments;
+      const income: Array<StripEntry> = [];
+      const bonus: Array<StripEntry> = [];
+      this.drawnUntaken.forEach((u, pos) => {
+        const entry = {card: u.card, index: u.index, pos};
+        if (segments !== undefined && tradeRoleForIndex(segments, u.index) === 'bonus') {
+          bonus.push(entry);
+        } else {
+          income.push(entry);
+        }
+      });
+      return {income, bonus};
     },
     /** A card source opens fullscreen on L3 (colony/tile/other are not). */
     drawnSourceInspectable(): boolean {
@@ -755,7 +804,15 @@ export default defineComponent({
      */
     singleSourceInfo(): {label: string, name: string} | undefined {
       const chip = this.sourceChip;
-      return chip !== undefined && !chip.inspectable ? {label: 'Source', name: chip.name} : undefined;
+      if (chip === undefined || chip.inspectable) {
+        return undefined;
+      }
+      // A lone COLONY-BONUS card (a merged trade batch whose only card came
+      // from the settlement bonus) names its wave, not just the colony.
+      const segments = this.drawnEvent?.tradeSegments;
+      const bonusOnly = segments !== undefined && segments.length > 0 &&
+        segments.every((s) => s.role === 'bonus');
+      return {label: bonusOnly ? 'Colony bonus payout' : 'Source', name: chip.name};
     },
     /** The single-card receive bridge — A departs the card from fullscreen. */
     singleReceiveBridge(): ConsoleZoomReceive {

@@ -54,13 +54,17 @@
              :class="{'con-coltile__build-slot--occupied': colony.colonies[idx] !== undefined}"
              :data-colony-build-slot="colony.name + '#' + idx">
           <!-- Each build bonus is ONE-TIME: once a settlement is built here the
-               bonus is consumed, so the owner cube FILLS the whole cell (the
-               reward glyph is gone). An empty slot shows what building here
-               would grant. The `data-colony-build-slot` anchor is the landing
-               geometry of the console colony-build hero (consoleColonyBuild). -->
-          <span v-if="colony.colonies[idx] !== undefined"
-                class="con-coltile__cube con-coltile__cube--filled"
-                :class="'player_bg_color_' + colony.colonies[idx]"></span>
+               bonus is consumed and the owner's PREMIUM 3D PlayerCube — the
+               same physical token the main board uses for tile ownership —
+               sits centred in the vacated cell with clear air around it (the
+               reward glyph is gone; never a flat colour fill). An empty slot
+               shows what building here would grant. The `data-colony-build-slot`
+               anchor is the landing geometry of the console colony-build hero
+               (consoleColonyBuild); CUBE_STATIC_SIZE pairs with its proxy's
+               CUBE_SLOT_F so the flying and the seated cube are identical. -->
+          <PlayerCube v-if="colony.colonies[idx] !== undefined"
+                      :color="colony.colonies[idx]"
+                      :size="cubeSize" />
           <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
         </div>
       </div>
@@ -140,9 +144,11 @@ import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {CUBE_STATIC_SIZE} from '@/client/console/colonyBuild/colonyBuildModel';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',
@@ -153,7 +159,7 @@ type TrackCell = {index: number, marker: boolean, effective: boolean, passed: bo
 
 export default defineComponent({
   name: 'ConsoleColonyTile',
-  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue},
+  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     /** The viewer's standing trade offset (Trading Colony etc.). */
@@ -169,6 +175,11 @@ export default defineComponent({
   computed: {
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
+    },
+    /** The seated owner cube's footprint (logical px vs the 2.3rem cell; the
+     *  `--con-ui-scale` zoom channel in console.less carries the TV scale). */
+    cubeSize(): number {
+      return CUBE_STATIC_SIZE;
     },
     /**
      * The colony as PRESENTED: while this colony's trade transaction is still

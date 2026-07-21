@@ -70,6 +70,50 @@
     will-change: transform, opacity;
 }
 
+/* ── The reveal modal's COLONY-BONUS zone ──────────────────────────────────
+   A merged trade batch renders its settlement-bonus cards inside a quietly
+   framed group with a «Бонус колонии» caption — premium, unobtrusive: a soft
+   mint field + hairline rim, never a hard divider. Sized by content (usually
+   one card, several with multiple own cubes). A pure GROUPING wrapper: the
+   slots inside keep every strip contract (count-driven zoom, focus lift,
+   cover-landing anchors), re-stated below because the strip's own rules are
+   direct-child scoped. */
+.con-reveal__bonus-zone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: inherit; /* the strip's card rhythm continues inside the zone */
+    margin-left: .4rem;
+    padding: 1.1rem .9rem .8rem;
+    border-radius: .6rem;
+    background: linear-gradient(180deg, fade(@con-mint, 5%), fade(@con-mint, 1%) 72%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 17%);
+}
+.con-reveal__bonus-zone-label {
+    position: absolute;
+    top: -.62rem;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: .14rem .6rem;
+    border-radius: .5rem;
+    font-size: .55rem;
+    font-weight: 700;
+    letter-spacing: .12rem;
+    text-transform: uppercase;
+    color: fade(@con-mint, 88%);
+    background: rgba(10, 18, 26, 0.94);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%);
+    pointer-events: none;
+}
+/* The strip's direct-child slot contracts, restated for the wrapped slots. */
+.con-cards__strip .con-reveal__bonus-zone > .con-cards__slot {
+    zoom: var(--con-cards-zoom, 1);
+}
+.con-reveal__strip .con-reveal__bonus-zone > .con-cards__slot--focused {
+    transform: translateY(-.4rem) scale(1.1);
+}
+
 /* ── The colony tile during the transaction ────────────────────────────── */
 
 /* A passed cell's one-shot impulse as the marker sweeps LEFT over it. */

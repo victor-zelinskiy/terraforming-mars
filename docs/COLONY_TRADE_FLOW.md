@@ -18,7 +18,12 @@ confirmTrade (composer X)
    cube — countable, staggered)
 → ONE merged reveal modal (1/N) for ALL cards of
    the trade (the SERVER merged the batches by
-   tradeId; segments keep the income/bonus split)
+   tradeId; segments keep the income/bonus split);
+   the colony-bonus cards sit in their own quietly
+   framed «Бонус колонии» zone inside the strip
+   (`.con-reveal__bonus-zone` — a pure grouping
+   wrapper; focus/take order unchanged; sizes to
+   1..N cards per the viewer's own cubes)
 → confirmAllReceivedCards (take / take all → hand intake)
 → the white marker GLIDES LEFT to the reset cell     (only after the server's own reset committed —
    cell-by-cell impulse, settle                       Colony.handleTrade's finalizer runs at

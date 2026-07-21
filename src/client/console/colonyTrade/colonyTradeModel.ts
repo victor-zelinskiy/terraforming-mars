@@ -167,6 +167,25 @@ export function tradeCoverPlanBudgetMs(plan: ReadonlyArray<TradeCoverPlanEntry>)
   return lastDelay + TRADE_COVER_FLIGHT_MS + TRADE_FRAME_MS;
 }
 
+/**
+ * Which trade wave a batch card at `index` belongs to (the segments are
+ * contiguous same-role runs in card order). A batch without segments reads
+ * all-income. The reveal modal groups the «Бонус колонии» cards by this.
+ */
+export function tradeRoleForIndex(segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined, index: number): ColonyTradeRevealRole {
+  if (segments === undefined) {
+    return 'income';
+  }
+  let acc = 0;
+  for (const seg of segments) {
+    acc += seg.count;
+    if (index < acc) {
+      return seg.role;
+    }
+  }
+  return 'income';
+}
+
 // ── the white-marker track reset ────────────────────────────────────────────
 
 export type TrackGlidePlan = {

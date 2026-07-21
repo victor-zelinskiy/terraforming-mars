@@ -281,6 +281,44 @@ function collectJournal(page: Page): Array<string> {
 
 test.describe.configure({mode: 'serial'});
 
+test('visual: a merged trade batch renders the labelled colony-bonus zone', async ({page, request}) => {
+  test.setTimeout(120_000);
+  const game = await createGame(request, false);
+
+  // Inject a merged Pluto trade batch (2 income + 2 bonus cards) into every
+  // /api/player response — the route-interception harness the reveal modal's
+  // TV matrix already uses for arbitrary counts.
+  await page.route('**/api/player*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.cardDrawReveals = [{
+      id: 990,
+      source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'probe:g1:a1', role: 'income'}},
+      cards: [
+        {name: 'Micro-Mills'}, {name: 'Insulation'},
+        {name: 'Windmills'}, {name: 'Bushes'},
+      ],
+      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 2}],
+    }];
+    await route.fulfill({response, json: body});
+  });
+
+  await page.goto(`/player?id=${game.playerId}&console=1`);
+  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+  await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 30_000});
+  await page.waitForTimeout(3000); // entrance settles
+  await shoot(page, 'bonus-zone');
+
+  const zone = page.locator('.con-reveal__bonus-zone');
+  expect(await zone.count(), 'the bonus zone did not render').toBe(1);
+  expect(await zone.locator('.con-cards__slot').count(), 'the zone must hold the 2 bonus cards').toBe(2);
+  await expect(page.locator('.con-reveal__bonus-zone-label')).toHaveText(/Бонус колонии/i);
+  // The income cards stay OUTSIDE the zone.
+  const strip = page.locator('.con-reveal__strip');
+  expect(await strip.locator('.con-cards__slot').count()).toBe(4);
+});
+
 test('solo (gated path): the trade cinematic claims the Pluto reveal', async ({page, request}) => {
   test.setTimeout(300_000);
   const journal = collectJournal(page);

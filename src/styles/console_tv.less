@@ -563,11 +563,9 @@ html.con-profile-tv {
            desktop density — on the TV the slot has grown with the rem base,
            the glyph must follow. */
         &__build-slot .benefit-glyph__production { transform: scale(1.05); }
-        /* The occupied cube FILLS the whole cell (`--filled`, `width/height:auto`)
-           — it must NOT be forced to a fixed corner size here, or it collapses to
-           a small square in the slot corner on the TV profile. Exclude it; the
-           bump only ever applied to a legacy corner cube (gone from the tile). */
-        &__cube:not(.con-coltile__cube--filled) { width: 0.85rem; height: 0.85rem; }
+        /* (The occupied build-slot PlayerCube deliberately gets NO tv bump:
+           its 32/46 slot fraction is shared with the build hero's flying proxy
+           — see console.less — and already scales via the ui-scale zoom.) */
     }
     /* The header fleet dock (all players' fleets) — the berths and ships
        were near-invisible marks on the panel. */
@@ -589,10 +587,12 @@ html.con-profile-tv {
         &__summary-sub { font-size: var(--con-t-floor); }
         &__summary-pay .colony-fleet-icon { width: 2.1rem; height: 2.1rem; }
         &__summary-arrow, &__summary-sep { font-size: 1.9rem; }
-        &__summary-owner { width: 1.1rem; height: 1.1rem; }
+        /* The summary PlayerCube tokens ride the ui-scale zoom channel — the
+           tv couch boost multiplies that zoom (mirrors the old rem bumps). */
+        &__summary-owner .player-cube { zoom: calc(1.35 * var(--con-ui-scale, 1)); }
         &__summary-ownernote { font-size: var(--con-t-floor); }
         &__summary-none { font-size: var(--con-t-secondary); }
-        &__summary-cube { width: 1.3rem; height: 1.3rem; }
+        &__summary-cube.player-cube { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
         &__summary-warn { font-size: var(--con-t-secondary); }
         &__summary-selectnote { font-size: var(--con-t-body); }
         &__summary-status { font-size: var(--con-t-secondary); padding: 0.4rem 1rem; }

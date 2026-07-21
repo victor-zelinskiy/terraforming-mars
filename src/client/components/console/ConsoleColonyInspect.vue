@@ -70,10 +70,12 @@
               <span class="con-colinspect__benefit-desc" v-i18n>{{ metadata.build.description }}</span>
             </div>
             <div class="con-colinspect__slots">
+              <!-- Taken slots seat the same premium 3D PlayerCube token the
+                   colonies grid + the main board use (never a flat square). -->
               <span v-for="idx in [0, 1, 2]" :key="idx"
                     class="con-colinspect__slot"
                     :class="{'con-colinspect__slot--taken': colony.colonies[idx] !== undefined}">
-                <span v-if="colony.colonies[idx] !== undefined" class="con-coltile__cube" :class="'player_bg_color_' + colony.colonies[idx]"></span>
+                <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="17" />
               </span>
               <span class="con-colinspect__slots-label">{{ ownersLine }}</span>
             </div>
@@ -180,6 +182,7 @@ import {translateMessage, translateText, translateTextWithParams, translateCardN
 import {Message} from '@/common/logs/Message';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -193,7 +196,7 @@ type TargetRow = {roleLabel: string, iconClass: string, amount: number, cards: R
 
 export default defineComponent({
   name: 'ConsoleColonyInspect',
-  components: {BenefitGlyph, ColonyFleetIcon},
+  components: {BenefitGlyph, ColonyFleetIcon, PlayerCube},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},

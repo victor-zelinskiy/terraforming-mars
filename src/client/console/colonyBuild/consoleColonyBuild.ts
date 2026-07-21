@@ -22,9 +22,12 @@
  *   resting resource chip). abortColonyBuild() is wired into every error path +
  *   a safety timer.
  *
- * The cube is ONE physical object: placed at its FINAL size, only translated;
- * no touchdown scale / bounce / pulse; the proxy is a pixel-twin of the static
- * cube so the handoff is invisible. The cube and the bonus never occupy the
+ * The cube is ONE physical object — the SAME premium 3D `PlayerCube` token the
+ * main board uses, mounted at its FINAL size and never re-scaled in flight.
+ * The landing is a physical contact beat (base-anchored micro-squash that
+ * recovers to exactly 1, shadow spread, glow ignition, impact ring), and the
+ * gate resolves only at FULL visual rest, so the proxy is pixel-identical to
+ * the static in-cell cube at handoff. The cube and the bonus never occupy the
  * same area (the bonus clears the slot before the cube descends).
  *
  * Ownership map: phases/timings/spec-extraction/proof → colonyBuildModel (pure);
@@ -44,7 +47,7 @@ import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {
   ColonyBuildPhase, BuildRect, BonusExitMode,
   buildRewardSpecs, buildBonusMode, verifyColonyBuild,
-  CUBE_APPROACH_MS, BONUS_CLEAR_MS, CUBE_DESCENT_MS, REDUCED_MS, ARM_SAFETY_MS,
+  CUBE_APPROACH_MS, BONUS_CLEAR_MS, CUBE_DESCENT_MS, CUBE_SETTLE_MS, REDUCED_MS, ARM_SAFETY_MS,
 } from '@/client/console/colonyBuild/colonyBuildModel';
 import {
   ColonyBuildStageEls, placeCubeProxy, playCubeApproach, playCubeDescent,
@@ -178,7 +181,7 @@ export function runColonyBuild(): Promise<void> {
     runResolve = resolve;
     sceneSafety = window.setTimeout(() => {
       freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS) + 4000);
+    }, motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS + CUBE_SETTLE_MS) + 4000);
     void executeBuild().finally(() => freeRunGate());
   });
 }
@@ -223,9 +226,10 @@ async function executeBuild(): Promise<void> {
   if (!colonyBuildState.active) {
     return;
   }
-  // 4) The cube descends into the vacated slot centre and stops (no bounce).
+  // 4) The cube drops into the vacated slot centre — gravity fall + the
+  //    physical contact beat — and comes to FULL rest before the gate opens.
   colonyBuildState.phase = 'descending';
-  await playCubeDescent(els, {ms: motionMs(CUBE_DESCENT_MS)});
+  await playCubeDescent(els, {dropMs: motionMs(CUBE_DESCENT_MS), settleMs: motionMs(CUBE_SETTLE_MS)});
   if (!colonyBuildState.active) {
     return;
   }

@@ -2,16 +2,17 @@
    (ConsoleColonyBuildLayer + colonyBuildDirector + consoleColonyBuild)
 
    The build bonus frees the slot (a resource flies to the panel / a card
-   lifts into the reveal space), then the player's cube DESCENDS into the
-   vacated centre and stays as the permanent colony marker. The cube is ONE
-   physical object — placed at its final size, only translated, then removed in
-   one frame onto the pixel-identical real committed cube.
+   lifts into the reveal space), then the player's cube — the REAL premium 3D
+   PlayerCube token, the same component the main board uses — drops under
+   gravity into the vacated centre and stays as the permanent colony marker.
+   ONE physical object: mounted at final size, animated only on its own flat
+   internals (scene / ground shadow / glow, per the PlayerCube animation
+   contract), then removed in one frame onto the identical committed cube.
 
    Perf (Steam Deck): transform/opacity only, no animated blur/filter, no
-   `transition: all`; `will-change` scoped to the element (the layer is v-if'd
-   on the transaction). The cube's absolute position + radius/relief arrive as
-   px inline styles from the captured slot rect (already TV-scaled), matching
-   the static `.con-coltile__cube--filled` exactly. */
+   `transition: all`; `will-change` scoped to the animated internals (the
+   layer is v-if'd on the transaction). Geometry arrives as px inline styles
+   from the captured slot rect (already TV-scaled). */
 
 .con-colonybuild {
     position: fixed;
@@ -22,14 +23,38 @@
     pointer-events: none;
     contain: layout style;
 
-    /* The dropping cube — a pixel-twin of the real filled-cell owner cube. The
-       `player_bg_color_*` class paints it; the layer sets left/top/width/height
-       + border-radius + inset box-shadow inline (∝ the slot, so it matches the
-       static cube on-screen at any zoom). Only Y is transformed by the director. */
+    /* The stage wrapper at the captured slot rect — the cube flex-centres in
+       it exactly like the static cube centres in the real build cell. The
+       inline style carries left/top/width/height in real screen px. */
     &__cube {
         position: fixed;
         top: 0;
         left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* Pre-flight blackout: the stage mounts invisible so the cube can
+           never flash seated-in-slot before the director poses it airborne
+           (placeCubeProxy flips the root to autoAlpha 1 AFTER posing). A
+           degraded run (unmeasurable slot / no stage) simply stays hidden. */
+        opacity: 0;
+
+        /* keep-px: the director's motion layers (real-screen-px geometry). */
+        .player-cube__scene,
+        .player-cube__shadow,
+        .player-cube__glow {
+            will-change: transform, opacity;
+        }
+    }
+
+    /* One-shot impact ring at the cube's base — a thin light shockwave the
+       director scales out + fades at the moment of contact. Sized inline off
+       the cube footprint; transform/opacity only. */
+    &__ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 1.5px solid rgba(210, 238, 255, 0.55); /* keep-px: hairline on real-px stage */
+        box-shadow: 0 0 8px rgba(160, 220, 255, 0.35); /* keep-px */
         opacity: 0;
         will-change: transform, opacity;
     }

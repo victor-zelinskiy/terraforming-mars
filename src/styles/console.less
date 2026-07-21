@@ -660,7 +660,14 @@ body.con-zoom-open .con-handdock {
     top: calc(1.2vh + 2.5rem);
     left: 50%;
     transform: translateX(-50%);
-    z-index: 60;
+    /* The banner band (mandatory/critical bannerText + the pending-events chip)
+       is a NOTIFICATION surface — it must float ABOVE every game section /
+       sheet / scene inside .con-root (sections 11500, sheets 11480, cinematics
+       ≤11900, stranded 11900), so a pending-events or colony-bonus chip is
+       never buried under an overlay. Kept BELOW the full-screen mandatory modal
+       (12000) and the gamepad chrome (≥12760), which legitimately own the
+       screen. (Matches the App-level notification cards, which sit at 12650.) */
+    z-index: 11960;
     display: inline-flex;
     align-items: center;
     gap: .5rem;
@@ -7519,20 +7526,30 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__summary-paytext { font-size: .9rem; font-weight: 700; color: @con-text; }
     &__summary-sub { font-size: .625rem; color: fade(@con-cyan, 75%); }
     /* Colony-bonus recipients (settlement owner cubes) + the honest no-owners
-       state — the bonus is NEVER shown as an unconditional gain. */
+       state — the bonus is NEVER shown as an unconditional gain. The cubes are
+       the same premium 3D PlayerCube tokens that sit in the build slots (px
+       content → the ui-scale zoom channel); the viewer's own token gets a soft
+       mint seat-halo BEHIND it — never a box-shadow ON the cube (a square rim
+       around a 3D token reads as a UI frame, and a filter would flatten it). */
     &__summary-owners { display: inline-flex; align-items: center; gap: .3rem; }
     &__summary-owner {
-        width: .8rem; height: .8rem; border-radius: .15rem;
-        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.6);
-        &--me { box-shadow: 0 0 0 .075rem #fff, 0 0 .35rem fade(@con-mint, 55%); }
+        position: relative;
+        display: inline-flex;
+
+        .player-cube { zoom: var(--con-ui-scale, 1); }
+        &--me::before {
+            content: '';
+            position: absolute;
+            inset: -.25rem;
+            border-radius: 50%;
+            background: radial-gradient(circle, fade(@con-mint, 34%), transparent 70%);
+        }
     }
     &__summary-ownernote { font-size: .625rem; font-weight: 700; color: @con-mint; }
     &__summary-none { font-size: .8rem; font-weight: 700; color: @con-text-dim; }
-    /* Build mode: the settlement cube the player would place. */
-    &__summary-cube {
-        width: 1rem; height: 1rem; border-radius: .15rem;
-        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.6), 0 0 .35rem fade(@con-cyan, 40%);
-    }
+    /* Build mode: the settlement cube the player would place — the same
+       premium PlayerCube token, ui-scale zoomed. */
+    &__summary-cube { zoom: var(--con-ui-scale, 1); }
     /* Resource-lost heads-up (trade reward with no eligible card). */
     &__summary-warn {
         display: inline-flex; align-items: center; gap: .25rem;
@@ -7745,32 +7762,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .benefit-glyph { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
         .benefit-glyph__num { font-size: 15px; right: 2px; bottom: 1px; } /* keep-px: inside the zoomed glyph */
     }
-    &__cube {
-        position: absolute;
-        right: -.25rem;
-        top: -.25rem;
-        width: .7rem;
-        height: .7rem;
-        border-radius: .15rem;
-        box-shadow: 0 0 0 .075rem rgba(0, 0, 0, 0.65), 0 .1rem .25rem rgba(0, 0, 0, 0.5);
-    }
-    /* Occupied slot: the one-time build bonus is consumed, so the cube FILLS
-       the whole cell (never a small corner marker over a stale glyph). The
-       rem values here (radius .35 / rim .06 / offset .14 / blur .30 against the
-       2.3rem cell) are the SAME fractions the console-build hero's dropping cube
-       proxy (.con-colonybuild__cube) computes in px, so the post-commit handoff
-       is pixel-identical — INSET shadows only (an outer cast shadow would be
-       clipped by the slot's `overflow: hidden` and break the match). `inset: 0`
-       + auto size fills the cell; do NOT re-introduce right/top (they undo it). */
-    &__cube--filled {
-        inset: 0;
-        width: auto;
-        height: auto;
-        border-radius: .35rem;
-        box-shadow:
-            inset 0 0 0 .06rem rgba(0, 0, 0, 0.55),
-            inset 0 .14rem .3rem rgba(255, 255, 255, 0.24),
-            inset 0 -.14rem .3rem rgba(0, 0, 0, 0.4);
+    /* Occupied slot: the one-time build bonus is consumed and the owner's
+       PREMIUM 3D PlayerCube — the same physical token the main board uses for
+       tile ownership — sits flex-CENTRED in the vacated cell with clear air
+       around it (never a flat colour fill that swallows the cell). The cube is
+       px content (CUBE_STATIC_SIZE = 32 logical px vs the 2.3rem/46px cell),
+       so it rides the `--con-ui-scale` zoom channel exactly like the sibling
+       .benefit-glyph; the build hero's flying proxy computes the SAME fraction
+       (CUBE_SLOT_F) from the measured slot rect, so the post-landing one-frame
+       handoff is pixel-identical. Do NOT add a TV-profile size bump here — it
+       would shear the proxy↔static match. */
+    &__build-slot .player-cube {
+        zoom: var(--con-ui-scale, 1);
     }
     &__track {
         flex: 1;
@@ -8089,6 +8092,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__slot {
         position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         width: 1.5rem;
         height: 1.3rem;
         border-radius: .3rem;
@@ -8096,7 +8102,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: inset 0 0 0 .05rem fade(@con-text, 18%);
 
         &--taken { box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 50%); }
-        .con-coltile__cube { right: .3rem; top: .2rem; position: absolute; }
+        /* The seated settlement marker — the same premium 3D PlayerCube token
+           as the colonies grid (px content → the ui-scale zoom channel). */
+        .player-cube { zoom: var(--con-ui-scale, 1); }
     }
     &__slots-label {
         margin-left: .3rem;
@@ -11950,7 +11958,7 @@ html.console-mode .notifications-layer {
     top: calc(1.2vh + 4.6rem); /* the prompt band, below the status strip */
     left: 50%;
     transform: translateX(-50%);
-    z-index: 62; /* a nose above the plain banner chips */
+    z-index: 11962; /* a nose above the plain banner chips (see .con-banner) */
     display: inline-flex;
     align-items: center;
     gap: .75rem;
