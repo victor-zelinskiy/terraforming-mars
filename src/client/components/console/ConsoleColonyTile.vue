@@ -15,6 +15,7 @@
          'con-coltile--blocked': status.kind === 'blocked',
          'con-coltile--ok': status.kind === 'ok',
          'con-coltile--just-docked': justDocked,
+         'con-coltile--marker-gliding': markerGliding,
        }"
        :data-test="'con-colony-' + colony.name">
     <header class="con-coltile__head">
@@ -64,30 +65,53 @@
         </div>
       </div>
       <div class="con-coltile__track" aria-hidden="true">
+        <!-- Per-cell anchors carry the trade-reset glide geometry (the white
+             marker proxy steps LEFT across these exact rects). The displayed
+             marker rides the PRESENTED position: while a trade's rewards are
+             still being granted the committed reset is frozen behind
+             `presentedColonyModel`, so the marker never teleports early. -->
         <span v-for="pos in trackCells" :key="pos.index"
               class="con-coltile__track-cell"
+              :data-colony-track-cell="colony.name + '#' + pos.index"
               :class="{
                 'con-coltile__track-cell--marker': pos.marker,
                 'con-coltile__track-cell--effective': pos.effective,
                 'con-coltile__track-cell--passed': pos.passed,
+                'con-coltile__track-cell--settled': settledCell === pos.index,
               }"></span>
-        <span class="con-coltile__track-pos">{{ trackPositionDisplay }}</span>
+        <!-- The «4/7» readout plays the premium flip exactly when the marker
+             LANDS (the presented position releases) — nested INSIDE the cell
+             per the ConsoleFlipValue layering contract. -->
+        <span class="con-coltile__track-pos">
+          <ConsoleFlipValue :value="displayedTrackPosition" :text="trackPositionDisplay" accent="cyan" :flipOnDecrease="true" />
+        </span>
       </div>
     </div>
 
-    <!-- Trade reward (at the position a trade READS) · owner bonus. -->
+    <!-- Trade reward (at the position a trade READS) · owner bonus.
+         The two value cells are the trade cinematic's LAUNCH ANCHORS:
+         the trade income physically leaves `data-colony-trade-source`, a
+         colony bonus leaves `data-colony-bonus-source` — so every reward's
+         origin is readable. The trade value itself morphs (keyed out-in
+         crossfade) when the presented position changes, i.e. exactly when
+         the white marker lands after a trade. -->
     <div class="con-coltile__rows">
-      <div class="con-coltile__cell con-coltile__cell--trade">
+      <div class="con-coltile__cell con-coltile__cell--trade"
+           :class="{'con-coltile__cell--reward-settled': rewardSettled}">
         <span class="con-coltile__cell-label">{{ $t('Trade') }}</span>
-        <span class="con-coltile__cell-value">
-          <span v-if="reward.quantity > 1" class="con-coltile__cell-num">{{ reward.quantity }}</span>
-          <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+        <span class="con-coltile__cell-value" :data-colony-trade-source="colony.name">
+          <transition name="con-coltrade-reward" mode="out-in">
+            <span class="con-coltile__cell-reward" :key="effectivePosition">
+              <span v-if="reward.quantity > 1" class="con-coltile__cell-num">{{ reward.quantity }}</span>
+              <BenefitGlyph :benefit="tradeBenefit" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+            </span>
+          </transition>
           <span v-if="offsetSteps > 0" class="con-coltile__cell-offset">+{{ offsetSteps }}</span>
         </span>
       </div>
       <div class="con-coltile__cell">
         <span class="con-coltile__cell-label">{{ $t('Bonus') }}</span>
-        <span class="con-coltile__cell-value">
+        <span class="con-coltile__cell-value" :data-colony-bonus-source="colony.name">
           <span v-if="bonusQuantity > 1" class="con-coltile__cell-num">{{ bonusQuantity }}</span>
           <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
         </span>
@@ -115,8 +139,10 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {effectiveTradePosition, rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
+import {colonyTradeState, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 
 export type ConsoleColonyTileStatus = {
   kind: 'ok' | 'blocked' | 'inactive' | 'none',
@@ -127,7 +153,7 @@ type TrackCell = {index: number, marker: boolean, effective: boolean, passed: bo
 
 export default defineComponent({
   name: 'ConsoleColonyTile',
-  components: {BenefitGlyph, ColonyFleetIcon},
+  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue},
   props: {
     colony: {type: Object as PropType<ColonyModel>, required: true},
     /** The viewer's standing trade offset (Trading Colony etc.). */
@@ -143,6 +169,28 @@ export default defineComponent({
   computed: {
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
+    },
+    /**
+     * The colony as PRESENTED: while this colony's trade transaction is still
+     * granting rewards, the committed track reset stays frozen at the
+     * pre-trade position (the ONE shared helper — the tile, the focused
+     * summary and the inspect can never disagree). Everything below reads
+     * the track through this, so the reset only ever shows via the glide.
+     */
+    presented(): ColonyModel {
+      return presentedColonyModel(this.colony);
+    },
+    /** The traded colony's marker proxy is mid-glide (the static dot yields). */
+    markerGliding(): boolean {
+      return colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === this.colony.name;
+    },
+    /** One-shot: the cell the reset marker just landed on (settle glow). */
+    settledCell(): number {
+      return colonyTradeState.colonyName === this.colony.name ? colonyTradeState.settledCell : -1;
+    },
+    /** One-shot: the «ТОРГОВАТЬ» readout settles WITH the landed marker. */
+    rewardSettled(): boolean {
+      return this.settledCell >= 0;
     },
     planetClass(): string {
       return this.colony.name.replace(' ', '-') + '-background';
@@ -167,10 +215,10 @@ export default defineComponent({
     effectivePosition(): number {
       // Only an ACTIVE colony can be traded with — the offset ghost is noise otherwise.
       const offset = this.colony.isActive ? this.tradeOffset : 0;
-      return effectiveTradePosition(this.colony, this.metadata, offset);
+      return effectiveTradePosition(this.presented, this.metadata, offset);
     },
     offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - Math.min(this.colony.trackPosition, this.trackMax));
+      return Math.max(0, this.effectivePosition - this.displayedTrackPosition);
     },
     reward(): TradeRewardAt {
       return rewardAtPosition(this.metadata, this.effectivePosition);
@@ -178,8 +226,12 @@ export default defineComponent({
     trackMax(): number {
       return this.metadata.trade.quantity.length - 1;
     },
+    /** The marker position actually SHOWN (presented — frozen mid-trade). */
+    displayedTrackPosition(): number {
+      return Math.min(this.presented.trackPosition, this.trackMax);
+    },
     trackCells(): Array<TrackCell> {
-      const marker = Math.min(this.colony.trackPosition, this.trackMax);
+      const marker = this.displayedTrackPosition;
       const effective = this.effectivePosition;
       const cells: Array<TrackCell> = [];
       for (let i = 0; i <= this.trackMax; i++) {
@@ -193,7 +245,7 @@ export default defineComponent({
       return cells;
     },
     trackPositionDisplay(): string {
-      return `${Math.min(this.colony.trackPosition, this.trackMax) + 1}/${this.trackMax + 1}`;
+      return `${this.displayedTrackPosition + 1}/${this.trackMax + 1}`;
     },
   },
 });

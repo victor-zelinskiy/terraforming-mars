@@ -220,6 +220,10 @@ export class Server {
           card: cardsToModel(player, [step.card], {showCalculatedCost: true, unplayableReasons: true})[0],
           matched: step.matched,
         })),
+        // The income/bonus split of a trade-merged batch (see
+        // CardDrawRevealModel.tradeSegments) — drives the console trade
+        // cinematic's per-wave launches.
+        tradeSegments: r.tradeSegments,
       })),
       // Self-only (this whole model IS the requesting player's view) + transient:
       // the result of the player's most recent reveal/deck-check action, for the
@@ -233,6 +237,12 @@ export class Server {
       // bonuses + card payment) for the premium start-flow reveal stages.
       // Already a serialized StartingSetupModel (or undefined).
       startingSetup: player.startingSetup,
+      // Self-only + transient: the atomic reward manifest of this player's
+      // most recent colony trade (income at the pre-reset track position,
+      // per-cube colony bonuses + recipients, pre/post track positions).
+      // Persists until the next trade overwrites it — the client
+      // de-duplicates by tradeId and only plays a trade it armed itself.
+      colonyTradeManifest: player.colonyTradeManifest,
     };
     return rv;
   }

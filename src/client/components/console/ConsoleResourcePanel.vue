@@ -1,6 +1,48 @@
 <template>
   <div class="con-res-host">
     <aside class="con-res" :aria-label="$t('Resources')">
+      <!-- Score header — TR + VP: the rail's status cap above the resource
+           rows (couch-readable at a glance). Shares the rows' width / radius /
+           ring family so it reads as the SAME instrument one register up.
+           The VP cell swaps to the shared eye-off mask when the local
+           «Приватный счёт» display pref hides the own score — the footprint
+           never changes, and NO delta chip / number pulse can fire while
+           masked (the AnimatedMetricValue simply isn't mounted). -->
+      <div class="con-score">
+        <div class="con-score__cell con-score__cell--tr"
+             :aria-label="$t('Terraforming Rating') + ': ' + tr">
+          <i class="con-score__icon resource_icon resource_icon--rating" aria-hidden="true"></i>
+          <span class="con-score__valwrap">
+            <span class="con-score__value con-score__value--tr" :class="wideClass(tr)">{{ tr }}</span>
+            <AnimatedMetricValue
+              v-if="epoch !== ''"
+              :value="tr"
+              metricKey="score.tr"
+              :scopeKey="player.color"
+              :epoch="epoch"
+              variant="score" />
+          </span>
+        </div>
+        <span class="con-score__divider" aria-hidden="true"></span>
+        <div class="con-score__cell con-score__cell--vp"
+             :aria-label="vpMasked ? $t('Score hidden') : ($t('Victory points') + ': ' + vp)">
+          <ConsoleVpBadge class="con-score__vp-icon" :label="$t('VP')" />
+          <span class="con-score__valwrap">
+            <template v-if="!vpMasked">
+              <span class="con-score__value" :class="wideClass(vp)">{{ vp }}</span>
+              <AnimatedMetricValue
+                v-if="epoch !== ''"
+                :value="vp"
+                metricKey="score.vp"
+                :scopeKey="player.color"
+                :epoch="epoch"
+                variant="score" />
+            </template>
+            <PrivateScoreMask v-else compact />
+          </span>
+        </div>
+      </div>
+
       <div class="con-res__rows">
         <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
              transition overlay measures these rects, so the premium
@@ -95,6 +137,9 @@ import {Tag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import TagCount from '@/client/components/TagCount.vue';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
+import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
@@ -113,7 +158,7 @@ const TAG_ORDER: ReadonlyArray<Tag> = [
 
 export default defineComponent({
   name: 'ConsoleResourcePanel',
-  components: {'tag-count': TagCount, AnimatedMetricValue},
+  components: {'tag-count': TagCount, AnimatedMetricValue, ConsoleVpBadge, PrivateScoreMask},
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
     /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
@@ -147,6 +192,30 @@ export default defineComponent({
       // The override's `tags` is a partial map (baseline = empty); the readers all
       // fall back to 0 for a missing tag, so the cast is safe.
       return override !== undefined ? {...this.player, ...override} as PublicPlayerModel : this.player;
+    },
+    /**
+     * Terraforming rating for the score header. Rides `effectivePlayer`, so
+     * during the start-of-game setup reveal it shows the STAGED value — the
+     * reveal controller already seeds the `score.tr` baseline (SEED_METRICS)
+     * and stages `terraformRating`, so a corp's starting-TR bonus fires the
+     * premium +N chip here exactly like the resource rows.
+     */
+    tr(): number {
+      return this.effectivePlayer.terraformRating;
+    },
+    /** Victory points (incl. TR) — the server recomputes the breakdown per response. */
+    vp(): number {
+      return this.player.victoryPointsBreakdown.total;
+    },
+    /**
+     * The own-VP passive-surface mask (the local «Приватный счёт» display
+     * pref). This panel always renders the VIEWER's own seat (ConsoleShell
+     * passes thisPlayer), so `isOwn` is constant-true. The game-level
+     * hidden-VP option (`showOtherPlayersVP === false`) hides only OPPONENTS'
+     * scores and never applies to the own seat — desktop LeftPlayerCard parity.
+     */
+    vpMasked(): boolean {
+      return shouldMaskOwnPassiveVp(true);
     },
     rows(): Array<ResourceRow> {
       const p = this.effectivePlayer;
@@ -200,6 +269,14 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * 3+ characters (≥100, or a negative two-digit) step the score type down
+     * INSIDE its reserved slot — the header's geometry never moves with the
+     * digit count.
+     */
+    wideClass(value: number): string {
+      return String(value).length >= 3 ? 'con-score__value--wide' : '';
+    },
     /** 'source' (energy) / 'target' (heat) while the transition plays. */
     conversionRole(key: string): '' | 'source' | 'target' {
       if (!this.conversionActive) {

@@ -76,6 +76,7 @@ import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel'
 import {DeltaProjectExpansion} from './delta/DeltaProjectExpansion';
 import {DeltaProjectInput} from './delta/DeltaProjectInput';
 import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
+import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {StartingSetupModel, StartingSetupSnapshot} from '../common/models/StartingSetupModel';
@@ -209,6 +210,11 @@ export class Player implements IPlayer {
   // of the next input). Drives the premium start flow's explicit reveal stages.
   // See IPlayer.startingSetup / StartingSetupModel.
   public startingSetup: StartingSetupModel | undefined = undefined;
+  // Transient atomic reward manifest of this player's most recent colony trade
+  // (self-only). NOT cleared in process() — a batched trade replays several
+  // inputs through it before the response is built; the next trade overwrites
+  // it and the client de-duplicates by tradeId. See IPlayer.colonyTradeManifest.
+  public colonyTradeManifest: ColonyTradeManifestModel | undefined = undefined;
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
@@ -1458,11 +1464,38 @@ export class Player implements IPlayer {
     // the same event — cards simply come off the deck — so it carries no
     // sequence, which is exactly the client's "no discard tray" signal.
     const discarded = sequence?.some((step) => !step.matched) === true;
+    // ONE trade = ONE reveal batch. A colony trade can draw cards more than
+    // once (the trade income, then the trader's own per-cube colony bonuses —
+    // Pluto); merging the same-trade draws into the still-pending batch gives
+    // the player a single "cards received" modal (one queue, one take, one
+    // acknowledgement) instead of a chain of modals. `tradeSegments` keeps the
+    // income/bonus split so the console launches each wave from the right
+    // area of the colony tile. An already-acknowledged batch is gone from the
+    // queue, so a draw that resolves AFTER the player confirmed the earlier
+    // cards (Pluto's draw→discard→draw pairing) honestly starts a new batch.
+    const trade = source?.type === 'colony' ? source.trade : undefined;
+    if (trade !== undefined && !discarded) {
+      const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
+      if (last !== undefined &&
+          last.source?.type === 'colony' &&
+          last.source.trade?.tradeId === trade.tradeId &&
+          last.tradeSegments !== undefined) {
+        last.cards = [...last.cards, ...cards];
+        const tail = last.tradeSegments[last.tradeSegments.length - 1];
+        if (tail !== undefined && tail.role === trade.role) {
+          tail.count += cards.length;
+        } else {
+          last.tradeSegments.push({role: trade.role, count: cards.length});
+        }
+        return;
+      }
+    }
     this.cardDrawReveals.push({
       id: this.nextCardDrawRevealId++,
       source,
       cards: [...cards],
       sequence: discarded ? [...(sequence ?? [])] : undefined,
+      tradeSegments: trade !== undefined && !discarded ? [{role: trade.role, count: cards.length}] : undefined,
     });
   }
 

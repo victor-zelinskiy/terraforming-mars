@@ -1076,6 +1076,8 @@ html.con-profile-handheld .con-terracere {
     --cr-icon: 1.6rem;      /* resource icon box (drives row + aux cell height) */
     --cr-row-py: .3rem;     /* row vertical padding */
     --cr-rgap: .4rem;       /* gap between rows / aux cells */
+    --cr-panel-gap: .6rem;  /* .con-res flex gap (score cap → rows → tags) */
+    --cr-score-h: 2.6rem;   /* the TR/VP score cap's FIXED height (aux offset math) */
 
     position: relative;   /* the absolute aux column anchors to this box */
     flex-shrink: 0;       /* keep the rail's footprint — the board never reflows */
@@ -1088,7 +1090,7 @@ html.con-profile-handheld .con-terracere {
     align-self: stretch;  /* fill the host (stretched to con-main height) */
     display: flex;
     flex-direction: column;
-    gap: .6rem;
+    gap: var(--cr-panel-gap); /* tokenized — the aux column's top offset reuses it */
     padding: var(--cr-pad);
     border-radius: .6rem;
     background: @con-glass-soft;
@@ -1165,6 +1167,101 @@ html.con-profile-handheld .con-terracere {
     }
 }
 
+/* ── Score header — TR + VP (the rail's status cap) ──────────────────
+   One row, two equal cells ABOVE the resource rows: the game-defining
+   numbers take the panel's top tier. Same width / radius / ring family
+   as the rows below (it must read as the SAME instrument, one register
+   up), a touch taller and materially richer — layered glass with a warm
+   gold keyline instead of the rows' flat steel. The height is FIXED via
+   --cr-score-h so the aux satellite's row-alignment math stays exact
+   (see .con-res-aux) and neither the digit count nor the masked-VP
+   state can ever move the layout. */
+.con-score {
+    display: flex;
+    align-items: stretch;
+    height: var(--cr-score-h);
+    flex-shrink: 0;
+    border-radius: .4rem;
+    background: linear-gradient(180deg, rgba(31, 39, 53, 0.85), rgba(13, 20, 30, 0.82));
+    box-shadow:
+        inset 0 0 0 .05rem fade(@con-action-gold, 24%),
+        inset 0 .1rem 0 rgba(255, 255, 255, 0.05),
+        inset 0 -.6rem .9rem -.55rem rgba(0, 0, 0, 0.5),
+        0 .2rem .6rem rgba(0, 0, 0, 0.3);
+
+    &__cell {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .25rem;
+        padding: 0 .4rem;
+    }
+    &__divider {
+        flex: 0 0 auto;
+        width: .05rem;
+        margin: .35rem 0;
+        background: linear-gradient(180deg, transparent, fade(@con-cyan, 40%), transparent);
+    }
+    /* The REAL TR tile (resource_icon--rating → tr.png), contained so its
+       printed frame is never cropped; a soft local shadow only. */
+    &__icon {
+        display: inline-block;
+        width: 1.35rem;
+        height: 1.35rem;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+        filter: drop-shadow(0 .1rem .3rem rgba(0, 0, 0, 0.55));
+    }
+    /* The VP emblem (ConsoleVpBadge SVG) — shield ratio 40:44. */
+    &__vp-icon {
+        display: block;
+        width: 1.3rem;
+        height: 1.45rem;
+        flex-shrink: 0;
+        filter: drop-shadow(0 .1rem .3rem rgba(0, 0, 0, 0.55));
+    }
+    &__valwrap {
+        position: relative;      /* the score delta-chip anchor */
+        display: inline-flex;
+        align-items: center;
+        margin-left: auto;       /* number right-anchored → digit growth extends LEFT */
+    }
+    &__value {
+        display: inline-block;   /* the score-num pulse transform target */
+        transform-origin: center;
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: .01rem;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6);
+
+        /* TR is the fork's lead number — a touch warmer / brighter than VP. */
+        &--tr {
+            color: #ffe7c2;
+            text-shadow: 0 .1rem .3rem rgba(0, 0, 0, 0.6), 0 0 .55rem fade(@con-action-gold, 26%);
+        }
+        /* 3+ characters step the type down INSIDE the reserved slot — the
+           header's geometry never moves with the digit count. */
+        &--wide { font-size: 1rem; }
+    }
+    /* Masked own score — the shared eye-off, sized to the console cap. */
+    .vp-private__eye { width: 1rem; height: .7rem; }
+}
+
+/* The emblem's engraved label — console font stack (inline SVG inherits the
+   document webfonts, identical in Electron on Windows and on SteamOS). */
+.con-vp-badge__label {
+    font-family: @con-font;
+    font-size: 13px;    /* SVG user units (viewBox 40×44) — not screen px */ /* keep-px */
+    font-weight: 700;
+    letter-spacing: .5px; /* keep-px */
+    fill: #f2e7cd;
+}
+
 /* ── ДОП. РЕСУРСЫ — card-accumulated resources (microbes, floaters, animals …).
    An absolute SATELLITE column just RIGHT of the rail — NOT under the main
    rows: card resources are icon + a 2-digit count only, so stacking them in
@@ -1177,7 +1274,9 @@ html.con-profile-handheld .con-terracere {
    order; shown only in board view so it never floats over the hand/colonies. */
 .con-res-aux {
     position: absolute;
-    top: var(--cr-pad);
+    /* Below the score cap: pad + the cap's fixed height + the panel gap —
+       keeps every aux cell at the SAME Y as its main resource row. */
+    top: calc(var(--cr-pad) + var(--cr-score-h) + var(--cr-panel-gap));
     left: calc(100% + .4rem);
     z-index: 50;
     display: flex;
@@ -11380,6 +11479,33 @@ body.con-start-ceremony {
     display: inline-flex;
     align-items: baseline;
 }
+
+/* Score-cap chips (score.tr / score.vp): rem-authored anchor override — the
+   desktop px offsets (top/right −10px) would push the chip out of the rail
+   box in the cap's top position; anchored to the valwrap the chip lands just
+   above its own number, INSIDE the panel on every profile, so the TR and VP
+   chips can never cross the divider or each other. */
+.con-score .metric-feedback-host--score {
+    top: -.75rem;
+    right: -.1rem;
+}
+
+/* The score-number pulse — the SAME score-num-transition keyframes the
+   desktop LeftPlayerCard stat uses (resource_change_feedback.less), bound to
+   the console cap's value. Masked VP mounts no host, so no pulse can leak a
+   hidden change. */
+.con-score__valwrap:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .con-score__value {
+    animation: score-num-transition-positive calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.con-score__valwrap:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .con-score__value {
+    animation: score-num-transition-negative calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-score__valwrap:has(.metric-feedback-host--score.metric-feedback-host--active-positive) .con-score__value,
+    .con-score__valwrap:has(.metric-feedback-host--score.metric-feedback-host--active-negative) .con-score__value {
+        animation: none;
+    }
+}
 .con-status__ptr,
 .con-status__pmc,
 .con-status__intel-value {
@@ -13731,10 +13857,11 @@ html.con-profile-handheld {
         --cr-icon: 1.1rem;
         --cr-row-py: .2rem;
         --cr-rgap: .25rem;
+        --cr-panel-gap: .4rem;
+        --cr-score-h: 1.95rem;
     }
     .con-res {
         width: 7.3rem;
-        gap: .4rem;
 
         &__row { gap: .35rem; padding: var(--cr-row-py) .35rem; }
         &__value { font-size: .85rem; }
@@ -13743,6 +13870,17 @@ html.con-profile-handheld {
         &__tags-grid { zoom: 0.82; }
     }
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
+    .con-score {
+        &__cell { padding: 0 .3rem; gap: .2rem; }
+        &__divider { margin: .25rem 0; }
+        &__icon { width: 1rem; height: 1rem; }
+        &__vp-icon { width: .95rem; height: 1.05rem; }
+        &__value {
+            font-size: .95rem;
+            &--wide { font-size: .75rem; }
+        }
+        .vp-private__eye { width: .8rem; height: .55rem; }
+    }
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
     .con-quick__cross { gap: .5rem .6rem; grid-template-columns: repeat(3, 12rem); }

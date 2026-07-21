@@ -98,6 +98,7 @@ import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -249,8 +250,17 @@ export default defineComponent({
       // `isBonusRevealStaged` (persisted past the scene's end) is load-bearing:
       // the reveal stays `currentRevealEvent()` until the player TAKES the card,
       // so once board-card-bonus ends we must STILL not re-grab it from the deck.
+      // The viewer's OWN colony-trade batch is the colony-trade scene's — its
+      // covers leave the traded tile's «ТОРГОВАТЬ» / «БОНУС» cells;
+      // `isPresentedTradeReveal` additionally covers a presented trade whose
+      // transaction already closed (or whose flight reduced-motion skipped)
+      // while the cards are still untaken. A FOREIGN trade's bonus batch
+      // (an opponent traded, we own a cube) stays ours — those cards honestly
+      // come off the deck.
       if (!isDeckDrawSource(e.source) ||
-          boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id)) {
+          boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
+          colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
+          isPresentedTradeReveal(e.source)) {
         return undefined;
       }
       return e;

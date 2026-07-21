@@ -17,6 +17,7 @@ import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
 import {StartingSetupModel} from './StartingSetupModel';
+import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -173,4 +174,12 @@ export interface PlayerViewModel extends ViewModel {
   // the left panel). Present only on the ceremony view of generation 1. See
   // StartingSetupModel.
   startingSetup?: StartingSetupModel;
+  // Self-only, transient: the atomic reward manifest of this player's most
+  // recent colony trade — trade income at the PRE-reset track position, the
+  // per-cube colony bonuses + recipients, and the track positions before /
+  // after the reset. Persists until the next trade overwrites it; the client
+  // de-duplicates by tradeId and only ever plays a trade it armed itself at
+  // its own confirm press. Drives the console premium trade orchestration.
+  // See ColonyTradeManifestModel.
+  colonyTradeManifest?: ColonyTradeManifestModel;
 }

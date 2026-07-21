@@ -51,7 +51,12 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
   '.con-govsupport', // the dedicated Government Support (WGT) briefing panel
   '.con-prodloss', // the dedicated production-loss surface (Ares hazard penalty)
-  '.con-banner--deferred', // a DEFERRED task's amber chip IS the surface (B returns)
+  // NOTE: a DEFERRED task is handled by the `consoleTaskDeferred` early-return in
+  // runLeakDetection, NOT by a serving surface. The legacy always-on amber chip
+  // (`.con-banner--deferred`) that this list used to match no longer exists — it
+  // was unified into the `.con-mandatory` card, which is deliberately HIDDEN while
+  // the player browses the journal / a sheet / an inspection, so it cannot be
+  // relied on as the deferred task's serving node. See setConsoleTaskDeferred.
   // PRESENTATION FLOW: while the compact AI-turn card / the «Разбор хода»
   // review is the foreground item, the mandatory task surfaces intentionally
   // hold off — the holding card / review IS the serving surface for that beat.
@@ -164,6 +169,25 @@ function clearStranded(): void {
   unservedStreak = 0;
 }
 
+/**
+ * Live mirror of the shell's `consoleState.task.deferred`. A task the player
+ * DELIBERATELY set aside (pressed B) is NEVER "stranded": its serving surface is
+ * the unified mandatory-prompt card (`.con-mandatory`), summoned back with B on
+ * the board home — but that card is intentionally SUPPRESSED while the player
+ * browses the journal / a sheet / a quick selector / an inspection
+ * (mandatoryAnnounceVisible gates on section==='board' && !journalState.open &&
+ * sheet===undefined && …), so the DOM legitimately has NO serving node then.
+ * Without this mirror the detector would false-positive the deferred prompt as
+ * stranded (e.g. defer the 2nd Established-Methods std project, open the journal
+ * → the guard flashes over a working game). Mirrors the isMandatoryGateHeld()
+ * input; kept in sync by ConsoleShell. Module-level so it survives the App-level
+ * playerkey remount.
+ */
+let consoleTaskDeferred = false;
+export function setConsoleTaskDeferred(deferred: boolean): void {
+  consoleTaskDeferred = deferred;
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -225,6 +249,14 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     clearStranded();
     return;
   }
+  // A task the player DEFERRED (B = set it aside) is never stranded — see
+  // setConsoleTaskDeferred. The unified mandatory-prompt card is its serving
+  // surface and returns on B, but it is deliberately hidden while the player
+  // browses off the board home, so there is no serving DOM node to match then.
+  if (consoleTaskDeferred) {
+    clearStranded();
+    return;
+  }
   const task: ConsoleTask | undefined = taskFor(view);
   // Only the shell's OWN surfaces need no dedicated host; every task-host
   // kind must actually RENDER `.con-task-host` (checked below) — a host
@@ -283,5 +315,6 @@ export function stopConsoleLeakDetector(): void {
     timer = undefined;
   }
   clearStranded();
+  consoleTaskDeferred = false;
   leakDetectorState.desktopSurfaces = [];
 }

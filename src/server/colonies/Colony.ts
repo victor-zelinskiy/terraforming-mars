@@ -26,6 +26,8 @@ import {IColony, TradeOptions} from './IColony';
 import {ColonyMetadata, colonyMetadata, InputColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
+import {CardDrawRevealSource, ColonyTradeRevealTag} from '../../common/models/CardDrawRevealModel';
+import {ColonyTradeBonusRecipientModel, ColonyTradeGrantModel} from '../../common/models/ColonyTradeManifestModel';
 import {sum} from '../../common/utils/utils';
 import {message} from '../logs/MessageBuilder';
 import {PlaceHazardTile} from '../deferredActions/PlaceHazardTile';
@@ -42,6 +44,16 @@ export abstract class Colony implements IColony {
   public visitor: undefined | PlayerId = undefined;
   public colonies: Array<PlayerId> = [];
   public trackPosition: number = 1;
+  /**
+   * Transient (NOT serialized): the tradeId of the trade currently resolving
+   * on THIS colony — from `handleTrade` until the finalize deferred that
+   * resets the track. Every card draw granted inside that window (the trade
+   * income, the per-cube colony bonuses) stamps it onto its reveal source so
+   * the client can bind all of a trade's draws to one transaction. Lost on a
+   * server restart mid-trade — the draws then degrade to plain colony-sourced
+   * reveals, which is the honest fallback.
+   */
+  private activeTradeId: string | undefined = undefined;
 
   public metadata: ColonyMetadata;
 
@@ -193,6 +205,46 @@ export abstract class Colony implements IColony {
   private handleTrade(player: IPlayer, options: TradeOptions) {
     const resource = Array.isArray(this.metadata.trade.resource) ? this.metadata.trade.resource[this.trackPosition] : this.metadata.trade.resource;
 
+    // Build the ATOMIC reward manifest of this trade BEFORE granting anything.
+    // Every value is the authoritative plan the grants execute against: the
+    // income read at the CURRENT (not-yet-reset) position, the per-cube colony
+    // bonus from this colony's own metadata, the cube owners in slot order,
+    // and the track positions before/after the reset. Card COUNTS stay a plan
+    // (the deck can run short) — the actual drawn cards ride the tradeId-
+    // stamped reveal batches. Skipped for partial trades that give no colony
+    // bonuses (COPY_TRADE's nested handleTrade) so a nested grant can never
+    // overwrite the real trade's manifest mid-resolution.
+    const givesBonuses = options.giveColonyBonuses !== false;
+    const willDecrease = options.decreaseTrackAfterTrade !== false;
+    if (givesBonuses) {
+      const game = player.game;
+      const tradeId = `${this.name}:g${game.generation}:a${game.gameAge}`;
+      const recipients: Array<ColonyTradeBonusRecipientModel> = [];
+      for (const id of this.colonies) {
+        const color = options.selfishTrade === true ? player.color : game.getPlayerById(id).color;
+        const existing = recipients.find((r) => r.color === color);
+        if (existing !== undefined) {
+          existing.cubes++;
+        } else {
+          recipients.push({color, cubes: 1});
+        }
+      }
+      player.colonyTradeManifest = {
+        tradeId,
+        colonyName: this.name,
+        trader: player.color,
+        generation: game.generation,
+        preTradeTrackPosition: this.trackPosition,
+        postTradeTrackPosition: willDecrease ? this.colonies.length : this.trackPosition,
+        tradeIncome: this.tradeGrantModel(this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition] ?? 0, resource),
+        colonyBonus: this.colonies.length > 0 ?
+          this.tradeGrantModel(this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource) :
+          undefined,
+        bonusRecipients: recipients,
+      };
+      this.activeTradeId = tradeId;
+    }
+
     this.giveBonus(player, this.metadata.trade.type, this.metadata.trade.quantity[this.trackPosition], resource, false, 'trade');
 
     // !== false because default is true.
@@ -210,12 +262,53 @@ export abstract class Colony implements IColony {
       player.stock.add(Resource.MEGACREDITS, 3, {log: true});
     }
 
-    // !== false because default is true.
-    if (options.decreaseTrackAfterTrade !== false) {
+    // The trade FINALIZER: reset the track (Colonies rules — the marker
+    // returns to the number of built colonies) and close the trade-stamping
+    // window. Runs at DECREASE_COLONY_TRACK_AFTER_TRADE, i.e. AFTER the trade
+    // income and every colony bonus (including their interactive follow-ups)
+    // resolved — the server itself guarantees rewards are granted at the
+    // pre-reset position and the reset lands last.
+    if (willDecrease || givesBonuses) {
       player.defer(() => {
-        this.trackPosition = this.colonies.length;
+        if (willDecrease) {
+          this.trackPosition = this.colonies.length;
+        }
+        this.activeTradeId = undefined;
       }, Priority.DECREASE_COLONY_TRACK_AFTER_TRADE);
     }
+  }
+
+  /** The manifest's grant descriptor for one benefit, from this colony's metadata. */
+  private tradeGrantModel(benefit: ColonyBenefit, quantity: number, resource: Resource | undefined): ColonyTradeGrantModel {
+    const wantsCardResource = benefit === ColonyBenefit.ADD_RESOURCES_TO_CARD || benefit === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD;
+    const grant: ColonyTradeGrantModel = {benefit, quantity};
+    if (resource !== undefined) {
+      grant.resource = resource;
+    }
+    if (wantsCardResource && this.metadata.cardResource !== undefined) {
+      grant.cardResource = this.metadata.cardResource;
+    }
+    return grant;
+  }
+
+  /**
+   * The reveal tag binding a draw to the trade currently resolving on this
+   * colony — `undefined` outside a trade window and for BUILD bonuses (a
+   * build is never part of a trade transaction).
+   */
+  private tradeRevealTag(benefit: ColonyBenefitRole): ColonyTradeRevealTag | undefined {
+    if (this.activeTradeId === undefined || benefit === 'build') {
+      return undefined;
+    }
+    return {tradeId: this.activeTradeId, role: benefit === 'trade' ? 'income' : 'bonus'};
+  }
+
+  /** The colony reveal source for a card draw, trade-stamped inside a trade window. */
+  private colonyRevealSource(benefit: ColonyBenefitRole): CardDrawRevealSource {
+    const trade = this.tradeRevealTag(benefit);
+    return trade !== undefined ?
+      {type: 'colony', colonyName: this.name, trade} :
+      {type: 'colony', colonyName: this.name};
   }
 
   public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
@@ -236,10 +329,10 @@ export abstract class Colony implements IColony {
    */
   private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus'): undefined | PlayerInput {
     return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
-      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus));
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit));
   }
 
-  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus'): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
@@ -279,8 +372,10 @@ export abstract class Colony implements IColony {
 
     case ColonyBenefit.DRAW_CARDS:
       // Attribute the reveal to THIS colony (Pluto, …) so the "cards received"
-      // modal shows a hoverable colony chip as the source.
-      action = DrawCards.keepAll(player, quantity, {source: {type: 'colony', colonyName: this.name}});
+      // modal shows a hoverable colony chip as the source — plus the tradeId
+      // when the draw is part of a resolving trade, so the client binds it to
+      // that trade's transaction (and same-trade batches merge into one).
+      action = DrawCards.keepAll(player, quantity, {source: this.colonyRevealSource(benefit)});
       break;
 
     case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
@@ -288,8 +383,11 @@ export abstract class Colony implements IColony {
       break;
 
     case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
+      // Capture the trade-stamped source NOW — the deferred callback runs
+      // later, when the trade-stamping window may have moved on.
+      const drawAndDiscardSource = this.colonyRevealSource(benefit);
       player.defer(() => {
-        player.drawCard();
+        player.drawCard(1, {source: drawAndDiscardSource});
         player.game.defer(new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard'), Priority.SUPERPOWER);
       });
       break;

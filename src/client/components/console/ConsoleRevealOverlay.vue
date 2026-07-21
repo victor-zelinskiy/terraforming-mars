@@ -234,6 +234,10 @@ import {
 import {
   deckDrawHoldingSingleZoom, deckDrawState, deckDrawZoomOriginEl, isDeckDrawActive, isDeckDrawStaged,
 } from '@/client/console/deckDraw/consoleDeckDraw';
+import {
+  colonyTradeHoldingSingleZoom, colonyTradeState, colonyTradeZoomOriginEl, isColonyTradeActive,
+  isColonyTradeRevealStaged,
+} from '@/client/console/colonyTrade/consoleColonyTrade';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -342,7 +346,8 @@ export default defineComponent({
     singleCardNeedsFullscreen(): boolean {
       return this.singleCardMode && consoleCardZoom.card === undefined &&
         !bonusHoldingSingleZoom(this.drawnEvent?.id) &&
-        !deckDrawHoldingSingleZoom(this.drawnEvent?.id);
+        !deckDrawHoldingSingleZoom(this.drawnEvent?.id) &&
+        !colonyTradeHoldingSingleZoom(this.drawnEvent?.id);
     },
     // ── STAGED entrance (a scene owns this batch's arrival) ────────────
     /*
@@ -364,7 +369,8 @@ export default defineComponent({
      */
     bonusMode(): boolean {
       return this.mode === 'drawn' &&
-        (isBonusRevealStaged(this.drawnEvent?.id) || isDeckDrawStaged(this.drawnEvent?.id));
+        (isBonusRevealStaged(this.drawnEvent?.id) || isDeckDrawStaged(this.drawnEvent?.id) ||
+          isColonyTradeRevealStaged(this.drawnEvent?.id));
     },
     /** Pre-frame: the modal is mounted for measurement but fully veiled. */
     bonusVeiled(): boolean {
@@ -372,7 +378,9 @@ export default defineComponent({
         return false;
       }
       return (isBoardCardBonusActive() && BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase)) ||
-        (isDeckDrawActive() && DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase));
+        (isDeckDrawActive() && DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase)) ||
+        (isColonyTradeActive() && isColonyTradeRevealStaged(this.drawnEvent?.id) &&
+          colonyTradeState.cardScene === 'fly');
     },
     /** The static cards stay hidden until the handoff releases them. */
     bonusHeld(): boolean {
@@ -382,7 +390,9 @@ export default defineComponent({
       return (isBoardCardBonusActive() &&
           (BONUS_PRE_FRAME_PHASES.has(boardCardBonusState.phase) || boardCardBonusState.phase === 'frame')) ||
         (isDeckDrawActive() &&
-          (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame'));
+          (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame')) ||
+        (isColonyTradeActive() && isColonyTradeRevealStaged(this.drawnEvent?.id) &&
+          (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'frame'));
     },
     /** The visible card count driving the strip layout (drawn OR viewer). */
     stripCount(): number {
@@ -723,8 +733,10 @@ export default defineComponent({
       // the flight starts) — never a fresh copy over a dissolving one.
       const bonusEntrance = isBoardCardBonusActive() && isBonusRevealStaged(this.drawnEvent?.id);
       const deckEntrance = isDeckDrawActive() && isDeckDrawStaged(this.drawnEvent?.id);
+      const tradeEntrance = isColonyTradeActive() && isColonyTradeRevealStaged(this.drawnEvent?.id);
       const physicalOrigin = bonusEntrance ? () => bonusZoomOriginEl() :
-        (deckEntrance ? () => deckDrawZoomOriginEl() : undefined);
+        (deckEntrance ? () => deckDrawZoomOriginEl() :
+          (tradeEntrance ? () => colonyTradeZoomOriginEl() : undefined));
       openConsoleCardZoom([card], 0, undefined, undefined, {
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),

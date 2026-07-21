@@ -28,7 +28,8 @@ import {OrOptions} from './inputs/OrOptions';
 import {Stock} from './player/Stock';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
-import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, ColonyTradeRevealSegment} from '../common/models/CardDrawRevealModel';
+import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
 import {StartingSetupModel} from '../common/models/StartingSetupModel';
@@ -98,6 +99,12 @@ export type CardDrawReveal = {
    * discarded at least one card — a plain draw leaves it undefined.
    */
   sequence?: ReadonlyArray<RevealedCard>,
+  /**
+   * Trade-tagged batches only: the same-role runs of `cards` (income first,
+   * then colony-bonus), maintained as same-trade draws MERGE into one batch.
+   * See CardDrawRevealModel.tradeSegments.
+   */
+  tradeSegments?: Array<ColonyTradeRevealSegment>,
 }
 
 /**
@@ -202,6 +209,17 @@ export interface IPlayer {
    * StartingSetupModel.
    */
   startingSetup: StartingSetupModel | undefined;
+  /**
+   * Transient (NOT serialized) atomic reward manifest of this player's most
+   * recent colony trade — trade income at the pre-reset track position, the
+   * per-cube colony bonuses + recipients, and the track positions before /
+   * after the reset. Set in `Colony.handleTrade`, serialized self-only in the
+   * player model. Deliberately NOT cleared in `Player.process()` (a batched
+   * trade replays several inputs through it before the response is built);
+   * the next trade overwrites it, and the client de-duplicates by `tradeId`.
+   * Drives the console premium trade-reward orchestration.
+   */
+  colonyTradeManifest: ColonyTradeManifestModel | undefined;
   playedCards: PlayedCards;
   cardCost: number;
   // This will eventually replace playedCards.

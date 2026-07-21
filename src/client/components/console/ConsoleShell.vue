@@ -542,6 +542,13 @@
          resolves (consoleTradeFleet.ts / tradeFleetDirector.ts). -->
     <ConsoleTradeFleetLayer />
 
+    <!-- The colony-trade REWARD stage — after the fleet docks, the drawn
+         cards physically leave the traded tile's «ТОРГОВАТЬ» / «БОНУС»
+         cells into the single merged reveal, and the white track marker
+         glides LEFT to its reset cell once every reward is confirmed
+         (consoleColonyTrade.ts / colonyTradeDirector.ts). -->
+    <ConsoleColonyTradeLayer />
+
     <!-- The hydronetwork MARKER-ADVANCE stage — a token glides along the rail
          to the new stop and locks in, then the advance resolves (calmer,
          engineering-flavoured; consoleHydroMarker.ts). -->
@@ -804,6 +811,12 @@ import {Phase} from '@/common/Phase';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
+import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/ConsoleColonyTradeLayer.vue';
+import {
+  abortColonyTrade, armColonyTrade, colonyTradeState, isColonyTradeInputLocked,
+  notifyColonyTradeTrackCommitted,
+} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
@@ -836,7 +849,7 @@ import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTa
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
-import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
@@ -968,6 +981,7 @@ export default defineComponent({
     ConsoleDeckDrawLayer,
     ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
+    ConsoleColonyTradeLayer,
     ConsoleColonyInspect,
     ConsolePlayedOverlay,
     ConsolePlayedHeroLayer,
@@ -1738,6 +1752,18 @@ export default defineComponent({
     /** SelectColony pay-on-commit cancel (Build Colony std project). */
     colonyCancellable(): boolean {
       return this.colonyModel?.placementContext?.cancellable === true;
+    },
+    /**
+     * The COMMITTED track position of the colony an armed trade transaction
+     * is watching (undefined outside a transaction). Feeds the watcher that
+     * tells the orchestrator when the server's reset really landed — the
+     * only signal the reset glide is allowed to start on.
+     */
+    armedColonyTradeTrack(): number | undefined {
+      if (!colonyTradeState.active || colonyTradeState.colonyName === '') {
+        return undefined;
+      }
+      return this.game.colonies.find((c) => c.name === colonyTradeState.colonyName)?.trackPosition;
     },
     /** A task's nested SelectSpace, narrowed for the headless picker. */
     taskSpacePrompt() {
@@ -2538,10 +2564,12 @@ export default defineComponent({
       if (this.consoleSystemAlertState.current !== undefined) {
         return [{control: 'confirm', label: 'OK'}];
       }
-      // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
-      // TILE-PLACEMENT HERO / DECK DRAW: the animation owns the moment — the
-      // pad is inert, the bar advertises nothing (bounded, plays itself out).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
+      // TRADE-FLEET LAUNCH / TRADE REWARDS / HYDRO MARKER / BOARD CARD-BONUS /
+      // PATENT SALE / TILE-PLACEMENT HERO / DECK DRAW: the animation owns the
+      // moment — the pad is inert, the bar advertises nothing (bounded, plays
+      // itself out). The trade-reward gate is PHASE-aware: it frees the pad
+      // for the reveal take and for a Pluto discard between bonus draws.
+      if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -3134,6 +3162,12 @@ export default defineComponent({
     // state (not a mid-reveal staged snapshot). Restored on return.
     'consoleState.task.deferred'(deferred: boolean) {
       setStartSetupRevealSuspended(deferred);
+      // Mirror into the leak detector: a deferred task is deliberately set aside
+      // (never stranded), and its serving card (`.con-mandatory`) is hidden off
+      // the board home — the detector reads this flag instead of a DOM surface.
+      // Both default to false and stay synced on every change; the detector's
+      // stop-reset covers unmount, so no immediate sync is needed.
+      setConsoleTaskDeferred(deferred);
     },
     // TRADE-FLEET LAUNCH lifecycle: the composer stays mounted (dissolved via
     // `--launching`) through the whole flight; the trade overlay only fully
@@ -3142,6 +3176,17 @@ export default defineComponent({
     'tradeFleetState.active'(active: boolean) {
       if (!active && this.pendingTradeColony !== undefined) {
         this.pendingTradeColony = undefined;
+      }
+    },
+    // TRADE-REWARD transaction: report the traded colony's COMMITTED track
+    // position to the orchestrator. The server sequences its reset AFTER
+    // every reward (including interactive colony bonuses that resolve over
+    // several responses — Pluto's discards), so the reset can arrive via the
+    // gated commit OR a later poll; this one watcher covers both, and the
+    // reset glide runs only once the drop truly committed.
+    armedColonyTradeTrack(value: number | undefined) {
+      if (value !== undefined && colonyTradeState.colonyName !== '') {
+        notifyColonyTradeTrackCommitted(colonyTradeState.colonyName as ColonyName, value);
       }
     },
     // MARKER ADVANCE lifecycle: the hydro screen STAYS OPEN through the whole
@@ -3553,6 +3598,13 @@ export default defineComponent({
       // gate (nothing visual yet — mirrors the played hero's armed policy),
       // and the pick itself can't double-fire (the arm claims the moment).
       if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
+        return true;
+      }
+      // TRADE REWARDS: the chip waves / card covers / marker glide own the
+      // moment. PHASE-aware on purpose — the gate opens for the reveal take
+      // and for a mandatory prompt between two colony-bonus draws (Pluto's
+      // draw→discard pairing), so the transaction can never wedge the pad.
+      if (isColonyTradeInputLocked()) {
         return true;
       }
       // DECK DRAW: the deck is dealing itself out — a bounded, self-playing
@@ -5182,9 +5234,10 @@ export default defineComponent({
     onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
       const pending = this.pendingTradeColony;
       const ctx = this.tradeColonyContext;
-      // Guard a double-confirm: once the launch is armed the flight owns the
-      // moment (input is gated), so a second press can never re-submit.
-      if (pending === undefined || ctx === undefined || isTradeFleetActive()) {
+      // Guard a double-confirm: once the launch is armed the flight (and then
+      // the whole reward transaction) owns the moment, so a second press can
+      // never re-submit — even after the ship has already docked.
+      if (pending === undefined || ctx === undefined || isTradeFleetActive() || colonyTradeState.active) {
         return;
       }
       const batch = buildTradeBatch({
@@ -5194,6 +5247,25 @@ export default defineComponent({
         steps: payload.steps,
         captures: payload.captures,
       });
+      // The composer's pre-collected card-resource DESTINATIONS (Titan /
+      // Enceladus / Miranda picks) ride into the reward transaction so each
+      // chip can fly onto the exact chosen host card.
+      const targets: ColonyTradeTargets = {};
+      const bonusPicks: Array<CardName> = [];
+      payload.steps.forEach((step, i) => {
+        const capture = payload.captures[i];
+        if (step.kind !== 'cardTarget' || capture === undefined) {
+          return;
+        }
+        if (step.role === 'tradeReward') {
+          targets.incomeTargetCard = capture as CardName;
+        } else {
+          bonusPicks.push(capture as CardName);
+        }
+      });
+      if (bonusPicks.length > 0) {
+        targets.bonusTargetCards = bonusPicks;
+      }
       // PREMIUM LAUNCH: ARM the trade-fleet flight (client-side) FIRST — the
       // composer dissolves + the ship lifts off toward the colony immediately,
       // independent of the server — THEN submit. The `pendingTradeColony`
@@ -5203,6 +5275,12 @@ export default defineComponent({
       // state) until then. A watcher on `tradeFleetState.active` closes the
       // composer once the flight ends (dock or abort). Desktop is unaffected
       // (never arms → detectTradeFleet returns undefined → no hold).
+      //
+      // The trade-REWARD transaction arms WITH the flight: the same submit's
+      // response carries the atomic reward manifest (WaitingFor claims it,
+      // freezes the traded track, seeds the reward holds), and after the dock
+      // the reward waves → merged reveal → track reset play as ONE story.
+      armColonyTrade(pending.colonyName, this.thisPlayer.color, targets);
       armTradeFleet(pending.colonyName, this.thisPlayer.color);
       this.submitBatch(batch);
     },
@@ -6204,6 +6282,7 @@ export default defineComponent({
     this.zoomOpenToken++; // fence out any stale open-sequence callback
     this.clearZoomOpenFlight();
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
+    abortColonyTrade(); // unwind any trade-reward transaction (zombie-safe)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
     abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)

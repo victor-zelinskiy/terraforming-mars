@@ -1,0 +1,144 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CONSOLE COLONY TRADE — the trade-reward transaction's stage pieces:
+   the card-cover flyers leaving the tile's «ТОРГОВАТЬ» / «БОНУС» cells,
+   the white-marker track-reset glide, the per-cell sweep impulse, and the
+   post-reset readout morphs on the colony tile.
+
+   Console-native: rem units (the TV profile scales the rem base); proxies
+   are sized inline in px from measured rects (they live OUTSIDE the tile
+   zoom). Transform/opacity motion only; reduced-motion collapses the
+   one-shots. See src/client/console/colonyTrade/.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.con-coltrade-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11660; /* over the colony-build stage (11650), under the chips (11670) */
+    pointer-events: none;
+    /* Containing block for the fixed proxies (the tile-placement precedent) —
+       getBoundingClientRect left/top stay viewport-true. */
+    contain: layout style;
+}
+
+/* The card-cover flyer — the deck-draw proxy's sibling (same flip chassis,
+   same drop shadow) so every flying card in the fork reads identically. */
+.con-coltrade-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    perspective: 45rem;
+    will-change: transform, opacity; /* scoped: proxies exist only mid-scene */
+    filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
+}
+
+/* The one-shot glint as the face turns into view (shared keyframes with the
+   deck-draw scene — one language). */
+.con-coltrade-proxy--revealing .con-deal-proxy__face::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: .5rem;
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(115deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0.44) 47%,
+        rgba(190, 230, 255, 0.3) 54%,
+        transparent 70%);
+    mix-blend-mode: screen;
+    animation: con-deckdraw-reveal-glint calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.25, 0, 0.35, 1) 1 both;
+}
+
+/* The white track marker's glide proxy — the colony marker itself, airborne:
+   a crisp white round chip with a soft cyan wake. Size set inline from the
+   measured cell rect (px — it flies in viewport space). */
+.con-coltrade-marker {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, #ffffff 0%, #e8f4ff 52%, #b8d4e8 100%);
+    box-shadow:
+        0 0 .4rem rgba(140, 220, 255, 0.75),
+        0 .12rem .3rem rgba(0, 0, 0, 0.55);
+    will-change: transform, opacity;
+}
+
+/* ── The colony tile during the transaction ────────────────────────────── */
+
+/* A passed cell's one-shot impulse as the marker sweeps LEFT over it. */
+.con-coltile__track-cell--sweep {
+    animation: con-coltrade-cell-sweep calc(360ms * var(--motion-scale, 1)) ease-out 1 both;
+}
+@keyframes con-coltrade-cell-sweep {
+    0% { transform: scale(1); filter: brightness(1); }
+    35% { transform: scale(1.45); filter: brightness(2); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* While the proxy glides, the tile's own (still pre-reset) marker cell goes
+   quiet so the flying marker is unmistakably THE marker. */
+.con-coltile--marker-gliding .con-coltile__track-cell--marker {
+    opacity: 0.25;
+}
+
+/* The landed cell's one-shot settle glow (the reset's touchdown). */
+.con-coltile__track-cell--settled {
+    animation: con-coltrade-cell-settle calc(720ms * var(--motion-scale, 1)) ease-out 1 both;
+}
+@keyframes con-coltrade-cell-settle {
+    0% { box-shadow: 0 0 0 0 rgba(150, 230, 255, 0.0); }
+    25% { box-shadow: 0 0 .55rem .15rem rgba(150, 230, 255, 0.85); }
+    100% { box-shadow: 0 0 0 0 rgba(150, 230, 255, 0.0); }
+}
+
+/* The trade value's keyed morph wrapper — inherits the cell-value's inline
+   flex rhythm so the num+glyph pair keeps its exact pre-rework layout. */
+.con-coltile__cell-reward {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+/* The «ТОРГОВАТЬ» value morph: the old reward folds away, the new unrolls —
+   a calm crossfade + rise, never a hard swap (keyed transition, out-in). */
+.con-coltrade-reward-enter-active,
+.con-coltrade-reward-leave-active {
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) ease,
+        transform calc(200ms * var(--motion-scale, 1)) ease;
+}
+.con-coltrade-reward-enter-from {
+    opacity: 0;
+    transform: translateY(.3rem);
+}
+.con-coltrade-reward-leave-to {
+    opacity: 0;
+    transform: translateY(-.3rem);
+}
+
+/* The trade cell's one-shot highlight when the new reward lands with the
+   marker (the readout and the track settle as ONE event). */
+.con-coltile__cell--reward-settled {
+    animation: con-coltrade-reward-settle calc(820ms * var(--motion-scale, 1)) ease-out 1 both;
+}
+@keyframes con-coltrade-reward-settle {
+    0% { box-shadow: inset 0 0 0 0 rgba(150, 230, 255, 0); }
+    30% { box-shadow: inset 0 0 .6rem .05rem rgba(150, 230, 255, 0.5); }
+    100% { box-shadow: inset 0 0 0 0 rgba(150, 230, 255, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-coltrade-proxy--revealing .con-deal-proxy__face::after,
+    .con-coltile__track-cell--sweep,
+    .con-coltile__track-cell--settled,
+    .con-coltile__cell--reward-settled { animation: none; }
+    .con-coltrade-reward-enter-active,
+    .con-coltrade-reward-leave-active { transition-duration: 1ms; }
+}

@@ -187,6 +187,7 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
+import {colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -285,7 +286,10 @@ export default defineComponent({
         return 0;
       }
       const offset = colony.isActive ? this.tradeOffset : 0;
-      return effectiveTradePosition(colony, this.focusedMeta, offset);
+      // The PRESENTED colony — mid-trade the committed track reset stays
+      // frozen behind the transaction (same helper the tile reads), so the
+      // big summary readout can never leak the new position early.
+      return effectiveTradePosition(presentedColonyModel(colony), this.focusedMeta, offset);
     },
     focusedTrackMax(): number {
       return this.focusedMeta === undefined ? 0 : this.focusedMeta.trade.quantity.length - 1;
@@ -295,7 +299,7 @@ export default defineComponent({
       if (colony === undefined) {
         return 0;
       }
-      return Math.max(0, this.focusedPosition - Math.min(colony.trackPosition, this.focusedTrackMax));
+      return Math.max(0, this.focusedPosition - Math.min(presentedColonyModel(colony).trackPosition, this.focusedTrackMax));
     },
     focusedReward(): TradeRewardAt {
       return rewardAtPosition(this.focusedMeta as ColonyMetadata, this.focusedPosition);
@@ -317,7 +321,7 @@ export default defineComponent({
       if (colony === undefined) {
         return '';
       }
-      return `${Math.min(colony.trackPosition, this.focusedTrackMax) + 1}/${this.focusedTrackMax + 1}`;
+      return `${Math.min(presentedColonyModel(colony).trackPosition, this.focusedTrackMax) + 1}/${this.focusedTrackMax + 1}`;
     },
     focusedStatus(): ConsoleColonyTileStatus {
       const colony = this.colonies[this.index];
@@ -490,6 +494,13 @@ export default defineComponent({
         translateText('Fleet already here');
     },
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
+      // The trade transaction narrates its own beats on the traded tile —
+      // a short unobtrusive caption in the EXISTING status line (never a
+      // toast): reward → bonus → the colony update.
+      const beat = colonyTradeTileStatusText(colony.name);
+      if (beat !== undefined) {
+        return {kind: 'ok', text: beat};
+      }
       if (this.pick !== undefined) {
         if (this.isPickable(colony.name)) {
           return {kind: 'ok', text: translateText('Can select')};

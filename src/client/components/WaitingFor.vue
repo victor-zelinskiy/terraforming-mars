@@ -171,6 +171,12 @@ import {
   runTradeFleet,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {
+  abortColonyTrade,
+  detectColonyTrade,
+  runColonyTradeRewards,
+  seedColonyTradeRewardHold,
+} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {
   abortPlayedHero,
   detectPlayedHero,
   endPlayedHero,
@@ -701,6 +707,7 @@ export default defineComponent({
       seedPlayedHeroRewardHold();
       seedTilePlacementRewardHold();
       seedColonyBuildRewardHold();
+      seedColonyTradeRewardHold();
     },
     fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean) {
       const root = vueRoot(this);
@@ -987,6 +994,18 @@ export default defineComponent({
               await runTradeFleet();
             }
             /*
+             * The colony-trade REWARD transaction (armed with the fleet at the
+             * composer confirm): CLAIM this response's authoritative trade
+             * manifest BEFORE the commit — claiming freezes the traded
+             * colony's track display at its pre-trade position, and
+             * seedRewardHolds() below hides the reward metrics, so the commit
+             * that follows can never flash the reset track or the un-flown
+             * rewards through. The reward waves themselves run POST-commit
+             * (see the nextTick below). Undefined on desktop / every
+             * non-armed trade — a pure no-op there.
+             */
+            const colonyTradeEvent = detectColonyTrade(newView);
+            /*
              * Console HYDRONETWORK marker-advance gate. Detect the ARMED
              * client advance (undefined on desktop / non-hydro submits, so a
              * no-op there): the marker is already gliding to the new stop;
@@ -1042,6 +1061,16 @@ export default defineComponent({
               // tick so it gets the one-shot settle glow + the composer closes.
               nextTick(() => endTradeFleet());
             }
+            if (colonyTradeEvent !== undefined) {
+              // The reward waves start only now — the ship has docked, the
+              // view committed (metrics held, track frozen): the trade income
+              // physically leaves the «ТОРГОВАТЬ» cell, then the own colony
+              // bonuses leave «БОНУС»; drawn cards ride the staged reveal and
+              // the track reset glide follows the last confirmation.
+              nextTick(() => {
+                void runColonyTradeRewards();
+              });
+            }
             if (hydroMarkerEvent !== undefined) {
               this.holdingForHydroMarker = false;
               // Hand the advance off AFTER the commit: the real marker just
@@ -1092,6 +1121,7 @@ export default defineComponent({
           // none armed (desktop).
           this.holdingForTradeFleet = false;
           abortTradeFleet();
+          abortColonyTrade(); // …and the whole trade-reward transaction with it
           this.holdingForHydroMarker = false;
           abortHydroMarker();
           abortBoardCardBonus('return');
@@ -1128,6 +1158,7 @@ export default defineComponent({
         .catch((e) => {
           this.holdingForTradeFleet = false;
           abortTradeFleet(); // network failure — recall the fleet, restore the UI
+          abortColonyTrade(); // …and the trade-reward transaction with it
           this.holdingForHydroMarker = false;
           abortHydroMarker(); // network failure — recall the marker too
           abortBoardCardBonus('return'); // …and the bonus cover, back onto its cell

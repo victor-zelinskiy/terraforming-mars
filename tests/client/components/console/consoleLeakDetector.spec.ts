@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /*
@@ -51,5 +51,48 @@ describe('consoleLeakDetector — stranded-guard debounce', () => {
     expect(leakDetectorState.stranded).to.not.eq(undefined);
     runLeakDetection(undefined);
     expect(leakDetectorState.stranded).to.eq(undefined);
+  });
+});
+
+describe('consoleLeakDetector — a DEFERRED task is never stranded', () => {
+  beforeEach(() => stopConsoleLeakDetector());
+  afterEach(() => stopConsoleLeakDetector());
+
+  /*
+   * A task the player set aside with B (deferred) has NO serving DOM node while
+   * they browse the journal / a sheet / an inspection — the unified
+   * `.con-mandatory` card is deliberately hidden off the board home. The detector
+   * must read the deferred mirror, not look for a surface, or it false-positives
+   * (defer the 2nd Established-Methods std project, open the journal → flash).
+   */
+  it('stays hidden across consecutive unserved passes while deferred', () => {
+    const view = handSelectView();
+    setConsoleTaskDeferred(true);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'a deferred task must never strand').to.eq(undefined);
+  });
+
+  it('flags again once the task is no longer deferred (regression fence)', () => {
+    const view = handSelectView();
+    setConsoleTaskDeferred(true);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'deferred → hidden').to.eq(undefined);
+    setConsoleTaskDeferred(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'un-deferred + unserved → stranded').to.not.eq(undefined);
+  });
+
+  it('stopConsoleLeakDetector resets the deferred mirror', () => {
+    const view = handSelectView();
+    setConsoleTaskDeferred(true);
+    runLeakDetection(view);
+    stopConsoleLeakDetector(); // clears the mirror
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'a reset mirror no longer suppresses').to.not.eq(undefined);
   });
 });

@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, ColonyTradeRevealSegment} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
@@ -30,6 +30,12 @@ export type DrawnCardEntry = {
    * discarded something; the console draw cinematic replays it verbatim.
    */
   sequence?: ReadonlyArray<CardDrawRevealStep>;
+  /**
+   * A trade-merged batch's income/bonus split (server truth — see
+   * CardDrawRevealModel.tradeSegments). The console trade cinematic launches
+   * each segment's covers from its own area of the colony tile.
+   */
+  tradeSegments?: ReadonlyArray<ColonyTradeRevealSegment>;
   /** Indices within `cards` the player has already taken (client-only). */
   takenIndices: Set<number>;
   /** True between firing the ack POST and its response landing. */
@@ -72,6 +78,7 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
         source: r.source,
         cards: r.cards,
         sequence: r.sequence,
+        tradeSegments: r.tradeSegments,
         takenIndices: new Set<number>(),
         acking: false,
         dismissed: false,
@@ -80,10 +87,13 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
       // Cost / unplayable reasons can shift between polls — refresh the models,
       // preserving the client-only take progress. The sequence is immutable
       // history (what the deck did when the batch was drawn), but refresh it
-      // too so the batch stays one consistent server snapshot.
+      // too so the batch stays one consistent server snapshot. A trade-merged
+      // batch can legitimately GROW here (a same-trade draw appended while it
+      // is still pending) — the segments ride along.
       existing.cards = r.cards;
       existing.source = r.source;
       existing.sequence = r.sequence;
+      existing.tradeSegments = r.tradeSegments;
     }
   }
   // Deterministic FIFO (server ids are monotonic).

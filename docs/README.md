@@ -13,6 +13,7 @@ files here are the deeper dives it points at.
 - [CONSOLE_FOUNDATION.md](CONSOLE_FOUNDATION.md) — VueUse foundation layer (semantic input, overflow policy, viewport).
 - [CONSOLE_BLUE_ACTION_PARITY.md](CONSOLE_BLUE_ACTION_PARITY.md) — blue-card action center parity with desktop.
 - [CONSOLE_TV_PREMIUM_PLAN.md](CONSOLE_TV_PREMIUM_PLAN.md) — 4K-TV premium recomposition plan.
+- [COLONY_TRADE_FLOW.md](COLONY_TRADE_FLOW.md) — the premium colony-trade reward transaction (atomic tradeId manifest, merged Pluto reveal, track-reset glide).
 - [GAMEPAD_SUPPORT_DESIGN.md](GAMEPAD_SUPPORT_DESIGN.md) / [GAMEPAD_SUPPORT_BRIEF.md](GAMEPAD_SUPPORT_BRIEF.md) — controller-first support design + status.
 
 ## Desktop UI / rendering / performance
