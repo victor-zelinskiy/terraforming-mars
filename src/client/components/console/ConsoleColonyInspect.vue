@@ -173,6 +173,7 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {colonyOwnerCounts, effectiveTradePosition} from '@/client/components/colonies/colonyTradePlan';
+import {presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
@@ -217,6 +218,15 @@ export default defineComponent({
     metadata(): ColonyMetadata {
       return getColony(this.colony.name);
     },
+    /**
+     * The colony as PRESENTED: while a trade transaction is still granting
+     * this colony's rewards, the committed track reset stays frozen at the
+     * pre-trade position (the same shared helper the tile and the focused
+     * summary read) — the dossier can never leak the new position early.
+     */
+    presented(): ColonyModel {
+      return presentedColonyModel(this.colony);
+    },
     /** The build slot the NEXT colony here would occupy (for its bonus glyph). */
     nextBuildSlot(): number {
       return Math.min(this.colony.colonies.length, 2);
@@ -229,13 +239,13 @@ export default defineComponent({
     },
     effectivePosition(): number {
       const offset = this.colony.isActive ? this.tradeOffset : 0;
-      return effectiveTradePosition(this.colony, this.metadata, offset);
+      return effectiveTradePosition(this.presented, this.metadata, offset);
     },
     offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - Math.min(this.colony.trackPosition, this.trackMax));
+      return Math.max(0, this.effectivePosition - Math.min(this.presented.trackPosition, this.trackMax));
     },
     trackRows(): Array<TrackRow> {
-      const marker = Math.min(this.colony.trackPosition, this.trackMax);
+      const marker = Math.min(this.presented.trackPosition, this.trackMax);
       const rows: Array<TrackRow> = [];
       for (let i = 0; i <= this.trackMax; i++) {
         rows.push({
