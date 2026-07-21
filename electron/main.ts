@@ -217,7 +217,11 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    backgroundColor: '#0d1117',
+    // Native pre-paint frame colour (shown from window map until the renderer's
+    // first paint). Matches the CSS body base (#050812, common.less) so startup
+    // — pre-paint frame → loading gap → menu — is one seamless near-black
+    // deep-space surface, never a grey flash.
+    backgroundColor: '#050812',
     autoHideMenuBar: true,
     fullscreen: FULLSCREEN,
     show: false,

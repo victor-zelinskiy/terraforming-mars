@@ -162,6 +162,21 @@
     flex-wrap: wrap;
     gap: .6rem;
     min-width: 0;
+    /* The settle materialization: the bar's box is reserved from the first
+       frame; the content fades back in once the deal cinematic releases it
+       (.con-cards__verdictbar--held drops opacity to 0). */
+    transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+}
+/* Task host: only the NAME re-keys per d-pad move — a one-shot opacity
+   settle with NO out-in gap. The button-hint chips are persistent nodes
+   patched in place, so moving focus can never blink them (the old
+   wholesale keyed out-in swap faded the whole row). */
+.con-cards__verdictbar .con-cards__verdict-name {
+    animation: con-verdict-name-in calc(120ms * var(--motion-scale, 1)) ease-out;
+}
+@keyframes con-verdict-name-in {
+    from { opacity: 0.3; }
+    to { opacity: 1; }
 }
 .con-verdict-swap-enter-active {
     transition: opacity calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
@@ -573,6 +588,8 @@ body.con-play-modal-open {
     .con-cards__pickband { animation: none; }
     .con-verdict-swap-enter-active,
     .con-verdict-swap-leave-active { transition: none; }
+    .con-cards__verdictbar .con-cards__verdict-name { animation: none; }
+    .con-cards__verdict-inner { transition: none; }
     .con-focus-frame__tick { filter: none; }
     .con-zoom-veil,
     .con-zoom-veil-enter-active,

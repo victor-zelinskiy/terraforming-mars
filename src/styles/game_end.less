@@ -1,6 +1,9 @@
-body {
-    background: rgb(53,57,63);
-}
+/* NOTE: no global `body { background }` here. The base body background is owned
+ * solely by common.less (#050812). A global override in this game-end stylesheet
+ * (formerly `rgb(53,57,63)`) leaked onto EVERY screen — imported after common.less,
+ * it won the cascade and repainted the whole app, incl. the startup/loading gap
+ * before the Vue app mounts, in a dated grey wash. The legacy game-end page
+ * inherits the common.less base like everything else. */
 
 .game_end_success, .game_end_fail {
     max-width: 820px;

@@ -230,37 +230,44 @@
                      duplicate card (X = the universal fullscreen INSPECT read).
                      PICK phase: A = select (one press commits, no deselect).
                      BUY / multi: A = select/deselect, RT = commit the set. -->
-                <!-- Hidden while the deal cinematic runs (never promise a
-                     selection that isn't interactive yet); the focused
-                     card's context swaps smoothly on d-pad moves. -->
-                <div v-if="focusedCardEntry !== undefined && !deal.state.active && !trayPickBeat" class="con-cards__verdictbar">
-                  <transition name="con-verdict-swap" mode="out-in">
-                    <div class="con-cards__verdict-inner" :key="focusedCardEntry.card.name">
-                      <span class="con-cards__verdict-name">{{ $t(focusedCardEntry.card.name) }}</span>
-                      <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
-                        <span aria-hidden="true">✕</span>
-                        <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
-                      </span>
-                      <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
-                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                      </span>
-                      <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
-                        <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
-                      </span>
-                      <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
-                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                      </span>
-                      <span v-else class="con-cards__verdict con-cards__verdict--blocked">
-                        <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
-                      </span>
-                      <span class="con-cards__verdict con-cards__verdict--zoom">
-                        <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
-                      </span>
-                      <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
-                        <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
-                      </span>
-                    </div>
-                  </transition>
+                <!-- ALWAYS IN LAYOUT once the browser has cards: the bar
+                     reserves its row from the first frame, so the fit engine
+                     measures the true modal chrome and the deal's end can never
+                     reflow the strip (the old v-if mounted it late — the "rail
+                     pops in under the cards" jump). While the cinematic runs
+                     only its CONTENT hides (opacity — never promise a selection
+                     that isn't interactive yet). -->
+                <div v-if="cardEntries.length > 0" class="con-cards__verdictbar"
+                     :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat}">
+                  <div v-if="focusedCardEntry !== undefined" class="con-cards__verdict-inner">
+                    <!-- Only the NAME re-keys on a d-pad move (a one-shot settle,
+                         no out-in gap); the button-hint chips are PERSISTENT
+                         nodes patched in place — they never blink between cards
+                         (the old wholesale keyed swap faded them all out/in). -->
+                    <span class="con-cards__verdict-name" :key="focusedCardEntry.card.name">{{ $t(focusedCardEntry.card.name) }}</span>
+                    <span v-if="focusedCardEntry.disabled" class="con-cards__verdict con-cards__verdict--blocked">
+                      <span aria-hidden="true">✕</span>
+                      <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
+                    </span>
+                    <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                    </span>
+                    <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+                    </span>
+                    <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                    </span>
+                    <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                      <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
+                    </span>
+                    <span class="con-cards__verdict con-cards__verdict--zoom">
+                      <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                    </span>
+                    <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
+                      <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </template>
@@ -1416,6 +1423,57 @@ export default defineComponent({
         this.fitCardStrip();
       });
     },
+    /**
+     * The vertical space the MODAL may occupy — the host's padded content
+     * box. The host's CSS padding reserves the top HUD strip + the bottom
+     * command-bar band (the WORK BAND), so measuring it keeps the fit and
+     * the CSS `max-height: 100%` in exact agreement: the modal can never
+     * outgrow the visible play area again. Fallback: the legacy 86vh
+     * viewport budget (JSDOM / not laid out yet).
+     */
+    workBandHeight(): number {
+      const host = this.$el as HTMLElement | undefined;
+      if (host !== undefined && host !== null && host.clientHeight > 0) {
+        const cs = window.getComputedStyle(host);
+        const h = host.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+        if (h > 0) {
+          return h;
+        }
+      }
+      return 0.86 * window.innerHeight;
+    },
+    /**
+     * The modal's NON-STRIP vertical chrome, MEASURED: task paddings + the
+     * header (title / draft subtext / the tall BUY economics rows) + the
+     * always-mounted verdict bar (+ the .con-cards gap above it). The old
+     * fixed `220 * s` estimate under-counted the buy header and never saw
+     * the verdict bar at all (it mounted after the deal) — the two reasons
+     * the modal could overrun the work band. Falls back to the estimate
+     * when nothing is measurable (JSDOM / mid-teardown).
+     */
+    modalChromeHeight(strip: HTMLElement, s: number): number {
+      const task = strip.closest('.con-task') as HTMLElement | null;
+      if (task === null) {
+        return 220 * s;
+      }
+      const tcs = window.getComputedStyle(task);
+      let total = (parseFloat(tcs.paddingTop) || 0) + (parseFloat(tcs.paddingBottom) || 0);
+      let measuredAny = false;
+      const head = task.querySelector<HTMLElement>('.con-task__head');
+      if (head !== null && head.offsetHeight > 0) {
+        total += head.offsetHeight + (parseFloat(window.getComputedStyle(head).marginBottom) || 0);
+        measuredAny = true;
+      }
+      const verdict = task.querySelector<HTMLElement>('.con-cards__verdictbar');
+      if (verdict !== null && verdict.offsetHeight > 0) {
+        const cards = verdict.parentElement;
+        const gap = cards !== null ? (parseFloat(window.getComputedStyle(cards).rowGap) || 0) : 0;
+        total += verdict.offsetHeight + gap;
+        measuredAny = true;
+      }
+      // Rounding / focus-lift headroom on top of the measured chrome.
+      return measuredAny ? total + 8 * s : 220 * s;
+    },
     /** A one-shot re-fit AFTER the entry/deal cinematic settles (~360ms) —
      *  the safety net for the buy modal, whose first fit could race the wide
      *  panel / rise flight and leave small cards. Cheap + idempotent. */
@@ -1488,6 +1546,11 @@ export default defineComponent({
       // size ceiling scales with the profile; floors follow so cards never
       // read logically SMALLER on a 4K viewport than on 1080p.
       const s = conUiScale();
+      // The REAL vertical budget: the work band (the host's padded content
+      // box — top HUD strip and command bar excluded) minus the MEASURED
+      // modal chrome (header + verdict bar + paddings). Shared by both
+      // branches so the modal always closes inside the visible play area.
+      const availH = Math.max(200 * s, this.workBandHeight() - this.modalChromeHeight(strip, s) - padY);
       if (!grid) {
         // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
         // zoom against the width left after the gaps. 0.96 leaves headroom for
@@ -1495,23 +1558,18 @@ export default defineComponent({
         const wZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
         // ALSO fill the panel's vertical band (TV: a few buy cards must not
         // float small in a mostly-empty modal — the «карты слишком мелкие»
-        // read). availH mirrors the grid branch's viewport budget; the
-        // ceiling is generous so a small pick genuinely fills the stage.
-        const CHROME = 220 * s;
-        const availH = Math.max(200 * s, 0.86 * window.innerHeight - CHROME - padY);
+        // read).
         const hZoom = availH / slotH;
         const zoom = Math.min(1.6 * s, Math.max(0.5 * s, Math.min(wZoom, hZoom)));
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }
-      // GRID buy: the modal is centred + viewport-capped (max-height: 86vh),
-      // so the available HEIGHT is a viewport budget (cap − the modal's header
-      // + verdict + paddings chrome), NOT the strip's own height (which grows
-      // WITH the cards → circular). Pick the balanced rows×cols with the
-      // largest zoom that fits both axes; cap the width so flex-wrap breaks at
-      // the planned columns (5+5, never 6+4).
-      const CHROME = 220 * s; // header (title/trigger) + verdict bar + modal paddings (rem-authored → scale)
-      const availH = Math.max(200 * s, 0.86 * window.innerHeight - CHROME - padY);
+      // GRID buy: the modal is centred + band-capped (max-height: 100% of the
+      // padded host), so the available HEIGHT is the shared work-band budget
+      // computed above, NOT the strip's own height (which grows WITH the
+      // cards → circular). Pick the balanced rows×cols with the largest zoom
+      // that fits both axes; cap the width so flex-wrap breaks at the planned
+      // columns (5+5, never 6+4).
       let best = {zoom: 0, cols: Math.ceil(n / 2)};
       for (let rows = 1; rows <= Math.min(3, n); rows++) {
         const cols = Math.ceil(n / rows);

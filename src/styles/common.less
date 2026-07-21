@@ -159,13 +159,18 @@ a:active {
 
 body {
     /*
-     * Fallback bg — used only on screens WITHOUT the GameAtmosphere
-     * layer (start screen, create form, load form, the-end). On
-     * game screens the atmosphere layers cover everything with their
-     * own deep-space gradient, so this base never shows. Near-black
-     * instead of the legacy rgb(48,48,48) gray so any transient
-     * "empty" pixel during transitions stays in the space palette
-     * rather than reverting to the dated grey wash.
+     * Base body background — the SINGLE source of truth for it (the global
+     * override that used to live in game_end.less was removed). Shown on
+     * screens WITHOUT the GameAtmosphere layer (start / create / load /
+     * the-end) and, most visibly, during startup: the render-blocking
+     * styles.css paints this before the Vue app mounts into #app. On game
+     * screens the atmosphere layers cover it with their own deep-space
+     * gradient. #050812 is the deep-space "atmosphere base" of the palette
+     * (matches main_menu.less / create_game_premium.less and the atmosphere
+     * #050812..#0a1424 gradient) AND the Electron window backgroundColor
+     * (electron/main.ts), so the whole startup — native pre-paint frame →
+     * loading gap → menu — is one seamless near-black surface, never the
+     * legacy rgb(48,48,48) / rgb(53,57,63) grey wash.
      */
     background: #050812;
     color: @text_main;

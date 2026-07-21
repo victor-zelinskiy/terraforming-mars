@@ -8643,6 +8643,17 @@ html.console-mode {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* THE WORK BAND: the modal centres BETWEEN the top HUD strip and the
+       bottom command-bar band — never under either (a bare inset:0 host
+       centred on the FULL viewport, so a tall card modal slid its header
+       under the status rail and its verdict row under the command bar).
+       The two reserves mirror the shell bands in rem (root padding + strip
+       ~2.5rem / --con-bar-h 2.6rem + the .4rem column gap), so they ride
+       every profile including the TV rem scale. ConsoleTaskHost's
+       fitCardStrip MEASURES this padding (workBandHeight) — keep the two
+       in agreement through the content box, never a second constant. */
+    padding: calc(1.2vh + 3.1rem) 0 calc(1vh + 3.2rem);
+    box-sizing: border-box;
 
     &__backdrop {
         position: absolute;
@@ -8672,7 +8683,9 @@ html.console-mode {
 .con-task {
     position: relative;
     width: min(44rem, 90vw);
-    max-height: 86vh;
+    /* 100% of the host's padded WORK-BAND box (the vh caps pre-dated the
+       band padding and let a tall modal overrun the bars). */
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     padding: 1.1rem 1.4rem .8rem;
@@ -9200,7 +9213,7 @@ html.console-mode {
     /* ── Card browser (T2): wide frame modifier ─────────────────────── */
     &--wide {
         width: min(78rem, 94vw);
-        max-height: 92vh;
+        max-height: 100%; /* the host's band padding is the one budget */
     }
 
     &__foot {
@@ -9753,7 +9766,10 @@ html.con-scale-focus-venus .arc-scale--venus {
 
     /* P13: the focused card's VERDICT BAR - compact context under the
        strip (name + select state + X-card + ready-to-continue), never a
-       duplicate card. */
+       duplicate card. ALWAYS IN LAYOUT while the browser has cards (the
+       task host reserves the row from the first frame — the fit engine
+       measures it and the deal's end never reflows the strip); only the
+       CONTENT hides while the cinematic runs (--held). */
     &__verdictbar {
         display: flex;
         align-items: center;
@@ -9766,6 +9782,10 @@ html.con-scale-focus-venus .arc-scale--venus {
         background: rgba(10, 17, 26, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         min-height: 2rem;
+    }
+    &__verdictbar--held > .con-cards__verdict-inner {
+        opacity: 0;
+        pointer-events: none;
     }
     &__verdict-name {
         font-size: .9rem;
