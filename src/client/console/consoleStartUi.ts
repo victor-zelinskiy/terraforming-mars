@@ -13,10 +13,10 @@
  *  - A is CONTEXT-EXACT: «Выбрать» on a pickable card, «Снять выбор» on a
  *    picked card, ABSENT while the pick limit blocks the focused card (the
  *    context rail explains the limit), the launch verb on the summary.
- *  - LB / RB are the ONE symmetric step navigation (prev / next tab). RB is
+ *  - LT / RT are the ONE symmetric step navigation (prev / next step). RT is
  *    gated on the step being valid; it stops AT the summary — starting the
- *    game is ONLY the explicit A commit there. RT / LT are NOT used anywhere
- *    in the initial setup (RT keeps its in-game role untouched).
+ *    game is ONLY the explicit A commit there. LB / RB are NOT used anywhere
+ *    in the initial setup (they keep their in-game role untouched).
  *  - No generic «Навигация» hint: d-pad browsing is base behaviour.
  */
 import {reactive} from 'vue';
@@ -44,7 +44,7 @@ export type StartSceneCommandState = {
   hasCards: boolean,
   /** The step satisfies the server's min/max (+ budget) → RB may advance. */
   stepComplete: boolean,
-  /** A previous wizard step exists (LB). */
+  /** A previous wizard step exists (LT). */
   hasPrevStep: boolean,
   // ── wizard summary ──
   /** «Begin the game» / «Submit your choice» (the launch readout's verb). */
@@ -74,7 +74,7 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
   }
   if (s.mode === 'wizard') {
     if (s.onSummary) {
-      // The launch is the explicit A commit — RB deliberately does NOT
+      // The launch is the explicit A commit — RT deliberately does NOT
       // exist here (step navigation stops AT the summary; a second,
       // less obvious way to start the game is exactly what this removed).
       const hints: Array<StartCommand> = [
@@ -83,7 +83,7 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       if (s.hasCards) {
         hints.push({control: 'secondary', label: 'Inspect'});
       }
-      hints.push({control: 'bumperL', label: 'Prev step'});
+      hints.push({control: 'triggerL', label: 'Prev step'});
       hints.push({control: 'back', label: 'Minimize'});
       return hints;
     }
@@ -101,9 +101,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       hints.push({control: 'secondary', label: 'Inspect'});
     }
     if (s.hasPrevStep) {
-      hints.push({control: 'bumperL', label: 'Prev step'});
+      hints.push({control: 'triggerL', label: 'Prev step'});
     }
-    hints.push({control: 'bumperR', label: 'Next step', enabled: s.stepComplete});
+    hints.push({control: 'triggerR', label: 'Next step', enabled: s.stepComplete});
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
   }

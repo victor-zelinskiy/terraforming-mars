@@ -39,7 +39,7 @@ function labelOf(cmds: ReturnType<typeof startSceneCommands>, control: string): 
 }
 
 describe('consoleStartUi (initial-setup command contract)', () => {
-  it('never advertises RT/LT or a generic Navigate anywhere in the setup', () => {
+  it('never advertises LB/RB or a generic Navigate anywhere in the setup', () => {
     const shapes: Array<StartSceneCommandState> = [
       state({}),
       state({focusedPicked: true, canPickFocused: false}),
@@ -52,7 +52,7 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     ];
     for (const s of shapes) {
       const cmds = startSceneCommands(s);
-      expect(cmds.some((c) => c.control === 'triggerR' || c.control === 'triggerL'),
+      expect(cmds.some((c) => c.control === 'bumperR' || c.control === 'bumperL'),
         JSON.stringify(s)).to.eq(false);
       expect(cmds.some((c) => c.label === 'Navigate'), JSON.stringify(s)).to.eq(false);
     }
@@ -73,26 +73,26 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(labelOf(startSceneCommands(state({singlePick: true, canPickFocused: false})), 'confirm')).to.eq('Select');
   });
 
-  it('LB/RB are the step navigation: LB only past step 1, RB gated on validity', () => {
+  it('LT/RT are the step navigation: LT only past step 1, RT gated on validity', () => {
     const first = startSceneCommands(state({hasPrevStep: false, stepComplete: false}));
-    expect(first.some((c) => c.control === 'bumperL')).to.eq(false);
-    const rb = first.find((c) => c.control === 'bumperR');
-    expect(rb?.label).to.eq('Next step');
-    expect(rb?.enabled).to.eq(false);
+    expect(first.some((c) => c.control === 'triggerL')).to.eq(false);
+    const rt = first.find((c) => c.control === 'triggerR');
+    expect(rt?.label).to.eq('Next step');
+    expect(rt?.enabled).to.eq(false);
 
     const mid = startSceneCommands(state({hasPrevStep: true, stepComplete: true}));
-    expect(labelOf(mid, 'bumperL')).to.eq('Prev step');
-    expect(mid.find((c) => c.control === 'bumperR')?.enabled).to.eq(true);
+    expect(labelOf(mid, 'triggerL')).to.eq('Prev step');
+    expect(mid.find((c) => c.control === 'triggerR')?.enabled).to.eq(true);
   });
 
-  it('the summary: A carries the launch verb, RB does not exist', () => {
+  it('the summary: A carries the launch verb, RT does not exist', () => {
     const cmds = startSceneCommands(state({onSummary: true}));
     const a = cmds.find((c) => c.control === 'confirm');
     expect(a?.label).to.eq('Begin the game');
     expect(a?.enabled).to.eq(true);
     expect(a?.highlight).to.eq(true);
-    expect(cmds.some((c) => c.control === 'bumperR')).to.eq(false);
-    expect(labelOf(cmds, 'bumperL')).to.eq('Prev step');
+    expect(cmds.some((c) => c.control === 'triggerR')).to.eq(false);
+    expect(labelOf(cmds, 'triggerL')).to.eq('Prev step');
     expect(labelOf(cmds, 'back')).to.eq('Minimize');
   });
 

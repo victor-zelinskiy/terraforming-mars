@@ -457,7 +457,7 @@ import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
-import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
+import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
@@ -507,6 +507,20 @@ type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName
 
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
+
+/**
+ * The initial-setup input remap: STEP navigation lives on LT / RT (the
+ * triggers), not LB / RB. The bumpers are neutralized to prevTab / nextTab
+ * (unused by this scene) so an old LB / RB habit does nothing instead of
+ * stepping. The triggers are otherwise idle during setup (RT / LT keep their
+ * in-game quick-wheel role only OUTSIDE this scene), so there is no conflict.
+ */
+const START_INPUT_OVERRIDES: ConsoleActionOverrides = {
+  triggerL: 'prevSection',
+  triggerR: 'nextSection',
+  bumperL: 'prevTab',
+  bumperR: 'nextTab',
+};
 
 /**
  * Fit-zoom ceilings (× conUiScale). Deliberately ABOVE 1: the status rail is
@@ -1277,7 +1291,7 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
-      const action = consoleActionOf(intent);
+      const action = consoleActionOf(intent, START_INPUT_OVERRIDES);
       if (action !== undefined) {
         this.onPress(action);
       }
@@ -1636,9 +1650,9 @@ export default defineComponent({
       strip.style.maxWidth = `${Math.ceil(plan.cols * slotW * plan.zoom + (plan.cols - 1) * colGap + padX + 2 + 4 * s)}px`;
     },
     // Foundation: SEMANTIC actions — A(primary) act, X(inspect) zoom card,
-    // LB/RB(prev/nextSection) the symmetric wizard-step navigation, B(back)
-    // minimize. RT/LT are deliberately UNUSED in the initial setup (RT keeps
-    // its in-game role; the setup never trains a trigger habit).
+    // LT/RT(prev/nextSection, remapped via START_INPUT_OVERRIDES) the symmetric
+    // wizard-step navigation, B(back) minimize. LB/RB are deliberately UNUSED
+    // in the initial setup (they keep their in-game role only outside it).
     onPress(action: ConsoleAction): void {
       switch (action) {
       case 'primary':
@@ -1649,13 +1663,13 @@ export default defineComponent({
         this.zoomFocused();
         return;
       case 'prevSection':
-        // LB is STEP navigation (back one wizard step); B always minimizes.
+        // LT is STEP navigation (back one wizard step); B always minimizes.
         if (this.mode === 'wizard') {
           this.backStep();
         }
         return;
       case 'nextSection':
-        // RB = forward step navigation (LB's pair); gated on completion. It
+        // RT = forward step navigation (LT's pair); gated on completion. It
         // stops AT the summary — starting the game is ONLY the explicit A
         // commit there, never a shoulder press.
         if (this.mode === 'wizard' && !this.onSummary) {
