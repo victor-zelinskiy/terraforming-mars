@@ -16,6 +16,7 @@
  * the "+N to the threshold" gap context explains it.
  */
 import {Color} from '@/common/Color';
+import {offTurnReason} from '@/client/console/offTurnReason';
 
 export type ConsoleMaKind = 'milestones' | 'awards';
 
@@ -61,6 +62,10 @@ export type ConsoleMaItem = {
 export type ConsoleMaBuildOptions = {
   myColor: Color,
   myTurn: boolean,
+  /** The server is waiting on the viewer at all — their turn even when the free
+   *  action menu is withheld by a mandatory sub-decision. Splits «завершите
+   *  действие» from «не ваш ход». */
+  awaitingInput: boolean,
   myMegacredits: number,
   /** Names offered by the live claim/fund OrOptions (server-filtered). */
   availableNow: ReadonlySet<string>,
@@ -102,7 +107,7 @@ export function buildConsoleMaItems(
       } else if (itemKind === 'milestone' && !myReady) {
         blocker = ''; // the progress metric / gap context explains it
       } else if (!opts.myTurn) {
-        blocker = 'Not your turn to take any actions';
+        blocker = offTurnReason(opts.awaitingInput);
       } else if (opts.myMegacredits < opts.nextCost) {
         blocker = 'Not enough M€';
       } else {

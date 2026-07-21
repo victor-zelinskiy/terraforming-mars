@@ -114,6 +114,27 @@ describe('consoleHandGrid', () => {
       const p = planHandGrid({availW: 1400, availH: 800, count: 3, uiScale: 1});
       expect(p.cardZoom).to.be.closeTo(0.72, 1e-9);
     });
+
+    it('a wide 4K hand spreads past the 1080 column cap into the free width', () => {
+      // 15 cards on the 4K shelf: the 1080-tuned MAX_COLS (6) would rebalance to
+      // 5×3 and SCROLL, clustering the cards in the middle with large side
+      // margins. The TV-scaled column ceiling uses the free horizontal space
+      // instead — more columns, fewer rows, no scroll.
+      const p = planHandGrid({...box, count: 15});
+      expect(p.cols).to.be.greaterThan(MAX_COLS);
+      expect(p.rows).to.eq(2);
+      expect(p.scrolls).to.be.false;
+    });
+
+    it('the TV column ceiling scales with uiScale but width still binds', () => {
+      // Even with a generous ceiling the width-fit is the real limiter — cards
+      // never get thinner than the box allows.
+      const p = planHandGrid({...box, count: 40});
+      expect(p.cols).to.be.at.most(Math.round(MAX_COLS * box.uiScale));
+      expect(p.slotW).to.be.greaterThan(0);
+      // A full row must fit the box width (no horizontal overflow).
+      expect(p.cols * p.slotW + (p.cols - 1) * p.gapX).to.be.at.most(box.availW);
+    });
   });
 
   describe('stepHandGrid', () => {

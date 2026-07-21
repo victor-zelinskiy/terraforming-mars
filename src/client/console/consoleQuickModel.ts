@@ -17,6 +17,7 @@ import {Color} from '@/common/Color';
 import {awardLeaders} from '@/common/models/awardDisplay';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
+import {offTurnReason} from '@/client/console/offTurnReason';
 import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
 
 // ─── Quick selectors (RT = categories, LT = basic actions) ─────────────────
@@ -96,7 +97,12 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
 }
 
 export type LtQuickContext = {
+  /** The free ACTION MENU is live (a top-level verb is offered right now). */
   myTurn: boolean,
+  /** The server is waiting on the viewer at all (their turn — action menu OR a
+   *  mandatory sub-decision mid-flight). Distinguishes «завершите действие» from
+   *  «не ваш ход» when `myTurn` is false. */
+  awaitingInput: boolean,
   /** The action menu offers the Standard-projects submenu right now. */
   stdAvailable: boolean,
   /** «End Turn» is offered right now (after the 1st action of the round). */
@@ -109,15 +115,16 @@ export type LtQuickContext = {
   heatNeeded: number,
 };
 
-const NOT_YOUR_TURN = 'Not your turn to take any actions';
-
 /** LT — the basic-actions selector: standard projects / turn control / conversions. */
 export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
   const turnGate = (available: boolean, reason: string): {available: boolean, reason: string} => {
     if (available) {
       return {available: true, reason: ''};
     }
-    return {available: false, reason: ctx.myTurn ? reason : NOT_YOUR_TURN};
+    // Menu live → the verb's own reason; else the shared off-turn reason
+    // («завершите действие» while a mandatory decision is pending, «не ваш ход»
+    // only on a genuine opponent turn).
+    return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput)};
   };
   return [
     {
@@ -181,6 +188,8 @@ export type StdProjectScreenContext = {
   /** The server's std-project cards (already availability-filtered by isDisabled). */
   cards: ReadonlyArray<{name: CardName, calculatedCost?: number, isDisabled?: boolean}>,
   myTurn: boolean,
+  /** The server is waiting on the viewer at all (see {@link LtQuickContext}). */
+  awaitingInput: boolean,
   myMegacredits: number,
   /** Patent sale is offered right now (the server's Sell patents SelectCard). */
   sellAvailable: boolean,
@@ -202,7 +211,7 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     let reasonParams: ReadonlyArray<string> | undefined;
     if (!available) {
       if (!ctx.myTurn) {
-        reason = NOT_YOUR_TURN;
+        reason = offTurnReason(ctx.awaitingInput);
       } else if (cost > ctx.myMegacredits) {
         reason = 'Need ${0} more M€';
         reasonParams = [String(cost - ctx.myMegacredits)];
@@ -235,7 +244,7 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     gain: '+1',
     available: sellAvailable,
     reason: sellAvailable ? '' :
-      (!ctx.sellAvailable ? NOT_YOUR_TURN : 'No cards in hand'),
+      (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
   };
   return [sellRow, ...projectRows];
 }

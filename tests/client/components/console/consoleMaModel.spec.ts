@@ -16,6 +16,7 @@ describe('consoleMaModel (P26)', () => {
   const opts = (over: Partial<Parameters<typeof buildConsoleMaItems>[2]> = {}) => ({
     myColor: me,
     myTurn: true,
+    awaitingInput: true,
     myMegacredits: 20,
     availableNow: new Set<string>(),
     describe: () => 'rule text',
@@ -55,8 +56,10 @@ describe('consoleMaModel (P26)', () => {
 
   it('milestone ready but not offered: turn → money → mid-action, in that order', () => {
     const ready = milestone({scores: [{color: me, score: 3, claimable: true}]});
-    const [turn] = buildConsoleMaItems('milestones', [ready], opts({myTurn: false}));
+    const [turn] = buildConsoleMaItems('milestones', [ready], opts({myTurn: false, awaitingInput: false}));
     expect(turn.blocker).to.eq('Not your turn to take any actions');
+    const [busy] = buildConsoleMaItems('milestones', [ready], opts({myTurn: false, awaitingInput: true}));
+    expect(busy.blocker).to.eq('Finish your current action first');
     const [money] = buildConsoleMaItems('milestones', [ready], opts({myMegacredits: 5}));
     expect(money.blocker).to.eq('Not enough M€');
     const [midAction] = buildConsoleMaItems('milestones', [ready], opts());

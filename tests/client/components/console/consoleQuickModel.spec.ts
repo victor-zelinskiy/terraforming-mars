@@ -70,6 +70,7 @@ describe('consoleQuickModel (P27)', () => {
   describe('LT — basic actions', () => {
     const ctx = (over: Partial<Parameters<typeof buildLtQuickEntries>[0]> = {}) => ({
       myTurn: true,
+      awaitingInput: true,
       stdAvailable: true,
       endTurnAvailable: false,
       passAvailable: true,
@@ -104,12 +105,21 @@ describe('consoleQuickModel (P27)', () => {
       expect(bySlot.get('down')?.available).to.eq(true);
     });
 
-    it('off-turn: every blocked entry names the turn as the reason', () => {
+    it('genuine opponent turn: every blocked entry reads «not your turn»', () => {
       const entries = buildLtQuickEntries(ctx({
-        myTurn: false, stdAvailable: false, passAvailable: false, convertHeatAvailable: false,
+        myTurn: false, awaitingInput: false, stdAvailable: false, passAvailable: false, convertHeatAvailable: false,
       }));
       for (const e of entries.filter((x) => !x.available)) {
         expect(e.reason).to.eq('Not your turn to take any actions');
+      }
+    });
+
+    it('mid a mandatory decision (menu withheld, server still awaits me): «finish your current action first»', () => {
+      const entries = buildLtQuickEntries(ctx({
+        myTurn: false, awaitingInput: true, stdAvailable: false, passAvailable: false, convertHeatAvailable: false,
+      }));
+      for (const e of entries.filter((x) => !x.available)) {
+        expect(e.reason).to.eq('Finish your current action first');
       }
     });
 
@@ -127,6 +137,7 @@ describe('consoleQuickModel (P27)', () => {
           {name: CardName.ASTEROID_STANDARD_PROJECT, calculatedCost: 14, isDisabled: true},
         ],
         myTurn: true,
+        awaitingInput: true,
         myMegacredits: 12,
         sellAvailable: true,
         cardsInHand: 4,
@@ -146,6 +157,7 @@ describe('consoleQuickModel (P27)', () => {
       const items = buildStdProjectItems({
         cards: [{name: CardName.ASTEROID_STANDARD_PROJECT, calculatedCost: 14, isDisabled: true}],
         myTurn: true,
+        awaitingInput: true,
         myMegacredits: 12,
         sellAvailable: false,
         cardsInHand: 0,
@@ -155,10 +167,12 @@ describe('consoleQuickModel (P27)', () => {
       expect(items[1].reasonParams).to.deep.eq(['2']);
     });
 
-    it('patent sale is blocked honestly (turn vs empty hand)', () => {
-      const noTurn = buildStdProjectItems({cards: [], myTurn: false, myMegacredits: 0, sellAvailable: false, cardsInHand: 3});
+    it('patent sale is blocked honestly (opponent turn vs mid-action vs empty hand)', () => {
+      const noTurn = buildStdProjectItems({cards: [], myTurn: false, awaitingInput: false, myMegacredits: 0, sellAvailable: false, cardsInHand: 3});
       expect(noTurn[0].reason).to.eq('Not your turn to take any actions');
-      const noCards = buildStdProjectItems({cards: [], myTurn: true, myMegacredits: 0, sellAvailable: true, cardsInHand: 0});
+      const midAction = buildStdProjectItems({cards: [], myTurn: false, awaitingInput: true, myMegacredits: 0, sellAvailable: false, cardsInHand: 3});
+      expect(midAction[0].reason).to.eq('Finish your current action first');
+      const noCards = buildStdProjectItems({cards: [], myTurn: true, awaitingInput: true, myMegacredits: 0, sellAvailable: true, cardsInHand: 0});
       expect(noCards[0].reason).to.eq('No cards in hand');
     });
   });

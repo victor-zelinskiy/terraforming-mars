@@ -894,6 +894,7 @@ import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, res
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
 import {
   ConvertPlantsMatch,
@@ -1123,6 +1124,14 @@ export default defineComponent({
     },
     myTurn(): boolean {
       return hasTurn(this.playerView);
+    },
+    /** The server is waiting on the VIEWER at all — the free action menu OR a
+     *  mandatory sub-decision (corp first action / forced reaction / placement /
+     *  any deferred prompt). `myTurn` ⊂ this: when a mandatory prompt is pending
+     *  `myTurn` is false but this stays true, so an off-turn reason reads
+     *  «Сначала завершите текущее действие», not «Сейчас не ваш ход». */
+    awaitingInput(): boolean {
+      return awaitingViewerInput(this.playerView);
     },
     /** The server offers convert-plants RIGHT NOW — drives BOTH the resource-
      *  cell highlight and the LT quick menu. Server-authoritative (mirrors the
@@ -2197,7 +2206,7 @@ export default defineComponent({
       // pending decision (a mandatory corp/forced prompt, a placement, a mid-sub
       // action) — «Сначала завершите текущее действие», NOT «Сейчас не ваш ход»
       // (which is only true when it is genuinely an opponent's turn).
-      return this.placementActive || this.myTurn ? 'Finish your current action first' : 'Not your turn to take any actions';
+      return this.placementActive || this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions';
     },
     /** True when the hand grid is the surface the right stick should scroll —
      *  in the hand section with nothing layered on top (a play-confirm / task /
@@ -2282,7 +2291,7 @@ export default defineComponent({
       if (this.tradeColonyContext === undefined) {
         // My turn but no trade window → a pending decision blocks it first;
         // «Сейчас не ваш ход» only when it is genuinely an opponent's turn.
-        return this.myTurn ? 'Finish your current action first' : 'Not your turn to take any actions';
+        return this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions';
       }
       const selected = this.game.colonies[this.consoleState.colonyIndex];
       if (selected !== undefined && selected.visitor !== undefined) {
@@ -2381,6 +2390,7 @@ export default defineComponent({
         const wf = this.playerView.waitingFor;
         return buildLtQuickEntries({
           myTurn: this.myTurn,
+          awaitingInput: this.awaitingInput,
           stdAvailable: this.standardProjectsAction !== undefined,
           endTurnAvailable: findEndTurnPath(wf) !== undefined,
           passAvailable: findPassPath(wf) !== undefined,
@@ -2403,6 +2413,7 @@ export default defineComponent({
       return buildStdProjectItems({
         cards: this.standardProjectsAction?.input.cards ?? [],
         myTurn: this.myTurn,
+        awaitingInput: this.awaitingInput,
         myMegacredits: this.thisPlayer.megacredits,
         sellAvailable: findSellPatentsAction(this.playerView.waitingFor) !== undefined,
         cardsInHand: this.cardsTotalCount,
@@ -2454,6 +2465,7 @@ export default defineComponent({
       return buildConsoleMaItems(kind, kind === 'milestones' ? this.game.milestones : this.game.awards, {
         myColor: this.thisPlayer.color,
         myTurn: this.myTurn,
+        awaitingInput: this.awaitingInput,
         myMegacredits: this.thisPlayer.megacredits,
         availableNow: this.claimableTitles(found?.options),
         describe,
@@ -2538,7 +2550,7 @@ export default defineComponent({
       if (v?.takenByOther !== undefined) {
         return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
       }
-      if (!this.myTurn) {
+      if (!this.awaitingInput) {
         return 'Not your turn to take any actions';
       }
       if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
@@ -5565,7 +5577,7 @@ export default defineComponent({
       }
       const action = findSellPatentsAction(this.playerView.waitingFor);
       if (action === undefined) {
-        this.showNotice('Not your turn to take any actions');
+        this.showNotice(offTurnReason(this.awaitingInput));
         return;
       }
       const cards = [...picked] as Array<CardName>;

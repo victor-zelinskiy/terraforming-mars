@@ -137,6 +137,15 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   const rowSlack = ROW_SLACK * s;
   const minZoom = MIN_ZOOM * s;
   const maxZoom = MAX_ZOOM * s;
+  // Column ceiling scales with the TV profile. MAX_COLS (6) is tuned for the
+  // 1080 logical space where 6 readable cards already span the width; on a 4K
+  // TV each card renders ~uiScale× wider, so the SAME per-card readability
+  // allows proportionally more columns. Without this the width-fit is capped
+  // at 6 and a wide hand leaves large side margins (cards clustered in the
+  // middle) AND scrolls unnecessarily — using more columns spreads them into
+  // the free horizontal space and drops the row count. s === 1 on every
+  // non-tv profile → round(MAX_COLS) === MAX_COLS → byte-identical plans.
+  const maxCols = Math.round(MAX_COLS * s);
 
   if (count <= 0 || availW <= 0 || availH <= 0) {
     const z = maxZoom;
@@ -153,7 +162,7 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   const colsAt = (zoom: number): number => {
     const slotW = naturalW * zoom;
     const widthCols = Math.floor((availW - rowSlack + gapX) / (slotW + gapX));
-    const cols = clamp(1, Math.min(MAX_COLS, count), widthCols);
+    const cols = clamp(1, Math.min(maxCols, count), widthCols);
     const rows = Math.ceil(count / cols);
     return Math.max(1, Math.ceil(count / rows));
   };

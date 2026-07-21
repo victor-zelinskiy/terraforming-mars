@@ -17,6 +17,7 @@ import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
+import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
 
 /** Plain English text of a `string | Message` prompt title. */
 export function inputTitleText(title: string | Message | undefined): string | undefined {
@@ -404,7 +405,9 @@ export type TurnVerb = {
 /** Is it this player's ACTION-MENU turn at all (any verb findable)? */
 export function turnVerbs(view: PlayerViewModel): Array<TurnVerb> {
   const wf = view.waitingFor;
-  const notYourTurn = 'Not your turn to take any actions';
+  // A withheld verb is «Сначала завершите текущее действие» when the server is
+  // mid a mandatory decision with the viewer (still their turn), else «не ваш ход».
+  const notYourTurn = offTurnReason(awaitingViewerInput(view));
   const off = (id: TurnVerbId, label: string, reason: string): TurnVerb => ({id, label, available: false, reason});
   const on = (id: TurnVerbId, label: string, count?: number): TurnVerb => ({id, label, available: true, reason: '', count});
 

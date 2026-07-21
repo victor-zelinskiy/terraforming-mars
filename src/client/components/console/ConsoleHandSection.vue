@@ -597,20 +597,45 @@ export default defineComponent({
       if (grid === undefined || !p.scrolls || p.cols <= 0) {
         return;
       }
-      const row = Math.floor(this.index / p.cols);
-      const top = edgeInset() + row * p.rowStride;
-      const bottom = top + p.slotH;
+      const inset = edgeInset();
+      const clientH = grid.clientHeight;
       const viewTop = grid.scrollTop;
-      const viewBottom = viewTop + grid.clientHeight;
-      let next = viewTop;
-      // Leave an edge-inset buffer so the card's top badge / glow clear the edge.
-      if (top - edgeInset() < viewTop) {
-        next = top - edgeInset();
-      } else if (bottom + edgeInset() > viewBottom) {
-        next = bottom + edgeInset() - grid.clientHeight;
+      // Reveal the focused card from its ACTUAL rendered rect when it's in the
+      // virtual window: the DOM rect folds in the selected-card scale pop
+      // (`--selected` transform) AND the real premium-face height, so the
+      // reveal never stops a few px short of the bottom row (the «карта не
+      // видна полностью, приходится доскроллить правым стиком» defect — the
+      // pure `slotH` math missed the pop). Fall back to the plan math only
+      // when the row is outside the window (a jump beyond overscan), where no
+      // slot element exists yet.
+      const name = this.entries[this.index]?.card.name;
+      const slot = name !== undefined ?
+        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(name)}"]`) : null;
+      let relTop: number;
+      let relBottom: number;
+      if (slot !== null) {
+        const sr = slot.getBoundingClientRect();
+        const gr = grid.getBoundingClientRect();
+        relTop = sr.top - gr.top; // 0 = grid viewport top
+        relBottom = sr.bottom - gr.top;
+      } else {
+        const row = Math.floor(this.index / p.cols);
+        relTop = inset + row * p.rowStride - viewTop;
+        relBottom = relTop + p.slotH;
       }
-      const maxScroll = Math.max(0, grid.scrollHeight - grid.clientHeight);
-      next = clampNum(0, maxScroll, next);
+      // Leave an edge-inset buffer on the revealed edge so the card's top badge
+      // / focus glow clear the shelf edge (and never sit behind the status rail).
+      let delta = 0;
+      if (relTop - inset < 0) {
+        delta = relTop - inset; // reveal the top (scroll up)
+      } else if (relBottom + inset > clientH) {
+        delta = relBottom + inset - clientH; // reveal the bottom (scroll down)
+      }
+      if (delta === 0) {
+        return;
+      }
+      const maxScroll = Math.max(0, grid.scrollHeight - clientH);
+      const next = clampNum(0, maxScroll, viewTop + delta);
       if (Math.abs(next - viewTop) > 0.5) {
         grid.scrollTop = next; // fires @scroll → applyScroll re-windows
       }
