@@ -11,6 +11,7 @@ files here are the deeper dives it points at.
 ## Console / gamepad / TV
 - [CONSOLE_MODE_CONCEPT.md](CONSOLE_MODE_CONCEPT.md) — console-native shell design (the default UI surface).
 - [CONSOLE_FOUNDATION.md](CONSOLE_FOUNDATION.md) — VueUse foundation layer (semantic input, overflow policy, viewport).
+- [CONSOLE_SURFACE_MOTION.md](CONSOLE_SURFACE_MOTION.md) — band-surface transition orchestration (shared shade, phase FLIP handoffs, awaiting commit hold, wheel handoff).
 - [CONSOLE_BLUE_ACTION_PARITY.md](CONSOLE_BLUE_ACTION_PARITY.md) — blue-card action center parity with desktop.
 - [CONSOLE_TV_PREMIUM_PLAN.md](CONSOLE_TV_PREMIUM_PLAN.md) — 4K-TV premium recomposition plan.
 - [COLONY_TRADE_FLOW.md](COLONY_TRADE_FLOW.md) — the premium colony-trade reward transaction (atomic tradeId manifest, merged Pluto reveal, track-reset glide).

@@ -1,4 +1,11 @@
 <template>
+  <!-- data-motion-*: the surface-motion contract — the dim is the shared
+       `.con-shade`; the card frame is the animated panel. The VARIANT gates
+       the director: 'headless' renders nothing (no shade, no motion),
+       'drawn' is choreographed by its own draw cinematic (shade only). A
+       'result' entry that follows a composer's confirm plays the PHASE
+       continuation — the source card FLIPs from the composer's slot into
+       the «Источник» column below. -->
   <div class="con-reveal"
        :class="{
          'con-reveal--headless': headless,
@@ -6,7 +13,9 @@
          'con-reveal--bonus-veiled': bonusVeiled,
          'con-reveal--bonus-held': bonusHeld,
        }"
-       role="dialog" :aria-label="titleText">
+       role="dialog" :aria-label="titleText"
+       data-motion-surface="reveal"
+       :data-motion-variant="headless ? 'headless' : mode">
     <!--
       SINGLE-CARD drawn reveal is HEADLESS: the received card IS the reveal,
       shown DIRECTLY in the fullscreen viewer (auto-opened). Nothing renders
@@ -16,10 +25,8 @@
       render the modal frame below.
     -->
     <template v-if="!headless">
-      <div class="con-reveal__backdrop" aria-hidden="true"></div>
-
       <transition name="con-task-swap" mode="out-in">
-        <div class="con-reveal__card" :key="revealKey"
+        <div class="con-reveal__card" :key="revealKey" data-motion-panel
              :class="{'con-reveal__card--drawn': mode === 'drawn'}">
           <!-- ── Header ──────────────────────────────────────────────── -->
           <header class="con-reveal__head">
@@ -150,7 +157,11 @@
           <div v-else-if="mode === 'result' && lastReveal !== undefined" class="con-reveal__body con-info__scroll">
             <div class="con-reveal__source">
               <div class="con-start__section-title">{{ $t('Source') }}</div>
-              <Card :card="{name: lastReveal.action}" :key="lastReveal.action" lightweight />
+              <!-- The source card ANCHOR: on the composer → result phase
+                   handoff the confirm modal's card FLIPs into this slot. -->
+              <div :data-motion-anchor="'card:' + lastReveal.action">
+                <Card :card="{name: lastReveal.action}" :key="lastReveal.action" lightweight />
+              </div>
             </div>
             <div class="con-reveal__main">
               <div class="con-reveal__revealed"

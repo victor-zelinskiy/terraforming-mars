@@ -1,9 +1,10 @@
 <template>
-  <div class="con-cardactions" role="dialog" :aria-label="$t('Card actions')">
-    <div class="con-cardactions__backdrop" aria-hidden="true"></div>
-
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director (surfaceMotionDirector) — no own backdrop; the frame is the
+       animated panel, the composer above is its own motion surface. -->
+  <div class="con-cardactions" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
     <!-- The action center frame (dimmed while the composer is open). -->
-    <div class="con-cardactions__frame" :class="{'con-cardactions__frame--behind': composer !== undefined}">
+    <div class="con-cardactions__frame" data-motion-panel :class="{'con-cardactions__frame--behind': composer !== undefined}">
       <!-- ── Header: title + counts + player chip ─────────────────────── -->
       <header class="con-cardactions__head">
         <div class="con-cardactions__head-main">
@@ -226,16 +227,24 @@
       </div>
     </div>
 
-    <!-- ── The ACTION COMPOSER (every pre-submit choice lives here) ────── -->
-    <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
-                           ref="composerRef"
-                           :playerView="playerView"
-                           :entry="composerEntry"
-                           :preview="composerPreview"
-                           :nodeIndex="composer.nodeIndex"
-                           @confirm="onComposerConfirm"
-                           @cancel="onComposerCancel"
-                           @repeat-pick="onRepeatPick" />
+    <!-- ── The ACTION COMPOSER (every pre-submit choice lives here) ──────
+         Surface-motion transition: JS hooks only (:css="false") — the
+         director plays open/dismiss on the panel; on the committed confirm
+         the composer HOLDS (awaiting handoff) and its eventual unmount
+         rides the phase swap into the reveal. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
+                             ref="composerRef"
+                             :playerView="playerView"
+                             :entry="composerEntry"
+                             :preview="composerPreview"
+                             :nodeIndex="composer.nodeIndex"
+                             @confirm="onComposerConfirm"
+                             @cancel="onComposerCancel"
+                             @repeat-pick="onRepeatPick" />
+    </transition>
 
     <!-- The command contract lives in the global command bar
          (CONSOLE_TV_PREMIUM_PLAN §3.2); the filter groups above keep their
@@ -292,6 +301,7 @@ import {
   ConsoleVariableChip,
 } from '@/client/console/consoleCardActions';
 import {buildActionBatch} from '@/client/console/consoleActionComposer';
+import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -696,6 +706,11 @@ export default defineComponent({
       this.focusKey = keys[next];
       void this.$nextTick(() => this.scrollFocusedIntoView());
     },
+    // Surface-motion transition hooks (plain functions — no `this`).
+    surfaceEnterHook,
+    surfaceLeaveHook,
+    surfaceEnterCancelledHook,
+    surfaceLeaveCancelledHook,
     activateFocused(): void {
       const tile = this.focusedTile;
       if (tile === undefined) {
@@ -745,7 +760,13 @@ export default defineComponent({
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
       });
-      this.closeComposer();
+      // AWAITING HANDOFF (surface motion): the batch is COMMITTED — the
+      // composer deliberately HOLDS the stage (its CTA shows the in-flight
+      // beat, the shell absorbs the pad) until the server's answer picks the
+      // next scene: a reveal continues it as a PHASE handoff (the source card
+      // FLIPs across), anything else dismisses. Closing the composer here
+      // used to blank the stage for the whole round-trip — the
+      // "confirm → bare board → reveal" gap. The shell resolves + closes.
       this.$emit('submit-batch', batch);
     },
     onComposerCancel(): void {

@@ -2,14 +2,15 @@
   <!-- --table-beat: the TABLE owns the screen (draft pick landing / the
        research rise) — the modal chrome dissolves so the drafted tray and
        the flying cards are seen; releasing it IS the frame materialization
-       around the fresh content (consoleDraftTray.ts owns the flag). -->
+       around the fresh content (consoleDraftTray.ts owns the flag).
+       data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director (no own backdrop; the shade's --veil mirrors the table beat). -->
   <div class="con-task-host" role="dialog" :aria-label="titleText"
-       :class="{'con-task-host--table-beat': trayTableBeat}">
-    <div class="con-task-host__backdrop" aria-hidden="true"></div>
-
+       :class="{'con-task-host--table-beat': trayTableBeat}"
+       data-motion-surface="task-host">
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
-      <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey">
+      <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey" data-motion-panel>
         <!-- ── Frame header ────────────────────────────────────────── -->
         <header class="con-task__head">
           <div class="con-task__kicker">

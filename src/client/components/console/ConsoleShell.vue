@@ -243,32 +243,53 @@
       <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" :players="playerView.players" />
     </transition>
 
+    <!-- THE SURFACE-MOTION SHADE (surfaceMotionState) — the ONE dim behind
+         every migrated band surface. Always mounted; only its opacity moves,
+         so a wheel → sheet → composer → reveal chain keeps one continuous
+         darkness (never stacked dims, never a blink through zero). -->
+    <div class="con-shade" :class="{'con-shade--on': surfaceShadeVisible, 'con-shade--veil': surfaceShadeVeil}" aria-hidden="true"></div>
+
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
-         (RT = action categories, LT = basic actions). -->
-    <ConsoleQuickSelector v-if="consoleState.quick !== undefined"
-                          :entries="quickEntries"
-                          :title="quickTitle"
-                          :trigger="quickTrigger" />
+         (RT = action categories, LT = basic actions). Surface-motion:
+         mechanical wheel-open / wheel-dismiss / wheel-handoff (the chosen
+         slot's impulse carries into the next surface). -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleQuickSelector v-if="consoleState.quick !== undefined"
+                            :entries="quickEntries"
+                            :title="quickTitle"
+                            :trigger="quickTrigger" />
+    </transition>
     <!-- P26: milestones/awards render as the dedicated premium strategic
          panel; P27 adds the Standard-Projects premium screen (incl. Patent
-         sale); every other bounded list keeps the generic bottom sheet. -->
-    <ConsoleStdProjectsScreen v-if="consoleState.sheet === 'standardProjects'"
-                              :items="stdProjectItems"
-                              :index="consoleState.sheetIndex"
-                              :myMegacredits="thisPlayer.megacredits"
-                              :backLabel="stdBackLabel" />
-    <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
-    <!-- The console-native BLUE-CARD ACTION CENTER (master-detail + confirm) —
-         replaces the old bottom-sheet list + bare confirm for card actions. -->
-    <!-- v-show while a client hand pick is out (SRR link pick): the Action
-         Center + its composer stay mounted so every capture survives. -->
-    <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
-                        v-show="!handPickActive && !playedPickActive"
-                        ref="cardActions"
-                        :playerView="playerView"
-                        @submit-batch="onCardActionsSubmitBatch"
-                        @close="onCardActionsClose" />
-    <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
+         sale); every other bounded list keeps the generic bottom sheet.
+         ONE surface-motion transition wraps the whole v-if chain: a swap
+         between two sheets is a handoff (both sides choreographed); the
+         MA screen and the generic sheet carry no data-motion-surface, so
+         the hooks pass them through untouched (their own CSS entries play). -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleStdProjectsScreen v-if="consoleState.sheet === 'standardProjects'"
+                                :items="stdProjectItems"
+                                :index="consoleState.sheetIndex"
+                                :myMegacredits="thisPlayer.megacredits"
+                                :backLabel="stdBackLabel" />
+      <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
+      <!-- The console-native BLUE-CARD ACTION CENTER (master-detail + confirm) —
+           replaces the old bottom-sheet list + bare confirm for card actions. -->
+      <!-- v-show while a client hand pick is out (SRR link pick): the Action
+           Center + its composer stay mounted so every capture survives (the
+           director recognizes the pick bridge and never animates it). -->
+      <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
+                          v-show="!handPickActive && !playedPickActive"
+                          ref="cardActions"
+                          :playerView="playerView"
+                          @submit-batch="onCardActionsSubmitBatch"
+                          @close="onCardActionsClose" />
+      <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
+    </transition>
 
     <!-- Console confirm panel (pass / risky conversions). -->
     <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog">
@@ -301,7 +322,9 @@
          CLIENT-side standard-project payment via promptOverride). The
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined"
                        ref="taskHost"
                        :playerView="playerView"
@@ -353,7 +376,9 @@
     <!-- CTS T6: the reveal overlay (drawn cards ВЗЯТЬ / deck-check result /
          another player's public reveal) — the console-native replacement
          for the three desktop reveal modals (gated off in console). -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined"
                             ref="revealOverlay"
                             :playerView="playerView"
@@ -815,7 +840,7 @@ import {
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {
-  draftPickBeatActive, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
+  draftPickBeatActive, draftTrayState, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
 } from '@/client/console/cardDeal/consoleDraftTray';
 import {Phase} from '@/common/Phase';
 import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
@@ -893,6 +918,9 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
+import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
@@ -1421,6 +1449,16 @@ export default defineComponent({
     consoleForegroundBusy(): boolean {
       return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds;
     },
+    /** The surface-motion shade (`.con-shade--on`): ≥1 migrated band surface
+     *  owns the foreground, or a committed submit is awaiting its answer. */
+    surfaceShadeVisible(): boolean {
+      return surfaceShadeOn();
+    },
+    /** The task host's table beat (draft tray owns the screen) thins the
+     *  shade to a light veil — mirrors the retired per-host backdrop rule. */
+    surfaceShadeVeil(): boolean {
+      return draftTrayState.tableView;
+    },
     /** The currently VISIBLE transient notification — the topmost (the feed is
      *  serial, so at most one). GLOBAL rule: any console toast is dismissable
      *  with B («B Закрыть» on the card); the flow-holding AI-turn card
@@ -1474,6 +1512,11 @@ export default defineComponent({
     /** A composer's tableau-pick is out on the played view. */
     playedPickActive(): boolean {
       return isPlayedTableauPickActive();
+    },
+    /** A client pick bridge (hand / tableau) hides the owning composer via
+     *  v-show — the picked-in section owns the screen, the shade yields. */
+    pickBridgeActive(): boolean {
+      return this.handPickActive || this.playedPickActive;
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -3682,6 +3725,13 @@ export default defineComponent({
         resetHandDelivery();
       }
     },
+    /** The shade yields to a live pick bridge (surface motion). */
+    pickBridgeActive: {
+      immediate: true,
+      handler(now: boolean): void {
+        setPickSuppressed(now);
+      },
+    },
     /**
      * CLIENT HAND PICK (composer → hand bridge): entering the pick remembers
      * the current section, opens the hand (with the premium dock→grid reveal
@@ -3718,6 +3768,28 @@ export default defineComponent({
     playerView: {
       immediate: true,
       handler(newView: PlayerViewModel, oldView: PlayerViewModel | undefined) {
+        // SURFACE MOTION — resolve the awaiting handoff (the composer held
+        // the stage through the submit round-trip). PRE-FLUSH on purpose:
+        // the DOM is still the OLD tree, so the departing composer can be
+        // measured HERE for the incoming reveal's anchored FLIP; the close +
+        // the reveal's mount then land in the SAME patch — no blank frame.
+        const awaiting = surfaceMotionState.awaiting;
+        if (awaiting !== undefined) {
+          const lr = newView.lastReveal;
+          const resolution = resolveAwaiting(awaiting, {
+            gameAge: newView.game.gameAge,
+            undoCount: newView.game.undoCount,
+            revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
+          }, typeof performance !== 'undefined' ? performance.now() : Date.now());
+          if (resolution.kind !== 'hold') {
+            if (resolution.kind === 'phase') {
+              captureSurfaceDeparture(awaiting.from,
+                document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
+            }
+            clearAwaitingHandoff();
+            closeConsoleLayers();
+          }
+        }
         // Draft tray: mark a live pick beat answered, reconcile optimistic
         // state, and ARM the research-rise scene on the draft→buy
         // transition (pre-flush — the buy frame mounts already knowing).
@@ -3853,6 +3925,12 @@ export default defineComponent({
       }
       return set;
     },
+    // Surface-motion transition hooks (plain functions — no `this`); bound
+    // by the migrated band-surface <transition :css="false"> wrappers.
+    surfaceEnterHook,
+    surfaceLeaveHook,
+    surfaceEnterCancelledHook,
+    surfaceLeaveCancelledHook,
     // ── input ────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): boolean {
       // Foundation: presses resolve to SEMANTIC actions (consoleActionOf) —
@@ -3887,6 +3965,16 @@ export default defineComponent({
         if (intent.kind === 'press' && (action === 'primary' || action === 'back')) {
           dismissConsoleAlert();
         }
+        return true;
+      }
+      // SURFACE MOTION — a COMMITTED submit is awaiting its answer (the
+      // composer holds the stage, its CTA shows the in-flight beat). The
+      // action is already on the wire: B must not read as a cancel, another
+      // A must not double-fire, and nothing may act under the held scene.
+      // Bounded by AWAITING_SAFETY_MS (the resolve/expiry lives in the
+      // playerView watcher), so the pad can never stick. Sits BELOW the
+      // system alert (a rejected input stays acknowledgeable above).
+      if (isSurfaceAwaitingHandoff()) {
         return true;
       }
       // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
@@ -4381,6 +4469,11 @@ export default defineComponent({
         this.showNotice(entry.reason !== '' ? entry.reason : 'Unavailable right now');
         return;
       }
+      // WHEEL HANDOFF (surface motion): record the chosen slot + its centre
+      // BEFORE the wheel unmounts — the leave hook flashes the slot's
+      // impulse and the next surface enters FROM its direction (one player
+      // intent, one continuous gesture — never two unrelated pops).
+      markWheelHandoff(slot, document.querySelector(`.con-quick__slot--${slot}`));
       const quick = this.consoleState.quick;
       this.consoleState.quick = undefined;
       if (quick === 'actions') {
@@ -5258,7 +5351,28 @@ export default defineComponent({
     // It owns the whole flow (list · inspector · composer) and builds the
     // byte-identical activation batch itself; the shell only POSTs + closes.
     onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
-      closeConsoleLayers();
+      // AWAITING HANDOFF (surface motion): the composer's batch is COMMITTED.
+      // The center + composer HOLD the stage until the server's answer picks
+      // the next scene — closing them here used to blank the board for the
+      // whole round-trip (the "confirm → bare board → reveal" gap). The
+      // playerView watcher resolves: a reveal continues the scene as a PHASE
+      // handoff (the source card FLIPs across), anything else dismisses; a
+      // lost response expires via AWAITING_SAFETY_MS.
+      beginAwaitingHandoff('action-composer', {
+        gameAge: this.playerView.game.gameAge,
+        undoCount: this.playerView.game.undoCount,
+      });
+      // Belt-and-braces expiry: a lost response / dead server can never
+      // strand the held stage (the watcher's expiry needs a fresh view to
+      // fire; this timer needs nothing). Fingerprinted by startedAt so a
+      // newer awaiting is never clobbered.
+      const startedAt = surfaceMotionState.awaiting?.startedAt;
+      window.setTimeout(() => {
+        if (surfaceMotionState.awaiting !== undefined && surfaceMotionState.awaiting.startedAt === startedAt) {
+          clearAwaitingHandoff();
+          closeConsoleLayers();
+        }
+      }, AWAITING_SAFETY_MS + 250);
       this.submitBatch(responses);
     },
     onCardActionsClose(): void {
@@ -6644,6 +6758,7 @@ export default defineComponent({
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     resetNotifHold(); // never leak a hold timer across games/sessions
+    resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

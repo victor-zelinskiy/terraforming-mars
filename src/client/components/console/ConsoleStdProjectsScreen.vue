@@ -1,7 +1,8 @@
 <template>
-  <div class="con-stdp" role="dialog" :aria-label="$t('Standard Projects')">
-    <div class="con-stdp__backdrop" aria-hidden="true"></div>
-    <div class="con-stdp__panel">
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director (wheel-handoff-aware entry) — no own backdrop/CSS entry. -->
+  <div class="con-stdp" role="dialog" :aria-label="$t('Standard Projects')" data-motion-surface="std-projects">
+    <div class="con-stdp__panel" data-motion-panel>
       <!-- Identity band: emblem + title + the viewer's wallet with a live
            before → after preview for the FOCUSED project's price. -->
       <div class="con-stdp__head">

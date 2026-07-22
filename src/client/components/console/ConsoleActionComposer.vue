@@ -1,8 +1,10 @@
 <template>
-  <div class="con-composer" role="dialog" :aria-label="$t('Confirmation')">
-    <div class="con-composer__backdrop" aria-hidden="true"></div>
-
-    <div class="con-composer__panel con-composer__panel--act">
+  <!-- data-motion-*: the surface-motion contract — no own backdrop (the
+       shared `.con-shade` is already up under the action center); the panel
+       is the animated unit; the source card is the ANCHOR that FLIPs into
+       the reveal result's «Источник» slot on the phase handoff. -->
+  <div class="con-composer" role="dialog" :aria-label="$t('Confirmation')" data-motion-surface="action-composer">
+    <div class="con-composer__panel con-composer__panel--act" data-motion-panel>
       <!-- ── Header ────────────────────────────────────────────────── -->
       <div class="con-composer__kicker">
         <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
@@ -13,7 +15,7 @@
       <!-- ── Two columns: the SOURCE CARD (inert printed face — the player
            must SEE what they are confirming) · the decision/summary column. -->
       <div class="con-composer__actmain">
-      <div class="con-composer__actcard" aria-hidden="true">
+      <div class="con-composer__actcard" aria-hidden="true" :data-motion-anchor="'card:' + entry.cardName">
         <ConsoleCardFaceLite :name="entry.cardName" />
       </div>
       <div class="con-composer__actright">
@@ -223,17 +225,22 @@
 
           <!-- The explicit CTA — a FOCUSABLE row drawing the Ⓐ glyph (mirrors
                the play composer): what A does is never ambiguous, and the
-               confirm is a deliberate, visible press target. -->
+               confirm is a deliberate, visible press target. After the press
+               the composer HOLDS the stage (awaiting the server's answer) —
+               the CTA relabels to the in-flight state so the held beat reads
+               as processing, never as an ignored press. -->
           <div class="con-composer__cta"
                :class="{
-                 'con-composer__cta--off': !canConfirm,
-                 'con-composer__cta--ready': canConfirm,
-                 'con-composer__cta--focused': ctaFocused,
+                 'con-composer__cta--off': !canConfirm && !submitting,
+                 'con-composer__cta--ready': canConfirm && !submitting,
+                 'con-composer__cta--focused': ctaFocused && !submitting,
+                 'con-composer__cta--waiting': submitting,
                }"
                :ref="ctaFocused ? 'focusedEl' : undefined"
                @click="submit">
-            <GamepadGlyph control="confirm" class="con-composer__cta-glyph" />
-            <span class="con-composer__cta-label">{{ $t('Confirm action') }}</span>
+            <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
+            <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
+            <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : 'Confirm action') }}</span>
           </div>
         </template>
       </ConsoleScrollArea>
@@ -301,6 +308,7 @@ import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -627,7 +635,13 @@ export default defineComponent({
       this.resetFromPreview();
     }},
     playerView() {
-      this.submitting = false;
+      // Keep the in-flight CTA while the COMMITTED submit is still awaiting
+      // its answer (a poll can deliver an unchanged view mid-flight; the
+      // shell's resolve closes the composer when the answer lands). Any
+      // other fresh view means the prompt moved on — re-arm the CTA.
+      if (!isSurfaceAwaitingHandoff()) {
+        this.submitting = false;
+      }
     },
     footCommands: {
       immediate: true,

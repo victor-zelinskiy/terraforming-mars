@@ -109,6 +109,36 @@ html.console-native {
     background: radial-gradient(125% 95% at 50% 42%, rgba(6, 12, 20, var(--con-dim-a, 0.74)) 0%, rgba(3, 6, 11, var(--con-dim-b, 0.93)) 100%);
 }
 
+/* ── THE SURFACE-MOTION SHADE (surfaceMotionState.ts) ─────────────────
+   The ONE full-viewport dim behind every MIGRATED band surface (quick
+   wheels / action center / composer / task host / sheets / reveal). It is
+   ALWAYS mounted in ConsoleShell and only fades its opacity, so a surface
+   swap keeps ONE continuous darkness — never two stacked dims, never a
+   blink through zero between a confirm and its result. Owners register in
+   the director's enter/leave hooks; `--on` follows `surfaceShadeOn()`.
+   The off-transition carries a small delay so a same-flush handoff (owner
+   1→0→1) can never start a visible fade. `--veil` mirrors the task host's
+   table-beat (the draft tray owns the screen — a light veil only).
+   Sits UNDER every band surface (11480+) and above the played table
+   (11400). Flat paint, pointer-events none, no blur (Steam Deck rule). */
+.con-shade {
+    position: fixed;
+    inset: 0;
+    z-index: 11460;
+    pointer-events: none;
+    .con-backdrop-dim();
+    opacity: 0;
+    transition: opacity calc(210ms * var(--motion-scale, 1)) ease calc(70ms * var(--motion-scale, 1));
+
+    &--on {
+        opacity: 1;
+        transition: opacity calc(170ms * var(--motion-scale, 1)) ease;
+    }
+    &--on&--veil {
+        opacity: 0.28; /* the table beat: tray focal, board readable */
+    }
+}
+
 /* ── STAGE suspends (CONSOLE_TV_PREMIUM_PLAN.md §3.1) ────────────────
    While the fullscreen card viewer owns the screen (body.con-zoom-open —
    set for the whole open flight + dialog lifetime), the non-fullscreen
@@ -4226,21 +4256,16 @@ html.console-mode {
     align-items: center;
     justify-content: center;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        /* Route through the shared dim (var-driven) so the TV profile raises
-           the wheel backdrop to dim-strong — the board must not stay fully
-           readable behind an open wheel (the "фон читаем" leak). */
-        .con-backdrop-dim();
-    }
+    /* NO own __backdrop / entry animation: the wheel rides the shared
+       `.con-shade` dim and the surface-motion director's wheel-open /
+       wheel-dismiss / wheel-handoff choreography (surfaceMotionDirector) —
+       a CSS animation here would fight the GSAP transforms. */
     &__panel {
         position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: .9rem;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
     &__kicker {
         display: inline-flex;
@@ -5243,11 +5268,8 @@ html.console-mode {
     align-items: center;
     justify-content: center;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        background: rgba(4, 8, 14, 0.74);
-    }
+    /* NO own __backdrop / entry animation: rides the shared `.con-shade`
+       dim + the surface-motion director (wheel-handoff-aware entry). */
     &__panel {
         position: relative;
         display: flex;
@@ -5259,7 +5281,6 @@ html.console-mode {
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.6);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
     &__head {
         display: flex;
@@ -8800,24 +8821,18 @@ html.console-mode {
     padding: .3rem 0;
     box-sizing: border-box;
 
-    &__backdrop {
-        position: fixed; /* the dim covers the FULL viewport under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-    }
+    /* NO own __backdrop: the host rides the shared `.con-shade` dim
+       (surfaceMotionState) — the table-beat veil lives there too
+       (`.con-shade--veil`, driven by the same draftTray flag). */
 
     /* THE TABLE BEAT (draft pick / research rise — consoleDraftTray.ts):
        the modal layer DISSOLVES so the table underneath — the drafted
        tray, the landing card, the rising pile — owns the screen; releasing
        the class IS the frame materialization around the fresh content.
-       `!important` beats the con-rise entry animation by cascade (the same
-       trick as .con-deal-hold), so a frame mounted mid-beat can never
+       `!important` beats the director's inline entry styles by cascade (the
+       same trick as .con-deal-hold), so a frame mounted mid-beat can never
        flash before its cards arrive. Opacity/transform only — no layout. */
     &--table-beat {
-        .con-task-host__backdrop {
-            opacity: 0.28; /* a light veil keeps the tray focal, board readable */
-        }
         .con-task {
             opacity: 0 !important;
             pointer-events: none;
@@ -11229,11 +11244,11 @@ body.con-start-ceremony {
         background: none;
     }
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-    }
+    /* NO own __backdrop / entry animation: the reveal rides the shared
+       `.con-shade` dim and the surface-motion director's enter (an anchored
+       PHASE continuation when it follows a composer's confirm — the source
+       card FLIPs across; a plain rise otherwise). The internal drawn-mode
+       deal choreography is untouched (the director skips variant='drawn'). */
     &__card {
         position: relative;
         width: min(70rem, 94vw);
@@ -11244,7 +11259,6 @@ body.con-start-ceremony {
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2rem fade(@con-cyan, 8%);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
     /* The DRAWN reveal is a reward SCENE, not a content-hugging form: a
        stable height makes the header / centre stage / bottom-air structure
@@ -11393,7 +11407,9 @@ body.con-start-ceremony {
         align-items: center;
         gap: .4rem;
         zoom: calc(0.92 * var(--con-ui-scale, 1));
-        > :is(.card-container, .pcard) { margin: 0; }
+        /* The card sits inside the motion-anchor wrapper now (the FLIP target
+           of the composer → result handoff) — a descendant match, not `>`. */
+        :is(.card-container, .pcard) { margin: 0; }
     }
     &__source-colony {
         zoom: calc(0.78 * var(--con-ui-scale, 1));
@@ -13049,11 +13065,9 @@ html.console-mode {
     font-family: @con-font;
     color: @con-text;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars (band root shrank) */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
-    }
+    /* NO own __backdrop: the center rides the shared `.con-shade` dim
+       (surfaceMotionState) — one continuous darkness across the wheel →
+       center → composer → reveal chain, never stacked dims. */
 
     /* The action-center frame — the glass panel filling the freed TV space. */
     &__frame {
@@ -13353,6 +13367,11 @@ html.console-mode {
     font-family: @con-font;
     color: @con-text;
 
+    /* The ACTION composer renders NO __backdrop div anymore (it opens OVER
+       the action center — the shared `.con-shade` is already up and the
+       center's `__frame--behind` recession carries the depth). The rule
+       below stays for the NOT-yet-migrated siblings that share this block
+       (the play composer / corp-first confirm still dim through it). */
     &__backdrop {
         position: fixed; /* full-viewport dim under the bars */
         inset: 0;
@@ -13815,6 +13834,13 @@ html.console-mode {
             box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 36%);
             background: fade(@con-mint, 18%);
         }
+        /* IN-FLIGHT (surface motion awaiting handoff): the batch is committed,
+           the composer holds the stage until the server's answer — a calm
+           processing plate (no bright ring: the press has been taken). */
+        &--waiting {
+            background: rgba(18, 30, 42, 0.72);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+        }
     }
     /* The Ⓐ glyph reads brighter when the play is actually ready. */
     &__cta-glyph { flex: 0 0 auto; opacity: 0.85; }
@@ -13822,9 +13848,25 @@ html.console-mode {
     &__cta-label { font-size: 1rem; font-weight: 800; letter-spacing: .02rem; color: #cfe0f0; }
     &__cta--ready &__cta-label { color: @con-mint; }
     &__cta--off&__cta--focused &__cta-label { color: #ffe6b0; }
+    &__cta--waiting &__cta-label { color: fade(@con-cyan, 92%); }
+    /* The in-flight orbit tick — a thin cyan ring, transform-only spin. */
+    &__cta-wait {
+        flex: 0 0 auto;
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 50%;
+        border: .12rem solid fade(@con-cyan, 22%);
+        border-top-color: fade(@con-cyan, 92%);
+        animation: con-cta-wait-spin calc(760ms * var(--motion-scale, 1)) linear infinite;
+    }
     @media (prefers-reduced-motion: reduce) {
         &__cta { transition: none; }
+        &__cta-wait { animation: none; }
     }
+}
+
+@keyframes con-cta-wait-spin {
+    to { transform: rotate(360deg); }
 }
 
 /* ── Corp FIRST-ACTION confirm — the play composer's MANDATORY sibling
