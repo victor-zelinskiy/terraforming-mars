@@ -12,6 +12,7 @@ const PLAYER_VIEW: any = {
   thisPlayer: {color: 'blue', name: 'Me', megacredits: 47, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0, tableau: []},
   players: [{color: 'blue', name: 'Me'}],
   game: {generation: 1},
+  cardsInHand: [],
 };
 
 function entryFor(cardName: string) {
@@ -100,6 +101,99 @@ describe('ConsoleActionComposer — premium render', () => {
     }, 'X');
     expect(w.findAll('.con-composer__branch')).to.have.length(0);
     expect(w.find('.con-composer__hero--plain').exists()).to.eq(true);
+    w.unmount();
+  });
+
+  // ── The ACTION FOCUS stage (the in-frame recompose iteration) ────────────
+
+  it('renders as the IN-FRAME stage: hero card slot (FLIP anchor + zoom slot) and NO modal header', () => {
+    const w = factory({
+      card: 'Regolith Eaters', isCorporation: false, kind: 'declarative',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [M4], steps: []}],
+    }, 'Regolith Eaters');
+    expect(w.find('.con-composer--stage').exists()).to.eq(true);
+    const slot = w.find('[data-action-focus-card]');
+    expect(slot.exists()).to.eq(true);
+    expect(slot.attributes('data-zoom-slot')).to.eq('Regolith Eaters');
+    expect(slot.attributes('data-motion-anchor')).to.eq('card:Regolith Eaters');
+    // The identity line lives in the frame header (ConsoleCardActions) now.
+    expect(w.find('.con-composer__kicker').exists()).to.eq(false);
+    expect(w.find('.con-composer__name').exists()).to.eq(false);
+    w.unmount();
+  });
+
+  it('the CTA lives in the pinned DOCK outside the scroll (always on screen)', () => {
+    const w = factory({
+      card: 'X', isCorporation: false, kind: 'dynamic',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+    }, 'X');
+    expect(w.find('.con-composer__ctadock .con-composer__cta').exists()).to.eq(true);
+    expect(w.find('.con-composer__scroll .con-composer__cta').exists()).to.eq(false);
+    w.unmount();
+  });
+
+  it('a disabled CTA names the FIRST missing decision (honest hint, never mute)', () => {
+    const w = factory({
+      card: 'Y', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select', cards: [{name: 'Tardigrades'}, {name: 'Regolith Eaters'}], min: 1, max: 1}}],
+      }],
+    }, 'Y');
+    expect(w.find('.con-composer__cta--off').exists()).to.eq(true);
+    expect(w.find('.con-composer__cta-hint').text()).to.contain('Choose a card');
+    w.unmount();
+  });
+
+  it('X emits inspect-source (the console-wide inspect verb) — it NEVER confirms', () => {
+    const w = factory({
+      card: 'X', isCorporation: false, kind: 'dynamic',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+    }, 'X');
+    (w.vm as any).handleIntent({kind: 'press', button: 'secondary'});
+    expect(w.emitted('inspect-source')).to.have.length(1);
+    expect(w.emitted('confirm')).to.eq(undefined);
+    w.unmount();
+  });
+
+  it('A on an amount row ADVANCES toward the CTA («Далее») instead of a silent no-op', () => {
+    const w = factory({
+      card: 'Hi-Tech Lab', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [],
+        effects: [{direction: 'gain', icon: 'cards', amount: 1, note: 'draw'}],
+        steps: [{kind: 'input', input: {type: 'amount', title: 'Select amount of energy to spend', min: 1, max: 5, maxByDefault: false, icon: 'energy', amountResult: {icon: 'cards', perUnit: 1}}}],
+      }],
+    }, 'Hi-Tech Lab');
+    expect((w.vm as any).focusedRowKind).to.eq('amount');
+    (w.vm as any).handleIntent({kind: 'press', button: 'confirm'});
+    expect((w.vm as any).ctaFocused).to.eq(true);
+    // ...and nothing was submitted by that press.
+    expect(w.emitted('confirm')).to.eq(undefined);
+    w.unmount();
+  });
+
+  it('shows the live stored resource on the source card (decision-relevant pool)', () => {
+    const view = {
+      ...PLAYER_VIEW,
+      thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau: [{name: 'Regolith Eaters', resources: 3}]},
+    };
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {
+        playerView: view,
+        entry: entryFor('Regolith Eaters'),
+        preview: {
+          card: 'Regolith Eaters', isCorporation: false, kind: 'declarative',
+          branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+        },
+        nodeIndex: 0,
+      },
+    });
+    const meta = w.find('.con-composer__cardmeta');
+    expect(meta.exists()).to.eq(true);
+    expect(meta.text()).to.contain('3');
     w.unmount();
   });
 });

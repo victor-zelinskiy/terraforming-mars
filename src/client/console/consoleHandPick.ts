@@ -42,6 +42,10 @@ export type ConsoleHandPickRequest = {
   /** Live per-card payout (Public Plans: +1 M€ per revealed card) — drives the
    *  hand section's sale-bar-style running summary. */
   gainPerCard?: {icon: string, amount: number};
+  /** The OPERATION this pick belongs to (the source card being played /
+   *  activated + a kicker i18n key, e.g. 'Action setup') — the pick surface
+   *  shows it so the player never loses WHY they are choosing a target. */
+  source?: {kicker: string, card: CardName};
 };
 
 export const consoleHandPickState = reactive({

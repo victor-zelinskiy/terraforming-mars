@@ -1,22 +1,38 @@
 <template>
-  <!-- data-motion-*: the surface-motion contract — no own backdrop (the
-       shared `.con-shade` is already up under the action center); the panel
-       is the animated unit; the source card is the ANCHOR that FLIPs into
-       the reveal result's «Источник» slot on the phase handoff. -->
-  <div class="con-composer" role="dialog" :aria-label="$t('Confirmation')" data-motion-surface="action-composer">
-    <div class="con-composer__panel con-composer__panel--act" data-motion-panel>
-      <!-- ── Header ────────────────────────────────────────────────── -->
-      <div class="con-composer__kicker">
-        <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
-        <span>{{ $t(hasDecisions ? 'Action setup' : 'Confirmation') }}</span>
-      </div>
-      <div class="con-composer__name">{{ $t(entry.cardName) }}</div>
-
-      <!-- ── Two columns: the SOURCE CARD (inert printed face — the player
-           must SEE what they are confirming) · the decision/summary column. -->
-      <div class="con-composer__actmain">
-      <div class="con-composer__actcard" aria-hidden="true" :data-motion-anchor="'card:' + entry.cardName">
-        <ConsoleCardFaceLite :name="entry.cardName" />
+  <!-- THE ACTION FOCUS STAGE — the in-frame focus state of the Action
+       Browser (NOT a floating modal): the browse layer yields underneath and
+       this stage recomposes the SAME frame around the chosen action. Its
+       identity line (kicker · card name · variant) lives in the frame's
+       header, owned by ConsoleCardActions.
+       data-motion-*: the surface-motion contract — no own backdrop (the
+       action center owns the shared `.con-shade`); the panel is the captured
+       unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
+       into the reveal result's «Источник» slot on the phase handoff. -->
+  <div class="con-composer con-composer--stage" role="region" :aria-label="$t(hasDecisions ? 'Action setup' : 'Confirmation')" data-motion-surface="action-composer">
+    <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
+      <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
+           arrives from the browser's inspector thumbnail, X inspects it
+           fullscreen from this very slot) · the decision/summary column. -->
+      <div class="con-composer__actmain con-composer__actmain--stage">
+      <div class="con-composer__actside">
+        <div class="con-composer__actcard con-composer__actcard--stage" aria-hidden="true"
+             :data-motion-anchor="'card:' + entry.cardName"
+             :data-zoom-slot="entry.cardName"
+             data-action-focus-card>
+          <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
+               the inner action's card without a remount — the face crossfades
+               while the slot (the FLIP/zoom target) stays stable. -->
+          <transition name="con-actfocus-card" mode="out-in">
+            <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" />
+          </transition>
+        </div>
+        <!-- The live stored resource on the source card (decision-relevant:
+             most spend-branches consume exactly this pool). -->
+        <div v-if="storedResource !== undefined" class="con-composer__cardmeta">
+          <i class="con-composer__cardmeta-icon" :class="iconClass(storedResource.icon)" aria-hidden="true"></i>
+          <b>{{ storedResource.count }}</b>
+          <span>{{ $t('on this card') }}</span>
+        </div>
       </div>
       <div class="con-composer__actright">
 
@@ -223,27 +239,37 @@
             <span aria-hidden="true">›</span><span>{{ n }}</span>
           </div>
 
-          <!-- The explicit CTA — a FOCUSABLE row drawing the Ⓐ glyph (mirrors
-               the play composer): what A does is never ambiguous, and the
-               confirm is a deliberate, visible press target. After the press
-               the composer HOLDS the stage (awaiting the server's answer) —
-               the CTA relabels to the in-flight state so the held beat reads
-               as processing, never as an ignored press. -->
-          <div class="con-composer__cta"
-               :class="{
-                 'con-composer__cta--off': !canConfirm && !submitting,
-                 'con-composer__cta--ready': canConfirm && !submitting,
-                 'con-composer__cta--focused': ctaFocused && !submitting,
-                 'con-composer__cta--waiting': submitting,
-               }"
-               :ref="ctaFocused ? 'focusedEl' : undefined"
-               @click="submit">
-            <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
-            <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
-            <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : 'Confirm action') }}</span>
-          </div>
         </template>
       </ConsoleScrollArea>
+
+      <!-- ── The CTA DOCK — pinned OUTSIDE the scroll so the confirm is
+           always on screen (couch rule: the operation's exit is never hidden
+           behind a scrollbar). Still a FOCUSABLE row drawing the Ⓐ glyph
+           (mirrors the play composer): what A does is never ambiguous, and
+           the confirm is a deliberate, visible press target. After the press
+           the composer HOLDS the stage (awaiting the server's answer) — the
+           CTA relabels to the in-flight state so the held beat reads as
+           processing, never as an ignored press. -->
+      <div v-if="sub === undefined" class="con-composer__ctadock">
+        <!-- The honest readiness line: names the FIRST missing decision. -->
+        <div v-if="ctaHint !== ''" class="con-composer__cta-hint">
+          <span aria-hidden="true">◈</span>
+          <span>{{ ctaHint }}</span>
+        </div>
+        <div class="con-composer__cta"
+             :class="{
+               'con-composer__cta--off': !canConfirm && !submitting,
+               'con-composer__cta--ready': canConfirm && !submitting,
+               'con-composer__cta--focused': ctaFocused && !submitting,
+               'con-composer__cta--waiting': submitting,
+             }"
+             :ref="ctaFocused ? 'focusedEl' : undefined"
+             @click="submit">
+          <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
+          <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
+          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : 'Confirm action') }}</span>
+        </div>
+      </div>
 
       </div><!-- /__actright -->
       </div><!-- /__actmain -->
@@ -272,7 +298,8 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {setConsoleActionComposerCommands, setConsoleActionComposerMode, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {focusCommandRun, FocusRowKind} from '@/client/console/consoleActionFlow';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
@@ -286,6 +313,7 @@ import {
   branchChoices,
   preChoices,
   canConfirm as canConfirmPure,
+  firstMissingChoice,
   spendHeatPlan,
   spendHeatStock,
   spendHeatResponse,
@@ -366,7 +394,7 @@ export default defineComponent({
     preview: {type: Object as PropType<ActionPreview | undefined>, default: undefined},
     nodeIndex: {type: Number, required: true},
   },
-  emits: ['confirm', 'cancel', 'repeat-pick'],
+  emits: ['confirm', 'cancel', 'repeat-pick', 'inspect-source'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
@@ -457,43 +485,87 @@ export default defineComponent({
         pre: this.capturedPre, option: this.capturedOption, steps: this.captured,
       });
     },
+    /** The live stored resource on the SOURCE card (shown under the hero card
+     *  — the pool most spend-branches consume). */
+    storedResource(): {icon: string, count: number} | undefined {
+      const model = this.thisPlayer.tableau.find((c) => c.name === this.entry.cardName);
+      const type = getCard(this.entry.cardName)?.resourceType;
+      if (model?.resources === undefined || type === undefined) {
+        return undefined;
+      }
+      return {icon: String(type), count: model.resources};
+    },
+    /** The honest disabled-CTA reason: names the FIRST missing decision so a
+     *  dimmed confirm is never mute about WHY. Empty when ready / in flight. */
+    ctaHint(): string {
+      if (this.submitting || this.canConfirm) {
+        return '';
+      }
+      if (this.branchChoiceList.some((c) => c.repeatAction === true)) {
+        return translateText('Choose an action to repeat');
+      }
+      if (this.selectedBranch === undefined && this.needBranchRow) {
+        return translateText('Choose an option');
+      }
+      const missing = firstMissingChoice(this.preview, this.selectedBranch, {
+        pre: this.capturedPre, option: this.capturedOption, steps: this.captured,
+      });
+      if (missing === undefined) {
+        return '';
+      }
+      switch (missing.kind) {
+      case 'card': return translateText('Choose a card');
+      case 'player': return translateText('Choose a player');
+      case 'or': return translateText('Choose an option');
+      case 'payment': return translateText('Configure payment');
+      case 'spendHeat': return translateText('Heat sources');
+      default: return '';
+      }
+    },
+    /** What kind of row the focus cursor is on — drives the A-verb of the
+     *  command contract (the bar always names exactly what A will do). */
+    focusedRowKind(): FocusRowKind {
+      if (this.items.length === 0) {
+        return 'none';
+      }
+      if (this.ctaFocused) {
+        return 'cta';
+      }
+      const item = this.focusedItem;
+      if (item === undefined) {
+        return 'cta';
+      }
+      if (item.kind === 'branch') {
+        return 'branch';
+      }
+      if (item.choice.kind === 'amount') {
+        return 'amount';
+      }
+      if (item.choice.kind === 'spendHeat') {
+        return 'spendHeat';
+      }
+      return 'pick';
+    },
     /** The composer's live command contract, published to the ONE shell bar
      *  (consolePanelUi 'actionComposer' — plan §3.2; the old in-panel footer
-     *  is gone). Sub-state (payment lanes / a pick list) re-labels the run. */
+     *  is gone). Built by the PURE stage builder (consoleActionFlow), so the
+     *  bar can never disagree with the flow stage: X is always «Осмотреть»
+     *  (the source card / a card list's focused row), the confirm is ONLY the
+     *  A press on the CTA row, and the committed hold reads as «Выполняется…». */
     footCommands(): Array<ConsoleCommand> {
+      if (this.submitting) {
+        return focusCommandRun({state: 'awaiting'});
+      }
       if (this.sub !== undefined) {
         if (this.sub.kind === 'payment') {
-          return [
-            {control: 'bumperL', control2: 'bumperR', label: '−1 / +1'},
-            {control: 'triggerR', label: 'MAX'},
-            {control: 'confirm', label: 'Done', enabled: this.paymentView?.covers === true},
-            {control: 'back', label: 'Back'},
-          ];
+          return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.covers === true});
         }
-        const hints: Array<ConsoleCommand> = [{control: 'confirm', label: 'Select'}];
-        if (this.subChoice?.input.type === 'card') {
-          hints.push({control: 'secondary', label: 'Inspect'});
-        }
-        hints.push({control: 'back', label: 'Back'});
-        return hints;
+        return focusCommandRun({state: 'sub-list', cardList: this.subChoice?.input.type === 'card'});
       }
-      const hints: Array<ConsoleCommand> = [];
-      if (this.items.length > 0 && !this.ctaFocused) {
-        const focused = this.focusedItem;
-        if (focused?.kind === 'choice' && (focused.choice.kind === 'amount' || focused.choice.kind === 'spendHeat')) {
-          hints.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
-          if (focused.choice.kind === 'amount') {
-            hints.push({control: 'triggerR', label: 'MAX'});
-          }
-        } else {
-          hints.push({control: 'confirm', label: 'Select'});
-        }
-        hints.push({control: 'secondary', label: 'Confirm', enabled: this.canConfirm});
-      } else {
-        hints.push({control: 'confirm', label: 'Confirm', enabled: this.canConfirm});
-      }
-      hints.push({control: 'back', label: 'Cancel'});
-      return hints;
+      const kind = this.focusedRowKind;
+      const item = this.focusedItem;
+      const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
+      return focusCommandRun({state: 'main', focused: kind, resolved, canConfirm: this.canConfirm});
     },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
@@ -648,6 +720,14 @@ export default defineComponent({
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
         setConsoleActionComposerCommands(cmds);
+      },
+    },
+    // The frame header (ConsoleCardActions) names the stage from this mode:
+    // decisions → «Настройка действия», a bare confirm → «Подтверждение».
+    hasDecisions: {
+      immediate: true,
+      handler(has: boolean) {
+        setConsoleActionComposerMode(has ? 'setup' : 'confirm');
       },
     },
   },
@@ -1113,8 +1193,11 @@ export default defineComponent({
         this.adjustFloaters(item.choice, dir === 'left' ? -1 : 1);
       }
     },
-    // MAIN state: A(primary) select/open, X(inspect) submits the action, B back,
-    // LB/RB(prev/nextSection) step amount/floaters, RT(nextTab) = max.
+    // MAIN state: A(primary) acts on the FOCUSED row (select a branch / open
+    // a pick / advance past a stepper — «Далее») and confirms ONLY on the CTA
+    // row; X(inspect) inspects the SOURCE card fullscreen (the ONE console
+    // X-verb — the quick-confirm X was retired for grammar consistency);
+    // B back, LB/RB(prev/nextSection) step amount/floaters, RT(nextTab) = max.
     onMainPress(action: ConsoleAction): void {
       const item = this.focusedItem;
       switch (action) {
@@ -1123,12 +1206,18 @@ export default defineComponent({
           this.submit();
         } else if (item.kind === 'branch') {
           this.selectBranch(item.pos);
+        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat') {
+          // A stepper adjusts via LB/RB — A ADVANCES toward the CTA («Далее»),
+          // mirroring the play composer's grammar (its visible, editable
+          // default is already captured).
+          this.focusIdx = Math.min(this.ctaIndex, this.focusIdx + 1);
+          this.scrollFocused();
         } else {
           this.openChoice(item.choice);
         }
         return;
       case 'inspect':
-        this.submit();
+        this.$emit('inspect-source');
         return;
       case 'back':
         this.$emit('cancel');
@@ -1206,6 +1295,9 @@ export default defineComponent({
         max: 1,
         selected: !repeat && this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : [],
         faceDown,
+        // The pick surface names the operation it serves — the player keeps
+        // the WHY while the focus stage waits hidden underneath.
+        source: {kicker: 'Action setup', card: this.entry.cardName},
       }, (cards) => {
         if (cards.length === 0) {
           return;
@@ -1245,6 +1337,9 @@ export default defineComponent({
         max: model.max ?? 1,
         selected: prior,
         gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+        // The pick surface names the operation it serves — the player keeps
+        // the WHY while the focus stage waits hidden underneath.
+        source: {kicker: 'Action setup', card: this.entry.cardName},
       }, (cards) => {
         // Re-locate by id — the preview may have refreshed under the pick.
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
@@ -1367,6 +1462,12 @@ export default defineComponent({
     },
     scrollFocused(): void {
       void this.$nextTick(() => {
+        // The CTA lives in the pinned dock OUTSIDE the scroll viewport — it is
+        // always visible, and feeding an outside node to the scroll math
+        // would walk the viewport to a bogus offset.
+        if (this.ctaFocused) {
+          return;
+        }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
         // Foundation: keep the focused row visible via the ConsoleScrollArea's

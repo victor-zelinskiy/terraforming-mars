@@ -65,6 +65,10 @@ export type PlayedTableauPickRequest = {
   /** Candidates that lie FACE DOWN on the table (played events) — they lift
    *  off the events pile and FLIP open mid-flight. */
   faceDown: ReadonlyArray<CardName>,
+  /** The OPERATION this pick belongs to (the source card being played /
+   *  activated + a kicker i18n key, e.g. 'Action setup') — the pick surface
+   *  shows it so the player never loses WHY they are choosing a target. */
+  source?: {kicker: string, card: CardName},
 };
 
 export const playedCategoryState = reactive({

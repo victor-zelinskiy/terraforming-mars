@@ -3,23 +3,40 @@
        director (surfaceMotionDirector) — no own backdrop; the frame is the
        animated panel, the composer above is its own motion surface. -->
   <div class="con-cardactions" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
-    <!-- The action center frame (dimmed while the composer is open). -->
-    <div class="con-cardactions__frame" data-motion-panel :class="{'con-cardactions__frame--behind': composer !== undefined}">
-      <!-- ── Header: title + counts + player chip ─────────────────────── -->
+    <!-- The action center frame — ONE chrome for both presentation states:
+         the browse grid AND the in-frame ACTION FOCUS stage. -->
+    <div class="con-cardactions__frame" data-motion-panel>
+      <!-- ── Header: the flow's identity line. Browse names the screen +
+           counts; focus turns it into the operation breadcrumb
+           («Действия карт › Настройка действия» · the card · the variant) —
+           the top area serves the CURRENT stage, never a dead bar. ── -->
       <header class="con-cardactions__head">
         <div class="con-cardactions__head-main">
           <div class="con-cardactions__kicker">
             <span class="con-cardactions__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t('Card actions') }}</span>
+            <template v-if="composer !== undefined">
+              <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+              <span class="con-cardactions__kicker-step">{{ $t(focusKickerKey) }}</span>
+            </template>
           </div>
-          <div class="con-cardactions__title">{{ $t('Card actions') }}</div>
+          <transition name="con-cardactions-headswap" mode="out-in">
+            <div class="con-cardactions__title" :key="composer !== undefined ? composer.cardName : ''">
+              {{ composer !== undefined ? $t(composer.cardName) : $t('Card actions') }}
+            </div>
+          </transition>
         </div>
         <div class="con-cardactions__head-stats">
-          <span class="con-cardactions__stat">
-            <b>{{ model.totalTiles }}</b><i>{{ $t('total') }}</i>
-          </span>
-          <span class="con-cardactions__stat con-cardactions__stat--go" :class="{'con-cardactions__stat--zero': model.availableTiles === 0}">
-            <b>{{ model.availableTiles }}</b><i>{{ $t('can perform') }}</i>
+          <template v-if="composer === undefined">
+            <span class="con-cardactions__stat">
+              <b>{{ model.totalTiles }}</b><i>{{ $t('total') }}</i>
+            </span>
+            <span class="con-cardactions__stat con-cardactions__stat--go" :class="{'con-cardactions__stat--zero': model.availableTiles === 0}">
+              <b>{{ model.availableTiles }}</b><i>{{ $t('can perform') }}</i>
+            </span>
+          </template>
+          <span v-else-if="focusVariantTotal > 1" class="con-cardactions__stat">
+            <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
           </span>
           <span class="con-cardactions__player" :class="'player_bg_color_' + thisPlayer.color">
             <span class="con-cardactions__player-dot" aria-hidden="true"></span>
@@ -28,6 +45,13 @@
         </div>
       </header>
 
+      <!-- ── The stage wrap: the BROWSE layer (filters + grid + inspector)
+           and the ACTION FOCUS stage occupy the same region; entering focus
+           recomposes the frame in place (the browse DOM is only hidden, so
+           filters / selection / scroll survive by construction). ── -->
+      <div class="con-cardactions__stagewrap">
+      <div class="con-cardactions__browse" ref="browseEl"
+           :class="{'con-cardactions__browse--parked': composer !== undefined}">
       <!-- ── Filters: two labeled groups with their OWN trigger chips
            (the sanctioned exception to the one-bottom-bar rule). ─────── -->
       <div class="con-cardactions__filters">
@@ -142,16 +166,27 @@
             </div>
           </div>
 
-          <!-- The printed action rule (recognizable graphic). A text-override
-               action reads as a labelled «ДЕЙСТВИЕ» prose block here (the ONE
-               full copy — the master tile shows a 2-line preview), never a
-               giant duplicate. -->
-          <div class="con-cardactions__detail-label" v-if="focusedTile.node.actionNode === undefined && focusedTile.node.renderRoot === undefined">{{ $t('Action') }}</div>
-          <div class="con-cardactions__detail-graphic card-container" v-i18n v-strip-action-prefix>
-            <CardRenderEffectBoxComponent v-if="focusedTile.node.actionNode !== undefined" :effectData="focusedTile.node.actionNode" />
-            <CardRenderData v-else-if="focusedTile.node.renderRoot !== undefined" :renderData="focusedTile.node.renderRoot" />
-            <span v-else class="con-cardactions__graphic-text con-cardactions__graphic-text--detail">{{ focusedTile.node.text }}</span>
+          <!-- The CARD ITSELF is the panel's anchor — the physical source of
+               the selected action. The action SCHEMA already reads on the
+               focused tile at the left (repeating it large here was the
+               duplication this rework removes); the structured chips below
+               carry the complete formula. X lifts THIS thumbnail into the
+               fullscreen dossier; A FLIPs it into the focus stage's hero. -->
+          <div class="con-cardactions__detail-card" ref="detailCard"
+               data-action-flow-thumb
+               :data-zoom-slot="focusedTile.cardName"
+               aria-hidden="true">
+            <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
           </div>
+          <!-- A TEXT-override action keeps its ONE full prose copy (the
+               master tile clamps it to a 2-line preview and the card face
+               can't carry it) — only the GRAPHIC duplicate is gone. -->
+          <template v-if="focusedTile.node.actionNode === undefined && focusedTile.node.renderRoot === undefined">
+            <div class="con-cardactions__detail-label">{{ $t('Action') }}</div>
+            <div class="con-cardactions__detail-text" v-i18n v-strip-action-prefix>
+              <span class="con-cardactions__graphic-text con-cardactions__graphic-text--detail">{{ focusedTile.node.text }}</span>
+            </div>
+          </template>
 
           <!-- The complete cost / reward breakdown (static + variable). -->
           <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block">
@@ -209,26 +244,31 @@
           </div>
         </aside>
       </div>
-    </div>
+      </div><!-- /__browse -->
 
-    <!-- ── The ACTION COMPOSER (every pre-submit choice lives here) ──────
-         Surface-motion transition: JS hooks only (:css="false") — the
-         director plays open/dismiss on the panel; on the committed confirm
-         the composer HOLDS (awaiting handoff) and its eventual unmount
-         rides the phase swap into the reveal. -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
-                             ref="composerRef"
-                             :playerView="playerView"
-                             :entry="composerEntry"
-                             :preview="composerPreview"
-                             :nodeIndex="composer.nodeIndex"
-                             @confirm="onComposerConfirm"
-                             @cancel="onComposerCancel"
-                             @repeat-pick="onRepeatPick" />
-    </transition>
+      <!-- ── The ACTION FOCUS stage (every pre-submit choice lives here) ──
+           The custom hooks play the IN-FRAME recompose: the browse layer
+           yields, the inspector thumbnail FLIPs into the stage's hero card,
+           the decision column rises; B reverses the same movement. The stage
+           keeps `data-motion-surface="action-composer"`, so on the committed
+           confirm it HOLDS (awaiting handoff) and its eventual unmount rides
+           the surface-motion phase swap into the reveal / task host. -->
+      <transition :css="false" appear
+                  @enter="actionFocusEnterHook" @leave="actionFocusLeaveHook"
+                  @enter-cancelled="actionFocusEnterCancelledHook" @leave-cancelled="actionFocusLeaveCancelledHook">
+        <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
+                               ref="composerRef"
+                               :playerView="playerView"
+                               :entry="composerEntry"
+                               :preview="composerPreview"
+                               :nodeIndex="composer.nodeIndex"
+                               @confirm="onComposerConfirm"
+                               @cancel="onComposerCancel"
+                               @repeat-pick="onRepeatPick"
+                               @inspect-source="onInspectSource" />
+      </transition>
+      </div><!-- /__stagewrap -->
+    </div>
 
     <!-- The command contract lives in the global command bar
          (CONSOLE_TV_PREMIUM_PLAN §3.2); the filter groups above keep their
@@ -238,24 +278,35 @@
 
 <script lang="ts">
 /**
- * ConsoleCardActions — the console-native "Blue Card Action Center"
- * (iteration 2). A premium master-detail surface for activatable blue-card /
- * corporation actions: groups (one per source card) with variant tiles
- * (COMPLETE cost→reward formulas — static chips + player-chosen variable
- * ranges, never a lossy simplification), two labeled faceted filters counted
- * BY VARIANT, a persistent inspector with per-VARIANT usage stats (desktop
- * branchScope parity), and the ACTION COMPOSER — every pre-submit choice
- * (branch / amount / card / player / payment / spend-heat) is made BEFORE
- * the one final submit, byte-identical to the desktop confirm modal
- * (`buildActionBatch` mirrors `submitCardActionBatch`; a Viron repeat rides
- * the same prefix handoff as `submitRepeatActionBatch`).
+ * ConsoleCardActions — the console-native "Blue Card Action Center": ONE
+ * workflow surface with two presentation states (consoleActionFlow):
+ *
+ *  BROWSE — a premium master-detail grid of activatable blue-card /
+ *  corporation actions: groups (one per source card) with variant tiles
+ *  (COMPLETE cost→reward formulas — static chips + player-chosen variable
+ *  ranges, never a lossy simplification), two labeled faceted filters counted
+ *  BY VARIANT, and a persistent inspector anchored by the source-card
+ *  THUMBNAIL (X lifts it into the fullscreen ПРАВИЛА/ИСТОРИЯ dossier).
+ *
+ *  ACTION FOCUS — A recomposes the SAME frame around the chosen action (the
+ *  browse layer yields in place, its filters / selection / scroll surviving
+ *  by construction; the thumbnail FLIPs into the stage's hero card): the
+ *  in-frame stage hosts EVERY pre-submit choice (branch / amount / card /
+ *  player / payment / spend-heat), byte-identical to the desktop confirm
+ *  modal (`buildActionBatch` mirrors `submitCardActionBatch`; a Viron repeat
+ *  rides the same prefix handoff as `submitRepeatActionBatch`). B reverses
+ *  the movement back into browse; the committed confirm HOLDS the stage
+ *  (awaiting handoff) and phase-FLIPs into the reveal / task host.
  *
  * Control grammar (hints live in the global command bar — the filter groups
  * carry their own on-object LB/RB · LT/RT chips, the sanctioned exception):
- *   D-pad = navigate variants · A = set up / confirm the focused action
- *   (unavailable → reason, never fires) · X = inspect the card fullscreen ·
+ *   BROWSE: D-pad = navigate variants · A = focus the available action
+ *   (unavailable → reason, never fires) · X = inspect fullscreen ·
  *   LB/RB = availability · LT/RT = activation · R3 = reset · RS = scroll ·
  *   B = close.
+ *   FOCUS: A = the focused row's verb (select / change / next; confirm ONLY
+ *   on the CTA row) · X = inspect the SOURCE card · B = back to browse
+ *   (until the commit — after it, input is absorbed).
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -285,8 +336,18 @@ import {
   ConsoleVariableChip,
 } from '@/client/console/consoleCardActions';
 import {buildActionBatch} from '@/client/console/consoleActionComposer';
-import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
+import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
+import {
+  actionFocusEnterHook,
+  actionFocusLeaveHook,
+  actionFocusEnterCancelledHook,
+  actionFocusLeaveCancelledHook,
+  armActionFocusOrigin,
+  resetActionFocusMotion,
+} from '@/client/console/consoleActionFocusMotion';
+import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
@@ -298,7 +359,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {findPerformActionCard, wrapPath} from '@/client/console/turnIntents';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 const STATUS_HEADING: Record<ActionStatus, string> = {
   available: 'Can perform',
@@ -325,18 +386,14 @@ const CHOICE_KIND_LABEL: Record<'card' | 'player' | 'or' | 'payment' | 'spendHea
 /** Scroll step for the right-stick list scroll (mirrors the shell). */
 const SCROLL_STEP_PX = 40;
 
-type ComposerContext = {
-  cardName: CardName,
-  nodeIndex: number,
-  /** Repeat-action prefix (replaces the activate pick — Viron handoff). */
-  prefix?: ReadonlyArray<unknown>,
-  /** The OUTER composer to restore when this (inner repeat) one cancels. */
-  outer?: {cardName: CardName, nodeIndex: number},
-};
+/** The focus stage's draft identity — the ONE flow-draft type
+ *  (consoleActionFlow.ActionFlowDraft): card + variant (+ the Viron repeat
+ *  prefix / outer restore context). */
+type ComposerContext = ActionFlowDraft;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -420,29 +477,32 @@ export default defineComponent({
       const tile = this.focusedTile;
       return tile === undefined ? undefined : this.model.groups.find((g) => g.cardName === tile.cardName);
     },
-    /** The Action Center's grid contract for the ONE shell bar (plan §3.2).
-     *  Empty while the composer is open — the composer publishes its own
-     *  slot then ('actionComposer'); the watcher below skips publishing. */
+    /** The Action Center's grid contract for the ONE shell bar (plan §3.2),
+     *  built by the PURE stage builder (consoleActionFlow). Empty while the
+     *  focus stage is open — the stage publishes its own slot then
+     *  ('actionComposer'); the watcher below skips publishing. */
     footCommands(): Array<ConsoleCommand> {
       if (this.composer !== undefined) {
         return [];
       }
-      if (this.model.groups.length === 0) {
-        // Empty state: the reset + the filter chords lead (the filters are
-        // what emptied the grid).
-        return [
-          {control: 'stickR', label: 'Reset'},
-          {control: 'bumperL', control2: 'bumperR', label: 'Availability'},
-          {control: 'triggerL', control2: 'triggerR', label: 'Activation'},
-          {control: 'back', label: 'Close'},
-        ];
+      return browseCommandRun({
+        empty: this.model.groups.length === 0,
+        focusedAvailable: this.focusedTile?.status === 'available',
+      });
+    },
+    /** The focus-stage breadcrumb step («Настройка действия» / «Подтверждение»),
+     *  published live by the stage itself. */
+    focusKickerKey(): string {
+      return focusKicker(consoleActionComposerUi.mode === 'setup');
+    },
+    /** Total variants of the focused card (the header's «Вариант N/M» chip);
+     *  1 hides the chip (single-action card / a Viron repeat with no node). */
+    focusVariantTotal(): number {
+      const c = this.composer;
+      if (c === undefined || c.nodeIndex < 0) {
+        return 1;
       }
-      return [
-        {control: 'confirm', label: 'Perform', enabled: this.focusedTile?.status === 'available'},
-        {control: 'secondary', label: 'Inspect'},
-        {control: 'stickR', label: 'Reset'},
-        {control: 'back', label: 'Close'},
-      ];
+      return this.composerEntry?.group.nodes.length ?? 1;
     },
     statForFocused(): EffectOverlayStat | undefined {
       const tile = this.focusedTile;
@@ -533,6 +593,7 @@ export default defineComponent({
   beforeUnmount() {
     consoleCardActionsUi.confirmOpen = false;
     clearPanelCommands('cardActions');
+    resetActionFocusMotion();
     if (this.shakeTimer !== undefined) {
       window.clearTimeout(this.shakeTimer);
     }
@@ -679,12 +740,18 @@ export default defineComponent({
       this.focusKey = keys[next];
       void this.$nextTick(() => this.scrollFocusedIntoView());
     },
-    // Surface-motion transition hooks (plain functions — no `this`).
-    surfaceEnterHook,
-    surfaceLeaveHook,
-    surfaceEnterCancelledHook,
-    surfaceLeaveCancelledHook,
+    // ACTION FOCUS transition hooks (plain functions — no `this`).
+    actionFocusEnterHook,
+    actionFocusLeaveHook,
+    actionFocusEnterCancelledHook,
+    actionFocusLeaveCancelledHook,
     activateFocused(): void {
+      // Repeated input hardening: while the stage is up the shell routes A
+      // into it — but even a stray call must never re-arm the draft (a
+      // re-created draft object would reseed captures mid-preparation).
+      if (this.composer !== undefined) {
+        return;
+      }
       const tile = this.focusedTile;
       if (tile === undefined) {
         return;
@@ -693,10 +760,17 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
+      // Remember the inspector thumbnail's live rect — the focus stage's hero
+      // card FLIPs from it (the enter hook consumes the armed origin).
+      const thumb = this.$refs.detailCard as HTMLElement | undefined;
+      armActionFocusOrigin(thumb?.getBoundingClientRect?.());
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
     },
     closeComposer(): void {
       this.composer = undefined;
+      // Belt-and-braces focus restoration: the browse DOM was only hidden,
+      // but re-assert the focused tile's visibility after the return.
+      void this.$nextTick(() => this.scrollFocusedIntoView());
     },
     inspectFocused(): void {
       const tile = this.focusedTile;
@@ -722,10 +796,44 @@ export default defineComponent({
         index: tile.nodeIndex,
         total: group?.tiles.length ?? 1,
       });
-      // Opened from the action GRAPHIC (no card tile on screen) → TEXTUAL.
+      // PHYSICAL origin: the inspector THUMBNAIL lifts into the fullscreen
+      // dossier and returns into the same slot on close — the panel card and
+      // the big viewer are one object, never two disconnected previews.
       openConsoleCardZoom([card], 0, undefined, undefined, {
         contextLabel: 'Card actions',
-        origin: {kind: 'textual'},
+        origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+        inspect: {history},
+      });
+    },
+    /** X inside the ACTION FOCUS stage: inspect the SOURCE card (same
+     *  ПРАВИЛА/ИСТОРИЯ dossier), lifting from the stage's hero card slot —
+     *  the draft underneath survives untouched and the player returns to the
+     *  exact same focus state on close. */
+    onInspectSource(): void {
+      const comp = this.composer;
+      if (comp === undefined) {
+        return;
+      }
+      const card = this.thisPlayer.tableau.find((c) => c.name === comp.cardName);
+      if (card === undefined) {
+        return;
+      }
+      const entry = this.entries.find((e) => e.cardName === comp.cardName);
+      const branches = this.previews[comp.cardName]?.branches ?? [];
+      const scope = (entry !== undefined && comp.nodeIndex >= 0) ?
+        branchScopeForNode(entry.group, branches, comp.nodeIndex) : undefined;
+      const res = this.cardResources.get(comp.cardName);
+      const stored = res !== undefined ? {icon: String(res.type), count: res.count} : undefined;
+      const stat = this.stats.find((s) => s.card === comp.cardName);
+      const history = buildActionInspectHistory(stat, scope, stored, {
+        index: Math.max(0, comp.nodeIndex),
+        total: entry?.group.nodes.length ?? 1,
+      });
+      openConsoleCardZoom([card], 0, undefined, undefined, {
+        contextLabel: 'Card actions',
+        origin: slotZoomOrigin(
+          () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-motion-surface="action-composer"]'),
+          () => comp.cardName),
         inspect: {history},
       });
     },

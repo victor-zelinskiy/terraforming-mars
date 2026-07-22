@@ -2272,6 +2272,8 @@ export default defineComponent({
           amount: gain.amount,
           current: (this.thisPlayer as unknown as Record<string, number>)[gain.icon],
         } : undefined,
+        // The source-operation chip (a composer's target pick names WHY).
+        context: pick?.source !== undefined ? {kicker: pick.source.kicker, card: pick.source.card} : undefined,
       };
     },
     /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
@@ -2796,9 +2798,9 @@ export default defineComponent({
         return this.quickTitle;
       }
       if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open) {
-        // The composer over the Action Center: the bar names the DECISION,
-        // not the grid behind it.
-        return 'Confirmation';
+        // The ACTION FOCUS stage inside the Action Center: the bar names the
+        // STAGE (setup vs a bare confirm), not the grid underneath.
+        return consoleActionComposerUi.mode === 'setup' ? 'Action setup' : 'Confirmation';
       }
       if (this.consoleState.sheet !== undefined) {
         return this.sheetTitle;

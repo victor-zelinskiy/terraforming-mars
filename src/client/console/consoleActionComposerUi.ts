@@ -16,10 +16,14 @@ import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 
 export const consoleActionComposerUi = reactive({
-  /** True while the composer dialog is mounted (drives the shell branch). */
+  /** True while the ACTION FOCUS stage is mounted (drives the shell branch). */
   open: false,
-  /** The composer's live contract, ready for the command bar. */
+  /** The stage's live contract, ready for the command bar. */
   commands: [] as ReadonlyArray<ConsoleCommand>,
+  /** The stage's headline mode — decisions to make («Настройка действия») vs
+   *  a bare confirm («Подтверждение»). The frame header + the command-bar
+   *  context read it, so the chrome always names the stage honestly. */
+  mode: 'setup' as 'setup' | 'confirm',
 });
 
 export function setConsoleActionComposerCommands(commands: ReadonlyArray<ConsoleCommand>): void {
@@ -27,7 +31,12 @@ export function setConsoleActionComposerCommands(commands: ReadonlyArray<Console
   consoleActionComposerUi.commands = commands;
 }
 
+export function setConsoleActionComposerMode(mode: 'setup' | 'confirm'): void {
+  consoleActionComposerUi.mode = mode;
+}
+
 export function resetConsoleActionComposerUi(): void {
   consoleActionComposerUi.open = false;
   consoleActionComposerUi.commands = [];
+  consoleActionComposerUi.mode = 'setup';
 }

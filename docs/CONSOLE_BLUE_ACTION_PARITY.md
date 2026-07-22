@@ -1,3 +1,52 @@
+# ACTION FOCUS (iteration 6) — one workflow surface, no more confirm modal
+
+**«Действия карт» — ОДНА поверхность с двумя presentation-состояниями**
+(`consoleActionFlow.ts`: browse → focus → (pick) → committing), а не список +
+отдельная центр-модалка подтверждения:
+
+- **BROWSE** — прежний master-detail грид; правая панель теперь якорится на
+  **МИНИАТЮРЕ карты** (`ConsoleCardFaceLite` в `__detail-card`,
+  `data-zoom-slot` — physical origin для X-inspect: миниатюра физически
+  раскрывается в fullscreen досье и возвращается в слот). Крупный ДУБЛЬ схемы
+  действия из панели удалён (схема читается на focused-тайле слева; полные
+  структурные чипы «будет списано / вы получите» остались); text-override
+  действия сохраняют свой ЕДИНСТВЕННЫЙ полный текст (`__detail-text`).
+- **ACTION FOCUS** — A больше не открывает модалку: тот же фрейм
+  РЕКОМПОНУЕТСЯ вокруг выбранного действия (`consoleActionFocusMotion.ts`:
+  browse-слой уступает [autoAlpha, DOM жив — фильтры/выбор/скролл переживают
+  по построению], миниатюра **FLIP'ует** в hero-карту стадии, колонка решений
+  поднимается; B — обратное движение, FLIP назад в миниатюру).
+  `ConsoleActionComposer` СТАЛ этой стадией (`--stage`: absolute в
+  `__stagewrap`, панель без собственного стекла — хром несёт фрейм) — вся
+  логика захватов/оплаты/веток/Viron нетронута. Шапка фрейма в focus =
+  breadcrumb «ДЕЙСТВИЯ КАРТ › НАСТРОЙКА ДЕЙСТВИЯ» + имя карты + чип
+  «Вариант N/M» (публикуется через `consoleActionComposerUi.mode`).
+- **CTA-док**: подтверждение вынесено ИЗ скролла в закреплённый док
+  (`__ctadock`) — выход операции всегда на экране; при недоступном CTA
+  honest-hint называет ПЕРВОЕ недостающее решение (`firstMissingChoice`).
+  Под hero-картой — живой чип ресурса на карте (`__cardmeta`).
+- **Грамматика (унифицирована с play-композером): X = ТОЛЬКО «Осмотреть»**
+  (source-карта в main, focused-кандидат в card-саблисте) — X-quick-confirm
+  УБРАН; подтверждение = ТОЛЬКО A на CTA-ряду; A на amount/spendHeat =
+  «Далее» (шаг к CTA). Все command-run'ы строит чистый
+  `focusCommandRun`/`browseCommandRun` (consoleActionFlow) — бар не может
+  разойтись со стадией; committed hold публикует честное «Выполняется…».
+- **Pick-контекст**: hand/tableau pick несут `source: {kicker, card}` —
+  рука показывает чип `__pickctx` («НАСТРОЙКА ДЕЙСТВИЯ · <карта>»),
+  категорийный вид «Разыграно» — то же в кикере. Композер по-прежнему
+  v-show-прячется (захваты переживают roundtrip).
+- **Commit нетронут**: `data-motion-surface="action-composer"` остался на
+  стадии — awaiting-hold, захват departure и phase-FLIP анкора
+  `card:<name>` в reveal / task-host работают byte-в-byte (e2e
+  console-surface-motion зелёный без правок сценария).
+
+Гварды: `consoleActionFlow.spec.ts` (стадии + command-run'ы),
+`composerRender.spec.ts` (stage-рендер / CTA-док / hint / X→inspect-source /
+A-Далее / cardmeta), `consoleCardActionsFocus.spec.ts` (mount: A→стадия в
+фрейме, browse parked + фильтры/фокус переживают, B→восстановление).
+
+---
+
 # Console composers — polish pass (iteration 4): re-select · command bar · bot name · colour dot
 
 Three defects across the PLAY + ACTION composers, all fixed:

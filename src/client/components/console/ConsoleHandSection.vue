@@ -40,6 +40,15 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ sale.after }}</b>
         </span>
       </div>
+      <!-- SELECT mode: the SOURCE-OPERATION chip — a composer's target pick
+           names the action it serves («Настройка действия · Газосборники»),
+           so the player never loses the WHY mid-pick. -->
+      <div v-if="selectActive && select !== undefined && select.context !== undefined" class="con-hand__pickctx">
+        <span class="con-hand__pickctx-mark" aria-hidden="true">◈</span>
+        <span class="con-hand__pickctx-kicker">{{ $t(select.context.kicker) }}</span>
+        <span class="con-hand__pickctx-sep" aria-hidden="true">·</span>
+        <span class="con-hand__pickctx-card">{{ $t(select.context.card) }}</span>
+      </div>
       <!-- SELECT mode: the "suitable only" filter chip (LT toggles). Shown only
            for a CONDITIONAL prompt where some hand cards can't be picked; a
            plain "pick any card" prompt (e.g. discard 1) has no non-candidates,
@@ -244,6 +253,10 @@ export type ConsoleHandSelectMode = {
   /** Live per-picked-card payout (Public Plans: +1 M€ each) — renders the
    *  sale-bar-style running summary (count · +gain · before → after). */
   payout?: {icon: string, amount: number, current?: number},
+  /** The OPERATION this pick serves (a composer's target pick): a kicker
+   *  i18n key + the source card name (i18n key). Rendered as a header chip so
+   *  the player never loses WHY they are choosing here. */
+  context?: {kicker: string, card: string},
 };
 
 /** Rows kept mounted above/below the viewport so a fast page never blanks. */

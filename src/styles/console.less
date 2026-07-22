@@ -165,6 +165,12 @@ body.con-zoom-open .con-handdock {
    ⚠ Never give the chip rem sizes inside a container that zooms by
    var(--con-ui-scale) — rem already scales with the TV rem base, the zoom
    would multiply it a second time. */
+/* ⚠ DOUBLED chip classes (specificity 0,3,0) ON PURPOSE: ActionEffectChip's
+   own SCOPED styles compile to `.action-effect-chip[data-v-…]` (0,2,0) and are
+   injected by webpack AT RUNTIME — i.e. AFTER the static styles.css link — so
+   a same-specificity console rule loses the tie and the chips silently fall
+   back to their 13px desktop size (the TV couch weight vanished). The double
+   class beats the scoped rule REGARDLESS of injection order. */
 .con-task-host,
 .con-composer,
 .con-cardactions,
@@ -172,17 +178,17 @@ body.con-zoom-open .con-handdock {
 .con-govsupport,
 .con-trade,
 .con-prodloss {
-    .action-effect-chip {
+    .action-effect-chip.action-effect-chip {
         font-size: var(--con-chip-fs, 0.85rem);
         gap: 0.3rem;
         padding: var(--con-chip-pad, 0.3rem 0.65rem 0.3rem 0.4rem);
     }
-    .action-effect-chip__icon {
+    .action-effect-chip__icon.action-effect-chip__icon {
         width: var(--con-chip-icon, 1.3rem);
         height: var(--con-chip-icon, 1.3rem);
     }
-    .action-effect-chip__note,
-    .action-effect-chip__basis {
+    .action-effect-chip__note.action-effect-chip__note,
+    .action-effect-chip__basis.action-effect-chip__basis {
         font-size: var(--con-chip-note, 0.7rem);
     }
 }
@@ -4191,6 +4197,36 @@ html.console-mode {
         .con-hand__salebar-num--after {
             color: #d8f4ff;
         }
+    }
+
+    /* The SOURCE-OPERATION chip of a composer's target pick («Настройка
+       действия · Газосборники») — the player never loses WHY they pick. */
+    &__pickctx {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .2rem .7rem;
+        border-radius: 49.95rem;
+        background: rgba(12, 22, 34, 0.62);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        white-space: nowrap;
+        min-width: 0;
+    }
+    &__pickctx-mark { color: @con-cyan; font-size: .7rem; }
+    &__pickctx-kicker {
+        font-size: .625rem;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+    }
+    &__pickctx-sep { color: rgba(150, 175, 205, 0.55); }
+    &__pickctx-card {
+        font-size: .8rem;
+        font-weight: 800;
+        color: @con-text;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 14rem;
     }
 
     &__selectfilter {
@@ -13087,7 +13123,9 @@ html.console-mode {
        (surfaceMotionState) — one continuous darkness across the wheel →
        center → composer → reveal chain, never stacked dims. */
 
-    /* The action-center frame — the glass panel filling the freed TV space. */
+    /* The action-center frame — ONE glass chrome for BOTH presentation
+       states (browse grid / ACTION FOCUS stage): entering focus recomposes
+       the content, the frame itself never moves. */
     &__frame {
         position: relative;
         z-index: 1;
@@ -13100,8 +13138,6 @@ html.console-mode {
         border-radius: .8rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
-        &--behind { opacity: 0.32; } /* dimmed behind the confirm sub-overlay */
     }
 
     /* ── Header ── */
@@ -13111,6 +13147,9 @@ html.console-mode {
         font-size: .75rem; letter-spacing: .11rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
     }
     &__kicker-mark { color: @con-cyan; }
+    /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
+    &__kicker-sep { color: fade(@con-cyan, 50%); }
+    &__kicker-step { color: @con-text; }
     &__title {
         margin-top: .2rem;
         font-size: 1.5rem; font-weight: 800; letter-spacing: .05rem; text-transform: uppercase; line-height: 1.05;
@@ -13160,6 +13199,22 @@ html.console-mode {
         b { font-size: .75rem; font-weight: 800; color: @con-text; }
         &--active { background: fade(@con-cyan, 16%); box-shadow: inset 0 0 0 .075rem @con-cyan; color: @con-text; b { color: @con-cyan; } }
         &--empty { opacity: 0.4; }
+    }
+
+    /* ── The stage wrap: the BROWSE layer and the ACTION FOCUS stage share
+       one region; focus hides browse in place (GSAP autoAlpha — layout kept,
+       so the grid's scroll/selection survive; visibility kills its input). ── */
+    &__stagewrap { position: relative; flex: 1; min-height: 0; }
+    &__browse {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        min-height: 0;
+        /* Stray pointer input dies the moment the stage owns the frame (the
+           motion's autoAlpha handles visibility). */
+        &--parked { pointer-events: none; }
     }
 
     /* ── Body: master list + inspector ── */
@@ -13301,12 +13356,20 @@ html.console-mode {
     &__verdict-reason { margin-top: .15rem; font-size: .8rem; color: #ffd0c8; line-height: 1.3; }
     &__verdict--soft &__verdict-reason { color: #ffe6b0; }
 
-    &__detail-graphic {
-        margin: 0 !important; min-width: 0; max-width: 100%;
-        zoom: calc(1.25 * var(--con-ui-scale, 1)); align-self: stretch;
-        .card-description { display: none; }
-        &:has(> .con-cardactions__graphic-text) { zoom: 1; }
+    /* The inspector's CARD THUMBNAIL — the panel's visual anchor AND the
+       physical zoom slot (X lifts it into the fullscreen dossier; A FLIPs it
+       into the focus stage's hero card). Px-authored premium face inside the
+       rem layout → fixed zoom × the ui scale. */
+    &__detail-card {
+        align-self: center;
+        margin: .1rem 0;
+        zoom: calc(0.66 * var(--con-ui-scale, 1));
+        pointer-events: none;
+        > :is(.card-container, .pcard) { margin: 0; }
     }
+    /* A TEXT-override action's ONE full prose copy (the graphic duplicate is
+       gone; the span inside carries the shared graphic-text look). */
+    &__detail-text { min-width: 0; max-width: 100%; }
     &__detail-block { display: flex; flex-direction: column; gap: .3rem; }
     &__detail-label { font-size: .65rem; letter-spacing: .06rem; text-transform: uppercase; color: @con-text-dim; }
     &__detail-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
@@ -13348,11 +13411,12 @@ html.console-mode {
         &--off { opacity: 0.42; }
     }
 
-    /* TV enlargement of the shared effect chips — the nesting adds the
-       `.con-cardactions` ancestor, so (0,3,0) reliably beats the scoped 13px. */
+    /* TV enlargement of the shared effect chips — the DOUBLED chip class
+       keeps this accent above the runtime-injected scoped 13px (see the
+       chip-system rule at the top of this file). */
     /* Chip sizes come from the console chip system (--con-chip-*); only
        the hierarchy accent stays local. */
-    &__formula--lg .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
+    &__formula--lg .action-effect-chip.action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
 }
 
 @keyframes con-cardact-shake {
@@ -13361,9 +13425,29 @@ html.console-mode {
     50% { transform: translateX(.25rem); }
     80% { transform: translateX(-.15rem); }
 }
+
+/* The header's browse ⇄ focus content swap (a short out-in beat — the fixed
+   header height means no layout motion, only the text crossfades). */
+.con-cardactions-headswap-enter-active,
+.con-cardactions-headswap-leave-active {
+    transition: opacity calc(110ms * var(--motion-scale, 1)) ease, transform calc(110ms * var(--motion-scale, 1)) ease;
+}
+.con-cardactions-headswap-enter-from { opacity: 0; transform: translateY(.2rem); }
+.con-cardactions-headswap-leave-to { opacity: 0; transform: translateY(-.15rem); }
+
+/* The focus stage's hero-face micro-swap (a Viron repeat re-points the card
+   without a remount — the slot stays, only the face crossfades). */
+.con-actfocus-card-enter-active,
+.con-actfocus-card-leave-active {
+    transition: opacity calc(130ms * var(--motion-scale, 1)) ease, transform calc(130ms * var(--motion-scale, 1)) ease;
+}
+.con-actfocus-card-enter-from { opacity: 0; transform: scale(0.97); }
+.con-actfocus-card-leave-to { opacity: 0; transform: scale(1.02); }
+
 @media (prefers-reduced-motion: reduce) {
     .con-cardactions__tile--shake { animation: none; }
-    .con-cardactions__frame { transition: none; }
+    .con-cardactions-headswap-enter-active, .con-cardactions-headswap-leave-active,
+    .con-actfocus-card-enter-active, .con-actfocus-card-leave-active { transition: none; }
 }
 
 /* ── ACTION COMPOSER (ConsoleActionComposer.vue) — the pre-submit setup
@@ -13441,9 +13525,10 @@ html.console-mode {
     &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__hero-arrow { font-size: 1.3rem; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
     /* Hero «списано → получите» leads the hierarchy: one notch above the
-       system chip size (tokens; TV raises the tokens themselves). */
-    &__hero .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
-    &__hero .action-effect-chip__icon {
+       system chip size (tokens; TV raises the tokens themselves). Doubled
+       chip classes — see the chip-system rule at the top of this file. */
+    &__hero .action-effect-chip.action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
+    &__hero .action-effect-chip__icon.action-effect-chip__icon {
         width: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
         height: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
     }
@@ -13552,9 +13637,10 @@ html.console-mode {
         &--plant { color: #8ff0c4; background: rgba(20, 60, 44, 0.5); }
     }
     /* The premium metadata chip of an OrOptions option (steal/gain preview). */
-    /* Nested or-option chips: one notch under the system size. */
-    &__opt-chip .action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) - .05rem)"; }
-    &__opt-chip .action-effect-chip__icon {
+    /* Nested or-option chips: one notch under the system size. Doubled chip
+       classes — see the chip-system rule at the top of this file. */
+    &__opt-chip .action-effect-chip.action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) - .05rem)"; }
+    &__opt-chip .action-effect-chip__icon.action-effect-chip__icon {
         width: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
         height: ~"calc(var(--con-chip-icon, 1.3rem) - .15rem)";
     }
@@ -13879,6 +13965,93 @@ html.console-mode {
     to { transform: rotate(360deg); }
 }
 
+/* ── ACTION FOCUS — the action composer as the IN-FRAME stage of the Action
+   Browser (ConsoleCardActions __stagewrap child), NOT a floating centered
+   modal: the browser's frame IS the chrome, the browse layer yields
+   underneath, and the composition centers at a readable width. Interior
+   blocks (branch cards / rows / lanes / steppers / CTA) keep the shared
+   `.con-composer__*` chassis — the play / corp-first composers are untouched. ── */
+.con-composer--stage {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+
+    .con-composer__panel--stage {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        padding: .1rem .1rem 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        /* A SHORT operation centers as a composed group (no dead void between
+           the content and a floor-pinned CTA); a tall one grows to the frame
+           and scrolls its decisions — the max-height caps it. */
+        justify-content: center;
+    }
+    .con-composer__actmain--stage {
+        flex: 0 1 auto;
+        min-height: 0;
+        max-height: 100%;
+        width: 100%;
+        max-width: 74rem;
+        margin: 0 auto;
+        column-gap: 1.7rem;
+        align-items: stretch;
+    }
+    /* The hero column: the source card + its live stored-resource chip. */
+    .con-composer__actside {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .7rem;
+        min-height: 0;
+        padding-top: .3rem;
+    }
+    .con-composer__actcard--stage { zoom: calc(1.04 * var(--con-ui-scale, 1)); }
+    .con-composer__actright { padding-top: .3rem; }
+
+    .con-composer__cardmeta {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .3rem .8rem;
+        border-radius: 49.95rem;
+        background: rgba(10, 18, 28, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
+        font-size: .8rem;
+        color: @con-text-dim;
+        b { font-size: 1rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    .con-composer__cardmeta-icon {
+        width: 1.25rem; height: 1.25rem;
+        background-size: contain !important; background-repeat: no-repeat; background-position: center;
+    }
+
+    /* The CTA DOCK — pinned under the decision scroll (flex sibling), so the
+       operation's exit is ALWAYS on screen, never behind a scrollbar. */
+    .con-composer__ctadock {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding-top: .45rem;
+    }
+    /* The honest disabled-CTA reason (names the first missing decision). */
+    .con-composer__cta-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .75rem;
+        color: #ffe6b0;
+        span:first-child { color: @con-amber; }
+    }
+    .con-composer__cta { margin-top: 0; }
+}
+
 /* ── Corp FIRST-ACTION confirm — the play composer's MANDATORY sibling
    (ConsoleCorpFirstActionConfirm). Same chassis (panel--play two-column
    layout), recomposed: an AMBER mandatory framing (kicker + badge + panel
@@ -13946,6 +14119,15 @@ html.con-profile-handheld .con-composer {
     .con-composer__pay-pill { font-size: .65rem; }
     .con-composer__foot-item { font-size: .65rem; }
 }
+/* Handheld ACTION FOCUS stage: full-frame geometry (the floating-panel width
+   caps above must not squeeze the in-frame stage); the hero-card column
+   costs width the Deck doesn't have — the frame header + the chips carry
+   the identity, decisions take the whole frame. */
+html.con-profile-handheld .con-composer--stage {
+    .con-composer__panel--stage { width: 100%; padding: .1rem 0 0; }
+    .con-composer__actside { display: none; }
+    .con-composer__actmain--stage { grid-template-columns: minmax(0, 1fr); max-width: none; }
+}
 
 /* Large / 4K — a gentle readability boost only. */
 html.con-profile-large .con-composer {
@@ -13954,6 +14136,7 @@ html.con-profile-large .con-composer {
     .con-composer__opt-name { font-size: 1.05rem; }
     .con-composer__foot-item { font-size: 1rem; }
 }
+html.con-profile-large .con-composer--stage .con-composer__panel--stage { width: 100%; }
 
 /* Handheld (Steam Deck) — tighter chrome + smaller type. */
 html.con-profile-handheld .con-cardactions {
@@ -13962,6 +14145,7 @@ html.con-profile-handheld .con-cardactions {
     .con-cardactions__frame { padding: .6rem .8rem .5rem; gap: .5rem; }
     .con-cardactions__title { font-size: 1.1rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
+    .con-cardactions__detail-card { zoom: calc(0.52 * var(--con-ui-scale, 1)); }
     .con-cardactions__group-name { font-size: .85rem; }
     .con-cardactions__stat b { font-size: .9rem; }
     .con-cardactions__foot { padding: .3rem .7rem; }

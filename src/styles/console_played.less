@@ -406,6 +406,13 @@
         text-transform: uppercase;
         color: fade(@con-cyan, 66%);
     }
+    /* The source-card half of a composer pick's kicker («НАСТРОЙКА ДЕЙСТВИЯ
+       · Газосборники») — the card name reads as a name, not as chrome. */
+    &__kicker-card {
+        letter-spacing: .02em;
+        text-transform: none;
+        color: #eaf3fb;
+    }
     &__title {
         font-size: .95rem;
         font-weight: 700;

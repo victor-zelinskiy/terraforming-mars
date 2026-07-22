@@ -54,6 +54,17 @@
 
 ## Мигрированные поверхности (волны 1–2)
 
+⚠ **`action-composer` = ACTION FOCUS стадия ВНУТРИ фрейма `card-actions`**
+(итерация ACTION FOCUS): его browse ⇄ focus вход/выход играет СОБСТВЕННЫЙ
+директор `consoleActionFocusMotion.ts` (FLIP миниатюра ↔ hero-карта, уход
+browse-слоя — словарь, который generic open/dismiss выразить не может), а
+НЕ surfaceEnterHook/surfaceLeaveHook. Контракты surface-motion при этом
+остаются на стадии: `data-motion-surface="action-composer"` +
+`data-motion-panel` + анкор `card:<name>` — awaiting-hold, безусловный
+захват departure и phase-FLIP в reveal / task-host работают как раньше
+(родительский leave `card-actions` уносит вложенную панель стадии — child
+transition при unmount родителя не срабатывает, это штатно).
+
 Полный дим на shade: `quick`, `card-actions` (+`action-composer` внутри),
 `std-projects`, `task-host`, `reveal`, `play-composer`, `corp-first`,
 `confirm` (Пас/конвертация — цель wheel-handoff'а), `trade-composer`,

@@ -25,7 +25,15 @@
 
     <div class="con-played-cat__panel" :class="{'con-played-cat__panel--pick': pickActive}">
       <div class="con-played-cat__head">
-        <span class="con-played-cat__kicker">{{ $t(pickActive ? 'Card selection' : 'Played') }}</span>
+        <span class="con-played-cat__kicker">
+          <!-- A composer's target pick names the OPERATION it serves — the
+               player keeps the WHY while the focus stage waits underneath. -->
+          <template v-if="pickSource !== undefined">
+            <span>{{ $t(pickSource.kicker) }}</span>
+            <span class="con-played-cat__kicker-card">· {{ $t(pickSource.card) }}</span>
+          </template>
+          <template v-else>{{ $t(pickActive ? 'Card selection' : 'Played') }}</template>
+        </span>
         <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? (pickActive ? 'pick' : ''))">{{ titleText }}</span>
         <span class="con-played-cat__count">{{ cards.length }}</span>
         <!-- Multi-pick running counter (single picks resolve in one press). -->
@@ -221,6 +229,10 @@ export default defineComponent({
     // ── pick mode (the composer's tableau pick) ─────────────────────────
     pickActive(): boolean {
       return this.state.pick !== undefined;
+    },
+    /** The operation a composer's pick serves (kicker + source card). */
+    pickSource(): {kicker: string, card: string} | undefined {
+      return this.state.pick?.source;
     },
     pickSingle(): boolean {
       const p = this.state.pick;

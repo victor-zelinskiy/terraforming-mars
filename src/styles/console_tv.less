@@ -859,7 +859,8 @@ html.con-profile-tv {
            as a page-filling, overflowing duplicate) — `:not(:has())` keeps
            the zoom off the prose branch. */
         &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
-        &__detail-graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.9 * var(--con-ui-scale, 1)); }
+        /* The inspector's card THUMBNAIL — a touch larger at couch distance. */
+        &__detail-card { zoom: calc(0.74 * var(--con-ui-scale, 1)); }
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }
@@ -954,6 +955,18 @@ html.con-profile-tv {
         &__pay-total { font-size: var(--con-t-body); }
         &__playhead { font-size: var(--con-t-body); }
         &__paycost b { font-size: 1.4rem; }
+    }
+    /* ACTION FOCUS stage (in-frame): the full-frame geometry beats the
+       floating-panel width caps above; couch sizes for stage-only chrome. */
+    .con-composer--stage {
+        .con-composer__panel--stage { width: 100%; max-height: none; }
+        .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
+        .con-composer__cardmeta {
+            font-size: var(--con-t-secondary);
+            b { font-size: 1.25rem; }
+        }
+        .con-composer__cardmeta-icon { width: 1.5rem; height: 1.5rem; }
+        .con-composer__cta-hint { font-size: var(--con-t-secondary); }
     }
 
     /* ═══ 19b · MARSBOT TURN REVIEW («Разбор хода») ═══════════════
