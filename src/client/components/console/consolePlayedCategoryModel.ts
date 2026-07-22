@@ -82,14 +82,32 @@ export function playedCategories(zones: PlayedZones): ReadonlyArray<PlayedCatego
  *  higher — few cards read LARGE. */
 export const CAT_GRID_MIN_ZOOM = 0.5;
 export const CAT_GRID_MAX_ZOOM = 0.9;
-/** The grow-to-fit art ceiling of the grid (applied zoom = this × uiScale). */
-export const CAT_GRID_FILL_MAX = 1.18;
+/** The grow-to-fit art ceiling of the grid (1080-logical; × uiScale) — a
+ *  small fitting set grows until the BOX binds (usually the height), matching
+ *  the hand's TV art ceiling at the applied scale. */
+export const CAT_GRID_FILL_MAX = 1.6;
 /** The single-card stage: how much of the box the lone card may take. */
 export const CAT_SINGLE_W_SHARE = 0.9;
 export const CAT_SINGLE_H_SHARE = 0.94;
 /** Absolute single-card art ceiling (applied zoom) — near-fullscreen but the
  *  face never blows past readable art scale even on a 4K stage. */
 export const CAT_SINGLE_MAX_ZOOM = 3.4;
+
+/**
+ * BREATHING ROOM by count (the physical-table feel): a couple of cards get
+ * generous air (margins + wide gaps), a full late-game category packs tight.
+ * `air` is the share of EACH box dimension reserved as margin; `gap` is the
+ * 1080-logical grid gap handed to the engine (× uiScale inside).
+ */
+export function categoryAir(count: number): {air: number, gap: number} {
+  if (count <= 4) {
+    return {air: 0.05, gap: 40};
+  }
+  if (count <= 9) {
+    return {air: 0.025, gap: 26};
+  }
+  return {air: 0.01, gap: 16};
+}
 
 export type CategoryViewLayout =
   | {kind: 'single', zoom: number, slotW: number, slotH: number}
@@ -111,13 +129,16 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
     ));
     return {kind: 'single', zoom, slotW: PLAYED_CARD_NATURAL_W * zoom, slotH: PLAYED_CARD_NATURAL_H * zoom};
   }
+  const {air, gap} = categoryAir(input.count);
   const plan = planHandGrid({
-    availW: input.availW,
-    availH: input.availH,
+    availW: input.availW * (1 - air * 2),
+    availH: input.availH * (1 - air * 2),
     count: input.count,
     uiScale: s,
     minZoom: CAT_GRID_MIN_ZOOM,
     maxZoom: CAT_GRID_MAX_ZOOM,
+    gapX: gap,
+    gapY: gap,
     fillToBox: true,
     fillMaxZoom: CAT_GRID_FILL_MAX,
   });

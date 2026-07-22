@@ -3005,8 +3005,10 @@ export default defineComponent({
           return [{control: 'back', label: 'Back'}];
         }
         if (consolePlayedUi.categoryOpen) {
+          // X = inspect (the universal read verb); A stays free — it is the
+          // reserved pick verb for the future tableau-pick mode of this view.
           return [
-            {control: 'confirm', label: 'Inspect'},
+            {control: 'secondary', label: 'Inspect'},
             {control: 'back', label: 'Back'},
           ];
         }

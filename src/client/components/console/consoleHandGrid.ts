@@ -97,12 +97,16 @@ export interface HandGridInput {
    * byte-identical). Another card surface (the «Разыграно» category view)
    * reuses this engine with its own zoom window / fill policy:
    *  - `minZoom`/`maxZoom` — the 1080-logical zoom window (× uiScale inside);
+   *  - `gapX`/`gapY` — the 1080-logical grid gaps (× uiScale inside) — a
+   *    host may give a small set more air than the hand's tight 16;
    *  - `fillToBox` — run the grow-to-fit pass on EVERY profile (the hand runs
    *    it only on tv), so a small fitting set grows into the box;
    *  - `fillMaxZoom` — the applied-zoom art ceiling of that growth.
    */
   minZoom?: number;
   maxZoom?: number;
+  gapX?: number;
+  gapY?: number;
   fillToBox?: boolean;
   fillMaxZoom?: number;
 }
@@ -145,8 +149,8 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   // row gap is rem-authored (scales with the root font), so the planner MUST
   // scale its mirror of it too or the width math drifts.
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
-  const gapX = GAP_X * s;
-  const gapY = GAP_Y * s;
+  const gapX = (input.gapX ?? GAP_X) * s;
+  const gapY = (input.gapY ?? GAP_Y) * s;
   const rowSlack = ROW_SLACK * s;
   const minZoom = (input.minZoom ?? MIN_ZOOM) * s;
   const maxZoom = (input.maxZoom ?? MAX_ZOOM) * s;

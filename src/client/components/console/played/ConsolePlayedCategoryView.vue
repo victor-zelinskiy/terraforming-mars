@@ -34,7 +34,7 @@
       <div v-if="layout.kind === 'single'" class="con-played-cat__stage" ref="body">
         <div v-if="cards[0] !== undefined"
              class="con-played-cat__slot con-played-cat__slot--single"
-             :class="{'con-played-cat__slot--focused': true}"
+             :class="{'con-played-cat__slot--focused': state.phase === 'open'}"
              :style="{width: layout.slotW + 'px', height: layout.slotH + 'px'}"
              :data-cat-slot="cards[0].name"
              @click="inspectFocused">
@@ -45,16 +45,22 @@
         </div>
       </div>
 
-      <!-- GRID — windowed rows over the plan (hand-section discipline). -->
+      <!-- GRID — windowed rows over the plan (hand-section discipline). The
+           edge inset keeps the focus ring / lift clear of the scroll clip;
+           a fitting grid centres vertically (the physical-table air). -->
       <div v-else class="con-played-cat__bodybox" ref="body">
-        <div class="con-played-cat__grid" ref="grid" @scroll.passive="onScroll">
+        <div class="con-played-cat__grid"
+             :class="{'con-played-cat__grid--centered': !gridPlan.scrolls}"
+             ref="grid"
+             :style="{padding: insetPx + 'px'}"
+             @scroll.passive="onScroll">
           <div class="con-played-cat__pad" ref="pad" :style="{width: gridPlan.contentW + 'px'}">
             <div class="con-played-cat__spacer" :style="{height: topSpacerPx + 'px'}" aria-hidden="true"></div>
             <div v-for="row in renderRows" :key="row" class="con-played-cat__row" :style="{height: gridPlan.rowStride + 'px', columnGap: gridPlan.gapX + 'px'}">
               <div v-for="(card, ci) in rowCards(row)"
                    :key="card.name"
                    class="con-played-cat__slot"
-                   :class="{'con-played-cat__slot--focused': row * gridPlan.cols + ci === state.focusIndex}"
+                   :class="{'con-played-cat__slot--focused': state.phase === 'open' && row * gridPlan.cols + ci === state.focusIndex}"
                    :style="{width: gridPlan.slotW + 'px', height: gridPlan.slotH + 'px'}"
                    :data-cat-slot="card.name"
                    @click="onSlotClick(row * gridPlan.cols + ci)">
@@ -149,6 +155,9 @@ import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePla
 const OVERSCAN = 2;
 /** Right-stick scroll px per intent frame. */
 const STICK_SCROLL_STEP = 44;
+/** Edge inset INSIDE the grid clip (logical px, × uiScale): the focus ring,
+ *  its glow and the focused lift never cut against the scroll edge. */
+const CAT_EDGE_INSET = 22;
 /** Fallback body box before the first measure / under JSDOM. */
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
@@ -189,10 +198,17 @@ export default defineComponent({
     busy(): boolean {
       return this.state.phase === 'opening' || this.state.phase === 'closing';
     },
+    insetPx(): number {
+      return Math.round(CAT_EDGE_INSET * conUiScale());
+    },
     layout(): CategoryViewLayout {
       const w = this.box.w > 0 ? this.box.w : FALLBACK_W;
       const h = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      return planCategoryView({availW: w, availH: h, count: this.cards.length, uiScale: conUiScale()});
+      // The grid box includes its own edge inset (clip padding) — the plan
+      // works the inner content box. The single stage keeps its raw box
+      // (its width/height SHARES already reserve the air).
+      const inset = this.cards.length > 1 ? this.insetPx * 2 : 0;
+      return planCategoryView({availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale()});
     },
     /** The grid plan (grid layouts only — a convenience narrow). */
     gridPlan(): HandGridPlan {
@@ -210,8 +226,9 @@ export default defineComponent({
         return this.range(0, p.rows - 1);
       }
       const availH = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const first = Math.max(0, Math.floor(this.scrollTopPx / p.rowStride) - OVERSCAN);
-      const last = Math.min(p.rows - 1, Math.ceil((this.scrollTopPx + availH) / p.rowStride) + OVERSCAN);
+      const contentY = this.scrollTopPx - this.insetPx;
+      const first = Math.max(0, Math.floor(contentY / p.rowStride) - OVERSCAN);
+      const last = Math.min(p.rows - 1, Math.ceil((contentY + availH) / p.rowStride) + OVERSCAN);
       return this.range(first, last);
     },
     topSpacerPx(): number {
@@ -228,7 +245,8 @@ export default defineComponent({
     thumbStyle(): Record<string, string> {
       const p = this.gridPlan;
       const visible = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const hPct = clampNum(8, 100, (visible / Math.max(1, p.contentH)) * 100);
+      const content = p.contentH + this.insetPx * 2;
+      const hPct = clampNum(8, 100, (visible / Math.max(1, content)) * 100);
       const topPct = (100 - hPct) * this.scrollFrac;
       return {height: hPct + '%', top: topPct + '%'};
     },
@@ -537,8 +555,10 @@ export default defineComponent({
         return;
       }
       switch (consoleActionOf(intent)) {
-      case 'primary':
       case 'inspect':
+        // X = the fullscreen inspector — ALWAYS. A is deliberately quiet in
+        // browse mode: it is reserved for the pick verb when this same view
+        // opens in the tableau-pick mode (phase 2).
         this.inspectFocused();
         break;
       case 'back':
@@ -585,16 +605,18 @@ export default defineComponent({
         return;
       }
       const p = this.gridPlan;
+      const inset = this.insetPx;
       const row = Math.floor(this.state.focusIndex / p.cols);
-      const top = row * p.rowStride;
+      const top = inset + row * p.rowStride;
       const bottom = top + p.slotH;
       const viewTop = grid.scrollTop;
       const viewBottom = viewTop + grid.clientHeight;
       let next = viewTop;
-      if (top - 12 < viewTop) {
-        next = top - 12;
-      } else if (bottom + 12 > viewBottom) {
-        next = bottom + 12 - grid.clientHeight;
+      // Keep the edge-inset buffer so the ring/glow clear the clip edge.
+      if (top - inset < viewTop) {
+        next = top - inset;
+      } else if (bottom + inset > viewBottom) {
+        next = bottom + inset - grid.clientHeight;
       }
       const maxScroll = Math.max(0, grid.scrollHeight - grid.clientHeight);
       grid.scrollTop = clampNum(0, maxScroll, next);
