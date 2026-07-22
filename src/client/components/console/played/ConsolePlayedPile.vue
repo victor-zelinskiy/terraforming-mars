@@ -4,20 +4,25 @@
     name), the newest card lies fully open at the bottom — the classic
     tabletop tableau column. Overlap is done by FIXED slot heights (px from
     the plan) with the card overflowing its slot and the NEXT slot painting
-    above it (in-flow, position:relative + rising z-index), so:
-     - the layout is static — focusing a card only toggles a class
-       (transform/z-index, no reflow of neighbours);
-     - keys are the card names (stable), a new card APPENDS.
+    above it (in-flow, position:relative + rising z-index).
+
+    READ-ONLY by design: individual cards are NOT focusable (the tableau
+    navigates by CATEGORY — the parent zone block owns focus + clicks). The
+    slots keep their [data-played-key] identity — the hero landing, the
+    reward-transfer sources and the category flights all measure them.
+
+    `outNames` — cards currently LIFTED into the category view: their slots
+    render held geometry (invisible, layout kept) so a card never exists in
+    two places at once while its proxy is airborne.
   -->
   <div class="con-played__pile" :style="{width: slotW + 'px'}">
     <div v-for="(card, i) in cards"
          :key="card.name"
          class="con-played__slot"
-         :class="{'con-played__slot--focused': card.name === focusKey, 'con-played__slot--incoming': card.name === hiddenKey}"
-         :style="{height: (i === cards.length - 1 ? cardH : peekH) + 'px', zIndex: card.name === focusKey ? 90 : i + 1}"
+         :class="{'con-played__slot--incoming': card.name === hiddenKey, 'con-played__slot--held-out': outNames.has(card.name)}"
+         :style="{height: (i === cards.length - 1 ? cardH : peekH) + 'px', zIndex: i + 1}"
          :data-played-key="card.name"
-         :data-zoom-slot="card.name"
-         @click="$emit('press', card.name)">
+         :data-zoom-slot="card.name">
       <div class="con-played__lift">
         <div class="con-played__face con-played__focusbox" :style="{zoom: String(zoom)}">
           <ConsolePlayedCardLite :name="card.name" />
@@ -35,24 +40,23 @@ import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
 export default defineComponent({
   name: 'ConsolePlayedPile',
   components: {ConsolePlayedCardLite},
   props: {
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
-    focusKey: {type: String, required: true},
     /** The hero scene's RESERVED slot: rendered with full layout but kept
      *  invisible until the landing commit (the arc flies into it). */
     hiddenKey: {type: String as PropType<string | undefined>, default: undefined},
+    /** Cards lifted into the category view — their slots hold (see header). */
+    outNames: {type: Object as PropType<ReadonlySet<string>>, default: () => EMPTY_SET},
     /** Plan metrics (screen px / css zoom) — see consolePlayedModel. */
     zoom: {type: Number, required: true},
     slotW: {type: Number, required: true},
     cardH: {type: Number, required: true},
     peekH: {type: Number, required: true},
-  },
-  emits: {
-    /** Mouse support: click focuses, a second click inspects (host decides). */
-    press: (_name: string) => true,
   },
 });
 </script>

@@ -92,6 +92,19 @@ export interface HandGridInput {
    * viewport instead of hitting the 1080-tuned MAX_ZOOM ceiling. 1 (or
    * absent) on every non-tv profile → byte-identical plans. */
   uiScale?: number;
+  /**
+   * HOST OVERRIDES (additive — the hand passes none and keeps its plans
+   * byte-identical). Another card surface (the «Разыграно» category view)
+   * reuses this engine with its own zoom window / fill policy:
+   *  - `minZoom`/`maxZoom` — the 1080-logical zoom window (× uiScale inside);
+   *  - `fillToBox` — run the grow-to-fit pass on EVERY profile (the hand runs
+   *    it only on tv), so a small fitting set grows into the box;
+   *  - `fillMaxZoom` — the applied-zoom art ceiling of that growth.
+   */
+  minZoom?: number;
+  maxZoom?: number;
+  fillToBox?: boolean;
+  fillMaxZoom?: number;
 }
 
 function clamp(lo: number, hi: number, v: number): number {
@@ -135,8 +148,8 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
   const gapX = GAP_X * s;
   const gapY = GAP_Y * s;
   const rowSlack = ROW_SLACK * s;
-  const minZoom = MIN_ZOOM * s;
-  const maxZoom = MAX_ZOOM * s;
+  const minZoom = (input.minZoom ?? MIN_ZOOM) * s;
+  const maxZoom = (input.maxZoom ?? MAX_ZOOM) * s;
   // Column ceiling scales with the TV profile. MAX_COLS (6) is tuned for the
   // 1080 logical space where 6 readable cards already span the width; on a 4K
   // TV each card renders ~uiScale× wider, so the SAME per-card readability
@@ -185,25 +198,59 @@ export function planHandGrid(input: HandGridInput): HandGridPlan {
     visibleRows = Math.max(1, Math.floor((availH + gapY) / rowStride));
   }
 
-  // ── TV FILL pass (plan §3.5) ─────────────────────────────────────────
-  // The base plan above is written "only ever shrink" for the handheld /
-  // standard profiles (byte-identical there: s === 1 skips this). On the tv
-  // profile a hand that FITS grows into the freed 4K stage: keep the chosen
-  // cols/rows layout and raise the zoom to the width/height fit, capped by
-  // the ONE art ceiling. The budget is deliberately count-INDEPENDENT so the
-  // card size is predictable and monotone: 1–3 cards share the same ceiling
-  // (width binds as columns multiply), and a smaller hand can never render
-  // SMALLER than a fuller one (the old 1–2-card "hero share" did exactly
-  // that — a 3-card row towered over a lone card).
-  if (s > 1 && rows * (naturalH * zoom + gapY) - gapY <= availH + 0.5) {
-    const widthFit = (availW - rowSlack - (cols - 1) * gapX) / (cols * naturalW);
-    const heightFit = (availH - (rows - 1) * gapY) / (rows * naturalH);
-    const grown = Math.min(widthFit, heightFit, TV_FILL_MAX_ZOOM);
-    if (grown > zoom) {
-      zoom = grown;
-      rowStride = naturalH * zoom + gapY;
-      visibleRows = Math.max(1, Math.floor((availH + gapY) / rowStride));
+  // ── TV LAYOUT SEARCH (plan §3.5, tv profile only) ────────────────────
+  // The base plan above is "only ever shrink from a per-count zoom" — tuned
+  // for the handheld / standard profiles (byte-identical there: s === 1
+  // skips this whole block). On a 4K TV that heuristic leaves the hand
+  // clustered in the middle: it caps columns to what fits at the per-count
+  // zoom, then the anti-orphan rebalance shrinks columns FURTHER, so a wide
+  // hand wastes the side space AND scrolls even when a wider layout fits on
+  // screen (16 cards → 6×3 + scroll, when 8×2 fits flat at the same card
+  // size — the reported defect).
+  //
+  // Re-plan by SEARCHING the balanced column counts (like the sibling
+  // playedTableauFit / cardSelectionFit planners): for each candidate the
+  // achievable card zoom is min(width-fit, height-fit) capped by the art
+  // ceiling; pick the layout with the LARGEST readable cards, tie-breaking
+  // toward FEWER rows. Because the zoom never exceeds the height-fit, the
+  // chosen layout is non-scrolling by construction — so this both fills the
+  // width and minimizes rows. If nothing clears MIN_ZOOM (a hand too big for
+  // one screen — 40 cards) the base scrolling plan is kept as the fallback.
+  //
+  // A host with `fillToBox` (the «Разыграно» category view) runs the SAME
+  // search on EVERY profile — its box is a modal that a small fitting set
+  // should fill generously — with its own art ceiling (`fillMaxZoom`).
+  if (s > 1 || input.fillToBox === true) {
+    const fillCeiling = (input.fillMaxZoom ?? TV_FILL_MAX_ZOOM) * (input.fillMaxZoom !== undefined ? s : 1);
+    // Column ceiling for the search: never more than fit the width even at
+    // the smallest acceptable card size.
+    const maxColsFit = Math.max(1, Math.min(maxCols, count,
+      Math.floor((availW - rowSlack + gapX) / (naturalW * minZoom + gapX))));
+    let best = {cols, rows, zoom};
+    for (let c = 1; c <= maxColsFit; c++) {
+      const r = Math.ceil(count / c);
+      // Only consider BALANCED column counts — the minimal cols for their row
+      // count (the anti-orphan rule, but applied WITHIN the search so a wide
+      // layout isn't collapsed away). Skips e.g. 7 cols for 16 cards (3 rows,
+      // 6 is the balanced count) but keeps 8 (2 rows, 8+8).
+      if (Math.max(1, Math.ceil(count / r)) !== c) {
+        continue;
+      }
+      const widthZoom = (availW - rowSlack - (c - 1) * gapX) / (c * naturalW);
+      const heightZoom = (availH - (r - 1) * gapY) / (r * naturalH);
+      const z = Math.min(widthZoom, heightZoom, fillCeiling);
+      if (z < minZoom) {
+        continue; // this layout can't stay readable — leave it to scroll
+      }
+      if (z > best.zoom + 1e-6 || (Math.abs(z - best.zoom) <= 1e-6 && r < best.rows)) {
+        best = {cols: c, rows: r, zoom: z};
+      }
     }
+    cols = best.cols;
+    rows = best.rows;
+    zoom = best.zoom;
+    rowStride = naturalH * zoom + gapY;
+    visibleRows = Math.max(1, Math.floor((availH + gapY) / rowStride));
   }
 
   const slotW = naturalW * zoom;

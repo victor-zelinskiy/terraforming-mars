@@ -1012,6 +1012,7 @@ html.con-profile-tv {
     .con-journal__node--focused,
     .con-colinspect__payrow--focused,
     .con-prodloss__row--focused,
+    .con-played__family--focused,
     .con-hydro__stop--focused {
         box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 32%);
     }
@@ -1029,10 +1030,13 @@ html.con-profile-tv {
         &__total { font-size: var(--con-t-secondary); }
         &__void { font-size: var(--con-t-body); }
     }
-    .con-played-events {
+    .con-played-cat {
+        &__kicker { font-size: var(--con-t-caption); }
         &__title { font-size: var(--con-t-section); }
         &__count { font-size: var(--con-t-secondary); }
     }
+    .con-played__caption-open { font-size: var(--con-t-caption); }
+    .con-played__caption-count { font-size: var(--con-t-caption); }
 }
 
 /* ═══ 23 · PRE-GAME (console-native .cm-* menu / create) ══════════ */

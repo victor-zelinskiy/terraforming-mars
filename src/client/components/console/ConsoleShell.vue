@@ -840,7 +840,8 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
-import {buildTradeBatch, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
@@ -2287,17 +2288,39 @@ export default defineComponent({
     tradeableColonyNames(): ReadonlyArray<string> {
       return this.tradeColonyContext?.colonies ?? [];
     },
+    /** The viewer's FREE trade fleets (mirrors ConsoleColoniesSection.freeFleetsFor:
+     *  the MORE restrictive of used-trade-fleets and physically-deployed). */
+    viewerFreeFleets(): number {
+      const deployed = this.game.colonies.filter((c) => c.visitor === this.thisPlayer.color).length;
+      return Math.min(freeTradeFleets(this.thisPlayer), Math.max(0, this.thisPlayer.fleetSize - deployed));
+    },
+    /**
+     * The REAL «why can't I trade at the FOCUSED colony» reason, via the shared
+     * smart ladder (colony-intrinsic → no fleet → can't afford → turn). Returns a
+     * TRANSLATED string (the one params case — another player's docked fleet —
+     * needs substitution); consumers `$t()` it, which is a safe passthrough for an
+     * already-translated string. '' when the colony IS tradeable (no blocker).
+     */
     colonyTradeBlockReason(): string {
-      if (this.tradeColonyContext === undefined) {
-        // My turn but no trade window → a pending decision blocks it first;
-        // «Сейчас не ваш ход» only when it is genuinely an opponent's turn.
-        return this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions';
-      }
       const selected = this.game.colonies[this.consoleState.colonyIndex];
-      if (selected !== undefined && selected.visitor !== undefined) {
-        return 'Already visited this generation';
+      if (selected === undefined) {
+        return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions');
       }
-      return 'Unavailable right now';
+      const reason = colonyTradeReason({
+        colony: selected,
+        tradeable: this.tradeableColonyNames,
+        viewerColor: this.thisPlayer.color,
+        availableFleets: this.viewerFreeFleets,
+        myTurn: this.myTurn,
+        awaitingInput: this.awaitingInput,
+        resolveName: (color) => displayNameForColor(this.playerView.players, color),
+      });
+      if (reason === undefined) {
+        return '';
+      }
+      return reason.params !== undefined ?
+        translateTextWithParams(reason.key, reason.params.map(String)) :
+        translateText(reason.key);
     },
     /** The colony the X = «Осмотреть» overlay shows. Two sources: the colonies
      *  SECTION (←/→ pages the rail, A can trade) and the JOURNAL (a fixed
@@ -2657,7 +2680,10 @@ export default defineComponent({
         return 'Played';
       }
       if (this.playedTableVisible) {
-        return consolePlayedUi.eventsOpen ? 'Played events' : 'Played';
+        // The open category names the bar (its caption key); the bare table
+        // reads as «Разыграно».
+        return (consolePlayedUi.categoryOpen || consolePlayedUi.categoryBusy) && consolePlayedUi.categoryLabel !== '' ?
+          consolePlayedUi.categoryLabel : 'Played';
       }
       if (this.consoleState.quick !== undefined) {
         return this.quickTitle;
@@ -2970,19 +2996,22 @@ export default defineComponent({
         return cmds;
       }
       if (this.playedTableVisible) {
-        // «Разыграно»: the tableau grammar, honest to the overlay's live
-        // mirrors (consolePlayedUi). Inside the events list B is a LOCAL
-        // back (closes the list, never the tableau).
-        if (consolePlayedUi.eventsOpen) {
+        // «Разыграно»: the CATEGORY grammar, honest to the overlay's live
+        // mirrors (consolePlayedUi). The table navigates zones and A opens
+        // the focused one; inside the category view A/X inspect a card and
+        // B is a LOCAL back (the cards fly home, never the tableau closing);
+        // mid-flight only B is live (it reverses the same flight).
+        if (consolePlayedUi.categoryBusy) {
+          return [{control: 'back', label: 'Back'}];
+        }
+        if (consolePlayedUi.categoryOpen) {
           return [
-            {control: 'secondary', label: 'Inspect'},
+            {control: 'confirm', label: 'Inspect'},
             {control: 'back', label: 'Back'},
           ];
         }
         const cmds: Array<ConsoleCommand> = [];
-        cmds.push({control: 'secondary',
-          label: consolePlayedUi.focusKind === 'events' ? 'Open' : 'Inspect',
-          enabled: consolePlayedUi.focusKind !== 'none'});
+        cmds.push({control: 'confirm', label: 'Open', enabled: consolePlayedUi.focusCategory !== ''});
         if (consolePlayedUi.canCyclePlayer) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
         }

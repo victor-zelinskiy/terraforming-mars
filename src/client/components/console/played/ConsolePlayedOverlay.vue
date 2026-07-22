@@ -1,20 +1,21 @@
 <template>
   <!--
     CONSOLE «РАЗЫГРАНО» — the console-native played-cards overlay (X from the
-    board home). A bottom-anchored TABLE panel, deliberately NOT full-screen:
-    its height follows the content (a young tableau leaves the board visible
-    behind it) up to a cap, after which the body scrolls inside a
-    ConsoleScrollArea. Cards lie in physical peek piles (see
-    consolePlayedModel); events lie face down in one pile that opens a nested
-    list. View-only: nothing here ever submits — the fullscreen viewer is
-    opened with NO select/action bridges.
+    board home). A bottom-anchored TABLE panel: the READ-ONLY physical tableau
+    of a player, exactly like the table of the printed game. Cards lie in peek
+    piles; events lie face down in one pile.
 
-    Input: the shell owns the pad and delegates via handleIntent (the
-    journal/task-host pattern); the command-bar hints are mirrored through
-    consolePlayedUi. Focus is a stable KEY (card name / #events), navigation
-    is SPATIAL over the live slot rects — matching what the player sees.
+    NAVIGATION IS BY CATEGORY ONLY (the per-card cursor is gone by design):
+    the d-pad moves between the zone blocks (corporation / preludes / CEO /
+    active / automated / events), A opens the focused category — its cards
+    physically LIFT off their real slots and fly into the category view
+    (ConsolePlayedCategoryView owns that whole transition; face-down events
+    flip open mid-flight). Closing flies them back onto the table.
+
+    View-only: nothing here ever submits. Input is delegated by the shell
+    (handleIntent); command-bar hints are mirrored through consolePlayedUi.
   -->
-  <div class="con-played" :class="{'con-played--hero': heroActive}">
+  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp}">
     <div class="con-played__panel">
       <div class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>
@@ -30,58 +31,93 @@
 
       <ConsoleScrollArea ref="scroll" class="con-played__scroll" content-class="con-played__content">
         <!-- Truly empty tableau — a calm compact state, never a bare panel. -->
-        <div v-if="targets.length === 0" class="con-played__void">
+        <div v-if="categories.length === 0" class="con-played__void">
           <span class="con-played__void-glyph" aria-hidden="true">◈</span>
           <span v-i18n>No cards played yet</span>
         </div>
 
         <div v-else class="con-played__table">
           <!-- Identity zone: corporation(s) / preludes / CEO — who the player IS. -->
-          <div v-if="zones.corporations.length > 0" class="con-played__family con-played__family--identity con-played__family--corporation">
-            <span class="con-played__caption" v-i18n>Corporation</span>
+          <div v-if="zones.corporations.length > 0"
+               class="con-played__family con-played__family--identity con-played__family--corporation"
+               :class="familyClasses('corporation')"
+               data-played-cat="corporation"
+               @click="onFamilyPress('corporation')">
+            <span class="con-played__caption">
+              <span v-i18n>Corporation</span>
+              <b class="con-played__caption-count">{{ zones.corporations.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.corporations)" :key="'corp' + pi"
-                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
-                                 @press="onCardPress" />
+                                 :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
-          <div v-if="zones.preludes.length > 0" class="con-played__family con-played__family--identity con-played__family--prelude">
-            <span class="con-played__caption" v-i18n>Preludes</span>
+          <div v-if="zones.preludes.length > 0"
+               class="con-played__family con-played__family--identity con-played__family--prelude"
+               :class="familyClasses('prelude')"
+               data-played-cat="prelude"
+               @click="onFamilyPress('prelude')">
+            <span class="con-played__caption">
+              <span v-i18n>Preludes</span>
+              <b class="con-played__caption-count">{{ zones.preludes.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.preludes)" :key="'prel' + pi"
-                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
-                                 @press="onCardPress" />
+                                 :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
-          <div v-if="zones.ceos.length > 0" class="con-played__family con-played__family--identity con-played__family--ceo">
-            <span class="con-played__caption" v-i18n>CEO</span>
+          <div v-if="zones.ceos.length > 0"
+               class="con-played__family con-played__family--identity con-played__family--ceo"
+               :class="familyClasses('ceo')"
+               data-played-cat="ceo"
+               @click="onFamilyPress('ceo')">
+            <span class="con-played__caption">
+              <span v-i18n>CEO</span>
+              <b class="con-played__caption-count">{{ zones.ceos.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.ceos)" :key="'ceo' + pi"
-                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
-                                 @press="onCardPress" />
+                                 :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
 
           <!-- The permanent-projects band (blue / green piles). -->
-          <div v-if="zones.active.length > 0" class="con-played__family con-played__family--active">
-            <span class="con-played__caption" v-i18n>Active</span>
+          <div v-if="zones.active.length > 0"
+               class="con-played__family con-played__family--active"
+               :class="familyClasses('active')"
+               data-played-cat="active"
+               @click="onFamilyPress('active')">
+            <span class="con-played__caption">
+              <span v-i18n>Active</span>
+              <b class="con-played__caption-count">{{ zones.active.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.active)" :key="'act' + pi"
-                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
-                                 @press="onCardPress" />
+                                 :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
-          <div v-if="zones.automated.length > 0" class="con-played__family con-played__family--automated">
-            <span class="con-played__caption" v-i18n>Automated</span>
+          <div v-if="zones.automated.length > 0"
+               class="con-played__family con-played__family--automated"
+               :class="familyClasses('automated')"
+               data-played-cat="automated"
+               @click="onFamilyPress('automated')">
+            <span class="con-played__caption">
+              <span v-i18n>Automated</span>
+              <b class="con-played__caption-count">{{ zones.automated.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.automated)" :key="'auto' + pi"
-                                 :cards="pile" :focusKey="focusKey" :hiddenKey="heroHiddenKey"
-                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH"
-                                 @press="onCardPress" />
+                                 :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
           <!-- Identity-only tableau: an honest quiet note in the band's place. -->
@@ -91,33 +127,33 @@
                hero scene the pile shows the PRE-play count (the counter ticks
                only after the landed card is committed), and a first-ever
                event reserves a HIDDEN pile so the arc has a real target. -->
-          <div v-if="zones.events.length > 0" class="con-played__family con-played__family--event">
-            <span class="con-played__caption" v-i18n>Events</span>
+          <div v-if="zones.events.length > 0"
+               class="con-played__family con-played__family--event"
+               :class="familyClasses('events')"
+               data-played-cat="events"
+               @click="onFamilyPress('events')">
+            <span class="con-played__caption">
+              <span v-i18n>Events</span>
+              <b class="con-played__caption-count">{{ zones.events.length }}</b>
+              <span class="con-played__caption-open" v-i18n>Open</span>
+            </span>
             <ConsolePlayedEventsPile :count="displayedEventsCount"
                                      :reserved="eventsPileReserved"
-                                     :focused="focusKey === EVENTS_PILE_KEY"
-                                     :slotW="plan.slotW" :cardH="plan.cardH"
-                                     @open="openEvents" />
+                                     :focused="focusCategory === 'events'"
+                                     :out="eventsOut"
+                                     :slotW="plan.slotW" :cardH="plan.cardH" />
           </div>
         </div>
       </ConsoleScrollArea>
-
-      <!-- The gliding selection frame — gated off while the events list owns
-           the pad (it mounts its own), the fullscreen viewer is up, or the
-           hero card is still airborne (it glides to the landed card at reveal). -->
     </div>
 
-    <transition name="con-layer">
-      <ConsolePlayedEventsOverlay v-if="eventsOpen"
-                                  ref="events"
-                                  :cards="zones.events"
-                                  :focusKey="eventsFocusKey"
-                                  :zoom="eventsZoom"
-                                  :slotW="eventsSlotW"
-                                  :cardH="eventsCardH"
-                                  @press="onEventPress"
-                                  @close="closeEvents" />
-    </transition>
+    <!-- The CATEGORY VIEW — mounted for the whole physical episode (the
+         cards lift off the table above, fly into it, and fly back on close).
+         It owns the flights; the table only holds the airborne cards' slots. -->
+    <ConsolePlayedCategoryView v-if="categoryUp"
+                               ref="catView"
+                               :cards="categoryViewCards"
+                               @settled-closed="onCategorySettled" />
   </div>
 </template>
 
@@ -130,19 +166,24 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {
-  buildPlayedZones, buildPlayedTargets, flatFaceUp, splitPiles, planPlayedLayout,
-  pickSpatialTarget, EVENTS_PILE_KEY, NavRect, PlayedPlan, PlayedZones, PlayedTarget,
-  PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H,
+  buildPlayedZones, splitPiles, planPlayedLayout,
+  pickSpatialTarget, NavRect, PlayedPlan, PlayedZones,
 } from '@/client/components/console/consolePlayedModel';
+import {
+  playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL,
+} from '@/client/components/console/consolePlayedCategoryModel';
+import {
+  playedCategoryState, resetPlayedCategoryView, isCategoryViewUp, isCategoryViewBusy, categoryOutNames,
+} from '@/client/console/played/playedCategoryView';
+import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
-import ConsolePlayedEventsOverlay from '@/client/components/console/played/ConsolePlayedEventsOverlay.vue';
+import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
 
 /** Right-stick free-scroll px per intent frame (multiplied by conUiScale). */
 const STICK_SCROLL_STEP = 44;
@@ -153,7 +194,7 @@ const MIN_PILE_BUDGET = 280;
 
 export default defineComponent({
   name: 'ConsolePlayedOverlay',
-  components: {ConsoleScrollArea, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedEventsOverlay},
+  components: {ConsoleScrollArea, ConsolePlayedPile, ConsolePlayedEventsPile, ConsolePlayedCategoryView},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},
@@ -181,13 +222,11 @@ export default defineComponent({
     return {
       /** WHOSE tableau is on the table (LB/RB cycles; defaults to the viewer). */
       viewColor: this.thisPlayerColor as Color,
-      /** Focused object — a stable KEY (card name / #events), never an index. */
-      focusKey: '',
-      eventsOpen: false,
-      eventsFocusKey: '',
-      EVENTS_PILE_KEY,
+      /** The focused CATEGORY (the only focusable objects of the table). */
+      focusCategory: '' as PlayedCategoryKey | '',
       /** Hero-scene target-measurer deregistration (play-animation mode). */
       unregisterHeroTarget: undefined as (() => void) | undefined,
+      catState: playedCategoryState,
     };
   },
   computed: {
@@ -209,6 +248,29 @@ export default defineComponent({
         return buildPlayedZones([...tableau, incoming]);
       }
       return buildPlayedZones(tableau);
+    },
+    /** The focusable categories of the shown tableau, in table order. */
+    categories(): ReadonlyArray<PlayedCategory> {
+      return playedCategories(this.zones);
+    },
+    /** The category view episode is mounted (opening / open / closing). */
+    categoryUp(): boolean {
+      return isCategoryViewUp();
+    },
+    /** The open category's cards (LIVE — an undo/refresh flows through). */
+    categoryViewCards(): ReadonlyArray<CardModel> {
+      const key = this.catState.category;
+      return key !== undefined ? categoryCards(this.zones, key) : [];
+    },
+    /** Names lifted OUT of the table (airborne / in the view) — their slots
+     *  render held geometry so a card never exists in two places at once. */
+    outNames(): ReadonlySet<string> {
+      return categoryOutNames();
+    },
+    eventsOut(): boolean {
+      // Mirrors the held semantics of `outNames`: the stack ghosts only once
+      // the proxies own the cards (never a frame before they are painted).
+      return this.catState.category === 'events' && this.outNames.size > 0;
     },
     /** The hero card is an EVENT (classified structurally via the zones). */
     heroIncomingIsEvent(): boolean {
@@ -233,14 +295,10 @@ export default defineComponent({
     eventsPileReserved(): boolean {
       return this.displayedEventsCount === 0 && this.zones.events.length > 0;
     },
-    targets(): ReadonlyArray<PlayedTarget> {
-      return buildPlayedTargets(this.zones);
-    },
-    faceUp(): ReadonlyArray<CardModel> {
-      return flatFaceUp(this.zones);
-    },
     totalCount(): number {
-      const n = this.faceUp.length + this.zones.events.length;
+      const z = this.zones;
+      const n = z.corporations.length + z.preludes.length + z.ceos.length +
+        z.active.length + z.automated.length + z.events.length;
       // The header count stays honest mid-scene: the landing card joins the
       // total only once it is revealed on the table.
       return this.heroIncoming !== undefined && !this.heroRevealed ? Math.max(0, n - 1) : n;
@@ -248,59 +306,44 @@ export default defineComponent({
     plan(): PlayedPlan {
       const s = conUiScale();
       const budget = Math.max(MIN_PILE_BUDGET * s, this.viewportH - CHROME_ALLOWANCE * s);
-      return planPlayedLayout({faceUpCount: this.faceUp.length, maxPileH: budget, uiScale: s});
-    },
-    /** The turned-over events read a touch larger than the packed tableau. */
-    eventsZoom(): number {
-      return Math.max(this.plan.zoom, 0.5 * conUiScale());
-    },
-    eventsSlotW(): number {
-      return PLAYED_CARD_NATURAL_W * this.eventsZoom;
-    },
-    eventsCardH(): number {
-      return PLAYED_CARD_NATURAL_H * this.eventsZoom;
-    },
-    focusKind(): 'card' | 'events' | 'none' {
-      return this.targets.find((t) => t.key === this.focusKey)?.kind ?? 'none';
+      const faceUp = this.zones.corporations.length + this.zones.preludes.length +
+        this.zones.ceos.length + this.zones.active.length + this.zones.automated.length;
+      return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: s});
     },
   },
   watch: {
-    /** Data updated (play / undo / reconnect / seat switch): keep the focus
-     *  key when the object still exists, else land on the first target. */
-    'targets': {
+    /** Data updated (play / undo / reconnect / seat switch): keep the focused
+     *  category while it still exists, else land on the first one. */
+    'categories': {
       immediate: true,
-      handler(targets: ReadonlyArray<PlayedTarget>) {
-        if (!targets.some((t) => t.key === this.focusKey)) {
-          this.focusKey = targets[0]?.key ?? '';
+      handler(categories: ReadonlyArray<PlayedCategory>) {
+        if (!categories.some((c) => c.key === this.focusCategory)) {
+          this.focusCategory = categories[0]?.key ?? '';
         }
-        if (this.eventsOpen && this.zones.events.length === 0) {
-          this.closeEvents();
-        }
-        if (this.eventsOpen && !this.zones.events.some((c) => c.name === this.eventsFocusKey)) {
-          this.eventsFocusKey = this.zones.events[0]?.name ?? '';
+        // The open category emptied out entirely (an undo) — nothing left to
+        // show; the view folds instantly (no cards to fly home).
+        if (this.categoryUp && this.categoryViewCards.length === 0) {
+          resetCategoryDirector();
+          resetPlayedCategoryView();
         }
       },
     },
-    'focusKey': {
+    'focusCategory': {
       immediate: true,
-      handler(key: string) {
-        // Command-bar mirror (the shell's hints read the focused NAME).
-        consolePlayedUi.focusName = key;
+      handler(key: PlayedCategoryKey | '') {
+        consolePlayedUi.focusCategory = key;
         void this.$nextTick(() => this.ensureFocusVisible());
       },
     },
-    'eventsFocusKey'() {
-      void this.$nextTick(() => (this.$refs.events as InstanceType<typeof ConsolePlayedEventsOverlay> | undefined)?.ensureVisible());
-    },
     // Command-bar mirrors (the bar never pokes refs).
-    'focusKind': {
+    'catState.phase': {
       immediate: true,
-      handler(kind: 'card' | 'events' | 'none') {
-        consolePlayedUi.focusKind = kind;
+      handler() {
+        consolePlayedUi.categoryOpen = this.catState.phase === 'open';
+        consolePlayedUi.categoryBusy = isCategoryViewBusy();
+        const key = this.catState.category;
+        consolePlayedUi.categoryLabel = key !== undefined ? PLAYED_CATEGORY_LABEL[key] : '';
       },
-    },
-    'eventsOpen'(open: boolean) {
-      consolePlayedUi.eventsOpen = open;
     },
     'players.length': {
       immediate: true,
@@ -310,21 +353,22 @@ export default defineComponent({
     },
     // ── the hero scene (play-animation mode) ───────────────────────────
     /** The scene always lands on the VIEWER's own tableau — a manually
-     *  open table viewing an opponent snaps to the viewer's seat. */
+     *  open table viewing an opponent snaps to the viewer's seat, and any
+     *  open category view folds instantly (the table must be the scene). */
     'heroActive': {
       immediate: true,
       handler(active: boolean) {
         if (active) {
-          this.eventsOpen = false;
+          resetCategoryDirector();
+          resetPlayedCategoryView();
           this.viewColor = this.thisPlayerColor;
         }
       },
     },
     /** The reserved-slot measurer plugs into the transaction while an
-     *  incoming card exists (registered fresh per scene). Focus seeds onto
-     *  the incoming slot IMMEDIATELY — the slot is measured (and the proxy
-     *  lands) in its focused-lift position, so the reveal is pixel-perfect
-     *  and the landed card is already the cursored one. */
+     *  incoming card exists (registered fresh per scene). The category
+     *  cursor seeds onto the landing card's family — the landed card's zone
+     *  is already the focused one when the player regains the pad. */
     'heroIncoming': {
       immediate: true,
       handler(incoming: CardModel | undefined) {
@@ -332,35 +376,67 @@ export default defineComponent({
         this.unregisterHeroTarget = undefined;
         if (incoming !== undefined) {
           this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measureHeroTarget());
-          this.focusKey = this.heroIncomingIsEvent ? EVENTS_PILE_KEY : incoming.name;
+          this.focusCategory = this.familyOf(incoming.name);
         }
       },
     },
-    /** Touchdown committed: the cursor (and the gliding frame) lands on the
-     *  new card — the premium "it is yours now" confirmation. */
+    /** Touchdown committed: the cursor confirms the landing family. */
     'heroRevealed'(revealed: boolean) {
       if (revealed && this.heroIncoming !== undefined) {
-        this.focusKey = this.heroIncomingIsEvent ? EVENTS_PILE_KEY : this.heroIncoming.name;
+        this.focusCategory = this.familyOf(this.heroIncoming.name);
       }
     },
   },
   beforeUnmount() {
     this.unregisterHeroTarget?.();
     this.unregisterHeroTarget = undefined;
+    resetCategoryDirector();
+    resetPlayedCategoryView();
     resetConsolePlayedUi();
   },
   methods: {
     pilesOf(cards: ReadonlyArray<CardModel>): ReadonlyArray<ReadonlyArray<CardModel>> {
       return splitPiles(cards.length, this.plan.cap).map((p) => cards.slice(p.start, p.start + p.size));
     },
+    familyClasses(key: PlayedCategoryKey): Record<string, boolean> {
+      return {
+        'con-played__family--focused': this.focusCategory === key && !this.heroActive,
+        'con-played__family--out': this.categoryUp && this.catState.category === key,
+      };
+    },
+    /** The zone a tableau card belongs to (the hero landing's focus seed). */
+    familyOf(name: string): PlayedCategoryKey | '' {
+      const z = this.zones;
+      if (z.events.some((c) => c.name === name)) {
+        return 'events';
+      }
+      if (z.corporations.some((c) => c.name === name)) {
+        return 'corporation';
+      }
+      if (z.preludes.some((c) => c.name === name)) {
+        return 'prelude';
+      }
+      if (z.ceos.some((c) => c.name === name)) {
+        return 'ceo';
+      }
+      if (z.active.some((c) => c.name === name)) {
+        return 'active';
+      }
+      if (z.automated.some((c) => c.name === name)) {
+        return 'automated';
+      }
+      return this.focusCategory;
+    },
     // ── the pad grammar (delegated by the shell) ────────────────────────
     handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'scroll') {
-        this.stickScroll(intent.dy);
+      // The category view owns the pad for its whole episode (incl. the
+      // flights — B there reverses/snaps; the table is scenery beneath).
+      if (this.categoryUp) {
+        (this.$refs.catView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
         return;
       }
-      if (this.eventsOpen) {
-        this.handleEventsIntent(intent);
+      if (intent.kind === 'scroll') {
+        this.stickScroll(intent.dy);
         return;
       }
       if (intent.kind === 'nav') {
@@ -372,11 +448,9 @@ export default defineComponent({
       }
       switch (consoleActionOf(intent)) {
       case 'primary':
-        // A VIEW surface: A mirrors X (inspect the focused card / open events).
-        this.activateFocused();
-        break;
       case 'inspect':
-        this.activateFocused();
+        // A VIEW surface: A (and X) opens the focused category.
+        this.openCategory(this.focusCategory);
         break;
       case 'prevSection':
         this.cycleViewedPlayer(-1);
@@ -391,38 +465,15 @@ export default defineComponent({
         break;
       }
     },
-    handleEventsIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        const next = pickSpatialTarget(this.eventsFocusKey, this.collectRects('[data-events-key]', 'eventsKey'), intent.dir);
-        if (next !== undefined) {
-          this.eventsFocusKey = next;
-        }
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-      case 'inspect':
-        this.inspectEvent();
-        break;
-      case 'back':
-        this.closeEvents();
-        break;
-      default:
-        break;
-      }
-    },
-    // ── spatial focus ───────────────────────────────────────────────────
-    collectRects(selector: string, dataKey: 'playedKey' | 'eventsKey'): ReadonlyArray<NavRect> {
+    // ── category focus (spatial over the live zone-block rects) ─────────
+    collectCategoryRects(): ReadonlyArray<NavRect> {
       const root = this.$el as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelectorAll !== 'function') {
         return [];
       }
       const out: Array<NavRect> = [];
-      root.querySelectorAll<HTMLElement>(selector).forEach((el) => {
-        const key = el.dataset[dataKey];
+      root.querySelectorAll<HTMLElement>('[data-played-cat]').forEach((el) => {
+        const key = el.dataset.playedCat;
         if (key === undefined || key === '') {
           return;
         }
@@ -434,120 +485,69 @@ export default defineComponent({
       return out;
     },
     moveFocus(dir: NavDirection): void {
-      const next = pickSpatialTarget(this.focusKey, this.collectRects('[data-played-key]', 'playedKey'), dir);
+      const next = pickSpatialTarget(this.focusCategory, this.collectCategoryRects(), dir);
       if (next !== undefined) {
-        this.focusKey = next;
+        this.focusCategory = next as PlayedCategoryKey;
       }
     },
     ensureFocusVisible(): void {
       const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || this.focusKey === '') {
+      if (root === undefined || this.focusCategory === '') {
         return;
       }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(this.focusKey) : this.focusKey.replace(/"/g, '\\"');
-      const el = root.querySelector<HTMLElement>(`[data-played-key="${esc}"]`);
+      const el = root.querySelector<HTMLElement>(`[data-played-cat="${this.focusCategory}"]`);
       (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined, margin?: number) => void} | undefined)?.ensureVisible?.(el, 18);
     },
     stickScroll(dy: number): void {
       if (Math.abs(dy) < 0.05) {
         return;
       }
-      const step = dy * STICK_SCROLL_STEP * conUiScale();
-      if (this.eventsOpen) {
-        (this.$refs.events as InstanceType<typeof ConsolePlayedEventsOverlay> | undefined)?.scrollByPx(step);
+      // The shell routes the right stick here directly (scrollActiveConsole)
+      // — while the category view is up, ITS grid is the scroll surface.
+      if (this.categoryUp) {
+        (this.$refs.catView as {stickScroll?: (dy: number) => void} | undefined)?.stickScroll?.(dy);
         return;
       }
-      (this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(step);
+      (this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(dy * STICK_SCROLL_STEP * conUiScale());
     },
-    // ── activation ──────────────────────────────────────────────────────
-    activateFocused(): void {
-      const target = this.targets.find((t) => t.key === this.focusKey);
-      if (target === undefined) {
+    // ── opening a category (the physical lift is the view's job) ────────
+    /** Mouse support: clicking anywhere on a zone focuses it; a click on the
+     *  already-focused zone opens it (mirrors the pad's two-step feel). */
+    onFamilyPress(key: PlayedCategoryKey): void {
+      if (this.heroActive || this.categoryUp) {
         return;
       }
-      if (target.kind === 'events') {
-        this.openEvents();
-        return;
-      }
-      this.inspectCard(this.focusKey);
-    },
-    /** Mouse support (secondary input): click focuses; a second click on the
-     *  already-focused card inspects it. Inert while the hero scene owns the
-     *  table (the pad chain is already gated in the shell — this closes the
-     *  DOM-click side door). */
-    onCardPress(name: string): void {
-      if (this.heroActive) {
-        return;
-      }
-      if (this.focusKey === name) {
-        this.activateFocused();
+      if (this.focusCategory === key) {
+        this.openCategory(key);
       } else {
-        this.focusKey = name;
+        this.focusCategory = key;
       }
     },
-    onEventPress(name: string): void {
-      if (this.heroActive) {
+    openCategory(key: PlayedCategoryKey | ''): void {
+      if (key === '' || this.heroActive || this.categoryUp) {
         return;
       }
-      if (this.eventsFocusKey === name) {
-        this.inspectEvent();
-      } else {
-        this.eventsFocusKey = name;
-      }
-    },
-    /** X on a face-up card: the existing fullscreen viewer over the WHOLE
-     *  visible tableau (LB/RB browses it; read-only — no bridges). */
-    inspectCard(name: string): void {
-      const list = [...this.faceUp];
-      const index = list.findIndex((c) => c.name === name);
-      if (index < 0) {
+      const cards = categoryCards(this.zones, key);
+      if (cards.length === 0) {
         return;
       }
-      const origin = slotZoomOrigin(
-        () => this.$el as HTMLElement,
-        (i) => list[i]?.name ?? '',
-        (i) => {
-          const browsed = list[i]?.name;
-          if (browsed !== undefined) {
-            this.focusKey = browsed;
-          }
-        },
-      );
-      openConsoleCardZoom(list, index, undefined, undefined, {origin});
+      this.focusCategory = key;
+      playedCategoryState.category = key;
+      playedCategoryState.names = cards.map((c) => c.name);
+      playedCategoryState.focusIndex = 0;
+      playedCategoryState.flights = [];
+      // NOT held yet — the table cards stay visible until the director has
+      // painted their proxies (the view flips the hold in that same turn).
+      playedCategoryState.holdCards = false;
+      playedCategoryState.frameOn = false;
+      playedCategoryState.pick = undefined;
+      playedCategoryState.phase = 'opening';
+      // The view mounts off `phase` and runs the whole open flight itself.
     },
-    // ── the events pile / nested list ───────────────────────────────────
-    openEvents(): void {
-      if (this.zones.events.length === 0) {
-        return;
-      }
-      this.focusKey = EVENTS_PILE_KEY;
-      this.eventsFocusKey = this.zones.events[0]?.name ?? '';
-      this.eventsOpen = true;
-    },
-    closeEvents(): void {
-      this.eventsOpen = false;
-      // Focus returns to the pile the list came from.
-      if (this.zones.events.length > 0) {
-        this.focusKey = EVENTS_PILE_KEY;
-      }
-    },
-    inspectEvent(): void {
-      const list = [...this.zones.events];
-      const index = list.findIndex((c) => c.name === this.eventsFocusKey);
-      if (index < 0) {
-        return;
-      }
-      const origin = slotZoomOrigin(
-        () => (this.$refs.events as InstanceType<typeof ConsolePlayedEventsOverlay> | undefined)?.$el as HTMLElement | undefined,
-        (i) => list[i]?.name ?? '',
-        (i) => {
-          const browsed = list[i]?.name;
-          if (browsed !== undefined) {
-            this.eventsFocusKey = browsed;
-          }
-        },
-      );
-      openConsoleCardZoom(list, index, undefined, undefined, {origin});
+    onCategorySettled(): void {
+      // The episode settled CLOSED — focus stays on the category it came
+      // from (the table is exactly as the player left it).
+      void this.$nextTick(() => this.ensureFocusVisible());
     },
     // ── the hero scene: the reserved-slot measurer ──────────────────────
     /**
@@ -605,9 +605,11 @@ export default defineComponent({
       const idx = Math.max(0, this.players.findIndex((p) => p.color === this.viewColor));
       const next = this.players[(idx + step + this.players.length) % this.players.length];
       if (next !== undefined && next.color !== this.viewColor) {
-        this.eventsOpen = false;
+        // A different tableau: any open category belongs to the old one.
+        resetCategoryDirector();
+        resetPlayedCategoryView();
         this.viewColor = next.color;
-        this.focusKey = ''; // the targets watcher reseeds on the new tableau
+        this.focusCategory = ''; // the categories watcher reseeds
       }
     },
   },

@@ -3,13 +3,11 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {
   buildPlayedZones,
-  buildPlayedTargets,
   flatFaceUp,
   splitPiles,
   planPlayedLayout,
   playedBaseZoom,
   pickSpatialTarget,
-  EVENTS_PILE_KEY,
   MIN_PILE_CAP,
   MAX_PILE_CAP,
   PLAYED_CARD_NATURAL_W,
@@ -112,23 +110,15 @@ describe('consolePlayedModel', () => {
     });
   });
 
-  describe('buildPlayedTargets', () => {
-    it('face-up cards in visual order, then ONE events-pile target', () => {
+  describe('flatFaceUp', () => {
+    it('every face-up card in visual order (identity first); events excluded', () => {
       const zones = buildPlayedZones([
         card(CardName.PREDATORS),
         card(CardName.ASTEROID),
         card(CardName.THARSIS_REPUBLIC),
       ]);
-      const targets = buildPlayedTargets(zones);
-      expect(targets.map((t) => t.key)).to.deep.eq([CardName.THARSIS_REPUBLIC, CardName.PREDATORS, EVENTS_PILE_KEY]);
-      expect(targets[targets.length - 1].kind).to.eq('events');
-      expect(flatFaceUp(zones)).to.have.length(2);
-    });
-
-    it('no events → no events target; empty tableau → no targets', () => {
-      const zones = buildPlayedZones([card(CardName.TREES)]);
-      expect(buildPlayedTargets(zones).map((t) => t.key)).to.deep.eq([CardName.TREES]);
-      expect(buildPlayedTargets(buildPlayedZones([]))).to.have.length(0);
+      expect(flatFaceUp(zones).map((c) => c.name)).to.deep.eq([CardName.THARSIS_REPUBLIC, CardName.PREDATORS]);
+      expect(flatFaceUp(buildPlayedZones([]))).to.have.length(0);
     });
   });
 

@@ -196,6 +196,7 @@ import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -491,16 +492,6 @@ export default defineComponent({
       const reason = this.pick?.reasons[name];
       return reason !== undefined && reason !== '' ? reason : translateText('Unavailable right now');
     },
-    /** The parked-fleet status, naming the owner (self / named opponent). */
-    visitorStatusText(visitor: Color): string {
-      if (visitor === this.viewerColor) {
-        return translateText('Your trade fleet is currently here');
-      }
-      const player = this.players.find((p) => p.color === visitor);
-      return player !== undefined ?
-        translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]) :
-        translateText('Fleet already here');
-    },
     tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
       // The trade transaction narrates its own beats on the traded tile —
       // a short unobtrusive caption in the EXISTING status line (never a
@@ -515,21 +506,46 @@ export default defineComponent({
         }
         return {kind: 'blocked', text: this.pickReasonFor(colony.name)};
       }
-      if (!colony.isActive) {
-        return {kind: 'inactive', text: translateText('Not active yet')};
-      }
-      if (this.tradeable.includes(colony.name)) {
+      // ONE smart source of truth for «why can't I trade here» — shared with the
+      // shell's trade-attempt notice (colonyTradeReason) so a tile and the notice
+      // over it can never disagree. On the TILE only COLONY-INTRINSIC blockers
+      // (not built / a fleet already docked) get a hard ✕; a turn/fleet/afford
+      // block stays CALM (its reason surfaces on the A-press notice) — except a
+      // window open for OTHER colonies, which keeps the explicit «Trade unavailable».
+      const viewer = this.players.find((p) => p.color === this.viewerColor);
+      const reason = colonyTradeReason({
+        colony,
+        tradeable: this.tradeable,
+        viewerColor: this.viewerColor ?? ('' as Color),
+        availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
+        // Non-intrinsic reasons are DISCARDED on the tile (mapped by tradeable
+        // length below), so the turn scalars don't affect the tile's output.
+        myTurn: false,
+        awaitingInput: false,
+        resolveName: (color) => {
+          const p = this.players.find((x) => x.color === color);
+          return p !== undefined ? participantDisplayName(p) : '';
+        },
+      });
+      if (reason === undefined) {
         return {kind: 'ok', text: translateText('Trade available')};
       }
-      if (colony.visitor !== undefined) {
-        return {kind: 'blocked', text: this.visitorStatusText(colony.visitor)};
+      if (reason.intrinsic) {
+        // The tile keeps the COMPACT «Not active yet»; the fuller reason.key
+        // ('This colony is not active yet') is for the notice/inspect.
+        if (!colony.isActive) {
+          return {kind: 'inactive', text: translateText('Not active yet')};
+        }
+        const text = reason.params !== undefined ?
+          translateTextWithParams(reason.key, reason.params.map(String)) :
+          translateText(reason.key);
+        return {kind: 'blocked', text};
       }
-      // No open trade window (not my turn / no fleets): the tiles stay calm —
-      // the shared reason lives in the greyed fleet chip and the A-press notice.
-      if (this.tradeable.length === 0) {
-        return {kind: 'none', text: ''};
+      // A window open for other colonies → name it; otherwise stay calm.
+      if (this.tradeable.length > 0) {
+        return {kind: 'blocked', text: translateText('Trade unavailable')};
       }
-      return {kind: 'blocked', text: translateText('Trade unavailable')};
+      return {kind: 'none', text: ''};
     },
     scrollSelectedIntoView(): void {
       const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;

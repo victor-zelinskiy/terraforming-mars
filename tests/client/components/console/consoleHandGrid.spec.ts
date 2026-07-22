@@ -126,6 +126,28 @@ describe('consoleHandGrid', () => {
       expect(p.scrolls).to.be.false;
     });
 
+    it('16 cards flatten to a balanced 8×2 instead of 6×3 + scroll (the reported case)', () => {
+      // The anti-orphan rebalance used to collapse 16 into 6×3 (6+6+4) and
+      // scroll, wasting the side space; the layout search finds the balanced
+      // 8+8 = 2 rows that fills the width and needs no scroll.
+      const p = planHandGrid({...box, count: 16});
+      expect(p.cols).to.eq(8);
+      expect(p.rows).to.eq(2);
+      expect(p.scrolls).to.be.false;
+      // A full row still fits the box width (no horizontal overflow).
+      expect(p.cols * p.slotW + (p.cols - 1) * p.gapX).to.be.at.most(box.availW);
+    });
+
+    it('never picks a lopsided last row when a balanced one fits the same rows', () => {
+      // 16 in 3 rows would be 6+6+4 (balanced) not 7+7+2 — the search only
+      // considers the minimal (balanced) column count for each row count.
+      const p = planHandGrid({...box, count: 16});
+      // 2 rows is achievable, so it's preferred over any 3-row layout entirely.
+      expect(p.rows).to.eq(2);
+      const perRow = Math.ceil(16 / p.rows);
+      expect(p.cols).to.eq(perRow);
+    });
+
     it('the TV column ceiling scales with uiScale but width still binds', () => {
       // Even with a generous ceiling the width-fit is the real limiter — cards
       // never get thinner than the box allows.

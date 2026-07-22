@@ -32,7 +32,6 @@
  */
 
 import {CardModel} from '@/common/models/CardModel';
-import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -175,35 +174,10 @@ export function planPlayedLayout(input: PlayedPlanInput): PlayedPlan {
   return {zoom, slotW: PLAYED_CARD_NATURAL_W * zoom, cardH, peekH, cap};
 }
 
-// ── focus targets ───────────────────────────────────────────────────────────
-
-/** The synthetic focus key of the face-down events pile. */
-export const EVENTS_PILE_KEY = '#events';
-
-export type PlayedTargetKind = 'card' | 'events';
-
-export type PlayedTarget = {
-  /** Stable focus key: the card name (unique within a tableau) or `#events`. */
-  key: string,
-  kind: PlayedTargetKind,
-  name?: CardName,
-};
-
-/**
- * Every focusable object of the overlay in the fixed visual order: face-up
- * cards first (identity → active → automated), then the events pile (one
- * target for the whole face-down stack).
- */
-export function buildPlayedTargets(zones: PlayedZones): ReadonlyArray<PlayedTarget> {
-  const out: Array<PlayedTarget> = flatFaceUp(zones)
-    .map((c) => ({key: c.name as string, kind: 'card' as const, name: c.name}));
-  if (zones.events.length > 0) {
-    out.push({key: EVENTS_PILE_KEY, kind: 'events'});
-  }
-  return out;
-}
-
 // ── spatial navigation ──────────────────────────────────────────────────────
+// (The per-card focus-target API is RETIRED — the tableau navigates by
+// CATEGORY; see consolePlayedCategoryModel. `pickSpatialTarget` below now
+// walks the live ZONE-block rects.)
 
 export type NavRect = {
   key: string,
