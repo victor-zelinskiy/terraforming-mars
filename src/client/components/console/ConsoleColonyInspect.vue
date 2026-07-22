@@ -10,9 +10,10 @@
     a card-resource reward would actually land (targets / auto / lost).
     Button hints live ONLY in the shell's bottom command bar (B = close).
   -->
-  <div class="con-task-host con-colinspect" role="dialog" :aria-label="$t('Colony')">
-    <div class="con-task-host__backdrop" aria-hidden="true"></div>
-    <div class="con-task con-colinspect__frame">
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director — no own backdrop (the host-chassis backdrop div is gone). -->
+  <div class="con-task-host con-colinspect" role="dialog" :aria-label="$t('Colony')" data-motion-surface="colony-inspect">
+    <div class="con-task con-colinspect__frame" data-motion-panel>
       <header class="con-colinspect__head">
         <div class="con-colinspect__planet" :class="planetClass" aria-hidden="true"></div>
         <div class="con-colinspect__head-text">

@@ -1,7 +1,8 @@
 <template>
-  <div class="con-task-host con-maconfirm" role="dialog" :aria-label="$t(title)">
-    <div class="con-task-host__backdrop" aria-hidden="true"></div>
-    <div class="con-task con-maconfirm__frame" :class="'con-maconfirm__frame--' + view.kind">
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director — no own backdrop (the host-chassis backdrop div is gone). -->
+  <div class="con-task-host con-maconfirm" role="dialog" :aria-label="$t(title)" data-motion-surface="ma-confirm">
+    <div class="con-task con-maconfirm__frame" data-motion-panel :class="'con-maconfirm__frame--' + view.kind">
       <!-- ── Header: category identity + the decision verb ─────────────── -->
       <header class="con-task__head">
         <div class="con-task__kicker">

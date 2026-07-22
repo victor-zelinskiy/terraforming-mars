@@ -1,8 +1,9 @@
 <template>
-  <div class="con-govsupport" role="dialog" :aria-label="$t('Government Support')">
-    <div class="con-govsupport__backdrop" aria-hidden="true"></div>
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director — no own backdrop. -->
+  <div class="con-govsupport" role="dialog" :aria-label="$t('Government Support')" data-motion-surface="gov-support">
 
-    <div class="con-govsupport__panel">
+    <div class="con-govsupport__panel" data-motion-panel>
       <!-- ── Briefing header ─────────────────────────────────────────── -->
       <header class="con-govsupport__head">
         <div class="con-govsupport__kicker">

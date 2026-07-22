@@ -81,13 +81,22 @@ function isPickBridgeHidden(): boolean {
 }
 
 /**
- * Surfaces that NEVER own the shade: the action composer is a CHILD layer of
- * the action center (whose ownership already dims the stage) — and a child's
- * leave hook never fires when its parent unmounts wholesale, so a child
- * ownership would leak past the parent's teardown. The center's `--behind`
- * recession carries the composer's extra depth instead.
+ * Surfaces that NEVER own the shade:
+ *  - the action composer is a CHILD layer of the action center (whose
+ *    ownership already dims the stage) — and a child's leave hook never
+ *    fires when its parent unmounts wholesale, so a child ownership would
+ *    leak past the parent's teardown; the center's `--behind` recession
+ *    carries its extra depth instead;
+ *  - the MA screen + the generic bottom sheet keep their own LIGHT dims by
+ *    design (0.34 quick-glance / bottom-sheet 0.6 — the board must stay
+ *    readable behind them), so the full shade must not stack on top;
+ *  - Info Mode is a Y-layer that opens OVER arbitrary surfaces (z 11560,
+ *    above the shade) and carries its own full dim;
+ *  - a SECTION (colonies / hydro) is a workspace, not a modal — no dim.
  */
-const NON_SHADE_OWNERS: ReadonlySet<SurfaceMotionId> = new Set(['action-composer']);
+const NON_SHADE_OWNERS: ReadonlySet<SurfaceMotionId> = new Set([
+  'action-composer', 'ma-screen', 'sheet', 'info-mode', 'section',
+]);
 
 function surfaceIdOf(el: Element): SurfaceMotionId | undefined {
   const id = (el as HTMLElement).dataset?.motionSurface;
@@ -204,6 +213,16 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
       gsap.set(panel, {clearProps: 'transform,opacity,visibility'});
       return gsap.fromTo(panel, {autoAlpha: 0}, {autoAlpha: 1, duration: 0.12, ease: 'power1.out', onComplete: finish});
     });
+    return;
+  }
+
+  // The generic bottom sheet keeps its authored character: it RISES from the
+  // bar band (the retired `con-sheet-up` CSS re-expressed here so the GSAP
+  // runtime owns the property, never fighting a CSS animation).
+  if (id === 'sheet' && kind === 'open') {
+    guarded(el, 230, done, (finish) => gsap.fromTo(panel,
+      {autoAlpha: 0, y: 26 * conUiScale()},
+      {autoAlpha: 1, y: 0, duration: s(220), ease: 'expo.out', clearProps: 'transform,opacity,visibility', onComplete: finish}));
     return;
   }
 

@@ -273,6 +273,7 @@ import {
   isColonyTradeRevealStaged,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {tradeRoleForIndex} from '@/client/console/colonyTrade/colonyTradeModel';
+import {setRevealVeilSuppressed} from '@/client/console/surfaceMotion/surfaceMotionState';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -590,11 +591,23 @@ export default defineComponent({
         this.openSingleCardFullscreen();
       }
     },
+    // SURFACE MOTION: while a scene VEILS the mounted reveal (its frame is
+    // measured but invisible, the cards still flying) the shared shade must
+    // stay dark-free too — else the field dims before the scene hands over.
+    bonusVeiled: {
+      immediate: true,
+      handler(veiled: boolean): void {
+        setRevealVeilSuppressed(veiled);
+      },
+    },
   },
   mounted() {
     if (this.singleCardNeedsFullscreen) {
       this.openSingleCardFullscreen();
     }
+  },
+  beforeUnmount() {
+    setRevealVeilSuppressed(false);
   },
   methods: {
     dealDelay(i: number): Record<string, string> {

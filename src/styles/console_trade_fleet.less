@@ -91,10 +91,9 @@
    as the launch anchor. The trade is NOT "done" — the overlay only fully
    closes after the ship docks (the shell clears pendingTradeColony then). */
 .con-trade--launching {
-    .con-task-host__backdrop {
-        opacity: 0.22; /* a light veil keeps the grid readable, ship focal */
-        transition: opacity calc(320ms * var(--motion-scale, 1)) ease;
-    }
+    /* (The composer renders no own backdrop anymore — the shared `.con-shade`
+       thins to its --veil tier for the flight via the shell's fleet watch,
+       keeping the colony grid readable while the ship is focal.) */
     .con-trade__frame {
         opacity: 0;
         transform: translateY(-.5rem) scale(0.985);
@@ -158,8 +157,7 @@
 /* ── Reduced motion: short/static — the path (sent → arrived → docked)
    still reads, no arc/trail/loops. ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-    .con-trade--launching .con-trade__frame,
-    .con-trade--launching .con-task-host__backdrop { transition-duration: 1ms; }
+    .con-trade--launching .con-trade__frame { transition-duration: 1ms; }
     .con-colonies__fleetdock.con-fleet-launching .con-colonies__fleetship[data-fleet-launch]::after { animation: none; }
     .con-coltile__planet-berth--docking .con-coltile__planet,
     .con-coltile--just-docked .con-coltile__dock { animation: none; }

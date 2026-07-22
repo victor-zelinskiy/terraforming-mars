@@ -1,8 +1,8 @@
 <template>
-  <div class="con-prodloss" role="dialog" :aria-label="titleText">
-    <div class="con-prodloss__backdrop" aria-hidden="true"></div>
-
-    <div class="con-prodloss__panel">
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director — no own backdrop. -->
+  <div class="con-prodloss" role="dialog" :aria-label="titleText" data-motion-surface="production-loss">
+    <div class="con-prodloss__panel" data-motion-panel>
       <!-- ── Header ──────────────────────────────────────────────────── -->
       <header class="con-prodloss__head">
         <div class="con-prodloss__kicker">

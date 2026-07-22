@@ -1,7 +1,10 @@
 <template>
-  <div class="con-info" role="dialog" :aria-label="$t('Information')">
+  <!-- data-motion-*: the surface-motion director animates the frame (open /
+       dismiss); the OWN full dim STAYS — Info Mode is a Y-layer above every
+       band surface (z 11560, over the shade), so it must carry its darkness. -->
+  <div class="con-info" role="dialog" :aria-label="$t('Information')" data-motion-surface="info-mode">
     <div class="con-info__backdrop" aria-hidden="true"></div>
-    <div class="con-info__frame">
+    <div class="con-info__frame" data-motion-panel>
 
       <!-- ── Header: whose profile + switching hints ─────────────────── -->
       <header class="con-info__head">

@@ -140,39 +140,60 @@
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
-      <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
-                              :colonies="coloniesForRail"
-                              :index="consoleState.colonyIndex"
-                              :tradeable="tradeableColonyNames"
-                              :tradeBlockReason="colonyTradeBlockReason"
-                              :pick="colonyPick"
-                              :players="playerView.players"
-                              :viewerColor="thisPlayer.color"
-                              :dockedColony="tradeFleetState.dockedColonyName"
-                              :tradeOffset="thisPlayer.colonyTradeOffset ?? 0" />
+      <!-- Surface-motion 'section': a workspace switch gets a light rise
+           (no dim) — never the bare v-if pop it used to be. The wheel's
+           «Торговля» slot hands off directionally into it. -->
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
+                                data-motion-surface="section"
+                                :colonies="coloniesForRail"
+                                :index="consoleState.colonyIndex"
+                                :tradeable="tradeableColonyNames"
+                                :tradeBlockReason="colonyTradeBlockReason"
+                                :pick="colonyPick"
+                                :players="playerView.players"
+                                :viewerColor="thisPlayer.color"
+                                :dockedColony="tradeFleetState.dockedColonyName"
+                                :tradeOffset="thisPlayer.colonyTradeOffset ?? 0" />
+      </transition>
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
            hydroNetworkState + buildHydroModel; the shell keeps the pick
            sheet + the byte-identical submit batch. -->
-      <ConsoleHydroSection v-if="consoleState.section === 'hydro'"
-                           ref="hydroSection"
-                           :playerView="playerView"
-                           :actionAvailable="hydroActionAvailable"
-                           :cacheKey="hydroCacheKey"
-                           @pick="openHydroPickSheet"
-                           @notice="showNotice($event)"
-                           @confirm="submitHydroAdvance($event)"
-                           @close="consoleState.section = 'board'" />
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleHydroSection v-if="consoleState.section === 'hydro'"
+                             data-motion-surface="section"
+                             ref="hydroSection"
+                             :playerView="playerView"
+                             :actionAvailable="hydroActionAvailable"
+                             :cacheKey="hydroCacheKey"
+                             @pick="openHydroPickSheet"
+                             @notice="showNotice($event)"
+                             @confirm="submitHydroAdvance($event)"
+                             @close="consoleState.section = 'board'" />
+      </transition>
     </div>
 
     <!-- LT INFORMATION MODE — read-only player dashboard over everything
-         console (fallback surfaces still render above at z12000+). -->
-    <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
+         console (fallback surfaces still render above at z12000+).
+         Surface-motion: frame open/dismiss via the director (its own full
+         dim stays — it opens OVER arbitrary surfaces, above the shade). -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
+    </transition>
 
     <!-- Colony trade — the console-native pre-select COMPOSER (payment path +
          M€ mix + track choice + card targets + the live «Итог торговли»);
          confirms as ONE PlayerInputBatch (colonyTradePlan.buildTradeBatch). -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleColonyTradeConfirm v-if="pendingTradeColony !== undefined"
                                  ref="tradeConfirm"
                                  :colony="pendingTradeColonyModel"
@@ -189,7 +210,9 @@
 
     <!-- Colony inspect (X = «Осмотреть») — the read-only full dossier for ANY
          colony; ←/→ page through the colonies while open. -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleColonyInspect v-if="colonyInspectModel !== undefined"
                             :colony="colonyInspectModel"
                             :players="playerView.players"
@@ -227,7 +250,9 @@
     <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
          on an available dashboard item opens this; nothing is submitted
          until the modal's own A — accidental claim/fund is impossible). -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleMaConfirm v-if="maConfirmView !== undefined"
                         ref="maConfirm"
                         :view="maConfirmView"
@@ -239,7 +264,9 @@
 
     <!-- Milestones/Awards — the X → «Осмотреть» full-text READER (the premium
          reader for the long descriptions the dashboard cards must clamp). -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" :players="playerView.players" />
     </transition>
 
@@ -291,10 +318,14 @@
       <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
     </transition>
 
-    <!-- Console confirm panel (pass / risky conversions). -->
-    <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog">
-      <div class="con-confirm__backdrop" aria-hidden="true"></div>
-      <div class="con-confirm__card">
+    <!-- Console confirm panel (pass / risky conversions). Surface-motion:
+         rides the shared shade + the director — a wheel's Пас slot hands
+         off INTO this card (directional entry from the chosen slot). -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+    <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog" data-motion-surface="confirm">
+      <div class="con-confirm__card" data-motion-panel>
         <div class="con-confirm__title">{{ $t(confirmTitle) }}</div>
         <div class="con-confirm__body">{{ $t(confirmBody) }}</div>
         <!-- T7 info parity: the desktop PassConfirmContent warnings (unused
@@ -311,6 +342,7 @@
         </div>
       </div>
     </div>
+    </transition>
 
     <!-- Transient notice (unsupported verb, refusals). -->
     <transition name="con-notice">
@@ -339,7 +371,9 @@
     <!-- Government Support (World Government Terraforming) — the dedicated
          premium 2×2 briefing panel (replaces the generic host for this ONE
          choice). Same submit / space-pick / defer contract as the host. -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleGovernmentSupport v-if="govSupportActive && !govScaleFocusState.closing && !consoleState.task.deferred && taskSpacePending === undefined"
                                 ref="govSupport"
                                 :playerView="playerView"
@@ -352,7 +386,9 @@
     <!-- Production loss (Ares hazard-adjacency penalty) — the dedicated
          premium "reduce your production" surface (replaces the generic host
          distribute lanes for this ONE case). Same submit / defer contract. -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleProductionLoss v-if="productionLossActive && !consoleState.task.deferred && taskSpacePending === undefined"
                              ref="prodLoss"
                              :playerView="playerView"
@@ -700,9 +736,12 @@
          re-hosted HandCardPaymentContent modal is retired). Preview +
          payment here; the on-play choices arrive as NATIVE follow-up
          tasks after confirm (the legacy-supported sequential contract). -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <!-- v-show (NOT v-if) while a client hand pick is out: the composer's
-           captured choices/payment must survive the hand round-trip. -->
+           captured choices/payment must survive the hand round-trip (the
+           director recognizes the pick bridge and never animates it). -->
       <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
                               v-show="!handPickActive && !playedPickActive"
                               ref="playConfirm"
@@ -717,7 +756,9 @@
          modal (the play-composer's mandatory sibling). Presence is DERIVED
          from the corporationInitialAction prompt (never opened imperatively);
          B DEFERS to the amber chip, A submits the corp's OrOptions option. -->
-    <transition name="con-layer">
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleCorpFirstActionConfirm v-if="corpFirstActionOpen"
                                      ref="corpFirstConfirm"
                                      :playerView="playerView"
@@ -1450,14 +1491,16 @@ export default defineComponent({
       return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds;
     },
     /** The surface-motion shade (`.con-shade--on`): ≥1 migrated band surface
-     *  owns the foreground, or a committed submit is awaiting its answer. */
+     *  owns the foreground, a committed submit is awaiting its answer, or
+     *  the trade-fleet flight keeps its thin veil over the colony grid. */
     surfaceShadeVisible(): boolean {
-      return surfaceShadeOn();
+      return surfaceShadeOn() || isTradeFleetActive();
     },
-    /** The task host's table beat (draft tray owns the screen) thins the
-     *  shade to a light veil — mirrors the retired per-host backdrop rule. */
+    /** The shade thins to a light veil: the task host's table beat (draft
+     *  tray owns the screen) and the trade-fleet launch (ship focal, grid
+     *  readable) — mirrors the retired per-surface backdrop rules. */
     surfaceShadeVeil(): boolean {
-      return draftTrayState.tableView;
+      return draftTrayState.tableView || isTradeFleetActive();
     },
     /** The currently VISIBLE transient notification — the topmost (the feed is
      *  serial, so at most one). GLOBAL rule: any console toast is dismissable
@@ -3782,10 +3825,13 @@ export default defineComponent({
             revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
           }, typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (resolution.kind !== 'hold') {
-            if (resolution.kind === 'phase') {
-              captureSurfaceDeparture(awaiting.from,
-                document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
-            }
+            // Capture the departing composer UNCONDITIONALLY — the incoming
+            // surface consumes it only when the pair is phase-linked
+            // (departureUsable), so a reveal FLIPs the source card while a
+            // follow-up task host (a Helion payment, an OrOptions branch)
+            // enters as the continuation of the same activation.
+            captureSurfaceDeparture(awaiting.from,
+              document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
             clearAwaitingHandoff();
             closeConsoleLayers();
           }

@@ -80,9 +80,8 @@
         animation: none; /* the scene choreographs the frame, not con-rise */
         transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
     }
-    .con-reveal__backdrop {
-        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-    }
+    /* (The reveal renders no own __backdrop anymore — the shared `.con-shade`
+       dim is veiled through setRevealVeilSuppressed while the scene flies.) */
     .con-reveal__strip .con-start__deal {
         animation: none; /* the handoff is the entrance — never the deal-in replay */
     }
@@ -92,7 +91,6 @@
     }
 }
 .con-reveal--bonus-veiled {
-    .con-reveal__backdrop,
     .con-reveal__card {
         opacity: 0;
     }
@@ -113,6 +111,5 @@
 @media (prefers-reduced-motion: reduce) {
     .con-bonusfly-cover,
     .con-bonusfly-proxy { filter: none; }
-    .con-reveal--bonus-mode .con-reveal__card,
-    .con-reveal--bonus-mode .con-reveal__backdrop { transition-duration: 1ms; }
+    .con-reveal--bonus-mode .con-reveal__card { transition-duration: 1ms; }
 }

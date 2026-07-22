@@ -127,7 +127,10 @@ export default defineComponent({
   },
   methods: {
     rowText(key: CardAnnotationRow['text']): string {
-      return stripKindPrefix(translateText(key));
+      const text = stripKindPrefix(translateText(key));
+      // Every rule block reads as a sentence — capitalize its first letter
+      // (the source text / behavior-derived wording is often lowercase).
+      return text.length > 0 ? text[0].toLocaleUpperCase() + text.slice(1) : text;
     },
     /** Resolve an annotation's ROW element (mirrors CardAnnotationsLayer.rowEl
      *  incl. the documented special-id fallbacks). */

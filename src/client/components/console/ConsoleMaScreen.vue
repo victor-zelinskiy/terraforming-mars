@@ -1,7 +1,10 @@
 <template>
-  <div class="con-ma" role="dialog" :aria-label="$t(title)">
+  <!-- data-motion-*: the director animates the panel (NON_SHADE_OWNERS —
+       the OWN light 0.34 dim stays by design: a quick-glance strategic
+       panel, the board must remain readable behind it). -->
+  <div class="con-ma" role="dialog" :aria-label="$t(title)" data-motion-surface="ma-screen">
     <div class="con-ma__backdrop" aria-hidden="true"></div>
-    <div class="con-ma__panel">
+    <div class="con-ma__panel" data-motion-panel>
       <!-- Identity band: category emblem + title; the slot tray + tally +
            (awards) the next funding price live on the right. 3/3 announces
            itself in gold — the tray pips carry WHO took each slot. -->

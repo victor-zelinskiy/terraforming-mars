@@ -2922,11 +2922,7 @@ html.con-profile-handheld .con-maconfirm {
     justify-content: center;
     padding: .4rem 2rem;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-    }
+    /* NO own __backdrop: rides the shared `.con-shade` dim (surface motion). */
     &__card {
         position: relative;
         width: min(44rem, 92vw);
@@ -4562,7 +4558,7 @@ html.console-mode {
         border-radius: .8rem .8rem 0 0;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%), 0 -.9rem 3rem rgba(0, 0, 0, 0.6);
-        animation: con-sheet-up calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        /* The rise-from-the-bar entry moved to the surface-motion director. */
     }
     &__head {
         display: flex;
@@ -4734,7 +4730,7 @@ html.console-mode {
             inset 0 0 0 .05rem fade(@con-cyan, 38%),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
             0 1.1rem 3.5rem rgba(0, 0, 0, 0.55);
-        animation: con-rise calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        /* Entry moved to the surface-motion director. */
     }
 
     /* ── identity band ──────────────────────────────────────────── */
@@ -6431,11 +6427,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     align-items: center;
     justify-content: center;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        background: rgba(4, 8, 14, 0.7);
-    }
+    /* NO own __backdrop / entry animation: rides the shared `.con-shade`
+       dim + the surface-motion director (a wheel's Пас slot hands off
+       directionally into this card). */
     &__card {
         position: relative;
         min-width: 21rem;
@@ -6444,7 +6438,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.65);
-        animation: con-rise calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
         text-align: center;
     }
     &__title {
@@ -7087,7 +7080,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        /* Entry moved to the surface-motion director (the own dim stays —
+           Info Mode opens OVER arbitrary surfaces, above the shade). */
     }
 
     &__head {
@@ -8821,9 +8815,10 @@ html.console-mode {
     padding: .3rem 0;
     box-sizing: border-box;
 
-    /* NO own __backdrop: the host rides the shared `.con-shade` dim
-       (surfaceMotionState) — the table-beat veil lives there too
-       (`.con-shade--veil`, driven by the same draftTray flag). */
+    /* NO __backdrop rule: the host AND every chassis reuser (colony-trade
+       composer / MA confirm / colony inspect) ride the shared `.con-shade`
+       dim now — none renders a backdrop div anymore. The table-beat veil
+       lives on the shade too (`.con-shade--veil`, same draftTray flag). */
 
     /* THE TABLE BEAT (draft pick / research rise — consoleDraftTray.ts):
        the modal layer DISSOLVES so the table underneath — the drafted
@@ -8854,7 +8849,9 @@ html.console-mode {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2rem fade(@con-cyan, 8%);
     font-family: @con-font;
     color: @con-text;
-    animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    /* NO entry keyframe: the surface-motion director owns the mount entry
+       (a CSS animation here would override its inline transforms); the
+       prompt→prompt cross-fade stays with the keyed con-task-swap. */
     transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
 
     &__head { margin-bottom: .7rem; }
@@ -9413,11 +9410,7 @@ html.console-mode {
     align-items: center;
     justify-content: center;
 
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
-    }
+    /* NO own __backdrop: rides the shared `.con-shade` dim (surface motion). */
 
     &__panel {
         position: relative;
@@ -13031,6 +13024,11 @@ html.console-mode {
     .board-space.con-cell-sel::after {
         animation: none;
     }
+    /* The surface-motion shade snaps (no lingering dim fades). */
+    .con-shade {
+        transition-duration: 1ms;
+        transition-delay: 0ms;
+    }
     .con-turnmenu__card,
     .con-sheet__panel,
     .con-ma__panel,
@@ -13367,16 +13365,9 @@ html.console-mode {
     font-family: @con-font;
     color: @con-text;
 
-    /* The ACTION composer renders NO __backdrop div anymore (it opens OVER
-       the action center — the shared `.con-shade` is already up and the
-       center's `__frame--behind` recession carries the depth). The rule
-       below stays for the NOT-yet-migrated siblings that share this block
-       (the play composer / corp-first confirm still dim through it). */
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-    }
+    /* NO __backdrop rule: every .con-composer surface (action / play /
+       corp-first) rides the shared `.con-shade` dim now — none renders a
+       backdrop div anymore. */
 
     &__panel {
         position: relative; z-index: 1;

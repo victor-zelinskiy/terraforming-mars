@@ -21,6 +21,7 @@ import {
   removeShadeOwner,
   resetSurfaceMotion,
   setPickSuppressed,
+  setRevealVeilSuppressed,
   surfaceMotionState,
   surfaceShadeOn,
   takeSurfaceDeparture,
@@ -41,6 +42,16 @@ describe('surfaceMotionModel (the pure transition vocabulary)', () => {
       expect(classifySurfaceTransition('task-host', 'reveal')).to.eq('phase');
       expect(classifySurfaceTransition('reveal', 'task-host')).to.eq('phase');
       expect(isPhasePair('action-composer', 'reveal')).to.be.true;
+    });
+
+    it('a composer whose answer is a follow-up host prompt continues as a PHASE', () => {
+      // The Helion case: the action\'s 1 M€ became a full payment prompt.
+      expect(classifySurfaceTransition('action-composer', 'task-host')).to.eq('phase');
+      expect(classifySurfaceTransition('card-actions', 'task-host')).to.eq('phase');
+      expect(classifySurfaceTransition('play-composer', 'task-host')).to.eq('phase');
+      // The reverse is NOT a phase — a host closing into a composer is a
+      // fresh voluntary opening, never a continuation.
+      expect(classifySurfaceTransition('task-host', 'action-composer')).to.eq('handoff');
     });
 
     it('unrelated surfaces exchanging the band is a handoff', () => {
@@ -143,6 +154,14 @@ describe('surfaceMotionState (the reactive store)', () => {
       setPickSuppressed(true);
       expect(surfaceShadeOn()).to.be.false;
       setPickSuppressed(false);
+      expect(surfaceShadeOn()).to.be.true;
+    });
+
+    it('yields to a scene-veiled reveal (the frame is mounted but invisible)', () => {
+      addShadeOwner('reveal');
+      setRevealVeilSuppressed(true);
+      expect(surfaceShadeOn()).to.be.false;
+      setRevealVeilSuppressed(false);
       expect(surfaceShadeOn()).to.be.true;
     });
 

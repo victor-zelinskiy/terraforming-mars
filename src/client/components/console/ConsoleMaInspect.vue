@@ -13,9 +13,10 @@
                           meaningless once the race is over).
     Read-only: A sponsors/claims when available (→ the confirm), B/X close.
   -->
-  <div class="con-mainspect" role="dialog" :aria-label="$t(view.displayName)">
-    <div class="con-mainspect__backdrop" aria-hidden="true"></div>
-    <div class="con-mainspect__card" :class="'con-mainspect__card--' + view.kind">
+  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+       director — no own backdrop. -->
+  <div class="con-mainspect" role="dialog" :aria-label="$t(view.displayName)" data-motion-surface="ma-inspect">
+    <div class="con-mainspect__card" data-motion-panel :class="'con-mainspect__card--' + view.kind">
       <!-- Top bar: category identity + the taken / funded status. -->
       <div class="con-mainspect__topbar">
         <div class="con-mainspect__kicker">

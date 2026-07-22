@@ -41,7 +41,18 @@ export type SurfaceMotionId =
   | 'ma-screen'
   | 'sheet'
   | 'task-host'
-  | 'reveal';
+  | 'reveal'
+  | 'play-composer'
+  | 'corp-first'
+  | 'confirm'
+  | 'trade-composer'
+  | 'ma-confirm'
+  | 'colony-inspect'
+  | 'ma-inspect'
+  | 'gov-support'
+  | 'production-loss'
+  | 'info-mode'
+  | 'section';
 
 export type SurfaceTransitionKind =
   | 'open'
@@ -70,6 +81,14 @@ const PHASE_PAIRS: ReadonlySet<string> = new Set([
   // The reveal resolved into the next server prompt (Pluto draw → discard
   // fills the hand section; a follow-up choice fills the host).
   'reveal>task-host',
+  // A composer's confirm whose answer is a FOLLOW-UP server prompt rather
+  // than a reveal (a Helion payment, an OrOptions branch): the task host is
+  // the NEXT STAGE of the same activation — never a fresh unrelated open.
+  'action-composer>task-host',
+  'card-actions>task-host',
+  // The play composer's follow-ups ride the same continuation (the on-play
+  // choices that could not be pre-collected arrive as host prompts).
+  'play-composer>task-host',
 ]);
 
 export function isPhasePair(from: SurfaceMotionId, to: SurfaceMotionId): boolean {

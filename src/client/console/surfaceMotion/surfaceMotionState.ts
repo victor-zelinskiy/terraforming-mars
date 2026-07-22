@@ -42,6 +42,11 @@ export const surfaceMotionState = reactive({
   /** A client hand/tableau pick hides the owning composer via v-show — the
    *  shade yields to the picked-in section for the bridge's lifetime. */
   pickSuppressed: false,
+  /** A board-bonus / deck-draw / colony-trade scene VEILS the mounted reveal
+   *  (its frame is measured but invisible while the cards still fly) — the
+   *  shade must stay dark-free with it, else the field dims before the
+   *  scene hands over. Reported by ConsoleRevealOverlay's veil watcher. */
+  revealVeilSuppressed: false,
   /** The committed composer hold (see surfaceMotionModel). */
   awaiting: undefined as AwaitingHandoff | undefined,
   /** The latest outgoing-surface capture (undefined once consumed/stale). */
@@ -54,7 +59,7 @@ export const surfaceMotionState = reactive({
 
 /** The ONE shade predicate the shell binds (`.con-shade--on`). */
 export function surfaceShadeOn(): boolean {
-  if (surfaceMotionState.pickSuppressed) {
+  if (surfaceMotionState.pickSuppressed || surfaceMotionState.revealVeilSuppressed) {
     return false;
   }
   return surfaceMotionState.shadeOwners.length > 0 || surfaceMotionState.awaiting !== undefined;
@@ -75,6 +80,10 @@ export function removeShadeOwner(id: SurfaceMotionId): void {
 
 export function setPickSuppressed(on: boolean): void {
   surfaceMotionState.pickSuppressed = on;
+}
+
+export function setRevealVeilSuppressed(on: boolean): void {
+  surfaceMotionState.revealVeilSuppressed = on;
 }
 
 // ── departure capture (DOM measure — call while the outgoing DOM is live) ───
@@ -187,6 +196,7 @@ export function takeWheelChosenSlot(): string | undefined {
 export function resetSurfaceMotion(): void {
   surfaceMotionState.shadeOwners.splice(0);
   surfaceMotionState.pickSuppressed = false;
+  surfaceMotionState.revealVeilSuppressed = false;
   surfaceMotionState.awaiting = undefined;
   surfaceMotionState.departure = undefined;
   surfaceMotionState.wheelOrigin = undefined;
