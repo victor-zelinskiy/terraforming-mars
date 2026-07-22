@@ -31,7 +31,9 @@ function newGameConfig() {
       corpera: true, promo: false, venus: false, colonies: false,
       prelude: false, prelude2: false, turmoil: false, community: false,
       ares: false, moon: false, pathfinders: false, ceo: false,
-      starwars: false, underworld: false, deltaProject: false,
+      // deltaProject ON: the Hydronetwork workspace section drives the
+      // section-exit regression probe (the planet must never rescale).
+      starwars: false, underworld: false, deltaProject: true,
     },
     board: 'tharsis',
     seed: 0.03,
@@ -234,6 +236,29 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-02-stdp-after-wheel-handoff`);
       await key(page, 'Escape', 700);
       await expect(page.locator('.con-stdp')).toHaveCount(0);
+
+      // ── 2b. WORKSPACE section exit — the planet must NOT rescale. Open
+      // the Hydronetwork (RT wheel → ← slot), close with B, and sample
+      // --board-scale through the whole exit: the frozen leaver dissolves
+      // OVER a full-size board, so the stored scale never wobbles (the
+      // regression: the planet mounted half-width, then jumped to size
+      // while the departing screen flashed squeezed on the right).
+      const boardScale = () => page.evaluate(() => document.documentElement.style.getPropertyValue('--board-scale'));
+      const baseScale = await boardScale();
+      expect(baseScale, 'the board scale must be set on the board home').not.toBe('');
+      await key(page, 'Period', 600); // RT wheel
+      await key(page, 'ArrowLeft', 1000); // ← slot = Hydronetwork
+      await expect(page.locator('.con-hydro')).toHaveCount(1);
+      await page.keyboard.press('Escape'); // B → close → board
+      const scaleSamples: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        scaleSamples.push(await boardScale());
+        await page.waitForTimeout(45);
+      }
+      expect(scaleSamples.every((s2) => s2 === baseScale),
+        `--board-scale wobbled through the section exit: [${scaleSamples.join(', ')}] vs ${baseScale}`).toBeTruthy();
+      await expect(page.locator('.con-hydro')).toHaveCount(0);
+      await shoot(page, `${profile.tag}-02b-board-after-hydro-exit`);
 
       // ── 3. Play Search For Life from hand (RT → center = КАРТЫ). ────────
       await key(page, 'Period', 600);

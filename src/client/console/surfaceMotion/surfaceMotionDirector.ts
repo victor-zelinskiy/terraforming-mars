@@ -63,6 +63,9 @@ const PHASE_MS = 190;
 const PHASE_ANCHOR_MS = 300;
 /** The outgoing side of an ordinary handoff. */
 const HANDOFF_OUT_MS = 110;
+/** A departing WORKSPACE section dissolves over the re-appearing board —
+ *  slightly longer than a modal dismiss (a full screen letting go). */
+const SECTION_OUT_MS = 170;
 /** The wheel family — mechanical, immediate. */
 const WHEEL_IN_MS = 120;
 const WHEEL_OUT_MS = 95;
@@ -358,6 +361,25 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
     done();
     return;
   }
+  // A departing WORKSPACE SECTION (colonies / hydro) must leave the flex
+  // flow BEFORE its exit plays: it shares `.con-main` with the re-appearing
+  // board, and squeezing the board for the exit's lifetime made the planet
+  // mount at half width (a tiny --board-scale), then JUMP to full size on
+  // the unmount reflow — while the leaver itself flashed squeezed on the
+  // right. FROZEN at its live rect (fixed, pointer-inert, above the board's
+  // stacking level) the workspace dissolves OVER the planet, which owns its
+  // full home from the FIRST frame — fitBoard keeps its stored scale and
+  // never recomputes mid-exit. Applied synchronously in the leave hook (the
+  // same pre-paint task as the board's v-show flip), so no squeezed frame
+  // can ever paint.
+  if (id === 'section' && el instanceof HTMLElement) {
+    const r = el.getBoundingClientRect();
+    gsap.set(el, {
+      position: 'fixed',
+      left: r.left, top: r.top, width: r.width, height: r.height,
+      margin: 0, zIndex: 5, pointerEvents: 'none',
+    });
+  }
   // An anchored FLIP is claiming this surface's card (composer → reveal):
   // blank the departing anchors instantly so the travelling card exists on
   // the INCOMING side only — never a double image.
@@ -394,12 +416,13 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
     });
     return;
   }
-  guarded(el, DISMISS_MS, done, (finish) => gsap.to(panels, {
+  guarded(el, id === 'section' ? SECTION_OUT_MS : DISMISS_MS, done, (finish) => gsap.to(panels, {
     autoAlpha: 0,
     y: 8 * conUiScale(),
-    scale: 0.992,
+    scale: id === 'section' ? 0.988 : 0.992,
     transformOrigin: '50% 60%',
-    duration: s(id === 'action-composer' || id === 'card-actions' ? HANDOFF_OUT_MS : DISMISS_MS),
+    duration: s(id === 'section' ? SECTION_OUT_MS :
+      id === 'action-composer' || id === 'card-actions' ? HANDOFF_OUT_MS : DISMISS_MS),
     ease: 'power2.in',
     onComplete: finish,
   }));
@@ -418,6 +441,9 @@ export function surfaceEnterCancelledHook(el: Element): void {
 export function surfaceLeaveCancelledHook(el: Element): void {
   const id = surfaceIdOf(el);
   killLive(el);
+  // A cancelled section leave returns to the flow — drop the freeze
+  // (harmless for every other surface: none carries these inline props).
+  gsap.set(el, {clearProps: 'position,left,top,width,height,margin,zIndex,pointerEvents'});
   if (id !== undefined && (el as HTMLElement).dataset?.motionVariant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
     addShadeOwner(id);
   }
