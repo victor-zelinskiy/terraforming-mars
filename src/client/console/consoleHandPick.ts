@@ -109,13 +109,18 @@ export function resetConsoleHandPick(): void {
 }
 
 /**
- * PURE: a card selection whose EVERY candidate (selectable + disabled) is a
- * card in the player's hand — the console routes such a pick to the hand
- * section (the desktop `cardPickSurface` 'hand' branch, without the ≤3-inline
- * threshold: console has no premium inline tile picker, so hand picks ALWAYS
- * get the full hand surface).
+ * PURE: a card selection whose EVERY candidate (selectable + disabled) lives
+ * within the given name set — the shared ownership test behind the console's
+ * pick-surface routing (hand section / «Разыграно» tableau view; the desktop
+ * `cardPickSurface` idea, without the ≤3-inline threshold: console has no
+ * premium inline tile picker, so owned picks ALWAYS get the full surface).
  */
-export function isHandCardSelection(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
+export function isCardSelectionWithin(model: SelectCardModel, names: ReadonlySet<string>): boolean {
   const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-  return model.cards.length > 0 && candidates.every((c) => handNames.has(c.name));
+  return model.cards.length > 0 && candidates.every((c) => names.has(c.name));
+}
+
+/** Every candidate is a card in the player's HAND → the hand-section pick. */
+export function isHandCardSelection(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
+  return isCardSelectionWithin(model, handNames);
 }

@@ -20,19 +20,21 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  * classifies every step of every in-scope `cardPlayPreview` hook as:
  *   - 'inline'   — a decision the console hosts before submit (card single /
  *                  a HAND-card pick — single AND multi-select, via the hand
- *                  section's pick mode / player / amount /
+ *                  section's pick mode / a TABLEAU pick — single, the Astra
+ *                  merged multi, the Cyberia deduped sequential, via the
+ *                  «Разыграно» view's pick mode / player / amount /
  *                  or-with-leaf-or-nested-player/card options /
  *                  spendHeat / tabbedTargets).
  *   - 'followup' — an honest post-submit follow-up (board / colony placement /
- *                  note / a multi-card merge/dedupe branch / a TABLEAU
- *                  multi-select → the documented, safe exception, ridden by
- *                  the native flow).
+ *                  note / a repeat-action / an UNOWNED multi-select — the
+ *                  documented, safe exceptions, ridden by the native flow).
  *   - 'gap'      — a shape the console CANNOT host (an `or` option nesting an
  *                  amount / and).
  * A 'gap' FAILS — the console would silently drop or mis-submit it.
  * MIRRORS `playChoiceMode` (consolePlayCardComposer.ts) — keep the two in sync.
  */
-function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, handNames: ReadonlySet<string>): 'inline' | 'followup' | 'gap' {
+function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, handNames: ReadonlySet<string>, tableauNames: ReadonlySet<string>): 'inline' | 'followup' | 'gap' {
+  void branch;
   if (step.kind === 'spendHeat' || step.kind === 'tabbedTargets') {
     return 'inline';
   }
@@ -47,9 +49,8 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
     return 'inline';
   }
   if (t === 'card') {
-    // Repeat-action / a merge-or-dedupe multi-card branch → the console rides
-    // the native follow-up (safe, documented).
-    if (step.repeatAction === true || step.dedupeFromSteps !== undefined || branch.mergeCardSteps !== undefined) {
+    // A repeat-action pick (ProjectInspection) rides the native follow-up.
+    if (step.repeatAction === true) {
       return 'followup';
     }
     const model = step.input as SelectCardModel;
@@ -58,12 +59,14 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
       return 'followup';
     }
     // Every candidate (selectable + disabled) in hand → the hand section's
-    // pick mode hosts it, single AND multi-select (Public Plans).
+    // pick mode; every candidate a PLAYED card → the «Разыграно» tableau pick
+    // (incl. the merge/dedupe multi-card branches — Astra / Cyberia).
     const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-    if (candidates.every((c) => handNames.has(c.name))) {
+    if (candidates.every((c) => handNames.has(c.name)) ||
+        candidates.every((c) => tableauNames.has(c.name))) {
       return 'inline';
     }
-    // A TABLEAU multi-select keeps the historical follow-up.
+    // An UNOWNED multi-select keeps the honest follow-up.
     return model.max > 1 ? 'followup' : 'inline';
   }
   if (t === 'or') {
@@ -135,9 +138,10 @@ describe('console play-preview coverage', () => {
             continue;
           }
           const handNames = new Set<string>(player.cardsInHand.map((c) => c.name));
+          const tableauNames = new Set<string>(player.playedCards.asArray().map((c) => c.name));
           for (const b of preview.branches) {
             for (const step of b.steps) {
-              if (classifyStep(step, b, handNames) === 'gap') {
+              if (classifyStep(step, b, handNames, tableauNames) === 'gap') {
                 gaps.push(`${card.name} [${manifest.module}] step ${step.kind}${step.kind === 'input' ? '/' + step.input.type : ''}`);
               }
             }

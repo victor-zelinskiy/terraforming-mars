@@ -263,7 +263,7 @@
     <!-- v-show while a client hand pick is out (SRR link pick): the Action
          Center + its composer stay mounted so every capture survives. -->
     <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
-                        v-show="!handPickActive"
+                        v-show="!handPickActive && !playedPickActive"
                         ref="cardActions"
                         :playerView="playerView"
                         @submit-batch="onCardActionsSubmitBatch"
@@ -679,7 +679,7 @@
       <!-- v-show (NOT v-if) while a client hand pick is out: the composer's
            captured choices/payment must survive the hand round-trip. -->
       <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
-                              v-show="!handPickActive"
+                              v-show="!handPickActive && !playedPickActive"
                               ref="playConfirm"
                               :playerView="playerView"
                               :cardName="pendingPlayCard.cardName"
@@ -831,6 +831,8 @@ import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspe
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
+import {isPlayedTableauPickActive, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
+import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {
   abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
 } from '@/client/console/played/consolePlayedHero';
@@ -1463,10 +1465,15 @@ export default defineComponent({
     corpFirstActionOpen(): boolean {
       return this.shellTask?.kind === 'corpFirstAction' && !this.consoleState.task.deferred;
     },
-    /** The overlay is up — as a manual browse or the hero stage. (The corp
-     *  first action no longer rides this table — it has its own modal.) */
+    /** The overlay is up — as a manual browse, the hero stage, or a
+     *  composer's TABLEAU PICK (the pick forces the table open over the
+     *  hidden composer — consoleHandPick's played twin). */
     playedTableVisible(): boolean {
-      return this.playedOpen || playedHeroState.tableOpen;
+      return this.playedOpen || playedHeroState.tableOpen || this.playedPickActive;
+    },
+    /** A composer's tableau-pick is out on the played view. */
+    playedPickActive(): boolean {
+      return isPlayedTableauPickActive();
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -2680,8 +2687,11 @@ export default defineComponent({
         return 'Played';
       }
       if (this.playedTableVisible) {
-        // The open category names the bar (its caption key); the bare table
-        // reads as «Разыграно».
+        // A tableau pick names the bar as the selection; else the open
+        // category's caption; the bare table reads as «Разыграно».
+        if (consolePlayedUi.pickActive) {
+          return 'Card selection';
+        }
         return (consolePlayedUi.categoryOpen || consolePlayedUi.categoryBusy) && consolePlayedUi.categoryLabel !== '' ?
           consolePlayedUi.categoryLabel : 'Played';
       }
@@ -3001,6 +3011,24 @@ export default defineComponent({
         // the focused one; inside the category view A/X inspect a card and
         // B is a LOCAL back (the cards fly home, never the tableau closing);
         // mid-flight only B is live (it reverses the same flight).
+        // TABLEAU PICK: A is the pick verb (single resolves / multi toggles,
+        // RT confirms), X inspects, B cancels back to the composer.
+        if (consolePlayedUi.pickActive) {
+          if (consolePlayedUi.categoryBusy) {
+            return [{control: 'back', label: 'Cancel'}];
+          }
+          const verb = consolePlayedUi.pickVerb !== '' ? consolePlayedUi.pickVerb : 'Select';
+          const cmds: Array<ConsoleCommand> = [];
+          if (consolePlayedUi.pickSingle) {
+            cmds.push({control: 'confirm', label: verb, enabled: consolePlayedUi.pickFocusOk});
+          } else {
+            cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: consolePlayedUi.pickFocusOk});
+            cmds.push({control: 'triggerR', label: verb, enabled: consolePlayedUi.pickValid, badge: consolePlayedUi.pickCount, highlight: consolePlayedUi.pickCount > 0});
+          }
+          cmds.push({control: 'secondary', label: 'Inspect'});
+          cmds.push({control: 'back', label: 'Cancel'});
+          return cmds;
+        }
         if (consolePlayedUi.categoryBusy) {
           return [{control: 'back', label: 'Back'}];
         }
@@ -3756,6 +3784,12 @@ export default defineComponent({
           // A client hand pick belongs to a composer whose prompt just moved
           // on — cancel it (idempotent; restores the section via the watcher).
           cancelConsoleHandPick();
+          // Same for a TABLEAU pick out on the played view: fold it (the
+          // reset commits its cancel — the composer keeps the old capture).
+          if (isPlayedTableauPickActive()) {
+            resetCategoryDirector();
+            resetPlayedCategoryView();
+          }
           // A NEW prompt resets the mandatory hand-SELECT picks + filter (they
           // survive a defer→resume of the SAME prompt, but never leak across
           // prompts). Cleared here rather than in closeConsoleLayers so the
@@ -4009,7 +4043,7 @@ export default defineComponent({
         // (the fallback for rare overflow — console layouts fit by design
         // and never show scrollbar chrome). Fallback-owned surfaces keep
         // the DOM engine's own right-stick scroll (they return earlier).
-        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive) {
+        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive && !this.playedPickActive) {
           (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;
         }
@@ -6598,6 +6632,10 @@ export default defineComponent({
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     resetConsoleHandPick(); // never leak a client pick across games/sessions
+    // A composer's TABLEAU pick is module state too — fold it (cancel) so a
+    // game switch never carries a live pick / dead callbacks across sessions.
+    resetCategoryDirector();
+    resetPlayedCategoryView();
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

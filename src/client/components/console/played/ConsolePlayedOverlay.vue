@@ -257,8 +257,16 @@ export default defineComponent({
     categoryUp(): boolean {
       return isCategoryViewUp();
     },
-    /** The open category's cards (LIVE — an undo/refresh flows through). */
+    /** The open collection's cards (LIVE — an undo/refresh flows through):
+     *  the category's cards in browse mode, the PICK set (candidates +
+     *  disabled-with-reason) resolved against the live tableau in pick mode. */
     categoryViewCards(): ReadonlyArray<CardModel> {
+      if (this.catState.pick !== undefined) {
+        const byName = new Map((this.viewedPlayer?.tableau ?? []).map((c) => [c.name as string, c]));
+        return this.catState.names
+          .map((n) => byName.get(n))
+          .filter((c): c is CardModel => c !== undefined);
+      }
       const key = this.catState.category;
       return key !== undefined ? categoryCards(this.zones, key) : [];
     },
@@ -267,10 +275,19 @@ export default defineComponent({
     outNames(): ReadonlySet<string> {
       return categoryOutNames();
     },
+    /** How many EVENTS are currently away (lifted into the view / a pick). */
+    heldEventsCount(): number {
+      if (this.outNames.size === 0) {
+        return 0;
+      }
+      return this.zones.events.reduce((n, c) => n + (this.outNames.has(c.name) ? 1 : 0), 0);
+    },
     eventsOut(): boolean {
-      // Mirrors the held semantics of `outNames`: the stack ghosts only once
-      // the proxies own the cards (never a frame before they are painted).
-      return this.catState.category === 'events' && this.outNames.size > 0;
+      // Full ghost only when EVERY event is away; a partial pick just shrinks
+      // the stack count (the remaining cards still lie there). Mirrors the
+      // held semantics of `outNames` (never a frame before proxies exist).
+      const total = this.zones.events.length;
+      return total > 0 && this.heldEventsCount >= total;
     },
     /** The hero card is an EVENT (classified structurally via the zones). */
     heroIncomingIsEvent(): boolean {
@@ -285,11 +302,12 @@ export default defineComponent({
       }
       return incoming.name;
     },
-    /** The events counter ticks only AFTER the landed card is revealed. */
+    /** The events counter ticks only AFTER the landed card is revealed, and
+     *  drops by the events currently AWAY in the view/pick (physical truth). */
     displayedEventsCount(): number {
-      const n = this.zones.events.length;
+      const n = this.zones.events.length - this.heldEventsCount;
       return this.heroIncoming !== undefined && this.heroIncomingIsEvent && !this.heroRevealed ?
-        Math.max(0, n - 1) : n;
+        Math.max(0, n - 1) : Math.max(0, n);
     },
     /** First-ever event mid-scene: the pile exists as HIDDEN geometry. */
     eventsPileReserved(): boolean {
@@ -334,6 +352,13 @@ export default defineComponent({
         consolePlayedUi.focusCategory = key;
         void this.$nextTick(() => this.ensureFocusVisible());
       },
+    },
+    /** A TABLEAU PICK targets the VIEWER's own table — a table left open on
+     *  an opponent's seat snaps home when a composer's pick arrives. */
+    'catState.pick'(pick: unknown) {
+      if (pick !== undefined) {
+        this.viewColor = this.thisPlayerColor;
+      }
     },
     // Command-bar mirrors (the bar never pokes refs).
     'catState.phase': {

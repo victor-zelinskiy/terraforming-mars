@@ -301,7 +301,10 @@ import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
-import {enterConsoleHandPick, isHandCardSelection} from '@/client/console/consoleHandPick';
+import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
+import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import {CardType} from '@/common/cards/CardType';
 
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 type SubState =
@@ -381,6 +384,12 @@ export default defineComponent({
      *  hand card routes to the hand section's pick mode. */
     handNamesSet(): ReadonlySet<string> {
       return new Set(this.playerView.cardsInHand.map((c) => c.name));
+    },
+    /** Card names on the viewer's TABLE — those picks (incl. Viron's
+     *  repeat-action pick over played action cards) route to the «Разыграно»
+     *  view's pick mode: the real table cards physically lift. */
+    tableauNamesSet(): ReadonlySet<string> {
+      return new Set(this.thisPlayer.tableau.map((c) => c.name));
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
@@ -1132,12 +1141,19 @@ export default defineComponent({
     openChoice(c: ComposerChoice): void {
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
       // — eligible AND greyed-with-reason — is a card in hand) routes to the
-      // HAND SECTION's premium pick mode, never a flat name list. A repeat-
-      // action pick (Viron — played ACTION cards) and the hosted-cards pick
-      // (SRR targetCards, not in hand) keep the inline sub-list.
+      // HAND SECTION's premium pick mode; a TABLEAU pick (a resource target on
+      // an own played card, AND Viron's repeat-action pick over played action
+      // cards) routes to the «Разыграно» view's pick mode — never a flat name
+      // list. Only the hosted-cards pick (SRR targetCards — in neither zone)
+      // keeps the inline sub-list.
       if (c.kind === 'card' && c.repeatAction !== true &&
           isHandCardSelection(c.input as SelectCardModel, this.handNamesSet)) {
         this.openHandPick(c);
+        return;
+      }
+      if (c.kind === 'card' &&
+          isCardSelectionWithin(c.input as SelectCardModel, this.tableauNamesSet)) {
+        this.openTableauPick(c);
         return;
       }
       if (c.kind === 'card' || c.kind === 'player' || c.kind === 'or') {
@@ -1146,6 +1162,50 @@ export default defineComponent({
         this.sub = {kind: 'payment', choiceId: c.id, index: 0};
       }
       // amount / spendHeat adjust inline (A is a no-op on them).
+    },
+    /**
+     * Hand a TABLEAU card pick to the «Разыграно» view's pick mode: the
+     * candidates physically lift off their real table slots (face-down events
+     * off the pile, flipping open), the player picks on the real card, the
+     * cards fly home and the capture lands back here. A Viron repeat-action
+     * pick resolves through the SAME surface — the chosen action card hands
+     * off via `repeat-pick` (the composer then re-opens FOR that action).
+     */
+    openTableauPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
+      }
+      const selectable = model.cards.map((cd) => cd.name);
+      const disabledNames = (model.disabledCards ?? []).map((d) => d.name);
+      const faceDown = [...selectable, ...disabledNames]
+        .filter((n) => getCard(n)?.type === CardType.EVENT);
+      const repeat = c.repeatAction === true;
+      enterPlayedTableauPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Select',
+        selectable,
+        disabled: disabledNames,
+        reasons,
+        min: 1,
+        max: 1,
+        selected: !repeat && this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : [],
+        faceDown,
+      }, (cards) => {
+        if (cards.length === 0) {
+          return;
+        }
+        if (repeat) {
+          this.$emit('repeat-pick', {chosenCard: cards[0]});
+          return;
+        }
+        // Re-locate by id — the preview may have refreshed under the pick.
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.picks[cur.id] = cards[0];
+        this.captureFor(cur, {type: 'card', cards: [cards[0]]});
+        this.scrollFocused();
+      });
     },
     /** Hand a hand-card pick to the HAND SECTION (consoleHandPick bridge): the
      *  shell hides the Action Center (v-show — every capture survives), the

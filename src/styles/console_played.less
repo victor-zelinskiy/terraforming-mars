@@ -424,6 +424,46 @@
         font-weight: 800;
         color: #eaf3fb;
     }
+    /* Multi-pick running counter «N / max» (pick mode). */
+    &__pickcount {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .25rem;
+        padding: .12rem .6rem;
+        border-radius: 1rem;
+        background: fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%);
+        b { font-size: .95rem; color: #d6f3ff; font-variant-numeric: tabular-nums; }
+        i { font-size: .72rem; font-style: normal; color: @con-text-dim; }
+    }
+
+    /* ── PICK MODE (the composer's tableau pick hosted on this view) ──── */
+    &__panel--pick {
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 45%),
+            0 1.2rem 3rem rgba(0, 0, 0, 0.7);
+    }
+    &__title--pick { color: fade(@con-cyan, 92%); }
+    /* A non-candidate lifts along (the honest "why not" context) but reads
+       clearly inert; the band system carries its reason. */
+    &__slot--pick-disabled .con-played-cat__face > :is(.card-container, .pcard) {
+        filter: grayscale(0.5) brightness(0.68);
+    }
+    &__slot--pick-disabled { cursor: default; }
+    /* The PICKED ✓ ring (cyan — the canonical select accent). */
+    &__slot--picked .con-played-cat__face > :is(.card-container, .pcard) {
+        box-shadow:
+            0 0 0 .15rem fade(@con-cyan, 82%),
+            0 .45rem 1rem rgba(0, 0, 0, 0.6),
+            0 0 .9rem fade(@con-cyan, 30%);
+    }
+    /* The blocked-reason band may carry a sentence — clamp it to the card. */
+    &__reasonband {
+        max-width: 92%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
     /* ── the SINGLE-card near-fullscreen stage ───────────────────────── */
     &__stage {

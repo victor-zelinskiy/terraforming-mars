@@ -9,6 +9,7 @@ import {
 import {
   playedCategoryState, resetPlayedCategoryView, categoryOutNames,
   nextCategoryFlightId, registerCategoryFlightEl, categoryFlightEl,
+  enterPlayedTableauPick, stagePlayedTableauPickOutcome, commitPlayedTableauPick,
 } from '@/client/console/played/playedCategoryView';
 
 function card(name: CardName): CardModel {
@@ -165,13 +166,45 @@ describe('consolePlayedCategoryModel', () => {
       expect(categoryFlightEl(id)).to.be.undefined;
     });
 
-    it('reset clears the pick seam too (browse mode stays pick-free)', () => {
-      playedCategoryState.pick = {
-        title: 't', buttonLabel: 'b', selectable: [], reasons: {}, min: 1, max: 1, selected: [],
-        onResolve: () => {},
-      };
+    it('reset folds a live pick as a CANCEL (the composer keeps its old capture)', () => {
+      let cancelled = 0;
+      enterPlayedTableauPick({
+        title: 't', buttonLabel: 'b', selectable: [CardName.ASTEROID], disabled: [], reasons: {},
+        min: 1, max: 1, selected: [], faceDown: [],
+      }, () => {}, () => cancelled++);
+      expect(playedCategoryState.pick).to.not.be.undefined;
+      expect(playedCategoryState.phase).to.eq('opening');
       resetPlayedCategoryView();
       expect(playedCategoryState.pick).to.be.undefined;
+      expect(cancelled).to.eq(1);
+    });
+
+    it('the staged outcome commits to the composer only at the return touchdown', () => {
+      let resolved: ReadonlyArray<CardName> | undefined;
+      enterPlayedTableauPick({
+        title: 't', buttonLabel: 'b', selectable: [CardName.ASTEROID, CardName.BIRDS], disabled: [], reasons: {},
+        min: 1, max: 2, selected: [CardName.BIRDS], faceDown: [CardName.ASTEROID],
+      }, (cards) => {
+        resolved = cards;
+      });
+      // The prior selection is pre-seeded (re-open = «Изменить»).
+      expect([...playedCategoryState.pickSelected]).to.deep.eq([CardName.BIRDS]);
+      stagePlayedTableauPickOutcome([CardName.ASTEROID]);
+      // Staged, NOT yet delivered — the cards are still flying home.
+      expect(resolved).to.be.undefined;
+      commitPlayedTableauPick();
+      expect(resolved).to.deep.eq([CardName.ASTEROID]);
+      expect(playedCategoryState.pick).to.be.undefined;
+      resetPlayedCategoryView();
+    });
+
+    it('a stale pre-selection outside the candidate set is dropped on enter', () => {
+      enterPlayedTableauPick({
+        title: 't', buttonLabel: 'b', selectable: [CardName.ASTEROID], disabled: [], reasons: {},
+        min: 0, max: 1, selected: [CardName.TREES], faceDown: [],
+      }, () => {});
+      expect([...playedCategoryState.pickSelected]).to.have.length(0);
+      resetPlayedCategoryView();
     });
   });
 });

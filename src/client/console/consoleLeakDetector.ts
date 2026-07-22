@@ -104,7 +104,11 @@ const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
   // which serves a standalone standard-project prompt (EstablishedMethods'
   // "Select your first/second standard project"). It replaced the generic
   // '.con-sheet' for standard projects, so that class alone no longer matches.
-  projectCard: ['.con-hand', '.con-sheet', '.con-stdp', '.con-composer--play'],
+  // '.con-played' = the «Разыграно» overlay hosting a TABLEAU pick for a hidden
+  // play composer (a mandatory play-from-hand whose pre-select targets a played
+  // card — Robotic Workforce under Eccentric Sponsor): the composer is v-show
+  // hidden for the pick's lifetime, so the pick surface is the serving node.
+  projectCard: ['.con-hand', '.con-sheet', '.con-stdp', '.con-composer--play', '.con-played'],
   // A MANDATORY hand pick (discard / reveal / place) is served by the hand
   // section in select mode — the same `.con-hand` root as play-from-hand.
   handSelect: ['.con-hand'],

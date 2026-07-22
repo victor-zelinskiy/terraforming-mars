@@ -25,6 +25,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {Message} from '@/common/logs/Message';
 import {PlayedCategoryKey} from '@/client/components/console/consolePlayedCategoryModel';
 
 export type PlayedCategoryPhase = 'closed' | 'opening' | 'open' | 'closing';
@@ -39,26 +40,38 @@ export type CategoryFlight = {
 };
 
 /**
- * The FUTURE pick contract of the category grid (tableau-pick, phase 2).
- * Shape mirrors ConsoleHandPickRequest so the two pick surfaces stay twins.
- * NOT consumed anywhere yet — the architectural seam only.
+ * The TABLEAU-PICK contract of the category view (the composer bridge —
+ * consoleHandPick's twin for cards ON THE TABLE). A composer whose card step
+ * targets the viewer's OWN played cards hands the pick here: the candidates
+ * (+ the known-disabled ones, with reasons) physically LIFT off their real
+ * tableau slots into the pick view; the player picks (A single / A-toggle +
+ * RT multi); the cards fly HOME and the result lands back in the composer.
  */
-export type PlayedCategoryPickContext = {
-  title: string,
+export type PlayedTableauPickRequest = {
+  /** The server prompt title (i18n key / Message) — names the ask. */
+  title: string | Message,
+  /** The A-verb (the server SelectCard's buttonLabel — 'Copy' / 'Select' …). */
   buttonLabel: string,
+  /** Candidate (pickable) card names. */
   selectable: ReadonlyArray<CardName>,
+  /** Shown-but-unpickable candidates (server disabledCards), pre-translated
+   *  per-card reasons. They lift into the view too — greyed, explained. */
+  disabled: ReadonlyArray<CardName>,
   reasons: Record<string, string>,
   min: number,
   max: number,
+  /** Selection preserved from a previous visit (re-open = «Изменить»). */
   selected: ReadonlyArray<CardName>,
-  onResolve: (cards: ReadonlyArray<CardName>) => void,
-  onCancel?: () => void,
+  /** Candidates that lie FACE DOWN on the table (played events) — they lift
+   *  off the events pile and FLIP open mid-flight. */
+  faceDown: ReadonlyArray<CardName>,
 };
 
 export const playedCategoryState = reactive({
   phase: 'closed' as PlayedCategoryPhase,
   category: undefined as PlayedCategoryKey | undefined,
-  /** The open category's card names (tableau order — the grid order). */
+  /** The open collection's card names (tableau order — the grid order): the
+   *  category's cards in browse mode, the candidate set in pick mode. */
   names: [] as Array<CardName>,
   /** The focused grid index (single card → always 0). */
   focusIndex: 0,
@@ -68,8 +81,10 @@ export const playedCategoryState = reactive({
   holdCards: false,
   /** The modal frame is assembled (backdrop + panel chrome visible). */
   frameOn: false,
-  /** Browse today; the tableau-pick context arrives here in phase 2. */
-  pick: undefined as PlayedCategoryPickContext | undefined,
+  /** PICK MODE (a composer's tableau-pick is out) — undefined in browse. */
+  pick: undefined as PlayedTableauPickRequest | undefined,
+  /** The live pick accumulation (multi; a single pick resolves directly). */
+  pickSelected: [] as Array<CardName>,
 });
 
 /** The names currently OUT of the tableau (lifted into the view) — the
@@ -96,8 +111,11 @@ export function isCategoryViewUp(): boolean {
   return playedCategoryState.phase !== 'closed';
 }
 
-/** Hard reset (overlay close / unmount / hard-block) — no animation. */
+/** Hard reset (overlay close / unmount / hard-block) — no animation. A live
+ *  pick COMMITS first (its staged outcome, else a cancel — the composer
+ *  never waits forever and keeps the old capture on cancel). */
 export function resetPlayedCategoryView(): void {
+  commitPlayedTableauPick();
   playedCategoryState.phase = 'closed';
   playedCategoryState.category = undefined;
   playedCategoryState.names = [];
@@ -106,7 +124,80 @@ export function resetPlayedCategoryView(): void {
   playedCategoryState.holdCards = false;
   playedCategoryState.frameOn = false;
   playedCategoryState.pick = undefined;
+  playedCategoryState.pickSelected = [];
   clearCategoryFlightEls();
+}
+
+// ── the tableau-pick bridge (composer ↔ this view) ─────────────────────────
+
+let pickResolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
+let pickCancelCb: (() => void) | undefined;
+/** The outcome chosen ON the pick surface, delivered AFTER the cards have
+ *  physically flown home (undefined = still picking; 'cancel' = B). */
+let pickOutcome: ReadonlyArray<CardName> | 'cancel' | undefined;
+
+function clearPickCallbacks(): void {
+  pickResolveCb = undefined;
+  pickCancelCb = undefined;
+  pickOutcome = undefined;
+}
+
+export function isPlayedTableauPickActive(): boolean {
+  return playedCategoryState.pick !== undefined;
+}
+
+/**
+ * Open the tableau-pick: the candidate set lifts off the table into the pick
+ * view (the shell hides the composer meanwhile — v-show, captures survive).
+ * The callbacks fire ONLY after the return flight settles: the pick's whole
+ * journey is physical, the composer re-appears to a settled table.
+ */
+export function enterPlayedTableauPick(
+  request: PlayedTableauPickRequest,
+  onResolve: (cards: ReadonlyArray<CardName>) => void,
+  onCancel?: () => void,
+): void {
+  const selectableSet = new Set(request.selectable);
+  pickResolveCb = onResolve;
+  pickCancelCb = onCancel;
+  pickOutcome = undefined;
+  playedCategoryState.pick = request;
+  playedCategoryState.pickSelected = request.selected.filter((n) => selectableSet.has(n));
+  playedCategoryState.category = undefined;
+  playedCategoryState.names = [...request.selectable, ...request.disabled];
+  playedCategoryState.focusIndex = 0;
+  playedCategoryState.flights = [];
+  playedCategoryState.holdCards = false;
+  playedCategoryState.frameOn = false;
+  playedCategoryState.phase = 'opening';
+}
+
+/** The pick surface chose (cards) or cancelled (undefined) — remembered; the
+ *  view now flies the cards home and commits the outcome at touchdown. */
+export function stagePlayedTableauPickOutcome(outcome: ReadonlyArray<CardName> | undefined): void {
+  if (playedCategoryState.pick === undefined) {
+    return;
+  }
+  pickOutcome = outcome ?? 'cancel';
+}
+
+/** The return flight settled — fire the staged outcome to the composer.
+ *  Called by the view right before the state reset; idempotent. */
+export function commitPlayedTableauPick(): void {
+  if (playedCategoryState.pick === undefined) {
+    return;
+  }
+  const outcome = pickOutcome ?? 'cancel';
+  const resolve = pickResolveCb;
+  const cancel = pickCancelCb;
+  clearPickCallbacks();
+  playedCategoryState.pick = undefined;
+  playedCategoryState.pickSelected = [];
+  if (outcome === 'cancel') {
+    cancel?.();
+  } else {
+    resolve?.(outcome);
+  }
 }
 
 // ── the proxy element registry (function refs — never reactive) ────────────

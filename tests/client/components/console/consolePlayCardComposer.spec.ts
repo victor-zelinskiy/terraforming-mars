@@ -1,11 +1,12 @@
 import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
-  computePrimaryAction, buildPaymentView, playChoiceMode,
+  computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
 } from '@/client/console/consolePlayCardComposer';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
 import {PaymentLane} from '@/client/console/paymentPlan';
+import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 
 const DIAL_CONTROLS = ['bumperL', 'bumperR', 'triggerR'];
 function hasDialControl(hints: ReadonlyArray<FootHint>): boolean {
@@ -325,11 +326,14 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
 /**
  * playChoiceMode — WHICH surface hosts a pre-select choice: the composer's own
  * inline sub-list, the HAND SECTION's pick mode (every candidate in hand —
- * single AND multi-select), or an honest post-submit follow-up. The regression
- * guard for the hand-pick routing (Public Plans / Sponsored Academies / SRR).
+ * single AND multi-select), the «РАЗЫГРАНО» view's TABLEAU pick (every
+ * candidate a played card — single, the Astra merged multi, the Cyberia
+ * deduped sequential), or an honest post-submit follow-up. The regression
+ * guard for the pick routing (Public Plans / SRR / Robotic Workforce / Astra).
  */
 describe('consolePlayCardComposer.playChoiceMode', () => {
   const HAND = new Set<string>([CardName.ANTS, CardName.BIRDS, CardName.DECOMPOSERS]);
+  const TABLE = new Set<string>([CardName.PETS, CardName.FISH]);
 
   function cardChoice(names: ReadonlyArray<string>, over: Record<string, unknown> = {}, choiceOver: Record<string, unknown> = {}) {
     return {
@@ -345,36 +349,111 @@ describe('consolePlayCardComposer.playChoiceMode', () => {
   }
 
   it('a single pick whose candidates are all in hand → handPick', () => {
-    expect(playChoiceMode(cardChoice([CardName.ANTS, CardName.BIRDS]), HAND, false)).to.equal('handPick');
+    expect(playChoiceMode(cardChoice([CardName.ANTS, CardName.BIRDS]), HAND, TABLE)).to.equal('handPick');
   });
 
   it('a MULTI-select over the hand (Public Plans) → handPick, no longer a follow-up', () => {
     const c = cardChoice([CardName.ANTS, CardName.BIRDS], {min: 0, max: 2});
-    expect(playChoiceMode(c, HAND, false)).to.equal('handPick');
+    expect(playChoiceMode(c, HAND, TABLE)).to.equal('handPick');
   });
 
-  it('disabled candidates count toward the hand check (SRR link ineligibles)', () => {
+  it('disabled candidates count toward the ownership check (SRR link ineligibles)', () => {
     const c = cardChoice([CardName.ANTS], {disabledCards: [{name: CardName.BIRDS}]});
-    expect(playChoiceMode(c, HAND, false)).to.equal('handPick');
-    const off = cardChoice([CardName.ANTS], {disabledCards: [{name: CardName.PETS}]});
-    expect(playChoiceMode(off, HAND, false)).to.equal('inline');
+    expect(playChoiceMode(c, HAND, TABLE)).to.equal('handPick');
+    const off = cardChoice([CardName.ANTS], {disabledCards: [{name: CardName.LICHEN}]});
+    expect(playChoiceMode(off, HAND, TABLE)).to.equal('inline');
   });
 
-  it('a tableau single pick stays inline; a tableau multi stays a follow-up', () => {
-    expect(playChoiceMode(cardChoice([CardName.PETS]), HAND, false)).to.equal('inline');
-    expect(playChoiceMode(cardChoice([CardName.PETS], {max: 2}), HAND, false)).to.equal('followup');
+  it('a pick whose candidates are all PLAYED cards → tableauPick (single AND multi)', () => {
+    expect(playChoiceMode(cardChoice([CardName.PETS]), HAND, TABLE)).to.equal('tableauPick');
+    expect(playChoiceMode(cardChoice([CardName.PETS, CardName.FISH], {max: 2}), HAND, TABLE)).to.equal('tableauPick');
+    const withDisabled = cardChoice([CardName.PETS], {disabledCards: [{name: CardName.FISH}]});
+    expect(playChoiceMode(withDisabled, HAND, TABLE)).to.equal('tableauPick');
   });
 
-  it('a candidate-less pick / a merge-dedupe branch / a repeat-action → followup', () => {
-    expect(playChoiceMode(cardChoice([]), HAND, false)).to.equal('followup');
-    expect(playChoiceMode(cardChoice([CardName.ANTS]), HAND, true)).to.equal('followup');
-    expect(playChoiceMode(cardChoice([CardName.ANTS], {}, {repeatAction: true}), HAND, false)).to.equal('followup');
+  it('unowned candidates: a single pick stays inline, a multi stays a follow-up', () => {
+    expect(playChoiceMode(cardChoice([CardName.LICHEN]), HAND, TABLE)).to.equal('inline');
+    expect(playChoiceMode(cardChoice([CardName.LICHEN], {max: 2}), HAND, TABLE)).to.equal('followup');
+  });
+
+  it('a candidate-less pick / a repeat-action → followup', () => {
+    expect(playChoiceMode(cardChoice([]), HAND, TABLE)).to.equal('followup');
+    expect(playChoiceMode(cardChoice([CardName.PETS], {}, {repeatAction: true}), HAND, TABLE)).to.equal('followup');
   });
 
   it('player / amount / or / spendHeat stay inline; an unknown shape is a follow-up', () => {
     const mk = (kind: string, type: string) => ({id: 'step#0', scope: 'step', index: 0, kind, input: {type, title: ''}} as never);
-    expect(playChoiceMode(mk('player', 'player'), HAND, false)).to.equal('inline');
-    expect(playChoiceMode(mk('or', 'or'), HAND, false)).to.equal('inline');
-    expect(playChoiceMode(mk('other', 'and'), HAND, false)).to.equal('followup');
+    expect(playChoiceMode(mk('player', 'player'), HAND, TABLE)).to.equal('inline');
+    expect(playChoiceMode(mk('or', 'or'), HAND, TABLE)).to.equal('inline');
+    expect(playChoiceMode(mk('other', 'and'), HAND, TABLE)).to.equal('followup');
+  });
+});
+
+/**
+ * foldCopiedProductionEffects — the Cyberia / Robotic Workforce RESULT fold:
+ * once a copy-target is picked, its server-computed production box folds into
+ * the branch's chips (one chip per resource, current → resulting), base
+ * production chips summing with the copied deltas and non-production chips
+ * passing through. Desktop `resultEffects` parity.
+ */
+describe('consolePlayCardComposer.foldCopiedProductionEffects', () => {
+  const prod = (res: string): number => ({megacredits: 3, steel: 1, titanium: 0, plants: 2, energy: 0, heat: 0} as Record<string, number>)[res] ?? 0;
+
+  function copyBranch(over: Partial<ActionPreviewBranch> = {}): ActionPreviewBranch {
+    return {
+      index: -1, title: '', available: true, renderKeys: [], effects: [],
+      steps: [
+        {kind: 'input', input: {type: 'card', title: 't', buttonLabel: 'Copy', cards: [{name: CardName.MINE}]} as never,
+          copyProductionBox: {[CardName.MINE]: {megacredits: 0, steel: 1, titanium: 0, plants: 0, energy: 0, heat: 0}}},
+      ],
+      ...over,
+    } as ActionPreviewBranch;
+  }
+
+  it('no copy step answered → undefined (base effects untouched)', () => {
+    expect(foldCopiedProductionEffects(copyBranch(), () => undefined, prod)).to.be.undefined;
+  });
+
+  it('an answered copy step folds its box into current → resulting chips', () => {
+    const out = foldCopiedProductionEffects(copyBranch(), (i) => (i === 0 ? CardName.MINE : undefined), prod);
+    expect(out).to.deep.equal([
+      {direction: 'gain', icon: 'steel', amount: 1, current: 1, resulting: 2, note: 'production'},
+    ]);
+  });
+
+  it('base production chips SUM with the copied deltas; non-production chips pass through', () => {
+    const branch = copyBranch({
+      effects: [
+        {direction: 'gain', icon: 'steel', amount: 1, current: 1, resulting: 2, note: 'production'},
+        {direction: 'gain', icon: 'megacredits', amount: 2, current: 20, resulting: 22},
+      ],
+    });
+    const out = foldCopiedProductionEffects(branch, () => CardName.MINE, prod);
+    expect(out).to.deep.equal([
+      {direction: 'gain', icon: 'steel', amount: 2, current: 1, resulting: 3, note: 'production'},
+      {direction: 'gain', icon: 'megacredits', amount: 2, current: 20, resulting: 22},
+    ]);
+  });
+
+  it('two answered copy steps (Cyberia) aggregate per resource, negatives read as cost', () => {
+    const branch = copyBranch({
+      steps: [
+        {kind: 'input', input: {type: 'card', title: '1', buttonLabel: 'Copy', cards: []} as never,
+          copyProductionBox: {[CardName.MINE]: {megacredits: 0, steel: 1, titanium: 0, plants: 0, energy: 0, heat: 0}}},
+        {kind: 'input', input: {type: 'card', title: '2', buttonLabel: 'Copy', cards: []} as never,
+          copyProductionBox: {[CardName.NUCLEAR_POWER]: {megacredits: 2, steel: 0, titanium: 0, plants: 0, energy: -1, heat: 0}}},
+      ],
+    });
+    const out = foldCopiedProductionEffects(branch, (i) => (i === 0 ? CardName.MINE : CardName.NUCLEAR_POWER), prod);
+    expect(out).to.deep.equal([
+      {direction: 'gain', icon: 'megacredits', amount: 2, current: 3, resulting: 5, note: 'production'},
+      {direction: 'gain', icon: 'steel', amount: 1, current: 1, resulting: 2, note: 'production'},
+      {direction: 'cost', icon: 'energy', amount: 1, current: 0, resulting: -1, note: 'production'},
+    ]);
+  });
+
+  it('a picked candidate ABSENT from the box map (bespoke produce) contributes nothing', () => {
+    const out = foldCopiedProductionEffects(copyBranch(), () => CardName.PETS, prod);
+    expect(out).to.be.undefined;
   });
 });

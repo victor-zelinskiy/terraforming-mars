@@ -267,9 +267,11 @@
  * HandCardPaymentContent + PlayerHome.submitPlayCardBatch: EVERY interactive
  * choice is made HERE, before the one final submit — the card's PAYMENT, the
  * on-play BRANCH variant (a `behavior.or` like Artificial Photosynthesis), the
- * branch's direct optionInput, and every simple input step (card / player /
- * amount / or). Board placements / multi-card overlay picks / notes stay a
- * post-submit native follow-up — the documented exception, shown honestly.
+ * branch's direct optionInput, and every input step (card / player / amount /
+ * or) — a hand-card pick via the hand section, a PLAYED-card pick (single,
+ * the Astra merged up-to-N, the Cyberia deduped sequential) via the
+ * «Разыграно» tableau pick. Board placements / notes stay a post-submit
+ * native follow-up — the documented exception, shown honestly.
  *
  * The captured responses feed the PURE `consoleActionComposer.ts` /
  * `consolePlayCardComposer.ts` builders; the parent assembles the byte-
@@ -316,6 +318,7 @@ import {skippedEffectViews} from '@/client/components/actions/skippedEffectView'
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
+import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -330,7 +333,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, buildPaymentView, PlayPaymentView,
-  playChoiceMode,
+  playChoiceMode, foldCopiedProductionEffects,
 } from '@/client/console/consolePlayCardComposer';
 import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
@@ -391,7 +394,8 @@ function textOf(v: string | Message | undefined): string {
 }
 
 // Pre-collect classification lives in the PURE `playChoiceMode` (inline sub /
-// hand-section pick / honest follow-up) — see consolePlayCardComposer.ts.
+// hand-section pick / «Разыграно» tableau pick / honest follow-up) — see
+// consolePlayCardComposer.ts.
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
@@ -501,7 +505,15 @@ export default defineComponent({
       if (b === undefined) {
         return [];
       }
-      const out: Array<ActionEffect> = [...b.effects];
+      // Copy-the-production steps (Cyberia / Robotic Workforce): once a target
+      // is picked, its server-computed production box FOLDS into the result —
+      // the player sees EXACTLY what is copied, live as they re-pick.
+      const folded = foldCopiedProductionEffects(
+        b,
+        (i) => this.capturedCardNameAt(i),
+        (res) => this.playerProduction(res),
+      );
+      const out: Array<ActionEffect> = folded !== undefined ? [...folded] : [...b.effects];
       if (b.reveal !== undefined) {
         out.push(b.reveal.reward);
       }
@@ -510,22 +522,43 @@ export default defineComponent({
     allChoices(): ReadonlyArray<ComposerChoice> {
       return [...preChoices(this.preview), ...branchChoices(this.selectedBranch)];
     },
-    /** A MULTI-CARD branch (Astra Mechanica `mergeCardSteps` / Cyberia Systems
-     *  `dedupeFromSteps`) needs merge/dedup assembly the console composer doesn't
-     *  do — its card steps ride the post-submit follow-up (a safe, documented
-     *  exception) rather than diverging the batch. */
-    multiCardBranch(): boolean {
-      const b = this.selectedBranch;
-      return b !== undefined && (b.mergeCardSteps !== undefined ||
-        b.steps.some((s) => s.kind === 'input' && s.dedupeFromSteps !== undefined));
-    },
+    // (The old multi-card-branch follow-up carve-out is GONE: merge slots
+    // host as ONE multi tableau pick, dedupe steps as sequential picks.)
     /** Card names in the player's hand — hand-card picks route to the hand
      *  section's pick mode instead of an inline text list. */
     handNamesSet(): ReadonlySet<string> {
       return new Set(this.playerView.cardsInHand.map((c) => c.name));
     },
+    /** Card names on the viewer's TABLE — those picks route to the
+     *  «Разыграно» view's pick mode (the physical tableau surface). */
+    tableauNamesSet(): ReadonlySet<string> {
+      return new Set(this.thisPlayer.tableau.map((c) => c.name));
+    },
+    /** The selected branch is a MERGED-slot pick (Astra: its card steps are
+     *  slots of one "up to N" SelectCard → hosted as ONE multi tableau pick
+     *  on the FIRST card step; the later card steps collapse into it). */
+    mergeBranchActive(): boolean {
+      return this.selectedBranch?.mergeCardSteps !== undefined;
+    },
+    /** The FIRST card step's index of a merge branch (the pick host). */
+    firstMergeCardStepIndex(): number {
+      const b = this.selectedBranch;
+      if (b === undefined || b.mergeCardSteps === undefined) {
+        return -1;
+      }
+      return b.steps.findIndex((s) => s.kind === 'input' && s.input.type === 'card');
+    },
+    /** Card-step slots of the merge branch (the multi pick's max). */
+    mergeCardStepCount(): number {
+      const b = this.selectedBranch;
+      if (b === undefined || b.mergeCardSteps === undefined) {
+        return 0;
+      }
+      return b.steps.reduce((n, s) => n + (s.kind === 'input' && s.input.type === 'card' ? 1 : 0), 0);
+    },
     stepChoices(): ReadonlyArray<ComposerChoice> {
-      return this.allChoices.filter((c) => this.choiceMode(c) !== 'followup');
+      return this.allChoices.filter((c) =>
+        this.choiceMode(c) !== 'followup' && !this.isCollapsedMergeStep(c));
     },
     followUpChoices(): ReadonlyArray<ComposerChoice> {
       return this.allChoices.filter((c) => !this.stepChoices.includes(c));
@@ -611,6 +644,17 @@ export default defineComponent({
           });
         }
       }
+      // The merged up-to-N pick (Astra) explicitly answered EMPTY: legal
+      // (min 0) but easy to do by accident — the branch's emptyWarning makes
+      // it a conscious choice BEFORE submit (the desktop popup, console-shaped).
+      const sel = this.selectedBranch;
+      const emptyWarning = sel?.mergeCardSteps?.emptyWarning;
+      if (emptyWarning !== undefined) {
+        const host = this.stepChoices.find((c) => this.isMergedPickChoice(c));
+        if (host !== undefined && this.multiPicks[host.id]?.length === 0) {
+          out.push({title: '', reason: textOf(emptyWarning), icon: ''});
+        }
+      }
       return out;
     },
     followUpNotes(): Array<string> {
@@ -633,6 +677,11 @@ export default defineComponent({
         // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
       }
       for (const c of this.followUpChoices) {
+        // A collapsed merge slot is HOSTED by the first slot's multi pick —
+        // never a bogus "after confirming" note.
+        if (this.isCollapsedMergeStep(c)) {
+          continue;
+        }
         const t = textOf(c.input.title);
         out.push(t !== '' ? t : translateText('Choose a target'));
       }
@@ -1131,11 +1180,12 @@ export default defineComponent({
       return c.input.type === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1;
     },
     chosenLabel(c: ComposerChoice): string {
-      // A resolved MULTI-select shows the picked cards themselves (first two
-      // names + «+N»), so the selection stays VISIBLE in the composer — an
-      // explicit empty answer reads honestly as «Выбрано: 0».
+      // A resolved MULTI-select (hand multi OR the merged tableau pick) shows
+      // the picked cards themselves (first two names + «+N»), so the
+      // selection stays VISIBLE in the composer — an explicit empty answer
+      // reads honestly as «Выбрано: 0».
       const multi = this.multiPicks[c.id];
-      if (multi !== undefined && this.isMultiCardChoice(c)) {
+      if (multi !== undefined && c.input.type === 'card') {
         if (multi.length === 0) {
           return `${translateText('Selected')}: 0`;
         }
@@ -1165,6 +1215,10 @@ export default defineComponent({
       if (multi !== undefined && gain !== undefined && this.isMultiCardChoice(c)) {
         return `+${multi.length * gain.amount}`;
       }
+      // The merged tableau pick (Astra): +N cards return to hand.
+      if (multi !== undefined && this.isMergedPickChoice(c) && multi.length > 0) {
+        return `+${multi.length}`;
+      }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
       }
@@ -1175,17 +1229,35 @@ export default defineComponent({
       const from = card.resources ?? 0;
       return `${from} → ${Math.max(0, from + c.amount)}`;
     },
-    /** The icon beside the impact — the step's card resource, or the multi
-     *  payout's resource (M€ for Public Plans). */
+    /** The icon beside the impact — the step's card resource, the multi
+     *  payout's resource (M€ for Public Plans), or the merged pick's cards. */
     chosenImpactIcon(c: ComposerChoice): string | undefined {
       if (c.cardResource !== undefined) {
         return c.cardResource;
       }
       const gain = c.multiSelect?.revealGain;
-      return this.multiPicks[c.id] !== undefined && gain !== undefined ? gain.resource : undefined;
+      if (this.multiPicks[c.id] !== undefined && gain !== undefined) {
+        return gain.resource;
+      }
+      return this.multiPicks[c.id] !== undefined && this.isMergedPickChoice(c) ? 'cards' : undefined;
     },
     playerName(color: string): string {
       return displayNameForColor(this.playerView.players, color as Color);
+    },
+    /** The viewer's CURRENT production for a standard resource — the `current`
+     *  base of a copied-production chip on a resource the base effects don't
+     *  already carry (desktop `playerProduction` mirror). */
+    playerProduction(res: string): number {
+      const p = this.thisPlayer;
+      switch (res) {
+      case 'megacredits': return p.megacreditProduction;
+      case 'steel': return p.steelProduction;
+      case 'titanium': return p.titaniumProduction;
+      case 'plants': return p.plantProduction;
+      case 'energy': return p.energyProduction;
+      case 'heat': return p.heatProduction;
+      default: return 0;
+      }
     },
     branchTitle(b: ActionPreviewBranch): string {
       const t = textOf(b.title);
@@ -1363,22 +1435,133 @@ export default defineComponent({
       this.focusIdx = this.firstActionableIndex();
       this.scrollFocused();
     },
-    /** HOW a choice is served: inline sub / the hand section's pick mode /
+    /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
-    choiceMode(c: ComposerChoice): 'inline' | 'handPick' | 'followup' {
-      return playChoiceMode(c, this.handNamesSet, this.multiCardBranch);
+    choiceMode(c: ComposerChoice): 'inline' | 'handPick' | 'tableauPick' | 'followup' {
+      return playChoiceMode(c, this.handNamesSet, this.tableauNamesSet);
     },
-    /** Open the pick surface a decision row needs (a list / tabbed picker / the
-     *  hand section for a hand-card pick). An amount / spend-heat row adjusts
-     *  inline, so opening it is a no-op. */
+    /** A LATER card step of a merge branch — collapsed into the first one's
+     *  multi pick (never its own row, never a follow-up note). */
+    isCollapsedMergeStep(c: ComposerChoice): boolean {
+      return this.mergeBranchActive && c.scope === 'step' &&
+        c.input.type === 'card' && c.index !== this.firstMergeCardStepIndex;
+    },
+    /** The choice hosts the merge branch's ONE multi tableau pick. */
+    isMergedPickChoice(c: ComposerChoice): boolean {
+      return this.mergeBranchActive && c.scope === 'step' &&
+        c.input.type === 'card' && c.index === this.firstMergeCardStepIndex;
+    },
+    /** Open the pick surface a decision row needs (a list / tabbed picker /
+     *  the hand or tableau pick). An amount / spend-heat row adjusts inline,
+     *  so opening it is a no-op. */
     openRow(row: PlayRow): void {
       if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
+      } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'tableauPick') {
+        this.openTableauPick(row.choice);
       } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
         this.sub = {kind: 'list', choiceId: row.choice.id, index: 0};
       } else if (row.kind === 'tabbed') {
         this.sub = {kind: 'tabbed', stepIndex: row.stepIndex, index: 0};
       }
+    },
+    /**
+     * Hand a TABLEAU card pick (single / merged multi / deduped sequential) to
+     * the «Разыграно» view's pick mode: the candidates physically lift off
+     * their real table slots (face-down events off the pile, flipping open),
+     * the player picks on the real cards, the cards fly home and the capture
+     * lands back here. A re-open pre-seeds the previous selection.
+     */
+    openTableauPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const merged = this.isMergedPickChoice(c);
+      const reasons: Record<string, string> = {};
+      for (const d of model.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
+      }
+      // De-dupe: a candidate already chosen in a referenced earlier step
+      // (Cyberia's second copy) shows DISABLED with the honest «уже выбрана»
+      // reason — visible and explained, never a pickable twin (desktop parity).
+      const dedupe = new Set<CardName>();
+      const step = this.previewStepOf(c);
+      for (const si of step?.dedupeFromSteps ?? []) {
+        const nm = this.capturedCardNameAt(si);
+        if (nm !== undefined) {
+          dedupe.add(nm);
+        }
+      }
+      const selectable = model.cards.map((cd) => cd.name).filter((n) => !dedupe.has(n));
+      const disabledNames = (model.disabledCards ?? []).map((d) => d.name);
+      for (const n of dedupe) {
+        if (!disabledNames.includes(n)) {
+          disabledNames.push(n);
+          reasons[n] = translateText('This card is already chosen');
+        }
+      }
+      const faceDown = [...selectable, ...disabledNames]
+        .filter((n) => getCard(n)?.type === CardType.EVENT);
+      const prior = merged ?
+        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
+        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
+      const merge = this.selectedBranch?.mergeCardSteps;
+      enterPlayedTableauPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Select',
+        selectable,
+        disabled: disabledNames,
+        reasons,
+        min: merged ? (merge?.min ?? 0) : 1,
+        max: merged ? Math.max(1, this.mergeCardStepCount) : 1,
+        selected: prior,
+        faceDown,
+      }, (cards) => {
+        // Re-locate by id — the preview may have refreshed under the pick.
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        if (merged) {
+          this.multiPicks[cur.id] = [...cards];
+          this.picks[cur.id] = String(cards.length);
+          this.captureFor(cur, {type: 'card', cards: [...cards]});
+        } else if (cards.length > 0) {
+          this.picks[cur.id] = cards[0];
+          this.captureFor(cur, {type: 'card', cards: [cards[0]]});
+          this.clearDedupeConflicts(cur, cards[0]);
+        }
+        this.focusIdx = this.firstActionableIndex();
+        this.scrollFocused();
+      });
+    },
+    /** The ActionPreviewStep behind a branch-step choice (dedupe metadata). */
+    previewStepOf(c: ComposerChoice): {dedupeFromSteps?: ReadonlyArray<number>} | undefined {
+      if (c.scope !== 'step') {
+        return undefined;
+      }
+      const s = this.selectedBranch?.steps[c.index];
+      return s !== undefined && s.kind === 'input' ? s : undefined;
+    },
+    capturedCardNameAt(stepIndex: number): CardName | undefined {
+      const resp = this.captured[stepIndex] as {type?: string, cards?: ReadonlyArray<CardName>} | undefined;
+      return resp?.type === 'card' ? resp.cards?.[0] : undefined;
+    },
+    /** Re-picking an EARLIER step to a card a LATER deduped step already
+     *  holds clears that later pick (the same card can never be chosen twice
+     *  — the desktop captureStep mirror). */
+    clearDedupeConflicts(changed: ComposerChoice, name: CardName): void {
+      const b = this.selectedBranch;
+      if (b === undefined || changed.scope !== 'step') {
+        return;
+      }
+      b.steps.forEach((s, i) => {
+        if (s.kind !== 'input' || !(s.dedupeFromSteps ?? []).includes(changed.index)) {
+          return;
+        }
+        if (this.capturedCardNameAt(i) === name) {
+          delete this.captured[i];
+          const later = this.allChoices.find((x) => x.scope === 'step' && x.index === i);
+          if (later !== undefined) {
+            delete this.picks[later.id];
+          }
+        }
+      });
     },
     /**
      * Hand a hand-card pick (single OR multi-select — Public Plans) to the HAND

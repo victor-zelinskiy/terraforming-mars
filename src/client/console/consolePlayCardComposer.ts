@@ -30,10 +30,11 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import type {SpendableResource} from '@/common/inputs/Spendable';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
+import type {Units} from '@/common/Units';
 import type {ComposerChoice} from '@/client/console/consoleActionComposer';
 import {autoMegacredits, laneCap, paymentCovers, paymentOverpay, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
 
@@ -89,40 +90,46 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
 
 /**
  * HOW the play composer serves one pre-select choice:
- *  - `inline`   — hosted in the composer itself (a sub-list / stepper);
- *  - `handPick` — handed to the HAND SECTION's pick mode (every candidate is a
- *                 hand card — single AND multi-select, e.g. Public Plans);
- *  - `followup` — an honest post-submit follow-up (repeat-action, a
- *                 merge/dedupe multi-card branch, a candidate-less pick the
- *                 live play auto-resolves, a TABLEAU multi-select).
+ *  - `inline`      — hosted in the composer itself (a sub-list / stepper);
+ *  - `handPick`    — handed to the HAND SECTION's pick mode (every candidate
+ *                    is a hand card — single AND multi-select, Public Plans);
+ *  - `tableauPick` — handed to the «РАЗЫГРАНО» view's pick mode (every
+ *                    candidate is one of the viewer's PLAYED cards): single
+ *                    picks (Robotic Workforce, the resource targets), the
+ *                    merged up-to-N pick (Astra Mechanica `mergeCardSteps` —
+ *                    hosted as ONE multi pick on the FIRST card step) and the
+ *                    deduped sequential picks (Cyberia `dedupeFromSteps`);
+ *  - `followup`    — an honest post-submit follow-up (repeat-action, a
+ *                    candidate-less pick the live play auto-resolves, a
+ *                    multi-select whose candidates the console doesn't own).
  */
-export type PlayChoiceMode = 'inline' | 'handPick' | 'followup';
+export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'followup';
 
 export function playChoiceMode(
   c: ComposerChoice,
   handNames: ReadonlySet<string>,
-  multiCardBranch: boolean,
+  tableauNames: ReadonlySet<string>,
 ): PlayChoiceMode {
   if (c.repeatAction === true) {
     return 'followup';
   }
   if (c.input.type === 'card') {
     const model = c.input as SelectCardModel;
-    // Astra Mechanica / Cyberia merge-or-dedupe assembly — the documented
-    // post-submit exception (its card steps are tableau picks anyway).
-    if (multiCardBranch) {
-      return 'followup';
-    }
     // Nothing selectable (e.g. Public Plans with an otherwise-empty hand) —
     // the live play auto-resolves; a dead un-answerable row would deadlock.
     if (model.cards.length === 0) {
       return 'followup';
     }
-    if (isHandModel(model, handNames)) {
+    const candidates = [...model.cards, ...(model.disabledCards ?? [])];
+    if (candidates.every((cd) => handNames.has(cd.name))) {
       return 'handPick';
     }
-    // A tableau single pick stays an inline sub-list; a tableau multi-select
-    // keeps the historical follow-up (no console surface hosts it yet).
+    if (candidates.every((cd) => tableauNames.has(cd.name))) {
+      return 'tableauPick';
+    }
+    // Candidates the console doesn't own a surface for (SRR-hosted cards,
+    // opponents' cards): a single pick stays an inline sub-list; a
+    // multi-select keeps the honest follow-up.
     return model.max <= 1 ? 'inline' : 'followup';
   }
   if (c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat') {
@@ -131,11 +138,77 @@ export function playChoiceMode(
   return 'followup';
 }
 
-/** Local mirror of `consoleHandPick.isHandCardSelection` (kept here so this
- *  module stays import-light for the server-runner specs). */
-function isHandModel(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
-  const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-  return candidates.every((cd) => handNames.has(cd.name));
+// ── Copied-production fold (Cyberia Systems / Robotic Workforce) ─────────────
+
+/** The six standard production resources, in chip order. */
+const STANDARD_PROD_RESOURCES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
+
+/**
+ * Fold the production COPIED by the answered "copy production box" steps into
+ * the branch's base effect chips — desktop `resultEffects` parity: ONE chip per
+ * resource (`current → resulting`, base production effects + copied deltas
+ * summed), non-production base chips passing through unchanged. So the RESULT
+ * shows EXACTLY what the chosen cards copy and updates LIVE on a re-pick.
+ * Returns `undefined` when NO copy step is answered yet — the caller keeps the
+ * base effects (no behaviour change for every non-copy card).
+ */
+export function foldCopiedProductionEffects(
+  branch: ActionPreviewBranch,
+  capturedCardName: (stepIndex: number) => string | undefined,
+  playerProduction: (res: string) => number,
+): ReadonlyArray<ActionEffect> | undefined {
+  const copied: Record<string, number> = {};
+  let hasCopy = false;
+  branch.steps.forEach((step, i) => {
+    if (step.kind !== 'input' || step.copyProductionBox === undefined) {
+      return;
+    }
+    const name = capturedCardName(i);
+    const box: Partial<Units> | undefined = name !== undefined ? step.copyProductionBox[name as CardName] : undefined;
+    if (box === undefined) {
+      return;
+    }
+    hasCopy = true;
+    for (const res of STANDARD_PROD_RESOURCES) {
+      const v = box[res] ?? 0;
+      if (v !== 0) {
+        copied[res] = (copied[res] ?? 0) + v;
+      }
+    }
+  });
+  if (!hasCopy) {
+    return undefined;
+  }
+  const totals: Record<string, number> = {...copied};
+  const currentByRes: Record<string, number> = {};
+  const passthrough: Array<ActionEffect> = [];
+  for (const e of branch.effects) {
+    if (e.note === 'production' && STANDARD_PAY_UNITS.has(e.icon)) {
+      totals[e.icon] = (totals[e.icon] ?? 0) + (e.direction === 'gain' ? e.amount : -e.amount);
+      if (e.current !== undefined) {
+        currentByRes[e.icon] = e.current;
+      }
+    } else {
+      passthrough.push(e);
+    }
+  }
+  const prodChips: Array<ActionEffect> = [];
+  for (const res of STANDARD_PROD_RESOURCES) {
+    const delta = totals[res] ?? 0;
+    if (delta === 0) {
+      continue;
+    }
+    const current = currentByRes[res] ?? playerProduction(res);
+    prodChips.push({
+      direction: delta >= 0 ? 'gain' : 'cost',
+      icon: res,
+      amount: Math.abs(delta),
+      current,
+      resulting: current + delta,
+      note: 'production',
+    });
+  }
+  return [...prodChips, ...passthrough];
 }
 
 // ── Smart PRIMARY ACTION state machine (the A button, focus-independent) ─────

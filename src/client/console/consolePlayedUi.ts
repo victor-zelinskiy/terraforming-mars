@@ -20,6 +20,15 @@ export const consolePlayedUi = reactive({
   categoryLabel: '',
   /** ≥2 participants — LB/RB cycles the viewed player. */
   canCyclePlayer: false,
+  // ── the TABLEAU PICK (a composer's card pick hosted on this view) ─────
+  pickActive: false,
+  /** The A-verb (server buttonLabel — 'Copy' / 'Select' …; i18n key). */
+  pickVerb: '',
+  pickSingle: true,
+  pickCount: 0,
+  pickValid: false,
+  /** The focused card is a pickable candidate (A enabled). */
+  pickFocusOk: false,
 });
 
 export function resetConsolePlayedUi(): void {
@@ -28,4 +37,10 @@ export function resetConsolePlayedUi(): void {
   consolePlayedUi.categoryBusy = false;
   consolePlayedUi.categoryLabel = '';
   consolePlayedUi.canCyclePlayer = false;
+  consolePlayedUi.pickActive = false;
+  consolePlayedUi.pickVerb = '';
+  consolePlayedUi.pickSingle = true;
+  consolePlayedUi.pickCount = 0;
+  consolePlayedUi.pickValid = false;
+  consolePlayedUi.pickFocusOk = false;
 }

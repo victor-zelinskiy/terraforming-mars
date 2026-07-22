@@ -23,25 +23,31 @@
        :aria-label="$t(title)">
     <div class="con-played-cat__backdrop" aria-hidden="true" @click="requestClose"></div>
 
-    <div class="con-played-cat__panel">
+    <div class="con-played-cat__panel" :class="{'con-played-cat__panel--pick': pickActive}">
       <div class="con-played-cat__head">
-        <span class="con-played-cat__kicker" v-i18n>Played</span>
-        <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? '')">{{ $t(title) }}</span>
+        <span class="con-played-cat__kicker">{{ $t(pickActive ? 'Card selection' : 'Played') }}</span>
+        <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? (pickActive ? 'pick' : ''))">{{ titleText }}</span>
         <span class="con-played-cat__count">{{ cards.length }}</span>
+        <!-- Multi-pick running counter (single picks resolve in one press). -->
+        <span v-if="pickActive && !pickSingle" class="con-played-cat__pickcount">
+          <b>{{ state.pickSelected.length }}</b><i>/ {{ pickMax }}</i>
+        </span>
       </div>
 
       <!-- SINGLE card — the near-fullscreen stage (no grid chrome). -->
       <div v-if="layout.kind === 'single'" class="con-played-cat__stage" ref="body">
         <div v-if="cards[0] !== undefined"
              class="con-played-cat__slot con-played-cat__slot--single"
-             :class="{'con-played-cat__slot--focused': state.phase === 'open'}"
+             :class="slotClasses(0, cards[0].name)"
              :style="{width: layout.slotW + 'px', height: layout.slotH + 'px'}"
              :data-cat-slot="cards[0].name"
-             @click="inspectFocused">
+             @click="onSlotClick(0)">
           <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
             <ConsolePlayedCardLite :name="cards[0].name" />
           </div>
           <span v-if="(cards[0].resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ cards[0].resources }}</span>
+          <span v-if="pickBand(cards[0].name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
+          <span v-else-if="pickBand(cards[0].name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(cards[0].name) }}</span>
         </div>
       </div>
 
@@ -60,7 +66,7 @@
               <div v-for="(card, ci) in rowCards(row)"
                    :key="card.name"
                    class="con-played-cat__slot"
-                   :class="{'con-played-cat__slot--focused': state.phase === 'open' && row * gridPlan.cols + ci === state.focusIndex}"
+                   :class="slotClasses(row * gridPlan.cols + ci, card.name)"
                    :style="{width: gridPlan.slotW + 'px', height: gridPlan.slotH + 'px'}"
                    :data-cat-slot="card.name"
                    @click="onSlotClick(row * gridPlan.cols + ci)">
@@ -68,6 +74,8 @@
                   <ConsolePlayedCardLite :name="card.name" />
                 </div>
                 <span v-if="(card.resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ card.resources }}</span>
+                <span v-if="pickBand(card.name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
+                <span v-else-if="pickBand(card.name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(card.name) }}</span>
               </div>
             </div>
             <div class="con-played-cat__spacer" :style="{height: bottomSpacerPx + 'px'}" aria-hidden="true"></div>
@@ -143,7 +151,11 @@ import {
 import {
   playedCategoryState, resetPlayedCategoryView, nextCategoryFlightId,
   registerCategoryFlightEl, CategoryFlight,
+  stagePlayedTableauPickOutcome,
 } from '@/client/console/played/playedCategoryView';
+import {consolePlayedUi} from '@/client/console/consolePlayedUi';
+import {translateText, translateMessage} from '@/client/directives/i18n';
+import {CardName} from '@/common/cards/CardName';
 import {
   runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant,
   dissolveCategoryProxies, resetCategoryDirector,
@@ -195,8 +207,54 @@ export default defineComponent({
       const key = this.state.category;
       return key !== undefined ? PLAYED_CATEGORY_LABEL[key] : 'Played';
     },
+    /** The header title: the pick's own prompt (server ask) in pick mode. */
+    titleText(): string {
+      const pick = this.state.pick;
+      if (pick !== undefined) {
+        return typeof pick.title === 'string' ? translateText(pick.title) : translateMessage(pick.title);
+      }
+      return translateText(this.title);
+    },
     busy(): boolean {
       return this.state.phase === 'opening' || this.state.phase === 'closing';
+    },
+    // ── pick mode (the composer's tableau pick) ─────────────────────────
+    pickActive(): boolean {
+      return this.state.pick !== undefined;
+    },
+    pickSingle(): boolean {
+      const p = this.state.pick;
+      return p !== undefined && p.min === 1 && p.max === 1;
+    },
+    pickMax(): number {
+      return this.state.pick?.max ?? 1;
+    },
+    pickSelectableSet(): ReadonlySet<string> {
+      return new Set(this.state.pick?.selectable ?? []);
+    },
+    pickValid(): boolean {
+      const p = this.state.pick;
+      if (p === undefined) {
+        return false;
+      }
+      const n = this.state.pickSelected.length;
+      return n >= p.min && n <= p.max;
+    },
+    /** The focused card is a pickable candidate (the bar's A-verb enabled). */
+    pickFocusOk(): boolean {
+      const name = this.cards[this.state.focusIndex]?.name;
+      return name !== undefined && this.pickSelectableSet.has(name);
+    },
+    /** One object for the command-bar mirror watcher (fresh per re-compute). */
+    pickUi(): {active: boolean, verb: string, single: boolean, count: number, valid: boolean, focusOk: boolean} {
+      return {
+        active: this.pickActive,
+        verb: this.state.pick?.buttonLabel ?? '',
+        single: this.pickSingle,
+        count: this.state.pickSelected.length,
+        valid: this.pickValid,
+        focusOk: this.pickFocusOk,
+      };
     },
     insetPx(): number {
       return Math.round(CAT_EDGE_INSET * conUiScale());
@@ -257,6 +315,18 @@ export default defineComponent({
       if (this.state.focusIndex > n - 1) {
         this.state.focusIndex = Math.max(0, n - 1);
       }
+    },
+    /** Command-bar mirror of the live pick state (the bar never pokes refs). */
+    'pickUi': {
+      immediate: true,
+      handler(u: {active: boolean, verb: string, single: boolean, count: number, valid: boolean, focusOk: boolean}) {
+        consolePlayedUi.pickActive = u.active;
+        consolePlayedUi.pickVerb = u.verb;
+        consolePlayedUi.pickSingle = u.single;
+        consolePlayedUi.pickCount = u.count;
+        consolePlayedUi.pickValid = u.valid;
+        consolePlayedUi.pickFocusOk = u.focusOk;
+      },
     },
   },
   mounted() {
@@ -397,7 +467,7 @@ export default defineComponent({
       this.state.flights = this.cards.map((c): CategoryFlight => ({
         id: nextCategoryFlightId(),
         name: c.name,
-        faceDown: this.state.category === 'events',
+        faceDown: this.isFaceDown(c.name),
       }));
       void this.$nextTick().then(() => {
         if (this.state.phase !== 'closing') {
@@ -461,7 +531,7 @@ export default defineComponent({
       this.state.flights = this.cards.map((c): CategoryFlight => ({
         id: nextCategoryFlightId(),
         name: c.name,
-        faceDown: this.state.category === 'events',
+        faceDown: this.isFaceDown(c.name),
       }));
       return this.state.flights;
     },
@@ -501,7 +571,10 @@ export default defineComponent({
       if (typeof document === 'undefined') {
         return undefined;
       }
-      if (this.state.category === 'events') {
+      void index;
+      if (this.isFaceDown(name)) {
+        // A FACE-DOWN card lives in the shared events pile — its physical spot
+        // is the backstack with a small per-card stack offset.
         const pile = document.querySelector<HTMLElement>('.con-played .con-played__family--event .con-played__backstack');
         if (pile === null) {
           return undefined;
@@ -510,8 +583,9 @@ export default defineComponent({
         if (r.width < 4) {
           return undefined;
         }
-        const dx = (index % 2 === 0 ? -1 : 1) * Math.min(index, 3) * 2;
-        const dy = Math.min(index, 3) * 2;
+        const rank = this.faceDownRank(name);
+        const dx = (rank % 2 === 0 ? -1 : 1) * Math.min(rank, 3) * 2;
+        const dy = Math.min(rank, 3) * 2;
         return {x: r.left + dx, y: r.top + dy, w: r.width, h: r.height};
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
@@ -555,25 +629,125 @@ export default defineComponent({
         return;
       }
       switch (consoleActionOf(intent)) {
+      case 'primary':
+        // A = THE PICK VERB (the reserved slot): resolves a single pick /
+        // toggles a multi pick. Quiet in browse mode.
+        if (this.pickActive) {
+          this.pickPress();
+        }
+        break;
+      case 'nextTab':
+        // RT confirms the accumulated MULTI pick (bounds-checked).
+        if (this.pickActive && !this.pickSingle && this.pickValid) {
+          this.finishPick([...this.state.pickSelected]);
+        }
+        break;
       case 'inspect':
-        // X = the fullscreen inspector — ALWAYS. A is deliberately quiet in
-        // browse mode: it is reserved for the pick verb when this same view
-        // opens in the tableau-pick mode (phase 2).
+        // X = the fullscreen inspector — ALWAYS (browse AND pick).
         this.inspectFocused();
         break;
       case 'back':
-        this.requestClose();
+        // B in pick mode = CANCEL (the composer keeps its old capture) —
+        // the cards still fly home first (the physical return).
+        if (this.pickActive) {
+          this.finishPick(undefined);
+        } else {
+          this.requestClose();
+        }
         break;
       default:
         break;
       }
+    },
+    // ── the pick verbs ──────────────────────────────────────────────────
+    /** A on the focused card: resolve (single) / toggle (multi). A non-
+     *  candidate is a quiet no-op — its reason band is already on the card. */
+    pickPress(): void {
+      const name = this.cards[this.state.focusIndex]?.name;
+      if (name === undefined || !this.pickSelectableSet.has(name)) {
+        return;
+      }
+      if (this.pickSingle) {
+        this.finishPick([name as CardName]);
+        return;
+      }
+      const picked = this.state.pickSelected;
+      const at = picked.indexOf(name as CardName);
+      if (at !== -1) {
+        picked.splice(at, 1);
+      } else if (picked.length < this.pickMax) {
+        picked.push(name as CardName);
+      }
+    },
+    /** Stage the outcome (cards / undefined = cancel), then fly HOME — the
+     *  bridge fires the composer callback only at the return touchdown. */
+    finishPick(cards: ReadonlyArray<CardName> | undefined): void {
+      if (!this.pickActive || this.busy) {
+        return;
+      }
+      stagePlayedTableauPickOutcome(cards);
+      this.requestClose();
+    },
+    slotClasses(index: number, name: string): Record<string, boolean> {
+      return {
+        'con-played-cat__slot--focused': this.state.phase === 'open' && index === this.state.focusIndex,
+        'con-played-cat__slot--picked': this.pickActive && this.state.pickSelected.includes(name as CardName),
+        'con-played-cat__slot--pick-disabled': this.pickActive && !this.pickSelectableSet.has(name),
+      };
+    },
+    /** The slot band kind in pick mode ('' → none). */
+    pickBand(name: string): string {
+      if (!this.pickActive) {
+        return '';
+      }
+      if (this.state.pickSelected.includes(name as CardName)) {
+        return 'picked';
+      }
+      if (!this.pickSelectableSet.has(name)) {
+        return 'blocked';
+      }
+      return '';
+    },
+    pickBandText(name: string): string {
+      if (this.pickBand(name) === 'picked') {
+        return translateText('Card selected');
+      }
+      const r = this.state.pick?.reasons[name];
+      return r !== undefined && r !== '' ? r : translateText('This card cannot be chosen here');
+    },
+    /** The card lies FACE DOWN on the table (a played event) — per card in
+     *  pick mode (the set can mix events with face-up cards). */
+    isFaceDown(name: string): boolean {
+      const pick = this.state.pick;
+      if (pick !== undefined) {
+        return pick.faceDown.includes(name as CardName);
+      }
+      return this.state.category === 'events';
+    },
+    /** The card's rank within the face-down subset (the pile stack offset). */
+    faceDownRank(name: string): number {
+      let rank = 0;
+      for (const c of this.cards) {
+        if (c.name === name) {
+          return rank;
+        }
+        if (this.isFaceDown(c.name)) {
+          rank++;
+        }
+      }
+      return rank;
     },
     onSlotClick(index: number): void {
       if (this.busy) {
         return;
       }
       if (this.state.focusIndex === index) {
-        this.inspectFocused();
+        // Mouse parity: the second click is the pad's A (pick) / X (browse).
+        if (this.pickActive) {
+          this.pickPress();
+        } else {
+          this.inspectFocused();
+        }
       } else {
         this.state.focusIndex = index;
       }
