@@ -289,7 +289,8 @@
     <!-- ── HELP / LORE (X = Подробнее) — the full description, never clipped ── -->
     <transition name="con-layer">
       <div v-if="ui.helpOpen" class="con-task-host con-hydro__help" role="dialog" :aria-label="$t('Mars Hydronetwork')">
-        <div class="con-task-host__backdrop" aria-hidden="true" @click="ui.helpOpen = false"></div>
+        <!-- An INNER layer of the hydro section: carries its OWN dim. -->
+        <div class="con-hydro__help-backdrop" aria-hidden="true" @click="ui.helpOpen = false"></div>
         <div class="con-task con-hydro__help-frame">
           <header class="con-task__head">
             <div class="con-task__kicker">

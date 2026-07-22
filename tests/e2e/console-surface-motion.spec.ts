@@ -184,7 +184,13 @@ for (const profile of PROFILES) {
       }
       expect(await page.locator('.con-cards__slot[data-zoom-slot="Search For Life"][class*="--focused"]').count(),
         'the focus must reach Search For Life').toBeGreaterThan(0);
-      await key(page, 'Enter', 700); // toggle-buy
+      // Toggle-buy with verification: the slot must actually flip to
+      // --picked (an Enter landing on a busy frame is silently dropped).
+      const pickedSearch = page.locator('.con-cards__slot[data-zoom-slot="Search For Life"][class*="--picked"]');
+      for (let tries = 0; tries < 3 && await pickedSearch.count() === 0; tries++) {
+        await key(page, 'Enter', 700);
+      }
+      expect(await pickedSearch.count(), 'Search For Life must be picked').toBeGreaterThan(0);
       await key(page, 'Period', 1400); // RT → next step
       // Remaining steps (summary launches on Enter).
       for (let i = 0; i < 10 && await startScene.count() > 0; i++) {

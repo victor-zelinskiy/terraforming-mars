@@ -60,11 +60,17 @@ for (const manifest of ALL_MODULE_MANIFESTS) {
 }
 
 function hasArt(name: string, seen: Set<string> = new Set()): boolean {
-  if (seen.has(name)) return false;
+  if (seen.has(name)) {
+    return false;
+  }
   seen.add(name);
   const md = metaByName.get(name);
-  if (md === undefined) return false;
-  if (md.cardNumber !== undefined && available.has(md.cardNumber)) return true;
+  if (md === undefined) {
+    return false;
+  }
+  if (md.cardNumber !== undefined && available.has(md.cardNumber)) {
+    return true;
+  }
   const re = md.reimplements;
   if (re !== undefined) {
     const targets = Array.isArray(re) ? re : [re];
@@ -90,7 +96,7 @@ console.log(`With art       : ${scopeCards.length - missing.length}`);
 console.log(`MISSING art    : ${missing.length}`);
 console.log('========================================================');
 for (const module of [...byModule.keys()].sort()) {
-  const list = byModule.get(module)!.sort((a, b) => a.name.localeCompare(b.name));
+  const list = (byModule.get(module) ?? []).sort((a, b) => a.name.localeCompare(b.name));
   console.log(`\n[${module}] — ${list.length} missing`);
   for (const c of list) {
     // CardType is a STRING enum — the value IS the readable label.

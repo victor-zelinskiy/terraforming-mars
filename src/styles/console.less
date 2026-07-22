@@ -2331,8 +2331,17 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__detail-status { font-size: .85rem; font-weight: 700; }
 
-    /* ── Help / lore panel (X = Подробнее) ───────────────────────── */
-    &__help-frame { width: min(38rem, 92vw); }
+    /* ── Help / lore panel (X = Подробнее) — an INNER layer of the hydro
+       section (outside the surface-motion hooks): its OWN dim + entry. ── */
+    &__help-backdrop {
+        position: fixed; /* full-viewport dim under the bars */
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck)
+    }
+    &__help-frame {
+        width: min(38rem, 92vw);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
     &__help-body { gap: .7rem; }
     &__help-lore {
         margin: 0;
@@ -2355,7 +2364,18 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 
 /* The confirm modal («Укрепить гидросеть») — con-task chrome + hydro rows. */
 .con-hydroconfirm {
-    &__frame { width: min(36rem, 92vw); }
+    /* An INNER layer of the hydro section (child mount — outside the
+       surface-motion hooks): its OWN dim + entry, exactly the retired
+       host-chassis look. The help popup shares the recipe. */
+    &__backdrop {
+        position: fixed; /* full-viewport dim under the bars */
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck)
+    }
+    &__frame {
+        width: min(36rem, 92vw);
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
     &__body { gap: .5rem; }
     &__route {
         display: flex;
