@@ -11,15 +11,15 @@
 @prodloss-loss: #e6a15c; // the warm "reduction" accent (kin to the hazard theme)
 
 .con-prodloss {
-    position: fixed;
-    inset: 0;
+    // THE MODAL BAND (shared contract — console.less): between the bars.
+    .con-modal-band();
     z-index: 11480; // same band as the task host it replaces
     display: flex;
     align-items: center;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; // full-viewport dim under the bars
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
     }
@@ -27,7 +27,7 @@
     &__panel {
         position: relative;
         width: min(44rem, 92vw);
-        max-height: 90vh;
+        max-height: 100%;
         display: flex;
         flex-direction: column;
         padding: 1.3rem 1.5rem .9rem;

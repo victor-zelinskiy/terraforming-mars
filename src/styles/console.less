@@ -169,6 +169,34 @@ body.con-zoom-open .con-handdock {
     font-family: @con-font;
     color: @con-text;
     z-index: 40;
+
+    /* ═══ THE MODAL BAND — the ONE layout contract of every console modal /
+       overlay ═══
+       The top HUD strip and the bottom command bar are ALWAYS visible chrome
+       (z 11706 / 11700): no decision surface may lay its content under them.
+       These two tokens describe the reserved top/bottom viewport bands
+       (root padding + bar + column gap + breathing), and `.con-modal-band()`
+       below positions a fixed overlay EXACTLY between them. Every overlay
+       therefore shares one identical frame box — which is also the seam for
+       the future one-frame modal-swap animations: two surfaces exchanging
+       places already agree on their geometry, only their content crossfades.
+       Profile overrides (Deck footer / TV safe-area) adjust the SAME tokens —
+       never a per-overlay constant again. `--con-bar-h` lives HERE (not on
+       .con-footer) so the bottom band derives from it; the footer inherits. */
+    --con-bar-h: 2.6rem;
+    --con-band-top: calc(1.2vh + 3.1rem);
+    --con-band-bottom: calc(1vh + .6rem + var(--con-bar-h));
+}
+
+/* A fixed overlay spanning EXACTLY the space between the two bars. The
+   overlay's own `__backdrop` child stays `position: fixed; inset: 0` when a
+   full-viewport dim is wanted — the bars (higher z) paint crisp above it. */
+.con-modal-band() {
+    position: fixed;
+    top: var(--con-band-top, 4.5rem);
+    bottom: var(--con-band-bottom, 4.5rem);
+    left: 0;
+    right: 0;
 }
 
 .con-wf-host {
@@ -2856,23 +2884,23 @@ html.con-profile-handheld .con-maconfirm {
    surface shows the WHOLE description on a hero art stage. Read-only (A
    sponsors/claims when available → the confirm; B/X close). */
 .con-mainspect {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: centres between the bars. */
+    .con-modal-band();
     z-index: 11515; /* above the MA screen (11500); under ceremony (11720) / fallback (12000) */
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: .4rem 2rem;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
         width: min(44rem, 92vw);
-        max-height: 88vh;
+        max-height: 100%; /* bounded by the modal band */
         display: flex;
         flex-direction: column;
         gap: .9rem;
@@ -4190,15 +4218,16 @@ html.console-mode {
 
 /* ── P27: RT / LT QUICK SELECTORS (direct-input command cross) ───── */
 .con-quick {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: the command cross centres between the bars (compact —
+       visually unchanged; the band only guarantees it can never touch them). */
+    .con-modal-band();
     z-index: 11500;
     display: flex;
     align-items: center;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         /* Route through the shared dim (var-driven) so the TV profile raises
            the wheel backdrop to dim-strong — the board must not stay fully
@@ -4485,22 +4514,23 @@ html.console-mode {
 
 /* ── Sheets (standard projects / milestones / awards) ────────────── */
 .con-sheet {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: the sheet now rests ON the bar band's edge instead of
+       sliding its bottom underneath the command bar. */
+    .con-modal-band();
     z-index: 11500;
     display: flex;
     align-items: flex-end;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         background: rgba(4, 8, 14, 0.6);
     }
     &__panel {
         position: relative;
         width: min(49rem, 92vw);
-        max-height: 70vh;
+        max-height: ~"min(70vh, 100%)";
         display: flex;
         flex-direction: column;
         padding: 1.2rem 1.4rem .8rem;
@@ -4648,16 +4678,17 @@ html.console-mode {
    Availability reads from card state + the CTA — the only textual
    explanation lives in the footer context strip for the FOCUSED card. */
 .con-ma {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: was top-reserved only — the panel stretched under the
+       command bar. */
+    .con-modal-band();
     z-index: 11500;
     display: flex;
     align-items: stretch;
     justify-content: center;
-    padding: 3.6rem 1.1rem .8rem;
+    padding: .3rem 1.1rem;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         /* A quick-glance STRATEGIC panel — the board stays readable. */
         background: rgba(4, 8, 14, 0.34);
@@ -5205,15 +5236,15 @@ html.console-mode {
 
 /* -- P27: Standard Projects -- the premium basic-actions screen ---- */
 .con-stdp {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: centres between the bars. */
+    .con-modal-band();
     z-index: 11500;
     display: flex;
     align-items: center;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         background: rgba(4, 8, 14, 0.74);
     }
@@ -5223,7 +5254,7 @@ html.console-mode {
         flex-direction: column;
         gap: .7rem;
         width: min(53rem, 90vw);
-        max-height: 88vh;
+        max-height: 100%;
         padding: .9rem 1.1rem .7rem;
         border-radius: .7rem;
         background: @con-glass;
@@ -6371,15 +6402,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
 /* ── Confirm panel ───────────────────────────────────────────────── */
 .con-confirm {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: compact card, centres between the bars (visually
+       unchanged — the band only guarantees it can never touch them). */
+    .con-modal-band();
     z-index: 11520;
     display: flex;
     align-items: center;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         background: rgba(4, 8, 14, 0.7);
     }
@@ -6633,7 +6665,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        z now does the tucking, so the plate/counter never go under with it.) */
     position: relative;
     flex-shrink: 0;
-    --con-bar-h: 2.6rem;
+    /* --con-bar-h is defined on .con-root (the modal-band contract needs it);
+       the footer + dock read it through inheritance. */
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -7008,16 +7041,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
 /* ── LT INFORMATION MODE ─────────────────────────────────────────── */
 .con-info {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: the frame stretches between the bars — its header used
+       to sit under the top HUD strip and its footer row under the bar. */
+    .con-modal-band();
     z-index: 11560;
     display: flex;
     align-items: stretch;
     justify-content: center;
-    padding: 2vh 3vw;
+    padding: .2rem 3vw;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
@@ -8753,26 +8787,21 @@ html.console-mode {
 
 /* ── CTS T1: the console task host ───────────────────────────────── */
 .con-task-host {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND (the shared contract): the host spans EXACTLY the space
+       between the top HUD strip and the command-bar band — never under
+       either. ConsoleTaskHost's fitCardStrip MEASURES this box through its
+       content box (workBandHeight) — keep geometry here, never a second
+       constant in JS. */
+    .con-modal-band();
     z-index: 11480; /* under Info Mode (11560) / stranded (11900) / fallback (12000) */
     display: flex;
     align-items: center;
     justify-content: center;
-    /* THE WORK BAND: the modal centres BETWEEN the top HUD strip and the
-       bottom command-bar band — never under either (a bare inset:0 host
-       centred on the FULL viewport, so a tall card modal slid its header
-       under the status rail and its verdict row under the command bar).
-       The two reserves mirror the shell bands in rem (root padding + strip
-       ~2.5rem / --con-bar-h 2.6rem + the .4rem column gap), so they ride
-       every profile including the TV rem scale. ConsoleTaskHost's
-       fitCardStrip MEASURES this padding (workBandHeight) — keep the two
-       in agreement through the content box, never a second constant. */
-    padding: calc(1.2vh + 3.1rem) 0 calc(1vh + 3.2rem);
+    padding: .3rem 0;
     box-sizing: border-box;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* the dim covers the FULL viewport under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
         transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
@@ -9362,15 +9391,15 @@ html.console-mode {
 .gov-accent(@c) { --gov-accent: @c; }
 
 .con-govsupport {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: centres between the bars. */
+    .con-modal-band();
     z-index: 11480; /* same band as the task host it replaces */
     display: flex;
     align-items: center;
     justify-content: center;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
     }
@@ -9378,7 +9407,7 @@ html.console-mode {
     &__panel {
         position: relative;
         width: min(50rem, 92vw);
-        max-height: 90vh;
+        max-height: 100%;
         display: flex;
         flex-direction: column;
         padding: 1.3rem 1.5rem .9rem;
@@ -11175,15 +11204,18 @@ body.con-start-ceremony {
 /* ── REVEAL OVERLAY (CTS T6): drawn cards / deck-check result / viewer ── */
 .con-reveal {
     position: fixed;
-    inset: 0;
+    /* THE MODAL BAND on top (the card's head never slides under the HUD
+       strip); the BOTTOM keeps its own LARGER reserve — cards are taken ONE
+       BY ONE here and each must visibly fly into a fully UNCOVERED dock
+       below the panel (dock top ≈ 6.25rem + breathing > the bar band). */
+    top: var(--con-band-top, 4.5rem);
+    bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 11520; /* above the task host (11480), below Info Mode (11560) */
     display: flex;
     align-items: center;
     justify-content: center;
-    /* RAISED above the hand-dock zone (dock top ≈ 6.25rem + breathing):
-       cards are taken ONE BY ONE here and each must visibly fly into a
-       fully UNCOVERED dock below the panel — the modal never overlaps the
-       hand. The backdrop child still dims the full viewport. */
     padding-bottom: 6.9rem;
     font-family: @con-font;
     color: @con-text;
@@ -11198,14 +11230,14 @@ body.con-start-ceremony {
     }
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__card {
         position: relative;
         width: min(70rem, 94vw);
-        max-height: calc(100vh - 8.9rem); /* the raise (6.9rem) + top air */
+        max-height: 100%; /* the band top + the dock raise bound the box */
         display: flex;
         flex-direction: column;
         padding: 1.1rem 1.4rem .7rem;
@@ -13006,20 +13038,19 @@ html.console-mode {
    sits beside. ONE bottom footer is the ONLY command surface — never a hint on
    a tile / card / header / the confirm body (the "one bottom bar" rule). ── */
 .con-cardactions {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: the whole center lives between the bars — the header
+       used to slide under the top HUD strip (top reserve was a bare 1.6vh). */
+    .con-modal-band();
     z-index: 11480;
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    /* The bottom command bar stays ON TOP of the sheet (its contract
-       renders there) — keep the frame clear of the bar band. */
-    padding: 1.6vh 1.8vw calc(1vh + 3rem);
+    padding: .2rem 1.8vw;
     font-family: @con-font;
     color: @con-text;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars (band root shrank) */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck) — the shared premium dim
     }
@@ -13310,21 +13341,20 @@ html.console-mode {
    single bottom bar (it covers the action center's). Desktop parity: nothing
    is submitted until every decision is made. ── */
 .con-composer {
-    position: fixed;
-    inset: 0;
+    /* THE MODAL BAND: a tall composer panel used to slide its top under the
+       HUD strip (the reserve was bottom-only). */
+    .con-modal-band();
     z-index: 11500; /* above the action-center frame + its footer */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    /* The bottom command bar stays ON TOP of the composer (its contract
-       renders there) — keep the panel clear of the bar band. */
-    padding: 2vh 2vw calc(2vh + 3rem);
+    padding: .4rem 2vw;
     font-family: @con-font;
     color: @con-text;
 
     &__backdrop {
-        position: absolute;
+        position: fixed; /* full-viewport dim under the bars */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
@@ -13332,7 +13362,7 @@ html.console-mode {
     &__panel {
         position: relative; z-index: 1;
         width: min(44rem, 92vw);
-        max-height: 92vh;
+        max-height: 100%;
         display: flex; flex-direction: column; gap: .6rem;
         padding: 1.2rem 1.4rem .7rem;
         border-radius: .8rem;
@@ -13875,7 +13905,8 @@ html.con-profile-large .con-composer {
 
 /* Handheld (Steam Deck) — tighter chrome + smaller type. */
 html.con-profile-handheld .con-cardactions {
-    padding: 0.6vh 0.7vw;
+    /* Horizontal only — the vertical geometry is the shared modal band. */
+    padding: 0.1rem 0.7vw;
     .con-cardactions__frame { padding: .6rem .8rem .5rem; gap: .5rem; }
     .con-cardactions__title { font-size: 1.1rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
@@ -14017,7 +14048,7 @@ html.con-profile-handheld {
         &--bay .con-cmdbar__context { font-size: .7rem; }
         .gp-glyph { min-width: .85rem; height: .85rem; font-size: .475rem; }
     }
-    .con-footer { --con-bar-h: 1.9rem; }
+    .con-root { --con-bar-h: 1.9rem; } /* the band-bottom token follows */
     /* The dock compacts with the Deck footer (the bay itself narrows via
        the model's handDockBayRem — the shell writes --con-hd-bay). */
     .con-handdock {
@@ -14312,7 +14343,7 @@ html.con-profile-handheld {
     /* ── 13/14/18/19 · sheets (basics / std / actions) ───────────── */
     .con-sheet__panel {
         width: min(44rem, 94vw);
-        max-height: 80vh;
+        max-height: ~"min(80vh, 100%)";
         padding: .7rem .8rem .5rem;
         zoom: 0.92; /* a LIST surface — density, not composition */
     }

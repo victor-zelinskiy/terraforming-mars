@@ -126,13 +126,17 @@
   align-items: stretch;
   justify-content: center;
   background: radial-gradient(120% 100% at 50% 15%, rgba(9, 20, 17, 0.98), rgba(3, 7, 6, 1));
+  /* THE MODAL BAND as padding: the dark cover stays full-bleed (deliberate),
+     but the CONTENT lives between the always-visible bars. The var fallbacks
+     keep the pre-band layout wherever the console root isn't the host. */
+  padding: var(--con-band-top, 14px) 0 var(--con-band-bottom, 0);
 
   &__panel {
     position: relative;               /* anchors the LB/RB edge toast */
     width: min(1500px, 96vw);
     display: flex;
     flex-direction: column;
-    padding: 14px 30px 0;
+    padding: 4px 30px 0;
   }
   &__head {
     flex: 0 0 auto;

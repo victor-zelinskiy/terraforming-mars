@@ -228,7 +228,13 @@ html.con-profile-tv {
     }
     /* Footer bay + hand dock: rem geometry scales with the profile for
        free — only the bar-height mirror and the couch count bump move. */
-    .con-footer { --con-bar-h: 2.9rem; }
+    .con-root {
+        --con-bar-h: 2.9rem;
+        /* The TV root swaps its padding to the safe area — the modal band
+           follows the SAME source (strip ≈2.6rem + gap + breathing). */
+        --con-band-top: calc(var(--con-safe-y) + 3.3rem);
+        --con-band-bottom: calc(var(--con-safe-y) * 0.7 + .6rem + var(--con-bar-h));
+    }
     /* Couch bump for the dock's status line (label + n/m digits) — held to
        the type floor (§3.4): service text, but still read from the couch. */
     .con-handdock__status-label { font-size: var(--con-t-floor); }
@@ -403,7 +409,7 @@ html.con-profile-tv {
        a wide working surface, not a desktop dialog: ≥85% of the stage
        width, tall hit-target rows, couch typography. */
     .con-stdp {
-        &__panel { width: min(84rem, 94vw); max-height: 90vh; gap: .9rem; padding: 1.1rem 1.35rem .8rem; }
+        &__panel { width: min(84rem, 94vw); max-height: 100%; gap: .9rem; padding: 1.1rem 1.35rem .8rem; }
         &__title { font-size: var(--con-t-title); }
         &__emblem { width: 3.2rem; height: 3.2rem; .bar-btn-icon { width: 2.05rem; height: 2.05rem; } }
         &__wallet { font-size: 1.05rem; }
