@@ -13315,17 +13315,16 @@ html.console-mode {
         display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: fade(@con-cyan, 92%);
         padding: .4rem .6rem; border-radius: .4rem; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
     }
-    &__detail-usage { margin-top: .2rem; padding-top: .5rem; border-top: .05rem solid rgba(120, 150, 180, 0.18); }
-    &__usage-line {
-        display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .8rem;
-        b { font-size: .9rem; font-weight: 800; color: @con-text; }
+    /* The per-game USAGE HISTORY moved to the fullscreen dossier (X → ИСТОРИЯ):
+       a calm, low-contrast pointer sits where the stats block used to — the
+       decision surface stays clean, the deep data is one deliberate press
+       away. `margin-top: auto` pins it to the panel bottom so removing the
+       ledger left no gap. */
+    &__detail-history-hint {
+        margin-top: auto; padding-top: .5rem;
+        display: inline-flex; align-items: center; gap: .4rem;
+        font-size: .75rem; color: @con-text-dim;
     }
-    &__usage-label { display: inline-flex; align-items: center; gap: .35rem; color: @con-text-dim; }
-    &__usage-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
-    &__usage-gen { font-size: .7rem; color: @con-text-dim; }
-    &__usage-note { font-size: .75rem; color: @con-text-dim; line-height: 1.35; }
-    /* The desktop cardScoped caption — activation counts are card-level. */
-    &__usage-scope { font-size: .65rem; color: fade(@con-amber, 80%); line-height: 1.3; }
 
     /* ── Empty state ── */
     &__empty { margin: auto; text-align: center; max-width: 23rem; padding: 1.5rem; }
@@ -14845,6 +14844,180 @@ html.con-profile-large {
         color: fade(@con-text, 94%);
     }
 }
+
+/* ── INSPECT DOSSIER (ConsoleInspectSide) — the two-tab right panel of the
+   Action Browser's X-inspect: ONE stable glass box, a ПРАВИЛА/ИСТОРИЯ tab bar,
+   and a body that crossfades between the embedded rules panel and the history
+   panel. The box + card geometry never move (a page swap, not a new modal). */
+.con-inspect-side {
+    /* Shares the .con-zoom-rules-host opacity/closing chrome (the class above). */
+    &__box {
+        display: flex;
+        flex-direction: column;
+        width: 20rem;
+        max-height: 76vh;
+        border-radius: .7rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%), 0 .9rem 2.4rem rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+    }
+    /* The ONE tab bar — carries the LB/RB glyphs so the switch is READ on the
+       panel, never only in the command bar (which stays "B закрыть"). */
+    &__tabs {
+        display: flex;
+        align-items: stretch;
+        gap: .3rem;
+        padding: .5rem .55rem;
+        border-bottom: .05rem solid fade(@con-cyan, 20%);
+    }
+    &__tab-key {
+        display: inline-flex;
+        align-items: center;
+        color: fade(@con-cyan, 70%);
+        flex: 0 0 auto;
+    }
+    &__tab {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        padding: .32rem .5rem;
+        border: none;
+        border-radius: .4rem;
+        background: transparent;
+        color: @con-text-dim;
+        font-family: @con-font;
+        font-size: var(--con-t-caption);
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        cursor: default;
+        transition: color calc(120ms * var(--motion-scale, 1)) ease,
+                    background calc(120ms * var(--motion-scale, 1)) ease,
+                    box-shadow calc(120ms * var(--motion-scale, 1)) ease;
+    }
+    &__tab-mark { font-size: var(--con-t-section); line-height: 1; opacity: .8; }
+    &__tab--active {
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        color: @con-text;
+    }
+    &__content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        position: relative;
+    }
+    /* The embedded panels fill the content box (their own glass/head yields). */
+    &__content > * { flex: 1; min-height: 0; min-width: 0; }
+}
+
+/* The rules panel EMBEDDED in the dossier: drop its own glass box + head +
+   the vh cap (the dossier box owns them) so the two tabs sit in one frame. */
+.con-zoom-rules-host--embedded {
+    width: 100%;
+    .con-zoom-rules {
+        width: 100%;
+        max-height: none;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+    }
+}
+
+/* ── HISTORY PANEL (ConsoleCardHistoryPanel) — the ИСТОРИЯ tab. Two semantic
+   groups (CARD / SELECTED ACTION), aligned value rows, calm empty states. It
+   reuses the rules-panel scroll rhythm; icons come from the console sprites. */
+.con-cardhist {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    &__scroll { flex: 1; min-height: 0; }
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: .9rem;
+        padding: .8rem .95rem .95rem;
+    }
+    &__group { display: flex; flex-direction: column; gap: .4rem; }
+    &__kind {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        align-self: flex-start;
+        padding: .12rem .55rem;
+        border-radius: .35rem;
+        font-size: var(--con-t-floor);
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: fade(@con-text, 92%);
+    }
+    &__group--card &__kind {
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+    }
+    &__group--action &__kind {
+        background: fade(@con-action-gold, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-action-gold, 45%);
+        color: #f2e3bb;
+    }
+    &__variant {
+        margin-left: .1rem;
+        padding: .04rem .35rem;
+        border-radius: .3rem;
+        background: rgba(120, 150, 180, 0.14);
+        letter-spacing: .04rem;
+        color: @con-text-dim;
+        font-size: var(--con-t-floor);
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .8rem;
+        font-size: var(--con-t-secondary);
+    }
+    &__row-label { display: inline-flex; align-items: center; gap: .4rem; color: @con-text-dim; }
+    &__icon {
+        display: inline-block;
+        width: 1.15rem; height: 1.15rem;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex: 0 0 auto;
+    }
+    &__row-value { font-size: var(--con-t-body); font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
+    &__note {
+        font-size: var(--con-t-floor);
+        color: @con-text-dim;
+        line-height: 1.35;
+    }
+    /* The selected action hasn't fired — a calm caption, never dead zeros. */
+    &__note--empty { color: fade(@con-cyan, 75%); }
+    &__empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .6rem;
+        margin: auto;
+        padding: 1.4rem 1rem;
+        text-align: center;
+        color: @con-text-dim;
+        font-size: var(--con-t-secondary);
+        line-height: 1.4;
+    }
+    &__empty-mark { font-size: 1.9rem; color: fade(@con-cyan, 55%); }
+}
+
+/* The tab-body content swap — the ONLY thing that moves on LB/RB (a short,
+   compositor-only crossfade; the box + card are stable). Reduced motion uses
+   the empty transition name → instant swap. */
+.con-inspect-swap-enter-active { transition: opacity calc(130ms * var(--motion-scale, 1)) ease, transform calc(130ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-inspect-swap-leave-active { transition: opacity calc(90ms * var(--motion-scale, 1)) ease; }
+.con-inspect-swap-enter-from { opacity: 0; transform: translateY(.4rem); }
+.con-inspect-swap-leave-to { opacity: 0; }
 
 /* ═══ CONSOLE FULLSCREEN VIEWER — the console-native chrome pass ═══════
    (Perfection pass: the counter reads from the couch, the action strip

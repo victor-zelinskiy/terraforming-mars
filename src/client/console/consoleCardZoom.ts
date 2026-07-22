@@ -20,6 +20,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 
 /** A SAFE selection bridge from the opening context (P15). */
 export type ConsoleZoomSelect = {
@@ -164,6 +165,21 @@ export function slotZoomOrigin(
   };
 }
 
+/**
+ * The INSPECT-DOSSIER context (the Action Browser's X-inspect). When present,
+ * the fullscreen viewer's right panel becomes a two-tab dossier — ПРАВИЛА
+ * (the card's structured rules, the default) ⇄ ИСТОРИЯ (this pre-built
+ * per-game history snapshot for the SELECTED action option). LB/RB switch the
+ * tab (browsing is never active here — the inspect list is always ONE card).
+ * A pure read-only snapshot: the viewer never mutates it.
+ */
+export type ConsoleZoomInspect = {
+  /** The card + selected-option history (card-wide block + action block). */
+  history: ActionInspectHistory,
+};
+
+export type ConsoleZoomInspectTab = 'rules' | 'history';
+
 /** Optional extras attached at open time (receive bridge + a caption). */
 export type ConsoleZoomExtra = {
   /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
@@ -207,6 +223,8 @@ export type ConsoleZoomExtra = {
   sourceInfo?: {label: string, name: string},
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
+  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
+  inspect?: ConsoleZoomInspect,
 };
 
 export const consoleCardZoom = reactive({
@@ -238,6 +256,10 @@ export const consoleCardZoom = reactive({
   sourceInfo: undefined as {label: string, name: string} | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
+  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
+  inspect: undefined as ConsoleZoomInspect | undefined,
+  /** The active dossier tab (default ПРАВИЛА — X keeps its familiar meaning). */
+  inspectTab: 'rules' as ConsoleZoomInspectTab,
 });
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
@@ -259,6 +281,15 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.receivedCount = extra?.receivedCount ?? 0;
   consoleCardZoom.sourceInfo = extra?.sourceInfo;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
+  consoleCardZoom.inspect = extra?.inspect;
+  consoleCardZoom.inspectTab = 'rules'; // every open starts on ПРАВИЛА
+}
+
+/** Switch the inspect dossier tab (LB/RB). No-op outside an inspect context. */
+export function setConsoleZoomInspectTab(tab: ConsoleZoomInspectTab): void {
+  if (consoleCardZoom.inspect !== undefined) {
+    consoleCardZoom.inspectTab = tab;
+  }
 }
 
 /** The viewer navigated — keep the module mirror in sync. */
@@ -299,4 +330,6 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.receivedCount = 0;
   consoleCardZoom.sourceInfo = undefined;
   consoleCardZoom.origin = {kind: 'none'};
+  consoleCardZoom.inspect = undefined;
+  consoleCardZoom.inspectTab = 'rules';
 }

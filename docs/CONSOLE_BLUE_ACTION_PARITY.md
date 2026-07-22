@@ -190,3 +190,45 @@ Payload-инвариант (byte-parity, `buildActionBatch` ≡ `submitCardActio
   опция честно disabled. Появится реальный кейс → hosting добавить с тестом.
 - EnergyMarket ветка «купить энергию»: 2X M€ оплата идёт follow-up'ом И на
   desktop («rides follow-up routing») — паритет соблюдён.
+
+## Итерация: история за партию → fullscreen inspect (информационная иерархия)
+
+Основной экран «Действия карт» — это surface для РЕШЕНИЯ сейчас, не analytics
+dashboard. Накопительный блок «За партию» (активаций / получено / добавлено /
+РТ / глоб-параметры / последнее использование) убран из постоянной правой
+панели `ConsoleCardActions` (`__detail`) — осталась только решение-релевантная
+инфо (вариант N/M, доступность, эффект, «будет списано / вы получите», ресурсы
+на карте, причины блокировки) + спокойный хинт `__detail-history-hint`
+(«Осмотрите для истории за партию», `margin-top:auto` — без визуальной дыры).
+
+**Данные не потеряны — перенесены в X-inspect как read-only досье с двумя
+вкладками** (`ConsoleInspectSide` в `#side`-слоте `CardZoomModal`):
+- `ПРАВИЛА` (default — X сохраняет привычную семантику) = `ConsoleCardRulesPanel`
+  в новом `embedded`-режиме (свой glass/head уступают tab-боксу).
+- `ИСТОРИЯ` = `ConsoleCardHistoryPanel`, два СЕМАНТИЧЕСКИХ блока.
+- **LB/RB переключают вкладку** (в inspect-контексте список = одна карта, browse
+  свободен — конфликта нет; `handleZoomIntent` роутит `prevSection/nextSection` +
+  nav left/right в `setConsoleZoomInspectTab`). Только тело crossfade'ит
+  (`con-inspect-swap`, ~130ms, reduced-motion → мгновенно); большая карта /
+  backdrop / геометрия бокса стабильны — это swap страницы, не новая модалка. B
+  закрывает как раньше, фокус браузера сохраняется.
+
+**Семантика разделения (честная к модели — не выдумывает метрик):**
+- `EffectOverlayStat` — CARD-level aggregate; `triggerCount`/`lastTrigger` НЕ
+  разбиваются per-branch. → **ИСТОРИЯ КАРТЫ**: текущий ресурс (из tableau),
+  всего активаций карты, последнее использование.
+- Impact-строки фильтруются per-branch (`branchScopeForNode` +
+  `getActionUsageSummary` — ОДИН источник правды, переиспользован). →
+  **ВЫБРАННОЕ ДЕЙСТВИЕ · Вариант N/M**: gained/spent/TR/params/draw именно этого
+  варианта. Multi-branch → caption «активации на уровне всей карты» (cardScoped).
+- Empty states: нет истории → «У карты пока нет истории»; карта хранит ресурс но
+  действие не срабатывало → блок карты + «действие ещё не срабатывало»; неприм.
+  строки скрыты (никаких `undefined`/лишних нулей).
+
+Разбиение = pure `buildActionInspectHistory` (`actions/actionInspectHistory.ts`,
+тестируется под server-runner'ом). Контекст едет через новое поле
+`ConsoleZoomExtra.inspect` (snapshot в момент открытия — read-only). Guard-тесты:
+`actionInspectHistory.spec.ts` (6), `consoleCardZoom.spec.ts` (inspect + tab +
+reset), e2e `console-inspect-history.spec.ts` (fhd end-to-end; 4K — скриншоты).
+Scope: только информационная иерархия — flow активации/подтверждения/reveal НЕ
+тронут (следующая итерация ACTION FOCUS).

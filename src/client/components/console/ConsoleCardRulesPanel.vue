@@ -1,7 +1,9 @@
 <template>
-  <div class="con-zoom-rules-host" :class="{'con-zoom-rules-host--closing': closing}">
+  <div class="con-zoom-rules-host" :class="{'con-zoom-rules-host--closing': closing, 'con-zoom-rules-host--embedded': embedded}">
     <aside class="con-zoom-rules" aria-label="Card rules">
-      <div class="con-zoom-rules__head">
+      <!-- The head is HIDDEN when embedded in the inspect dossier — the
+           dossier's own ПРАВИЛА/ИСТОРИЯ tab bar replaces it. -->
+      <div v-if="!embedded" class="con-zoom-rules__head">
         <span class="con-zoom-rules__mark" aria-hidden="true">§</span>
         <span class="con-zoom-rules__title">{{ $t('Card rules') }}</span>
       </div>
@@ -83,6 +85,10 @@ export default defineComponent({
     nonce: {type: Number, default: 0},
     /** The close flight began — hide instantly (never lag the card). */
     closing: {type: Boolean, default: false},
+    /** Embedded in the inspect DOSSIER (a ПРАВИЛА tab): drop the own glass
+     *  chrome + head — the dossier box + tab bar own them. Default false keeps
+     *  the standalone rules panel (journal / source-chip inspect) unchanged. */
+    embedded: {type: Boolean, default: false},
   },
   data() {
     return {

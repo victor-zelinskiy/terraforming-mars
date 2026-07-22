@@ -486,16 +486,25 @@
                    :dismissable="!consoleCardZoom.mandatory"
                    :closing="zoomClosing"
                    :consoleMotion="true"
-                   :annotationsSuppressed="zoomHasRules"
+                   :annotationsSuppressed="zoomSideVisible"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <!-- TV rules panel (Этап 1-R2): the stable right-hand rules surface —
            the structured Card Information blocks beside the hero card. The
            floating callouts are suppressed while it shows (one place for
            details); cards with no structured rules render no panel and the
-           fit reclaims the width. -->
-      <template v-if="zoomHasRules" #side="side">
-        <ConsoleCardRulesPanel v-if="zoomRulesCardName !== undefined"
+           fit reclaims the width.
+           When opened as an INSPECT DOSSIER (X from the Action Browser) the
+           panel becomes a two-tab ПРАВИЛА/ИСТОРИЯ box (LB/RB switch, handled
+           in handleZoomIntent); every other inspect keeps the plain rules. -->
+      <template v-if="zoomSideVisible" #side="side">
+        <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
+                            :cardName="zoomRulesCardName"
+                            :history="consoleCardZoom.inspect.history"
+                            :tab="consoleCardZoom.inspectTab"
+                            :nonce="side.nonce"
+                            :closing="side.closing" />
+        <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined"
                                :cardName="zoomRulesCardName"
                                :nonce="side.nonce"
                                :closing="side.closing" />
@@ -916,9 +925,10 @@ import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
@@ -1048,6 +1058,7 @@ export default defineComponent({
     ConsoleColoniesSection,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
+    ConsoleInspectSide,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
@@ -3351,6 +3362,12 @@ export default defineComponent({
     zoomHasRules(): boolean {
       const name = this.consoleCardZoom.card?.name;
       return name !== undefined && cardHasRules(name);
+    },
+    /** The right SIDE panel shows for a card with structured rules OR whenever
+     *  the viewer is an inspect DOSSIER (which always offers ИСТОРИЯ, even if a
+     *  card had no rules). Gates the panel AND the viewer's width reservation. */
+    zoomSideVisible(): boolean {
+      return this.zoomHasRules || this.consoleCardZoom.inspect !== undefined;
     },
     /** The zoomed card's name typed as a CardName for the rules panel — only
      *  read behind `zoomHasRules`, which is true solely for real project cards
@@ -6161,6 +6178,15 @@ export default defineComponent({
         return true;
       }
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/ИСТОРИЯ tab (never browse —
+      // the inspect list is always ONE card, so prev/next are free here). A
+      // repeated press just re-sets the same tab (idempotent, no overlap).
+      if (this.consoleCardZoom.inspect !== undefined) {
+        if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+          setConsoleZoomInspectTab(intent.dir === 'left' ? 'rules' : 'history');
+          return true;
+        }
+      }
       if (intent.kind === 'nav') {
         if (intent.dir === 'left') {
           zoom?.prev();
@@ -6186,10 +6212,20 @@ export default defineComponent({
       }
       switch (consoleActionOf(intent)) {
       case 'prevSection':
-        zoom?.prev();
+        // In the inspect dossier LB switches to ПРАВИЛА (else browse prev).
+        if (this.consoleCardZoom.inspect !== undefined) {
+          setConsoleZoomInspectTab('rules');
+        } else {
+          zoom?.prev();
+        }
         return true;
       case 'nextSection':
-        zoom?.next();
+        // In the inspect dossier RB switches to ИСТОРИЯ (else browse next).
+        if (this.consoleCardZoom.inspect !== undefined) {
+          setConsoleZoomInspectTab('history');
+        } else {
+          zoom?.next();
+        }
         return true;
       case 'primary':
         // A = take the on-screen card (RECEIVE bridge) OR toggle the pick

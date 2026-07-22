@@ -200,28 +200,12 @@
             <span>{{ nextStepText }}</span>
           </div>
 
-          <!-- Per-VARIANT usage (desktop branchScope parity). -->
-          <div class="con-cardactions__detail-block con-cardactions__detail-usage">
-            <div class="con-cardactions__detail-label">{{ $t('This game') }}</div>
-            <template v-if="!usage.empty">
-              <div class="con-cardactions__usage-line">
-                <span>{{ $t('Activations') }}</span><b>{{ usage.activations }}</b>
-              </div>
-              <div v-for="(line, i) in usage.lines" :key="i" class="con-cardactions__usage-line">
-                <span class="con-cardactions__usage-label">
-                  <i v-if="line.icon" class="con-cardactions__usage-icon" :class="resIconClass(line.icon)" aria-hidden="true"></i>
-                  <span>{{ $t(line.label) }}</span>
-                </span>
-                <b>{{ line.value }}</b>
-              </div>
-              <div v-if="usage.lastGeneration !== undefined" class="con-cardactions__usage-gen">
-                {{ $t('Last used') }}: {{ $t('GEN.') }} {{ usage.lastGeneration }}
-              </div>
-              <div v-if="usage.cardScoped === true" class="con-cardactions__usage-scope">
-                {{ $t('Some stats are tracked at the card level') }}
-              </div>
-            </template>
-            <div v-else class="con-cardactions__usage-note">{{ $t('Action not used yet — its usage stats will appear here.') }}</div>
+          <!-- The per-game USAGE HISTORY moved to the fullscreen dossier
+               (X → «Осмотреть» → ИСТОРИЯ) — the browser stays a decision
+               surface. A calm hint points there so the data is never "lost". -->
+          <div class="con-cardactions__detail-history-hint">
+            <GamepadGlyph control="secondary" />
+            <span>{{ $t('Inspect for this game\'s history') }}</span>
           </div>
         </aside>
       </div>
@@ -287,7 +271,7 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
-import {getActionUsageSummary, ActionUsageViewModel} from '@/client/components/actions/actionUsageSummary';
+import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
   buildConsoleActionsModel,
   branchScopeForNode,
@@ -463,17 +447,6 @@ export default defineComponent({
     statForFocused(): EffectOverlayStat | undefined {
       const tile = this.focusedTile;
       return tile === undefined ? undefined : this.stats.find((s) => s.card === tile.cardName);
-    },
-    /** Per-VARIANT usage — the desktop ActionDetailsPanel.branchScope mirror. */
-    usage(): ActionUsageViewModel {
-      const tile = this.focusedTile;
-      if (tile === undefined) {
-        return getActionUsageSummary(this.statForFocused);
-      }
-      const entry = this.entries.find((e) => e.cardName === tile.cardName);
-      const branches = this.previews[tile.cardName]?.branches ?? [];
-      const scope = entry !== undefined ? branchScopeForNode(entry.group, branches, tile.nodeIndex) : undefined;
-      return getActionUsageSummary(this.statForFocused, scope);
     },
     nextStepText(): string {
       return this.focusedTile === undefined ? '' : this.stepNoteFor(this.focusedTile);
@@ -731,10 +704,30 @@ export default defineComponent({
         return;
       }
       const card = this.thisPlayer.tableau.find((c) => c.name === tile.cardName);
-      if (card !== undefined) {
-        // Opened from the action GRAPHIC (no card tile on screen) → TEXTUAL.
-        openConsoleCardZoom([card], 0, undefined, undefined, {contextLabel: 'Card actions', origin: {kind: 'textual'}});
+      if (card === undefined) {
+        return;
       }
+      // Build the read-only history SNAPSHOT for the SELECTED option: the
+      // per-branch scope (undefined for a single-action card), the resource
+      // stored on the card right now, and the option index/total. The
+      // `buildActionInspectHistory` split is the ONE source of truth for the
+      // dossier's ИСТОРИЯ tab (the browser no longer renders it inline).
+      const group = this.focusedGroup;
+      const entry = this.entries.find((e) => e.cardName === tile.cardName);
+      const branches = this.previews[tile.cardName]?.branches ?? [];
+      const scope = entry !== undefined ? branchScopeForNode(entry.group, branches, tile.nodeIndex) : undefined;
+      const stored = group?.cardResource !== undefined ?
+        {icon: String(group.cardResource.type), count: group.cardResource.count} : undefined;
+      const history = buildActionInspectHistory(this.statForFocused, scope, stored, {
+        index: tile.nodeIndex,
+        total: group?.tiles.length ?? 1,
+      });
+      // Opened from the action GRAPHIC (no card tile on screen) → TEXTUAL.
+      openConsoleCardZoom([card], 0, undefined, undefined, {
+        contextLabel: 'Card actions',
+        origin: {kind: 'textual'},
+        inspect: {history},
+      });
     },
     // ── composer events ─────────────────────────────────────────────────
     /** Assemble + submit the byte-identical batch (revalidated at submit time,

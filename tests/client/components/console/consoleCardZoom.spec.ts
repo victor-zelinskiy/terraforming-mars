@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, openConsoleCardZoom, repointConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {closeConsoleCardZoom, consoleCardZoom, navigateConsoleCardZoom, openConsoleCardZoom, repointConsoleCardZoom, setConsoleZoomInspectTab} from '@/client/console/consoleCardZoom';
+import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 
@@ -166,5 +167,29 @@ describe('consoleCardZoom (P15)', () => {
     expect(played).to.deep.eq([CardName.ANTS]);
     closeConsoleCardZoom();
     expect(consoleCardZoom.action).to.eq(undefined);
+  });
+
+  it('the INSPECT DOSSIER context opens on ПРАВИЛА, LB/RB switch, close resets', () => {
+    const history: ActionInspectHistory = {
+      card: {hasAny: true, activations: 2, stored: {icon: 'floaters', count: 2}},
+      action: {empty: false, activations: 2, kind: 'terraform', headline: 'Terraforming', lines: [], confidence: 'exact', victims: []},
+      option: {index: 1, total: 2},
+    };
+    openConsoleCardZoom([card(CardName.EXTRACTOR_BALLOONS)], 0, undefined, undefined, {inspect: {history}});
+    // Default tab is ПРАВИЛА (X keeps its familiar "open the rules" meaning).
+    expect(consoleCardZoom.inspect?.history.option?.index).to.eq(1);
+    expect(consoleCardZoom.inspectTab).to.eq('rules');
+    // LB/RB switch the tab (the shell routes prevSection/nextSection here).
+    setConsoleZoomInspectTab('history');
+    expect(consoleCardZoom.inspectTab).to.eq('history');
+    setConsoleZoomInspectTab('rules');
+    expect(consoleCardZoom.inspectTab).to.eq('rules');
+    // Close resets both the context and the tab.
+    closeConsoleCardZoom();
+    expect(consoleCardZoom.inspect).to.eq(undefined);
+    expect(consoleCardZoom.inspectTab).to.eq('rules');
+    // Outside an inspect context the tab setter is a no-op (never leaks state).
+    setConsoleZoomInspectTab('history');
+    expect(consoleCardZoom.inspectTab).to.eq('rules');
   });
 });
