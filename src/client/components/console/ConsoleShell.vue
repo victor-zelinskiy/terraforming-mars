@@ -578,6 +578,12 @@
             <span class="con-zoom__swap-sep" aria-hidden="true">·</span>
             <span class="con-zoom__swap-name">{{ zoomSourceInfo.name }}</span>
           </span>
+          <!-- R3 opens the conditional-search discard pile (single-card reveal
+               only) — the fullscreen twin of the multi-card modal's R3. -->
+          <span v-if="zoomDiscardsAvailable" class="con-zoom__cmd">
+            <GamepadGlyph control="stickR" />
+            <span>{{ $t('Discarded pile') }}</span>
+          </span>
           <span v-if="consoleCardZoom.cards.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
             <GamepadGlyph control="bumperL" />
             <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
@@ -3450,6 +3456,10 @@ export default defineComponent({
     zoomSourceInfo(): {label: string, name: string} | undefined {
       return this.consoleCardZoom.sourceInfo;
     },
+    /** True ⇔ R3 peeks the discard pile (single-card fullscreen reveal). */
+    zoomDiscardsAvailable(): boolean {
+      return this.consoleCardZoom.discards !== undefined;
+    },
     /** P17: «why not» lines when the current card is NOT actionable. */
     zoomReasons(): ReadonlyArray<string> {
       const z = this.consoleCardZoom;
@@ -6254,6 +6264,14 @@ export default defineComponent({
       // viewer (screen-specific stick, before the semantic-action switch).
       if (intent.button === 'stickL' && this.consoleCardZoom.swap !== undefined) {
         this.zoomSwap();
+        return true;
+      }
+      // R3 = peek the conditional-search DISCARD pile from the single-card
+      // fullscreen reveal (parity with the multi-card modal's R3). The bridge
+      // REPLACES the viewer with the read-only pile; B returns to the mandatory
+      // received card. Guarded against a mid-swap crossfade.
+      if (intent.button === 'stickR' && this.consoleCardZoom.discards !== undefined && !this.zoomSwapping) {
+        this.consoleCardZoom.discards();
         return true;
       }
       switch (consoleActionOf(intent)) {

@@ -221,6 +221,17 @@ export type ConsoleZoomExtra = {
    * (L3) instead, so this stays undefined for it. Persists across the swap.
    */
   sourceInfo?: {label: string, name: string},
+  /**
+   * Present ⇔ R3 browses the DISCARD pile of a conditional deck search from
+   * the single-card fullscreen reveal (parity with the multi-card modal's R3,
+   * which the headless fullscreen presentation otherwise couldn't reach). The
+   * callback opens the read-only pile — it REPLACES the viewer (a fresh
+   * read-only zoom); B on the pile then returns to the mandatory received card
+   * (the reveal overlay re-opens it). Undefined when the batch discarded
+   * nothing. Preserved across the L3 role swap, so it works while viewing the
+   * source too.
+   */
+  discards?: () => void,
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
@@ -254,6 +265,8 @@ export const consoleCardZoom = reactive({
   receivedCount: 0,
   /** A static source chip (i18n label + translated name) for a non-card source. */
   sourceInfo: undefined as {label: string, name: string} | undefined,
+  /** Present ⇔ R3 browses the discard pile (single-card fullscreen reveal). */
+  discards: undefined as (() => void) | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
@@ -280,6 +293,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.mandatory = extra?.mandatory === true;
   consoleCardZoom.receivedCount = extra?.receivedCount ?? 0;
   consoleCardZoom.sourceInfo = extra?.sourceInfo;
+  consoleCardZoom.discards = extra?.discards;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
   consoleCardZoom.inspect = extra?.inspect;
   consoleCardZoom.inspectTab = 'rules'; // every open starts on ПРАВИЛА
@@ -304,7 +318,8 @@ export function navigateConsoleCardZoom(card: ZoomCard, index: number): void {
  * source). The dialog stays mounted (`card` never goes undefined, so the
  * shell's undefined→defined open watcher never fires); the caller crossfades
  * the stage via `CardZoomModal.runSwap`. `origin` / `mandatory` / `receivedCount`
- * / `sourceInfo` are preserved (stable across the swap); `select`/`action`/
+ * / `sourceInfo` / `discards` are preserved (stable across the swap — so R3
+ * still peeks the pile while viewing the source); `select`/`action`/
  * `contextLabel` stay cleared (a reveal is never a selection/action context).
  */
 export function repointConsoleCardZoom(card: ZoomCard, opts: {receive?: ConsoleZoomReceive, swap?: ConsoleZoomSwap, statusLabel?: string}): void {
@@ -329,6 +344,7 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.mandatory = false;
   consoleCardZoom.receivedCount = 0;
   consoleCardZoom.sourceInfo = undefined;
+  consoleCardZoom.discards = undefined;
   consoleCardZoom.origin = {kind: 'none'};
   consoleCardZoom.inspect = undefined;
   consoleCardZoom.inspectTab = 'rules';

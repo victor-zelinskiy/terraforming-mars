@@ -814,6 +814,10 @@ export default defineComponent({
         receive: this.singleReceiveBridge(),
         swap: this.singleSwapBridge('received'),
         sourceInfo: this.singleSourceInfo(),
+        // R3 peeks the conditional-search discard pile — the fullscreen twin of
+        // the multi-card modal's R3 (the headless single-card presentation had
+        // no way in). Only wired when the search actually discarded something.
+        discards: this.discardedCards.length > 0 ? () => this.openDiscards() : undefined,
         receivedCount: this.drawnEvent?.cards.length ?? 1,
         statusLabel: 'Received card',
         mandatory: true,

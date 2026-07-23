@@ -97,12 +97,14 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.contextLabel).to.eq(undefined);
   });
 
-  it('the SINGLE-CARD reveal carries status / swap / mandatory + departFromFullscreen, all cleared on close', () => {
+  it('the SINGLE-CARD reveal carries status / swap / mandatory + departFromFullscreen + discards, all cleared on close', () => {
     let swapped = 0;
+    let peeked = 0;
     openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
       receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
       swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => swapped++},
       sourceInfo: {label: 'Source', name: 'Tile bonus'},
+      discards: () => peeked++,
       receivedCount: 1,
       statusLabel: 'Received card',
       mandatory: true,
@@ -115,6 +117,10 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.swap?.otherName).to.eq(CardName.BIRDS);
     expect(consoleCardZoom.receivedCount).to.eq(1);
     expect(consoleCardZoom.sourceInfo?.name).to.eq('Tile bonus');
+    // R3 = peek the discard pile (single-card fullscreen parity with the modal).
+    expect(consoleCardZoom.discards).to.not.eq(undefined);
+    consoleCardZoom.discards?.();
+    expect(peeked).to.eq(1);
     consoleCardZoom.swap?.swap();
     expect(swapped).to.eq(1);
     closeConsoleCardZoom();
@@ -124,12 +130,14 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.receive).to.eq(undefined);
     expect(consoleCardZoom.receivedCount).to.eq(0);
     expect(consoleCardZoom.sourceInfo).to.eq(undefined);
+    expect(consoleCardZoom.discards).to.eq(undefined);
   });
 
   it('repoint flips the role (received → source) WITHOUT re-opening — card defined throughout, receive cleared, count/source preserved', () => {
     openConsoleCardZoom([card(CardName.ANTS)], 0, undefined, undefined, {
       receive: {takeLabel: 'Take card', takeAt: () => {}, departFromFullscreen: true},
       swap: {label: 'Source', otherName: CardName.BIRDS, swap: () => {}},
+      discards: () => {},
       receivedCount: 1,
       statusLabel: 'Received card',
       mandatory: true,
@@ -147,6 +155,7 @@ describe('consoleCardZoom (P15)', () => {
     expect(consoleCardZoom.swap?.otherName).to.eq(CardName.ANTS);
     expect(consoleCardZoom.mandatory).to.eq(true); // preserved across the swap
     expect(consoleCardZoom.receivedCount).to.eq(1); // preserved across the swap
+    expect(consoleCardZoom.discards).to.not.eq(undefined); // R3 still peeks while viewing the source
     closeConsoleCardZoom();
   });
 
