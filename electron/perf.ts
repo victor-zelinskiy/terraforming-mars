@@ -461,8 +461,12 @@ export type ProcessPriorityPref = 'above' | 'high';
  * EcoQoS — the pragmatic 90% of "pin to a strong core" with no fragile P/E-core
  * detection (and it works on AMD, which has no E-cores).
  *
- *   above  (DEFAULT) — ABOVE_NORMAL: safe, no starvation risk.
- *   high             — HIGH: stronger, opt-in (can starve OS/audio threads).
+ *   high   (DEFAULT) — HIGH: the strongest safe class for a fullscreen game
+ *                      shell; most aggressively keeps the main thread on the
+ *                      performance cores. Can, in theory, starve OS/audio
+ *                      threads if the app pegs the CPU — dial back to `above`
+ *                      if audio/input glitches appear.
+ *   above            — ABOVE_NORMAL: the calmer raise, no starvation risk.
  *   normal / off     — leave the OS default (a clean baseline for comparison).
  *
  * Returns the token, or `undefined` for "leave the OS default". Pure
@@ -471,14 +475,14 @@ export type ProcessPriorityPref = 'above' | 'high';
  * gamescope owns scheduling, so main.ts skips it there.
  */
 export function processPriorityPref(env: string | undefined): ProcessPriorityPref | undefined {
-  switch ((env ?? 'above').trim().toLowerCase()) {
+  switch ((env ?? '').trim().toLowerCase()) {
   case '':
+  case 'high':
+    return 'high'; // default (env unset/blank) AND explicit 'high'
   case 'above':
   case 'above_normal':
   case 'abovenormal':
     return 'above';
-  case 'high':
-    return 'high';
   default:
     return undefined; // normal / off / anything unrecognized → leave the OS default
   }

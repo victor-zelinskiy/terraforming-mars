@@ -288,12 +288,12 @@ describe('electron/perf', () => {
       expect(rasterThreadCount(32)).to.equal(8);  // ceiling
     });
 
-    it('processPriorityPref: ABOVE by default, HIGH opt-in, normal/off leaves the OS default', () => {
-      expect(processPriorityPref(undefined)).to.equal('above'); // default (env unset)
-      expect(processPriorityPref('')).to.equal('above');
+    it('processPriorityPref: HIGH by default, ABOVE opt-in, normal/off leaves the OS default', () => {
+      expect(processPriorityPref(undefined)).to.equal('high'); // default (env unset)
+      expect(processPriorityPref('')).to.equal('high');
+      expect(processPriorityPref(' High ')).to.equal('high');
       expect(processPriorityPref('above')).to.equal('above');
       expect(processPriorityPref('ABOVE_NORMAL')).to.equal('above');
-      expect(processPriorityPref(' High ')).to.equal('high');
       expect(processPriorityPref('normal')).to.equal(undefined);
       expect(processPriorityPref('off')).to.equal(undefined);
       expect(processPriorityPref('garbage')).to.equal(undefined);
