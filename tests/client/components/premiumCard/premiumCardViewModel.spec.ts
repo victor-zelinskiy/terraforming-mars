@@ -353,12 +353,22 @@ describe('premium face coverage guard', () => {
 });
 
 describe('corporation premium face', () => {
-  it('builds the corporation VM: theme, no cost badge, no art', () => {
+  it('builds the corporation VM: theme, no cost badge', () => {
     const vm = vmOf(CardName.HELION);
     expect(vm.theme).to.eq('corporation');
     expect(vm.cost, 'corporations have no play cost — starting M€ lives in the mechanics').to.eq(undefined);
-    expect(vm.art, 'corporations have no card art — the identity zone hosts the wordmark').to.eq(undefined);
     expect(vm.tags).to.deep.eq([Tag.SPACE]);
+  });
+
+  it('a corporation WITH real art shows it (Helion — R18); one WITHOUT falls back to the wordmark (Teractor)', () => {
+    // Corporations now use their per-card art when it exists, and keep the
+    // identity-zone wordmark only when no art is shipped.
+    const withArt = vmOf(CardName.HELION);
+    expect(withArt.art, 'Helion has real art').to.not.eq(undefined);
+    expect(withArt.art?.fallback, 'Helion resolves REAL art, not the generic fallback').to.eq(false);
+
+    const noArt = vmOf(CardName.TERACTOR);
+    expect(noArt.art, 'a corp with no art keeps the wordmark identity zone').to.eq(undefined);
   });
 
   it('flattens the corp box: rows become ordinary groups, no corp-box node leaks (Helion)', () => {

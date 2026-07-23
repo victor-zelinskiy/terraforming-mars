@@ -92,7 +92,7 @@ export type PremiumCardVM = {
   tags: ReadonlyArray<Tag>;
   tagCluster: TagClusterPlan;
   requirements: ReadonlyArray<NormalizedRequirement>;
-  /** Undefined for corporations — their identity zone hosts the wordmark logo, never art. */
+  /** Undefined only for a corporation with NO real art (its identity zone hosts the wordmark instead). */
   art?: PremiumCardArt;
   mechanics: MechanicsVM;
   vp?: PremiumVpVM;
@@ -105,6 +105,19 @@ const PROJECT_TYPES: ReadonlyArray<CardType> = [CardType.AUTOMATED, CardType.ACT
 
 function slugOf(name: CardName): string {
   return name.toLowerCase().replaceAll(' ', '-');
+}
+
+/**
+ * Art for the face. Projects/preludes ALWAYS resolve (the shared fallback is
+ * baked in, so the reserved art viewport is never an empty frame). A
+ * CORPORATION resolves ONLY to REAL per-card art — when it has none, art is
+ * undefined so PremiumCard renders the brand wordmark (PremiumCorpIdentity)
+ * as the fallback. So a corp WITH its own illustration now shows it like any
+ * card, and one without keeps the current identity-zone render.
+ */
+function resolveArt(name: CardName, isCorporation: boolean): PremiumCardArt | undefined {
+  const art = premiumCardArt(name);
+  return isCorporation && art.fallback ? undefined : art;
 }
 
 function buildCost(clientCard: ClientCard, model: CardModel | undefined): PremiumCostVM | undefined {
@@ -237,9 +250,10 @@ export function buildPremiumCardViewModel(clientCard: ClientCard, model?: CardMo
     tags,
     tagCluster: tagClusterPlan(tags.length),
     requirements: (clientCard.requirements ?? []).map(normalizeRequirement),
-    // Corporations have no card art by design — the identity zone renders the
-    // existing wordmark logo (CardCorporationLogo) instead.
-    art: isCorporation ? undefined : premiumCardArt(clientCard.name),
+    // Projects/preludes always get an art viewport (fallback baked in);
+    // corporations show real art if they have it, else the wordmark identity
+    // zone (resolveArt returns undefined for a corp with no art).
+    art: resolveArt(clientCard.name, isCorporation),
     // The printed VP fine print (vpText) leaves the FACE for dynamic-VP
     // cards — the rule is a card-information VP block now (the icons-only
     // face keeps the compact VP badge formula).

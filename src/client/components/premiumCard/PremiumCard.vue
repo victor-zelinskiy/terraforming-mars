@@ -36,9 +36,11 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
       <PremiumRequirementsBar v-if="vm.requirements.length > 0" :requirements="vm.requirements" />
       <span v-else class="pcard__divider" aria-hidden="true"></span>
 
-      <!-- art viewport; corporations render the brand wordmark instead of art -->
-      <PremiumCorpIdentity v-if="isCorporation" :name="vm.name" />
-      <PremiumCardArt v-else-if="vm.art !== undefined" :art="vm.art" />
+      <!-- art viewport; a corporation shows real art if it has any, else the
+           brand wordmark identity zone (vm.art is undefined only for an
+           art-less corporation) -->
+      <PremiumCardArt v-if="vm.art !== undefined" :art="vm.art" />
+      <PremiumCorpIdentity v-else-if="isCorporation" :name="vm.name" />
 
       <!-- ── LOWER SECTION ────────────────────────────────────────────
            Mechanics content + ANCHORED service elements (no footer row).
