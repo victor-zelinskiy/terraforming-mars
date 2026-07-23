@@ -84,7 +84,7 @@ describe('electron/perf', () => {
       expect(keys).to.not.include('disable-gpu');
       // ANGLE-over-Vulkan is the LINUX EGL sidestep — Windows stays on D3D11 ANGLE
       expect(keys).to.not.include('use-angle');
-      expect(effectiveValue(app, 'force-gpu-mem-available-mb')).to.equal('4096');
+      expect(effectiveValue(app, 'force-gpu-mem-available-mb')).to.equal('6144');
       expect(effectiveValue(app, 'force-color-profile')).to.equal('srgb');
       expect(effectiveValue(app, 'js-flags')).to.equal('--max-semi-space-size=64');
     });
@@ -275,9 +275,9 @@ describe('electron/perf', () => {
       expect(classifySteamHardware('', '')).to.equal('generic');
     });
 
-    it('gpuMemBudgetMb: conservative 4096 on shared-UMA Deck / generic, 6144 on the dedicated-VRAM Machine', () => {
+    it('gpuMemBudgetMb: conservative 4096 on the shared-UMA Deck, 6144 on dedicated-VRAM Machine / generic', () => {
       expect(gpuMemBudgetMb('steam-deck')).to.equal(4096);
-      expect(gpuMemBudgetMb('generic')).to.equal(4096);
+      expect(gpuMemBudgetMb('generic')).to.equal(6144);
       expect(gpuMemBudgetMb('steam-machine')).to.equal(6144);
     });
 

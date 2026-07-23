@@ -94,13 +94,20 @@ function detectHardwareProbe(): HardwareProbe {
 /**
  * cc's GPU memory budget (--force-gpu-mem-available-mb). Deck: 4096 — the
  * measured-good value, deliberately conservative because its 16 GB is SHARED
- * UMA (the budget competes with the game process itself). Steam Machine:
- * 6144 — the GPU has its own dedicated 8 GB GDDR6, so the budget competes
- * with nothing; overlays/4K-board tile eviction is the thing to avoid.
- * Generic (incl. the Windows target box's 8 GB dGPU): the measured 4096.
+ * UMA (the budget competes with the game process itself). Steam Machine AND
+ * generic (incl. the Windows 8 GB dGPU target): 6144 — a dedicated-VRAM card,
+ * so the budget competes with nothing on-die; overlays/4K-board tile eviction
+ * is the thing to avoid, and the earlier conservative 4096 evicted+re-rasterized
+ * tiles on every overlay open/close at 4K. Deliberately NOT the full 8192 (=100%
+ * of an 8 GB card): ~2 GB stays for the game's own WebGL/canvas, video decode,
+ * DWM/cross-adapter buffers and the OS — telling cc it owns ALL of VRAM risks
+ * over-commit → the driver pages VRAM to system memory (WORSE jitter), and
+ * `generic` is a catch-all that can be a weaker card too. Push higher per-run via
+ * TM_ELECTRON_SWITCHES="force-gpu-mem-available-mb=8192" if a specific 8 GB+ box
+ * benefits.
  */
 export function gpuMemBudgetMb(hw: SteamHardware): number {
-  return hw === 'steam-machine' ? 6144 : 4096;
+  return hw === 'steam-deck' ? 4096 : 6144;
 }
 
 /**
