@@ -229,3 +229,33 @@ export function diffSnapshots(
 
   return {intents, state: out};
 }
+
+/** One pad's contribution to a poll frame (index + whether it produced activity). */
+export type PadFrame = {index: number, active: boolean};
+
+/**
+ * Choose the SINGLE pad that drives the UI this frame.
+ *
+ * `engaged` lists the pads that are NOT idle this frame (they produced input or
+ * are releasing a held control — i.e. exactly the pads the poll loop diffed).
+ * The rule is STICKY: while the current `incumbent` is still engaged it keeps
+ * driving; only when it is fully idle/gone does the last other ACTIVE pad take
+ * over (the "put one controller down, pick another up" story).
+ *
+ * ── WHY A SINGLE ELECTION IS LOAD-BEARING (the Steam Machine double-input) ──
+ * Steam Input frequently exposes ONE physical controller as TWO "standard"
+ * gamepads to the page — the raw device AND its virtual remap — both reporting
+ * every button press. Without a single sticky election the poll loop dispatched
+ * the SAME edge from BOTH mirrors, so one d-pad tap moved the cursor TWO rows
+ * and a toggle control (the in-game quick wheel) opened-then-closed on one
+ * press (read as "the bumper does nothing"). Electing exactly one driver and
+ * dispatching only its intents makes a mirrored duplicate inert. A genuine
+ * second controller still works — it takes over the instant the first is idle.
+ */
+export function electActivePad(engaged: ReadonlyArray<PadFrame>, incumbent: number): number {
+  if (engaged.some((p) => p.index === incumbent)) {
+    return incumbent;
+  }
+  const next = engaged.find((p) => p.active);
+  return next !== undefined ? next.index : incumbent;
+}

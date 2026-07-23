@@ -9,6 +9,7 @@ import {
   TRIGGER_PRESS_AT,
   TRIGGER_RELEASE_AT,
   diffSnapshots,
+  electActivePad,
   emptySnapshot,
   initialPollState,
   readSnapshot,
@@ -175,5 +176,32 @@ describe('gamepadPollModel', () => {
     live.axes[0] = 0.9;
     expect(copy.buttons[0].pressed).to.eq(true);
     expect(copy.axes[0]).to.eq(0.1);
+  });
+
+  describe('electActivePad (single-driver election)', () => {
+    it('keeps the incumbent while it is still engaged this frame', () => {
+      // Two mirrored pads (Steam Input duplicate) both active — the incumbent
+      // keeps driving, so the mirror can never also dispatch the same edge.
+      const engaged = [{index: 0, active: true}, {index: 1, active: true}];
+      expect(electActivePad(engaged, 0)).to.eq(0);
+      expect(electActivePad(engaged, 1)).to.eq(1);
+    });
+
+    it('elects the first active pad when there is no incumbent (index -1)', () => {
+      expect(electActivePad([{index: 3, active: true}, {index: 5, active: true}], -1)).to.eq(3);
+    });
+
+    it('keeps a releasing incumbent (engaged but not active) so its release dispatches', () => {
+      expect(electActivePad([{index: 2, active: false}], 2)).to.eq(2);
+    });
+
+    it('takes over with another active pad only once the incumbent is idle/gone', () => {
+      // Incumbent 0 not in the frame (fully idle) → the other active pad drives.
+      expect(electActivePad([{index: 1, active: true}], 0)).to.eq(1);
+    });
+
+    it('holds the incumbent when nothing is engaged this frame', () => {
+      expect(electActivePad([], 0)).to.eq(0);
+    });
   });
 });

@@ -39,6 +39,7 @@ import {
   GamepadSnapshot,
   PollState,
   diffSnapshots,
+  electActivePad,
   emptySnapshot,
   initialPollState,
   readSnapshot,
@@ -123,9 +124,19 @@ function stopLoop(): void {
   }
 }
 
+/** One connected pad's contribution to a poll frame. */
+type PadContribution = {index: number, id: string, active: boolean, intents: Array<GamepadIntent>};
+
 function pollOnce(now: number): void {
   const pads = navigatorPads();
   const deadzone = gamepadDeadzone();
+
+  // ── PASS 1: refresh EVERY connected pad, collect its intents, DON'T dispatch.
+  // Diffing every pad each frame (not only the driving one) keeps every pad's
+  // baseline current — a pad diffed against a stale snapshot when it later
+  // becomes the driver would fire a burst of phantom edges. `engaged` collects
+  // the non-idle pads so PASS 2 can elect exactly ONE driver.
+  const engaged: Array<PadContribution> = [];
   for (const pad of pads) {
     if (pad === null || !pad.connected) {
       continue;
@@ -143,17 +154,13 @@ function pollOnce(now: number): void {
     // baseline reads that held A as a fresh `confirm` press on the freshly-loaded
     // main menu and auto-activates the focused item (Continue → bounced straight
     // back into the game — the "exit does nothing the 2nd time" bug). We still
-    // elect the pad + enter gamepad mode so it stays responsive; only the stray
-    // press/nav intent is withheld.
+    // let it enter the election (below) so a fresh pad becomes responsive; only
+    // the stray press/nav intent is withheld (its intents list stays empty).
     if (!prevSnapshots.has(pad.index)) {
       prevSnapshots.set(pad.index, next);
       pollStates.set(pad.index, initialPollState());
       if (active) {
-        gamepadCoreState.activeIndex = pad.index;
-        gamepadCoreState.activeId = pad.id;
-        updateDetectedGlyphSet(pad.id);
-        enterGamepadMode();
-        resetPointerTravel();
+        engaged.push({index: pad.index, id: pad.id, active: true, intents: []});
       }
       continue;
     }
@@ -168,28 +175,37 @@ function pollOnce(now: number): void {
       continue;
     }
 
-    // Active-pad election: the last pad producing activity drives the UI.
-    if (active && gamepadCoreState.activeIndex !== pad.index) {
-      gamepadCoreState.activeIndex = pad.index;
-      gamepadCoreState.activeId = pad.id;
-      updateDetectedGlyphSet(pad.id);
-    }
-
     const {intents, state: nextState} = diffSnapshots(prev, next, state, now, deadzone);
     prevSnapshots.set(pad.index, next);
     pollStates.set(pad.index, nextState);
+    engaged.push({index: pad.index, id: pad.id, active, intents});
+  }
 
-    if (intents.length === 0 || pad.index !== gamepadCoreState.activeIndex) {
-      continue;
-    }
-    // Any intent from the active pad (re-)enters gamepad mode and re-arms
-    // the pointer-exit hysteresis so slow desk drift can't accumulate.
+  // ── PASS 2: elect exactly ONE driving pad (STICKY), then dispatch ONLY its
+  // intents. This is the anti-double-dispatch rule for multi-pad hosts: Steam
+  // Input on a Steam Machine exposes one physical controller as TWO mirrored
+  // "standard" pads, and dispatching from both doubled every edge (a d-pad tap
+  // skipped two rows; a toggle wheel opened-then-closed). See `electActivePad`.
+  const elected = electActivePad(engaged, gamepadCoreState.activeIndex);
+  const chosen = engaged.find((p) => p.index === elected);
+  if (chosen !== undefined && elected !== gamepadCoreState.activeIndex) {
+    gamepadCoreState.activeIndex = chosen.index;
+    gamepadCoreState.activeId = chosen.id;
+    updateDetectedGlyphSet(chosen.id);
+  }
+  if (chosen === undefined) {
+    return;
+  }
+  // Any activity from the driving pad (re-)enters gamepad mode and re-arms the
+  // pointer-exit hysteresis so slow desk drift can't accumulate — this fires
+  // even on a fresh sighting that carries no intents (mode entry).
+  if (chosen.active) {
     enterGamepadMode();
     resetPointerTravel();
-    for (const intent of intents) {
-      for (const fn of intentListeners) {
-        fn(intent);
-      }
+  }
+  for (const intent of chosen.intents) {
+    for (const fn of intentListeners) {
+      fn(intent);
     }
   }
 }
