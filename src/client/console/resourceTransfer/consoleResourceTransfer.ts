@@ -56,6 +56,44 @@ export const resourceTransferState = reactive({
   nonce: 0,
 });
 
+// ── leak diagnostics ────────────────────────────────────────────────────────
+// A bounded in-memory trail of the module's lifecycle. It costs nothing at
+// runtime (a capped ring of plain objects) and is dumped ONLY when the
+// animation-hold safety ceiling force-releases `resource-transfer` — so a
+// leaked hold prints the exact wave that never cleaned up (which run started,
+// which flights were added, which were removed, whether it ended / threw /
+// settled), instead of a bare "leaked hold?".
+
+type TransferTrailEvent = {t: number, runId: number | undefined, ev: string, detail?: unknown};
+const transferTrail: Array<TransferTrailEvent> = [];
+const TRAIL_CAP = 60;
+let runIdSeq = 0;
+
+function trailNow(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function' ?
+    Math.round(performance.now()) : 0;
+}
+
+function trail(runId: number | undefined, ev: string, detail?: unknown): void {
+  transferTrail.push({t: trailNow(), runId, ev, detail});
+  if (transferTrail.length > TRAIL_CAP) {
+    transferTrail.splice(0, transferTrail.length - TRAIL_CAP);
+  }
+}
+
+/** Dumped into the animation-hold ceiling warn — the full leak picture. */
+export function resourceTransferDiagnostics(): unknown {
+  return {
+    runActive,
+    flights: resourceTransferState.flights.map((f) => ({
+      id: f.id, channel: f.spec.channel, resource: f.spec.resource, amount: f.spec.amount,
+    })),
+    heldChipIds: heldChips.map((h) => h.id),
+    stageBound: stage !== undefined,
+    trail: transferTrail.slice(-40),
+  };
+}
+
 // ── the PANEL REWARD HOLD (delayed visual commit of reward metrics) ─────────
 
 type PanelRewardHold = {
@@ -192,7 +230,10 @@ export function isResourceTransferActive(): boolean {
 // Chips in flight hold the presentation. Today every wave runs nested inside
 // a blocking hero scene (played hero / patent sale / tile placement), so this
 // is redundant cover — but a FUTURE standalone wave is protected by default.
-registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive);
+// `diagnose` prints the leaked state if this hold ever trips the safety ceiling.
+registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive, {
+  diagnose: resourceTransferDiagnostics,
+});
 
 /**
  * Run one transfer wave. Resolves when EVERY transfer has ARRIVED (its
@@ -202,11 +243,14 @@ registerAnimationHoldSupplier('resource-transfer', isResourceTransferActive);
  * reward is announced by its delta chip alone, marginally late, never lost).
  */
 export async function runResourceTransfers(run: ResourceTransferRun): Promise<void> {
+  const runId = ++runIdSeq;
+  trail(runId, 'run:start', {arrival: run.arrival, specs: run.specs.length});
   // `origins` aligns with `run.specs` by index — pair them BEFORE filtering.
   const specEntries = run.specs
     .map((spec, i) => ({spec, origin: run.origins?.[i]}))
     .filter((e) => e.spec.amount > 0);
   if (specEntries.length === 0) {
+    trail(runId, 'run:earlyreturn', 'no-positive-specs');
     return;
   }
   const releaseAll = (list: ReadonlyArray<{spec: ResourceTransferSpec}>) => {
@@ -216,11 +260,13 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   };
   if (consoleReducedMotionActive() || typeof document === 'undefined') {
     releaseAll(specEntries);
+    trail(runId, 'run:earlyreturn', 'reduced-or-nodom');
     return;
   }
   const sourceRect = resolveSourceRect(run.source);
   if (sourceRect === undefined && !specEntries.some((e) => e.origin !== undefined)) {
     releaseAll(specEntries);
+    trail(runId, 'run:earlyreturn', 'no-source-geometry');
     return;
   }
   // Resolve each spec's destination NOW (the wave flies into real, settled
@@ -235,6 +281,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     }
   }
   if (flights.length === 0) {
+    trail(runId, 'run:earlyreturn', 'no-resolvable-destinations');
     return;
   }
 
@@ -250,58 +297,76 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     index: i,
   }));
   resourceTransferState.flights = [...resourceTransferState.flights, ...entries.map((e) => ({id: e.id, spec: e.spec}))];
-  await nextTick(); // the layer mounts the chips
+  trail(runId, 'run:flights', {arrival: run.arrival, ids: entries.map((e) => e.id)});
+  try {
+    await nextTick(); // the layer mounts the chips
 
-  const uiScale = conUiScale();
-  const waveBudget = motionMs(transferFlightBudgetMs()) +
-    motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) + 2200;
-  let safetyFired = false;
-  const safety = window.setTimeout(() => {
-    // rAF stall / lost stage — release everything, never wedge the caller.
-    safetyFired = true;
-    entries.forEach((e) => run.onArrive?.(e.spec));
-  }, waveBudget);
+    const uiScale = conUiScale();
+    const waveBudget = motionMs(transferFlightBudgetMs()) +
+      motionMs(transferWaveDelayMs(entries.length - 1, entries.length)) + 2200;
+    let safetyFired = false;
+    const safety = window.setTimeout(() => {
+      // rAF stall / lost stage — release everything, never wedge the caller.
+      safetyFired = true;
+      trail(runId, 'run:safety', {arrival: run.arrival, ids: entries.map((e) => e.id)});
+      entries.forEach((e) => run.onArrive?.(e.spec));
+    }, waveBudget);
 
-  // The caller resolves at the TOUCHDOWNS (never held on the absorb tail);
-  // the finish chain removes each piece when its decoration fully ends.
-  const touchdowns = entries.map((e) => {
-    const piece = stage?.piece(e.id);
-    if (piece === undefined) {
-      if (!safetyFired) {
-        run.onArrive?.(e.spec);
+    // The caller resolves at the TOUCHDOWNS (never held on the absorb tail);
+    // the finish chain removes each piece when its decoration fully ends.
+    const touchdowns = entries.map((e) => {
+      const piece = stage?.piece(e.id);
+      if (piece === undefined) {
+        if (!safetyFired) {
+          run.onArrive?.(e.spec);
+        }
+        trail(runId, 'flight:no-piece', e.id);
+        removeFlight(e.id);
+        return Promise.resolve();
       }
-      removeFlight(e.id);
-      return Promise.resolve();
-    }
-    const handles = runTransferFlight(piece, {
-      from: e.from,
-      to: e.to,
-      index: e.index,
-      delayMs: e.delayMs,
-      uiScale,
-      hold: run.arrival === 'hold',
+      const handles = runTransferFlight(piece, {
+        from: e.from,
+        to: e.to,
+        index: e.index,
+        delayMs: e.delayMs,
+        uiScale,
+        hold: run.arrival === 'hold',
+      });
+      const touched = handles.touched.then(() => {
+        if (!safetyFired) {
+          run.onArrive?.(e.spec);
+        }
+        // A hold-mode chip registers as RESTING synchronously with its
+        // touchdown — the caller's commit/settle (which awaits the
+        // touchdowns) can never race past an unregistered landed chip.
+        if (run.arrival === 'hold') {
+          heldChips.push({id: e.id, at: e.to});
+          trail(runId, 'flight:held', e.id);
+        }
+      });
+      void handles.finished.then((outcome) => {
+        if (outcome !== 'landed') {
+          removeFlight(e.id); // 'auto' — absorbed at the destination
+        }
+      });
+      return touched;
     });
-    const touched = handles.touched.then(() => {
-      if (!safetyFired) {
-        run.onArrive?.(e.spec);
-      }
-      // A hold-mode chip registers as RESTING synchronously with its
-      // touchdown — the caller's commit/settle (which awaits the
-      // touchdowns) can never race past an unregistered landed chip.
-      if (run.arrival === 'hold') {
-        heldChips.push({id: e.id, at: e.to});
-      }
+    await Promise.all(touchdowns);
+    window.clearTimeout(safety);
+    runActive = false;
+    trail(runId, 'run:end', {arrival: run.arrival});
+  } catch (e) {
+    // Documented contract: this function NEVER rejects. A throw here (e.g. a
+    // stage piece unmounted mid-wave) once left `runActive` stuck true and
+    // leaked the animation hold — record it, clean up, and resolve honestly.
+    trail(runId, 'run:threw', String(e));
+    console.error('[resource-transfer] wave threw — releasing gate', e);
+    entries.forEach((entry) => {
+      run.onArrive?.(entry.spec);
+      removeFlight(entry.id);
     });
-    void handles.finished.then((outcome) => {
-      if (outcome !== 'landed') {
-        removeFlight(e.id); // 'auto' — absorbed at the destination
-      }
-    });
-    return touched;
-  });
-  await Promise.all(touchdowns);
-  window.clearTimeout(safety);
-  runActive = false;
+    runActive = false;
+  }
 }
 
 /**
@@ -311,6 +376,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
 export async function settleResourceTransfers(): Promise<void> {
   const held = heldChips;
   heldChips = [];
+  trail(undefined, 'settle:start', {heldIds: held.map((h) => h.id)});
   if (held.length === 0 || typeof document === 'undefined') {
     held.forEach((h) => removeFlight(h.id));
     return;
@@ -322,11 +388,13 @@ export async function settleResourceTransfers(): Promise<void> {
     }
     removeFlight(h.id);
   }));
+  trail(undefined, 'settle:done');
 }
 
 /** Abort — unmount every chip with zero trace and drop the pending holds.
  *  Callers' own onArrive gates are freed by their run's safety net. */
 export function abortResourceTransfers(): void {
+  trail(undefined, 'abort', {flightIds: resourceTransferState.flights.map((f) => f.id), heldIds: heldChips.map((h) => h.id)});
   for (const f of resourceTransferState.flights) {
     const piece = stage?.piece(f.id);
     if (piece !== undefined) {

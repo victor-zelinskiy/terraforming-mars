@@ -71,6 +71,14 @@ export type AnimationHoldOptions = {
   scope?: AnimationHoldScope,
   /** Leak-net ceiling; keep it ABOVE the flow's own safety timer. */
   maxHoldMs?: number,
+  /**
+   * Optional leak-diagnosis hook. Called ONCE, the instant the safety ceiling
+   * force-releases this hold, and its return value is appended to the warn —
+   * so a leaked hold prints WHY it was still held (which flights / flags were
+   * stuck), never a bare "leaked hold?". Must not throw (guarded) and must be
+   * cheap (it runs on the ceiling path only). Reuse for any hold that can leak.
+   */
+  diagnose?: () => unknown,
 };
 
 /** Idempotent release token — safe to call from every exit path, twice over. */
@@ -83,9 +91,23 @@ type SupplierEntry = {
   scope: AnimationHoldScope,
   maxHoldMs: number,
   supplier: () => boolean,
+  diagnose: (() => unknown) | undefined,
   stop: () => void,
   ceilingTimer: ReturnType<typeof setTimeout> | undefined,
 };
+
+/** Run a hold's diagnose hook safely — a throwing/absent hook degrades to ''. */
+function safeDiagnose(diagnose: (() => unknown) | undefined): string {
+  if (diagnose === undefined) {
+    return '';
+  }
+  try {
+    const info = diagnose();
+    return info === undefined ? '' : ` — ${typeof info === 'string' ? info : JSON.stringify(info)}`;
+  } catch (e) {
+    return ` — (diagnose threw: ${String(e)})`;
+  }
+}
 
 /** Registered flow predicates (functions — kept OUTSIDE the reactive store). */
 const suppliers = new Map<string, SupplierEntry>();
@@ -153,6 +175,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     scope: options?.scope ?? 'blocking',
     maxHoldMs: options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS,
     supplier,
+    diagnose: options?.diagnose,
     stop: () => {},
     ceilingTimer: undefined,
   };
@@ -164,7 +187,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
         entry.ceilingTimer = setTimeout(() => {
           entry.ceilingTimer = undefined;
           store.expired.add(label);
-          console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)`);
+          console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
         }, entry.maxHoldMs);
       }
     } else {

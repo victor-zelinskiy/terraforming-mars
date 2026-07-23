@@ -1324,11 +1324,21 @@ html.con-profile-handheld .con-terracere {
         margin-bottom: .5rem;
     }
     &__tags-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .4rem .5rem;
+        /* Fixed 3-column grid — the rail has the width, so pack the cluster
+           into three even columns instead of the old 2-column flex wrap
+           (which left ~a third of the row empty). Icons keep their size. */
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        justify-items: center;
+        align-items: start;
+        gap: .5rem .3rem;
         /* The shared TagCount holders read small on TV — scale the cluster. */
         zoom: calc(1.2 * var(--con-ui-scale, 1));
+
+        /* The legacy per-holder right margin (player_home.less .tag-display)
+           is redundant with the grid gap and would shove each icon off the
+           column centre — zero it inside the console cluster. */
+        .tag-display { margin-right: 0; }
     }
 }
 
