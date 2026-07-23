@@ -149,6 +149,60 @@ export function parseExtraSwitches(raw: string): ExtraSwitch[] {
   return out;
 }
 
+// ── Steam launch-options bridge ──────────────────────────────────────────────
+// On Windows, Steam passes a Non-Steam game's "launch options" as COMMAND-LINE
+// ARGUMENTS, not env vars (the Linux `VAR=value %command%` form does nothing on
+// Windows). So every diagnostic escape hatch is ALSO reachable via a `--tm-*`
+// argv flag, mapped onto the SAME env var the rest of the code already reads —
+// which makes them convenient to toggle from Steam → game → Properties → Launch
+// Options (applied per-launch, no setx / no Steam restart / no registry). Clear
+// the field to remove. Value flags take `=value`; boolean flags are presence=on.
+//   --tm-switches=show-fps-counter            (→ TM_ELECTRON_SWITCHES)
+//   --tm-switches="disable-frame-rate-limit;disable-gpu-vsync"
+//   --tm-features=none                        (→ TM_ELECTRON_FEATURES)
+//   --tm-priority=above                       (→ TM_ELECTRON_PRIORITY)
+//   --tm-software  --tm-no-perf  --tm-devtools  --tm-windowed  (booleans → "1")
+const CLI_VALUE_FLAGS: Record<string, string> = {
+  'tm-switches': 'TM_ELECTRON_SWITCHES',
+  'tm-features': 'TM_ELECTRON_FEATURES',
+  'tm-priority': 'TM_ELECTRON_PRIORITY',
+};
+const CLI_BOOL_FLAGS: Record<string, string> = {
+  'tm-software': 'TM_ELECTRON_SOFTWARE',
+  'tm-no-perf': 'TM_ELECTRON_NO_PERF',
+  'tm-devtools': 'TM_ELECTRON_DEVTOOLS',
+  'tm-windowed': 'TM_ELECTRON_WINDOWED',
+};
+
+/**
+ * Parse the `--tm-*` launch-options flags out of argv into the env-var overrides
+ * they stand for. Pure (unit-tested); main.ts applies the result onto
+ * process.env BEFORE anything reads it, so a Steam launch option wins over an
+ * unset/stale env var. A leading `--` is tolerated; boolean flags map to "1";
+ * value flags split on the FIRST `=` (so a value may itself contain `=`).
+ * Unrecognized args (Chromium's own switches, the exe path) are ignored.
+ */
+export function parseCliEnvOverrides(argv: ReadonlyArray<string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const arg of argv) {
+    const token = arg.replace(/^--/, '');
+    const eq = token.indexOf('=');
+    const key = (eq === -1 ? token : token.slice(0, eq)).trim().toLowerCase();
+    if (eq === -1) {
+      const envName = CLI_BOOL_FLAGS[key];
+      if (envName !== undefined) {
+        out[envName] = '1';
+      }
+    } else {
+      const envName = CLI_VALUE_FLAGS[key];
+      if (envName !== undefined) {
+        out[envName] = token.slice(eq + 1).trim();
+      }
+    }
+  }
+  return out;
+}
+
 // The default --enable-features list on the Windows GPU path:
 //  - SkiaGraphite + SkiaGraphitePrecompilation — the proven big win on this app:
 //    Chrome's next-gen multi-threaded rasterizer (Dawn/D3D11) manages the

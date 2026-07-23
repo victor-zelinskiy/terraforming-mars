@@ -22,7 +22,7 @@ import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
-import {applyPerformanceSwitches, logGpuStatus, processPriorityPref} from './perf';
+import {applyPerformanceSwitches, logGpuStatus, parseCliEnvOverrides, processPriorityPref} from './perf';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
@@ -45,6 +45,15 @@ try {
 } catch (err) {
   // eslint-disable-next-line no-console
   console.error('[velopack] startup hook failed (continuing normal launch)', err);
+}
+
+// Steam launch-options bridge: fold any `--tm-*` argv flags (Steam passes launch
+// options as command-line ARGS on Windows, not env vars) onto the matching
+// TM_ELECTRON_* env vars BEFORE anything below reads them — so a launch option
+// like `--tm-switches=show-fps-counter` behaves exactly like the env var, and is
+// convenient to toggle per-launch from Steam. See perf.ts `parseCliEnvOverrides`.
+for (const [envName, value] of Object.entries(parseCliEnvOverrides(process.argv.slice(1)))) {
+  process.env[envName] = value;
 }
 
 // GPU / no-throttle command-line switches MUST be appended before app 'ready';

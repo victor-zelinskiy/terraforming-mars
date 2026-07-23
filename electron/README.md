@@ -112,6 +112,32 @@ Example (bash):
 TM_SERVER_BASE=http://localhost:8080 TM_ELECTRON_DEVTOOLS=1 npm run electron:dev
 ```
 
+### Steam launch options (`--tm-*` flags — convenient toggling)
+
+On Windows, Steam passes a Non-Steam game's **Launch Options** as command-line
+ARGUMENTS, not env vars (`VAR=value %command%` only works on Linux). So the
+diagnostic escape hatches are ALSO reachable via `--tm-*` argv flags, folded onto
+the matching `TM_ELECTRON_*` env var before anything reads them (`perf.ts`
+`parseCliEnvOverrides`, applied in `main.ts`). This is the convenient way to
+toggle them per-launch — set them in **Steam → the game → Properties → Launch
+Options**, clear the field to remove; no `setx`, no Steam restart, no registry.
+
+| Launch option | Same as env | Purpose |
+|---|---|---|
+| `--tm-switches=show-fps-counter` | `TM_ELECTRON_SWITCHES` | on-screen FPS counter (no DevTools) |
+| `--tm-switches="disable-frame-rate-limit;disable-gpu-vsync"` | `TM_ELECTRON_SWITCHES` | multiple raw Chromium switches (`;`-separated, quoted) |
+| `--tm-features=none` | `TM_ELECTRON_FEATURES` | replace/disable the enable-features list |
+| `--tm-priority=above` | `TM_ELECTRON_PRIORITY` | dial the priority class back from the `high` default |
+| `--tm-software` | `TM_ELECTRON_SOFTWARE=1` | force the software render path |
+| `--tm-no-perf` | `TM_ELECTRON_NO_PERF=1` | vanilla-Electron baseline |
+| `--tm-devtools` | `TM_ELECTRON_DEVTOOLS=1` | auto-open DevTools |
+| `--tm-windowed` | `TM_ELECTRON_WINDOWED=1` | windowed instead of fullscreen |
+
+Value flags take `=value`; boolean flags are presence-on. A launch option WINS
+over an unset/stale env var. Verify what took effect via the renderer-console
+`[TM perf]` echo (its `switches` array). Example Launch Options field:
+`--tm-switches=show-fps-counter`.
+
 **Verify the app:// Origin empirically:** run the server with `TM_CORS_LOG_ORIGINS=1`
 and `npm run electron:desktop`. The server logs each cross-origin API call's `Origin`.
 If it isn't `app://bundle`, add the logged value to `TM_DESKTOP_ALLOWED_ORIGINS`. A

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseExtraSwitches, processPriorityPref, rasterThreadCount} from '../../electron/perf';
+import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseCliEnvOverrides, parseExtraSwitches, processPriorityPref, rasterThreadCount} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -373,6 +373,40 @@ describe('electron/perf', () => {
 
     it('returns [] for an empty string', () => {
       expect(parseExtraSwitches('')).to.deep.equal([]);
+    });
+  });
+
+  describe('parseCliEnvOverrides (Steam launch-options bridge)', () => {
+    it('maps value flags onto their env vars, splitting on the FIRST =', () => {
+      expect(parseCliEnvOverrides(['--tm-switches=show-fps-counter'])).to.deep.equal({
+        TM_ELECTRON_SWITCHES: 'show-fps-counter',
+      });
+      expect(parseCliEnvOverrides(['--tm-switches=js-flags=--max-old-space-size=1024'])).to.deep.equal({
+        TM_ELECTRON_SWITCHES: 'js-flags=--max-old-space-size=1024',
+      });
+      expect(parseCliEnvOverrides(['--tm-priority=above', '--tm-features=none'])).to.deep.equal({
+        TM_ELECTRON_PRIORITY: 'above',
+        TM_ELECTRON_FEATURES: 'none',
+      });
+    });
+
+    it('maps boolean flags to "1" and ignores the exe path + Chromium switches', () => {
+      expect(parseCliEnvOverrides([
+        'C:\\Games\\Terraforming Mars.exe',
+        '--tm-software',
+        '--tm-devtools',
+        '--enable-logging',        // a real Chromium switch — must be ignored
+        '--tm-windowed',
+      ])).to.deep.equal({
+        TM_ELECTRON_SOFTWARE: '1',
+        TM_ELECTRON_DEVTOOLS: '1',
+        TM_ELECTRON_WINDOWED: '1',
+      });
+    });
+
+    it('returns {} when no --tm-* flags are present', () => {
+      expect(parseCliEnvOverrides(['--enable-features=Foo', 'bar'])).to.deep.equal({});
+      expect(parseCliEnvOverrides([])).to.deep.equal({});
     });
   });
 });
