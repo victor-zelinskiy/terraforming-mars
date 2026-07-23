@@ -392,7 +392,7 @@
   "A13": "Contains highly valuable alloys, but prone to fragmentation when it hits the atmosphere.",
   "A22": "Securing a place for marine life to thrive and spread",
   "A17": "Most efficient at the equator.",
-  "213": "Investigating opportunities in wind patterns and atmospheric composition"
+  "213": "Investigating opportunities in wind patterns and atmospheric composition",
   "214": "A spectacular sports event",
   "215": "Converting CO₂ into nanotube materials that support your hovering infrastructure",
   "216": "Examining the extreme environment at the lowest elevation on Venus",
@@ -446,5 +446,7 @@
   "R18": "Developers of ultra-light solar sails, Helion now turns to the terraforming of Mars and other worlds. It promises to be a rewarding business, as Helion has already made a working model of a soletta, focusing sunlight down to the frozen planet.",
   "R19": "Finding funding where nations struggled, IC initiated the colonization of Mars by turning the process into a soap opera infused with plenty of advertising. With the media’s attention and a head start in colonization, IC sets out to terraform.",
   "R43": "Inventrix uses brains, as well as muscle, when competing with other mega-corps. Its motto being: ‘Do it right,’ Inventrix is focused on research.",
-  "R24": "The earliest private enterprises on Mars focused on mining and exporting minerals off the surface. As the mega-corporations arrive to terraform, the miners unite in the Guild to defend their interests. With their expertise and knowledge of the planet they will be a worthy contender in the race."
+  "R24": "The earliest private enterprises on Mars focused on mining and exporting minerals off the surface. As the mega-corporations arrive to terraform, the miners unite in the Guild to defend their interests. With their expertise and knowledge of the planet they will be a worthy contender in the race.",
+  "R09": "Aiming to be the leader in space solutions for the Mars era, PhoboLog acquired several national space programs. This allowed them access to much existing infrastructure and technology, and they are not going to let that advantage be wasted.",
+  "R31": "With the first big city came a social community that could not be controlled by the corporations. Determined to have an elected leader, workers and staff from all corporations formed Tharsis Republic."
 }

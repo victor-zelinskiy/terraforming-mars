@@ -34,6 +34,11 @@ import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydroMarkerDirector';
+import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {
+  runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
+  clearPanelRewardHold, abortResourceTransfers,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 export type MarkerPhase = 'idle' | 'charge' | 'glide' | 'arrive' | 'lock' | 'pulse';
 
@@ -71,6 +76,10 @@ let lockResolve: (() => void) | undefined;
 let claimed = false; // detectHydroMarker consumes the arm exactly once
 let armSafetyId = 0;
 let settleTimerId = 0;
+/** The reward the advance grants — flown to the panel when the marker locks
+ *  (the resource-transfer reward beat). Empty for a tag / VP / flow reward. */
+let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
+let rewardHoldSeeded = false;
 
 export function isHydroMarkerActive(): boolean {
   return hydroMarkerState.active;
@@ -107,9 +116,13 @@ function clearArmSafety(): void {
  * and the poll guard is live. A safety net aborts an advance the server never
  * confirms.
  */
-export function armHydroMarker(fromPosition: number, toPosition: number, color: Color): void {
+export function armHydroMarker(
+  fromPosition: number, toPosition: number, color: Color,
+  rewards: ReadonlyArray<ResourceTransferSpec> = []): void {
   clearArmSafety();
   claimed = false;
+  pendingRewards = rewards;
+  rewardHoldSeeded = false;
   hydroMarkerState.active = true;
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.fromPosition = fromPosition;
@@ -118,6 +131,46 @@ export function armHydroMarker(fromPosition: number, toPosition: number, color: 
   hydroMarkerState.reducedMotion = consoleReducedMotionActive();
   hydroMarkerState.nonce++;
   armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
+}
+
+/**
+ * Seed the PANEL REWARD HOLD for the stage's granted resources — the caller
+ * MUST call this in the SAME SYNCHRONOUS BLOCK as `updatePlayerView` (via
+ * WaitingFor.seedRewardHolds), never from the flight's promise chain: the
+ * panel shows `committed − held`, so seeding a micro-task early flushes a
+ * phantom −N chip the commit immediately undoes. Idempotent; a no-op for a
+ * reward with no panel metric / reduced motion (those ride the commit).
+ */
+export function seedHydroMarkerRewardHold(): void {
+  if (!hydroMarkerState.active || rewardHoldSeeded || pendingRewards.length === 0) {
+    return;
+  }
+  if (hydroMarkerState.reducedMotion) {
+    pendingRewards = [];
+    return;
+  }
+  rewardHoldSeeded = true;
+  beginPanelRewardHold(pendingRewards);
+}
+
+/** The reward beat: the granted resources emerge from the just-reached stop
+ *  and pay out onto the panel — each touchdown releases its metric, firing
+ *  that delta chip at the contact. Fire-and-forget; degrades honestly. */
+function runHydroRewardWave(stopPosition: number, rewards: ReadonlyArray<ResourceTransferSpec>): void {
+  rewardHoldSeeded = false;
+  if (rewards.length === 0) {
+    clearPanelRewardHold();
+    return;
+  }
+  void runResourceTransfers({
+    specs: rewards,
+    source: {selectors: [`[data-hydro-marker="${stopPosition}"]`]},
+    arrival: 'auto',
+    onArrive: (spec) => releasePanelRewardHold(spec),
+  }).then(() => {
+    // Belt-and-braces: any hold a degraded transfer left snaps to truth now.
+    clearPanelRewardHold();
+  });
 }
 
 /**
@@ -165,6 +218,8 @@ export function runHydroMarker(): Promise<void> {
 export function endHydroMarker(): void {
   clearArmSafety();
   const settled = hydroMarkerState.toPosition;
+  const rewards = pendingRewards;
+  pendingRewards = [];
   const finalize = () => {
     hydroMarkerState.active = false;
     hydroMarkerState.phase = 'idle';
@@ -179,6 +234,10 @@ export function endHydroMarker(): void {
       hydroMarkerState.settledPosition = -1;
       settleTimerId = 0;
     }, 800) as unknown as number;
+    // The marker has locked in — pay the reward out of the settled stop
+    // (the panel showed committed − held since the commit; each touchdown
+    // releases its metric so the delta chip fires at the exact contact).
+    runHydroRewardWave(settled, rewards);
   };
   if (handle !== undefined) {
     handle.release(finalize);
@@ -203,6 +262,10 @@ export function abortHydroMarker(): void {
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.color = '';
+  pendingRewards = [];
+  rewardHoldSeeded = false;
+  abortResourceTransfers();
+  clearPanelRewardHold();
   const r = lockResolve;
   lockResolve = undefined;
   r?.();
@@ -218,6 +281,8 @@ export function resetHydroMarker(): void {
   handle = undefined;
   lockResolve = undefined;
   claimed = false;
+  pendingRewards = [];
+  rewardHoldSeeded = false;
   hydroMarkerState.active = false;
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.fromPosition = 0;

@@ -30,6 +30,7 @@
         <span v-if="stop.position > 0" class="con-hydro__link" :class="'con-hydro__link--' + stop.linkKind" aria-hidden="true"></span>
         <div class="con-hydro__stop"
              role="listitem"
+             :data-hydro-stop="stop.position"
              :class="[
                'con-hydro__stop--' + stop.vm.state,
                stop.grade !== undefined ? 'con-hydro__stop--grade-' + stop.grade : '',
@@ -368,6 +369,7 @@ import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
@@ -807,6 +809,12 @@ export default defineComponent({
         // The marker glide anchors: from the current stop to the planned one.
         fromPosition: this.model.currentPosition,
         toPosition: this.model.selectedPosition,
+        // The granted resources (choice + animal target already baked in) —
+        // flown to the panel as the marker locks (Part 2 reward beat).
+        rewards: hydroRewardTransfers(this.rewardView),
+        // «Гидромоделирование» (draw 4, keep 2): the follow-up SelectCard is
+        // dressed by the card-lift cinematic (Part 3) instead of a bare modal.
+        drawStage: this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2'),
       });
     },
     /** The shell routes every hydro-section intent here. */

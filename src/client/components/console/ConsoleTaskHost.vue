@@ -6,8 +6,15 @@
        data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (no own backdrop; the shade's --veil mirrors the table beat). -->
   <div class="con-task-host" role="dialog" :aria-label="titleText"
-       :class="{'con-task-host--table-beat': trayTableBeat}"
-       data-motion-surface="task-host">
+       :class="{
+         'con-task-host--table-beat': trayTableBeat,
+         'con-task-host--liftin': hydroLiftIn,
+         'con-task-host--liftin-veiled': hydroLiftVeiled,
+         'con-task-host--liftin-held': hydroLiftHeld,
+       }"
+       data-motion-surface="task-host"
+       :data-motion-variant="hydroLiftIn ? 'liftin' : undefined">
+
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
       <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey" data-motion-panel>
@@ -418,6 +425,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import {hydroDrawState, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -526,6 +534,24 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * The «Гидромоделирование» draw cinematic is fanning cards INTO this pick
+     * modal (Delta stage 5): while it plays, the modal is VEILED — its frame
+     * mounts invisible-but-measurable (the flying covers need the slot rects),
+     * then materializes around the landed cards. Gated on the card-select
+     * task, since the scene is only ever armed right before its own SelectCard.
+     */
+    hydroLiftIn(): boolean {
+      return isHydroDrawActive() && this.activeTask.kind === 'cardSelect';
+    },
+    /** Pre-frame (lift/fan): the whole frame is transparent (layout kept). */
+    hydroLiftVeiled(): boolean {
+      return this.hydroLiftIn && (hydroDrawState.phase === 'lift' || hydroDrawState.phase === 'fan');
+    },
+    /** The real cards stay hidden until the handoff (frame is up, cards held). */
+    hydroLiftHeld(): boolean {
+      return this.hydroLiftIn && hydroDrawState.phase !== 'handoff';
+    },
     /** The TOP-LEVEL prompt (never the nested input). */
     parentWf(): PlayerInputModel | undefined {
       return this.promptOverride ?? this.playerView.waitingFor;

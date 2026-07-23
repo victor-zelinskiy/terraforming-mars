@@ -481,7 +481,16 @@ html.con-profile-tv {
         &__title { font-size: 1.7rem; }
         &__sub { font-size: var(--con-t-secondary); max-width: 52rem; }
         &__chip { font-size: 1.05rem; b { font-size: 1.3rem; } }
-        &__stop-tag { width: 2rem; height: 2rem; }
+        /* The stops are the "areas the marker moves through" — their category
+           icon is the glanceable identity of each stage, so it reads a notch
+           larger than the desktop density (the stop WIDTH stays on the rem
+           base — a width bump overflowed the 11-stop row). */
+        &__stop-tag { width: 2.6rem; height: 2.6rem; }
+        &__stop-req { gap: 0.4rem; }
+        /* The rail-stop reward chip (e.g. the «4→2» on Гидромоделирование)
+           rides the shared HydroReward, whose sizes are fixed px — bump its
+           couch zoom a touch above the base so it reads from 10 feet. */
+        &__stop-reward { zoom: calc(1.25 * var(--con-ui-scale, 1)); }
         &__stop-name { font-size: 0.9rem; }
         &__stage-name { font-size: 1.4rem; }
         &__delta { font-size: 1.15rem; }
@@ -524,6 +533,15 @@ html.con-profile-tv {
         &__beforeafter b { font-size: 1.2rem; }
         &__plus { font-size: var(--con-t-secondary); }
         &__zero { font-size: var(--con-t-caption); }
+        /* The abstract reward chips (draw-4-keep-2 «Посмотреть 4 карты…»,
+           reuse-blue-action, bonus pick, details reward) render through the
+           shared HydroReward, whose icon/label/mini sizes are fixed px and so
+           do NOT ride the rem→ui-scale model — on the 4K couch they stayed
+           tiny (the worst 10-foot offender was this «Вы получите» readout).
+           Scale them the same way the rail-stop reward + confirm rawchips do. */
+        &__gains .hydro-reward,
+        &__bonus .hydro-reward,
+        &__def-reward .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
         &__pick-chosen, &__pick-pending { font-size: var(--con-t-secondary); padding: 0.45rem 0.7rem; }
         &__delta-note { font-size: var(--con-t-floor); }
         &__skip-or { font-size: var(--con-t-floor); }

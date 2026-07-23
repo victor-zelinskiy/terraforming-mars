@@ -189,6 +189,7 @@ import {
   detectHydroMarker,
   endHydroMarker,
   runHydroMarker,
+  seedHydroMarkerRewardHold,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {
   abortPatentSale,
@@ -708,6 +709,7 @@ export default defineComponent({
       seedTilePlacementRewardHold();
       seedColonyBuildRewardHold();
       seedColonyTradeRewardHold();
+      seedHydroMarkerRewardHold();
     },
     fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean) {
       const root = vueRoot(this);

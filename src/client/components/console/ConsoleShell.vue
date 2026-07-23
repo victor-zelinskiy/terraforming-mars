@@ -631,6 +631,11 @@
          engineering-flavoured; consoleHydroMarker.ts). -->
     <ConsoleHydroMarkerLayer />
 
+    <!-- The «Гидромоделирование» DRAW stage — 4 cards lift off the reached
+         track stop, fan out + flip open, and land in the pick-2-of-4 modal
+         (which materializes around them; consoleHydroDraw.ts). -->
+    <ConsoleHydroDrawLayer />
+
     <!-- The board CARD-BONUS stage — the card-back bonus physically lifts
          off the placed cell, travels into the reveal space and flips into
          the real received cards (consoleBoardCardBonus.ts). -->
@@ -944,6 +949,8 @@ import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovSca
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
+import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/ConsoleHydroDrawLayer.vue';
+import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -1073,6 +1080,7 @@ export default defineComponent({
     ConsoleHandDeliveryLayer,
     ConsoleDraftTray,
     ConsoleHydroMarkerLayer,
+    ConsoleHydroDrawLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
     ConsoleColonyTradeConfirm,
@@ -2857,7 +2865,7 @@ export default defineComponent({
       // moment — the pad is inert, the bar advertises nothing (bounded, plays
       // itself out). The trade-reward gate is PHASE-aware: it frees the pad
       // for the reveal take and for a Pluto discard between bonus draws.
-      if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
+      if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isHydroDrawActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -4069,7 +4077,7 @@ export default defineComponent({
       // timers, so it can never stick. The placement's `armed` beat does NOT
       // gate (nothing visual yet — mirrors the played hero's armed policy),
       // and the pick itself can't double-fire (the arm claims the moment).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
+      if (isTradeFleetActive() || isHydroMarkerActive() || isHydroDrawActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
         return true;
       }
       // TRADE REWARDS: the chip waves / card covers / marker glide own the
@@ -5807,7 +5815,7 @@ export default defineComponent({
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
-    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number}): void {
+    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean}): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
       if (path === undefined || isHydroMarkerActive()) {
         return; // guard a double-confirm: the marker glide owns the moment
@@ -5830,7 +5838,13 @@ export default defineComponent({
       // screen kept open by the `hydroMarkerState.active` watcher (never
       // `section='board'` — trading leaves you in colonies, advancing leaves
       // you in hydro). Desktop is unaffected (never arms).
-      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color);
+      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards ?? []);
+      // «Гидромоделирование» (draw 4, keep 2): dress the follow-up SelectCard
+      // with the card-lift cinematic — 4 cards lift off the reached stop, fan
+      // out + flip, and land in the pick modal, which materializes around them.
+      if (payload.drawStage === true) {
+        armHydroDraw(payload.toPosition);
+      }
       this.submitBatch(responses);
     },
     confirmSale(): void {
@@ -6877,6 +6891,7 @@ export default defineComponent({
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortColonyTrade(); // unwind any trade-reward transaction (zombie-safe)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
+    abortHydroDraw(); // drop any in-flight «Гидромоделирование» draw scene (zombie-safe)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
     abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)
     abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)

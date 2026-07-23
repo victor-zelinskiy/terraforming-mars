@@ -1,0 +1,90 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE HYDRO DRAW — the «Гидромоделирование» draw cinematic (Delta
+   stage 5: "look at 4, take up to 2"). Four card backs lift off the
+   reached track stop, fan out, flip open and land in the pick-2-of-4
+   modal's exact slots; the modal (ConsoleTaskHost) then materializes
+   AROUND the landed cards. Reuses the board card-bonus GSAP director;
+   transform/opacity only, clipped stage.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The app-level flight stage (ConsoleHydroDrawLayer) ─────────────── */
+.con-hydrodraw-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11632; /* above the task host (11480), below the command bar (11700) */
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
+/* The hero cover — a console card-back sleeve (same card.webp art), lifted
+   off the stop cell. The director sizes/positions it, reveals via autoAlpha. */
+.con-hydrodraw-cover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    will-change: transform, opacity; /* scoped: exists only mid-scene */
+    filter: drop-shadow(0 .3rem .7rem rgba(0, 0, 0, 0.55));
+
+    .con-card-back {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+/* A reveal proxy — the shared deal flip plumbing (con-deal-proxy__flip/face/
+   back are the 3D-flip classes) wrapped in this scene's own flyer root. */
+.con-hydrodraw-proxy {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    perspective: 45rem;
+    will-change: transform, opacity; /* scoped: proxies exist only mid-scene */
+    filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
+}
+
+/* ── The select modal's VEILED entrance (ConsoleTaskHost owns the classes) ──
+   The task host mounts INVISIBLE but laid out (the covers need its exact slot
+   rects), then materializes around the landed cards:
+     liftin        — the modal belongs to the scene: its surface-motion panel
+                     entrance is suppressed (data-motion-variant="liftin"); the
+                     frame/card fades are transition-driven here.
+     liftin-veiled — pre-frame: the modal frame fully transparent (opacity keeps
+                     the layout — the slots stay measurable).
+     liftin-held   — the real cards stay hidden until the handoff releases them
+                     under the landed proxies. */
+.con-task-host--liftin {
+    .con-task {
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    }
+    .con-cards__slot > :is(.card-container, .pcard) {
+        transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+    }
+}
+.con-task-host--liftin-veiled .con-task {
+    opacity: 0;
+}
+.con-task-host--liftin-held {
+    .con-cards__slot > :is(.card-container, .pcard) {
+        opacity: 0 !important;
+    }
+    /* No focus chrome / pick band over cards that "aren't there yet". */
+    .con-cards__pickband,
+    .con-cards__verdictbar {
+        opacity: 0 !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-hydrodraw-cover,
+    .con-hydrodraw-proxy { filter: none; }
+    .con-task-host--liftin .con-task { transition-duration: 1ms; }
+}
