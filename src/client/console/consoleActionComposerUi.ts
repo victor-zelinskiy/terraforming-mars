@@ -24,6 +24,15 @@ export const consoleActionComposerUi = reactive({
    *  a bare confirm («Подтверждение»). The frame header + the command-bar
    *  context read it, so the chrome always names the stage honestly. */
   mode: 'setup' as 'setup' | 'confirm',
+  /**
+   * The action card whose deck-check REVEAL the focus stage presents
+   * IN-FRAME ('' = none). Set at confirm time for a branch that carries a
+   * reveal descriptor; the shell reads it to (a) keep the stage mounted when
+   * the reveal lands (no closeConsoleLayers / no phase swap to the
+   * standalone overlay) and (b) suppress the standalone reveal-result
+   * overlay for exactly this reveal. Cleared on ack / stage unmount.
+   */
+  revealClaim: '' as string,
 });
 
 export function setConsoleActionComposerCommands(commands: ReadonlyArray<ConsoleCommand>): void {
@@ -35,8 +44,17 @@ export function setConsoleActionComposerMode(mode: 'setup' | 'confirm'): void {
   consoleActionComposerUi.mode = mode;
 }
 
+export function setConsoleActionRevealClaim(cardName: string): void {
+  consoleActionComposerUi.revealClaim = cardName;
+}
+
+export function resetConsoleActionRevealClaim(): void {
+  consoleActionComposerUi.revealClaim = '';
+}
+
 export function resetConsoleActionComposerUi(): void {
   consoleActionComposerUi.open = false;
   consoleActionComposerUi.commands = [];
   consoleActionComposerUi.mode = 'setup';
+  consoleActionComposerUi.revealClaim = '';
 }

@@ -93,6 +93,10 @@ export type FocusRowKind =
 export type FocusCommandCtx =
   /** The committed hold — input is absorbed; the bar shows the honest beat. */
   | {state: 'awaiting'}
+  /** The reveal phase, card still face down (flight / flip in progress). */
+  | {state: 'reveal-pending'}
+  /** The reveal outcome is on screen — acknowledge / inspect. */
+  | {state: 'reveal-shown'}
   /** A sub-list pick (card / player / or). X inspects a CARD list's rows. */
   | {state: 'sub-list', cardList: boolean}
   /** The payment lanes sub-state. */
@@ -118,6 +122,15 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     // The batch is committed — the shell absorbs the pad; the bar shows the
     // in-flight beat instead of a stale (and impossible) Confirm/Cancel.
     return [{control: 'confirm', label: 'Performing…', enabled: false}];
+  case 'reveal-pending':
+    // The card is being pulled off the deck / flipping — post-commit, so
+    // nothing can be cancelled; the bar narrates the beat honestly.
+    return [{control: 'confirm', label: 'Revealing the card…', enabled: false}];
+  case 'reveal-shown':
+    return [
+      {control: 'confirm', label: 'OK'},
+      {control: 'secondary', label: 'Inspect'},
+    ];
   case 'sub-list': {
     const run: Array<ConsoleCommand> = [{control: 'confirm', label: 'Select'}];
     if (ctx.cardList) {

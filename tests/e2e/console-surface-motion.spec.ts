@@ -291,23 +291,33 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-shade--on')).toHaveCount(1);
       await shoot(page, `${profile.tag}-03-action-composer-confirm`);
 
-      // ── 5. Confirm → the committed hold → the reveal result as ONE scene.
-      // The shade must never blink through the composer → reveal swap.
+      // ── 5. Confirm → the IN-FRAME reveal phase: the ACTION FOCUS stage
+      // STAYS («Действия карт › Результат вскрытия») — the deck flight +
+      // flip present the outcome in the SAME frame, the standalone reveal
+      // overlay never mounts for the claimed reveal, and the shade cannot
+      // blink (the center owns it through the whole operation).
       await page.keyboard.press('Enter');
       const phaseShade = await sampleShadeContinuity(page, 10, 45);
       expect(phaseShade.every(Boolean), `shade blinked during confirm→reveal: ${phaseShade}`).toBeTruthy();
-      await expect(page.locator('.con-reveal[data-motion-variant="result"]')).toHaveCount(1, {timeout: 10_000});
-      // The result carries the SAME source-card anchor the composer held —
-      // the FLIP contract of the phase handoff.
-      await expect(page.locator('.con-reveal [data-motion-anchor="card:Search For Life"]')).toHaveCount(1);
-      await page.waitForTimeout(500); // the anchor FLIP settles
+      await expect(page.locator('.con-composer--stage .con-composer__revealzone')).toHaveCount(1, {timeout: 10_000});
+      expect(await page.locator('.con-reveal').count(), 'no standalone overlay for the claimed reveal').toBe(0);
+      // The source-card anchor never left the stage (the hero column holds).
+      await expect(page.locator('.con-composer--stage [data-motion-anchor="card:Search For Life"]')).toHaveCount(1);
+      // The outcome settles (deck flight + the in-place flip). The longer
+      // beat lets the status → verdict crossfade finish even on a heavy 4K
+      // frame, so the screenshot always carries the verdict pill.
+      await expect(page.locator('.con-composer__revealoutcome')).toHaveCount(1, {timeout: 10_000});
+      await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-04-reveal-result`);
 
-      // ── 6. OK dismisses the RESULT (semantic commit: never back to
-      // confirm) and the shade lets go once the band is empty. ────────────
+      // ── 6. OK returns to the REFRESHED browse grid (semantic commit:
+      // never back to a re-confirmable state); B then closes the center and
+      // the shade lets go once the band is empty. ─────────────────────────
       await key(page, 'Enter', 800);
-      await expect(page.locator('.con-reveal')).toHaveCount(0);
-      await expect(page.locator('.con-composer')).toHaveCount(0);
+      await expect(page.locator('.con-composer--stage')).toHaveCount(0);
+      await expect(page.locator('.con-cardactions')).toHaveCount(1);
+      await key(page, 'Escape', 800);
+      await expect(page.locator('.con-cardactions')).toHaveCount(0);
       await page.waitForTimeout(600);
       await expect(page.locator('.con-shade--on')).toHaveCount(0);
       await shoot(page, `${profile.tag}-05-back-to-board`);

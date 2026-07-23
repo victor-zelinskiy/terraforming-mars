@@ -17,7 +17,11 @@
             <span>{{ $t('Card actions') }}</span>
             <template v-if="composer !== undefined">
               <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-              <span class="con-cardactions__kicker-step">{{ $t(focusKickerKey) }}</span>
+              <!-- The breadcrumb STEP crossfades between phases (Настройка /
+                   Подтверждение ⇄ Результат вскрытия) — never a blank beat. -->
+              <transition name="con-cardactions-headswap" mode="out-in">
+                <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
+              </transition>
             </template>
           </div>
           <transition name="con-cardactions-headswap" mode="out-in">
@@ -270,10 +274,12 @@
                                :entry="composerEntry"
                                :preview="composerPreview"
                                :nodeIndex="composer.nodeIndex"
+                               :reveal="revealFlow"
                                @confirm="onComposerConfirm"
                                @cancel="onComposerCancel"
                                @repeat-pick="onRepeatPick"
-                               @inspect-source="onInspectSource" />
+                               @inspect-source="onInspectSource"
+                               @reveal-ack="onRevealAck" />
       </transition>
       </div><!-- /__stagewrap -->
     </div>
@@ -353,7 +359,8 @@ import {
   armActionFocusOrigin,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
-import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {RevealResultModel} from '@/common/models/RevealResultModel';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -406,7 +413,7 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
-  emits: ['close', 'submit-batch'],
+  emits: ['close', 'submit-batch', 'reveal-ack'],
   data() {
     return {
       consoleCardActionsUi,
@@ -418,6 +425,9 @@ export default defineComponent({
       stats: [] as ReadonlyArray<EffectOverlayStat>,
       /** The open ACTION COMPOSER context (undefined = the grid owns input). */
       composer: undefined as ComposerContext | undefined,
+      /** The IN-FRAME reveal phase of a confirmed deck-check action
+       *  (undefined = no reveal; `payload` lands with the server's answer). */
+      revealFlow: undefined as {payload?: RevealResultModel} | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       shakeTimer: undefined as number | undefined,
@@ -498,9 +508,13 @@ export default defineComponent({
         focusedAvailable: this.focusedTile?.status === 'available',
       });
     },
-    /** The focus-stage breadcrumb step («Настройка действия» / «Подтверждение»),
-     *  published live by the stage itself. */
+    /** The focus-stage breadcrumb step («Настройка действия» / «Подтверждение»
+     *  → «Результат вскрытия» once a deck-check confirm enters its reveal
+     *  phase), published live by the stage itself. */
     focusKickerKey(): string {
+      if (this.revealFlow !== undefined) {
+        return 'Reveal result';
+      }
       return focusKicker(consoleActionComposerUi.mode === 'setup');
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
@@ -577,6 +591,16 @@ export default defineComponent({
     composerEntry(entry: ActionEntry | undefined) {
       if (this.composer !== undefined && entry === undefined) {
         this.closeComposer();
+      }
+    },
+    // The server's answer to a CLAIMED deck-check confirm: pipe the reveal
+    // payload into the stage's reveal phase (the shell suppresses the
+    // standalone reveal overlay for exactly this reveal).
+    'playerView.lastReveal'(lr: RevealResultModel | undefined) {
+      if (lr !== undefined && this.revealFlow !== undefined &&
+          this.composer !== undefined && lr.action === this.composer.cardName &&
+          this.revealFlow.payload === undefined) {
+        this.revealFlow = {payload: lr};
       }
     },
     composer(value: ComposerContext | undefined) {
@@ -776,9 +800,20 @@ export default defineComponent({
     },
     closeComposer(): void {
       this.composer = undefined;
+      if (this.revealFlow !== undefined) {
+        this.revealFlow = undefined;
+        resetConsoleActionRevealClaim();
+      }
       // Belt-and-braces focus restoration: the browse DOM was only hidden,
       // but re-assert the focused tile's visibility after the return.
       void this.$nextTick(() => this.scrollFocusedIntoView());
+    },
+    /** OK on the shown reveal outcome: mark the reveal seen (the shell owns
+     *  the dismissed-key), release the claim and return to the refreshed
+     *  browse grid — the action now reads «Активирована» in the list. */
+    onRevealAck(): void {
+      this.$emit('reveal-ack');
+      this.closeComposer();
     },
     inspectFocused(): void {
       const tile = this.focusedTile;
@@ -869,12 +904,21 @@ export default defineComponent({
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
       });
+      // A DECK-CHECK branch stays IN THIS STAGE: the flow enters the reveal
+      // phase immediately («Вскрываем карту» + the deck flight launches) and
+      // CLAIMS the incoming lastReveal, so the shell neither closes the
+      // center nor mounts the standalone reveal overlay for it.
+      const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
+      if (branch?.reveal !== undefined) {
+        this.revealFlow = {};
+        setConsoleActionRevealClaim(comp.cardName);
+      }
       // AWAITING HANDOFF (surface motion): the batch is COMMITTED — the
       // composer deliberately HOLDS the stage (its CTA shows the in-flight
       // beat, the shell absorbs the pad) until the server's answer picks the
-      // next scene: a reveal continues it as a PHASE handoff (the source card
-      // FLIPs across), anything else dismisses. Closing the composer here
-      // used to blank the stage for the whole round-trip — the
+      // next scene: an in-frame-claimed reveal continues HERE as the reveal
+      // phase; anything else dismisses / phase-swaps as before. Closing the
+      // composer here used to blank the stage for the whole round-trip — the
       // "confirm → bare board → reveal" gap. The shell resolves + closes.
       this.$emit('submit-batch', batch);
     },

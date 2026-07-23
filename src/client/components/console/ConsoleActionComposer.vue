@@ -36,6 +36,44 @@
       </div>
       <div class="con-composer__actright">
 
+      <!-- ── THE REVEAL PHASE («Действия карт › Результат вскрытия») ──────
+           A confirmed deck-check action stays IN THIS STAGE: the decision
+           column yields to the reveal zone — the slot the deck flight lands
+           in, and the status line below it («Вскрываем карту» → the ✓/✕
+           outcome the moment the face is first visible). The hero column
+           (the source card) never moves — the operation reads as one scene. -->
+      <template v-if="reveal !== undefined">
+        <div class="con-composer__revealzone">
+          <div class="con-composer__revealslot" ref="revealSlot"
+               :class="{
+                 'con-composer__revealslot--met': revealOutcomeOn && revealPayload !== undefined && revealPayload.conditionMet,
+                 'con-composer__revealslot--miss': revealOutcomeOn && revealPayload !== undefined && !revealPayload.conditionMet,
+               }"
+               :data-zoom-slot="revealPayload !== undefined ? 'revealed:' + revealPayload.revealed.name : undefined">
+            <!-- The REAL revealed card — hidden (layout kept: the slot is the
+                 flight's landing rect) until the flip settles; the swap with
+                 the landed proxy happens in ONE flush (pixel-true). -->
+            <ConsoleCardFaceLite v-if="revealPayload !== undefined"
+                                 :name="revealPayload.revealed.name"
+                                 :style="{visibility: revealStage === 'settled' ? 'visible' : 'hidden'}" />
+          </div>
+          <transition name="con-actfocus-outcome" mode="out-in">
+            <div v-if="!revealOutcomeOn || revealPayload === undefined" key="status" class="con-composer__revealstatus" role="status">
+              <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
+              <span>{{ $t('Revealing the card') }}</span>
+            </div>
+            <div v-else key="outcome" class="con-composer__revealoutcome"
+                 :class="revealPayload.conditionMet ? 'con-composer__revealoutcome--met' : 'con-composer__revealoutcome--miss'">
+              <span class="con-composer__revealoutcome-badge" aria-hidden="true">{{ revealPayload.conditionMet ? '✓' : '✕' }}</span>
+              <span>{{ $t(revealPayload.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
+              <ActionEffectChip v-if="revealPayload.reward !== undefined" :effect="revealPayload.reward" />
+              <span v-if="revealVpGain > 0" class="con-composer__revealvp">+{{ revealVpGain }} {{ $t('VP') }}</span>
+            </div>
+          </transition>
+        </div>
+      </template>
+      <template v-else>
+
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
            multi-branch option cards below carry their own chips. ─────── -->
@@ -271,8 +309,26 @@
         </div>
       </div>
 
+      </template><!-- /decision column (non-reveal) -->
+
       </div><!-- /__actright -->
       </div><!-- /__actmain -->
+
+      <!-- ── The reveal FLIGHT layer: the face-down card pulled off the HUD
+           deck pile, travelling into the reveal slot (fixed-position proxy —
+           the shared deal chassis; the director owns every transform). ── -->
+      <div v-if="revealFlightOn" class="con-composer__revealfly" aria-hidden="true">
+        <div class="con-deal-proxy" ref="revealProxy">
+          <div class="con-deal-proxy__flip" ref="revealFlip">
+            <div class="con-deal-proxy__face">
+              <ConsoleCardFaceLite v-if="revealPayload !== undefined" :name="revealPayload.revealed.name" />
+            </div>
+            <div class="con-deal-proxy__back">
+              <div class="con-card-back con-card-back--flyer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- The command contract (composer context) lives in the global
            command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
@@ -335,7 +391,9 @@ import {translateMessage, translateText, translateCardName} from '@/client/direc
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {RevealResultModel} from '@/common/models/RevealResultModel';
+import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
@@ -393,8 +451,12 @@ export default defineComponent({
     entry: {type: Object as PropType<ActionEntry>, required: true},
     preview: {type: Object as PropType<ActionPreview | undefined>, default: undefined},
     nodeIndex: {type: Number, required: true},
+    /** The IN-FRAME reveal phase (set by the parent at confirm time for a
+     *  deck-check branch; `payload` lands with the server's answer). While
+     *  set, the decision column yields to the reveal zone. */
+    reveal: {type: Object as PropType<{payload?: RevealResultModel} | undefined>, default: undefined},
   },
-  emits: ['confirm', 'cancel', 'repeat-pick', 'inspect-source'],
+  emits: ['confirm', 'cancel', 'repeat-pick', 'inspect-source', 'reveal-ack'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
@@ -410,6 +472,14 @@ export default defineComponent({
       focusIdx: 0,
       sub: undefined as SubState | undefined,
       submitting: false,
+      /** The reveal phase's visual stage: face down → face first shown
+       *  (mid-flip; the status yields to the outcome) → settled (the REAL
+       *  card owns the slot). */
+      revealStage: 'pending' as 'pending' | 'face' | 'settled',
+      /** The deck-flight proxy layer is mounted. */
+      revealFlightOn: false,
+      /** The live flight handle (payload release + abort). */
+      revealHandle: undefined as ActionRevealFlightHandle | undefined,
     };
   },
   computed: {
@@ -522,6 +592,19 @@ export default defineComponent({
       default: return '';
       }
     },
+    // ── the reveal phase ─────────────────────────────────────────────────
+    revealPayload(): RevealResultModel | undefined {
+      return this.reveal?.payload;
+    },
+    /** The outcome replaces the «Вскрываем карту» status the moment the face
+     *  is FIRST visible (mid-flip) — never before. */
+    revealOutcomeOn(): boolean {
+      return this.revealStage !== 'pending' && this.revealPayload !== undefined;
+    },
+    revealVpGain(): number {
+      const vp = this.revealPayload?.vp;
+      return vp === undefined ? 0 : Math.max(0, vp.to - vp.from);
+    },
     /** What kind of row the focus cursor is on — drives the A-verb of the
      *  command contract (the bar always names exactly what A will do). */
     focusedRowKind(): FocusRowKind {
@@ -553,6 +636,10 @@ export default defineComponent({
      *  (the source card / a card list's focused row), the confirm is ONLY the
      *  A press on the CTA row, and the committed hold reads as «Выполняется…». */
     footCommands(): Array<ConsoleCommand> {
+      if (this.reveal !== undefined) {
+        return focusCommandRun(this.revealStage === 'settled' && this.revealPayload !== undefined ?
+          {state: 'reveal-shown'} : {state: 'reveal-pending'});
+      }
       if (this.submitting) {
         return focusCommandRun({state: 'awaiting'});
       }
@@ -706,6 +793,21 @@ export default defineComponent({
     preview: {immediate: true, handler() {
       this.resetFromPreview();
     }},
+    // The parent opens the reveal phase at confirm time (identity change
+    // {} → {payload} must NOT relaunch the flight — only ENTER/EXIT do).
+    reveal(next: {payload?: RevealResultModel} | undefined, prev: {payload?: RevealResultModel} | undefined) {
+      if (next !== undefined && prev === undefined) {
+        this.beginRevealFlight();
+      } else if (next === undefined && prev !== undefined) {
+        this.abortRevealFlight();
+      }
+    },
+    // The server's answer landed — the face exists, the flip may run.
+    'reveal.payload'(payload: RevealResultModel | undefined) {
+      if (payload !== undefined) {
+        void this.$nextTick(() => this.revealHandle?.notifyPayload());
+      }
+    },
     playerView() {
       // Keep the in-flight CTA while the COMMITTED submit is still awaiting
       // its answer (a poll can deliver an unchanged view mid-flight; the
@@ -732,6 +834,7 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
+    this.abortRevealFlight();
     resetConsoleActionComposerUi();
   },
   methods: {
@@ -1148,6 +1251,22 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
+      // THE REVEAL PHASE owns the pad: post-commit, nothing can re-fire or
+      // cancel. While the card is still face down every press is swallowed
+      // (the beat is short and self-explaining); once settled A/B acknowledge
+      // and X inspects the revealed card.
+      if (this.reveal !== undefined) {
+        const action = consoleActionOf(intent);
+        if (this.revealStage !== 'settled' || this.revealPayload === undefined) {
+          return;
+        }
+        if (action === 'primary' || action === 'back') {
+          this.ackReveal();
+        } else if (action === 'inspect') {
+          this.inspectRevealed();
+        }
+        return;
+      }
       if (intent.kind === 'scroll') {
         (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
@@ -1458,6 +1577,68 @@ export default defineComponent({
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
         optionResponse: this.capturedOption,
         stepResponses: orderedStepResponses(branch, this.captured),
+      });
+    },
+    // ── the reveal phase ─────────────────────────────────────────────────
+    /** Launch the deck-pull flight (the phase just opened; the payload may
+     *  not exist yet — the flip waits for it). */
+    beginRevealFlight(): void {
+      this.revealStage = 'pending';
+      this.revealFlightOn = true;
+      void this.$nextTick(() => {
+        const proxy = this.$refs.revealProxy as HTMLElement | undefined;
+        const flip = this.$refs.revealFlip as HTMLElement | undefined;
+        const slot = this.$refs.revealSlot as HTMLElement | undefined;
+        if (proxy === undefined || flip === undefined || slot === undefined) {
+          // No stage to fly on (test runner / torn-down DOM): degrade to the
+          // instant path — the outcome shows the moment the payload lands.
+          this.revealStage = 'settled';
+          this.revealFlightOn = false;
+          return;
+        }
+        this.revealHandle = runActionRevealFlight({
+          proxy, flip, slot,
+          onFaceShown: () => {
+            if (this.revealStage === 'pending') {
+              this.revealStage = 'face';
+            }
+          },
+          onSettled: () => {
+            // ONE flush: the proxy unmounts and the real card becomes visible
+            // together — the swap is invisible (the proxy landed on the slot).
+            this.revealStage = 'settled';
+            this.revealFlightOn = false;
+            this.revealHandle = undefined;
+          },
+        });
+        if (this.revealPayload !== undefined) {
+          this.revealHandle.notifyPayload();
+        }
+      });
+    },
+    abortRevealFlight(): void {
+      this.revealHandle?.kill();
+      this.revealHandle = undefined;
+      this.revealFlightOn = false;
+      this.revealStage = 'pending';
+    },
+    /** OK on the shown outcome: the parent marks the reveal seen and returns
+     *  the flow to the (refreshed) browse grid. */
+    ackReveal(): void {
+      this.$emit('reveal-ack');
+    },
+    /** X on the shown outcome: the revealed card lifts out of ITS slot into
+     *  the fullscreen viewer and returns there on close. */
+    inspectRevealed(): void {
+      const payload = this.revealPayload;
+      if (payload === undefined) {
+        return;
+      }
+      openConsoleCardZoom([payload.revealed], 0, undefined, undefined, {
+        contextLabel: 'Reveal result',
+        origin: slotZoomOrigin(
+          () => this.$el as HTMLElement | undefined,
+          () => 'revealed:' + payload.revealed.name),
       });
     },
     scrollFocused(): void {

@@ -173,6 +173,70 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  // ── The IN-FRAME reveal phase («Действия карт › Результат вскрытия») ──────
+
+  it('the reveal phase replaces the decision column: status first, outcome + real card once settled', async () => {
+    const w = factory({
+      card: 'Search For Life', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [],
+        reveal: {deck: 'projects', check: {label: 'microbe tag'}, reward: {direction: 'gain', icon: 'science', amount: 1}}}],
+    }, 'Search For Life');
+    // The phase opens at confirm time (parent sets the prop on the LIVE stage).
+    await w.setProps({reveal: {}});
+    await w.vm.$nextTick();
+    expect(w.find('.con-composer__revealzone').exists()).to.eq(true);
+    expect(w.find('.con-composer__revealstatus').text()).to.contain('Revealing the card');
+    // The decision column yielded — no CTA dock, no hero.
+    expect(w.find('.con-composer__ctadock').exists()).to.eq(false);
+    // Face down → every press is swallowed (post-commit, nothing cancellable).
+    (w.vm as any).handleIntent({kind: 'press', button: 'back'});
+    (w.vm as any).handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('cancel')).to.eq(undefined);
+    expect(w.emitted('reveal-ack')).to.eq(undefined);
+
+    // The server's answer lands → the (JSDOM: instant) flip settles: the
+    // outcome replaces the status and the REAL card owns the slot.
+    await w.setProps({reveal: {payload: {
+      action: 'Search For Life',
+      revealed: {name: 'Insulation'},
+      conditionMet: false,
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    expect((w.vm as any).revealStage).to.eq('settled');
+    expect(w.find('.con-composer__revealoutcome').text()).to.contain('Condition not met');
+    expect(w.find('.con-composer__revealslot--miss').exists()).to.eq(true);
+    expect(w.find('.con-composer__revealslot').attributes('data-zoom-slot')).to.eq('revealed:Insulation');
+    // A acknowledges (OK) — the parent returns the flow to browse.
+    (w.vm as any).handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('reveal-ack')).to.have.length(1);
+    w.unmount();
+  });
+
+  it('a MET reveal shows the green verdict + the reward chip + the VP delta', async () => {
+    const w = factory({
+      card: 'Search For Life', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+    }, 'Search For Life');
+    await w.setProps({reveal: {}});
+    await w.vm.$nextTick();
+    await w.setProps({reveal: {payload: {
+      action: 'Search For Life',
+      revealed: {name: 'Tardigrades'},
+      conditionMet: true,
+      reward: {direction: 'gain', icon: 'science', amount: 1},
+      vp: {from: 0, to: 3},
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    const outcome = w.find('.con-composer__revealoutcome');
+    expect(outcome.classes()).to.contain('con-composer__revealoutcome--met');
+    expect(outcome.text()).to.contain('Condition met');
+    expect(outcome.find('.action-effect-chip').exists()).to.eq(true);
+    expect(w.find('.con-composer__revealvp').text()).to.contain('+3');
+    w.unmount();
+  });
+
   it('shows the live stored resource on the source card (decision-relevant pool)', () => {
     const view = {
       ...PLAYER_VIEW,

@@ -14058,6 +14058,108 @@ html.console-mode {
         span:first-child { color: @con-amber; }
     }
     .con-composer__cta { margin-top: 0; }
+
+    /* ── THE REVEAL PHASE («Действия карт › Результат вскрытия») — the
+       decision column yields to the deck-check outcome: the landing SLOT
+       (the flight's target rect — sized EXACTLY like the real card so the
+       proxy → card swap is pixel-true) and the status line under it
+       («Вскрываем карту» → the ✓/✕ verdict). ── */
+    .con-composer__revealzone {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+    }
+    .con-composer__revealslot {
+        --arz: calc(1.02 * var(--con-ui-scale, 1));
+        position: relative;
+        width: calc(320px * var(--arz)); /* keep-px: the px-authored premium face */
+        height: calc(460px * var(--arz)); /* keep-px */
+        border-radius: .6rem;
+        /* The empty slot reads as a calm waiting frame while the card flies;
+           the verdict frame takes over the moment the face shows. */
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
+        > :is(.card-container, .pcard) { margin: 0; zoom: var(--arz); }
+
+        &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%), 0 0 1.3rem fade(@con-mint, 20%); }
+        &--miss { box-shadow: 0 0 0 .1rem fade(@con-red, 65%), 0 0 1.1rem fade(@con-red, 16%); }
+    }
+    .con-composer__revealstatus {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .4rem .9rem;
+        border-radius: 49.95rem;
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        background: fade(@con-cyan, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        color: fade(@con-cyan, 92%);
+    }
+    .con-composer__revealstatus-spin {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        border: .12rem solid fade(@con-cyan, 22%);
+        border-top-color: fade(@con-cyan, 92%);
+        animation: con-cta-wait-spin calc(760ms * var(--motion-scale, 1)) linear infinite;
+    }
+    /* The verdict line — mirrors the reveal overlay's outcome recipe. */
+    .con-composer__revealoutcome {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .4rem .9rem;
+        border-radius: 49.95rem;
+        font-size: 1rem;
+        font-weight: 700;
+
+        &--met {
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%);
+            color: @con-mint;
+        }
+        &--miss {
+            background: fade(@con-red, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+            color: #ffc9c4;
+        }
+    }
+    .con-composer__revealoutcome-badge { font-size: 1.1rem; }
+    .con-composer__revealvp {
+        padding: .1rem .6rem;
+        border-radius: 49.95rem;
+        background: fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
+        font-size: .9rem;
+    }
+    /* The deck-flight layer: above the band surfaces, UNDER the top HUD —
+       the face-down card visibly emerges from behind the deck pile. */
+    .con-composer__revealfly {
+        position: fixed;
+        inset: 0;
+        z-index: 11600;
+        pointer-events: none;
+    }
+}
+
+/* The status ⇄ outcome swap of the reveal phase (out-in, short and calm). */
+.con-actfocus-outcome-enter-active,
+.con-actfocus-outcome-leave-active {
+    transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+}
+.con-actfocus-outcome-enter-from { opacity: 0; transform: translateY(.25rem); }
+.con-actfocus-outcome-leave-to { opacity: 0; transform: translateY(-.2rem); }
+@media (prefers-reduced-motion: reduce) {
+    .con-actfocus-outcome-enter-active, .con-actfocus-outcome-leave-active { transition: none; }
+    .con-composer--stage .con-composer__revealstatus-spin { animation: none; }
+    .con-composer--stage .con-composer__revealslot { transition: none; }
 }
 
 /* ── Corp FIRST-ACTION confirm — the play composer's MANDATORY sibling

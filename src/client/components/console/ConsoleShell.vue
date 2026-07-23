@@ -314,6 +314,7 @@
                           ref="cardActions"
                           :playerView="playerView"
                           @submit-batch="onCardActionsSubmitBatch"
+                          @reveal-ack="onCardActionsRevealAck"
                           @close="onCardActionsClose" />
       <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
     </transition>
@@ -916,7 +917,7 @@ import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, rese
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
-import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -1753,7 +1754,10 @@ export default defineComponent({
         return 'drawn';
       }
       const lr = this.playerView.lastReveal;
-      if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey) {
+      if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey &&
+          lr.action !== consoleActionComposerUi.revealClaim) {
+        // A reveal CLAIMED by the Action Focus stage presents IN-FRAME —
+        // the standalone result overlay must not double-mount over it.
         return 'result';
       }
       if (revealViewerState.open) {
@@ -2799,7 +2803,11 @@ export default defineComponent({
       }
       if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open) {
         // The ACTION FOCUS stage inside the Action Center: the bar names the
-        // STAGE (setup vs a bare confirm), not the grid underneath.
+        // STAGE (setup / bare confirm / the in-frame reveal phase), never the
+        // grid underneath.
+        if (consoleActionComposerUi.revealClaim !== '') {
+          return 'Reveal result';
+        }
         return consoleActionComposerUi.mode === 'setup' ? 'Action setup' : 'Confirmation';
       }
       if (this.consoleState.sheet !== undefined) {
@@ -3844,15 +3852,26 @@ export default defineComponent({
             revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
           }, typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (resolution.kind !== 'hold') {
-            // Capture the departing composer UNCONDITIONALLY — the incoming
-            // surface consumes it only when the pair is phase-linked
-            // (departureUsable), so a reveal FLIPs the source card while a
-            // follow-up task host (a Helion payment, an OrOptions branch)
-            // enters as the continuation of the same activation.
-            captureSurfaceDeparture(awaiting.from,
-              document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
-            clearAwaitingHandoff();
-            closeConsoleLayers();
+            // A deck-check reveal CLAIMED by the ACTION FOCUS stage stays
+            // IN-FRAME: the center keeps the scene (its own reveal phase
+            // presents the outcome — «Действия карт › Результат вскрытия»),
+            // so neither the close nor the standalone-overlay phase swap runs.
+            const claimedInFrame = resolution.kind === 'phase' &&
+              consoleActionComposerUi.revealClaim !== '' &&
+              lr !== undefined && lr.action === consoleActionComposerUi.revealClaim;
+            if (claimedInFrame) {
+              clearAwaitingHandoff();
+            } else {
+              // Capture the departing composer UNCONDITIONALLY — the incoming
+              // surface consumes it only when the pair is phase-linked
+              // (departureUsable), so a reveal FLIPs the source card while a
+              // follow-up task host (a Helion payment, an OrOptions branch)
+              // enters as the continuation of the same activation.
+              captureSurfaceDeparture(awaiting.from,
+                document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
+              clearAwaitingHandoff();
+              closeConsoleLayers();
+            }
           }
         }
         // Draft tray: mark a live pick beat answered, reconcile optimistic
@@ -6031,6 +6050,13 @@ export default defineComponent({
       if (lr !== undefined) {
         this.dismissedRevealKey = `${lr.action}|${lr.revealed.name}`;
       }
+    },
+    /** «ОК» on the IN-FRAME reveal phase (the Action Focus stage): mark the
+     *  reveal seen exactly like the standalone overlay's OK, and release the
+     *  stage's claim so a FUTURE reveal routes normally. */
+    onCardActionsRevealAck(): void {
+      this.onDismissRevealResult();
+      resetConsoleActionRevealClaim();
     },
     /**
      * The notification card's «Перейти к действию» CTA (window event —

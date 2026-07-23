@@ -40,10 +40,31 @@
   рука показывает чип `__pickctx` («НАСТРОЙКА ДЕЙСТВИЯ · <карта>»),
   категорийный вид «Разыграно» — то же в кикере. Композер по-прежнему
   v-show-прячется (захваты переживают roundtrip).
-- **Commit нетронут**: `data-motion-surface="action-composer"` остался на
-  стадии — awaiting-hold, захват departure и phase-FLIP анкора
-  `card:<name>` в reveal / task-host работают byte-в-byte (e2e
-  console-surface-motion зелёный без правок сценария).
+- **Commit**: `data-motion-surface="action-composer"` остался на стадии —
+  awaiting-hold и phase-FLIP в task-host (Helion) работают byte-в-byte.
+  **DECK-CHECK действия (Search For Life / Asteroid Deflection System) НЕ
+  уходят в standalone reveal-оверлей — стадия получает СОБСТВЕННУЮ фазу
+  «Действия карт › Результат вскрытия»**: при confirm ветки с `reveal`
+  родитель ставит `revealFlow` + `setConsoleActionRevealClaim(card)`
+  (consoleActionComposerUi) — шелл при awaiting-resolve НЕ закрывает центр и
+  ГЛУШИТ standalone `consoleRevealMode==='result'` ровно для этого reveal.
+  Правая колонка уступает reveal-зоне: слот (px-точный rect посадки,
+  `--arz = 1.02×ui`) + статус «ВСКРЫВАЕМ КАРТУ»; `consoleActionRevealMotion`
+  тянет карту РУБАШКОЙ из HUD-колоды (`.con-deckstack__pile`, дуга через
+  разные eases x/y, z 11600 — ПОД HUD, выныривает из-за колоды), flip НА
+  МЕСТЕ ждёт `notifyPayload()` (payload = `playerView.lastReveal`, ловится
+  родителем по claim); на середине flip — `onFaceShown` → статус
+  кроссфейдится в вердикт ✓/✕ (+reward-чип, +ПО) и слот получает
+  зелёную/красную рамку; `onSettled` — прокси и реальная карта меняются в
+  ОДИН flush. Хиро-карта слева НЕ движется — операция читается одной сценой.
+  Команды: pending → «Вскрываем карту…» (disabled), settled → A OK / X
+  Осмотреть (осмотр = physical origin из слота `revealed:<name>`). OK →
+  `reveal-ack` → шелл ставит dismissedRevealKey + снимает claim → возврат в
+  ОБНОВЛЁННЫЙ browse (действие уже «Активирована»). Safety: awaiting-timeout
+  и любой unmount снимают claim (`resetConsoleActionComposerUi`); reduced
+  motion — без полёта/flip, статус→вердикт коротким фейдом, порядок
+  колбэков тот же. Standalone `ConsoleRevealOverlay` 'result' ЖИВ как
+  fallback для reveal вне стадии.
 
 Гварды: `consoleActionFlow.spec.ts` (стадии + command-run'ы),
 `composerRender.spec.ts` (stage-рендер / CTA-док / hint / X→inspect-source /
