@@ -859,8 +859,10 @@ html.con-profile-tv {
            as a page-filling, overflowing duplicate) — `:not(:has())` keeps
            the zoom off the prose branch. */
         &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
-        /* The inspector's card THUMBNAIL — a touch larger at couch distance. */
-        &__detail-card { zoom: calc(0.74 * var(--con-ui-scale, 1)); }
+        /* The inspector's card THUMBNAIL — couch-readable, but bounded so the
+           dossier column's tail (next-step + the X-history hint) never clips
+           below the panel fold. */
+        &__detail-card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }

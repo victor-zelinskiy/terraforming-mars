@@ -85,71 +85,14 @@
         </div>
       </div>
 
-      <!-- ── Master (groups) + detail (inspector) ─────────────────────── -->
+      <!-- ── Body: the DOSSIER column (left) + the master list (right).
+           The dossier leads on the LEFT on purpose — it is the browse-mode
+           twin of the focus stage's hero-card column, so entering ACTION
+           FOCUS reads as "the right column swaps from variants to decisions
+           while the card settles in place" (a short FLIP, never a flight
+           across the whole overlay). ─────────────────────────────────── -->
       <div class="con-cardactions__body">
-        <ConsoleScrollArea class="con-cardactions__list" content-class="con-cardactions__list-body" ref="list">
-          <!-- Empty states — never a blank screen; names the hiding filter. -->
-          <div v-if="model.groups.length === 0" class="con-cardactions__empty">
-            <span class="con-cardactions__empty-mark" aria-hidden="true">◇</span>
-            <div class="con-cardactions__empty-title">{{ $t(emptyState.title) }}</div>
-            <div class="con-cardactions__empty-body">{{ $t(emptyState.body) }}</div>
-            <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
-          </div>
-
-          <div v-for="group in model.groups" :key="group.key"
-               class="con-cardactions__group"
-               :class="'con-cardactions__group--' + group.status">
-            <div class="con-cardactions__group-head">
-              <span class="con-cardactions__group-name">{{ $t(group.cardName) }}</span>
-              <span v-if="group.cardResource !== undefined" class="con-cardactions__group-res">
-                <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
-                <b>{{ group.cardResource.count }}</b>
-              </span>
-              <span class="con-cardactions__group-status" :class="'con-cardactions__group-status--' + group.status">
-                {{ $t(statusLabel(group.status)) }}
-              </span>
-            </div>
-
-            <div class="con-cardactions__variants">
-              <template v-for="(tile, ti) in group.tiles" :key="tile.key">
-                <div v-if="ti > 0" class="con-cardactions__or" aria-hidden="true">{{ $t('or') }}</div>
-                <div class="con-cardactions__tile"
-                     :class="[
-                       'con-cardactions__tile--' + tile.status,
-                       {
-                         'con-cardactions__tile--focused': focusKey === tile.key,
-                         'con-cardactions__tile--shake': shakeKey === tile.key,
-                       },
-                     ]"
-                     :ref="focusKey === tile.key ? 'focused' : undefined">
-                  <!-- The tile ALWAYS shows the card's OWN action graphic
-                       (icons straight from the manifest — instant, no fetch,
-                       so it never flickers). The COMPLETE cost → reward
-                       formula chips live only in the right-panel summary. -->
-                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                    <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-                    <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                    <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-                  </div>
-
-                  <!-- Non-amount pre-submit choices (a card / player / payment
-                       pick happens in the composer) — named, never a mute "X". -->
-                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                    <span aria-hidden="true">◈</span>
-                    <span>{{ choiceKindsLabel(tile) }}</span>
-                  </div>
-
-                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
-                    <span aria-hidden="true">✕</span>
-                    <span>{{ tileReason(tile) }}</span>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </ConsoleScrollArea>
-
-        <!-- ── The inspector (the ONE detail surface) ─────────────────── -->
+        <!-- ── The inspector / dossier (the ONE detail surface) ────────── -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined">
           <div class="con-cardactions__detail-kicker">{{ $t('Card') }}</div>
           <div class="con-cardactions__detail-name">{{ $t(focusedTile.cardName) }}</div>
@@ -157,7 +100,22 @@
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
           </div>
 
-          <!-- Prominent availability verdict. -->
+          <!-- The CARD ITSELF is the panel's anchor — the physical source of
+               the selected action, seated HIGH (right under its name) so it
+               stands where the focus stage's hero card will land. The action
+               SCHEMA already reads on the focused tile (repeating it large
+               here was the duplication the rework removed); the structured
+               chips below carry the complete formula. X lifts THIS thumbnail
+               into the fullscreen dossier; A FLIPs it into the focus hero. -->
+          <div class="con-cardactions__detail-card" ref="detailCard"
+               data-action-flow-thumb
+               :data-zoom-slot="focusedTile.cardName"
+               aria-hidden="true">
+            <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
+          </div>
+
+          <!-- Prominent availability verdict — tied directly under the card
+               it judges. -->
           <div class="con-cardactions__verdict" :class="'con-cardactions__verdict--' + focusedTile.status">
             <span class="con-cardactions__verdict-mark" aria-hidden="true">{{ verdictMark(focusedTile.status) }}</span>
             <div class="con-cardactions__verdict-body">
@@ -166,18 +124,6 @@
             </div>
           </div>
 
-          <!-- The CARD ITSELF is the panel's anchor — the physical source of
-               the selected action. The action SCHEMA already reads on the
-               focused tile at the left (repeating it large here was the
-               duplication this rework removes); the structured chips below
-               carry the complete formula. X lifts THIS thumbnail into the
-               fullscreen dossier; A FLIPs it into the focus stage's hero. -->
-          <div class="con-cardactions__detail-card" ref="detailCard"
-               data-action-flow-thumb
-               :data-zoom-slot="focusedTile.cardName"
-               aria-hidden="true">
-            <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
-          </div>
           <!-- A TEXT-override action keeps its ONE full prose copy (the
                master tile clamps it to a 2-line preview and the card face
                can't carry it) — only the GRAPHIC duplicate is gone. -->
@@ -243,6 +189,68 @@
             <span>{{ $t('Inspect for this game\'s history') }}</span>
           </div>
         </aside>
+
+        <ConsoleScrollArea class="con-cardactions__list" content-class="con-cardactions__list-body" ref="list">
+          <!-- Empty states — never a blank screen; names the hiding filter. -->
+          <div v-if="model.groups.length === 0" class="con-cardactions__empty">
+            <span class="con-cardactions__empty-mark" aria-hidden="true">◇</span>
+            <div class="con-cardactions__empty-title">{{ $t(emptyState.title) }}</div>
+            <div class="con-cardactions__empty-body">{{ $t(emptyState.body) }}</div>
+            <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
+          </div>
+
+          <div v-for="group in model.groups" :key="group.key"
+               class="con-cardactions__group"
+               :class="'con-cardactions__group--' + group.status">
+            <div class="con-cardactions__group-head">
+              <span class="con-cardactions__group-name">{{ $t(group.cardName) }}</span>
+              <span v-if="group.cardResource !== undefined" class="con-cardactions__group-res">
+                <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
+                <b>{{ group.cardResource.count }}</b>
+              </span>
+              <span class="con-cardactions__group-status" :class="'con-cardactions__group-status--' + group.status">
+                {{ $t(statusLabel(group.status)) }}
+              </span>
+            </div>
+
+            <div class="con-cardactions__variants">
+              <template v-for="(tile, ti) in group.tiles" :key="tile.key">
+                <div v-if="ti > 0" class="con-cardactions__or" aria-hidden="true">{{ $t('or') }}</div>
+                <div class="con-cardactions__tile"
+                     :class="[
+                       'con-cardactions__tile--' + tile.status,
+                       {
+                         'con-cardactions__tile--focused': focusKey === tile.key,
+                         'con-cardactions__tile--shake': shakeKey === tile.key,
+                       },
+                     ]"
+                     :ref="focusKey === tile.key ? 'focused' : undefined">
+                  <!-- The tile ALWAYS shows the card's OWN action graphic
+                       (icons straight from the manifest — instant, no fetch,
+                       so it never flickers). The COMPLETE cost → reward
+                       formula chips live only in the right-panel summary. -->
+                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
+                    <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+                    <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                  </div>
+
+                  <!-- Non-amount pre-submit choices (a card / player / payment
+                       pick happens in the composer) — named, never a mute "X". -->
+                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                    <span aria-hidden="true">◈</span>
+                    <span>{{ choiceKindsLabel(tile) }}</span>
+                  </div>
+
+                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                    <span aria-hidden="true">✕</span>
+                    <span>{{ tileReason(tile) }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </ConsoleScrollArea>
       </div>
       </div><!-- /__browse -->
 

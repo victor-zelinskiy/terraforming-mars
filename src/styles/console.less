@@ -13217,9 +13217,14 @@ html.console-mode {
         &--parked { pointer-events: none; }
     }
 
-    /* ── Body: master list + inspector ── */
+    /* ── Body: dossier (LEFT) + master list (RIGHT) ──
+       The dossier column leads on the LEFT on purpose: it is the browse-mode
+       twin of the focus stage's hero-card column, so the thumbnail already
+       STANDS where the focus hero lands (the enter FLIP is a short settle,
+       never a flight across the overlay) and the right side swaps
+       "variants → decisions" between the two states. */
     &__body { flex: 1; min-height: 0; display: flex; gap: .9rem; }
-    &__list { flex: 1.35; min-width: 0; }
+    &__list { flex: 1; min-width: 0; }
     &__list-body {
         display: flex; flex-direction: column; gap: .7rem; padding-right: .4rem;
     }
@@ -13325,13 +13330,16 @@ html.console-mode {
     /* The quiet divider before the direction-unknown "you choose" cluster. */
     &__vardiv { font-size: 1rem; color: fade(@con-cyan, 55%); }
 
-    /* ── The inspector (the ONE detail surface) ──
+    /* ── The inspector / dossier (the ONE detail surface, LEFT column) ──
        FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): chrome-less
        CONTENT-display panel (no cursor-driven scroll — the cursor lives in the
        master __list which IS a ConsoleScrollArea); a styled-frame wrap would
-       only add churn. Chrome hidden by .con-scrollbars(). */
+       only add churn. Chrome hidden by .con-scrollbars().
+       WIDTH is a fixed band (not a flex share): its centred thumbnail must sit
+       where the focus stage's hero card column lands — the geometry that keeps
+       the browse → focus FLIP a short settle. */
     &__detail {
-        flex: 1; min-width: 0; max-width: 44%; overflow-y: auto;
+        flex: 0 0 34%; min-width: 0; max-width: 30rem; overflow-y: auto;
         display: flex; flex-direction: column; gap: .5rem;
         padding: .7rem .8rem; border-radius: .7rem;
         background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
