@@ -3306,20 +3306,24 @@ export default defineComponent({
         // The console-native Hydronetwork grammar (full rework). The bar is
         // honest: enabled flags come from the section's live-model mirrors.
         if (consoleHydroUi.confirmOpen) {
-          // The bonus is chosen on the plan screen; the confirm modal is a
-          // read-only «before → after» beat — B goes back to change it.
-          return [
+          // The bonus (pos 1/2) is CHOSEN in the confirm modal now — LB/RB
+          // switch it, A confirms the highlighted one, B goes back.
+          const confirmCmds: Array<ConsoleCommand> = [];
+          if (consoleHydroUi.bonusChoice) {
+            confirmCmds.push({control: 'bumperL', control2: 'bumperR', label: 'Switch bonus'});
+          }
+          confirmCmds.push(
             {control: 'confirm', label: 'Confirm'},
             {control: 'back', label: 'Back'},
-          ];
+          );
+          return confirmCmds;
         }
         if (consoleHydroUi.helpOpen) {
           return [{control: 'back', label: 'Close'}];
         }
+        // The bonus choice moved to the confirm modal — the plan bar no longer
+        // carries an LB/RB «Bonus» control.
         const cmds: Array<ConsoleCommand> = [{control: 'dpadH', label: 'Stages', priority: 2}];
-        if (consoleHydroUi.bonusChoice) {
-          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Bonus'});
-        }
         cmds.push(
           // The SHORT key on purpose (the old «Farthest available» was the
           // one atom that reliably truncated in the bay bar).

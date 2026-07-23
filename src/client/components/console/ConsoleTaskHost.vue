@@ -387,6 +387,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
@@ -1115,6 +1116,15 @@ export default defineComponent({
     gridMode() {
       void this.$nextTick(() => this.fitCardStrip());
     },
+    /** Persist card-browser picks so a minimize→restore keeps the selection. */
+    picks: {
+      deep: true,
+      handler(picks: ReadonlyArray<CardName>) {
+        if (this.activeTask.kind === 'cardSelect') {
+          rememberCardBrowserPicks(this.resetKey, picks);
+        }
+      },
+    },
     /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
      *  command bar (consolePanelUi) — hints live only there, never in a
      *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
@@ -1168,7 +1178,11 @@ export default defineComponent({
       this.focusIdx = 0;
       this.armed = false;
       this.units = {};
-      this.picks = [];
+      // Card-browser picks survive a minimize→restore: seed from the
+      // defer-durable module store when the reset key matches (same prompt +
+      // card set, e.g. a re-expanded modal), otherwise start empty (a
+      // genuinely new ask / fresh card set / non-card task).
+      this.picks = this.activeTask.kind === 'cardSelect' ? recallCardBrowserPicks(this.resetKey) as Array<CardName> : [];
       this.submitting = false;
       // Payment opens on the SAME optimal default mix the desktop form uses.
       this.payCounts = this.activeTask.kind === 'payment' ?
@@ -1936,6 +1950,9 @@ export default defineComponent({
         // Byte-parity: the bare top-level {type:'card', cards} the desktop
         // CardSelectionContent / hand-select flow POSTs.
         this.submitResponse( cardsResponse(this.picks));
+        // The pick is committed — drop the defer-durable copy so it can never
+        // rehydrate a later same-key prompt.
+        clearCardBrowserPicks();
         return;
       case 'payment':
         this.submitResponse( paymentResponse(

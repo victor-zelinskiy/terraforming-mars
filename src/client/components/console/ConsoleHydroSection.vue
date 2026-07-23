@@ -173,23 +173,17 @@
       <!-- Column 3: reward planning + CTA / specific reasons -->
       <div class="con-hydro__col con-hydro__col--act">
         <template v-if="model.mode === 'plan'">
-          <!-- Bonus selector (pos 1/2) with the LB/RB glyphs AT the control. -->
+          <!-- A CHOICE stage (pos 1/2) previews BOTH options read-only here; the
+               actual pick moves to the confirm modal (good presentation, LB/RB). -->
           <template v-if="model.targetNeedsChoice && model.targetStage !== undefined">
-            <div class="con-hydro__section-label con-hydro__bonus-head">
-              <span>{{ $t('Bonus') }}</span>
-              <span class="con-hydro__bonus-keys" aria-hidden="true">
-                <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
-                <span>{{ $t('Switch bonus') }}</span>
-              </span>
+            <div class="con-hydro__section-label">{{ $t('Bonus') }}</div>
+            <div class="con-hydro__bonus-preview">
+              <HydroReward :chips="model.targetStage.rewardOptions[0]" />
+              <span class="con-hydro__stop-or">{{ $t('or') }}</span>
+              <HydroReward :chips="model.targetStage.rewardOptions[1]" />
             </div>
-            <div class="con-hydro__bonuses" :class="{'con-hydro__bonuses--attention': bonusAttention}">
-              <div v-for="(opt, idx) in model.targetStage.rewardOptions" :key="idx"
-                   class="con-hydro__bonus"
-                   :class="{'con-hydro__bonus--selected': rewardChoice === idx}"
-                   @click="onChoice(idx)">
-                <HydroReward :chips="opt" />
-                <span v-if="rewardChoice === idx" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-              </div>
+            <div class="con-hydro__req-note con-hydro__req-note--muted">
+              ↳ {{ $t('The bonus is chosen when you confirm') }}
             </div>
           </template>
           <template v-else>
@@ -211,18 +205,6 @@
               </div>
             </div>
           </template>
-
-          <!-- Choice-stage deltas once a bonus IS chosen. -->
-          <div v-if="model.targetNeedsChoice && rewardView.lines.length > 0" class="con-hydro__gains con-hydro__gains--chosen">
-            <div v-for="(l, i) in rewardView.lines" :key="'c' + i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
-              <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
-                <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
-              </span>
-              <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-              <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
-              <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
-            </div>
-          </div>
 
           <!-- Pos 7/9 card pick — resolved via the console sheet (A). -->
           <div v-if="model.needsCardSelect !== undefined" class="con-hydro__pick">
@@ -361,7 +343,7 @@ import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM, HydroStageHistoryEntry} from '@/client/components/hydronetwork/hydroNetworkModel';
-import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
+import {HydroStage, HYDRO_STAGES, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
@@ -414,9 +396,6 @@ export default defineComponent({
       ui: consoleHydroUi,
       /** The marker-advance controller (drives the glide hide + settle glow). */
       hydroMarkerState,
-      /** One-shot attention pulse on the bonus selector (A with no bonus chosen). */
-      bonusAttention: false,
-      bonusAttentionTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   computed: {
@@ -668,6 +647,16 @@ export default defineComponent({
     model(): void {
       this.syncUiMirrors();
     },
+    // The INITIAL target (set outside selectPosition) also gets a default bonus
+    // for a choice stage — the plan never sits on an unconfirmable choice stage.
+    'model.targetNeedsChoice': {
+      immediate: true,
+      handler(needs: boolean): void {
+        if (needs && hydroNetworkState.rewardChoice === undefined) {
+          hydroNetworkState.rewardChoice = 0;
+        }
+      },
+    },
   },
   mounted(): void {
     resetConsoleHydroUi();
@@ -676,9 +665,6 @@ export default defineComponent({
   },
   beforeUnmount(): void {
     resetConsoleHydroUi();
-    if (this.bonusAttentionTimer !== undefined) {
-      clearTimeout(this.bonusAttentionTimer);
-    }
   },
   methods: {
     $t,
@@ -748,29 +734,13 @@ export default defineComponent({
         return;
       }
       hydroNetworkState.selectedPosition = next;
-      // A different destination invalidates a pending bonus choice / card.
-      hydroNetworkState.rewardChoice = undefined;
+      // A different destination invalidates a pending card pick. A CHOICE stage
+      // (pos 1/2) carries a DEFAULT bonus (option 0) so the plan CTA is live and
+      // the confirm modal — where the pick now lives — opens with a selection to
+      // switch (LB/RB); a non-choice stage clears it.
+      const stage = HYDRO_STAGES[next];
+      hydroNetworkState.rewardChoice = stage !== undefined && hydroStageNeedsChoice(stage) ? 0 : undefined;
       hydroNetworkState.selectedCard = undefined;
-    },
-    onChoice(idx: number): void {
-      hydroNetworkState.rewardChoice = idx;
-    },
-    cycleChoice(step: 1 | -1): void {
-      const options = this.model.targetStage?.rewardOptions.length ?? 0;
-      if (options <= 1) {
-        return;
-      }
-      const cur = hydroNetworkState.rewardChoice ?? -1;
-      this.onChoice(((cur + step) % options + options) % options);
-    },
-    flashBonus(): void {
-      this.bonusAttention = true;
-      if (this.bonusAttentionTimer !== undefined) {
-        clearTimeout(this.bonusAttentionTimer);
-      }
-      this.bonusAttentionTimer = setTimeout(() => {
-        this.bonusAttention = false;
-      }, 900);
     },
     /** A — the smart primary: resolve the first pending step, then confirm. */
     onPrimary(): void {
@@ -784,11 +754,9 @@ export default defineComponent({
         this.$emit('notice', this.reasonText(blocking[0]));
         return;
       }
-      if (this.model.targetNeedsChoice && this.rewardChoice === undefined) {
-        this.flashBonus();
-        this.$emit('notice', translateText('Choose a bonus'));
-        return;
-      }
+      // The bonus (pos 1/2) is chosen INSIDE the confirm modal now — a choice
+      // stage always carries a default (option 0), so A opens the modal
+      // directly; the pos 7/9 card pick still resolves first via its sheet.
       if (this.model.mustSelectCard && this.model.selectedCard === undefined) {
         this.$emit('pick');
         return;
@@ -833,22 +801,15 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'nav') {
+        // ←/→ move between stages; the bonus choice lives in the confirm modal
+        // now (LB/RB there), so ↑/↓ have no plan-screen action.
         if (intent.dir === 'left' || intent.dir === 'right') {
           this.selectPosition(this.model.selectedPosition + (intent.dir === 'right' ? 1 : -1));
-          return;
         }
-        // ↑/↓ mirror LB/RB on a choice stage.
-        this.cycleChoice(intent.dir === 'down' ? 1 : -1);
         return;
       }
       // Foundation: presses resolve to SEMANTIC actions (no raw button names).
       switch (consoleActionOf(intent)) {
-      case 'prevSection':
-        this.cycleChoice(-1);
-        return;
-      case 'nextSection':
-        this.cycleChoice(1);
-        return;
       case 'nextTab': { // RT — jump to the FURTHEST legal+affordable stage.
         const max = this.preview?.maxLegalSteps ?? 0;
         if (max > 0) {

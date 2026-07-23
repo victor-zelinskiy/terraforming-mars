@@ -549,9 +549,21 @@ html.con-profile-tv {
         small { font-size: var(--con-t-floor); }
     }
     .con-hydroconfirm {
-        &__frame { width: min(46rem, 90vw); }
-        &__stage-name { font-size: 1.3rem; }
-        &__spend-num { font-size: 1.4rem; }
+        /* Wider on the couch — the bonus picker's two option cards read big. */
+        &__frame { width: min(54rem, 88vw); }
+        &__body { gap: 0.9rem; }
+        /* Section titles (.con-start__section-title) lead each block. */
+        .con-start__section-title { font-size: var(--con-t-body); letter-spacing: 0.06rem; }
+        &__route { padding: 0.7rem 0.95rem; }
+        &__stage-name { font-size: 1.4rem; }
+        &__route-path { font-size: var(--con-t-body); b { font-size: 1.25rem; } }
+        &__spend { padding: 0.55rem 0.9rem; font-size: var(--con-t-body); }
+        &__spend-num { font-size: 1.5rem; }
+        &__beforeafter b { font-size: 1.2rem; }
+        /* The bonus PICKER — the hero decision of the modal on TV. */
+        &__bonus { min-height: 5.4rem; padding: 1rem 1.2rem; }
+        &__bonus-badge { font-size: var(--con-t-caption); top: 0.5rem; left: 0.7rem; }
+        &__bonus-tick { font-size: 1.4rem; top: 0.5rem; right: 0.7rem; }
         &__delta { font-size: 1.1rem; }
         &__delta-img { width: 1.7rem; height: 1.7rem; }
         &__delta-note { font-size: var(--con-t-caption); }
@@ -561,7 +573,7 @@ html.con-profile-tv {
         &__note { font-size: var(--con-t-caption); }
         &__skips { font-size: var(--con-t-secondary); }
         &__vpline { font-size: var(--con-t-secondary); }
-        &__bonus-keys { font-size: var(--con-t-floor); }
+        &__bonus-keys { font-size: var(--con-t-caption); }
         /* (__tick inside the ×ui-scale zoomed bonus row stays px — see the
            keep-px rule in console.less; a rem bump here would double-scale.) */
     }

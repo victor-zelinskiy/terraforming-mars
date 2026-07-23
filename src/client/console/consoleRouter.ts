@@ -74,7 +74,41 @@ export const consoleState = reactive({
   shellMounted: false,
   /** CTS task-host UI state: B defers the task to inspect the board. */
   task: {deferred: false},
+  /**
+   * DEFER-DURABLE card-browser picks (buy / draft / target). The task-host
+   * component is UNMOUNTED while the task is deferred (B = «Свернуть»), which
+   * would otherwise drop its component-local `picks`. This module store
+   * survives that remount so a minimize→restore keeps the player's selection —
+   * mirroring how the mandatory hand-`select` picks survive a defer→resume.
+   * Keyed by the host's `resetKey` (prompt identity + card set): a genuinely
+   * new ask / fresh card set carries a different key and rehydrates empty; a
+   * same-key remount restores the picks. Cleared after the pick is submitted.
+   */
+  cardBrowser: {key: '' as string, picks: [] as Array<string>},
 });
+
+/**
+ * Persist the card-browser picks under the host's current reset key so a
+ * minimize→restore (which unmounts the task host) can rehydrate them.
+ */
+export function rememberCardBrowserPicks(key: string, picks: ReadonlyArray<string>): void {
+  consoleState.cardBrowser.key = key;
+  consoleState.cardBrowser.picks = [...picks];
+}
+
+/**
+ * Recall the picks stored for `key` — an empty array when the stored key does
+ * not match (a genuinely new prompt / card set, or nothing stored).
+ */
+export function recallCardBrowserPicks(key: string): Array<string> {
+  return consoleState.cardBrowser.key === key ? [...consoleState.cardBrowser.picks] : [];
+}
+
+/** Drop the persisted card-browser picks (after a submit / on game switch). */
+export function clearCardBrowserPicks(): void {
+  consoleState.cardBrowser.key = '';
+  consoleState.cardBrowser.picks = [];
+}
 
 /**
  * Reset transient layers (quick selectors / sheets / confirm / sale) — e.g. on

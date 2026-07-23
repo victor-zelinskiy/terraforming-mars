@@ -93,6 +93,7 @@
   "Requires ${0} energy — you have ${1}": "Нужно энергии: ${0} — у вас ${1}",
   "Choose a bonus": "Выберите бонус",
   "Switch bonus": "Сменить бонус",
+  "The bonus is chosen when you confirm": "Бонус выбирается при подтверждении",
   "Skipped rewards": "Пропущенные награды",
   "Covered by a wild tag": "Закрыто универсальной меткой",
   "You will spend": "Будет потрачено",

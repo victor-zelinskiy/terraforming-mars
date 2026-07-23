@@ -2123,51 +2123,20 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
 
     /* Action column */
-    &__bonus-head {
+    /* The plan previews BOTH bonus options read-only (the pick moved to the
+       confirm modal); the px HydroReward content rides the TV zoom. */
+    &__bonus-preview {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-    }
-    &__bonus-keys {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        font-size: .675rem;
-        color: @con-text-dim;
-        text-transform: none;
-        letter-spacing: .02rem;
-    }
-    &__bonuses {
-        display: flex;
-        flex-direction: column;
-        gap: .4rem;
-        &--attention { animation: con-hydro-attention calc(450ms * var(--motion-scale, 1)) ease 2; }
-    }
-    &__bonus {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
+        gap: .45rem;
+        flex-wrap: wrap;
         padding: .5rem .7rem;
         border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
+        background: rgba(14, 22, 33, 0.5);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
-        cursor: pointer;
-        /* px HydroReward content — the row zoom rides the TV scale. */
-        zoom: calc(1.1 * var(--con-ui-scale, 1));
-        .con-visual-transition(140ms);
-
-        &--selected {
-            background: fade(@con-cyan, 12%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 .7rem fade(@con-cyan, 18%);
-        }
+        zoom: calc(1.05 * var(--con-ui-scale, 1));
     }
-    &__bonus-tick { color: @con-hydro-mint; font-size: .9rem; font-weight: 800; }
-    /* Inside the ×ui-scale zoomed bonus row the tick must be px (rem would double-scale on TV). */
-    &__bonus &__bonus-tick { font-size: 18px; } /* keep-px */
     &__gains { display: flex; flex-direction: column; gap: .4rem; }
-    &__gains--chosen { margin-top: .1rem; }
     &__delta {
         display: flex;
         align-items: center;
@@ -2450,10 +2419,51 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         text-transform: none;
         letter-spacing: .02rem;
     }
-    /* px HydroReward content — the row zoom rides the TV scale. */
-    &__bonus { cursor: pointer; zoom: calc(1.1 * var(--con-ui-scale, 1)); }
+    /* The bonus PICKER (pos 1/2) — two selectable option cards; the chosen one
+       lights mint. The px HydroReward content rides the TV zoom. */
+    &__bonuses { display: flex; gap: .7rem; }
+    &__bonus {
+        position: relative;
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 4.2rem;
+        padding: .85rem 1rem;
+        border: none;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28);
+        cursor: pointer;
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease,
+            background calc(150ms * var(--motion-scale, 1)) ease;
+        .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
+        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 50%); }
+        &--selected {
+            background: fade(@con-hydro-mint, 13%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 88%), 0 0 1rem fade(@con-hydro-mint, 22%);
+        }
+    }
+    &__bonus-badge {
+        position: absolute;
+        top: .35rem;
+        left: .5rem;
+        font-size: .7rem;
+        font-weight: 800;
+        color: @con-text-dim;
+    }
     &__tick { color: @con-hydro-mint; font-size: .9rem; font-weight: 800; margin-left: auto; }
-    &__bonus &__tick { font-size: 18px; } /* keep-px: inside the zoomed bonus row */
+    &__bonus-tick {
+        position: absolute;
+        top: .35rem;
+        right: .5rem;
+        color: @con-hydro-mint;
+        font-size: 1rem;
+        font-weight: 800;
+        opacity: 0;
+        transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+    }
+    &__bonus--selected &__bonus-tick { opacity: 1; }
     &__gains { display: flex; flex-direction: column; gap: .4rem; }
     &__delta { display: flex; align-items: center; gap: .45rem; font-size: .85rem; }
     &__delta-ico {
@@ -2539,14 +2549,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 .8rem fade(@con-hydro-mint, 14%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 90%), 0 0 1.3rem fade(@con-hydro-mint, 26%); }
 }
-@keyframes con-hydro-attention {
-    0%, 100% { transform: translateX(0); }
-    30% { transform: translateX(-.25rem); }
-    70% { transform: translateX(.25rem); }
-}
 @media (prefers-reduced-motion: reduce) {
     .con-hydro__cta { animation: none; }
-    .con-hydro__bonuses--attention { animation: none; }
 }
 
 /* ── Hydronetwork · handheld profile (Steam Deck 1280×800 — the primary
@@ -9988,7 +9992,9 @@ html.con-scale-focus-venus .arc-scale--venus {
         margin-top: .1rem;
         padding: .4rem .6rem;
         border-radius: .5rem;
-        background: rgba(10, 17, 26, 0.55);
+        /* Match the colonies-screen panel opacity (`@con-glass`, alpha .92) so
+           the reason rail reads as solid chrome, not a transparent film. */
+        background: @con-glass;
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         min-height: 2rem;
     }
