@@ -56,13 +56,16 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     consoleCardActionsUi.confirmOpen = false;
   });
 
-  it('BROWSE: the inspector anchors on the card THUMBNAIL (a physical zoom slot), the old graphic duplicate is gone', async () => {
+  it('BROWSE: the inspector anchors on the card THUMBNAIL (a physical zoom slot) with the tableau resource counter, the old graphic duplicate is gone', async () => {
     const w = factory();
     await settle(w);
-    const thumb = w.find('.con-cardactions__detail-card');
+    const thumb = w.find('.con-cardactions__detail-cardwrap');
     expect(thumb.exists()).to.eq(true);
     expect(thumb.attributes('data-zoom-slot')).to.eq(CARD);
     expect(thumb.attributes('data-action-flow-thumb')).to.not.eq(undefined);
+    // The stored-resource counter rides the thumbnail in the SHARED tableau
+    // chip language (con-played__res) — never a new visual pattern.
+    expect(thumb.find('.con-played__res').text()).to.eq('2');
     expect(w.find('.con-cardactions__detail-graphic').exists()).to.eq(false);
     // No focus stage yet; the browse layer is live.
     expect(w.find('.con-composer--stage').exists()).to.eq(false);

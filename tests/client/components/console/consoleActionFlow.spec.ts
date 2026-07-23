@@ -37,10 +37,12 @@ describe('consoleActionFlow', () => {
       expect(run).to.deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
     });
 
-    it('reveal phase: face-down narrates the beat; the shown outcome offers OK + Inspect', () => {
+    it('reveal phase: face-down narrates the beat; the shown outcome offers OK + Inspect + L3 Source', () => {
       expect(focusCommandRun({state: 'reveal-pending'}))
         .to.deep.eq([{control: 'confirm', label: 'Revealing the card…', enabled: false}]);
-      expect(focusCommandRun({state: 'reveal-shown'}).map((c) => c.label)).to.deep.eq(['OK', 'Inspect']);
+      const shown = focusCommandRun({state: 'reveal-shown'});
+      expect(shown.map((c) => c.label)).to.deep.eq(['OK', 'Inspect', 'Source']);
+      expect(shown[2].control).to.eq('stickL');
     });
 
     it('sub-list: A selects, X inspects ONLY a card list, B backs', () => {

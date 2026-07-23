@@ -8,29 +8,41 @@
        action center owns the shared `.con-shade`); the panel is the captured
        unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
        into the reveal result's «Источник» slot on the phase handoff. -->
-  <div class="con-composer con-composer--stage" role="region" :aria-label="$t(hasDecisions ? 'Action setup' : 'Confirmation')" data-motion-surface="action-composer">
+  <div ref="rootEl" class="con-composer con-composer--stage" role="region" :aria-label="$t(hasDecisions ? 'Action setup' : 'Confirmation')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
            arrives from the browser's inspector thumbnail, X inspects it
            fullscreen from this very slot) · the decision/summary column. -->
       <div class="con-composer__actmain con-composer__actmain--stage">
       <div class="con-composer__actside">
-        <div class="con-composer__actcard con-composer__actcard--stage" aria-hidden="true"
+        <!-- The UNZOOMED wrap is the FLIP / zoom / anchor target (transform
+             px stay 1:1) and the positioned host of the resource counter —
+             the badge must sit OUTSIDE the card's `zoom:` context or the TV
+             profile would scale it twice. -->
+        <div class="con-composer__actcardwrap" aria-hidden="true"
              :data-motion-anchor="'card:' + entry.cardName"
              :data-zoom-slot="entry.cardName"
              data-action-focus-card>
-          <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
-               the inner action's card without a remount — the face crossfades
-               while the slot (the FLIP/zoom target) stays stable. -->
-          <transition name="con-actfocus-card" mode="out-in">
-            <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" />
-          </transition>
+          <div class="con-composer__actcard con-composer__actcard--stage">
+            <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
+                 the inner action's card without a remount — the face crossfades
+                 while the slot (the FLIP/zoom target) stays stable. -->
+            <transition name="con-actfocus-card" mode="out-in">
+              <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" />
+            </transition>
+          </div>
+          <!-- The stored-resource counter — the SAME chip the played tableau
+               wears (one counter language everywhere). -->
+          <span v-if="storedResource !== undefined"
+                class="con-played__res con-composer__cardres"
+                :class="{'con-composer__cardres--pop': revealGainPop}">{{ displayedStoredCount }}</span>
         </div>
         <!-- The live stored resource on the source card (decision-relevant:
              most spend-branches consume exactly this pool). -->
-        <div v-if="storedResource !== undefined" class="con-composer__cardmeta">
+        <div v-if="storedResource !== undefined" class="con-composer__cardmeta"
+             :class="{'con-composer__cardmeta--pop': revealGainPop}">
           <i class="con-composer__cardmeta-icon" :class="iconClass(storedResource.icon)" aria-hidden="true"></i>
-          <b>{{ storedResource.count }}</b>
+          <b>{{ displayedStoredCount }}</b>
           <span>{{ $t('on this card') }}</span>
         </div>
       </div>
@@ -330,6 +342,13 @@
         </div>
       </div>
 
+      <!-- The GAIN beat: on a met condition the earned resource icon flies
+           from the revealed card into the source card's counter — the player
+           reads «открыл → условие выполнено → ресурс лёг на карту → счётчик
+           обновился» as one continuous sentence. -->
+      <i v-if="revealGainFlying" class="con-composer__gainfly" ref="gainFly"
+         :class="revealRewardIconClass" aria-hidden="true"></i>
+
       <!-- The command contract (composer context) lives in the global
            command bar (CONSOLE_TV_PREMIUM_PLAN §3.2). -->
     </div>
@@ -393,7 +412,7 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
+import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
@@ -480,6 +499,19 @@ export default defineComponent({
       revealFlightOn: false,
       /** The live flight handle (payload release + abort). */
       revealHandle: undefined as ActionRevealFlightHandle | undefined,
+      /** The stored-resource count CAPTURED when the reveal phase opened —
+       *  the live tableau already carries the reward when the answer lands,
+       *  so the counters hold the BEFORE value until the gain beat plays
+       *  (the increment must be SEEN, never leaked early). */
+      revealResBaseline: undefined as number | undefined,
+      /** The gain beat delivered — the counters show the live value. */
+      revealGainApplied: false,
+      /** The flying reward icon (revealed card → the source counter). */
+      revealGainFlying: false,
+      revealGainHandle: undefined as RevealGainFlightHandle | undefined,
+      /** One-shot pop on the counter + the «на этой карте» chip. */
+      revealGainPop: false,
+      revealGainPopTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -604,6 +636,19 @@ export default defineComponent({
     revealVpGain(): number {
       const vp = this.revealPayload?.vp;
       return vp === undefined ? 0 : Math.max(0, vp.to - vp.from);
+    },
+    /** The counter value the player SEES: the pre-reveal baseline until the
+     *  gain beat lands, the live tableau value everywhere else. */
+    displayedStoredCount(): number {
+      const live = this.storedResource?.count ?? 0;
+      if (this.reveal !== undefined && !this.revealGainApplied && this.revealResBaseline !== undefined) {
+        return this.revealResBaseline;
+      }
+      return live;
+    },
+    revealRewardIconClass(): string {
+      const icon = this.revealPayload?.reward?.icon;
+      return icon !== undefined ? iconClassFor(icon) : '';
     },
     /** What kind of row the focus cursor is on — drives the A-verb of the
      *  command contract (the bar always names exactly what A will do). */
@@ -797,16 +842,32 @@ export default defineComponent({
     // {} → {payload} must NOT relaunch the flight — only ENTER/EXIT do).
     reveal(next: {payload?: RevealResultModel} | undefined, prev: {payload?: RevealResultModel} | undefined) {
       if (next !== undefined && prev === undefined) {
+        // Freeze the visible counter at its PRE-reveal value: the answer's
+        // commit already carries the reward, and the increment must be a
+        // SEEN beat, never a leaked spoiler.
+        this.revealResBaseline = this.storedResource?.count;
+        this.revealGainApplied = false;
         this.beginRevealFlight();
       } else if (next === undefined && prev !== undefined) {
         this.abortRevealFlight();
       }
     },
-    // The server's answer landed — the face exists, the flip may run.
+    // The server's answer landed — the face exists, the flip may run. On the
+    // degraded no-flight path (no stage DOM — the test runner, a torn-down
+    // layout) the phase is already 'settled' with NO handle: the gain beat
+    // must still fire here, or a late payload would leave the counters
+    // frozen at the baseline forever.
     'reveal.payload'(payload: RevealResultModel | undefined) {
-      if (payload !== undefined) {
-        void this.$nextTick(() => this.revealHandle?.notifyPayload());
+      if (payload === undefined) {
+        return;
       }
+      void this.$nextTick(() => {
+        if (this.revealHandle !== undefined) {
+          this.revealHandle.notifyPayload();
+        } else if (this.revealStage === 'settled' && !this.revealGainApplied) {
+          this.maybeRunGainBeat();
+        }
+      });
     },
     playerView() {
       // Keep the in-flight CTA while the COMMITTED submit is still awaiting
@@ -835,6 +896,9 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.abortRevealFlight();
+    if (this.revealGainPopTimer !== undefined) {
+      window.clearTimeout(this.revealGainPopTimer);
+    }
     resetConsoleActionComposerUi();
   },
   methods: {
@@ -1256,10 +1320,16 @@ export default defineComponent({
       // (the beat is short and self-explaining); once settled A/B acknowledge
       // and X inspects the revealed card.
       if (this.reveal !== undefined) {
-        const action = consoleActionOf(intent);
         if (this.revealStage !== 'settled' || this.revealPayload === undefined) {
           return;
         }
+        // L3 = the SOURCE card fullscreen (the console-wide source verb —
+        // mirrors the single-card reveal's L3 received ⇄ source flip).
+        if (intent.kind === 'press' && intent.button === 'stickL') {
+          this.$emit('inspect-source');
+          return;
+        }
+        const action = consoleActionOf(intent);
         if (action === 'primary' || action === 'back') {
           this.ackReveal();
         } else if (action === 'inspect') {
@@ -1609,6 +1679,7 @@ export default defineComponent({
             this.revealStage = 'settled';
             this.revealFlightOn = false;
             this.revealHandle = undefined;
+            this.maybeRunGainBeat();
           },
         });
         if (this.revealPayload !== undefined) {
@@ -1616,10 +1687,60 @@ export default defineComponent({
         }
       });
     },
+    /**
+     * The GAIN beat (condition met, the reward lives on the source card):
+     * the earned resource icon flies from the revealed card into the source
+     * counter; on arrival BOTH counters (the card badge + «на этой карте»)
+     * tick to the live value with a one-shot pop. Cosmetic and non-blocking
+     * — OK / X / L3 work throughout.
+     */
+    maybeRunGainBeat(): void {
+      const payload = this.revealPayload;
+      const live = this.storedResource?.count;
+      if (payload === undefined || !payload.conditionMet || payload.reward === undefined ||
+          live === undefined || this.revealResBaseline === undefined || live === this.revealResBaseline) {
+        // Nothing landed on the source card — show the live truth directly.
+        this.revealGainApplied = true;
+        return;
+      }
+      this.revealGainFlying = true;
+      void this.$nextTick(() => {
+        const el = this.$refs.gainFly as HTMLElement | undefined;
+        const from = this.$refs.revealSlot as HTMLElement | undefined;
+        // The explicit root ref — NEVER $el (a dev-build root comment makes
+        // the template a fragment, whose $el is a Comment node).
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const to = root?.querySelector<HTMLElement>('.con-composer__cardres');
+        if (el === undefined || from === undefined || to === null || to === undefined) {
+          this.applyRevealGain();
+          return;
+        }
+        this.revealGainHandle = runRevealGainFlight({
+          el, fromEl: from, toEl: to,
+          onArrive: () => this.applyRevealGain(),
+        });
+      });
+    },
+    applyRevealGain(): void {
+      this.revealGainHandle = undefined;
+      this.revealGainFlying = false;
+      this.revealGainApplied = true;
+      this.revealGainPop = true;
+      if (this.revealGainPopTimer !== undefined) {
+        window.clearTimeout(this.revealGainPopTimer);
+      }
+      this.revealGainPopTimer = window.setTimeout(() => {
+        this.revealGainPop = false;
+      }, 750);
+    },
     abortRevealFlight(): void {
       this.revealHandle?.kill();
       this.revealHandle = undefined;
+      this.revealGainHandle?.kill();
+      this.revealGainHandle = undefined;
       this.revealFlightOn = false;
+      this.revealGainFlying = false;
+      this.revealGainPop = false;
       this.revealStage = 'pending';
     },
     /** OK on the shown outcome: the parent marks the reveal seen and returns
@@ -1637,7 +1758,7 @@ export default defineComponent({
       openConsoleCardZoom([payload.revealed], 0, undefined, undefined, {
         contextLabel: 'Reveal result',
         origin: slotZoomOrigin(
-          () => this.$el as HTMLElement | undefined,
+          () => this.$refs.rootEl as HTMLElement | undefined,
           () => 'revealed:' + payload.revealed.name),
       });
     },

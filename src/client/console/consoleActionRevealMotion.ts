@@ -201,3 +201,69 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
     },
   };
 }
+
+// ── The GAIN beat (condition met) ───────────────────────────────────────────
+
+/** The short pause after the verdict before the reward starts moving. */
+const GAIN_DELAY_MS = 240;
+/** The reward icon's travel (revealed card → the source counter). */
+const GAIN_TRAVEL_MS = 480;
+
+export type RevealGainFlightHandle = {kill(): void};
+
+/**
+ * Fly the earned resource icon from the REVEALED card into the SOURCE card's
+ * counter, then fire `onArrive` (the composer ticks both counters with a
+ * pop). Cosmetic and non-blocking; reduced motion / unmeasurable rects skip
+ * the travel and arrive after a beat.
+ */
+export function runRevealGainFlight(args: {
+  el: HTMLElement;
+  fromEl: HTMLElement;
+  toEl: HTMLElement;
+  onArrive: () => void;
+}): RevealGainFlightHandle {
+  const {el, fromEl, toEl, onArrive} = args;
+  let dead = false;
+  let arrived = false;
+  const arrive = () => {
+    if (!dead && !arrived) {
+      arrived = true;
+      onArrive();
+    }
+  };
+  if (typeof window === 'undefined') {
+    arrive();
+    return {kill: () => { /* done */ }};
+  }
+  const from = fromEl.getBoundingClientRect();
+  const to = toEl.getBoundingClientRect();
+  const usable = from.width >= 10 && to.width >= 2;
+  if (consoleReducedMotionActive() || !usable) {
+    const timer = window.setTimeout(arrive, 160);
+    return {kill: () => {
+      dead = true;
+      window.clearTimeout(timer);
+    }};
+  }
+  const size = el.getBoundingClientRect().width || 34;
+  const fromX = from.left + from.width / 2 - size / 2;
+  const fromY = from.top + from.height * 0.42 - size / 2;
+  const toX = to.left + to.width / 2 - size / 2;
+  const toY = to.top + to.height / 2 - size / 2;
+  gsap.set(el, {x: fromX, y: fromY, scale: 0.9, autoAlpha: 0});
+  const tl = gsap.timeline();
+  // A soft rise out of the revealed card…
+  tl.to(el, {autoAlpha: 1, scale: 1.12, duration: s(140), ease: 'power2.out'}, s(GAIN_DELAY_MS) / 1);
+  // …then the arced travel into the counter (x/y on different eases), the
+  // icon condensing as it lands.
+  tl.to(el, {x: toX, duration: s(GAIN_TRAVEL_MS), ease: 'power2.inOut'}, '>-0.02');
+  tl.to(el, {y: toY, duration: s(GAIN_TRAVEL_MS), ease: 'power3.in'}, '<');
+  tl.to(el, {scale: 0.5, duration: s(GAIN_TRAVEL_MS * 0.6), ease: 'power2.in'}, `<${s(GAIN_TRAVEL_MS * 0.4)}`);
+  tl.to(el, {autoAlpha: 0, duration: s(110), ease: 'power1.in'}, `-=${s(90)}`);
+  tl.call(arrive);
+  return {kill: () => {
+    dead = true;
+    tl.kill();
+  }};
+}

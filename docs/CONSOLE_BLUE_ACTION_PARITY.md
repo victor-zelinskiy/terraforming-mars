@@ -66,6 +66,30 @@
   колбэков тот же. Standalone `ConsoleRevealOverlay` 'result' ЖИВ как
   fallback для reveal вне стадии.
 
+**Доводка reveal-фазы (итерация 6b):** (1) **source пиксельно неподвижен
+confirm ⇄ reveal ПО ПОСТРОЕНИЮ** — `actmain--stage` = полновысотный grid с
+`align-items: center`: высота hero-колонки константна → её центр не зависит
+от правой колонки; правая (`actright`) — `align-self: stretch` +
+`justify-content: safe center` (свой центрированный блок на фазу; CTA под
+контентом, void нет; `__scroll`/`__revealzone` → `flex: 0 1 auto`).
+(2) Вскрытая карта КРУПНЕЕ источника (`--arz` 1.16 vs hero 1.04) —
+протагонист фазы. (3) **L3 = fullscreen ИСТОЧНИКА** в shown-состоянии
+(console-конвенция L3=источник; run: A OK · X Осмотреть · L3 Источник).
+(4) **Счётчик ресурсов на карточных ЛИЦАХ** overlay (браузерная миниатюра +
+hero стадии) — ТОТ ЖЕ чип, что на столе (`.con-played__res`), сидит на
+НЕзумленной обёртке (`__detail-cardwrap` / `__actcardwrap` — внутри zoom
+бейдж масштабировался бы дважды на TV; FLIP/zoom-атрибуты переехали на
+обёртки, effZoom=1). (5) **GAIN-бит при выполненном условии**: счётчики
+ЗАМОРОЖЕНЫ на pre-reveal значении (`revealResBaseline` — коммит ответа уже
+несёт награду, инкремент должен быть УВИДЕН), после settle иконка награды
+летит из вскрытой карты в бейдж source (`runRevealGainFlight`, дуга,
+z 11610), по прибытии оба счётчика (бейдж + «на этой карте») тикают с
+one-shot поп-анимацией (`con-res-pop`); reduced motion — короткий бит без
+полёта, тот же порядок. ⚠ ГОЧА: **НИКОГДА `this.$el` в этих компонентах** —
+dev-сборка сохраняет корневые комментарии → фрагмент → `$el` = Comment без
+`querySelector` (в prod комменты вырезаны — маскируется); только явный
+`ref="rootEl"` (починено в композере и ConsoleCardActions).
+
 Гварды: `consoleActionFlow.spec.ts` (стадии + command-run'ы),
 `composerRender.spec.ts` (stage-рендер / CTA-док / hint / X→inspect-source /
 A-Далее / cardmeta), `consoleCardActionsFocus.spec.ts` (mount: A→стадия в

@@ -279,9 +279,12 @@ for (const profile of PROFILES) {
       }
       await page.waitForTimeout(4200); // played-hero scene settles, card lands
 
-      // ── 4. The blue-card action: RT → ↑ (card actions) → composer. ──────
-      await key(page, 'Period', 600);
-      await key(page, 'ArrowUp', 1000);
+      // ── 4. The blue-card action: RT → ↑ (card actions) → composer.
+      // Verified entry (a press on a busy 4K frame is silently dropped). ───
+      for (let tries = 0; tries < 4 && await page.locator('.con-cardactions').count() === 0; tries++) {
+        await key(page, 'Period', 700);
+        await key(page, 'ArrowUp', 1200);
+      }
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
       expect(await page.locator('.con-cardactions__backdrop').count(), 'action center has no private backdrop').toBe(0);
       await key(page, 'Enter', 800); // open the composer for Search For Life

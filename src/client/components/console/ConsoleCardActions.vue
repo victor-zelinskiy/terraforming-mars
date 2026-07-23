@@ -2,7 +2,7 @@
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (surfaceMotionDirector) — no own backdrop; the frame is the
        animated panel, the composer above is its own motion surface. -->
-  <div class="con-cardactions" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
+  <div ref="rootEl" class="con-cardactions" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
     <div class="con-cardactions__frame" data-motion-panel>
@@ -110,12 +110,19 @@
                SCHEMA already reads on the focused tile (repeating it large
                here was the duplication the rework removed); the structured
                chips below carry the complete formula. X lifts THIS thumbnail
-               into the fullscreen dossier; A FLIPs it into the focus hero. -->
-          <div class="con-cardactions__detail-card" ref="detailCard"
+               into the fullscreen dossier; A FLIPs it into the focus hero.
+               The UNZOOMED wrap carries the FLIP/zoom contracts AND hosts the
+               stored-resource counter (the played tableau's chip language) —
+               a badge inside the zoom context would scale twice on TV. -->
+          <div class="con-cardactions__detail-cardwrap" ref="detailCard"
                data-action-flow-thumb
                :data-zoom-slot="focusedTile.cardName"
                aria-hidden="true">
-            <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
+            <div class="con-cardactions__detail-card">
+              <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
+            </div>
+            <span v-if="focusedGroup !== undefined && focusedGroup.cardResource !== undefined"
+                  class="con-played__res">{{ focusedGroup.cardResource.count }}</span>
           </div>
 
           <!-- Prominent availability verdict — tied directly under the card
@@ -874,8 +881,10 @@ export default defineComponent({
       });
       openConsoleCardZoom([card], 0, undefined, undefined, {
         contextLabel: 'Card actions',
+        // The explicit root ref — never $el (a dev-build root comment makes
+        // the template a fragment, whose $el is a Comment node).
         origin: slotZoomOrigin(
-          () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-motion-surface="action-composer"]'),
+          () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-motion-surface="action-composer"]'),
           () => comp.cardName),
         inspect: {history},
       });

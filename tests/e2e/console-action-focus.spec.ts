@@ -199,7 +199,7 @@ for (const profile of PROFILES) {
         await key(page, 'ArrowUp', 1200);
       }
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
-      const thumb = page.locator('.con-cardactions__detail-card[data-zoom-slot="Search For Life"]');
+      const thumb = page.locator('.con-cardactions__detail-cardwrap[data-zoom-slot="Search For Life"]');
       await expect(thumb).toHaveCount(1);
       expect(await page.locator('.con-cardactions__detail-graphic').count(),
         'the right-panel schema duplicate must be gone').toBe(0);

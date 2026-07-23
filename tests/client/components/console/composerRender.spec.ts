@@ -237,6 +237,58 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  it('the GAIN beat: the counter is FROZEN at the pre-reveal value, ticks after the beat, L3 inspects the source', async () => {
+    const viewBefore = {
+      ...PLAYER_VIEW,
+      thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau: [{name: 'Search For Life', resources: 1}]},
+    };
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {
+        playerView: viewBefore,
+        entry: entryFor('Search For Life'),
+        preview: {
+          card: 'Search For Life', isCorporation: false, kind: 'bespoke',
+          branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+        },
+        nodeIndex: 0,
+        reveal: undefined,
+      },
+    });
+    // The hero card wears the SHARED tableau counter chip.
+    expect(w.find('.con-composer__actcardwrap .con-played__res').text()).to.eq('1');
+
+    // The phase opens; the answer's commit already carries the reward (2) —
+    // the visible counters must HOLD the before-value until the beat.
+    await w.setProps({reveal: {}});
+    await w.vm.$nextTick();
+    const viewAfter = {
+      ...viewBefore,
+      thisPlayer: {...viewBefore.thisPlayer, tableau: [{name: 'Search For Life', resources: 2}]},
+    };
+    await w.setProps({playerView: viewAfter});
+    expect(w.find('.con-composer__actcardwrap .con-played__res').text()).to.eq('1');
+
+    await w.setProps({reveal: {payload: {
+      action: 'Search For Life',
+      revealed: {name: 'Tardigrades'},
+      conditionMet: true,
+      reward: {direction: 'gain', icon: 'science', amount: 1},
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    // The beat resolves (headless runner: the short no-travel path).
+    await new Promise((resolve) => setTimeout(resolve, 260));
+    expect((w.vm as any).revealGainApplied).to.eq(true);
+    expect(w.find('.con-composer__actcardwrap .con-played__res').text()).to.eq('2');
+    expect(w.find('.con-composer__cardmeta').text()).to.contain('2');
+    // L3 = the source card fullscreen (the console-wide source verb).
+    (w.vm as any).handleIntent({kind: 'press', button: 'stickL'});
+    expect(w.emitted('inspect-source')).to.have.length(1);
+    w.unmount();
+  });
+
   it('shows the live stored resource on the source card (decision-relevant pool)', () => {
     const view = {
       ...PLAYER_VIEW,

@@ -130,6 +130,8 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     return [
       {control: 'confirm', label: 'OK'},
       {control: 'secondary', label: 'Inspect'},
+      // L3 = the SOURCE card fullscreen (the console-wide source verb).
+      {control: 'stickL', label: 'Source'},
     ];
   case 'sub-list': {
     const run: Array<ConsoleCommand> = [{control: 'confirm', label: 'Select'}];
