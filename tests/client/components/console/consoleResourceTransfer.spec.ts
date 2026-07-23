@@ -1,9 +1,11 @@
 import {expect} from 'chai';
+import {nextTick, watch} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {
   runResourceTransfers, abortResourceTransfers, resourceTransferState,
   beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold,
   heldStock, heldProduction, heldCardResource, settleResourceTransfers,
+  isResourceTransferActive,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -96,6 +98,42 @@ describe('consoleResourceTransfer (run lifecycle + the panel reward hold)', () =
       });
       expect(arrived).to.deep.eq([]);
       expect(resourceTransferState.flights).to.deep.eq([]);
+    });
+  });
+
+  // The animation-hold ceiling watches `isResourceTransferActive` through a
+  // Vue `watch`. Its getter short-circuits `runActive || flights.length`, so if
+  // `runActive` were a non-reactive plain variable, the FIRST evaluation that
+  // read a true `runActive` would drop the `flights` dependency and the watcher
+  // would never re-fire — orphaning the 35 s safety ceiling on a wave that had
+  // already ended (the observed "leaked hold?" warn). This guards the predicate
+  // stays fully reactive across every transition of BOTH terms.
+  describe('isResourceTransferActive stays reactive (animation-hold ceiling)', () => {
+    it('a watcher re-fires when runActive drops, even after a short-circuiting true', async () => {
+      const observed: Array<boolean> = [];
+      const stop = watch(() => isResourceTransferActive(), (v) => observed.push(v), {immediate: true});
+      try {
+        await nextTick();
+        expect(observed).to.deep.eq([false]);
+
+        // A wave starts: runActive true (this is the term that short-circuits).
+        resourceTransferState.runActive = true;
+        resourceTransferState.flights = [{id: 1, spec: {channel: 'stock', resource: 'megacredits', amount: 1}}];
+        await nextTick();
+        expect(observed[observed.length - 1]).to.be.true;
+
+        // The wave ends the way the real flow does: runActive drops FIRST (the
+        // reactive term the short-circuit read), flights clear after. The
+        // watcher MUST see the transition back to false.
+        resourceTransferState.runActive = false;
+        await nextTick();
+        resourceTransferState.flights = [];
+        await nextTick();
+        expect(isResourceTransferActive()).to.be.false;
+        expect(observed[observed.length - 1]).to.be.false;
+      } finally {
+        stop();
+      }
     });
   });
 });

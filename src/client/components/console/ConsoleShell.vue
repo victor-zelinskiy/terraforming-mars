@@ -310,7 +310,7 @@
            Center + its composer stay mounted so every capture survives (the
            director recognizes the pick bridge and never animates it). -->
       <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
-                          v-show="!handPickActive && !playedPickActive"
+                          v-show="!handPickActive && !playedPickActive && !repeatPickActive"
                           ref="cardActions"
                           :playerView="playerView"
                           @submit-batch="onCardActionsSubmitBatch"
@@ -764,7 +764,7 @@
            captured choices/payment must survive the hand round-trip (the
            director recognizes the pick bridge and never animates it). -->
       <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
-                              v-show="!handPickActive && !playedPickActive"
+                              v-show="!handPickActive && !playedPickActive && !repeatPickActive"
                               ref="playConfirm"
                               :playerView="playerView"
                               :cardName="pendingPlayCard.cardName"
@@ -772,6 +772,14 @@
                               @confirm="onPlayCardConfirmNative($event)"
                               @cancel="onPlayCardCancel" />
     </transition>
+
+    <!-- The "select an action to repeat" surface (ProjectInspection / Viron):
+         the ДЕЙСТВИЯ КАРТ list ADAPTED for repeat mode. Mounted OVER the source
+         composer (v-show hidden above) while the pick is out; A = «Выбрать», the
+         chosen action is composed here and resolved back to the source. -->
+    <ConsoleRepeatActionPick v-if="repeatPickActive"
+                             ref="repeatPick"
+                             :playerView="playerView" />
 
     <!-- The corporation's MANDATORY FIRST ACTION — the dedicated confirm
          modal (the play-composer's mandatory sibling). Presence is DERIVED
@@ -828,6 +836,7 @@ import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
+import ConsoleRepeatActionPick from '@/client/components/console/ConsoleRepeatActionPick.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
@@ -987,6 +996,8 @@ import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHa
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleRepeatPickState, cancelConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -1093,6 +1104,7 @@ export default defineComponent({
     ConsoleTradeFleetLayer,
     ConsoleColonyTradeLayer,
     ConsoleColonyInspect,
+    ConsoleRepeatActionPick,
     ConsolePlayedOverlay,
     ConsolePlayedHeroLayer,
     ConsolePatentSaleLayer,
@@ -1165,6 +1177,7 @@ export default defineComponent({
       pendingPlayCard: undefined as PendingPlayCard | undefined,
       /** The client hand-pick bridge state (composer → hand section). */
       consoleHandPickState,
+      consoleRepeatPickState,
       /** The section to restore when a client hand pick resolves/cancels. */
       handPickReturn: undefined as ConsoleSection | undefined,
       /** The card mid-RETURN from a cancelled play composer (its hand slot
@@ -2168,6 +2181,12 @@ export default defineComponent({
      *  hand section — the composer is hidden (v-show) and the hand owns input. */
     handPickActive(): boolean {
       return consoleHandPickState.active;
+    },
+    /** A repeat-action source (ProjectInspection / Viron) handed the "pick an
+     *  action to repeat" to the ДЕЙСТВИЯ КАРТ surface — the source composer is
+     *  hidden (v-show) and `ConsoleRepeatActionPick` owns input. */
+    repeatPickActive(): boolean {
+      return consoleRepeatPickState.active;
     },
     /** The hand section is in EITHER select mode — the server `handSelect`
      *  task OR a client composer pick. One UI, two sources. */

@@ -54,6 +54,17 @@ export type TransferFlight = {
 export const resourceTransferState = reactive({
   flights: [] as Array<TransferFlight>,
   nonce: 0,
+  /**
+   * A wave is mid-flight (chips in the air before their touchdowns). Kept
+   * REACTIVE (not a plain module `let`) on purpose: `isResourceTransferActive`
+   * — the animation-hold supplier predicate — ORs it with `flights.length`, and
+   * the animation-hold `watch` short-circuits `runActive || …`, so if this were
+   * non-reactive the watcher would drop its `flights` dependency the moment it
+   * read a `true` here and NEVER re-fire — orphaning the 35 s safety ceiling
+   * (which then force-releases a hold that already ended). Reactive ⇒ the
+   * watcher re-evaluates on every transition of BOTH terms.
+   */
+  runActive: false,
 });
 
 // ── leak diagnostics ────────────────────────────────────────────────────────
@@ -84,7 +95,7 @@ function trail(runId: number | undefined, ev: string, detail?: unknown): void {
 /** Dumped into the animation-hold ceiling warn — the full leak picture. */
 export function resourceTransferDiagnostics(): unknown {
   return {
-    runActive,
+    runActive: resourceTransferState.runActive,
     flights: resourceTransferState.flights.map((f) => ({
       id: f.id, channel: f.spec.channel, resource: f.spec.resource, amount: f.spec.amount,
     })),
@@ -221,10 +232,9 @@ export type ResourceTransferRun = {
 let flightSeq = 0;
 /** Landed hold-mode chips awaiting settle (id → its landing point). */
 let heldChips: Array<{id: number, at: TransferPoint}> = [];
-let runActive = false;
 
 export function isResourceTransferActive(): boolean {
-  return runActive || resourceTransferState.flights.length > 0;
+  return resourceTransferState.runActive || resourceTransferState.flights.length > 0;
 }
 
 // Chips in flight hold the presentation. Today every wave runs nested inside
@@ -285,7 +295,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     return;
   }
 
-  runActive = true;
+  resourceTransferState.runActive = true;
   resourceTransferState.nonce++;
   const entries = flights.map((f, i) => ({
     id: ++flightSeq,
@@ -353,7 +363,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     });
     await Promise.all(touchdowns);
     window.clearTimeout(safety);
-    runActive = false;
+    resourceTransferState.runActive = false;
     trail(runId, 'run:end', {arrival: run.arrival});
   } catch (e) {
     // Documented contract: this function NEVER rejects. A throw here (e.g. a
@@ -365,7 +375,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       run.onArrive?.(entry.spec);
       removeFlight(entry.id);
     });
-    runActive = false;
+    resourceTransferState.runActive = false;
   }
 }
 
@@ -403,7 +413,7 @@ export function abortResourceTransfers(): void {
   }
   resourceTransferState.flights = [];
   heldChips = [];
-  runActive = false;
+  resourceTransferState.runActive = false;
 }
 
 function removeFlight(id: number): void {

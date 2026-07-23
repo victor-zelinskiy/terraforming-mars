@@ -108,6 +108,9 @@ export type FocusCommandCtx =
       /** The focused pick row already holds a choice (A = «Изменить»). */
       resolved?: boolean,
       canConfirm: boolean,
+      /** The commit-CTA label (i18n key) when it is not the default «Confirm»
+       *  (the repeat pick's compose stage reads «Выбрать это действие»). */
+      commitLabel?: string,
     };
 
 /**
@@ -168,7 +171,7 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       break;
     default:
       // The CTA row (or a decision-less confirm) — A commits.
-      run.push({control: 'confirm', label: 'Confirm', enabled: ctx.canConfirm});
+      run.push({control: 'confirm', label: ctx.commitLabel ?? 'Confirm', enabled: ctx.canConfirm});
       break;
     }
     run.push({control: 'secondary', label: 'Inspect'});

@@ -446,6 +446,44 @@ export function applyPerformanceSwitches(app: App, probe: HardwareProbe = detect
   return applied;
 }
 
+/** The Windows process-priority preference resolved from TM_ELECTRON_PRIORITY. */
+export type ProcessPriorityPref = 'above' | 'high';
+
+/**
+ * Resolve the process-priority preference (TM_ELECTRON_PRIORITY). The renderer's
+ * MAIN THREAD runs the game's per-frame animation JS (GSAP FLIP directors, rAF
+ * loops); on a hybrid Windows laptop the OS can classify a low-GPU-load
+ * fullscreen app as background-ish and apply EcoQoS — parking it on the
+ * EFFICIENCY cores at a low power state, so each animation frame's JS overruns
+ * the frame budget = the "less smooth than the console" jank on otherwise strong
+ * hardware. Raising the priority CLASS marks the process foreground-important,
+ * which keeps it on the PERFORMANCE cores at boost clocks and opts it out of
+ * EcoQoS — the pragmatic 90% of "pin to a strong core" with no fragile P/E-core
+ * detection (and it works on AMD, which has no E-cores).
+ *
+ *   above  (DEFAULT) — ABOVE_NORMAL: safe, no starvation risk.
+ *   high             — HIGH: stronger, opt-in (can starve OS/audio threads).
+ *   normal / off     — leave the OS default (a clean baseline for comparison).
+ *
+ * Returns the token, or `undefined` for "leave the OS default". Pure
+ * (unit-tested); the os.setPriority call + the renderer pid live in main.ts.
+ * Windows-only by design — on Linux/SteamOS a negative nice needs privileges and
+ * gamescope owns scheduling, so main.ts skips it there.
+ */
+export function processPriorityPref(env: string | undefined): ProcessPriorityPref | undefined {
+  switch ((env ?? 'above').trim().toLowerCase()) {
+  case '':
+  case 'above':
+  case 'above_normal':
+  case 'abovenormal':
+    return 'above';
+  case 'high':
+    return 'high';
+  default:
+    return undefined; // normal / off / anything unrecognized → leave the OS default
+  }
+}
+
 /**
  * Log the RESOLVED GPU feature status once, after 'ready', so it's easy to
  * confirm hardware acceleration is actually live (`gpu_compositing: 'enabled'`,

@@ -120,6 +120,12 @@
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
               </div>
 
+              <!-- ProjectInspection: the result IS repeating a played action. -->
+              <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
+                <span class="con-composer__rescat-glyph" aria-hidden="true">⟳</span>
+                <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
+              </div>
+
               <!-- Derived result categories — the block is NEVER empty. A tag
                    row is "label: [inline chips]"; a VP row is "label: +N". -->
               <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
@@ -167,6 +173,22 @@
                   <div class="con-composer__row-value">
                     <span v-if="tabbedChosenLabel(row.stepIndex) !== ''">{{ tabbedChosenLabel(row.stepIndex) }}</span>
                     <span v-else class="con-composer__row-empty">{{ $t('Choose a target') }}…</span>
+                  </div>
+                </template>
+                <!-- The REPEAT slot (ProjectInspection): empty → a prompt; filled →
+                     the chosen action drawn as a button with its own action graphic. -->
+                <template v-else-if="row.kind === 'repeat'">
+                  <div class="con-composer__row-label">{{ $t('Action to repeat') }}</div>
+                  <div v-if="repeatResult !== undefined" class="con-composer__repeatpick">
+                    <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderEffectBoxComponent v-if="repeatNode !== undefined && repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                      <CardRenderData v-else-if="repeatNode !== undefined && repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                      <span v-else class="con-composer__graphic-text">{{ repeatNode !== undefined ? repeatNode.text : '' }}</span>
+                    </div>
+                    <span class="con-composer__repeatpick-name">{{ $t(repeatResult.chosenCard) }}</span>
+                  </div>
+                  <div v-else class="con-composer__row-value">
+                    <span class="con-composer__row-empty">{{ $t('Choose an action to repeat') }}…</span>
                   </div>
                 </template>
                 <template v-else-if="row.choice.kind === 'amount'">
@@ -301,7 +323,10 @@ import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -316,11 +341,13 @@ import {Payment} from '@/common/inputs/Payment';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {cardHasAction} from '@/client/components/actions/actionExtraction';
+import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/components/actions/actionExtraction';
+import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
+import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
@@ -351,10 +378,16 @@ import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from 
  * advances / opens payment from anywhere) and LT opens the payment lanes, so
  * neither needs to be a focus target competing with the CTA.
  */
+type GroupNode = ActionGroup['nodes'][number];
+
 type PlayRow =
   | {i: number, id: string, kind: 'variant', pos: number}
   | {i: number, id: string, kind: 'step', choice: ComposerChoice}
   | {i: number, id: string, kind: 'tabbed', stepIndex: number}
+  // The "repeat an already-used action" slot (ProjectInspection) — a FOCUSABLE
+  // row whose A opens the ДЕЙСТВИЯ КАРТ pick surface; once filled it draws the
+  // chosen action as a button with its graphic.
+  | {i: number, id: string, kind: 'repeat', choice: ComposerChoice}
   // The explicit «Разыграть» call-to-action — a FOCUSABLE terminal row, so A
   // plays ONLY when the player is on it (never from a pick row). It draws the Ⓐ
   // glyph, so what A does is always unambiguous.
@@ -402,7 +435,8 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData},
+  directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     cardName: {type: String as PropType<CardName>, required: true},
@@ -423,6 +457,10 @@ export default defineComponent({
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
       payCounts: {} as Partial<Record<SpendableResource, number>>,
+      /** The composed repeat-action pick (ProjectInspection): the chosen
+       *  already-used action + its own composed responses. Filled by
+       *  `consoleRepeatPick`; carried as `repeat` in the confirm payload. */
+      repeatResult: undefined as ConsoleRepeatPickResult | undefined,
       focusIdx: 0,
       sub: undefined as SubState | undefined,
       submitting: false,
@@ -561,15 +599,33 @@ export default defineComponent({
     },
     stepChoices(): ReadonlyArray<ComposerChoice> {
       return this.allChoices.filter((c) =>
-        this.choiceMode(c) !== 'followup' && !this.isCollapsedMergeStep(c));
+        this.choiceMode(c) !== 'followup' && this.choiceMode(c) !== 'repeat' && !this.isCollapsedMergeStep(c));
     },
     followUpChoices(): ReadonlyArray<ComposerChoice> {
-      return this.allChoices.filter((c) => !this.stepChoices.includes(c));
+      // The repeat choice is its OWN dedicated row (never a follow-up note).
+      return this.allChoices.filter((c) => !this.stepChoices.includes(c) && this.choiceMode(c) !== 'repeat');
+    },
+    /** The "repeat an already-used action" choice (ProjectInspection), if any. */
+    repeatChoice(): ComposerChoice | undefined {
+      return this.allChoices.find((c) => this.choiceMode(c) === 'repeat');
+    },
+    /** The chosen action's render node — the graphic drawn in the filled slot. */
+    repeatNode(): GroupNode | undefined {
+      const r = this.repeatResult;
+      if (r === undefined) {
+        return undefined;
+      }
+      const group = playerActionGroups([{name: r.chosenCard} as CardModel])[0];
+      const node = group?.nodes[r.nodeIndex] ?? group?.nodes[0];
+      return node !== undefined ? stripNodeOr(node) : undefined;
     },
     rows(): ReadonlyArray<PlayRow> {
       const out: Array<PlayRow> = [];
       if (this.hasVariants) {
         this.branches.forEach((_b, pos) => out.push({i: 0, id: 'variant#' + pos, kind: 'variant', pos}));
+      }
+      if (this.repeatChoice !== undefined) {
+        out.push({i: 0, id: 'repeat', kind: 'repeat', choice: this.repeatChoice});
       }
       for (const c of this.stepChoices) {
         out.push({i: 0, id: 'step#' + c.id, kind: 'step', choice: c});
@@ -590,9 +646,10 @@ export default defineComponent({
     variantRows(): ReadonlyArray<PlayRow & {kind: 'variant'}> {
       return this.rows.filter((r): r is PlayRow & {kind: 'variant'} => r.kind === 'variant');
     },
-    /** The pre-collectable decision rows (step picks + tabbed-target picks). */
-    decisionRows(): ReadonlyArray<PlayRow & {kind: 'step' | 'tabbed'}> {
-      return this.rows.filter((r): r is PlayRow & {kind: 'step' | 'tabbed'} => r.kind === 'step' || r.kind === 'tabbed');
+    /** The pre-collectable decision rows (repeat slot + step picks + tabbed-target picks). */
+    decisionRows(): ReadonlyArray<PlayRow & {kind: 'step' | 'tabbed' | 'repeat'}> {
+      return this.rows.filter((r): r is PlayRow & {kind: 'step' | 'tabbed' | 'repeat'} =>
+        r.kind === 'step' || r.kind === 'tabbed' || r.kind === 'repeat');
     },
     focusedRow(): PlayRow | undefined {
       return this.focusIdx >= 0 ? this.rows[this.focusIdx] : undefined;
@@ -621,7 +678,9 @@ export default defineComponent({
           // Odyssey makes an event's tags count like any other card's.
           eventTagsCounted: this.thisPlayer.tableau.some((c) => c.name === CardName.ODYSSEY),
         },
-        {hasImmediate: this.hasImmediateResult, hasFollowUp: this.followUpNotes.length > 0},
+        // The repeat slot IS the meaningful result for ProjectInspection — count
+        // it so the block is never the misleading "applied after confirming".
+        {hasImmediate: this.hasImmediateResult, hasFollowUp: this.followUpNotes.length > 0 || this.repeatChoice !== undefined},
       );
     },
     hasImmediateResult(): boolean {
@@ -697,6 +756,10 @@ export default defineComponent({
       }
       const b = this.selectedBranch;
       if (b === undefined || !b.available || !this.paymentReady) {
+        return false;
+      }
+      // The repeat-action slot (ProjectInspection) must be filled first.
+      if (this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return false;
       }
       // EVERY pre-collectable choice (inline sub / hand pick — incl. a
@@ -782,7 +845,7 @@ export default defineComponent({
       if (row === undefined) {
         return false;
       }
-      if (row.kind === 'tabbed') {
+      if (row.kind === 'tabbed' || row.kind === 'repeat') {
         return true;
       }
       return row.kind === 'step' &&
@@ -976,6 +1039,7 @@ export default defineComponent({
       this.floaters = {};
       this.picks = {};
       this.multiPicks = {};
+      this.repeatResult = undefined;
       this.sub = undefined;
       this.submitting = false;
     },
@@ -1012,6 +1076,9 @@ export default defineComponent({
       }
       if (row.kind === 'tabbed') {
         return this.captured[row.stepIndex] === undefined;
+      }
+      if (row.kind === 'repeat') {
+        return this.repeatResult === undefined;
       }
       return false;
     },
@@ -1458,7 +1525,9 @@ export default defineComponent({
      *  the hand or tableau pick). An amount / spend-heat row adjusts inline,
      *  so opening it is a no-op. */
     openRow(row: PlayRow): void {
-      if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
+      if (row.kind === 'repeat') {
+        this.openRepeatPick(row.choice);
+      } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'tableauPick') {
         this.openTableauPick(row.choice);
@@ -1467,6 +1536,33 @@ export default defineComponent({
       } else if (row.kind === 'tabbed') {
         this.sub = {kind: 'tabbed', stepIndex: row.stepIndex, index: 0};
       }
+    },
+    /**
+     * Hand ProjectInspection's repeat pick to the ДЕЙСТВИЯ КАРТ surface in
+     * repeat mode: the player chooses ONE already-used action (A = «Выбрать»)
+     * and composes it there; the result (chosen action + composed responses)
+     * lands back here and rides the play submit as `repeat`. The composer stays
+     * MOUNTED (v-show hidden) so this callback survives (mirrors the hand pick).
+     */
+    openRepeatPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const disabled = (model.disabledCards ?? []).map((d) => ({
+        name: d.name,
+        reason: d.disabledReason !== undefined ? textOf(d.disabledReason) : '',
+      }));
+      enterConsoleRepeatPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Take action',
+        candidates: model.cards.map((cd) => cd.name),
+        disabled,
+        source: {kicker: 'Play card', card: this.cardName},
+        prior: this.repeatResult !== undefined ?
+          {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
+      }, (result) => {
+        this.repeatResult = result;
+        this.focusIdx = this.firstActionableIndex();
+        this.scrollFocused();
+      });
     },
     /**
      * Hand a TABLEAU card pick (single / merged multi / deduped sequential) to
@@ -1664,6 +1760,7 @@ export default defineComponent({
       this.multiPicks = {};
       this.amounts = {};
       this.floaters = {};
+      this.repeatResult = undefined;
       this.seedChoiceDefaults();
     },
     pickListItem(index: number): void {
@@ -1788,6 +1885,10 @@ export default defineComponent({
           steps: b.steps,
           stepResponses: this.captured,
         }),
+        // ProjectInspection: the chosen already-used action + its composed
+        // responses, appended after the play as `[play, {card}, ...composed]`.
+        repeat: this.repeatResult !== undefined ?
+          {chosenCard: this.repeatResult.chosenCard, composed: this.repeatResult.composed} : undefined,
       });
     },
     scrollFocused(): void {

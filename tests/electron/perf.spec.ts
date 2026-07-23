@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseExtraSwitches, rasterThreadCount} from '../../electron/perf';
+import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseExtraSwitches, processPriorityPref, rasterThreadCount} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -286,6 +286,17 @@ describe('electron/perf', () => {
       expect(rasterThreadCount(12)).to.equal(6);  // Steam Machine (Zen 4 6C/12T)
       expect(rasterThreadCount(2)).to.equal(2);   // floor
       expect(rasterThreadCount(32)).to.equal(8);  // ceiling
+    });
+
+    it('processPriorityPref: ABOVE by default, HIGH opt-in, normal/off leaves the OS default', () => {
+      expect(processPriorityPref(undefined)).to.equal('above'); // default (env unset)
+      expect(processPriorityPref('')).to.equal('above');
+      expect(processPriorityPref('above')).to.equal('above');
+      expect(processPriorityPref('ABOVE_NORMAL')).to.equal('above');
+      expect(processPriorityPref(' High ')).to.equal('high');
+      expect(processPriorityPref('normal')).to.equal(undefined);
+      expect(processPriorityPref('off')).to.equal(undefined);
+      expect(processPriorityPref('garbage')).to.equal(undefined);
     });
 
     it('GPU path: the Machine probe raises the GPU memory budget; the Deck probe keeps 4096', () => {

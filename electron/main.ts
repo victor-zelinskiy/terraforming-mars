@@ -16,12 +16,13 @@
 
 import {app, BrowserWindow, Menu, powerSaveBlocker, screen, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
 import * as path from 'path';
+import * as os from 'os';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
 import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
-import {applyPerformanceSwitches, logGpuStatus} from './perf';
+import {applyPerformanceSwitches, logGpuStatus, processPriorityPref} from './perf';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
@@ -209,6 +210,43 @@ function signalGpuReadyWhenLive(win: BrowserWindow, attempts = 0): void {
   setTimeout(() => signalGpuReadyWhenLive(win, attempts + 1), 100);
 }
 
+/**
+ * Raise the process priority class of the MAIN and RENDERER processes so
+ * Windows keeps them on the performance cores at boost clocks (opting out of
+ * EcoQoS / E-core parking) — the renderer's main thread runs the per-frame
+ * animation JS, so on a hybrid laptop this is the lever that fixes "smooth on
+ * the console, janky on the laptop" under an otherwise-light GPU load. See
+ * perf.ts `processPriorityPref`. Windows-only (Linux/SteamOS: gamescope owns
+ * scheduling and a negative nice needs privileges). Idempotent — re-applied on
+ * every load; each call is wrapped so a setPriority failure can never break the
+ * window.
+ */
+function applyProcessPriority(): void {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const pref = processPriorityPref(process.env.TM_ELECTRON_PRIORITY);
+  if (pref === undefined) {
+    return; // 'normal' / 'off' → leave the OS default
+  }
+  const value = pref === 'high'
+    ? os.constants.priority.PRIORITY_HIGH
+    : os.constants.priority.PRIORITY_ABOVE_NORMAL;
+  const set = (pid: number, label: string): void => {
+    try {
+      os.setPriority(pid, value);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(`[electron] setPriority(${label}=${pid}) failed`, err);
+    }
+  };
+  set(process.pid, 'main');
+  const rendererPid = mainWindow?.webContents.getOSProcessId();
+  if (rendererPid !== undefined && rendererPid > 0) {
+    set(rendererPid, 'renderer');
+  }
+}
+
 function createWindow(): void {
   const cfg = runtimeConfig();
 
@@ -295,6 +333,10 @@ function createWindow(): void {
   // inspectable mid-session. (Before the GPU status settles the payload is
   // undefined and the first echo comes from signalGpuReadyWhenLive instead.)
   mainWindow.webContents.on('did-finish-load', () => {
+    // Re-assert the process priority on every load — the renderer OS pid is
+    // guaranteed spawned here, and a game-boundary reload must not drop back to
+    // the OS default. Idempotent.
+    applyProcessPriority();
     if (perfEchoPayload !== undefined) {
       void mainWindow?.webContents
         .executeJavaScript(`console.info('[TM perf]', ${perfEchoPayload});`)

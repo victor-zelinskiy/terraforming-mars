@@ -230,6 +230,38 @@ export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
   return responses;
 }
 
+/**
+ * The composed responses of a chosen action (what its `ConsoleActionComposer`
+ * emits on confirm), captured by the REPEAT-ACTION pick flow so the source
+ * card (ProjectInspection / Viron) can assemble its final batch.
+ */
+export type RepeatComposed = {
+  branchIndex: number;
+  preResponses: ReadonlyArray<unknown>;
+  optionResponse: unknown;
+  stepResponses: ReadonlyArray<unknown>;
+};
+
+/**
+ * The batch TAIL for a repeat-action source: the chosen action's card pick +
+ * its composed responses, appended AFTER the source play/activate. So the whole
+ * batch reads `[<source play/activate>, {type:'card', cards:[chosen]}, ...chosen
+ * action's own responses]` — byte-identical to the desktop `submitRepeatActionBatch`
+ * tail (the inner card's activate is NOT re-wrapped). Reuses `buildActionBatch`
+ * with the card pick as the whole prefix.
+ */
+export function repeatActionResponses(chosenCard: CardName, composed: RepeatComposed): Array<unknown> {
+  return buildActionBatch({
+    performPath: [],
+    cardName: chosenCard,
+    prefix: [{type: 'card' as const, cards: [chosenCard]}],
+    branchIndex: composed.branchIndex,
+    preResponses: composed.preResponses,
+    optionResponse: composed.optionResponse,
+    stepResponses: composed.stepResponses,
+  });
+}
+
 /** Collect captured step responses in steps order (input + tabbedTargets steps —
  *  the pre-collectable ones; a tabbedTargets response is a top-level or-response). */
 export function orderedStepResponses(

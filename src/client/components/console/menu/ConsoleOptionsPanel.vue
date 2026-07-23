@@ -87,9 +87,33 @@ import {
 } from '@/client/gamepad/glyphSets';
 import {BUTTON_LAYOUT_LABELS, buttonLayoutState, cycleButtonLayout} from '@/client/gamepad/buttonLayout';
 import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
+import {
+  type MotionFpsCap,
+  type MotionSpeedPreset,
+  motionFpsCap,
+  motionSpeedPreset,
+  setMotionFpsCap,
+  setMotionSpeedPreset,
+} from '@/client/components/motion/motionTokens';
+import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {translateText} from '@/client/directives/i18n';
 
-type OptionRowId = 'interface' | 'display' | 'controller' | 'buttons' | 'privateScore';
+// English i18n keys ('Standard' / 'Auto' already exist in console.json — reused).
+const MOTION_SPEED_LABELS: Record<MotionSpeedPreset, string> = {
+  standard: 'Standard',
+  calm: 'Calm',
+  swift: 'Swift',
+};
+const MOTION_SPEED_CYCLE: ReadonlyArray<MotionSpeedPreset> = ['standard', 'calm', 'swift'];
+const MOTION_FPS_LABELS: Record<'auto' | '30' | '60', string> = {
+  auto: 'Auto',
+  60: '60 FPS',
+  30: '30 FPS',
+};
+const MOTION_FPS_CYCLE: ReadonlyArray<MotionFpsCap> = ['auto', 60, 30];
+
+type OptionRowId =
+  'interface' | 'display' | 'controller' | 'buttons' | 'motionSpeed' | 'motionRate' | 'privateScore';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
@@ -105,7 +129,14 @@ export default defineComponent({
   },
   emits: ['close'],
   data() {
-    return {consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState, cursor: 0};
+    return {
+      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState,
+      // Motion prefs are module-cached (motionTokens), not reactive — mirror
+      // them here so the row value re-renders when this panel cycles them.
+      motionSpeed: motionSpeedPreset() as MotionSpeedPreset,
+      motionRate: motionFpsCap() as MotionFpsCap,
+      cursor: 0,
+    };
   },
   computed: {
     rows(): ReadonlyArray<OptionRow> {
@@ -144,6 +175,25 @@ export default defineComponent({
           sub: 'Which face button confirms',
           glyph: '🅰',
           value: translateText(BUTTON_LAYOUT_LABELS[this.buttonLayoutState.layout]),
+        },
+        {
+          // Animation SPEED preset — Calm lengthens easings (fewer per-frame
+          // deltas); Swift shortens them. A CPU-side smoothness lever.
+          id: 'motionSpeed',
+          label: 'Motion speed',
+          sub: 'Pace of animations',
+          glyph: '🎞',
+          value: translateText(MOTION_SPEED_LABELS[this.motionSpeed]),
+        },
+        {
+          // Animation FRAME-RATE cap — 'Auto' = native; 60/30 throttle both the
+          // rAF loops AND (via the GSAP ticker bridge) the card-deal / FLIP
+          // cinematics, cutting per-second main-thread work on a weak CPU.
+          id: 'motionRate',
+          label: 'Animation smoothness',
+          sub: 'Frame-rate cap for animations',
+          glyph: '⚡',
+          value: translateText(MOTION_FPS_LABELS[this.motionRate === 'auto' ? 'auto' : (String(this.motionRate) as '30' | '60')]),
         },
       );
       // Private score is a per-GAME preference — offered ONLY in-game (from the
@@ -228,6 +278,23 @@ export default defineComponent({
         // and consistent (glyph shows the button that now confirms) + persists.
         cycleButtonLayout();
         break;
+      case 'motionSpeed': {
+        // Cycle Standard → Calm → Swift in place; setMotionSpeedPreset persists
+        // and applies the CSS `--motion-scale` bridge live.
+        const next = MOTION_SPEED_CYCLE[(MOTION_SPEED_CYCLE.indexOf(this.motionSpeed) + 1) % MOTION_SPEED_CYCLE.length];
+        this.motionSpeed = next;
+        setMotionSpeedPreset(next);
+        break;
+      }
+      case 'motionRate': {
+        // Cycle Auto → 60 → 30 in place; setMotionFpsCap persists + the GSAP
+        // ticker bridge applies it to the heavy cinematics live.
+        const next = MOTION_FPS_CYCLE[(MOTION_FPS_CYCLE.indexOf(this.motionRate) + 1) % MOTION_FPS_CYCLE.length];
+        this.motionRate = next;
+        setMotionFpsCap(next);
+        applyGsapTickerFps(next);
+        break;
+      }
       case 'privateScore':
         // Local, per-browser display pref — masks only THIS viewer's own VP on
         // passive surfaces (the console score cap reads shouldMaskOwnPassiveVp).

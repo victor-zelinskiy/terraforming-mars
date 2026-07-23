@@ -219,7 +219,23 @@
                  class="con-composer__row"
                  :class="{'con-composer__row--focused': focusIdx === i, 'con-composer__row--missing': choiceMissing(item.choice)}"
                  :ref="focusIdx === i ? 'focusedEl' : undefined">
-              <template v-if="item.choice.kind === 'amount'">
+              <!-- The REPEAT slot (Viron): empty → a prompt; filled → the chosen
+                   action drawn as a button with its own action graphic. -->
+              <template v-if="item.choice.repeatAction === true">
+                <div class="con-composer__row-label">{{ $t('Action to repeat') }}</div>
+                <div v-if="repeatResult !== undefined" class="con-composer__repeatpick">
+                  <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="repeatNode !== undefined && repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                    <CardRenderData v-else-if="repeatNode !== undefined && repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                    <span v-else class="con-composer__graphic-text">{{ repeatNode !== undefined ? repeatNode.text : '' }}</span>
+                  </div>
+                  <span class="con-composer__repeatpick-name">{{ $t(repeatResult.chosenCard) }}</span>
+                </div>
+                <div v-else class="con-composer__row-value">
+                  <span class="con-composer__row-empty">{{ $t('Choose an action to repeat') }}…</span>
+                </div>
+              </template>
+              <template v-else-if="item.choice.kind === 'amount'">
                 <div class="con-composer__row-label">{{ choiceTitle(item.choice) }}</div>
                 <div class="con-composer__stepper">
                   <i v-if="amountIcon(item.choice)" class="con-composer__stepper-icon" :class="iconClass(amountIcon(item.choice))" aria-hidden="true"></i>
@@ -317,7 +333,7 @@
              @click="submit">
           <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
           <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
-          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : 'Confirm action') }}</span>
+          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : commitLabel) }}</span>
         </div>
       </div>
 
@@ -382,12 +398,12 @@ import {SpendableResource} from '@/common/inputs/Spendable';
 import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
 import {SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
-import {branchPositionsForNode, branchTitleText} from '@/client/components/actions/actionBranchView';
+import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {
   ComposerChoice,
   branchChoices,
   preChoices,
-  canConfirm as canConfirmPure,
   firstMissingChoice,
   spendHeatPlan,
   spendHeatStock,
@@ -399,9 +415,12 @@ import {
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -415,10 +434,12 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
+import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {CardType} from '@/common/cards/CardType';
 
+type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 type SubState =
   | {kind: 'list', choiceId: string, index: number}
@@ -464,7 +485,8 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, ConsoleScrollArea, ConsoleCardFaceLite, GamepadGlyph},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsoleCardFaceLite, GamepadGlyph},
+  directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     entry: {type: Object as PropType<ActionEntry>, required: true},
@@ -474,14 +496,30 @@ export default defineComponent({
      *  deck-check branch; `payload` lands with the server's answer). While
      *  set, the decision column yields to the reveal zone. */
     reveal: {type: Object as PropType<{payload?: RevealResultModel} | undefined>, default: undefined},
+    /** The commit-CTA label (i18n key). Default «Confirm action»; the repeat
+     *  pick surface hosts this composer to COMPOSE a chosen action and reads
+     *  «Выбрать это действие» (it captures, it doesn't submit to the server). */
+    commitLabel: {type: String, default: 'Confirm action'},
+    /**
+     * Whether to publish the command contract to the SHARED `consoleActionComposerUi`
+     * store (true = the normal Action Center stage). The repeat pick hosts a SECOND
+     * composer instance nested under the outer (Viron) one; to avoid the two racing
+     * on the shared store (and the inner's unmount clobbering the outer's state), the
+     * inner sets this FALSE and receives the contract via `@commands` instead.
+     */
+    publishCommands: {type: Boolean, default: true},
   },
-  emits: ['confirm', 'cancel', 'repeat-pick', 'inspect-source', 'reveal-ack'],
+  emits: ['confirm', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
       capturedPre: {} as Record<number, unknown>,
       capturedOption: undefined as unknown,
       captured: {} as Record<number, unknown>,
+      /** The composed repeat-action pick (Viron): the chosen already-used
+       *  action + its own composed responses. Filled by `consoleRepeatPick`;
+       *  the confirm carries it as `repeat` (NOT a plain step response). */
+      repeatResult: undefined as ConsoleRepeatPickResult | undefined,
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
       payCounts: {} as Record<string, Partial<Record<SpendableResource, number>>>,
@@ -579,13 +617,40 @@ export default defineComponent({
       return this.selectedBranch !== undefined &&
         (this.heroCost.length + this.heroGain.length + this.heroChoice.length > 0);
     },
-    canConfirm(): boolean {
-      if (this.branchChoiceList.some((c) => c.repeatAction === true)) {
-        return false; // a repeat-action confirms via the handoff, never here
+    /** The repeat-action choice (Viron) — a SelectCard of already-used actions
+     *  filled by the repeat pick surface, not captured like a normal step. */
+    repeatChoice(): ComposerChoice | undefined {
+      return this.branchChoiceList.find((c) => c.repeatAction === true);
+    },
+    /** The chosen action's render node — the graphic drawn in the filled slot. */
+    repeatNode(): GroupNode | undefined {
+      const r = this.repeatResult;
+      if (r === undefined) {
+        return undefined;
       }
-      return canConfirmPure(this.preview, this.selectedBranch, {
-        pre: this.capturedPre, option: this.capturedOption, steps: this.captured,
-      });
+      const group = playerActionGroups([{name: r.chosenCard} as CardModel])[0];
+      const node = group?.nodes[r.nodeIndex] ?? group?.nodes[0];
+      return node !== undefined ? stripNodeOr(node) : undefined;
+    },
+    canConfirm(): boolean {
+      const branch = this.selectedBranch;
+      if (this.preview === undefined || branch === undefined || !branch.available) {
+        return false;
+      }
+      // The repeat slot (Viron) must be filled before confirming.
+      if (this.repeatChoice !== undefined && this.repeatResult === undefined) {
+        return false;
+      }
+      if (!this.preChoiceList.every((c) => this.capturedPre[c.index] !== undefined)) {
+        return false;
+      }
+      if (branch.optionInput !== undefined && this.capturedOption === undefined) {
+        return false;
+      }
+      // Every NON-repeat input step must be captured (the repeat step rides the
+      // `repeat` payload, so it is never a plain captured step).
+      return branch.steps.every((step, i) =>
+        step.kind !== 'input' || step.repeatAction === true || this.captured[i] !== undefined);
     },
     /** The live stored resource on the SOURCE card (shown under the hero card
      *  — the pool most spend-branches consume). */
@@ -603,7 +668,7 @@ export default defineComponent({
       if (this.submitting || this.canConfirm) {
         return '';
       }
-      if (this.branchChoiceList.some((c) => c.repeatAction === true)) {
+      if (this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return translateText('Choose an action to repeat');
       }
       if (this.selectedBranch === undefined && this.needBranchRow) {
@@ -697,7 +762,10 @@ export default defineComponent({
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
       const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
-      return focusCommandRun({state: 'main', focused: kind, resolved, canConfirm: this.canConfirm});
+      return focusCommandRun({
+        state: 'main', focused: kind, resolved, canConfirm: this.canConfirm,
+        commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
+      });
     },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
@@ -882,7 +950,12 @@ export default defineComponent({
       immediate: true,
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setConsoleActionComposerCommands(cmds);
+        // The nested (repeat-pick) instance reports UP via `@commands` instead of
+        // touching the shared store the outer composer owns.
+        if (this.publishCommands) {
+          setConsoleActionComposerCommands(cmds);
+        }
+        this.$emit('commands', cmds);
       },
     },
     // The frame header (ConsoleCardActions) names the stage from this mode:
@@ -890,7 +963,9 @@ export default defineComponent({
     hasDecisions: {
       immediate: true,
       handler(has: boolean) {
-        setConsoleActionComposerMode(has ? 'setup' : 'confirm');
+        if (this.publishCommands) {
+          setConsoleActionComposerMode(has ? 'setup' : 'confirm');
+        }
       },
     },
   },
@@ -899,7 +974,11 @@ export default defineComponent({
     if (this.revealGainPopTimer !== undefined) {
       window.clearTimeout(this.revealGainPopTimer);
     }
-    resetConsoleActionComposerUi();
+    // Only the OWNER of the shared store resets it — the nested repeat-pick
+    // instance must not clobber the outer composer's contract on unmount.
+    if (this.publishCommands) {
+      resetConsoleActionComposerUi();
+    }
   },
   methods: {
     iconClass(icon: string | undefined): string {
@@ -966,7 +1045,7 @@ export default defineComponent({
     },
     choiceMissing(c: ComposerChoice): boolean {
       if (c.repeatAction === true) {
-        return true;
+        return this.repeatResult === undefined;
       }
       if (c.scope === 'option') {
         return this.capturedOption === undefined;
@@ -1022,6 +1101,7 @@ export default defineComponent({
       this.payCounts = {};
       this.picks = {};
       this.multiPicks = {};
+      this.repeatResult = undefined;
       this.sub = undefined;
       this.focusIdx = 0;
       this.submitting = false;
@@ -1431,14 +1511,20 @@ export default defineComponent({
       }
     },
     openChoice(c: ComposerChoice): void {
+      // Viron's "repeat an already-used action" pick → the ДЕЙСТВИЯ КАРТ list
+      // surface ADAPTED for repeat mode (`consoleRepeatPick`): the player picks
+      // the action AND composes it there, returning the composed responses.
+      if (c.repeatAction === true) {
+        this.openRepeatPick(c);
+        return;
+      }
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
       // — eligible AND greyed-with-reason — is a card in hand) routes to the
       // HAND SECTION's premium pick mode; a TABLEAU pick (a resource target on
-      // an own played card, AND Viron's repeat-action pick over played action
-      // cards) routes to the «Разыграно» view's pick mode — never a flat name
-      // list. Only the hosted-cards pick (SRR targetCards — in neither zone)
-      // keeps the inline sub-list.
-      if (c.kind === 'card' && c.repeatAction !== true &&
+      // an own played card) routes to the «Разыграно» view's pick mode — never a
+      // flat name list. Only the hosted-cards pick (SRR targetCards — in neither
+      // zone) keeps the inline sub-list.
+      if (c.kind === 'card' &&
           isHandCardSelection(c.input as SelectCardModel, this.handNamesSet)) {
         this.openHandPick(c);
         return;
@@ -1456,12 +1542,38 @@ export default defineComponent({
       // amount / spendHeat adjust inline (A is a no-op on them).
     },
     /**
+     * Hand Viron's repeat pick to the ДЕЙСТВИЯ КАРТ surface in repeat mode: the
+     * player chooses ONE already-used action (A = «Выбрать») and composes it
+     * there; the result (chosen action + its composed responses) lands back
+     * here and rides the confirm as `repeat`. The composer stays MOUNTED
+     * (v-show hidden) so this callback survives (mirrors the hand pick).
+     */
+    openRepeatPick(c: ComposerChoice): void {
+      const model = c.input as SelectCardModel;
+      const disabled = (model.disabledCards ?? []).map((d) => ({
+        name: d.name,
+        reason: d.disabledReason !== undefined ? textOf(d.disabledReason) : '',
+      }));
+      enterConsoleRepeatPick({
+        title: model.title,
+        buttonLabel: model.buttonLabel || 'Take action',
+        candidates: model.cards.map((cd) => cd.name),
+        disabled,
+        source: {kicker: 'Repeat action', card: this.entry.cardName},
+        prior: this.repeatResult !== undefined ?
+          {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
+      }, (result) => {
+        this.repeatResult = result;
+        // Land on the CTA — the slot is filled, the action is ready to perform.
+        this.focusIdx = this.ctaIndex;
+        this.scrollFocused();
+      });
+    },
+    /**
      * Hand a TABLEAU card pick to the «Разыграно» view's pick mode: the
      * candidates physically lift off their real table slots (face-down events
      * off the pile, flipping open), the player picks on the real card, the
-     * cards fly home and the capture lands back here. A Viron repeat-action
-     * pick resolves through the SAME surface — the chosen action card hands
-     * off via `repeat-pick` (the composer then re-opens FOR that action).
+     * cards fly home and the capture lands back here.
      */
     openTableauPick(c: ComposerChoice): void {
       const model = c.input as SelectCardModel;
@@ -1473,7 +1585,6 @@ export default defineComponent({
       const disabledNames = (model.disabledCards ?? []).map((d) => d.name);
       const faceDown = [...selectable, ...disabledNames]
         .filter((n) => getCard(n)?.type === CardType.EVENT);
-      const repeat = c.repeatAction === true;
       enterPlayedTableauPick({
         title: model.title,
         buttonLabel: model.buttonLabel || 'Select',
@@ -1482,17 +1593,13 @@ export default defineComponent({
         reasons,
         min: 1,
         max: 1,
-        selected: !repeat && this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : [],
+        selected: this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : [],
         faceDown,
         // The pick surface names the operation it serves — the player keeps
         // the WHY while the focus stage waits hidden underneath.
         source: {kicker: 'Action setup', card: this.entry.cardName},
       }, (cards) => {
         if (cards.length === 0) {
-          return;
-        }
-        if (repeat) {
-          this.$emit('repeat-pick', {chosenCard: cards[0]});
           return;
         }
         // Re-locate by id — the preview may have refreshed under the pick.
@@ -1555,6 +1662,7 @@ export default defineComponent({
       this.picks = {};
       this.multiPicks = {};
       this.amounts = {};
+      this.repeatResult = undefined;
       for (const c of this.branchChoiceList) {
         this.seedChoice(c);
       }
@@ -1609,10 +1717,6 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return;
       }
-      if (c.repeatAction === true && item.card !== undefined) {
-        this.$emit('repeat-pick', {chosenCard: item.card.name});
-        return;
-      }
       if (c.input.type === 'card' && item.card !== undefined) {
         this.picks[c.id] = item.card.name;
         this.captureFor(c, {type: 'card', cards: [item.card.name]});
@@ -1646,7 +1750,10 @@ export default defineComponent({
         branchIndex: branch.index,
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
         optionResponse: this.capturedOption,
+        // The repeat step (Viron) is NEVER a plain captured step — it rides the
+        // `repeat` payload (the chosen action + its own composed responses).
         stepResponses: orderedStepResponses(branch, this.captured),
+        repeat: this.repeatResult,
       });
     },
     // ── the reveal phase ─────────────────────────────────────────────────

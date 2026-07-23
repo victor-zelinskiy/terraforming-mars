@@ -35,7 +35,8 @@ import type {SpendableResource} from '@/common/inputs/Spendable';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import type {Units} from '@/common/Units';
-import type {ComposerChoice} from '@/client/console/consoleActionComposer';
+import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActionComposer';
+import {repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {autoMegacredits, laneCap, paymentCovers, paymentOverpay, paymentTotal, PaymentLane} from '@/client/console/paymentPlan';
 
 export type PlayCardBatchArgs = {
@@ -57,6 +58,12 @@ export type PlayCardBatchArgs = {
   optionResponse: unknown | undefined;
   /** Input-step responses, compacted, in branch.steps order. */
   stepResponses: ReadonlyArray<unknown>;
+  /**
+   * A REPEAT-ACTION source (ProjectInspection): after the play, the chosen
+   * already-used action's card pick + its composed responses. Appended as the
+   * batch TAIL so the whole submit reads `[play, {card:chosen}, ...composed]`.
+   */
+  repeat?: {chosenCard: CardName, composed: RepeatComposed};
 };
 
 export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
@@ -83,6 +90,11 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
   for (const r of args.stepResponses) {
     responses.push(r);
   }
+  // Repeat-action tail (ProjectInspection): the chosen action's card pick +
+  // its own composed responses, resolved by the repeat pick surface.
+  if (args.repeat !== undefined) {
+    responses.push(...repeatActionResponses(args.repeat.chosenCard, args.repeat.composed));
+  }
   return responses;
 }
 
@@ -99,11 +111,15 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
  *                    merged up-to-N pick (Astra Mechanica `mergeCardSteps` —
  *                    hosted as ONE multi pick on the FIRST card step) and the
  *                    deduped sequential picks (Cyberia `dedupeFromSteps`);
- *  - `followup`    — an honest post-submit follow-up (repeat-action, a
- *                    candidate-less pick the live play auto-resolves, a
- *                    multi-select whose candidates the console doesn't own).
+ *  - `repeat`      — a "repeat an already-used action" pick (ProjectInspection):
+ *                    hosted by the ДЕЙСТВИЯ КАРТ list surface in repeat mode
+ *                    (`consoleRepeatPick`), pre-collected as the chosen action +
+ *                    its composed responses;
+ *  - `followup`    — an honest post-submit follow-up (a candidate-less pick the
+ *                    live play auto-resolves, a multi-select whose candidates
+ *                    the console doesn't own).
  */
-export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'followup';
+export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'repeat' | 'followup';
 
 export function playChoiceMode(
   c: ComposerChoice,
@@ -111,7 +127,7 @@ export function playChoiceMode(
   tableauNames: ReadonlySet<string>,
 ): PlayChoiceMode {
   if (c.repeatAction === true) {
-    return 'followup';
+    return 'repeat';
   }
   if (c.input.type === 'card') {
     const model = c.input as SelectCardModel;

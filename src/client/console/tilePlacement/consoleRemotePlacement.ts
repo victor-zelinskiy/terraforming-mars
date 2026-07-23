@@ -100,6 +100,14 @@ let epoch = 0;
 let stageSafety: number | undefined;
 
 export function isRemotePlacementActive(): boolean {
+  // ⚠ ORDER IS LOAD-BEARING: the REACTIVE term (`active`) MUST come first. This
+  // is an animation-hold supplier predicate, polled through a Vue `watch` that
+  // short-circuits `a || b`. `queue` is a plain (non-reactive) array, so if it
+  // were read first the watcher could drop its only reactive dependency and
+  // orphan the 35 s safety ceiling (the bug that hit `isResourceTransferActive`
+  // when its first term was a non-reactive `let`). Reading `active` first keeps
+  // it tracked; `active` only goes false once `queue` is already empty
+  // (drain-end / abort), so the false transition is always observed.
   return remotePlacementState.active || queue.length > 0;
 }
 

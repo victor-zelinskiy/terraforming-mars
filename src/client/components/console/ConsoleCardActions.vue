@@ -284,7 +284,6 @@
                                :reveal="revealFlow"
                                @confirm="onComposerConfirm"
                                @cancel="onComposerCancel"
-                               @repeat-pick="onRepeatPick"
                                @inspect-source="onInspectSource"
                                @reveal-ack="onRevealAck" />
       </transition>
@@ -356,7 +355,7 @@ import {
   ConsoleActionReason,
   ConsoleVariableChip,
 } from '@/client/console/consoleCardActions';
-import {buildActionBatch} from '@/client/console/consoleActionComposer';
+import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
 import {
   actionFocusEnterHook,
@@ -379,7 +378,8 @@ import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {findPerformActionCard, wrapPath} from '@/client/console/turnIntents';
+import {findPerformActionCard} from '@/client/console/turnIntents';
+import {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
@@ -892,33 +892,39 @@ export default defineComponent({
     // ── composer events ─────────────────────────────────────────────────
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
-    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>}): void {
+    onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
       }
       const perform = findPerformActionCard(this.playerView.waitingFor);
-      if (comp.prefix === undefined && perform === undefined) {
+      if (perform === undefined) {
         // The prompt moved on while composing — nothing is submitted.
         console.warn('Activate action: SelectCard not found in waitingFor tree');
         this.closeComposer();
         return;
       }
       const batch = buildActionBatch({
-        performPath: perform?.path ?? [],
+        performPath: perform.path,
         cardName: comp.cardName,
-        prefix: comp.prefix,
         branchIndex: payload.branchIndex,
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
       });
+      // Viron (repeat action): append the CHOSEN already-used action's card pick
+      // + its own composed responses → `[activate Viron, {card:chosen}, ...composed]`.
+      if (payload.repeat !== undefined) {
+        batch.push(...repeatActionResponses(payload.repeat.chosenCard, payload.repeat.composed));
+      }
       // A DECK-CHECK branch stays IN THIS STAGE: the flow enters the reveal
       // phase immediately («Вскрываем карту» + the deck flight launches) and
       // CLAIMS the incoming lastReveal, so the shell neither closes the
-      // center nor mounts the standalone reveal overlay for it.
+      // center nor mounts the standalone reveal overlay for it. (A REPEATED
+      // reveal action rides the standalone overlay post-submit instead — the
+      // chosen action's reveal is inside the composed tail, not Viron's branch.)
       const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
-      if (branch?.reveal !== undefined) {
+      if (payload.repeat === undefined && branch?.reveal !== undefined) {
         this.revealFlow = {};
         setConsoleActionRevealClaim(comp.cardName);
       }
@@ -932,39 +938,9 @@ export default defineComponent({
       this.$emit('submit-batch', batch);
     },
     onComposerCancel(): void {
-      const comp = this.composer;
-      if (comp?.outer !== undefined) {
-        // A cancelled repeat-target composer restores the OUTER one (Viron) —
-        // desktop repeatOuter parity, no round-trip.
-        this.composer = {cardName: comp.outer.cardName, nodeIndex: comp.outer.nodeIndex};
-        return;
-      }
+      // B in the composer → back to the browse grid (the repeat pick, when it
+      // was used, resolves/cancels on its OWN surface — no outer restore here).
       this.closeComposer();
-    },
-    /** Viron handoff: the chosen used action gets its OWN composer whose batch
-     *  is prefixed by [outer activate, the repeat card pick] (desktop parity —
-     *  the prefix is built at PICK time, like onRepeatActionFromAction). */
-    onRepeatPick(payload: {chosenCard: CardName}): void {
-      const comp = this.composer;
-      if (comp === undefined) {
-        return;
-      }
-      const perform = findPerformActionCard(this.playerView.waitingFor);
-      if (perform === undefined) {
-        console.warn('Repeat action: SelectCard not found in waitingFor tree');
-        this.closeComposer();
-        return;
-      }
-      const prefix: ReadonlyArray<unknown> = [
-        wrapPath(perform.path, {type: 'card' as const, cards: [comp.cardName]}),
-        {type: 'card' as const, cards: [payload.chosenCard]},
-      ];
-      this.composer = {
-        cardName: payload.chosenCard,
-        nodeIndex: -1, // no node context → the composer offers the branch pick
-        prefix,
-        outer: {cardName: comp.cardName, nodeIndex: comp.nodeIndex},
-      };
     },
     stepAvailability(step: 1 | -1): void {
       consoleCardActionsUi.filter.availability = cycleAvailability(consoleCardActionsUi.filter.availability, step);
