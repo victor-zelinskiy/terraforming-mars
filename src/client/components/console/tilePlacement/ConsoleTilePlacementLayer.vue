@@ -104,8 +104,13 @@ export default defineComponent({
   mounted() {
     this.unregister = registerTilePlacementStage({
       els: (): TileStageEls | undefined => {
+        // Vue 3 sets a template ref to `null` (not `undefined`) once its
+        // element has rendered then been removed — here when a SelectSpace has
+        // no real tile art (St. Joseph's cathedral lands on an existing city,
+        // so `artClass === ''` and the tile div is not rendered). `!tile`
+        // covers both null and undefined; a bare `=== undefined` NPE'd.
         const tile = this.$refs.tile as HTMLElement | undefined;
-        if (tile === undefined || !tile.isConnected) {
+        if (!tile || !tile.isConnected) {
           return undefined;
         }
         const bonusIcons: Array<HTMLElement> = [];
@@ -125,7 +130,7 @@ export default defineComponent({
       },
       remoteEls: (): TileStageEls | undefined => {
         const tile = this.$refs.remoteTile as HTMLElement | undefined;
-        if (tile === undefined || !tile.isConnected) {
+        if (!tile || !tile.isConnected) {
           return undefined;
         }
         return {

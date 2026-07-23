@@ -89,7 +89,8 @@ export default defineComponent({
         const well = this.$refs.well as HTMLElement | undefined;
         const terminal = this.$refs.terminal as HTMLElement | undefined;
         const slit = this.$refs.slit as HTMLElement | undefined;
-        if (well === undefined || terminal === undefined || slit === undefined || !well.isConnected) {
+        // `!x` also catches Vue's `null` for a removed-then-queried ref.
+        if (!well || !terminal || !slit || !well.isConnected) {
           return undefined;
         }
         const proxies: Array<SaleProxyEls> = [];

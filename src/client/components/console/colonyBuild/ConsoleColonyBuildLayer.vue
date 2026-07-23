@@ -100,7 +100,8 @@ export default defineComponent({
         const ring = this.$refs.ring as HTMLElement | undefined;
         const cube = this.$refs.cube as {$el?: HTMLElement} | undefined;
         const cubeEl = cube?.$el;
-        if (root === undefined || !root.isConnected || ring === undefined || cubeEl === undefined) {
+        // `!root` also catches Vue's `null` for a removed-then-queried ref.
+        if (!root || !root.isConnected || ring === undefined || cubeEl === undefined) {
           return undefined;
         }
         const scene = cubeEl.querySelector<HTMLElement>('.player-cube__scene');

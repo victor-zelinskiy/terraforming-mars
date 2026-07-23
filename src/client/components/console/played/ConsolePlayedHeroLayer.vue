@@ -49,7 +49,8 @@ export default defineComponent({
     this.unregister = registerPlayedHeroStage({
       els: (): HeroStageEls | undefined => {
         const proxy = this.$refs.proxy as HTMLElement | undefined;
-        if (proxy === undefined || !proxy.isConnected) {
+        // `!proxy` also catches Vue's `null` for a removed-then-queried ref.
+        if (!proxy || !proxy.isConnected) {
           return undefined;
         }
         return {
