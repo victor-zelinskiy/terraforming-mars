@@ -50,6 +50,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   '.initial-draft-pills', // the initial-draft pipeline's own chrome
   '.con-task-host', // CTS task host (T1 primitives / T2 cards / T3 payment)
   '.con-govsupport', // the dedicated Government Support (WGT) briefing panel
+  // The "select an action to repeat" surface (ProjectInspection / Viron): while
+  // it is out the source composer is v-show-hidden, so THIS surface is what
+  // serves the still-pending play / action prompt (the repeat pick pre-collects
+  // BEFORE the source submits).
+  '.con-repeat-pick',
   '.con-prodloss', // the dedicated production-loss surface (Ares hazard penalty)
   // NOTE: a DEFERRED task is handled by the `consoleTaskDeferred` early-return in
   // runLeakDetection, NOT by a serving surface. The legacy always-on amber chip

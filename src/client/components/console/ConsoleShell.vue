@@ -941,6 +941,7 @@ import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/c
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
+import type {RepeatComposed} from '@/client/console/consoleActionComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -1595,10 +1596,11 @@ export default defineComponent({
     playedPickActive(): boolean {
       return isPlayedTableauPickActive();
     },
-    /** A client pick bridge (hand / tableau) hides the owning composer via
-     *  v-show — the picked-in section owns the screen, the shade yields. */
+    /** A client pick bridge (hand / tableau / repeat-action) hides the owning
+     *  composer via v-show — the picked-in surface owns the screen, the shade
+     *  yields. */
     pickBridgeActive(): boolean {
-      return this.handPickActive || this.playedPickActive;
+      return this.handPickActive || this.playedPickActive || this.repeatPickActive;
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -3015,6 +3017,15 @@ export default defineComponent({
           {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
         ])];
       }
+      // The REPEAT-ACTION pick surface owns the pad (the source composers are
+      // hidden): it publishes its live contract (the grid «Выбрать» or the
+      // nested composer's own verbs) to its DEDICATED store — unstealable,
+      // never the shared cardActions slot the outer Viron composer may own.
+      if (this.repeatPickActive) {
+        return consoleRepeatPickUi.commands.length > 0 ?
+          [...consoleRepeatPickUi.commands] :
+          [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Cancel'}];
+      }
       // A composer's CLIENT HAND PICK owns the pad (the composers are hidden):
       // the pick verbs mirror the mandatory hand-select grammar, with B as a
       // plain «Назад» to the composer (nothing is lost).
@@ -3981,6 +3992,8 @@ export default defineComponent({
           // A client hand pick belongs to a composer whose prompt just moved
           // on — cancel it (idempotent; restores the section via the watcher).
           cancelConsoleHandPick();
+          // Same for a repeat-action pick whose source composer's prompt moved on.
+          cancelConsoleRepeatPick();
           // Same for a TABLEAU pick out on the played view: fold it (the
           // reset commits its cancel — the composer keeps the old capture).
           if (isPlayedTableauPickActive()) {
@@ -4399,6 +4412,14 @@ export default defineComponent({
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
+        return true;
+      }
+      // REPEAT-ACTION PICK (source composer → ДЕЙСТВИЯ КАРТ bridge): the pick
+      // surface owns the pad while it is out — the hidden source composers
+      // (v-show) must not swallow input. Routed BEFORE every composer branch.
+      if (this.repeatPickActive) {
+        const panel = this.$refs.repeatPick as InstanceType<typeof ConsoleRepeatActionPick> | undefined;
+        panel?.handleIntent(intent);
         return true;
       }
       // CLIENT HAND PICK (composer → hand bridge): the hand section owns the
@@ -5610,7 +5631,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, repeat?: {chosenCard: CardName, composed: RepeatComposed}}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -5640,6 +5661,9 @@ export default defineComponent({
         preResponses: payload.preResponses,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
+        // ProjectInspection: append the chosen already-used action + its
+        // composed responses → `[play, {card:chosen}, ...composed]`.
+        repeat: payload.repeat,
       });
       this.submitBatch(batch);
     },
@@ -6911,6 +6935,8 @@ export default defineComponent({
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     resetConsoleHandPick(); // never leak a client pick across games/sessions
+    resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
+    resetConsoleRepeatPickUi();
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a
     // game switch never carries a live pick / dead callbacks across sessions.
     resetCategoryDirector();

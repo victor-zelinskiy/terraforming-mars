@@ -22,12 +22,13 @@ const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonie
  *                  a HAND-card pick — single AND multi-select, via the hand
  *                  section's pick mode / a TABLEAU pick — single, the Astra
  *                  merged multi, the Cyberia deduped sequential, via the
- *                  «Разыграно» view's pick mode / player / amount /
+ *                  «Разыграно» view's pick mode / a REPEAT-action pick, via the
+ *                  ДЕЙСТВИЯ КАРТ surface in repeat mode / player / amount /
  *                  or-with-leaf-or-nested-player/card options /
  *                  spendHeat / tabbedTargets).
  *   - 'followup' — an honest post-submit follow-up (board / colony placement /
- *                  note / a repeat-action / an UNOWNED multi-select — the
- *                  documented, safe exceptions, ridden by the native flow).
+ *                  note / an UNOWNED multi-select — the documented, safe
+ *                  exceptions, ridden by the native flow).
  *   - 'gap'      — a shape the console CANNOT host (an `or` option nesting an
  *                  amount / and).
  * A 'gap' FAILS — the console would silently drop or mis-submit it.
@@ -49,9 +50,11 @@ function classifyStep(step: ActionPreviewStep, branch: ActionPreviewBranch, hand
     return 'inline';
   }
   if (t === 'card') {
-    // A repeat-action pick (ProjectInspection) rides the native follow-up.
+    // A repeat-action pick (ProjectInspection) is PRE-COLLECTED via the ДЕЙСТВИЯ
+    // КАРТ surface in repeat mode (`consoleRepeatPick`) — the chosen action + its
+    // composed responses are captured before the play submits.
     if (step.repeatAction === true) {
-      return 'followup';
+      return 'inline';
     }
     const model = step.input as SelectCardModel;
     // Nothing selectable → the live play auto-resolves (never a dead row).

@@ -136,14 +136,13 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
-import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {
   buildConsoleActionsModel,
   ConsoleActionsModel,
   ConsoleActionTile,
   ConsoleActionReason,
 } from '@/client/console/consoleCardActions';
-import {consoleRepeatPickState, resolveConsoleRepeatPick, cancelConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickState, resolveConsoleRepeatPick, cancelConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {setConsoleRepeatPickCommands, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
@@ -268,7 +267,7 @@ export default defineComponent({
     },
   },
   watch: {
-    previewFingerprint: {
+    'previewFingerprint': {
       immediate: true,
       handler() {
         this.fetchAllPreviews();
@@ -290,7 +289,7 @@ export default defineComponent({
         }
       },
     },
-    gridCommands: {
+    'gridCommands': {
       immediate: true,
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
@@ -300,7 +299,7 @@ export default defineComponent({
         }
       },
     },
-    composer(value: {cardName: CardName, nodeIndex: number} | undefined) {
+    'composer'(value: {cardName: CardName, nodeIndex: number} | undefined) {
       if (value === undefined) {
         setConsoleRepeatPickCommands(this.gridCommands);
         void this.$nextTick(() => this.scrollFocusedIntoView());

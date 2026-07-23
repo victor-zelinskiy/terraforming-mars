@@ -125,6 +125,31 @@ describe('consolePlayCardComposer.buildPlayCardBatch', () => {
       {type: 'or', index: 2, response: optionResponse},
     ]);
   });
+
+  it('a REPEAT-action play (Project Inspection) appends the chosen action + its composed tail', () => {
+    // The chosen action has its OWN branch (index 1) + a step response.
+    const stepResp = {type: 'card', cards: [CardName.PETS]};
+    const batch = buildPlayCardBatch({
+      playPath: [1, 0],
+      cardName: CardName.PROJECT_INSPECTION,
+      payment,
+      branchIndex: -1,
+      preResponses: [],
+      optionResponse: undefined,
+      stepResponses: [],
+      repeat: {
+        chosenCard: CardName.SEARCH_FOR_LIFE,
+        composed: {branchIndex: 1, preResponses: [], optionResponse: undefined, stepResponses: [stepResp]},
+      },
+    });
+    // [wrapped ProjectInspection play, {card: chosen}, <chosen branch slot>, ...chosen steps]
+    expect(batch).to.deep.equal([
+      {type: 'or', index: 1, response: {type: 'or', index: 0, response: {type: 'projectCard', card: CardName.PROJECT_INSPECTION, payment}}},
+      {type: 'card', cards: [CardName.SEARCH_FOR_LIFE]},
+      {type: 'or', index: 1, response: {type: 'option'}},
+      stepResp,
+    ]);
+  });
 });
 
 describe('consolePlayCardComposer.playComposerFootHints', () => {
@@ -376,9 +401,12 @@ describe('consolePlayCardComposer.playChoiceMode', () => {
     expect(playChoiceMode(cardChoice([CardName.LICHEN], {max: 2}), HAND, TABLE)).to.equal('followup');
   });
 
-  it('a candidate-less pick / a repeat-action → followup', () => {
+  it('a candidate-less pick → followup', () => {
     expect(playChoiceMode(cardChoice([]), HAND, TABLE)).to.equal('followup');
-    expect(playChoiceMode(cardChoice([CardName.PETS], {}, {repeatAction: true}), HAND, TABLE)).to.equal('followup');
+  });
+
+  it('a repeat-action pick → repeat (pre-collected via the ДЕЙСТВИЯ КАРТ surface)', () => {
+    expect(playChoiceMode(cardChoice([CardName.PETS], {}, {repeatAction: true}), HAND, TABLE)).to.equal('repeat');
   });
 
   it('player / amount / or / spendHeat stay inline; an unknown shape is a follow-up', () => {

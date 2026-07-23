@@ -363,7 +363,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, buildPaymentView, PlayPaymentView,
-  playChoiceMode, foldCopiedProductionEffects,
+  playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects,
 } from '@/client/console/consolePlayCardComposer';
 import {
   autoMegacredits, initialCounts, laneCap, megacreditsAvailable,
@@ -1507,7 +1507,7 @@ export default defineComponent({
     },
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
-    choiceMode(c: ComposerChoice): 'inline' | 'handPick' | 'tableauPick' | 'followup' {
+    choiceMode(c: ComposerChoice): PlayChoiceMode {
       return playChoiceMode(c, this.handNamesSet, this.tableauNamesSet);
     },
     /** A LATER card step of a merge branch — collapsed into the first one's

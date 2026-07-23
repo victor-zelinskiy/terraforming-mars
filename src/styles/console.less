@@ -13123,6 +13123,91 @@ html.console-mode {
    activatable blue-card / corporation actions. Same z-band as the task host it
    sits beside. ONE bottom footer is the ONLY command surface — never a hint on
    a tile / card / header / the confirm body (the "one bottom bar" rule). ── */
+/* ── The "select an action to repeat" surface (ProjectInspection / Viron) —
+      the ДЕЙСТВИЯ КАРТ list ADAPTED for repeat mode. The candidate GRID reuses
+      the `.con-cardactions__*` tile look directly; only the frame/header, the
+      inline formula and the compose stage host are bespoke here. ── */
+.con-repeat-pick {
+    .con-modal-band();
+    /* A nose above the Action Center (11480) it may overlay in the Viron flow. */
+    z-index: 11484;
+    display: flex;
+    flex-direction: column;
+    padding: .2rem 1.8vw;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__frame {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        padding: 1rem 1.3rem .8rem;
+        border-radius: .8rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+    }
+
+    &__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    &__head-main { min-width: 0; }
+    &__kicker {
+        display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+        font-size: .75rem; letter-spacing: .11rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__kicker-sep { color: fade(@con-cyan, 50%); }
+    &__kicker-src { color: @con-text; }
+    &__kicker-step { color: fade(@con-mint, 92%); }
+    &__title {
+        margin-top: .2rem;
+        font-size: 1.4rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase; line-height: 1.05;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    &__head-stats { display: flex; align-items: center; gap: .7rem; flex-shrink: 0; }
+    &__badge {
+        padding: .28rem .7rem; border-radius: 49.95rem;
+        font-size: .66rem; letter-spacing: .07rem; text-transform: uppercase; font-weight: 700;
+        color: @con-cyan; background: fade(@con-cyan, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
+    }
+    &__player {
+        display: inline-flex; align-items: center; gap: .4rem;
+        padding: .3rem .7rem .3rem .5rem; border-radius: 49.95rem;
+        background: rgba(12, 20, 30, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.28);
+        font-size: .85rem; font-weight: 700;
+    }
+    &__player-dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 .4rem currentColor; }
+
+    /* The grid and the compose stage share this positioned region (the stage's
+       `.con-composer--stage` is absolute inset:0; the grid is a flex child). */
+    &__stagewrap { position: relative; flex: 1; min-height: 0; display: flex; }
+    &__list { flex: 1; min-height: 0; }
+
+    /* The inline cost → reward formula under each candidate's action graphic. */
+    &__formula { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .35rem; }
+    &__arrow { color: fade(@con-cyan, 70%); font-weight: 700; }
+}
+
+/* ── The filled REPEAT SLOT on the SOURCE composer (ProjectInspection play /
+      Viron action): the chosen action drawn as a button with its own graphic —
+      the player reads exactly what they'll repeat, and A re-opens to change. ── */
+.con-composer__repeatpick {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .5rem .7rem; border-radius: .6rem;
+    background: fade(@con-mint, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%);
+
+    &-graphic {
+        flex-shrink: 0; zoom: .92;
+        /* The action-graphic icons are CSS-scoped under `.card-container` (added
+           on the wrapper); strip the legacy card margin here. */
+        > .card-container, &.card-container { margin: 0; }
+    }
+    &-name { font-size: .95rem; font-weight: 700; color: @con-text; }
+}
+
 .con-cardactions {
     /* THE MODAL BAND: the whole center lives between the bars — the header
        used to slide under the top HUD strip (top reserve was a bare 1.6vh). */
