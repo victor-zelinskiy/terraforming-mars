@@ -726,6 +726,53 @@
     &.cm-field--cursor { box-shadow: inset 0 0 0 .1rem fade(@con-amber, 55%); }
 }
 
+/* ── Profiles roster (profile → profiles editor) ─────────────────── */
+.cm-profile { gap: .7rem; }
+.cm-profile__cube {
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: .3rem;
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.3);
+    flex: 0 0 auto;
+}
+.cm-profile__name {
+    flex: 1;
+    min-width: 0;
+    font-size: .95rem;
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-profile--active {
+    box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 55%);
+    &.cm-field--cursor { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 .8rem fade(@con-cyan, 22%); }
+    .cm-profile__name { color: mix(#ffffff, @cm-gold, 70%); }
+}
+.cm-profile__active {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .68rem;
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    color: mix(#ffffff, @cm-gold, 55%);
+    white-space: nowrap;
+}
+.cm-profile--add .cm-profile__name { color: @con-text-dim; }
+.cm-profile__plus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: .3rem;
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+    color: fade(@con-cyan, 90%);
+    font-size: .95rem;
+    flex: 0 0 auto;
+}
+
 .cm-cube {
     width: 1.3rem;
     height: 1.3rem;

@@ -105,7 +105,10 @@
     </div>
 
     <!-- ── Profile editor ──────────────────────────────────────────────── -->
-    <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" @manage-friends="openFriends" />
+    <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" @manage-friends="openFriends" @manage-profiles="openProfiles" />
+
+    <!-- ── Profiles roster (opened from the profile — switch / add / remove) ── -->
+    <ConsoleProfilesEditor v-if="overlay === 'profiles'" ref="profiles" @close="backToProfileFromProfiles" />
 
     <!-- ── Friends editor (opened from the profile) ────────────────────── -->
     <ConsoleFriendsEditor v-if="overlay === 'friends'" ref="friends" @close="backToProfileFromFriends" />
@@ -194,10 +197,12 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
+import ConsoleProfilesEditor from '@/client/components/console/menu/ConsoleProfilesEditor.vue';
 import ConsoleFriendsEditor from '@/client/components/console/menu/ConsoleFriendsEditor.vue';
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
+import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
 import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
@@ -214,11 +219,11 @@ import {$t} from '@/client/directives/i18n';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'friends' | 'language' | 'options' | 'quit' | 'steam' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -304,6 +309,9 @@ export default defineComponent({
       if (this.overlay === 'profile') {
         return 'Player profile';
       }
+      if (this.overlay === 'profiles') {
+        return 'Profiles';
+      }
       if (this.overlay === 'friends') {
         return 'Friends';
       }
@@ -332,6 +340,14 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Change'},
           {control: 'back', label: 'Done'},
+        ];
+      }
+      if (this.overlay === 'profiles') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'inspect', label: 'Delete'},
+          {control: 'back', label: 'Back'},
         ];
       }
       if (this.overlay === 'friends') {
@@ -376,6 +392,11 @@ export default defineComponent({
     // cache BEFORE the first render, so CONTINUE / the My-games badge are on
     // the first painted frame instead of popping in after the fetch (the flash).
     ensureIdentityLoaded();
+    // The profile roster is the source of truth for the active identity —
+    // hydrate it (migrating a legacy single identity + mirroring the active
+    // profile into identityState) BEFORE the first render, so the header /
+    // games reflect the active profile even before the profile editor is opened.
+    ensureProfilesLoaded();
     hydrateJoinableGames(this.identityName);
   },
   watch: {
@@ -430,6 +451,16 @@ export default defineComponent({
         }
         if (action === 'back') {
           this.closeOverlay();
+        }
+        return true;
+      }
+      if (this.overlay === 'profiles') {
+        const profiles = this.$refs.profiles as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        if (profiles?.handleIntent?.(intent) === true) {
+          return true;
+        }
+        if (action === 'back') {
+          this.backToProfileFromProfiles();
         }
         return true;
       }
@@ -570,6 +601,19 @@ export default defineComponent({
     backToProfileFromFriends(): void {
       menuPadState.textEntry = false;
       this.overlay = 'profile';
+    },
+    /** The profiles roster is a sub-panel of the profile editor. */
+    openProfiles(): void {
+      this.overlay = 'profiles';
+    },
+    /** B in the roster returns to the profile editor; refresh games since the active player may have changed. */
+    backToProfileFromProfiles(): void {
+      menuPadState.textEntry = false;
+      this.overlay = 'profile';
+      const name = this.identityName;
+      if (name !== '') {
+        void loadJoinableGames(name, {silent: true});
+      }
     },
     closeOverlay(): void {
       this.overlay = undefined;

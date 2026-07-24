@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
+import {setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /*
@@ -19,8 +20,16 @@ function handSelectView(): PlayerViewModel {
 
 describe('consoleLeakDetector — stranded-guard debounce', () => {
   // stopConsoleLeakDetector() resets the module-level streak + stranded state.
-  beforeEach(() => stopConsoleLeakDetector());
-  afterEach(() => stopConsoleLeakDetector());
+  // Reset the shared gate mirror too — the stranded checks rely on
+  // isMandatoryGateHeld()===false, and module state is bundle-shared in mochapack.
+  beforeEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
+  afterEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
 
   it('does NOT flag stranded on a SINGLE unserved pass (kills transition flashes)', () => {
     runLeakDetection(handSelectView());
@@ -55,8 +64,16 @@ describe('consoleLeakDetector — stranded-guard debounce', () => {
 });
 
 describe('consoleLeakDetector — a DEFERRED task is never stranded', () => {
-  beforeEach(() => stopConsoleLeakDetector());
-  afterEach(() => stopConsoleLeakDetector());
+  // Reset the shared gate mirror too — the stranded checks rely on
+  // isMandatoryGateHeld()===false, and module state is bundle-shared in mochapack.
+  beforeEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
+  afterEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
 
   /*
    * A task the player set aside with B (deferred) has NO serving DOM node while

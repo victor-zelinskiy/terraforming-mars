@@ -5,12 +5,22 @@ import {
   isMandatoryBeatHeld,
   acknowledgeMandatoryBeat,
   resetMandatoryGate,
+  setMandatoryGateHeld,
+  isMandatoryGateHeld,
 } from '@/client/console/consoleMandatoryGate';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 
 describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
-  beforeEach(() => resetMandatoryGate());
-  afterEach(() => resetMandatoryGate());
+  // `held` is a shell-owned mirror that resetMandatoryGate deliberately does NOT
+  // touch — clear it here for test isolation (the shell does this on unmount).
+  beforeEach(() => {
+    resetMandatoryGate();
+    setMandatoryGateHeld(false);
+  });
+  afterEach(() => {
+    resetMandatoryGate();
+    setMandatoryGateHeld(false);
+  });
 
   describe('isInterruptiveMandatoryTask (Option A scope)', () => {
     it('corp first action + forced hand pick are ALWAYS interruptive', () => {
@@ -78,6 +88,17 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       acknowledgeMandatoryBeat('task:or|corp');
       resetMandatoryGate();
       expect(isMandatoryBeatHeld({key: 'task:or|corp', taskKind: 'corpFirstAction'})).to.be.true;
+    });
+
+    // Regression: resetMandatoryGate() (called in the shell's mounted() AFTER the
+    // immediate mirror watcher already set `held`) must NOT clobber the `held`
+    // mirror — else it desyncs (watcher won't re-fire on an unchanged computed)
+    // and the leak detector false-positives a held corp-first-action as stranded
+    // the moment the player leaves the board home.
+    it('reset does NOT clear the held mirror (owned by the shell watcher)', () => {
+      setMandatoryGateHeld(true);
+      resetMandatoryGate();
+      expect(isMandatoryGateHeld(), 'the held mirror survives a gate reset').to.be.true;
     });
   });
 });

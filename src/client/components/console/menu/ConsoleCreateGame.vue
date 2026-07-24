@@ -173,6 +173,7 @@ import {
 } from '@/client/components/create/premium/createGameState';
 import {submitPremiumCreateGame} from '@/client/components/create/premium/submitCreateGame';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
+import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -368,6 +369,10 @@ export default defineComponent({
   async mounted() {
     setDocumentTitle('Create new game');
     ensureIdentityLoaded();
+    // Roster is the source of truth for the active identity (mirrors it into
+    // identityState + migrates a legacy identity) — in case the create screen
+    // is reached without visiting the console main menu first.
+    ensureProfilesLoaded();
     // First launch with no saved name (Steam Deck / Steam Machine): pull the Steam display name so
     // the creator seat isn't empty. No-op when an identity already exists or off the Steam build.
     await prefillIdentityFromSteam();

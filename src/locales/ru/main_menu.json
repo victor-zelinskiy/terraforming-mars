@@ -49,5 +49,15 @@
     "Your friends list is full": "Список друзей заполнен",
     "Choose a friend": "Выберите друга",
     "Type a new name": "Ввести новое имя",
-    "Already in the party": "Уже в партии"
+    "Already in the party": "Уже в партии",
+
+    "Profiles": "Профили",
+    "Switch between your saved players, add a new one, or remove an old one.": "Переключайтесь между сохранёнными игроками, добавляйте нового или удаляйте старого.",
+    "Add": "Добавить",
+    "New profile": "Новый профиль",
+    "Delete profile": "Удалить профиль",
+    "Active profile": "Текущий",
+    "This name is already used by another profile": "Это имя уже занято другим профилем",
+    "You have reached the maximum number of profiles": "Достигнут максимум профилей",
+    "Can't delete your only profile": "Нельзя удалить единственный профиль"
 }

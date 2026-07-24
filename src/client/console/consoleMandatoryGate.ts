@@ -162,8 +162,18 @@ export function acknowledgeMandatoryBeat(key: string): void {
   mandatoryGateState.acknowledgedKey = key;
 }
 
-/** Reset the gate (game switch / test cleanup). */
+/**
+ * Reset the gate (game switch / test cleanup) — clears ONLY the persistent
+ * acknowledgment. `held` is a MIRROR owned exclusively by the shell watcher
+ * (setMandatoryGateHeld): it is NOT reset here. The shell calls this in mounted()
+ * AFTER the immediate `mandatoryGateHeld` watcher has already fired (created),
+ * so writing `held = false` here would STOMP the live mirror — the computed does
+ * not change afterwards, the watcher never re-fires, and the mirror is stuck
+ * false. That desync made the corp-first-action announcement read as "not held"
+ * → a stranded-guard false positive the moment the player left the board home
+ * (where `.con-mandatory` masked it). The shell owns the mirror's whole
+ * lifecycle: the watcher while mounted, an explicit clear on unmount.
+ */
 export function resetMandatoryGate(): void {
   mandatoryGateState.acknowledgedKey = '';
-  mandatoryGateState.held = false;
 }

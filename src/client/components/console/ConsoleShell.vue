@@ -6948,6 +6948,7 @@ export default defineComponent({
     this.releasePresentationLease = undefined;
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
+    setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     stopConsoleLeakDetector();
