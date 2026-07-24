@@ -36,8 +36,8 @@ const DECK_SEL = '.con-deckstack__pile';
 
 /** Travel from the deck into the slot (face down). */
 const TRAVEL_MS = 680;
-/** The in-place flip (back → face). */
-const FLIP_MS = 540;
+/** The in-place flip (back → face) — a deliberate, weighty turn. */
+const FLIP_MS = 620;
 /** The settle beat after the flip before the real-card handoff. */
 const SETTLE_MS = 90;
 /** Safety: force-settle even if GSAP stalls (backgrounded tab). */
@@ -165,21 +165,33 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
       return;
     }
     flipStarted = true;
+    let glinted = false;
     const ftl = gsap.timeline();
     ftl.to(flip, {
       rotateY: 0,
       duration: s(FLIP_MS),
       ease: 'power2.inOut',
       onUpdate() {
-        if (this.progress() >= 0.5) {
+        const p = this.progress();
+        // The one-shot LIGHT SWEEP across the face the instant it turns into
+        // view (~90° of the flip) — the SAME premium glint the deck-draw and
+        // colony-trade reveals ride (shared `con-deckdraw-reveal-glint`). It
+        // lives on the FACE surface, so backface-visibility hides it until the
+        // card is face-first; adding the class here fires it exactly on turn.
+        if (!glinted && p >= 0.44) {
+          glinted = true;
+          proxy.classList.add('con-deal-proxy--revealing');
+        }
+        if (p >= 0.5) {
           fireFace();
         }
       },
     }, 0);
-    // The physical "card snaps over" beat: a slight scale breath on the proxy,
-    // peaking as the face passes the camera plane.
-    ftl.to(proxy, {scale: scaleTo * 1.035, duration: s(FLIP_MS / 2), ease: 'power2.out'}, 0);
-    ftl.to(proxy, {scale: scaleTo, duration: s(FLIP_MS / 2), ease: 'power2.in'}, s(FLIP_MS / 2));
+    // The physical "card snaps over" beat: a scale breath on the proxy peaking
+    // as the face passes the camera plane, landing with a springy settle (a
+    // touch of weight — the card arrives, it doesn't just stop).
+    ftl.to(proxy, {scale: scaleTo * 1.05, duration: s(FLIP_MS * 0.5), ease: 'power2.out'}, 0);
+    ftl.to(proxy, {scale: scaleTo, duration: s(FLIP_MS * 0.5), ease: 'back.out(2.2)'}, s(FLIP_MS * 0.5));
     ftl.to({}, {duration: s(SETTLE_MS)});
     ftl.call(fireSettled);
     liveFlip = ftl;
@@ -198,6 +210,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
       window.clearTimeout(safety);
       tl.kill();
       liveFlip?.kill();
+      proxy.classList.remove('con-deal-proxy--revealing');
     },
   };
 }

@@ -28,6 +28,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {RepeatComposed} from '@/client/console/consoleActionComposer';
+import {resetConsoleRepeatPickFilter} from '@/client/console/consoleRepeatPickUi';
 
 export type ConsoleRepeatPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -76,6 +77,13 @@ export function enterConsoleRepeatPick(
   onResolve: (result: ConsoleRepeatPickResult) => void,
   onCancel?: () => void,
 ): void {
+  // A FRESH copy-opening (no `prior`) starts at the «Активированы + Доступна»
+  // default — SCOPED to this operation. A «change» re-open (`prior` set) is a
+  // continuation of the SAME operation, so it KEEPS whatever filter the player
+  // relaxed to while hunting for the action.
+  if (request.prior === undefined) {
+    resetConsoleRepeatPickFilter();
+  }
   consoleRepeatPickState.request = request;
   resolveCb = onResolve;
   cancelCb = onCancel;

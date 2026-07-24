@@ -609,7 +609,7 @@ export default defineComponent({
     },
     /** Names the active filter values when they hide everything (2.6). */
     emptyFilterLine(): string {
-      const f = consoleCardActionsUi.filter;
+      const f = this.activeFilter;
       if (f.availability === 'all' && f.activation === 'all') {
         return '';
       }

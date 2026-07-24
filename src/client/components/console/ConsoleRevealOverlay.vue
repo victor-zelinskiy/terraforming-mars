@@ -164,18 +164,50 @@
               </div>
             </div>
             <div class="con-reveal__main">
-              <div class="con-reveal__revealed"
+              <!-- The revealed card is the flight's LANDING SLOT: the real card
+                   stays hidden (layout kept) until the deck→slot flip settles,
+                   so the proxy lands on its exact rect and the swap is invisible. -->
+              <div class="con-reveal__revealed" ref="resultSlot"
                    :data-zoom-slot="'revealed:' + lastReveal.revealed.name"
-                   :class="lastReveal.conditionMet ? 'con-reveal__revealed--met' : 'con-reveal__revealed--miss'">
-                <Card :card="lastReveal.revealed" :key="lastReveal.revealed.name" />
+                   :class="{
+                     'con-reveal__revealed--met': resultRevealed && lastReveal.conditionMet,
+                     'con-reveal__revealed--miss': resultRevealed && !lastReveal.conditionMet,
+                   }">
+                <Card :card="lastReveal.revealed" :key="lastReveal.revealed.name"
+                      :style="{visibility: resultStage === 'settled' ? 'visible' : 'hidden'}" />
               </div>
-              <div class="con-reveal__outcome" :class="lastReveal.conditionMet ? 'con-reveal__outcome--met' : 'con-reveal__outcome--miss'">
-                <span class="con-reveal__outcome-badge" aria-hidden="true">{{ lastReveal.conditionMet ? '✓' : '✕' }}</span>
-                <span>{{ $t(lastReveal.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
-                <ActionEffectChip v-if="lastReveal.reward !== undefined" :effect="lastReveal.reward" />
-                <span v-if="vpGain > 0" class="con-reveal__vp">+{{ vpGain }} {{ $t('VP') }}</span>
-              </div>
+              <transition name="con-actfocus-outcome" mode="out-in">
+                <div v-if="!resultRevealed" key="status" class="con-reveal__revealstatus" role="status">
+                  <span class="con-reveal__revealstatus-spin" aria-hidden="true"></span>
+                  <span>{{ $t('Revealing the card') }}</span>
+                </div>
+                <div v-else key="outcome"
+                     class="con-reveal__outcome" :class="lastReveal.conditionMet ? 'con-reveal__outcome--met' : 'con-reveal__outcome--miss'">
+                  <span class="con-reveal__outcome-badge" aria-hidden="true">{{ lastReveal.conditionMet ? '✓' : '✕' }}</span>
+                  <span>{{ $t(lastReveal.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
+                  <ActionEffectChip v-if="lastReveal.reward !== undefined" :effect="lastReveal.reward" />
+                  <span v-if="vpGain > 0" class="con-reveal__vp">+{{ vpGain }} {{ $t('VP') }}</span>
+                </div>
+              </transition>
             </div>
+            <!-- The deck→slot FLIGHT layer (fixed proxy — the shared deal
+                 chassis; the SAME director the in-frame reveal uses). Teleported
+                 to body so no ancestor panel transform can trap its fixed
+                 coordinates (the flight measures viewport-absolute rects). -->
+            <Teleport to="body">
+              <div v-if="resultFlightOn" class="con-reveal__revealfly" aria-hidden="true">
+                <div class="con-deal-proxy" ref="resultProxy">
+                  <div class="con-deal-proxy__flip" ref="resultFlip">
+                    <div class="con-deal-proxy__face">
+                      <ConsoleCardFaceLite :name="lastReveal.revealed.name" />
+                    </div>
+                    <div class="con-deal-proxy__back">
+                      <div class="con-card-back con-card-back--flyer"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Teleport>
           </div>
 
           <!-- ── VIEWER: another player's public reveal (read-only) ──── -->
@@ -241,9 +273,12 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -297,7 +332,7 @@ type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, GamepadGlyph, ActionEffectChip},
+  components: {Card, ConsoleCardFaceLite, GamepadGlyph, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -306,6 +341,14 @@ export default defineComponent({
   data() {
     return {
       focusIdx: 0,
+      // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
+      /** pending → the card is flying / flipping (status shows); settled → the
+       *  face is up and the real card + verdict are shown. */
+      resultStage: 'pending' as 'pending' | 'face' | 'settled',
+      /** The fixed flight proxy is mounted (the face-down card in transit). */
+      resultFlightOn: false,
+      resultHandle: undefined as ActionRevealFlightHandle | undefined,
+      resultLaunchTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -504,6 +547,11 @@ export default defineComponent({
       const vp = this.lastReveal?.vp;
       return vp !== undefined ? Math.max(0, vp.to - vp.from) : 0;
     },
+    /** The face has turned up — show the verdict + the real card (the status
+     *  «Вскрываем карту» yields the instant the flip crosses the camera plane). */
+    resultRevealed(): boolean {
+      return this.resultStage !== 'pending';
+    },
     // ── viewer ───────────────────────────────────────────────────────
     viewerReveal(): RevealMeta | undefined {
       return this.mode === 'viewer' ? revealViewerState.reveal : undefined;
@@ -577,6 +625,10 @@ export default defineComponent({
   watch: {
     revealKey() {
       this.focusIdx = 0;
+      // A fresh reveal (result mode) restarts the deck→slot flight from the top.
+      if (this.mode === 'result' && this.lastReveal !== undefined) {
+        this.scheduleResultFlight();
+      }
     },
     focusCount(now: number) {
       if (this.focusIdx >= now) {
@@ -605,9 +657,16 @@ export default defineComponent({
     if (this.singleCardNeedsFullscreen) {
       this.openSingleCardFullscreen();
     }
+    // The deck-check RESULT (SearchForLife / AsteroidDeflection, incl. a
+    // ProjectInspection repeat) reveals its card with the SAME premium
+    // deck→slot flight + flip the in-frame Action Center uses.
+    if (this.mode === 'result' && this.lastReveal !== undefined) {
+      this.scheduleResultFlight();
+    }
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
+    this.abortResultFlight();
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -615,6 +674,68 @@ export default defineComponent({
         return {};
       }
       return {animationDelay: `calc(${Math.min(i, 12) * 55}ms * var(--motion-scale, 1))`};
+    },
+    // ── RESULT reveal flight (deck → slot + flip; reuses the in-frame director) ──
+    /**
+     * A face-down card is pulled off the HUD project deck, travels into the
+     * revealed-card slot and flips face-up in place — the SAME premium beat the
+     * in-frame Action Center reveal plays (shared `runActionRevealFlight` + the
+     * shared deal proxy; no animation logic is duplicated). Launched once the
+     * modal frame's own entrance settles so the landing rect is stable.
+     */
+    scheduleResultFlight(): void {
+      this.abortResultFlight();
+      this.resultStage = 'pending';
+      this.resultFlightOn = true;
+      this.resultLaunchTimer = window.setTimeout(() => {
+        this.resultLaunchTimer = undefined;
+        void this.$nextTick(() => this.beginResultFlight());
+      }, motionMs(220));
+    },
+    beginResultFlight(): void {
+      if (this.mode !== 'result' || this.lastReveal === undefined) {
+        return;
+      }
+      const proxy = this.$refs.resultProxy as HTMLElement | undefined;
+      const flip = this.$refs.resultFlip as HTMLElement | undefined;
+      const slotHost = this.$refs.resultSlot as HTMLElement | undefined;
+      // Land on the CARD rect (not the padded slot frame) so the proxy → real
+      // card swap is pixel-true. The real card is visibility:hidden — it keeps
+      // its layout, so its rect is measurable while it stays invisible.
+      const slot = slotHost?.querySelector<HTMLElement>('.pcard, .card-container') ?? slotHost;
+      if (proxy === undefined || flip === undefined || slot === undefined) {
+        // No stage to fly on (torn-down DOM / test runner): show the result now.
+        this.resultStage = 'settled';
+        this.resultFlightOn = false;
+        return;
+      }
+      this.resultHandle = runActionRevealFlight({
+        proxy, flip, slot,
+        onFaceShown: () => {
+          if (this.resultStage === 'pending') {
+            this.resultStage = 'face';
+          }
+        },
+        onSettled: () => {
+          // ONE flush: the proxy unmounts and the real card becomes visible
+          // together (the proxy landed on the slot — the swap is invisible).
+          this.resultStage = 'settled';
+          this.resultFlightOn = false;
+          this.resultHandle = undefined;
+        },
+      });
+      // The revealed identity is already committed — release the flip so it
+      // turns face-up the instant it lands (no waiting on a server payload).
+      this.resultHandle.notifyPayload();
+    },
+    abortResultFlight(): void {
+      if (this.resultLaunchTimer !== undefined) {
+        window.clearTimeout(this.resultLaunchTimer);
+        this.resultLaunchTimer = undefined;
+      }
+      this.resultHandle?.kill();
+      this.resultHandle = undefined;
+      this.resultFlightOn = false;
     },
     /** The shell routes every intent here while the MULTI-CARD overlay owns
      *  input (single-card hands off to the shell's zoom handlers entirely). */

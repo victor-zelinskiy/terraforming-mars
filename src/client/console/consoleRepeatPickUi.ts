@@ -24,6 +24,14 @@ export function setConsoleRepeatPickCommands(commands: ReadonlyArray<ConsoleComm
   consoleRepeatPickUi.commands = commands;
 }
 
+/** Re-seed the repeat grid to «Активированы + Доступна». Called at the START of
+ *  each FRESH copy-opening so the default is SCOPED to that operation — a filter
+ *  the player relaxed during one copy never carries into the next (nor is it ever
+ *  the NORMAL Action Center's persisted filter, which lives in `consoleCardActionsUi`). */
+export function resetConsoleRepeatPickFilter(): void {
+  consoleRepeatPickUi.filter = defaultRepeatFilter();
+}
+
 export function resetConsoleRepeatPickUi(): void {
   consoleRepeatPickUi.commands = [];
   consoleRepeatPickUi.filter = defaultRepeatFilter();
