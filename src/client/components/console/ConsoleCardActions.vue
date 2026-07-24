@@ -13,8 +13,13 @@
       <header class="con-cardactions__head">
         <div class="con-cardactions__head-main">
           <div class="con-cardactions__kicker">
-            <span class="con-cardactions__kicker-mark" aria-hidden="true">◈</span>
-            <span>{{ $t('Card actions') }}</span>
+            <span class="con-cardactions__kicker-mark" aria-hidden="true">{{ repeat ? '⟳' : '◈' }}</span>
+            <span>{{ $t(repeat ? 'Repeat action' : 'Card actions') }}</span>
+            <!-- Repeat mode names the SOURCE card (ProjInsp / Viron) in the breadcrumb. -->
+            <template v-if="repeat && repeatRequest !== undefined">
+              <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+              <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.card) }}</span>
+            </template>
             <template v-if="composer !== undefined">
               <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
               <!-- The breadcrumb STEP crossfades between phases (Настройка /
@@ -26,7 +31,7 @@
           </div>
           <transition name="con-cardactions-headswap" mode="out-in">
             <div class="con-cardactions__title" :key="composer !== undefined ? composer.cardName : ''">
-              {{ composer !== undefined ? $t(composer.cardName) : $t('Card actions') }}
+              {{ composer !== undefined ? $t(composer.cardName) : $t(repeat ? 'Choose an action to repeat' : 'Card actions') }}
             </div>
           </transition>
         </div>
@@ -36,7 +41,7 @@
               <b>{{ model.totalTiles }}</b><i>{{ $t('total') }}</i>
             </span>
             <span class="con-cardactions__stat con-cardactions__stat--go" :class="{'con-cardactions__stat--zero': model.availableTiles === 0}">
-              <b>{{ model.availableTiles }}</b><i>{{ $t('can perform') }}</i>
+              <b>{{ model.availableTiles }}</b><i>{{ $t(repeat ? 'can select' : 'can perform') }}</i>
             </span>
           </template>
           <span v-else-if="focusVariantTotal > 1" class="con-cardactions__stat">
@@ -282,9 +287,12 @@
                                :preview="composerPreview"
                                :nodeIndex="composer.nodeIndex"
                                :reveal="revealFlow"
+                               :commitLabel="repeat ? 'Select this action' : 'Confirm action'"
+                               :publishCommands="!repeat"
                                @confirm="onComposerConfirm"
                                @cancel="onComposerCancel"
                                @inspect-source="onInspectSource"
+                               @commands="onComposerCommands"
                                @reveal-ack="onRevealAck" />
       </transition>
       </div><!-- /__stagewrap -->
@@ -340,7 +348,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {buildActionEntries, ActionEntry} from '@/client/components/actions/actionModel';
+import {buildActionEntries, ActionEntry, ActionFilterState} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
@@ -354,6 +362,7 @@ import {
   ConsoleActionGroup,
   ConsoleActionReason,
   ConsoleVariableChip,
+  RepeatAvailability,
 } from '@/client/console/consoleCardActions';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -379,7 +388,8 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {findPerformActionCard} from '@/client/console/turnIntents';
-import {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
@@ -419,6 +429,21 @@ export default defineComponent({
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /**
+     * REPEAT mode (ProjectInspection / Viron): the SAME Action Center, adapted to
+     * PICK an already-used action to repeat — «Активированы + Доступна» default
+     * filters, A = «Выбрать», the composer captures the chosen action's composed
+     * responses and RESOLVES `consoleRepeatPick` instead of submitting. Uses its
+     * OWN filter/command stores so a repeat instance can overlay a normal one.
+     */
+    repeat: {type: Boolean, default: false},
+    /**
+     * ProjectInspection repeating a REVEAL action: after the play submits, the
+     * shell opens THIS (normal) Action Center and passes the chosen action here
+     * so its in-frame reveal phase presents the outcome (the play surface can't
+     * host a reveal). Undefined = no pending repeat reveal.
+     */
+    revealTarget: {type: Object as PropType<{chosenCard: CardName, nodeIndex: number} | undefined>, default: undefined},
   },
   emits: ['close', 'submit-batch', 'reveal-ack'],
   data() {
@@ -478,8 +503,27 @@ export default defineComponent({
       }
       return m;
     },
+    /** The active filter — the repeat instance keeps its OWN so it can overlay
+     *  a normal Action Center (Viron) without sharing state. */
+    activeFilter(): ActionFilterState {
+      return this.repeat ? consoleRepeatPickUi.filter : consoleCardActionsUi.filter;
+    },
+    /** The repeat request (candidates + source card), when in repeat mode. */
+    repeatRequest() {
+      return this.repeat ? consoleRepeatPickState.request : undefined;
+    },
+    /** The repeat availability: selectable candidates + used-this-gen (activation). */
+    repeatAvailability(): RepeatAvailability | undefined {
+      if (!this.repeat) {
+        return undefined;
+      }
+      return {
+        candidates: new Set(this.repeatRequest?.candidates ?? []),
+        used: new Set(this.thisPlayer.actionsThisGeneration ?? []),
+      };
+    },
     model(): ConsoleActionsModel {
-      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, consoleCardActionsUi.filter);
+      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability);
     },
     /** Re-fetch previews when anything availability-relevant changes. */
     previewFingerprint(): string {
@@ -510,10 +554,16 @@ export default defineComponent({
       if (this.composer !== undefined) {
         return [];
       }
-      return browseCommandRun({
+      const run = browseCommandRun({
         empty: this.model.groups.length === 0,
         focusedAvailable: this.focusedTile?.status === 'available',
       });
+      if (!this.repeat) {
+        return run;
+      }
+      // Repeat mode: A = «Выбрать» (never «Выполнить»); B = «Отмена» (cancel the pick).
+      return run.map((c) => c.control === 'confirm' ? {...c, label: 'Select'} :
+        c.control === 'back' ? {...c, label: 'Cancel'} : c);
     },
     /** The focus-stage breadcrumb step («Настройка действия» / «Подтверждение»
      *  → «Результат вскрытия» once a deck-check confirm enters its reveal
@@ -611,7 +661,22 @@ export default defineComponent({
       }
     },
     composer(value: ComposerContext | undefined) {
-      consoleCardActionsUi.confirmOpen = value !== undefined;
+      // The repeat instance must NOT touch the shared `consoleCardActionsUi`
+      // (a normal Action Center may be mounted underneath — Viron).
+      if (!this.repeat) {
+        consoleCardActionsUi.confirmOpen = value !== undefined;
+      }
+    },
+    // ProjectInspection reveal handoff: the shell opened this (normal) Action
+    // Center and handed us the chosen REVEAL action → present its in-frame
+    // reveal phase (the play surface couldn't host it).
+    'revealTarget': {
+      immediate: true,
+      handler(target: {chosenCard: CardName, nodeIndex: number} | undefined) {
+        if (target !== undefined && !this.repeat && this.composer === undefined) {
+          this.beginRepeatReveal(target.chosenCard, target.nodeIndex);
+        }
+      },
     },
     'footCommands': {
       immediate: true,
@@ -619,19 +684,31 @@ export default defineComponent({
       handler(cmds: ReadonlyArray<ConsoleCommand>) {
         // While the composer is open IT owns the panel slot — publishing an
         // empty grid contract here would steal the owner key back.
-        if (this.composer === undefined) {
+        if (this.composer !== undefined) {
+          return;
+        }
+        // The repeat instance uses its OWN command store (unstealable by a
+        // normal Action Center it may overlay).
+        if (this.repeat) {
+          setConsoleRepeatPickCommands(cmds);
+        } else {
           setPanelCommands('cardActions', cmds);
         }
       },
     },
   },
   mounted() {
-    consoleCardActionsUi.confirmOpen = false;
+    if (!this.repeat) {
+      consoleCardActionsUi.confirmOpen = false;
+    }
     void this.$nextTick(() => this.scrollFocusedIntoView());
   },
   beforeUnmount() {
-    consoleCardActionsUi.confirmOpen = false;
-    clearPanelCommands('cardActions');
+    // The repeat instance owns none of the shared Action Center stores.
+    if (!this.repeat) {
+      consoleCardActionsUi.confirmOpen = false;
+      clearPanelCommands('cardActions');
+    }
     resetActionFocusMotion();
     if (this.shakeTimer !== undefined) {
       window.clearTimeout(this.shakeTimer);
@@ -890,11 +967,42 @@ export default defineComponent({
       });
     },
     // ── composer events ─────────────────────────────────────────────────
+    /** Open THIS Action Center's in-frame reveal phase for a REPEATED reveal
+     *  action (the chosen action's outcome, after the source's submit) — reuses
+     *  the exact deck-check machinery a direct activation uses, so the repeat is
+     *  presented identically (never a separate standalone overlay). */
+    beginRepeatReveal(chosenCard: CardName, nodeIndex: number): void {
+      this.composer = {cardName: chosenCard, nodeIndex};
+      this.revealFlow = {};
+      setConsoleActionRevealClaim(chosenCard);
+    },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
     onComposerConfirm(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult}): void {
       const comp = this.composer;
       if (comp === undefined) {
+        return;
+      }
+      // REPEAT MODE: this composer is the CHOSEN action's — capture its composed
+      // responses and hand them back to the SOURCE (ProjectInspection play /
+      // Viron action) via the bridge; the source draws the button + owns the
+      // FINAL submit. Nothing is submitted here.
+      if (this.repeat) {
+        const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
+        resolveConsoleRepeatPick({
+          chosenCard: comp.cardName,
+          nodeIndex: comp.nodeIndex,
+          composed: {
+            branchIndex: payload.branchIndex,
+            preResponses: payload.preResponses,
+            optionResponse: payload.optionResponse,
+            stepResponses: payload.stepResponses,
+          },
+          // Whether the chosen action's confirmed branch REVEALS a card — so the
+          // source can reuse this Action Center's in-frame reveal phase after
+          // the final submit (SearchForLife / AsteroidDeflection).
+          reveal: branch?.reveal !== undefined,
+        });
         return;
       }
       const perform = findPerformActionCard(this.playerView.waitingFor);
@@ -920,13 +1028,18 @@ export default defineComponent({
       // A DECK-CHECK branch stays IN THIS STAGE: the flow enters the reveal
       // phase immediately («Вскрываем карту» + the deck flight launches) and
       // CLAIMS the incoming lastReveal, so the shell neither closes the
-      // center nor mounts the standalone reveal overlay for it. (A REPEATED
-      // reveal action rides the standalone overlay post-submit instead — the
-      // chosen action's reveal is inside the composed tail, not Viron's branch.)
+      // center nor mounts the standalone reveal overlay for it.
       const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
       if (payload.repeat === undefined && branch?.reveal !== undefined) {
         this.revealFlow = {};
         setConsoleActionRevealClaim(comp.cardName);
+      }
+      // Viron repeating a REVEAL action (SearchForLife / AsteroidDeflection):
+      // reuse THIS Action Center's in-frame reveal phase — re-point the composer
+      // at the CHOSEN action + claim its reveal, so the outcome opens here after
+      // the submit (not the standalone overlay), exactly like a direct activation.
+      if (payload.repeat?.reveal === true) {
+        this.beginRepeatReveal(payload.repeat.chosenCard, payload.repeat.nodeIndex);
       }
       // AWAITING HANDOFF (surface motion): the batch is COMMITTED — the
       // composer deliberately HOLDS the stage (its CTA shows the in-flight
@@ -942,15 +1055,23 @@ export default defineComponent({
       // was used, resolves/cancels on its OWN surface — no outer restore here).
       this.closeComposer();
     },
+    /** Repeat instance: the nested composer reports its contract UP (it doesn't
+     *  touch the shared `consoleActionComposerUi` the outer Viron composer owns). */
+    onComposerCommands(cmds: ReadonlyArray<ConsoleCommand>): void {
+      if (this.repeat && this.composer !== undefined) {
+        setConsoleRepeatPickCommands(cmds);
+      }
+    },
     stepAvailability(step: 1 | -1): void {
-      consoleCardActionsUi.filter.availability = cycleAvailability(consoleCardActionsUi.filter.availability, step);
+      this.activeFilter.availability = cycleAvailability(this.activeFilter.availability, step);
     },
     stepActivation(step: 1 | -1): void {
-      consoleCardActionsUi.filter.activation = cycleActivation(consoleCardActionsUi.filter.activation, step);
+      this.activeFilter.activation = cycleActivation(this.activeFilter.activation, step);
     },
     resetFilters(): void {
-      consoleCardActionsUi.filter.availability = 'all';
-      consoleCardActionsUi.filter.activation = 'dormant';
+      // Repeat mode resets to «Активированы + Доступна» (the copyable slice).
+      this.activeFilter.availability = this.repeat ? 'available' : 'all';
+      this.activeFilter.activation = this.repeat ? 'activated' : 'dormant';
     },
     shake(key: string): void {
       this.shakeKey = key;

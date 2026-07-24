@@ -90,6 +90,10 @@ export type ConsoleActionTile = {
   /** True when activating this variant requires pre-submit choices (the
    *  composer will host them) — drives the tile's "choice" marker. */
   hasChoices: boolean;
+  /** Activated this generation (the activation-filter dimension). In REPEAT
+   *  mode this is INDEPENDENT of `status` (a candidate is both used-this-gen
+   *  AND selectable), so the filter reads this flag, not `status === 'activated'`. */
+  usedThisGen: boolean;
   /** NON-amount pre-submit choice kinds (card / player / or / payment /
    *  spendHeat) — the tile names them ("choose a card") since no range chip
    *  can express them. Amount choices ride `variableCost`/`variableGain`. */
@@ -105,6 +109,8 @@ export type ConsoleActionGroup = {
   isCorporation: boolean;
   /** Card-level status (the best of its variants — drives the group badge + sort). */
   status: ActionStatus;
+  /** Activated this generation (for the repeat-mode activation filter). */
+  usedThisGen: boolean;
   /** The stored resource on the source card (microbes/animals/floaters), if any. */
   cardResource: {type: CardResource, count: number} | undefined;
   tiles: ReadonlyArray<ConsoleActionTile>;
@@ -131,6 +137,13 @@ export function defaultCardActionsFilter(): ActionFilterState {
   return {availability: 'all', activation: 'dormant'};
 }
 
+/** The default REPEAT-mode filter — «Активированы + Доступна», so the player
+ *  sees exactly the copyable actions; relaxing either filter reveals the rest
+ *  (with an honest reason why they can't be repeated). */
+export function defaultRepeatFilter(): ActionFilterState {
+  return {availability: 'available', activation: 'activated'};
+}
+
 /**
  * Module-level UI state the SHELL reads for the command bar (mirrors
  * `consoleJournalUi`): the persisted filter (survives close/reopen) + whether
@@ -144,20 +157,39 @@ export const consoleCardActionsUi = reactive({
 
 // ── filter predicates (BY VARIANT — mirror actionModel's entry-level rules) ──
 
+/**
+ * REPEAT-mode availability (ProjectInspection / Viron): the SAME grid, but the
+ * "available" dimension means "selectable for repeat" (a candidate = used this
+ * generation AND `canAct`), and the "activated" dimension is INDEPENDENT (read
+ * from `usedThisGen`, not the status) — so a candidate is BOTH activated AND
+ * available, and the default «Активированы + Доступна» filter shows exactly the
+ * copyable actions while everything else stays visible with a reason.
+ */
+export type RepeatAvailability = {
+  /** Cards selectable for repeat (the server's repeat SelectCard candidates). */
+  candidates: ReadonlySet<CardName>;
+  /** Cards activated this generation (the activation dimension). */
+  used: ReadonlySet<CardName>;
+};
+
 function passAvailability(status: ActionStatus, availability: AvailabilityFilter): boolean {
   switch (availability) {
   // 'available' = rules-doable (activatable now, or just not the player's
   // window) — mirrors the hand overlay (a soft block still counts as available).
+  // In REPEAT mode there is no 'soft', so this is exactly the selectable set.
   case 'available': return status === 'available' || status === 'soft';
   case 'unavailable': return status === 'rules';
   default: return true;
   }
 }
 
-function passActivation(status: ActionStatus, activation: ActivationFilter): boolean {
+function passActivation(tile: {status: ActionStatus, usedThisGen: boolean}, activation: ActivationFilter, repeat: boolean): boolean {
+  // Normal mode: "activated" IS the status. Repeat mode: it is the independent
+  // used-this-generation flag (a selectable candidate is also activated).
+  const activated = repeat ? tile.usedThisGen : tile.status === 'activated';
   switch (activation) {
-  case 'dormant': return status !== 'activated';
-  case 'activated': return status === 'activated';
+  case 'dormant': return !activated;
+  case 'activated': return activated;
   default: return true;
   }
 }
@@ -291,17 +323,39 @@ function branchChoiceKinds(
 function buildTiles(
   entry: ActionEntry,
   preview: ActionPreview | undefined,
+  repeat?: RepeatAvailability,
 ): Array<ConsoleActionTile> {
   const group = entry.group;
   const branches = preview?.branches ?? [];
   const cardStatus = entry.state.status;
+  // In repeat mode the activation dimension is the used-this-gen flag; in normal
+  // mode it IS the status (`activated`).
+  const usedThisGen = repeat !== undefined ? repeat.used.has(entry.cardName) : (cardStatus === 'activated');
+  // In repeat mode a card is selectable iff it is a candidate (server truth =
+  // used this gen AND canAct); a non-candidate stays VISIBLE with a reason.
+  const repeatSelectable = repeat !== undefined ? repeat.candidates.has(entry.cardName) : false;
   return group.nodes.map((node, i): ConsoleActionTile => {
     const pos = branchPositionForNode(group, branches, i);
     const branch = pos !== undefined ? branches[pos] : undefined;
-    let status: ActionStatus = cardStatus;
+    let status: ActionStatus;
     let reason: ConsoleActionReason | undefined;
 
-    if (cardStatus === 'available') {
+    if (repeat !== undefined) {
+      // REPEAT mode: candidate → selectable ('available'), unless THIS branch is
+      // itself blocked; a non-candidate → 'rules' with the honest reason.
+      if (!repeatSelectable) {
+        status = 'rules';
+        reason = usedThisGen ?
+          reasonFrom('This action cannot be repeated right now', []) :
+          reasonFrom('This action was not used this generation', []);
+      } else if (branch !== undefined && branch.available === false) {
+        status = 'rules';
+        reason = reasonFrom(branch.unavailableReason ?? 'Unavailable right now', branch.unavailableReasonParams);
+      } else {
+        status = 'available';
+      }
+    } else if (cardStatus === 'available') {
+      status = cardStatus;
       // The card is activatable (≥1 branch available) — but THIS variant's
       // branch may itself be blocked (Rotator Impacts: "add asteroid" OK,
       // "spend asteroid → Venus" needs a resource on the card).
@@ -310,12 +364,14 @@ function buildTiles(
         reason = reasonFrom(branch.unavailableReason ?? 'Unavailable right now', branch.unavailableReasonParams);
       }
     } else if (cardStatus === 'rules') {
+      status = cardStatus;
       // The whole card is blocked — prefer this variant's own branch reason,
       // else the card-level structured reason.
       reason = (branch !== undefined && branch.available === false && branch.unavailableReason !== undefined) ?
         reasonFrom(branch.unavailableReason, branch.unavailableReasonParams) :
         reasonFrom(entry.state.reasons[0]?.message, entry.state.reasons[0]?.params);
     } else {
+      status = cardStatus;
       // soft / activated — the single calm reason applies to every variant.
       reason = reasonFrom(entry.state.softReason?.message, entry.state.softReason?.params);
     }
@@ -330,6 +386,7 @@ function buildTiles(
       nodeIndex: i,
       node: stripNodeOr(node),
       status,
+      usedThisGen,
       branch,
       costEffects: effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon)),
       gainEffects: effects.filter((e) => e.direction === 'gain' && !variable.suppressGainIcons.has(e.icon)),
@@ -382,10 +439,12 @@ export function buildConsoleActionsModel(
   previews: ReadonlyMap<CardName, ActionPreview>,
   cardResources: ReadonlyMap<CardName, {type: CardResource, count: number}>,
   filter: ActionFilterState,
+  repeat?: RepeatAvailability,
 ): ConsoleActionsModel {
+  const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
   const groups: Array<ConsoleActionGroup> = entries.map((entry) => {
-    const tiles = buildTiles(entry, previews.get(entry.cardName));
+    const tiles = buildTiles(entry, previews.get(entry.cardName), repeat);
     const status = tiles.reduce<ActionStatus>(
       (best, t) => (STATUS_RANK[t.status] < STATUS_RANK[best] ? t.status : best),
       tiles[0]?.status ?? entry.state.status,
@@ -395,6 +454,7 @@ export function buildConsoleActionsModel(
       cardName: entry.cardName,
       isCorporation: entry.isCorporation,
       status,
+      usedThisGen: tiles[0]?.usedThisGen ?? false,
       cardResource: cardResources.get(entry.cardName),
       tiles,
     };
@@ -413,14 +473,14 @@ export function buildConsoleActionsModel(
     value: def.value,
     label: def.label,
     count: allTiles.filter((t) =>
-      passActivation(t.status, filter.activation) && passAvailability(t.status, def.value)).length,
+      passActivation(t, filter.activation, repeatMode) && passAvailability(t.status, def.value)).length,
     active: filter.availability === def.value,
   }));
   const activationChips = ACTIVATION_DEFS.map((def) => ({
     value: def.value,
     label: def.label,
     count: allTiles.filter((t) =>
-      passAvailability(t.status, filter.availability) && passActivation(t.status, def.value)).length,
+      passAvailability(t.status, filter.availability) && passActivation(t, def.value, repeatMode)).length,
     active: filter.activation === def.value,
   }));
 
@@ -431,7 +491,7 @@ export function buildConsoleActionsModel(
   const visibleGroups: Array<ConsoleActionGroup> = [];
   for (const g of sorted) {
     const tiles = g.tiles.filter((t) =>
-      passAvailability(t.status, filter.availability) && passActivation(t.status, filter.activation));
+      passAvailability(t.status, filter.availability) && passActivation(t, filter.activation, repeatMode));
     if (tiles.length > 0) {
       visibleGroups.push({...g, tiles});
     }

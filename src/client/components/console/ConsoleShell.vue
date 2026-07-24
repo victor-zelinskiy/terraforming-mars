@@ -313,6 +313,7 @@
                           v-show="!handPickActive && !playedPickActive && !repeatPickActive"
                           ref="cardActions"
                           :playerView="playerView"
+                          :revealTarget="repeatReveal"
                           @submit-batch="onCardActionsSubmitBatch"
                           @reveal-ack="onCardActionsRevealAck"
                           @close="onCardActionsClose" />
@@ -774,12 +775,15 @@
     </transition>
 
     <!-- The "select an action to repeat" surface (ProjectInspection / Viron):
-         the ДЕЙСТВИЯ КАРТ list ADAPTED for repeat mode. Mounted OVER the source
-         composer (v-show hidden above) while the pick is out; A = «Выбрать», the
-         chosen action is composed here and resolved back to the source. -->
-    <ConsoleRepeatActionPick v-if="repeatPickActive"
-                             ref="repeatPick"
-                             :playerView="playerView" />
+         the SAME ДЕЙСТВИЯ КАРТ overlay, reused in `repeat` mode (full dossier +
+         filters + all actions with reasons). Mounted OVER the source composer
+         (v-show hidden above) while the pick is out; A = «Выбрать», the chosen
+         action is composed here and RESOLVED back to the source via the bridge. -->
+    <ConsoleCardActions v-if="repeatPickActive"
+                        repeat
+                        ref="repeatPick"
+                        :playerView="playerView"
+                        @close="onRepeatPickClose" />
 
     <!-- The corporation's MANDATORY FIRST ACTION — the dedicated confirm
          modal (the play-composer's mandatory sibling). Presence is DERIVED
@@ -836,7 +840,6 @@ import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
-import ConsoleRepeatActionPick from '@/client/components/console/ConsoleRepeatActionPick.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
@@ -941,7 +944,6 @@ import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/c
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
-import type {RepeatComposed} from '@/client/console/consoleActionComposer';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -997,7 +999,7 @@ import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHa
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {consoleRepeatPickState, cancelConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickState, cancelConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
@@ -1105,7 +1107,6 @@ export default defineComponent({
     ConsoleTradeFleetLayer,
     ConsoleColonyTradeLayer,
     ConsoleColonyInspect,
-    ConsoleRepeatActionPick,
     ConsolePlayedOverlay,
     ConsolePlayedHeroLayer,
     ConsolePatentSaleLayer,
@@ -1176,6 +1177,10 @@ export default defineComponent({
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
+      /** ProjectInspection repeating a REVEAL action: after the play submits, the
+       *  chosen (revealing) action is handed to the Action Center's in-frame
+       *  reveal phase (the play surface can't host a reveal). Cleared on ack. */
+      repeatReveal: undefined as {chosenCard: CardName, nodeIndex: number} | undefined,
       /** The client hand-pick bridge state (composer → hand section). */
       consoleHandPickState,
       consoleRepeatPickState,
@@ -2186,7 +2191,7 @@ export default defineComponent({
     },
     /** A repeat-action source (ProjectInspection / Viron) handed the "pick an
      *  action to repeat" to the ДЕЙСТВИЯ КАРТ surface — the source composer is
-     *  hidden (v-show) and `ConsoleRepeatActionPick` owns input. */
+     *  hidden (v-show) and `ConsoleCardActions` (repeat mode) owns input. */
     repeatPickActive(): boolean {
       return consoleRepeatPickState.active;
     },
@@ -3994,6 +3999,9 @@ export default defineComponent({
           cancelConsoleHandPick();
           // Same for a repeat-action pick whose source composer's prompt moved on.
           cancelConsoleRepeatPick();
+          // A pending repeat-reveal handoff is stale once the prompt moves on
+          // (its reveal was acked, or the game advanced past it).
+          this.repeatReveal = undefined;
           // Same for a TABLEAU pick out on the played view: fold it (the
           // reset commits its cancel — the composer keeps the old capture).
           if (isPlayedTableauPickActive()) {
@@ -4418,7 +4426,7 @@ export default defineComponent({
       // surface owns the pad while it is out — the hidden source composers
       // (v-show) must not swallow input. Routed BEFORE every composer branch.
       if (this.repeatPickActive) {
-        const panel = this.$refs.repeatPick as InstanceType<typeof ConsoleRepeatActionPick> | undefined;
+        const panel = this.$refs.repeatPick as InstanceType<typeof ConsoleCardActions> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -5524,6 +5532,11 @@ export default defineComponent({
     onCardActionsClose(): void {
       closeConsoleLayers();
     },
+    /** B on the repeat-pick grid → cancel the whole repeat pick (return to the
+     *  source composer with the OLD choice kept). */
+    onRepeatPickClose(): void {
+      cancelConsoleRepeatPick();
+    },
     acceptConfirm(): void {
       const kind = this.consoleState.confirm;
       this.consoleState.confirm = undefined;
@@ -5631,7 +5644,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, repeat?: {chosenCard: CardName, composed: RepeatComposed}}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, repeat?: ConsoleRepeatPickResult}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -5649,10 +5662,6 @@ export default defineComponent({
         return;
       }
       const isEvent = getCard(pending.cardName)?.type === CardType.EVENT;
-      // `rewards` = the play's immediate resource gains (composer-extracted
-      // from the server preview) — the hero scene's reward beat carries them
-      // from the landed card onto the left panel, delta chips at contact.
-      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, rewards: payload.rewards});
       const batch = buildPlayCardBatch({
         playPath: action.path,
         cardName: pending.cardName,
@@ -5665,6 +5674,26 @@ export default defineComponent({
         // composed responses → `[play, {card:chosen}, ...composed]`.
         repeat: payload.repeat,
       });
+      // ProjectInspection repeating a REVEAL action (SearchForLife /
+      // AsteroidDeflection): the reveal outcome can't show on the play surface —
+      // close the play composer (no played-hero; the reveal IS the payoff) and
+      // hand the chosen action to the Action Center's in-frame reveal phase
+      // (the SAME surface a direct activation reveals in — no code duplication).
+      if (payload.repeat?.reveal === true) {
+        this.pendingPlayCard = undefined;
+        this.repeatReveal = {chosenCard: payload.repeat.chosenCard, nodeIndex: payload.repeat.nodeIndex};
+        this.consoleState.sheet = 'cardActions';
+        beginAwaitingHandoff('action-composer', {
+          gameAge: this.playerView.game.gameAge,
+          undoCount: this.playerView.game.undoCount,
+        });
+        this.submitBatch(batch);
+        return;
+      }
+      // `rewards` = the play's immediate resource gains (composer-extracted
+      // from the server preview) — the hero scene's reward beat carries them
+      // from the landed card onto the left panel, delta chips at contact.
+      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, rewards: payload.rewards});
       this.submitBatch(batch);
     },
     /**
@@ -6128,6 +6157,12 @@ export default defineComponent({
     onCardActionsRevealAck(): void {
       this.onDismissRevealResult();
       resetConsoleActionRevealClaim();
+      // A ProjectInspection repeat-reveal opened the Action Center JUST for the
+      // reveal — close it fully on ack (a normal reveal returns to the browse grid).
+      if (this.repeatReveal !== undefined) {
+        this.repeatReveal = undefined;
+        closeConsoleLayers();
+      }
     },
     /**
      * The notification card's «Перейти к действию» CTA (window event —

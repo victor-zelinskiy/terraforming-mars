@@ -13192,20 +13192,26 @@ html.console-mode {
 }
 
 /* ── The filled REPEAT SLOT on the SOURCE composer (ProjectInspection play /
-      Viron action): the chosen action drawn as a button with its own graphic —
-      the player reads exactly what they'll repeat, and A re-opens to change. ── */
+      Viron action): the chosen action drawn as a BUTTON with ONLY its action
+      graphic (icons) + name — the player reads exactly what they'll repeat, and
+      A re-opens to change. NO prose description here (it lives in the overlay). ── */
 .con-composer__repeatpick {
-    display: flex; align-items: center; gap: .7rem;
-    padding: .5rem .7rem; border-radius: .6rem;
+    display: flex; align-items: center; gap: 1rem;
+    padding: .65rem 1rem; border-radius: .6rem;
     background: fade(@con-mint, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%);
 
     &-graphic {
-        flex-shrink: 0; zoom: .92;
+        flex-shrink: 0; margin: 0 !important;
+        /* Larger than the master tile (1.15) — this is the chosen-action BUTTON. */
+        zoom: calc(1.4 * var(--con-ui-scale, 1));
+        /* Icons + result ONLY — the baked-in prose belongs in the overlay, not
+           on the button (mirrors the master tile's `.card-description` hide). */
+        .card-description { display: none; }
         /* The action-graphic icons are CSS-scoped under `.card-container` (added
            on the wrapper); strip the legacy card margin here. */
         > .card-container, &.card-container { margin: 0; }
     }
-    &-name { font-size: .95rem; font-weight: 700; color: @con-text; }
+    &-name { font-size: 1.05rem; font-weight: 700; color: @con-text; }
 }
 
 .con-cardactions {
@@ -13251,6 +13257,8 @@ html.console-mode {
     /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
     &__kicker-sep { color: fade(@con-cyan, 50%); }
     &__kicker-step { color: @con-text; }
+    /* Repeat mode names the source card (ProjInsp / Viron) in the breadcrumb. */
+    &__kicker-src { color: @con-text; }
     &__title {
         margin-top: .2rem;
         font-size: 1.5rem; font-weight: 800; letter-spacing: .05rem; text-transform: uppercase; line-height: 1.05;

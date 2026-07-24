@@ -6,7 +6,8 @@
  * The SOURCE confirm surface (`ConsolePlayCardConfirm` for ProjectInspection,
  * `ConsoleActionComposer` for Viron) shows the repeat as a SLOT. Selecting it
  * hands the pick to the ДЕЙСТВИЯ КАРТ list interface ADAPTED for repeat mode
- * (`ConsoleRepeatActionPick`): `enterConsoleRepeatPick(request, onResolve,
+ * (the SAME `ConsoleCardActions` overlay reused in `repeat` mode):
+ * `enterConsoleRepeatPick(request, onResolve,
  * onCancel)` flips this module state, the shell hides the source surface
  * (v-show — its captured state survives) and mounts the pick surface, which
  * lets the player choose ONE activated action (A = «Выбрать», never «Выполнить»)
@@ -50,6 +51,10 @@ export type ConsoleRepeatPickResult = {
   chosenCard: CardName;
   nodeIndex: number;
   composed: RepeatComposed;
+  /** The chosen action's confirmed branch REVEALS a deck card (SearchForLife /
+   *  AsteroidDeflection) — the source reuses the Action Center's in-frame reveal
+   *  phase after the final submit. */
+  reveal?: boolean;
 };
 
 export const consoleRepeatPickState = reactive({

@@ -1886,9 +1886,9 @@ export default defineComponent({
           stepResponses: this.captured,
         }),
         // ProjectInspection: the chosen already-used action + its composed
-        // responses, appended after the play as `[play, {card}, ...composed]`.
-        repeat: this.repeatResult !== undefined ?
-          {chosenCard: this.repeatResult.chosenCard, composed: this.repeatResult.composed} : undefined,
+        // responses (+ nodeIndex / reveal for the in-frame reveal handoff),
+        // appended after the play as `[play, {card}, ...composed]`.
+        repeat: this.repeatResult,
       });
     },
     scrollFocused(): void {

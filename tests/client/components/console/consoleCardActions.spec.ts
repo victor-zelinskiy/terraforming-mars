@@ -254,4 +254,50 @@ describe('consoleCardActions model', () => {
       {index: 1, title: 'b', available: true, renderKeys: [], effects: [effect('gain', 'heat', 1)], steps: []},
     ], 0)).to.eq(undefined);
   });
+
+  // ── REPEAT mode (ProjectInspection / Viron): candidates selectable, others
+  //    visible with a reason, independent activation + availability dimensions. ──
+  describe('repeat mode', () => {
+    // Three actions: a CANDIDATE (used + selectable), a used-but-not-candidate
+    // (canAct false now), and a not-used-this-gen action.
+    const entries = [
+      entry('Cand', 'activated', ['use']),
+      entry('UsedBlocked', 'activated', ['use']),
+      entry('Dormant', 'available', ['use']),
+    ];
+    const repeat = {candidates: new Set<CardName>(['Cand' as CardName]), used: new Set<CardName>(['Cand' as CardName, 'UsedBlocked' as CardName])};
+
+    function tileFor(model: ReturnType<typeof buildConsoleActionsModel>, name: string) {
+      return model.groups.flatMap((g) => g.tiles).find((t) => t.cardName === name);
+    }
+
+    it('a candidate is selectable (available); non-candidates are rules with honest reasons', () => {
+      const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'}, repeat);
+      const cand = tileFor(model, 'Cand');
+      const usedBlocked = tileFor(model, 'UsedBlocked');
+      const dormant = tileFor(model, 'Dormant');
+      expect(cand?.status).to.eq('available');
+      expect(cand?.usedThisGen).to.eq(true);
+      expect(usedBlocked?.status).to.eq('rules');
+      expect(usedBlocked?.usedThisGen).to.eq(true);
+      expect(usedBlocked?.reason?.message).to.eq('This action cannot be repeated right now');
+      expect(dormant?.status).to.eq('rules');
+      expect(dormant?.usedThisGen).to.eq(false);
+      expect(dormant?.reason?.message).to.eq('This action was not used this generation');
+    });
+
+    it('the default «Активированы + Доступна» filter shows ONLY the copyable candidate', () => {
+      const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'available', activation: 'activated'}, repeat);
+      expect(model.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
+    });
+
+    it('the activation dimension is INDEPENDENT of availability (a used candidate is BOTH)', () => {
+      // «Активированы» (activation) is the used-this-gen set — Cand + UsedBlocked.
+      const activated = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'activated'}, repeat);
+      expect(activated.groups.map((g) => g.cardName).sort()).to.deep.eq(['Cand', 'UsedBlocked']);
+      // «Доступна» (availability) is the selectable set — only Cand.
+      const available = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'available', activation: 'all'}, repeat);
+      expect(available.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
+    });
+  });
 });
