@@ -257,6 +257,12 @@ body.con-zoom-open .con-handdock {
        12000) which legitimately take over the whole screen. */
     position: relative;
     z-index: 11706;
+    /* PERF (visual-safe): scope this HUD strip's own restyle (flip-values +
+       delta chips animate here on every global-param change) from the rest of
+       the layout. Already `position: relative` and its decorations are inside,
+       so containment reparents nothing; `layout style` ONLY (no `paint`) so a
+       delta chip floating beside a cell is not clipped. */
+    contain: layout style;
 
     &__params {
         display: flex;
@@ -8894,6 +8900,12 @@ html.console-mode {
        content box (workBandHeight) — keep geometry here, never a second
        constant in JS. */
     .con-modal-band();
+    /* PERF (visual-safe): scope Style+Layout to this overlay so open/close does
+       not restyle the rest of the HUD. Positioned (fixed via the band) with NO
+       fixed descendants (the backdrop was removed → shared `.con-shade`), so
+       containment reparents nothing; `layout style` ONLY (never `paint`) so the
+       task card's glows/badges are not clipped. */
+    contain: layout style;
     z-index: 11480; /* under Info Mode (11560) / stranded (11900) / fallback (12000) */
     display: flex;
     align-items: center;

@@ -437,13 +437,6 @@ export default defineComponent({
      * OWN filter/command stores so a repeat instance can overlay a normal one.
      */
     repeat: {type: Boolean, default: false},
-    /**
-     * ProjectInspection repeating a REVEAL action: after the play submits, the
-     * shell opens THIS (normal) Action Center and passes the chosen action here
-     * so its in-frame reveal phase presents the outcome (the play surface can't
-     * host a reveal). Undefined = no pending repeat reveal.
-     */
-    revealTarget: {type: Object as PropType<{chosenCard: CardName, nodeIndex: number} | undefined>, default: undefined},
   },
   emits: ['close', 'submit-batch', 'reveal-ack'],
   data() {
@@ -685,17 +678,6 @@ export default defineComponent({
       if (!this.repeat) {
         consoleCardActionsUi.confirmOpen = value !== undefined;
       }
-    },
-    // ProjectInspection reveal handoff: the shell opened this (normal) Action
-    // Center and handed us the chosen REVEAL action → present its in-frame
-    // reveal phase (the play surface couldn't host it).
-    'revealTarget': {
-      immediate: true,
-      handler(target: {chosenCard: CardName, nodeIndex: number} | undefined) {
-        if (target !== undefined && !this.repeat && this.composer === undefined) {
-          this.beginRepeatReveal(target.chosenCard, target.nodeIndex);
-        }
-      },
     },
     'footCommands': {
       immediate: true,

@@ -313,7 +313,6 @@
                           v-show="!handPickActive && !playedPickActive && !repeatPickActive"
                           ref="cardActions"
                           :playerView="playerView"
-                          :revealTarget="repeatReveal"
                           @submit-batch="onCardActionsSubmitBatch"
                           @reveal-ack="onCardActionsRevealAck"
                           @close="onCardActionsClose" />
@@ -417,7 +416,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined"
+      <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined && !playedHeroHolds"
                             ref="revealOverlay"
                             :playerView="playerView"
                             :mode="consoleRevealMode"
@@ -940,7 +939,7 @@ import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, rese
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
-import {consoleActionComposerUi, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -1177,10 +1176,6 @@ export default defineComponent({
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
-      /** ProjectInspection repeating a REVEAL action: after the play submits, the
-       *  chosen (revealing) action is handed to the Action Center's in-frame
-       *  reveal phase (the play surface can't host a reveal). Cleared on ack. */
-      repeatReveal: undefined as {chosenCard: CardName, nodeIndex: number} | undefined,
       /** The client hand-pick bridge state (composer → hand section). */
       consoleHandPickState,
       consoleRepeatPickState,
@@ -3999,9 +3994,6 @@ export default defineComponent({
           cancelConsoleHandPick();
           // Same for a repeat-action pick whose source composer's prompt moved on.
           cancelConsoleRepeatPick();
-          // A pending repeat-reveal handoff is stale once the prompt moves on
-          // (its reveal was acked, or the game advanced past it).
-          this.repeatReveal = undefined;
           // Same for a TABLEAU pick out on the played view: fold it (the
           // reset commits its cancel — the composer keeps the old capture).
           if (isPlayedTableauPickActive()) {
@@ -5674,27 +5666,14 @@ export default defineComponent({
         // composed responses → `[play, {card:chosen}, ...composed]`.
         repeat: payload.repeat,
       });
-      // ProjectInspection repeating a REVEAL action (SearchForLife /
-      // AsteroidDeflection): the reveal outcome can't show on the play surface —
-      // close the play composer (no played-hero; the reveal IS the payoff) and
-      // hand the chosen action to the Action Center's in-frame reveal phase
-      // (the SAME surface a direct activation reveals in — no code duplication).
-      if (payload.repeat?.reveal === true) {
-        this.pendingPlayCard = undefined;
-        this.repeatReveal = {chosenCard: payload.repeat.chosenCard, nodeIndex: payload.repeat.nodeIndex};
-        this.consoleState.sheet = 'cardActions';
-        // Claim the reveal NOW (before the submit) — the Action Center mounts on
-        // the next tick, which a fast local response can beat; without an early
-        // claim `claimedInFrame` would be false and the center would close (the
-        // reveal would fall back to the standalone overlay instead of in-frame).
-        setConsoleActionRevealClaim(payload.repeat.chosenCard);
-        beginAwaitingHandoff('action-composer', {
-          gameAge: this.playerView.game.gameAge,
-          undoCount: this.playerView.game.undoCount,
-        });
-        this.submitBatch(batch);
-        return;
-      }
+      // ProjectInspection ENTERS through card PLAY, so it EXITS like a card
+      // play — never into the Action Center (that surface is the Viron entry
+      // point). The event card runs its played-hero scene FIRST (same as any
+      // play, repeat tail already in the batch); a repeated REVEAL action
+      // (SearchForLife / AsteroidDeflection) then shows its outcome via the
+      // STANDALONE reveal overlay AFTER the hero (gated on !playedHeroHolds
+      // below) and acks back to the BOARD. So the order is always: the card is
+      // seen played, THEN the action result applies.
       // `rewards` = the play's immediate resource gains (composer-extracted
       // from the server preview) — the hero scene's reward beat carries them
       // from the landed card onto the left panel, delta chips at contact.
@@ -6160,14 +6139,12 @@ export default defineComponent({
      *  reveal seen exactly like the standalone overlay's OK, and release the
      *  stage's claim so a FUTURE reveal routes normally. */
     onCardActionsRevealAck(): void {
+      // The Viron in-frame reveal (the ONLY repeat-reveal that runs INSIDE the
+      // Action Center — its own entry point) acks back to the browse grid.
+      // ProjectInspection reveals never reach here — they ride the standalone
+      // reveal overlay and ack to the board (its entry point was card play).
       this.onDismissRevealResult();
       resetConsoleActionRevealClaim();
-      // A ProjectInspection repeat-reveal opened the Action Center JUST for the
-      // reveal — close it fully on ack (a normal reveal returns to the browse grid).
-      if (this.repeatReveal !== undefined) {
-        this.repeatReveal = undefined;
-        closeConsoleLayers();
-      }
     },
     /**
      * The notification card's «Перейти к действию» CTA (window event —
