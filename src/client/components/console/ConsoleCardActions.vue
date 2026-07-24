@@ -598,6 +598,16 @@ export default defineComponent({
       const c = this.composer;
       return c === undefined ? undefined : this.previews[c.cardName];
     },
+    /** A change-key for the ORDER-INDEPENDENT reveal delivery — bumps when the
+     *  reveal phase opens (revealFlow set + composer), or the server's answer
+     *  (`lastReveal`) lands, in ANY order. '' while there's nothing pending. */
+    revealSignal(): string {
+      if (this.revealFlow === undefined || this.revealFlow.payload !== undefined) {
+        return '';
+      }
+      const lr = this.playerView.lastReveal;
+      return `${this.composer?.cardName ?? ''}|${lr?.action ?? ''}|${lr?.revealed.name ?? ''}`;
+    },
     emptyState(): {title: string, body: string} {
       if (this.entries.length === 0) {
         return {title: 'No card actions', body: 'You have no cards with an activatable action.'};
@@ -651,14 +661,23 @@ export default defineComponent({
       }
     },
     // The server's answer to a CLAIMED deck-check confirm: pipe the reveal
-    // payload into the stage's reveal phase (the shell suppresses the
-    // standalone reveal overlay for exactly this reveal).
-    'playerView.lastReveal'(lr: RevealResultModel | undefined) {
-      if (lr !== undefined && this.revealFlow !== undefined &&
-          this.composer !== undefined && lr.action === this.composer.cardName &&
-          this.revealFlow.payload === undefined) {
-        this.revealFlow = {payload: lr};
-      }
+    // payload into the stage's reveal phase (the shell suppresses the standalone
+    // overlay for exactly this reveal). Keyed on `revealSignal` (not just
+    // `lastReveal`) so it is ORDER-INDEPENDENT: a REPEATED reveal can open the
+    // phase AFTER the answer already landed (a fast local response mounts the
+    // Action Center only once `lastReveal` is set) — a plain lastReveal watcher
+    // would miss that, hanging on «Вскрываем карту».
+    'revealSignal': {
+      immediate: true,
+      handler() {
+        if (this.revealFlow === undefined || this.revealFlow.payload !== undefined || this.composer === undefined) {
+          return;
+        }
+        const lr = this.playerView.lastReveal;
+        if (lr !== undefined && lr.action === this.composer.cardName) {
+          this.revealFlow = {payload: lr};
+        }
+      },
     },
     composer(value: ComposerContext | undefined) {
       // The repeat instance must NOT touch the shared `consoleCardActionsUi`

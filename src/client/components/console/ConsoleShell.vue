@@ -940,7 +940,7 @@ import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, rese
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
-import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -5683,6 +5683,11 @@ export default defineComponent({
         this.pendingPlayCard = undefined;
         this.repeatReveal = {chosenCard: payload.repeat.chosenCard, nodeIndex: payload.repeat.nodeIndex};
         this.consoleState.sheet = 'cardActions';
+        // Claim the reveal NOW (before the submit) — the Action Center mounts on
+        // the next tick, which a fast local response can beat; without an early
+        // claim `claimedInFrame` would be false and the center would close (the
+        // reveal would fall back to the standalone overlay instead of in-frame).
+        setConsoleActionRevealClaim(payload.repeat.chosenCard);
         beginAwaitingHandoff('action-composer', {
           gameAge: this.playerView.game.gameAge,
           undoCount: this.playerView.game.undoCount,
