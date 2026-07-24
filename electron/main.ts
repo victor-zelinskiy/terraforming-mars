@@ -271,6 +271,8 @@ function runPowerShell(command: string): Promise<string> {
 // Resolved P-core affinity mask (win32): undefined = don't pin; resolved once.
 let affinityResolved = false;
 let affinityMask: number | undefined;
+// Human-readable WHY, surfaced to the renderer console for on-device diagnosis.
+let affinityDiag = '';
 
 /**
  * Resolve the P-core affinity mask once. `auto` reads the physical + logical core
@@ -280,9 +282,11 @@ let affinityMask: number | undefined;
 async function resolveAffinityMask(): Promise<number | undefined> {
   const pref = parseAffinityPref(process.env.TM_ELECTRON_AFFINITY);
   if (pref.mode === 'off') {
+    affinityDiag = 'disabled (TM_ELECTRON_AFFINITY=off)';
     return undefined;
   }
   if (pref.mode === 'mask') {
+    affinityDiag = `explicit mask 0x${pref.mask.toString(16)}`;
     return pref.mask;
   }
   try {
@@ -291,8 +295,12 @@ async function resolveAffinityMask(): Promise<number | undefined> {
       '($s|Measure-Object -Property NumberOfCores -Sum).Sum;' +
       '($s|Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum');
     const nums = out.split(/\s+/).map((t) => parseInt(t, 10)).filter((n) => Number.isInteger(n));
-    return pCoreAffinityMask(nums[0], nums[1]);
-  } catch {
+    const mask = pCoreAffinityMask(nums[0], nums[1]);
+    affinityDiag = `cores physical=${nums[0]} logical=${nums[1]} → ` +
+      (mask === undefined ? 'not a P+E hybrid, no pinning' : `P-core mask 0x${mask.toString(16)}`);
+    return mask;
+  } catch (err) {
+    affinityDiag = `core detection failed: ${String(err)}`;
     return undefined; // detection failed → leave the OS scheduler alone
   }
 }
@@ -313,8 +321,20 @@ async function applyPCoreAffinity(): Promise<void> {
     affinityMask = await resolveAffinityMask();
     affinityResolved = true;
   }
+  // Surface the outcome BOTH to main stdout (visible when launched from a
+  // terminal) AND to the renderer console (F12 `[TM affinity]`, like `[TM perf]`)
+  // so it's diagnosable on a Steam-launched packaged build with no attached
+  // console.
+  const echo = (msg: string): void => {
+    // eslint-disable-next-line no-console
+    console.log('[TM affinity]', msg);
+    void mainWindow?.webContents
+      .executeJavaScript(`console.info('[TM affinity]', ${JSON.stringify(msg)});`)
+      .catch(() => {/* frame gone */});
+  };
   if (affinityMask === undefined) {
-    return; // uniform CPU / disabled / detection failed
+    echo(`not applied — ${affinityDiag}`);
+    return;
   }
   const pids = [process.pid];
   const rendererPid = mainWindow?.webContents.getOSProcessId();
@@ -322,13 +342,16 @@ async function applyPCoreAffinity(): Promise<void> {
     pids.push(rendererPid);
   }
   try {
-    await runPowerShell(
-      `foreach($id in @(${pids.join(',')})){try{(Get-Process -Id $id).ProcessorAffinity=[IntPtr]${affinityMask}}catch{}}`);
-    // eslint-disable-next-line no-console
-    console.log(`[electron] pinned pids ${pids.join(',')} to P-core affinity 0x${affinityMask.toString(16)}`);
+    // Set the affinity, then READ IT BACK per pid — so the echo shows whether it
+    // actually stuck (`<pid>=4095`) vs was rejected/reset (`<pid>=1048575`) vs
+    // errored. (The old inner catch swallowed the failure and mis-logged success.)
+    const out = await runPowerShell(
+      `foreach($id in @(${pids.join(',')})){try{$p=Get-Process -Id $id;` +
+      `$p.ProcessorAffinity=[IntPtr]${affinityMask};"$id=$($p.ProcessorAffinity)"}` +
+      `catch{"$id=ERROR $($_.Exception.Message)"}}`);
+    echo(`target 0x${affinityMask.toString(16)} (${affinityDiag}); result ${out.trim().replace(/\s+/g, ' ')}`);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[electron] set P-core affinity failed', err);
+    echo(`apply failed: ${String(err)}`);
   }
 }
 
