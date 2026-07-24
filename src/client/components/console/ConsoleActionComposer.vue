@@ -908,19 +908,27 @@ export default defineComponent({
     }},
     // The parent opens the reveal phase at confirm time (identity change
     // {} → {payload} must NOT relaunch the flight — only ENTER/EXIT do).
-    reveal(next: {payload?: RevealResultModel} | undefined, prev: {payload?: RevealResultModel} | undefined) {
-      // eslint-disable-next-line no-console
-      console.warn('[RR] composer reveal watch', {next: next === undefined ? 'undef' : (next.payload !== undefined ? 'payload:' + next.payload.action : 'empty'), prev: prev === undefined ? 'undef' : (prev.payload !== undefined ? 'payload' : 'empty'), entry: this.entry.cardName});
-      if (next !== undefined && prev === undefined) {
-        // Freeze the visible counter at its PRE-reveal value: the answer's
-        // commit already carries the reward, and the increment must be a
-        // SEEN beat, never a leaked spoiler.
-        this.revealResBaseline = this.storedResource?.count;
-        this.revealGainApplied = false;
-        this.beginRevealFlight();
-      } else if (next === undefined && prev !== undefined) {
-        this.abortRevealFlight();
-      }
+    // IMMEDIATE on purpose: a REPEATED reveal (ProjectInspection / Viron) mounts
+    // this composer with `reveal` ALREADY set to `{}` (the parent points it at the
+    // chosen action + opens the phase in one tick). A non-immediate watcher would
+    // miss that initial value → `beginRevealFlight` never runs → the phase hangs on
+    // «Вскрываем карту» (no handle, stage stuck 'pending'). Immediate fires on
+    // mount with `prev === undefined`, launching the flight; the plain undefined
+    // mount (a normal action) is a harmless no-op.
+    reveal: {
+      immediate: true,
+      handler(next: {payload?: RevealResultModel} | undefined, prev: {payload?: RevealResultModel} | undefined) {
+        if (next !== undefined && prev === undefined) {
+          // Freeze the visible counter at its PRE-reveal value: the answer's
+          // commit already carries the reward, and the increment must be a
+          // SEEN beat, never a leaked spoiler.
+          this.revealResBaseline = this.storedResource?.count;
+          this.revealGainApplied = false;
+          this.beginRevealFlight();
+        } else if (next === undefined && prev !== undefined) {
+          this.abortRevealFlight();
+        }
+      },
     },
     // The server's answer landed — the face exists, the flip may run. On the
     // degraded no-flight path (no stage DOM — the test runner, a torn-down
@@ -928,15 +936,11 @@ export default defineComponent({
     // must still fire here, or a late payload would leave the counters
     // frozen at the baseline forever.
     'reveal.payload'(payload: RevealResultModel | undefined) {
-      // eslint-disable-next-line no-console
-      console.warn('[RR] composer reveal.payload watch', {payload: payload?.action, hasHandle: this.revealHandle !== undefined, stage: this.revealStage});
       if (payload === undefined) {
         return;
       }
       void this.$nextTick(() => {
         if (this.revealHandle !== undefined) {
-          // eslint-disable-next-line no-console
-          console.warn('[RR] composer → notifyPayload()');
           this.revealHandle.notifyPayload();
         } else if (this.revealStage === 'settled' && !this.revealGainApplied) {
           this.maybeRunGainBeat();
@@ -1772,8 +1776,6 @@ export default defineComponent({
         const proxy = this.$refs.revealProxy as HTMLElement | undefined;
         const flip = this.$refs.revealFlip as HTMLElement | undefined;
         const slot = this.$refs.revealSlot as HTMLElement | undefined;
-        // eslint-disable-next-line no-console
-        console.warn('[RR] beginRevealFlight', {hasRefs: proxy !== undefined && flip !== undefined && slot !== undefined, payloadNow: this.revealPayload?.action});
         if (proxy === undefined || flip === undefined || slot === undefined) {
           // No stage to fly on (test runner / torn-down DOM): degrade to the
           // instant path — the outcome shows the moment the payload lands.

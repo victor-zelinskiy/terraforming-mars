@@ -237,6 +237,47 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  it('REGRESSION: a composer MOUNTED with `reveal` already set launches the flight (repeat-reveal must not hang on «Вскрываем карту»)', async () => {
+    // The repeat-action flow points the composer at the chosen reveal action AND
+    // opens the reveal phase in the SAME tick — the composer MOUNTS with `reveal`
+    // already `{}`. A non-immediate `reveal` watcher misses that initial value, so
+    // beginRevealFlight never runs (no handle, stage stuck 'pending') and the
+    // payload delivery is silently dropped → the phase hangs. The `reveal` watcher
+    // must be IMMEDIATE. Here we mount WITH reveal already present, then deliver the
+    // payload: the outcome must resolve (buggy code leaves revealStage 'pending').
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {
+        playerView: PLAYER_VIEW,
+        entry: entryFor('Asteroid Deflection System'),
+        preview: {
+          card: 'Asteroid Deflection System', isCorporation: false, kind: 'bespoke',
+          branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [],
+            reveal: {deck: 'projects', check: {label: 'space tag'}, reward: {direction: 'gain', icon: 'asteroid', amount: 1}}}],
+        },
+        nodeIndex: 0,
+        reveal: {},
+      },
+    });
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    // beginRevealFlight ran on mount — the phase is live, not idle-'pending'.
+    expect(w.find('.con-composer__revealzone').exists()).to.eq(true);
+    await w.setProps({reveal: {payload: {
+      action: 'Asteroid Deflection System',
+      revealed: {name: 'Security Fleet'},
+      conditionMet: true,
+      reward: {direction: 'gain', icon: 'asteroid', amount: 1},
+      vp: {from: 4, to: 5},
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    expect((w.vm as any).revealStage).to.eq('settled');
+    expect(w.find('.con-composer__revealoutcome').exists()).to.eq(true);
+    w.unmount();
+  });
+
   it('the GAIN beat: the counter is FROZEN at the pre-reveal value, ticks after the beat, L3 inspects the source', async () => {
     const viewBefore = {
       ...PLAYER_VIEW,
