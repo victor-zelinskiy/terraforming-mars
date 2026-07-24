@@ -9,9 +9,13 @@
     Layout: ONE card → the near-fullscreen single stage; else the adaptive
     grid planned by the hand's engine (planCategoryView), rows WINDOWED
     (visible + overscan) so a 60-card category never mounts 60 premium faces
-    at once. Slots carry [data-cat-slot] (inspect origin) — geometry mirrors
-    categoryTargetRect EXACTLY (centred rows, partial last row centred), so
-    the proxies land pixel-true on the real slots.
+    at once. Slots carry [data-zoom-slot] (the SHARED fullscreen-inspect
+    origin key — `slotZoomOrigin` resolves it, so X lifts the card OUT of its
+    slot into fullscreen and returns it there, exactly like the hand overlay;
+    it MUST be `data-zoom-slot`, not a bespoke attribute, or the premium
+    physical open/close degrades to the textual rise-from-depth). Geometry
+    mirrors categoryTargetRect EXACTLY (centred rows, partial last row
+    centred), so the proxies land pixel-true on the real slots.
   -->
   <div class="con-played-cat"
        :class="{
@@ -48,7 +52,7 @@
              class="con-played-cat__slot con-played-cat__slot--single"
              :class="slotClasses(0, cards[0].name)"
              :style="{width: layout.slotW + 'px', height: layout.slotH + 'px'}"
-             :data-cat-slot="cards[0].name"
+             :data-zoom-slot="cards[0].name"
              @click="onSlotClick(0)">
           <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
             <ConsolePlayedCardLite :name="cards[0].name" />
@@ -76,7 +80,7 @@
                    class="con-played-cat__slot"
                    :class="slotClasses(row * gridPlan.cols + ci, card.name)"
                    :style="{width: gridPlan.slotW + 'px', height: gridPlan.slotH + 'px'}"
-                   :data-cat-slot="card.name"
+                   :data-zoom-slot="card.name"
                    @click="onSlotClick(row * gridPlan.cols + ci)">
                 <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
                   <ConsolePlayedCardLite :name="card.name" />
@@ -517,6 +521,13 @@ export default defineComponent({
         return [];
       }
       const scrollTop = dir === 'close' ? this.currentScrollTop() : 0;
+      // The real clipping container is the GRID (overflow-y: auto) — its
+      // border box is the honest edge the bottom/top row renders against.
+      // A partially-crossing VISIBLE landing hands that overflow down as
+      // `targetClip` so the proxy lands as clipped as the real slot.
+      const gridEl = this.$refs.grid as HTMLElement | undefined;
+      const gridClip = layout.kind === 'grid' && gridEl !== undefined && typeof gridEl.getBoundingClientRect === 'function' ?
+        gridEl.getBoundingClientRect() : undefined;
       const flights = this.state.flights;
       if (flights.length !== this.cards.length) {
         return [];
@@ -531,7 +542,15 @@ export default defineComponent({
         const t = categoryTargetRect(layout, i, this.cards.length, origin);
         const target: FlightRect = {x: t.x, y: t.y - scrollTop, w: t.w, h: t.h};
         const targetVisible = target.y + target.h > clip.top - 4 && target.y < clip.bottom + 4;
-        out.push({flight: f, source, target, targetVisible});
+        let targetClip: {top: number, bottom: number} | undefined;
+        if (targetVisible && gridClip !== undefined && gridClip.width > 4) {
+          const top = Math.max(0, gridClip.top - target.y);
+          const bottom = Math.max(0, target.y + target.h - gridClip.bottom);
+          if (top > 0.5 || bottom > 0.5) {
+            targetClip = {top, bottom};
+          }
+        }
+        out.push({flight: f, source, target, targetVisible, targetClip});
       }
       return out;
     },

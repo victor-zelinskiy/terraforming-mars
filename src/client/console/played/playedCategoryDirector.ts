@@ -46,6 +46,12 @@ export type CategoryFlightPlan = {
   /** The target lies inside the modal's visible clip — an off-window landing
    *  (a scrolled tail) fades into the scroll instead of overshooting. */
   targetVisible: boolean,
+  /** A VISIBLE target that CROSSES the grid's clip edge: the screen-px the
+   *  grid's overflow cuts off the real slot. The proxy clips to match on
+   *  approach (open) / releases on departure (close), so a scrolled bottom
+   *  row never "sinks" under the clip after the handoff (the hand-reveal
+   *  boundary fix, mirrored). */
+  targetClip?: {top: number, bottom: number},
 };
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ─────────────
@@ -119,6 +125,16 @@ function placeAt(el: HTMLElement, rect: FlightRect, faceDown: boolean): void {
   }
 }
 
+/** clip-path inset for a proxy in its NATURAL box (the screen-px overflow is
+ *  divided by the slot scale — transforms scale the clip with the element). */
+function clipInset(clip: {top: number, bottom: number} | undefined, slotW: number): string {
+  if (clip === undefined) {
+    return 'inset(0px 0px 0px 0px)';
+  }
+  const scale = Math.max(0.02, slotW / PLAYED_CARD_NATURAL_W);
+  return `inset(${Math.max(0, clip.top / scale)}px 0px ${Math.max(0, clip.bottom / scale)}px 0px)`;
+}
+
 function killEpisode(): void {
   if (episode !== undefined) {
     if (episode.safety !== undefined) {
@@ -168,6 +184,13 @@ function runEpisode(
     const startsDown = p.flight.faceDown && dir === 'open';
     const endsDown = p.flight.faceDown && dir === 'close';
     placeAt(el, from, startsDown);
+    // A boundary landing: on OPEN the card slides under the clip edge on
+    // approach (clip in); on CLOSE it starts pre-clipped like the real slot
+    // and releases as it lifts off the edge — the reverse. Only VISIBLE
+    // targets crossing the edge carry a clip (off-window tails fade instead).
+    if (p.targetClip !== undefined && p.targetVisible) {
+      gsap.set(el, {clipPath: dir === 'open' ? 'inset(0px 0px 0px 0px)' : clipInset(p.targetClip, to.w)});
+    }
     const at = s(delays.get(p.flight.id) ?? 0);
     const flyDur = s(FLY_MS);
     const toScale = Math.max(0.02, to.w / PLAYED_CARD_NATURAL_W);
@@ -200,6 +223,14 @@ function runEpisode(
       } else {
         gsap.set(el, {autoAlpha: 0});
         tl.to(el, {autoAlpha: 1, duration: flyDur * 0.35, ease: 'power1.out'}, flyAt + flyDur * 0.1);
+      }
+    } else if (p.targetClip !== undefined) {
+      // A visible boundary target: on OPEN clip in as it slides under the
+      // edge (last third of the travel); on CLOSE release it as it lifts off.
+      if (dir === 'open') {
+        tl.to(el, {clipPath: clipInset(p.targetClip, to.w), duration: flyDur * 0.3, ease: 'power1.inOut'}, flyAt + flyDur * 0.7);
+      } else {
+        tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flyDur * 0.3, ease: 'power1.out'}, flyAt);
       }
     }
   }
