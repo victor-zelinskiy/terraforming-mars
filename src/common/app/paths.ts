@@ -19,6 +19,13 @@ export const paths = {
   // next paced bot turn — never authoritative. See BotTurnScheduler.
   API_GAME_BOT_TURN_ACK: 'api/game/bot-turn-ack',
   API_GAMES: 'api/games',
+  // Dev-only admin game-rollback tool (console main-menu plate, name-gated on
+  // ADMIN_NAME). Lists games with their FRESH generation, a game's save history,
+  // and performs a rollback to a chosen save. CORS-eligible (the tool runs in the
+  // console shell) — the same rollback capability LOAD_GAME already exposes.
+  API_ADMIN_ROLLBACK_GAMES: 'api/admin/rollback/games',
+  API_ADMIN_ROLLBACK_HISTORY: 'api/admin/rollback/history',
+  API_ADMIN_ROLLBACK: 'api/admin/rollback',
   // Premium main-menu join flow: list a player's unfinished games by name, and
   // reconcile a seat's cube colour with the player's chosen identity colour.
   API_GAMES_JOINABLE: 'api/games/joinable',

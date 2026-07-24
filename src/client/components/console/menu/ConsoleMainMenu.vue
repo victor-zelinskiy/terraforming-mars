@@ -119,6 +119,9 @@
     <!-- ── Options (interface + display) ───────────────────────────────── -->
     <ConsoleOptionsPanel v-if="overlay === 'options'" ref="options" @close="closeOverlay" />
 
+    <!-- ── Admin: game rollback (dev-only, ADMIN_NAME) ─────────────────── -->
+    <ConsoleAdminRollback v-if="overlay === 'admin'" ref="admin" :name="identityName" @close="closeOverlay" />
+
     <!-- ── Quit confirm ────────────────────────────────────────────────── -->
     <div v-if="overlay === 'quit'" class="cm-overlay" role="dialog" :aria-label="$t('Exit the game?')">
       <div class="cm-overlay__card">
@@ -201,6 +204,8 @@ import ConsoleProfilesEditor from '@/client/components/console/menu/ConsoleProfi
 import ConsoleFriendsEditor from '@/client/components/console/menu/ConsoleFriendsEditor.vue';
 import ConsoleLanguagePicker from '@/client/components/console/menu/ConsoleLanguagePicker.vue';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
+import ConsoleAdminRollback from '@/client/components/console/menu/ConsoleAdminRollback.vue';
+import {isAdminName} from '@/common/utils/adminName';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
@@ -217,13 +222,13 @@ import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, s
 import raw_settings from '@/genfiles/settings.json';
 import {$t} from '@/client/directives/i18n';
 
-type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'steam' | 'quit';
+type MenuItemId = 'continue' | 'create' | 'games' | 'profile' | 'options' | 'admin' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
-type MenuOverlay = 'games' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'quit' | 'steam' | undefined;
+type MenuOverlay = 'games' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'admin' | 'quit' | 'steam' | undefined;
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel},
+  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -247,6 +252,9 @@ export default defineComponent({
     identityCubeClass(): string {
       const color = this.identityState.identity?.cubeColor;
       return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
+    },
+    isAdmin(): boolean {
+      return isAdminName(this.identityName);
     },
     games(): ReadonlyArray<JoinableGameSummary> {
       return this.joinGamesState.games;
@@ -291,6 +299,10 @@ export default defineComponent({
       items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
       items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
       items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
+      // Dev-only rollback tool — visible ONLY to the ADMIN_NAME identity.
+      if (this.isAdmin) {
+        items.push({id: 'admin', labelKey: 'Game rollback', subText: $t('Roll a game back to an earlier save'), glyph: '⟲', badge: 0});
+      }
       // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared
       // steamShortcutState; disappears once added). steamButtonVisible() reads the reactive
       // fields, so this computed re-evaluates when they change.
@@ -318,6 +330,9 @@ export default defineComponent({
       if (this.overlay === 'options') {
         return 'Options';
       }
+      if (this.overlay === 'admin') {
+        return 'Game rollback';
+      }
       if (this.overlay === 'quit') {
         return 'Exit the game?';
       }
@@ -340,6 +355,14 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Change'},
           {control: 'back', label: 'Done'},
+        ];
+      }
+      if (this.overlay === 'admin') {
+        // The panel shows precise per-view foot hints; the bar stays generic.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Back'},
         ];
       }
       if (this.overlay === 'profiles') {
@@ -482,6 +505,10 @@ export default defineComponent({
         const options = this.$refs.options as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return options?.handleIntent?.(intent) ?? true;
       }
+      if (this.overlay === 'admin') {
+        const admin = this.$refs.admin as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        return admin?.handleIntent?.(intent) ?? true;
+      }
       if (this.overlay === 'games') {
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
           this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
@@ -568,6 +595,9 @@ export default defineComponent({
         break;
       case 'options':
         this.overlay = 'options';
+        break;
+      case 'admin':
+        this.overlay = 'admin';
         break;
       case 'steam':
         void addToSteam();

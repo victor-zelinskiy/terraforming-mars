@@ -71,6 +71,15 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_CREATEGAME,
   paths.API_CLONEABLEGAME,
   paths.LOAD_GAME,
+  // Dev-only game-rollback tool. Named "admin" but IN SCOPE deliberately: it
+  // lives in the console main menu, which runs in the desktop (app://bundle)
+  // shell, and it exposes the SAME rollback capability as LOAD_GAME (already in
+  // scope). Name-gated on ADMIN_NAME, same trust model as LOAD_GAME. The other
+  // admin endpoints (games list / delete / history / IPs / metrics) stay
+  // same-origin only.
+  paths.API_ADMIN_ROLLBACK_GAMES,
+  paths.API_ADMIN_ROLLBACK_HISTORY,
+  paths.API_ADMIN_ROLLBACK,
 ]);
 
 /** Whether a pathname (no leading slash) is in the desktop CORS surface. */

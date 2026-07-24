@@ -23,6 +23,9 @@ import {ApiGameColonyTradePreview} from '../routes/ApiGameColonyTradePreview';
 import {ApiGameRematch} from '../routes/ApiGameRematch';
 import {ApiBotTurnAck} from '../routes/ApiBotTurnAck';
 import {ApiGames} from '../routes/ApiGames';
+import {ApiAdminRollbackGames} from '../routes/ApiAdminRollbackGames';
+import {ApiAdminRollbackHistory} from '../routes/ApiAdminRollbackHistory';
+import {ApiAdminRollback} from '../routes/ApiAdminRollback';
 import {ApiGamesJoinable} from '../routes/ApiGamesJoinable';
 import {ApiGamePlayerColor} from '../routes/ApiGamePlayerColor';
 import {ApiHeapSnapshot} from '../routes/ApiHeapSnapshot';
@@ -103,6 +106,9 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
     [paths.API_GAME_BOT_TURN_ACK, ApiBotTurnAck.INSTANCE],
     [paths.API_GAMES, ApiGames.INSTANCE],
+    [paths.API_ADMIN_ROLLBACK_GAMES, ApiAdminRollbackGames.INSTANCE],
+    [paths.API_ADMIN_ROLLBACK_HISTORY, ApiAdminRollbackHistory.INSTANCE],
+    [paths.API_ADMIN_ROLLBACK, ApiAdminRollback.INSTANCE],
     [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
     [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
     [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],

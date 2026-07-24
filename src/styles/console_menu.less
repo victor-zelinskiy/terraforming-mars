@@ -1781,3 +1781,154 @@
     .cm-vk-field__caret { animation: none; }
     .cm-vk-mount .hg-button { transition: none; }
 }
+
+/* ── Admin game-rollback tool (dev-only, ADMIN_NAME) ─────────────── */
+.cm-admin__gen-pill {
+    flex-shrink: 0;
+    padding: .1rem .45rem;
+    border-radius: .35rem;
+    font-size: .72rem;
+    letter-spacing: .04rem;
+    color: mix(#ffffff, @con-cyan, 35%);
+    background: fade(@con-cyan, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+}
+.cm-admin__phase {
+    flex-shrink: 0;
+    font-size: .68rem;
+    letter-spacing: .06rem;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    &--end { color: mix(#ffffff, @cm-gold, 30%); }
+    &--action { color: mix(#ffffff, @con-mint, 30%); }
+}
+.cm-admin__detailhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .8rem;
+    padding-bottom: .1rem;
+}
+.cm-admin__detailname {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-admin__detailnow {
+    flex-shrink: 0;
+    font-size: .78rem;
+    color: @con-text-dim;
+}
+.cm-admin__section {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    padding: .6rem .7rem;
+    border-radius: .55rem;
+    background: rgba(10, 18, 28, 0.7);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%);
+    transition: box-shadow .12s ease;
+
+    &--focus { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 .8rem fade(@con-cyan, 22%); }
+}
+.cm-admin__section-label {
+    font-size: .66rem;
+    letter-spacing: .16rem;
+    text-transform: uppercase;
+    color: @con-text-dim;
+}
+.cm-admin__gens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+.cm-admin__gen {
+    min-width: 1.9rem;
+    padding: .25rem .5rem;
+    border: 0;
+    border-radius: .4rem;
+    background: rgba(16, 26, 38, 0.9);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+    color: @con-text;
+    font-family: inherit;
+    font-size: .82rem;
+    cursor: pointer;
+
+    &--active {
+        background: fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 90%);
+        color: mix(#ffffff, @con-cyan, 40%);
+    }
+}
+.cm-admin__slider {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+.cm-admin__step {
+    flex-shrink: 0;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 0;
+    border-radius: .4rem;
+    background: rgba(16, 26, 38, 0.9);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+    color: mix(#ffffff, @con-cyan, 35%);
+    font-family: inherit;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.4; cursor: default; }
+}
+.cm-admin__track {
+    flex: 1;
+    height: .35rem;
+    border-radius: .2rem;
+    background: rgba(110, 140, 170, 0.22);
+    overflow: hidden;
+}
+.cm-admin__track-fill {
+    height: 100%;
+    border-radius: .2rem;
+    background: @con-cyan;
+    box-shadow: 0 0 .5rem fade(@con-cyan, 50%);
+    transition: width .1s ease;
+}
+.cm-admin__saveinfo {
+    font-size: .78rem;
+    color: @con-text-dim;
+}
+.cm-admin__target {
+    padding: .5rem .1rem;
+    font-size: .85rem;
+    color: mix(#ffffff, @con-cyan, 25%);
+
+    &--noop { color: @con-text-dim; }
+}
+.cm-admin__result {
+    padding: .5rem .1rem;
+    font-size: .85rem;
+    color: mix(#ffffff, @con-mint, 40%);
+
+    &--error { color: mix(#ffffff, @con-red, 45%); }
+}
+.cm-admin__confirm {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding: .7rem;
+    border-radius: .55rem;
+    background: rgba(24, 14, 16, 0.7);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%);
+}
+.cm-admin__confirm-q {
+    font-size: .82rem;
+    line-height: 1.35;
+    color: mix(#ffffff, @con-red, 30%);
+}
+.cm-admin__hint--off { opacity: 0.4; }
