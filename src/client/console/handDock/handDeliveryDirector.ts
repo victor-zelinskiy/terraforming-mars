@@ -371,11 +371,23 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     new DOMRect(window.innerWidth / 2 - 160 * ui, window.innerHeight - 110 * ui, 320 * ui, 80 * ui);
   type Live = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect};
   const live: Array<Live> = [];
+  // FastDOM TWO-PASS to kill forced synchronous layout on a hand deal. The old
+  // single pass read `getBoundingClientRect()` for card N AFTER card N-1's
+  // `classList.add(HOLD_CLASS)` + `gsap.set` writes → one forced reflow PER
+  // delivered card. Splitting into measure-all-then-write-all keeps ONE reflow.
+  // PIXEL-IDENTICAL: `.con-deal-hold` is `opacity:0` (no layout effect), the
+  // `gsap.set` targets the separate flight PROXIES (not the measured sources),
+  // and the `ctx.land` fallback touches only the DOCK — so every measured rect
+  // is byte-for-byte what the interleaved version read.
+  type Staged = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect, holdCard?: HTMLElement};
+  const staged: Array<Staged> = [];
+  const landFallback: Array<number> = [];
+  // ── Pass 1 — READ ONLY (measure every source rect; no DOM writes) ──────────
   order.forEach((entryIdx, rank) => {
     const entry = entries[entryIdx];
     const el = deliveryEl(flightIds.get(entryIdx) as number);
     if (el === undefined) {
-      ctx.land(entryIdx);
+      landFallback.push(entryIdx);
       return;
     }
     // Prefer a FRESH measure of a still-mounted source (pixel-perfect over
@@ -383,36 +395,47 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     // already unmounted the surface (the card still lifts off the spot the
     // player saw it at — never a teleport into the stack).
     let src: HandIntakeRect | undefined;
+    let holdCard: HTMLElement | undefined;
     if (entry.el !== undefined && entry.el.isConnected) {
       const card = entry.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? entry.el;
       const r = card.getBoundingClientRect();
       if (usable(r)) {
         src = r;
-        card.classList.add(HOLD_CLASS);
+        holdCard = card; // held (opacity:0) in pass 2 — no layout effect
       }
     }
     if (src === undefined) {
       src = snapshots[entryIdx];
     }
-    if (src !== undefined) {
-      const scaleFrom = src.width / CARD_NATURAL_W;
-      gsap.set(el, {
+    staged.push({entryIdx, rank, name: entry.name, el, src, holdCard});
+  });
+  // ── Pass 2 — WRITE ONLY (no layout read follows → nothing forces a reflow) ──
+  for (const entryIdx of landFallback) {
+    ctx.land(entryIdx);
+  }
+  for (const s of staged) {
+    if (s.holdCard !== undefined) {
+      s.holdCard.classList.add(HOLD_CLASS);
+    }
+    if (s.src !== undefined) {
+      const scaleFrom = s.src.width / CARD_NATURAL_W;
+      gsap.set(s.el, {
         width: CARD_NATURAL_W,
-        height: src.height / scaleFrom,
-        x: src.left,
-        y: src.top,
+        height: s.src.height / scaleFrom,
+        x: s.src.left,
+        y: s.src.top,
         scale: scaleFrom,
         rotation: 0,
         autoAlpha: 1,
         transformOrigin: 'top left',
       });
-      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+      const flip = s.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
         gsap.set(flip, {rotationY: 0}); // face out — the card being taken
       }
     }
-    live.push({entryIdx, rank, name: entry.name, el, src});
-  });
+    live.push({entryIdx: s.entryIdx, rank: s.rank, name: s.name, el: s.el, src: s.src});
+  }
   opts?.onStaged?.();
   if (live.length === 0) {
     finish();
