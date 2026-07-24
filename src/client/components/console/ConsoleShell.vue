@@ -1792,6 +1792,8 @@ export default defineComponent({
           lr.action !== consoleActionComposerUi.revealClaim) {
         // A reveal CLAIMED by the Action Focus stage presents IN-FRAME —
         // the standalone result overlay must not double-mount over it.
+        // eslint-disable-next-line no-console
+        console.warn('[RR] consoleRevealMode → result (STANDALONE)', {lrAction: lr.action, revealClaim: consoleActionComposerUi.revealClaim});
         return 'result';
       }
       if (revealViewerState.open) {
@@ -3916,6 +3918,8 @@ export default defineComponent({
             const claimedInFrame = resolution.kind === 'phase' &&
               consoleActionComposerUi.revealClaim !== '' &&
               lr !== undefined && lr.action === consoleActionComposerUi.revealClaim;
+            // eslint-disable-next-line no-console
+            console.warn('[RR] awaiting resolve', {kind: resolution.kind, revealClaim: consoleActionComposerUi.revealClaim, lrAction: lr?.action, claimedInFrame});
             if (claimedInFrame) {
               clearAwaitingHandoff();
             } else {
@@ -5680,6 +5684,8 @@ export default defineComponent({
       // hand the chosen action to the Action Center's in-frame reveal phase
       // (the SAME surface a direct activation reveals in — no code duplication).
       if (payload.repeat?.reveal === true) {
+        // eslint-disable-next-line no-console
+        console.warn('[RR] ProjInsp onPlayCardConfirmNative repeat.reveal', {chosen: payload.repeat.chosenCard, nodeIndex: payload.repeat.nodeIndex, batchLen: batch.length});
         this.pendingPlayCard = undefined;
         this.repeatReveal = {chosenCard: payload.repeat.chosenCard, nodeIndex: payload.repeat.nodeIndex};
         this.consoleState.sheet = 'cardActions';

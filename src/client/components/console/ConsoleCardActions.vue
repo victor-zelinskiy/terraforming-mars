@@ -670,11 +670,21 @@ export default defineComponent({
     'revealSignal': {
       immediate: true,
       handler() {
+        const lr = this.playerView.lastReveal;
+        // eslint-disable-next-line no-console
+        console.warn('[RR] revealSignal', {
+          revealFlow: this.revealFlow === undefined ? 'undef' : (this.revealFlow.payload !== undefined ? 'has-payload' : 'pending'),
+          composer: this.composer?.cardName,
+          lastRevealAction: lr?.action,
+          lastRevealCard: lr?.revealed?.name,
+          match: lr !== undefined && lr.action === this.composer?.cardName,
+        });
         if (this.revealFlow === undefined || this.revealFlow.payload !== undefined || this.composer === undefined) {
           return;
         }
-        const lr = this.playerView.lastReveal;
         if (lr !== undefined && lr.action === this.composer.cardName) {
+          // eslint-disable-next-line no-console
+          console.warn('[RR] revealSignal → DELIVER payload', lr.action);
           this.revealFlow = {payload: lr};
         }
       },
@@ -991,6 +1001,8 @@ export default defineComponent({
      *  the exact deck-check machinery a direct activation uses, so the repeat is
      *  presented identically (never a separate standalone overlay). */
     beginRepeatReveal(chosenCard: CardName, nodeIndex: number): void {
+      // eslint-disable-next-line no-console
+      console.warn('[RR] beginRepeatReveal', {chosenCard, nodeIndex, repeat: this.repeat, curLastReveal: this.playerView.lastReveal?.action});
       this.composer = {cardName: chosenCard, nodeIndex};
       this.revealFlow = {};
       setConsoleActionRevealClaim(chosenCard);
@@ -1008,6 +1020,8 @@ export default defineComponent({
       // FINAL submit. Nothing is submitted here.
       if (this.repeat) {
         const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
+        // eslint-disable-next-line no-console
+        console.warn('[RR] repeat pick resolve', {chosen: comp.cardName, branchIndex: payload.branchIndex, reveal: branch?.reveal !== undefined});
         resolveConsoleRepeatPick({
           chosenCard: comp.cardName,
           nodeIndex: comp.nodeIndex,
@@ -1057,6 +1071,8 @@ export default defineComponent({
       // reuse THIS Action Center's in-frame reveal phase — re-point the composer
       // at the CHOSEN action + claim its reveal, so the outcome opens here after
       // the submit (not the standalone overlay), exactly like a direct activation.
+      // eslint-disable-next-line no-console
+      console.warn('[RR] Viron onComposerConfirm', {repeatReveal: payload.repeat?.reveal, chosen: payload.repeat?.chosenCard, batchLen: batch.length});
       if (payload.repeat?.reveal === true) {
         this.beginRepeatReveal(payload.repeat.chosenCard, payload.repeat.nodeIndex);
       }
