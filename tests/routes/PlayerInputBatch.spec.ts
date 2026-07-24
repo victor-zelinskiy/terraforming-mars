@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {reconcileBatchResponse} from '../../src/server/routes/PlayerInputBatch';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
-import {SelectPayment} from '../../src/server/inputs/SelectPayment';
 import {InputResponse} from '../../src/common/inputs/InputResponse';
 import {Factorum} from '../../src/server/cards/promo/Factorum';
 import {testGame} from '../TestGame';
