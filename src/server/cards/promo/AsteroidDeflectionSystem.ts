@@ -90,7 +90,7 @@ export class AsteroidDeflectionSystem extends Card implements IActionCard, IProj
     }
     // Record the reveal result + the VP swing for the premium overlay — BEFORE discarding.
     actionReveals.recordReveal(player, this.name, card, matched, this.revealReward(),
-      {from: vpBefore, to: this.resourceCount});
+      {from: vpBefore, to: this.resourceCount}, {tag: Tag.SPACE, label: 'Space tag'});
     player.game.projectDeck.discard(card);
     return undefined;
   }

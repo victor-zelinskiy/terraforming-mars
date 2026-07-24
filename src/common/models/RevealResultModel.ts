@@ -1,6 +1,7 @@
 import {CardModel} from './CardModel';
 import {CardName} from '../cards/CardName';
 import {ActionEffect} from './ActionPreviewModel';
+import {Tag} from '../cards/Tag';
 
 /**
  * The RESULT of a REVEAL / DECK-CHECK action (SearchForLife, AsteroidDeflection-
@@ -21,6 +22,12 @@ export type RevealResultModel = {
   revealed: CardModel;
   /** Whether the checked condition (a tag, today) was present on the revealed card. */
   conditionMet: boolean;
+  /**
+   * What the action was CHECKING FOR (a tag, today) — lets the result overlay
+   * EXPLAIN the outcome ("looking for a Microbe tag → found / not found") instead
+   * of a bare ✓/✗. Optional so a future non-tag check degrades gracefully.
+   */
+  check?: {tag: Tag, label: string};
   /** What the player gained on a match (e.g. science +1 on this card). Absent on a miss. */
   reward?: ActionEffect;
   /**

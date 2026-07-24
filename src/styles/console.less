@@ -1231,8 +1231,23 @@ html.con-profile-handheld .con-terracere {
        rising hand-dock cards then tuck behind the section's bottom rail
        instead of poking over it, while the dock stays MOUNTED as the trade
        animation's landing target. Fixed overlays (sheets/confirm/flights at
-       z ≥ 11480) still sit far above this. */
+       z ≥ 11480) still sit far above this.
+       ⚠️ This z-index is a STACKING TRAP for everything inside .con-main: a
+       child's own z-index (however high) competes at level 1 against the
+       root-level fixed bands. The HAND section state opts OUT (`--hand`
+       below) — its status rail (z11711) must genuinely beat the reveal
+       flight stage (11645) + the dock furniture. */
     z-index: 1;
+}
+/* The HAND section is open: .con-main drops the trap so `.con-hand__verdictbar`
+   (z11711) escapes to the root stacking context — the dock ↔ hand reveal
+   flights (`.con-handreveal-layer`, 11645) and the tray backs dive BEHIND the
+   rail, never over its text; the real slots stay under it as well, so the
+   flight and the landed card agree about the rail from the first frame.
+   Everything else in the hand state carries no z ≥ any fixed band, and the
+   dock's not-live pack (z0) stays visually below the rail band it pokes into. */
+.con-main--hand {
+    z-index: auto;
 }
 
 /* ── Resource + tag panel (left rail — never hide the key numbers) ──
@@ -3708,9 +3723,14 @@ html.console-mode {
     /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────
        Every slot is held invisible while the proxies fly (one card — one
        visible representation; handRevealDirector.ts). Releasing the class
-       rides the slot's own 160ms opacity transition — that IS the handoff
-       fade-in under the landed proxies. The chrome (header / verdict bar /
-       scrollbar) is NOT held — it arrives around the flying cards. */
+       is an INSTANT snap (the slot has NO opacity transition — see the slot
+       rule): the slots appear fully opaque UNDER the landed proxies at the
+       identical rect, then the proxies fade out ON TOP. A slot fade-in
+       under a proxy fade-out was a cross-fade DIP (two half-transparent
+       copies over a dark shelf — «все карты мигают» at the settle); the
+       opaque-under / fade-above order can never dip below the settled card.
+       The chrome (header / verdict bar / scrollbar) is NOT held — it
+       arrives around the flying cards. */
     &--transit &__slot {
         opacity: 0 !important;
         pointer-events: none;
@@ -3796,10 +3816,13 @@ html.console-mode {
         position: relative;
         flex-shrink: 0;
         zoom: var(--con-hand-zoom, 0.66);
+        /* NO opacity transition ON PURPOSE: the reveal handoff releases the
+           held slots as an instant snap UNDER the still-opaque proxies (see
+           the `--transit` note above) — a transition here re-creates the
+           cross-fade dip at every landing. */
         transition:
             transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            filter calc(150ms * var(--motion-scale, 1)) ease,
-            opacity calc(160ms * var(--motion-scale, 1)) ease; /* the reveal handoff fade-in */
+            filter calc(150ms * var(--motion-scale, 1)) ease;
         /* Kill the legacy asymmetric card margin (CLAUDE.md "Centering UI"). */
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
@@ -3808,10 +3831,13 @@ html.console-mode {
             box-shadow: 0 0 0 .05rem fade(@con-mint, 26%);
         }
         /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card.
-           The dim EASES IN on mount (the reveal flies the cards in from the
-           dock UNfiltered → a hard grayscale snap on landing read cheap).
-           The animation plays once per grid mount = exactly when the reveal
-           lands; a re-focus doesn't remount the card, so it never re-runs.
+           During the reveal the flying proxy carries the SAME dim
+           (`.con-deal-proxy__face--dim` — the state is on the card
+           mid-flight), and the section mounts at episode start (slots held
+           invisible), so this ease-in completes long before the handoff —
+           the landed card is ALREADY settled-dim, nothing snaps. The ease
+           still reads on the non-choreographed paths: reduced-motion /
+           fallback opens and virtualized rows scrolling into view.
            `both` holds the dimmed end state. reduced-motion → instant. */
         &--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.42) brightness(0.78);
@@ -3974,11 +4000,14 @@ html.console-mode {
        back in the tray, and the raised pack (dock z 11705 local) was
        painting OVER the rail text. The reveal/intake flight stages sit
        UNDER the footer band (11645/11646 — console_card_deal.less), so
-       filter leavers/enterers dive BEHIND the HUD rail into/out of the
-       tray — never over its text. (.con-root is the one stacking context
-       here — .con-main is z-auto — so the rail competes with those bands
-       directly. Kept under the notice toast 11740 / ceremonies 11720+ /
-       fallbacks.) */
+       the open/close flights AND filter leavers/enterers dive BEHIND the
+       HUD rail into/out of the tray — never over its text.
+       ⚠️ This 11711 only works because `.con-main--hand` drops .con-main's
+       z-index:1 stacking trap while the hand section is open (see the
+       .con-main block) — trapped at level 1 the rail loses to EVERY fixed
+       band and the flights paint over it (the «карты поверх status rail»
+       defect). Kept under the notice toast 11740 / ceremonies 11720+ /
+       fallbacks. */
     &__verdictbar {
         position: relative;
         z-index: 11711;
@@ -11653,6 +11682,162 @@ body.con-start-ceremony {
         z-index: 11600;
         pointer-events: none;
     }
+    /* ── RESULT mode — a filled left→right story: SOURCE · connector · REVEALED
+       · verdict panel. Centred (no scroll — the content fits), overflow VISIBLE
+       so the revealed card's verdict GLOW is never clipped (the drawn mode's
+       `overflow-y:auto` was the clip). */
+    &__body--result {
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+        gap: 1.4rem;
+        padding: 1.4rem 0; /* headroom for the revealed card's glow */
+        flex-wrap: wrap; /* safety on a narrow modal — the verdict drops below */
+    }
+    /* The connector — "вскрывает" over a cyan beam with an arrowhead. */
+    &__link {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        padding: 0 .3rem;
+    }
+    &__link-label {
+        font-size: .78rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 78%);
+    }
+    &__link-beam {
+        position: relative;
+        width: 4.4rem;
+        height: .12rem;
+        border-radius: 49.95rem;
+        background: linear-gradient(90deg, fade(@con-cyan, 6%), fade(@con-cyan, 62%));
+        box-shadow: 0 0 .5rem fade(@con-cyan, 26%);
+
+        &::after {
+            content: '';
+            position: absolute;
+            right: -.05rem;
+            top: 50%;
+            width: .48rem;
+            height: .48rem;
+            transform: translateY(-50%) rotate(45deg);
+            border-top: .12rem solid fade(@con-cyan, 78%);
+            border-right: .12rem solid fade(@con-cyan, 78%);
+        }
+    }
+    /* The verdict panel — a reserved-width slot so the card stays centred as the
+       «revealing» status swaps to the full breakdown. */
+    &__verdict-slot {
+        flex: 0 0 auto;
+        min-width: 20rem;
+        max-width: 24rem;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    &__verdict {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+        padding: 1.1rem 1.3rem;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 16%);
+
+        &--pending {
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: .6rem;
+            padding: .55rem 1rem;
+            background: fade(@con-cyan, 6%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+            color: fade(@con-cyan, 92%);
+            font-weight: 700;
+            font-size: .9rem;
+            letter-spacing: .05rem;
+            text-transform: uppercase;
+        }
+        &--met { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%), 0 0 1.4rem fade(@con-mint, 8%); }
+        &--miss { box-shadow: inset 0 0 0 .05rem fade(@con-red, 42%), 0 0 1.4rem fade(@con-red, 7%); }
+    }
+    &__verdict-head {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        padding-bottom: .6rem;
+        border-bottom: .05rem solid rgba(120, 150, 180, 0.16);
+    }
+    &__verdict-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        font-size: 1.15rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+
+        .con-reveal__verdict--met & { background: fade(@con-mint, 16%); color: @con-mint; box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); }
+        .con-reveal__verdict--miss & { background: fade(@con-red, 14%); color: #ffc9c4; box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%); }
+    }
+    &__verdict-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+
+        .con-reveal__verdict--met & { color: @con-mint; }
+        .con-reveal__verdict--miss & { color: #ffc9c4; }
+    }
+    &__verdict-row {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        font-size: .92rem;
+    }
+    &__verdict-label {
+        flex: 0 0 auto;
+        min-width: 6.2rem;
+        font-size: .72rem;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__verdict-value {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+        color: @con-text;
+    }
+    &__verdict-tagicon {
+        width: 1.3rem;
+        height: 1.3rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex: 0 0 auto;
+    }
+    &__verdict-found {
+        padding: .1rem .55rem;
+        border-radius: 49.95rem;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+
+        &--yes { background: fade(@con-mint, 14%); color: @con-mint; box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); }
+        &--no { background: fade(@con-red, 12%); color: #ffc9c4; box-shadow: inset 0 0 0 .05rem fade(@con-red, 50%); }
+    }
+    &__verdict-none {
+        color: @con-text-dim;
+        font-style: italic;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-reveal__revealstatus-spin { animation: none; }
@@ -14905,6 +15090,15 @@ html.con-profile-handheld {
         &__revealed { zoom: 0.9; }
         &__outcome { font-size: .8rem; }
         &__vp { font-size: .7rem; }
+        /* RESULT layout tightened for the Deck (the verdict panel + gaps must
+           fit beside the smaller source/revealed cards). */
+        &__body--result { gap: .9rem; padding: .8rem 0; }
+        &__link-beam { width: 3rem; }
+        &__verdict-slot { min-width: 15rem; max-width: 18rem; }
+        &__verdict { padding: .8rem .9rem; gap: .5rem; }
+        &__verdict-title { font-size: .95rem; }
+        &__verdict-label { min-width: 5rem; font-size: .68rem; }
+        &__verdict-row { font-size: .82rem; }
     }
     .con-play {
         &__frame { width: min(55rem, 96vw); }

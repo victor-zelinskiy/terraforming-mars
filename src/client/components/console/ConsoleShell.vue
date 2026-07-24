@@ -80,7 +80,11 @@
     <!-- P29: --journal keeps the context panel's LAYOUT slot (the board
          never reflows) but hides its paint — the journal REPLACES it, the
          panel can't bleed through the journal surface. -->
-    <div class="con-main" :class="{'con-main--journal': journalPanelVisible}">
+    <!-- `--hand`: while the hand section is open, .con-main drops its z-index:1
+         stacking trap so the hand's status rail (z11711) competes at the ROOT
+         level and paints ABOVE the reveal flight stage (11645) + the dock
+         furniture — flights dive BEHIND the rail, never over its text. -->
+    <div class="con-main" :class="{'con-main--journal': journalPanelVisible, 'con-main--hand': consoleState.section === 'hand'}">
       <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId"
                             :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady"
                             :boardVisible="consoleState.section === 'board'" />
@@ -884,6 +888,7 @@ import {scaleTooltipState, ScaleTooltipContent, hideScaleTooltip} from '@/client
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
 import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
+import {shortBlockerLabel} from '@/client/components/console/consoleHandGrid';
 import {deriveHandSelect, handSelectPicksValid, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
@@ -903,7 +908,7 @@ import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCo
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
-import {handRevealState} from '@/client/console/handDock/handRevealState';
+import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
@@ -4666,7 +4671,7 @@ export default defineComponent({
       for (const p of t.pairs) {
         const source = sources.get(p.name);
         if (source !== undefined) {
-          pairs.push({name: p.name, source, target: p.rect, visible: p.visible});
+          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
         }
       }
       await runHandOpenEpisode(pairs);
@@ -4689,7 +4694,7 @@ export default defineComponent({
       for (const p of t.pairs) {
         const source = sources.get(p.name);
         if (source !== undefined) {
-          pairs.push({name: p.name, source, target: p.rect, visible: p.visible});
+          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
         }
       }
       await runHandCloseEpisode(pairs, t.scrollTop);
@@ -4708,6 +4713,14 @@ export default defineComponent({
     executeRtEntry(id: string): void {
       switch (id) {
       case 'cards':
+        // A BROWSE open always starts at the TOP of the grid: reset the
+        // persisted selection so `ensureSelectedVisible` never pre-scrolls
+        // the freshly-mounted grid — the initial viewport is deterministic
+        // (first rows), which is what the open reveal measures against.
+        // Index 0 = the first PLAYABLE card (playable-first sort). Flows
+        // that need a specific focus (hand-select / pick) set their own
+        // index on their own path.
+        this.consoleState.handIndex = 0;
         void this.openHandWithReveal();
         break;
       case 'cardActions':
@@ -6761,16 +6774,40 @@ export default defineComponent({
       const involved = new Set<string>([...before.pairs.map((p) => p.name), ...newNames]);
       const dockRects = dock.sourceRects([...involved]);
       void runHandFilterEpisode({
-        before: before.pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible})),
+        before: before.pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible, clip: p.clip})),
         dock: dockRects,
         newNames,
         measureAfter: () => {
           // Seat the grid scroll on the refocused card FIRST (sync layout),
           // so the measured targets are the settled post-filter geometry.
           section.ensureSelectedVisible();
-          return section.transitionTargets().pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible}));
+          return section.transitionTargets().pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible, clip: p.clip}));
         },
+        visualFor: (name) => this.revealVisualFor(name),
       });
+    },
+    /**
+     * The card's LANDED grid presentation (dim + compact blocker chip),
+     * carried by the reveal/filter proxies so the settled state is readable
+     * DURING the flight and can never pop at the handoff. Mirrors the
+     * section's slot classes exactly: browse → unplayable dim + the
+     * `shortBlockerLabel` chip; select/pick → the strong select-disabled dim
+     * + «Unavailable»; sale shows the whole hand undimmed.
+     */
+    revealVisualFor(name: CardName): RevealVisual | undefined {
+      if (this.consoleState.sale.active) {
+        return undefined;
+      }
+      if (this.handSelectUiActive) {
+        return this.handSelectSelectableNames.includes(name) ?
+          undefined :
+          {dim: 'strong', chip: 'Unavailable'};
+      }
+      const entry = this.handEntriesAll.find((e) => e.card.name === name);
+      if (entry === undefined || entry.playable) {
+        return undefined;
+      }
+      return {dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? [])};
     },
     refocusAfterFilter(selectedName: CardName | undefined): void {
       const list = this.handEntries; // recomputed for the new filter

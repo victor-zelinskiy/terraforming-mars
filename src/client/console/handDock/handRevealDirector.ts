@@ -15,9 +15,23 @@
  * the overlay owns them, plus `dockExtraLift` for airborne filter-leavers)
  * and the overlay slots (`handRevealState.holdSlots` → `.con-hand--transit`)
  * are Vue-held invisible; the flying proxies are the only version of every
- * card. The handoff at either end is the project's standard materialization:
- * release the hold (the real element's own 160ms fade-in) under the proxy's
- * 130ms fade-out at an IDENTICAL rect.
+ * card. The OVERLAY handoff is a NO-DIP swap: the slots SNAP fully visible
+ * (no opacity transition — console.less) UNDER the still-opaque proxies at
+ * an IDENTICAL rect, then the proxies fade out ON TOP — the combined image
+ * never dips below the settled card, so nothing blinks at the landing.
+ *
+ * THE STATE FLIES WITH THE CARD. Each proxy face carries the card's LANDED
+ * presentation (`RevealVisual`: unplayable/select-disabled dim + the compact
+ * blocker chip) — the face flips into view mid-flight already in its true
+ * state, so disabled dims and «why not» chips never pop at the settle.
+ * Slots that cross the grid's viewport edge hand their overflow down as
+ * `clip` — the proxy CLIPS to the boundary on approach (and releases it on
+ * departure), so a boundary card lands exactly as clipped as its real slot
+ * (never a whole card that "sinks" under the status rail after the flight).
+ * Z-ORDER: the flight stage (11645) sits UNDER the hand's own status rail —
+ * `.con-main--hand` lifts the rail's 11711 into the root stacking context
+ * while the hand section is open (console.less) — and UNDER the footer band,
+ * so flights dive BEHIND the HUD chrome, never over its text.
  *
  * THE TAG-FILTER EPISODE (`runHandFilterEpisode`) rides the same machinery
  * while the hand stays OPEN: cards leaving the filter fly slot → dock (the
@@ -37,12 +51,13 @@
  * immediately (the board is the backdrop of the gather) and re-mounts
  * 'hand' + restores the grid scroll the moment its direction flips back.
  *
- * EVERY card participates: backs visible in the dock fly from their real
- * rects, the thickness tail from near-stacked positions at the pack's
- * left flank; overlay slots beyond the visible window get PLAN-derived
- * rects (the grid's math is pure) and their proxies fade at the viewport
- * boundary — physically "into the scroll". Off-window proxies carry no
- * face (back-only) so a 30-card hand stays cheap.
+ * EVERY VISIBLE card participates 1:1: backs visible in the dock fly from
+ * their real rects, the thickness tail from near-stacked positions at the
+ * pack's left flank; overlay slots beyond the visible window get
+ * PLAN-derived rects (the grid's math is pure) and their proxies fade at
+ * the viewport boundary — physically "into the scroll". The off-window
+ * tail is back-only AND sampled down to `OFFSCREEN_PROXY_CAP` flyers (the
+ * pack's overlap hides the difference; 30 composited tail layers don't).
  *
  * Perf: transform/opacity only; one read batch before spawning; no
  * per-frame Vue writes; will-change scoped by the proxy class; safety
@@ -59,10 +74,14 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  clearRevealFlights, handRevealState, nextRevealId, revealEl,
+  clearRevealFlights, handRevealState, nextRevealId, revealEl, RevealVisual,
 } from '@/client/console/handDock/handRevealState';
 
 export type RevealRect = {left: number, top: number, width: number, height: number};
+
+/** Screen-px overflow of a slot rect beyond the grid viewport — the real
+ *  slot renders CLIPPED by exactly that much (the grid's overflow). */
+export type RevealClip = {top: number, bottom: number};
 
 /** One hand card's two homes (overlay order — the grid's own order). */
 export type RevealPair = {
@@ -73,6 +92,13 @@ export type RevealPair = {
   target: RevealRect,
   /** The target slot is inside the grid's visible window. */
   visible: boolean,
+  /** The slot crosses the grid's viewport edge: the proxy CLIPS to match on
+   *  approach (open) / releases the clip on departure (close), so the landed
+   *  card never "sinks" under the boundary after the flight. */
+  clip?: RevealClip,
+  /** The landed presentation (dim + blocker chip) — the flying face carries
+   *  the TRUE state, so nothing snaps at the handoff. */
+  visual?: RevealVisual,
 };
 
 export type RevealHooks = {
@@ -149,6 +175,40 @@ function spreadMs(count: number): number {
   return count <= 4 ? 150 : count <= 8 ? 200 : 240;
 }
 
+/**
+ * Off-window proxies a single episode may fly. The scroll tail fades at the
+ * grid boundary anyway (back-only flyers), and the dock pack's backs are
+ * heavily overlapped — a handful of sampled flyers reads exactly like the
+ * whole tail while a 30-proxy tail costs real compositor layers on a TV.
+ * Visible cards ALWAYS fly 1:1.
+ */
+const OFFSCREEN_PROXY_CAP = 8;
+
+/** Sample the off-window tail down to the cap (even stride, order kept). */
+function boundedPairs(pairs: ReadonlyArray<RevealPair>): ReadonlyArray<RevealPair> {
+  const off = pairs.filter((p) => !p.visible);
+  if (off.length <= OFFSCREEN_PROXY_CAP) {
+    return pairs;
+  }
+  const keep = new Set<RevealPair>();
+  for (let k = 0; k < OFFSCREEN_PROXY_CAP; k++) {
+    keep.add(off[Math.floor((k * off.length) / OFFSCREEN_PROXY_CAP)]);
+  }
+  return pairs.filter((p) => p.visible || keep.has(p));
+}
+
+/**
+ * clip-path inset for a proxy in its NATURAL box: the screen-px overflow is
+ * divided by the slot's scale (transforms scale the clip with the element).
+ */
+function clipInset(clip: RevealClip | undefined, slotW: number): string {
+  if (clip === undefined) {
+    return 'inset(0px 0px 0px 0px)';
+  }
+  const s = Math.max(0.01, slotW / CARD_NATURAL_W);
+  return `inset(${Math.max(0, clip.top / s)}px 0px ${Math.max(0, clip.bottom / s)}px 0px)`;
+}
+
 /** 0..1 rank of a card's distance from the centre axis (row-weighted). */
 function centreRank(pairs: ReadonlyArray<RevealPair>): Array<number> {
   const cx = window.innerWidth / 2;
@@ -192,17 +252,23 @@ function placeProxy(el: HTMLElement, at: RevealRect, size: RevealRect, faceOut: 
  * deferred clear would otherwise unmount the NEW proxies mid-flight) and
  * return the mounted proxy elements in flight order (missing = skipped).
  */
-async function spawnFlights(flights: ReadonlyArray<{name: CardName, face: boolean}>): Promise<Array<HTMLElement | undefined>> {
+async function spawnFlights(flights: ReadonlyArray<{name: CardName, face: boolean, visual?: RevealVisual}>): Promise<Array<HTMLElement | undefined>> {
   // A previous episode's handoff fade may still be pending: kill it BEFORE
   // replacing the flights, so its onComplete can't clear the new proxies.
   // (kill() suppresses onComplete; the old, nearly-transparent proxies are
   // replaced by the new flight list in this same flush.)
   handoffFade?.kill();
   handoffFade = undefined;
-  handRevealState.flights = flights.map((f) => ({id: nextRevealId(), name: f.name, face: f.face}));
+  handRevealState.flights = flights.map((f) => ({id: nextRevealId(), name: f.name, face: f.face, visual: f.visual}));
   const ids = handRevealState.flights.map((f) => f.id);
   await nextTick();
   return ids.map((id) => revealEl(id));
+}
+
+/** Size the proxy's blocker CHIP to the slot's counter-zoomed chip: the slot
+ *  rule is `zoom: 0.99 / handZoom`, and the slot's zoom = slotW / natural. */
+function seatChipZoom(el: HTMLElement, slotW: number): void {
+  el.style.setProperty('--reveal-chip-zoom', String((0.99 * CARD_NATURAL_W) / Math.max(1, slotW)));
 }
 
 /**
@@ -211,7 +277,7 @@ async function spawnFlights(flights: ReadonlyArray<{name: CardName, face: boolea
  * real element exactly. Returns elements in pair order (missing = skipped).
  */
 async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | 'target', sizeTo: 'source' | 'target'): Promise<Array<HTMLElement | undefined>> {
-  const els = await spawnFlights(pairs.map((p) => ({name: p.name, face: p.visible})));
+  const els = await spawnFlights(pairs.map((p) => ({name: p.name, face: p.visible, visual: p.visual})));
   pairs.forEach((p, i) => {
     const el = els[i];
     if (el === undefined) {
@@ -219,6 +285,12 @@ async function spawnProxies(pairs: ReadonlyArray<RevealPair>, from: 'source' | '
     }
     // Open starts back-side-out (from the dock); close starts face-out.
     placeProxy(el, p[from], p[sizeTo], from === 'target', from === 'target' && !p.visible ? 0 : 1);
+    seatChipZoom(el, p.target.width);
+    // A close episode starts AT the slot: spawn pre-clipped exactly like the
+    // real (grid-clipped) slot renders — released as the card lifts away.
+    if (from === 'target' && p.clip !== undefined) {
+      gsap.set(el, {clipPath: clipInset(p.clip, p.target.width)});
+    }
   });
   return els;
 }
@@ -236,9 +308,10 @@ function teardown(instant: boolean): void {
     gsap.set(els, {autoAlpha: 0});
     clearRevealFlights();
   } else {
-    // The materialization: real elements fade in under the proxies (their
-    // own 160ms transition — the hold release happened in the caller),
-    // the proxies fade out on top. Outside the reversible window by design.
+    // The materialization: the real elements SNAPPED fully visible under
+    // the proxies (the hold release happened in the caller; hand slots have
+    // no opacity transition — the no-dip handoff), and the proxies fade out
+    // on top of the identical image. Outside the reversible window by design.
     // The deferred clear is EPOCH-GUARDED: it only fires while this fade is
     // still the current handoff — a new episode spawned inside the window
     // kills the fade (spawnProxies) and owns the flights from then on.
@@ -264,8 +337,8 @@ function teardown(instant: boolean): void {
  * The shell has ALREADY set section='hand' (slots render held via
  * `holdSlots`) and measured both ends; this builds + plays the episode.
  */
-export async function runHandOpenEpisode(pairs: ReadonlyArray<RevealPair>): Promise<void> {
-  if (pairs.length === 0 || consoleReducedMotionActive()) {
+export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): Promise<void> {
+  if (allPairs.length === 0 || consoleReducedMotionActive()) {
     handRevealState.phase = 'open';
     handRevealState.holdSlots = false;
     return;
@@ -275,6 +348,9 @@ export async function runHandOpenEpisode(pairs: ReadonlyArray<RevealPair>): Prom
   pendingReverse = false;
   handRevealState.phase = 'opening';
   handRevealState.holdSlots = true;
+  // The off-window tail is SAMPLED down (uncovered backs vanish under the
+  // pack's lift-off — the overlap hides them; see OFFSCREEN_PROXY_CAP).
+  const pairs = boundedPairs(allPairs);
   // The dock backs hide via the shell's derived `dockLiftedNames` the moment
   // the flights exist — same flush as the proxies' first paint, so the pack
   // vanishes the frame its proxies stand over it, never both at once.
@@ -298,19 +374,26 @@ export async function runHandOpenEpisode(pairs: ReadonlyArray<RevealPair>): Prom
     // The input-answer beat: the whole pack rises off the tray as one
     // mass — soft out, so the hold at the top blends into the launch.
     tl.to(el, {y: p.source.top - LIFT_PX * conUiScale(), duration: s(LIFT_MS), ease: 'power1.out'}, 0);
-    // The fan-out: X eases laterally, Y launches into the spread with a
-    // soft landing, the scale grows to the slot's real size — one calm,
-    // rising, opening gesture.
-    tl.to(el, {x: p.target.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: p.target.top, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
-    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-    if (flip !== null) {
-      // Back → face strictly around the edge, through the flight's heart —
-      // slow enough that the turn itself is the readable event.
-      tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
-    }
-    if (!p.visible) {
+    // The fan-out: ONE combined tween (x/y/scale share the start, duration
+    // and ease — three separate tweens per card were pure overhead) — a
+    // calm, rising, opening gesture ending at the slot's real size.
+    tl.to(el, {x: p.target.left, y: p.target.top, scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
+    if (p.visible) {
+      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+      if (flip !== null) {
+        // Back → face strictly around the edge, through the flight's heart —
+        // slow enough that the turn itself is the readable event. (A faceless
+        // scroll-tail proxy shows its back either way — no tween wasted.)
+        tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
+      }
+      if (p.clip !== undefined) {
+        // The landing CLIP: the card slides under the grid's viewport edge
+        // exactly as the real (clipped) slot renders — never a whole card
+        // that "sinks" behind the boundary after the handoff.
+        gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
+        tl.to(el, {clipPath: clipInset(p.clip, p.target.width), duration: flight * 0.3, ease: 'power1.inOut'}, at + flight * 0.7);
+      }
+    } else {
       // The scroll tail: the card exits through the grid's lower boundary.
       tl.to(el, {autoAlpha: 0, duration: flight * 0.35, ease: 'power1.in'}, at + flight * 0.55);
     }
@@ -345,8 +428,8 @@ function finalizeOpenReverse(instant: boolean): void {
 
 /* ── CLOSE: overlay slots → dock pack ───────────────────────────────── */
 
-export async function runHandCloseEpisode(pairs: ReadonlyArray<RevealPair>, scrollTop: number): Promise<void> {
-  if (pairs.length === 0 || consoleReducedMotionActive()) {
+export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, scrollTop: number): Promise<void> {
+  if (allPairs.length === 0 || consoleReducedMotionActive()) {
     handRevealState.phase = 'docked';
     handRevealState.holdSlots = false;
     hooks?.setSection('board');
@@ -357,6 +440,7 @@ export async function runHandCloseEpisode(pairs: ReadonlyArray<RevealPair>, scro
   pendingReverse = false;
   handRevealState.phase = 'closing';
   handRevealState.holdSlots = true; // same-flush: slots hide under their proxies
+  const pairs = boundedPairs(allPairs);
   const els = await spawnProxies(pairs, 'target', 'source');
   // The board is the backdrop of the gather from the first flight frame.
   hooks?.setSection('board');
@@ -378,14 +462,18 @@ export async function runHandCloseEpisode(pairs: ReadonlyArray<RevealPair>, scro
     if (!p.visible) {
       // The scroll tail re-enters through the grid's lower boundary.
       tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
+    } else if (p.clip !== undefined) {
+      // Spawned pre-clipped like the real slot — the clip releases as the
+      // card lifts off the boundary (the exact reverse of the landing clip).
+      tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
-    tl.to(el, {x: p.source.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: p.source.top, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
-    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-    if (flip !== null) {
-      // Face → back on approach: the pack turns back-side-out at the tray.
-      tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
+    tl.to(el, {x: p.source.left, y: p.source.top, scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);
+    if (p.visible) {
+      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+      if (flip !== null) {
+        // Face → back on approach: the pack turns back-side-out at the tray.
+        tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
+      }
     }
   });
 
@@ -418,7 +506,7 @@ function finalizeCloseReverse(instant: boolean): void {
 /* ── FILTER: overlay slots ⇄ dock, hand stays open ──────────────────── */
 
 /** One slot's live geometry (real rect or plan-derived for off-window). */
-export type FilterSlot = {name: CardName, rect: RevealRect, visible: boolean};
+export type FilterSlot = {name: CardName, rect: RevealRect, visible: boolean, clip?: RevealClip};
 
 export type HandFilterInput = {
   /** The OLD layout, pre-change (the section's `transitionTargets`). */
@@ -430,6 +518,9 @@ export type HandFilterInput = {
   /** Measure the NEW layout — called after the patch, before first paint
    *  (the closure seats the grid scroll first, then reads the rects). */
   measureAfter: () => ReadonlyArray<FilterSlot>,
+  /** The landed presentation per card (dim + blocker chip) — carried by the
+   *  proxies so the settled state never pops at the materialization. */
+  visualFor?: (name: CardName) => RevealVisual | undefined,
 };
 
 /**
@@ -465,10 +556,11 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
 
   // One flight per involved card: leavers first, then movers, then enterers
   // (mover/enterer target visibility is only known post-measure → face on).
+  const visualFor = input.visualFor ?? (() => undefined);
   const els = await spawnFlights([
-    ...leavers.map((p) => ({name: p.name, face: p.visible})),
-    ...moverNames.map((n) => ({name: n, face: true})),
-    ...enterNames.map((n) => ({name: n, face: true})),
+    ...leavers.map((p) => ({name: p.name, face: p.visible, visual: visualFor(p.name)})),
+    ...moverNames.map((n) => ({name: n, face: true, visual: visualFor(n)})),
+    ...enterNames.map((n) => ({name: n, face: true, visual: visualFor(n)})),
   ]);
   const after = input.measureAfter();
   const afterByName = new Map(after.map((p) => [p.name as string, p]));
@@ -487,18 +579,23 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
       return;
     }
     placeProxy(el, p.rect, home, true, p.visible ? 1 : 0);
+    seatChipZoom(el, p.rect.width);
     const at = stagger * (1 - leaveRanks[i]); // outer first, centre caps last
     const flight = s(FILTER_LEAVE_MS);
     if (!p.visible) {
       // The scroll tail re-enters through the grid's lower boundary.
       tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
+    } else if (p.clip !== undefined) {
+      // Boundary slot: spawn pre-clipped like the real slot, release on lift.
+      gsap.set(el, {clipPath: clipInset(p.clip, p.rect.width)});
+      tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
-    tl.to(el, {x: home.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: home.top, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {scale: home.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
-    const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
-    if (flip !== null) {
-      tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
+    tl.to(el, {x: home.left, y: home.top, scale: home.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
+    if (p.visible) {
+      const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+      if (flip !== null) {
+        tl.to(flip, {rotationY: 180, duration: flight * 0.55, ease: 'power2.inOut'}, at + flight * 0.38);
+      }
     }
   });
 
@@ -515,16 +612,25 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
       return;
     }
     placeProxy(el, from.rect, to.rect, true, from.visible ? 1 : 0);
+    seatChipZoom(el, to.rect.width);
     const flight = s(FILTER_MOVE_MS);
     if (!from.visible && to.visible) {
       tl.to(el, {autoAlpha: 1, duration: flight * 0.35, ease: 'power1.out'}, 0);
     }
-    tl.to(el, {x: to.rect.left, duration: flight, ease: 'power2.inOut'}, 0);
-    tl.to(el, {y: to.rect.top, duration: flight, ease: 'power2.inOut'}, 0);
-    tl.to(el, {scale: to.rect.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, 0);
+    if (from.visible && from.clip !== undefined) {
+      gsap.set(el, {clipPath: clipInset(from.clip, from.rect.width)});
+      tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, 0);
+    }
+    tl.to(el, {x: to.rect.left, y: to.rect.top, scale: to.rect.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, 0);
     if (from.visible && !to.visible) {
       // Exits through the grid's boundary — "into the scroll".
       tl.to(el, {autoAlpha: 0, duration: flight * 0.35, ease: 'power1.in'}, flight * 0.55);
+    } else if (to.visible && to.clip !== undefined) {
+      // Lands on the boundary: clip in on approach (matches the real slot).
+      if (!(from.visible && from.clip !== undefined)) {
+        gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
+      }
+      tl.to(el, {clipPath: clipInset(to.clip, to.rect.width), duration: flight * 0.3, ease: 'power1.inOut'}, flight * 0.7);
     }
   });
 
@@ -542,12 +648,11 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
       return;
     }
     placeProxy(el, home, slot.rect, false, 1);
+    seatChipZoom(el, slot.rect.width);
     // A beat after the movers open room; centre-first fan (the open feel).
     const at = s(80) + stagger * enterRanks[i];
     const flight = s(FILTER_ENTER_MS);
-    tl.to(el, {x: slot.rect.left, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {y: slot.rect.top, duration: flight, ease: 'power2.inOut'}, at);
-    tl.to(el, {scale: slot.rect.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
+    tl.to(el, {x: slot.rect.left, y: slot.rect.top, scale: slot.rect.width / CARD_NATURAL_W, duration: flight, ease: 'power2.inOut'}, at);
     const flip = el.querySelector<HTMLElement>('.con-deal-proxy__flip');
     if (flip !== null) {
       tl.to(flip, {rotationY: 0, duration: flight * 0.62, ease: 'power2.inOut'}, at + flight * 0.08);
@@ -555,6 +660,9 @@ export async function runHandFilterEpisode(input: HandFilterInput): Promise<void
     if (!slot.visible) {
       // The scroll tail: exits through the grid's lower boundary.
       tl.to(el, {autoAlpha: 0, duration: flight * 0.35, ease: 'power1.in'}, at + flight * 0.55);
+    } else if (slot.clip !== undefined) {
+      gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
+      tl.to(el, {clipPath: clipInset(slot.clip, slot.rect.width), duration: flight * 0.3, ease: 'power1.inOut'}, at + flight * 0.7);
     }
   });
 

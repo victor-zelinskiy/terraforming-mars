@@ -32,11 +32,25 @@ import {CardName} from '@/common/cards/CardName';
 
 export type HandRevealPhase = 'docked' | 'opening' | 'open' | 'closing';
 
+/**
+ * The card's FINAL grid presentation, carried by its flying proxy so the
+ * landed state can never pop at the handoff: `dim` mirrors the slot's
+ * unplayable ('soft') / select-disabled ('strong') filter, `chip` is the
+ * compact blocker label (english i18n key — the layer translates). The
+ * face flips into view mid-flight ALREADY in its true state.
+ */
+export type RevealVisual = {
+  dim?: 'soft' | 'strong',
+  chip?: string,
+};
+
 export type RevealFlight = {
   id: number,
   name: CardName,
   /** Render the FaceLite front (false = back-only tail proxy). */
   face: boolean,
+  /** The landed state the face carries (dim + blocker chip). */
+  visual?: RevealVisual,
 };
 
 export const handRevealState = reactive({

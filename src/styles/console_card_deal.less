@@ -68,6 +68,43 @@
     transform: rotateY(180deg);
 }
 
+/* ── HAND-REVEAL state carried BY the flying face ─────────────────────
+   The hand grid's unplayable / select-disabled presentation rides the
+   proxy (handRevealState.RevealVisual): the face flips into view already
+   dimmed + chipped, so the landed slot's state never pops at the handoff.
+   The filter recipes MIRROR the slot rules in console.less exactly
+   (`--unplayable` / `--select-disabled`) — change them in lock-step. */
+.con-deal-proxy__face--dim > :is(.card-container, .pcard) {
+    filter: grayscale(0.42) brightness(0.78);
+}
+.con-deal-proxy__face--dim-strong > :is(.card-container, .pcard) {
+    filter: grayscale(0.5) brightness(0.64);
+}
+/* The compact blocker chip — the visual twin of `.con-hand__chip` (same
+   plate / type / placement), sized via the per-proxy `--reveal-chip-zoom`
+   (0.99 × natural / slot width — set by the director) so it renders at the
+   EXACT on-screen size the slot's counter-zoomed chip has at the handoff. */
+.con-deal-proxy__chip {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    max-width: 88%;
+    padding: .25rem .6rem;
+    border-radius: .55rem;
+    background: rgba(8, 13, 20, 0.92);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%), 0 .3rem .9rem rgba(0, 0, 0, 0.5);
+    color: #ffc9c4;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .015rem;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.18;
+    zoom: var(--reveal-chip-zoom, 1);
+    pointer-events: none;
+}
+
 /* Shared PLAIN reveal glint — a single light sweep racing across the FACE the
    moment it turns into view, for ANY deal-proxy reveal that toggles the
    generic `--revealing` modifier (the action deck-check reveal — Search For
@@ -510,8 +547,12 @@ dialog.con-zoom {
    old straight-line `clip-path` at the plate's top edge, which let
    flights paint OVER the bar rim/wings above that line (the "cards fly
    through the dock texture" defect) and needed per-profile geometry
-   mirroring. Still above every card-flow SOURCE surface (task host /
-   start scene 11480, reveal modal 11520, info mode 11560, exit 11640). */
+   mirroring. ALSO under the hand section's status rail (verdict bar,
+   z11711 — genuinely root-level while the hand is open via
+   `.con-main--hand`, console.less): flights dive BEHIND the rail text on
+   their way between the grid and the tray. Still above every card-flow
+   SOURCE surface (task host / start scene 11480, reveal modal 11520,
+   info mode 11560, exit 11640). */
 .con-handreveal-layer {
     position: fixed;
     inset: 0;

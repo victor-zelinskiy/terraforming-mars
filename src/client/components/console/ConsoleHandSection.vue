@@ -660,14 +660,25 @@ export default defineComponent({
      * window (grid math is pure — a reference rendered card anchors the
      * row/column strides, so even a 30-card tail has an honest position).
      * `visible` = the rect intersects the grid viewport (off-window proxies
-     * fade at the boundary — "into the scroll"). One read batch; no writes.
+     * fade at the boundary — "into the scroll"); a visible rect that CROSSES
+     * the viewport edge also carries `clip` — the screen-px overflow the
+     * grid's overflow cuts off the real slot — so the flying proxy can land
+     * exactly as clipped (never a whole card that "sinks" at the handoff).
+     * One read batch; no writes.
      */
-    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean}>, scrollTop: number} {
+    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number}}>, scrollTop: number} {
       const grid = this.$refs.grid as HTMLElement | undefined;
       if (grid === undefined || this.entries.length === 0) {
         return {pairs: [], scrollTop: 0};
       }
       const gr = grid.getBoundingClientRect();
+      // The grid clips its scroll content at its own border box — the honest
+      // boundary the real slots render against.
+      const clipFor = (rect: {top: number, height: number}): {top: number, bottom: number} | undefined => {
+        const top = Math.max(0, gr.top - rect.top);
+        const bottom = Math.max(0, rect.top + rect.height - gr.bottom);
+        return top > 0.5 || bottom > 0.5 ? {top, bottom} : undefined;
+      };
       const p = this.plan;
       // The anchor: the FIRST rendered slot's card (its entries index is
       // known via the render window), backing out the per-card strides.
@@ -711,7 +722,7 @@ export default defineComponent({
           rect = {left: gr.left + gr.width / 2, top: gr.bottom, width: 60, height: 84};
         }
         const visible = rect.top < gr.bottom - 4 && rect.top + rect.height > gr.top + 4;
-        return {name: e.card.name as CardName, rect, visible};
+        return {name: e.card.name as CardName, rect, visible, clip: visible ? clipFor(rect) : undefined};
       });
       return {pairs, scrollTop: grid.scrollTop};
     },

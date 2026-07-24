@@ -103,7 +103,7 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
         // Record the reveal result (revealed card + whether life was found + the
         // VP swing) for the premium reveal-result overlay — BEFORE discarding.
         actionReveals.recordReveal(player, this.name, card, found, this.revealReward(),
-          {from: vpBefore, to: this.vpFor(this.resourceCount)});
+          {from: vpBefore, to: this.vpFor(this.resourceCount)}, {tag: Tag.MICROBE, label: 'Microbe tag'});
         player.game.projectDeck.discard(card);
       });
 

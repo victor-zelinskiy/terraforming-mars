@@ -30,6 +30,9 @@ describe('Reveal / deck-check actions', () => {
       expect(player.lastReveal?.revealed.name).eq(top.name);
       expect(player.lastReveal?.conditionMet).is.true;
       expect(player.lastReveal?.reward?.icon).eq('science');
+      // The overlay explains WHAT was checked (the microbe tag) — recorded on
+      // both outcomes so the result can say "looking for X → found / not found".
+      expect(player.lastReveal?.check).to.deep.equal({tag: Tag.MICROBE, label: 'Microbe tag'});
       expect(card.resourceCount).eq(1);
       // First find: VP goes 0 → 3 (the binary 3-VP threshold is unlocked).
       expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 3});
@@ -64,6 +67,9 @@ describe('Reveal / deck-check actions', () => {
 
       expect(player.lastReveal?.conditionMet).is.false;
       expect(player.lastReveal?.reward).is.undefined;
+      // The check is recorded EVEN on a miss — the overlay says "was looking for
+      // a microbe tag → not found" rather than a bare ✗.
+      expect(player.lastReveal?.check?.tag).eq(Tag.MICROBE);
       expect(card.resourceCount).eq(0);
     });
 
@@ -99,6 +105,7 @@ describe('Reveal / deck-check actions', () => {
       expect(player.lastReveal?.revealed.name).eq(top.name);
       expect(player.lastReveal?.conditionMet).is.true;
       expect(player.lastReveal?.reward?.icon).eq('asteroid');
+      expect(player.lastReveal?.check).to.deep.equal({tag: Tag.SPACE, label: 'Space tag'});
       expect(card.resourceCount).eq(1);
       // 1 VP per asteroid → a match always adds 1 VP (never maxed).
       expect(player.lastReveal?.vp).to.deep.equal({from: 0, to: 1});

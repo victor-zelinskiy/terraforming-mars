@@ -153,8 +153,11 @@
             </div>
           </div>
 
-          <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) ─── -->
-          <div v-else-if="mode === 'result' && lastReveal !== undefined" class="con-reveal__body con-info__scroll">
+          <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) — a filled
+               left→right story: the SOURCE card (the acting card, position/role
+               UNCHANGED — the connection to the previous action overlay), a
+               connector, the REVEALED card, then the verdict + info panel. ─── -->
+          <div v-else-if="mode === 'result' && lastReveal !== undefined" class="con-reveal__body con-reveal__body--result">
             <div class="con-reveal__source">
               <div class="con-start__section-title">{{ $t('Source') }}</div>
               <!-- The source card ANCHOR: on the composer → result phase
@@ -163,30 +166,63 @@
                 <Card :card="{name: lastReveal.action}" :key="lastReveal.action" lightweight />
               </div>
             </div>
-            <div class="con-reveal__main">
-              <!-- The revealed card is the flight's LANDING SLOT: the real card
-                   stays hidden (layout kept) until the deck→slot flip settles,
-                   so the proxy lands on its exact rect and the swap is invisible. -->
-              <div class="con-reveal__revealed" ref="resultSlot"
-                   :data-zoom-slot="'revealed:' + lastReveal.revealed.name"
-                   :class="{
-                     'con-reveal__revealed--met': resultRevealed && lastReveal.conditionMet,
-                     'con-reveal__revealed--miss': resultRevealed && !lastReveal.conditionMet,
-                   }">
-                <Card :card="lastReveal.revealed" :key="lastReveal.revealed.name"
-                      :style="{visibility: resultStage === 'settled' ? 'visible' : 'hidden'}" />
-              </div>
+            <!-- CONNECTOR: the source card drew + revealed the deck card. -->
+            <div class="con-reveal__link" aria-hidden="true">
+              <span class="con-reveal__link-label">{{ $t('reveals') }}</span>
+              <span class="con-reveal__link-beam"></span>
+            </div>
+            <!-- The revealed card is the flight's LANDING SLOT: the real card
+                 stays hidden (layout kept) until the deck→slot flip settles,
+                 so the proxy lands on its exact rect and the swap is invisible. -->
+            <div class="con-reveal__revealed" ref="resultSlot"
+                 :data-zoom-slot="'revealed:' + lastReveal.revealed.name"
+                 :class="{
+                   'con-reveal__revealed--met': resultRevealed && lastReveal.conditionMet,
+                   'con-reveal__revealed--miss': resultRevealed && !lastReveal.conditionMet,
+                 }">
+              <Card :card="lastReveal.revealed" :key="lastReveal.revealed.name"
+                    :style="{visibility: resultStage === 'settled' ? 'visible' : 'hidden'}" />
+            </div>
+            <!-- VERDICT + INFO panel: the «revealing» status while the card
+                 flies, the full breakdown (verdict · what was checked · reward ·
+                 VP) once it lands. A reserved-width slot keeps the card centred
+                 across the swap. -->
+            <div class="con-reveal__verdict-slot">
               <transition name="con-actfocus-outcome" mode="out-in">
-                <div v-if="!resultRevealed" key="status" class="con-reveal__revealstatus" role="status">
+                <div v-if="!resultRevealed" key="status" class="con-reveal__verdict con-reveal__verdict--pending" role="status">
                   <span class="con-reveal__revealstatus-spin" aria-hidden="true"></span>
-                  <span>{{ $t('Revealing the card') }}</span>
+                  <span class="con-reveal__verdict-waiting">{{ $t('Revealing the card') }}</span>
                 </div>
-                <div v-else key="outcome"
-                     class="con-reveal__outcome" :class="lastReveal.conditionMet ? 'con-reveal__outcome--met' : 'con-reveal__outcome--miss'">
-                  <span class="con-reveal__outcome-badge" aria-hidden="true">{{ lastReveal.conditionMet ? '✓' : '✕' }}</span>
-                  <span>{{ $t(lastReveal.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
-                  <ActionEffectChip v-if="lastReveal.reward !== undefined" :effect="lastReveal.reward" />
-                  <span v-if="vpGain > 0" class="con-reveal__vp">+{{ vpGain }} {{ $t('VP') }}</span>
+                <div v-else key="verdict" class="con-reveal__verdict"
+                     :class="lastReveal.conditionMet ? 'con-reveal__verdict--met' : 'con-reveal__verdict--miss'">
+                  <div class="con-reveal__verdict-head">
+                    <span class="con-reveal__verdict-badge" aria-hidden="true">{{ lastReveal.conditionMet ? '✓' : '✕' }}</span>
+                    <span class="con-reveal__verdict-title">{{ $t(lastReveal.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
+                  </div>
+                  <!-- What the action was looking for + whether the card had it. -->
+                  <div v-if="revealCheck !== undefined" class="con-reveal__verdict-row">
+                    <span class="con-reveal__verdict-label">{{ $t('Checked') }}</span>
+                    <span class="con-reveal__verdict-value">
+                      <i v-if="revealCheckIcon" class="con-reveal__verdict-tagicon" :style="{backgroundImage: 'url(' + revealCheckIcon + ')'}"></i>
+                      <span>{{ $t(revealCheck.label) }}</span>
+                      <span class="con-reveal__verdict-found"
+                            :class="lastReveal.conditionMet ? 'con-reveal__verdict-found--yes' : 'con-reveal__verdict-found--no'">
+                        {{ $t(lastReveal.conditionMet ? 'found' : 'not found') }}
+                      </span>
+                    </span>
+                  </div>
+                  <!-- The reward (gained on a match; not received on a miss). -->
+                  <div class="con-reveal__verdict-row">
+                    <span class="con-reveal__verdict-label">{{ $t('Reward') }}</span>
+                    <span class="con-reveal__verdict-value">
+                      <ActionEffectChip v-if="lastReveal.reward !== undefined" :effect="lastReveal.reward" />
+                      <span v-else class="con-reveal__verdict-none">{{ $t('Not received') }}</span>
+                    </span>
+                  </div>
+                  <div v-if="vpGain > 0" class="con-reveal__verdict-row">
+                    <span class="con-reveal__verdict-label">{{ $t('Victory points') }}</span>
+                    <span class="con-reveal__verdict-value"><span class="con-reveal__vp">+{{ vpGain }} {{ $t('VP') }}</span></span>
+                  </div>
                 </div>
               </transition>
             </div>
@@ -279,6 +315,8 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
+import {Tag} from '@/common/cards/Tag';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -551,6 +589,15 @@ export default defineComponent({
      *  «Вскрываем карту» yields the instant the flip crosses the camera plane). */
     resultRevealed(): boolean {
       return this.resultStage !== 'pending';
+    },
+    /** What the action was checking for (a tag) — explains the ✓/✗ verdict. */
+    revealCheck(): {tag: Tag, label: string} | undefined {
+      return this.lastReveal?.check;
+    },
+    /** The checked tag's icon URL (empty when the check is absent). */
+    revealCheckIcon(): string {
+      const c = this.revealCheck;
+      return c !== undefined ? tagIconUrl(c.tag) : '';
     },
     // ── viewer ───────────────────────────────────────────────────────
     viewerReveal(): RevealMeta | undefined {

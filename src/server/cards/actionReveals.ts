@@ -1,6 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {ICard} from './ICard';
 import {CardName} from '../../common/cards/CardName';
+import {Tag} from '../../common/cards/Tag';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
 import {cardsToModel} from '../models/ModelUtils';
 
@@ -25,11 +26,13 @@ export function recordReveal(
   conditionMet: boolean,
   reward: ActionEffect,
   vp?: {from: number, to: number},
+  check?: {tag: Tag, label: string},
 ): void {
   player.lastReveal = {
     action,
     revealed: cardsToModel(player, [revealed])[0],
     conditionMet,
+    check,
     reward: conditionMet ? reward : undefined,
     vp,
   };
