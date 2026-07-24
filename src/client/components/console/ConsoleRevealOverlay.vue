@@ -161,8 +161,11 @@
             <div class="con-reveal__source">
               <div class="con-start__section-title">{{ $t('Source') }}</div>
               <!-- The source card ANCHOR: on the composer → result phase
-                   handoff the confirm modal's card FLIPs into this slot. -->
-              <div :data-motion-anchor="'card:' + lastReveal.action">
+                   handoff the confirm modal's card FLIPs into this slot. L3
+                   inspects it fullscreen (the `source:` zoom slot is the FLIP
+                   origin), mirroring the drawn reveal's L3 = source. -->
+              <div :data-motion-anchor="'card:' + lastReveal.action"
+                   :data-zoom-slot="'source:' + lastReveal.action">
                 <Card :card="{name: lastReveal.action}" :key="lastReveal.action" lightweight />
               </div>
             </div>
@@ -800,9 +803,15 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      // L3 = inspect the DRAW SOURCE (screen-specific stick, drawn mode only).
+      // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
+      // mode opens the DRAW SOURCE; result mode opens the acting card that did
+      // the deck-check — the same L3 = source idiom, one language.
       if (intent.button === 'stickL' && this.mode === 'drawn') {
         this.zoomSource();
+        return;
+      }
+      if (intent.button === 'stickL' && this.mode === 'result') {
+        this.zoomResultSource();
         return;
       }
       // R3 = browse the DISCARD pile of a conditional search (drawn mode). The
@@ -942,6 +951,17 @@ export default defineComponent({
       if (r !== undefined) {
         openConsoleCardZoom([r.revealed], 0, undefined, undefined, {
           origin: this.zoomOriginFor(() => `revealed:${r.revealed.name}`, false),
+        });
+      }
+    },
+    /** L3: inspect the SOURCE (acting) card fullscreen — the read-only card that
+     *  performed the deck-check; B returns to the result (never unmounted). */
+    zoomResultSource(): void {
+      const r = this.lastReveal;
+      if (r !== undefined) {
+        openConsoleCardZoom([{name: r.action} as CardModel], 0, undefined, undefined, {
+          statusLabel: 'Source',
+          origin: this.zoomOriginFor(() => `source:${r.action}`, false),
         });
       }
     },

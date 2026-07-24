@@ -2979,8 +2979,11 @@ export default defineComponent({
           cmds.push({control: 'secondary', label: 'Inspect'});
           cmds.push({control: 'back', label: 'Close'});
         } else {
+          // result: A = OK, X = inspect the REVEALED card, L3 = inspect the
+          // SOURCE (acting) card — the same X/L3 idiom as the drawn reveal.
           cmds.push({control: 'confirm', label: 'OK'});
           cmds.push({control: 'secondary', label: 'Inspect'});
+          cmds.push({control: 'stickL', label: 'Source'});
         }
         return cmds;
       }
