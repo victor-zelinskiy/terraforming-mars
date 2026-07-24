@@ -517,6 +517,42 @@ describeDatabaseSuite({
       expect(await db.getSaveIds(game.id)).has.members([0, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]);
     });
 
+    it('trim preserves the first save of each generation', async () => {
+      const db = dbFactory();
+
+      const player = TestPlayer.BLACK.newPlayer();
+      const game = Game.newInstance('game-gen-trim', [player], player, 'spectatorid');
+      await db.lastSaveGamePromise;
+      // save 0 exists (generation 1); lastSaveId === 1.
+      expect(game.lastSaveId).eq(1);
+
+      // Generation 1: saves 1..4.
+      for (let i = 0; i < 4; i++) {
+        await db.saveGame(game);
+      }
+      // Generation 2 starts at save 5.
+      (game as unknown as {generation: number}).generation = 2;
+      for (let i = 0; i < 5; i++) {
+        await db.saveGame(game);
+      } // saves 5..9; lastSaveId hits 10 → trim fires with maxSaveId 0 (deletes nothing).
+      // Generation 3 starts at save 10.
+      (game as unknown as {generation: number}).generation = 3;
+      for (let i = 0; i < 11; i++) {
+        await db.saveGame(game);
+      } // saves 10..20; lastSaveId hits 20 → trim fires with maxSaveId 10.
+
+      const saveIds = await db.getSaveIds(game.id);
+      // The blunt trim would have deleted saves 1..9 (everything below maxSaveId 10).
+      // Boundary preservation keeps the START of each generation:
+      expect(saveIds).to.include(0); // generation 1 start (always kept)
+      expect(saveIds).to.include(5); // generation 2 start — survives the trim
+      expect(saveIds).to.include(10); // generation 3 start
+      // The intra-generation action saves below the window are gone.
+      expect(saveIds).to.not.include.members([1, 2, 3, 4, 6, 7, 8, 9]);
+      // The recent window is intact.
+      expect(saveIds).to.include.members([11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+    });
+
     it('trim at 5', async () => {
       const db = dbFactory();
       db.setTrimCount(5);

@@ -364,8 +364,27 @@ export class PostgreSQL implements IDatabase {
     }
     if (game.lastSaveId % this.trimCount === 0) {
       const maxSaveId = game.lastSaveId - this.trimCount;
+      // Trim old intra-generation action saves, but PRESERVE:
+      //   - save_id 0 (the game's origin, generation 1);
+      //   - the FIRST save of every generation (its start snapshot), so a game
+      //     that has advanced N generations always keeps a restore point for the
+      //     start of each past generation — the admin rollback tool's generation
+      //     timeline shows them, and rolling back "one generation" is possible;
+      //   - the most recent `trimCount` saves (the undo window, via save_id < maxSaveId).
+      // `game` is a text column, so the generation is extracted with a JSON cast.
+      // For a single-generation game the preserved set is just {0}, so this is
+      // byte-identical to the previous blunt trim (the existing trim tests hold).
       await this.client.query(
-        'DELETE FROM games WHERE game_id = $1 AND save_id > 0 AND save_id < $2', [game.id, maxSaveId]);
+        `DELETE FROM games
+         WHERE game_id = $1
+           AND save_id > 0
+           AND save_id < $2
+           AND save_id NOT IN (
+             SELECT MIN(save_id) FROM games
+             WHERE game_id = $1
+             GROUP BY (game::json ->> 'generation')
+           )`,
+        [game.id, maxSaveId]);
     }
     return Promise.resolve();
   }
