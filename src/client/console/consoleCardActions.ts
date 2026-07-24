@@ -342,12 +342,24 @@ function buildTiles(
 
     if (repeat !== undefined) {
       // REPEAT mode: candidate → selectable ('available'), unless THIS branch is
-      // itself blocked; a non-candidate → 'rules' with the honest reason.
+      // itself blocked; a non-candidate → 'rules' with a CONCRETE reason (full
+      // informativeness — never a bare "cannot be repeated").
       if (!repeatSelectable) {
         status = 'rules';
-        reason = usedThisGen ?
-          reasonFrom('This action cannot be repeated right now', []) :
-          reasonFrom('This action was not used this generation', []);
+        if (!usedThisGen) {
+          // Only actions USED this generation can be repeated — the concrete reason.
+          reason = reasonFrom('This action was not used this generation', []);
+        } else if (branch !== undefined && branch.available === false && branch.unavailableReason !== undefined) {
+          // Used this gen, but the rules block it NOW — the SAME concrete reason a
+          // normal blocked action shows (e.g. «Недостаточно стали»), from the preview
+          // (declarative / bespoke hook / bespoke-dynamic `actionUnavailableReason`).
+          reason = reasonFrom(branch.unavailableReason, branch.unavailableReasonParams);
+        } else {
+          // The preview hasn't loaded yet — a temporary honest line, refined on
+          // load (the internal re-entrancy guard `checkLoops` never surfaces here:
+          // the SelectCard is built at the top level where the counter is 0).
+          reason = reasonFrom('This action cannot be repeated right now', []);
+        }
       } else if (branch !== undefined && branch.available === false) {
         status = 'rules';
         reason = reasonFrom(branch.unavailableReason ?? 'Unavailable right now', branch.unavailableReasonParams);

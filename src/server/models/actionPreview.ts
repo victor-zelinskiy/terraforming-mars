@@ -58,10 +58,20 @@ export function actionPreview(player: IPlayer, card: ICard & IActionCard): Actio
 
   // Bespoke action with no hook yet: a single confirm-only branch. The action's
   // own prompts (whatever they are) flow through the existing follow-up routing.
+  // When BLOCKED, surface the co-located `actionUnavailableReason` so the branch
+  // carries the CONCRETE reason (used by the Actions overlay's per-branch
+  // availability AND the repeat picker — never a bare "unavailable").
+  const available = card.canAct(player);
+  const reason = available ? undefined : card.actionUnavailableReason?.(player);
   return {
     ...base,
     kind: 'dynamic',
-    branches: [{index: -1, title: '', available: card.canAct(player), renderKeys: [], effects: [], steps: []}],
+    branches: [{
+      index: -1, title: '', available,
+      unavailableReason: reason?.message,
+      unavailableReasonParams: reason?.params,
+      renderKeys: [], effects: [], steps: [],
+    }],
   };
 }
 

@@ -166,6 +166,7 @@ const CLI_VALUE_FLAGS: Record<string, string> = {
   'tm-switches': 'TM_ELECTRON_SWITCHES',
   'tm-features': 'TM_ELECTRON_FEATURES',
   'tm-priority': 'TM_ELECTRON_PRIORITY',
+  'tm-affinity': 'TM_ELECTRON_AFFINITY',
 };
 const CLI_BOOL_FLAGS: Record<string, string> = {
   'tm-software': 'TM_ELECTRON_SOFTWARE',
@@ -498,6 +499,67 @@ export function applyPerformanceSwitches(app: App, probe: HardwareProbe = detect
   }
 
   return applied;
+}
+
+/**
+ * The P-core affinity mask for an Intel HYBRID CPU (P-cores + E-cores), derived
+ * from PHYSICAL vs LOGICAL core counts — no per-core P/Invoke needed. On Windows,
+ * Alder/Raptor Lake enumerate the (hyper-threaded) P-cores FIRST, then the
+ * (single-threaded) E-cores. With P physical P-cores (2 threads each) and E
+ * physical E-cores (1 thread each): logical L = 2P + E, physical C = P + E ⇒
+ * P = L − C, E = 2C − L. The P-cores are the first 2P logical processors, so the
+ * mask is the low 2P bits set.
+ *
+ * WHY THIS EXISTS: the game is main-thread-bound on Blink Style+Layout (a trace
+ * showed ~62% of the frame in RecalcStyle/Layout/Layerize). On a hybrid laptop
+ * Windows can schedule / migrate that heavy thread onto the WEAK E-cores, so the
+ * same code runs far worse than on an all-big-core console (e.g. the Steam
+ * Machine's Zen 4). Pinning the process to the P-cores keeps the layout thread on
+ * the fast cores — a P-core (i9-13900H ~5.4 GHz) is FASTER than a console core,
+ * so pinned, the laptop should match or beat the console.
+ *
+ * Returns the mask ONLY for a genuine hybrid (P > 0 AND E > 0); undefined for a
+ * uniform CPU (an all-HT desktop or an all-same-core part) where pinning would
+ * only remove cores for no benefit.
+ */
+export function pCoreAffinityMask(physicalCores: number, logicalCores: number): number | undefined {
+  if (!Number.isInteger(physicalCores) || !Number.isInteger(logicalCores)) {
+    return undefined;
+  }
+  const p = logicalCores - physicalCores;      // # of P physical cores (each HT → 2 logical)
+  const e = 2 * physicalCores - logicalCores;  // # of E physical cores (1 logical each)
+  if (p <= 0 || e <= 0) {
+    return undefined;                          // not a P+E hybrid → no pinning
+  }
+  const pLogical = 2 * p;                       // P-core logical processors (enumerated first)
+  if (pLogical >= 31) {
+    return undefined;                          // bit-shift guard; no consumer hybrid reaches this
+  }
+  return (1 << pLogical) - 1;
+}
+
+/** The CPU-affinity preference resolved from TM_ELECTRON_AFFINITY. */
+export type AffinityPref = {mode: 'off'} | {mode: 'mask', mask: number} | {mode: 'auto'};
+
+/**
+ * Resolve TM_ELECTRON_AFFINITY: unset/`auto` → auto-detect the P-core mask on a
+ * hybrid CPU; `off`/`normal`/`0` → no pinning (leave the OS scheduler); an
+ * explicit hex (`0xfff`) or decimal (`4095`) value → force that affinity mask
+ * (the escape hatch for an unusual topology). Pure (unit-tested).
+ */
+export function parseAffinityPref(env: string | undefined): AffinityPref {
+  const raw = (env ?? '').trim().toLowerCase();
+  if (raw === '' || raw === 'auto') {
+    return {mode: 'auto'};
+  }
+  if (raw === 'off' || raw === 'normal' || raw === '0') {
+    return {mode: 'off'};
+  }
+  const mask = raw.startsWith('0x') ? parseInt(raw, 16) : parseInt(raw, 10);
+  if (Number.isInteger(mask) && mask > 0) {
+    return {mode: 'mask', mask};
+  }
+  return {mode: 'auto'};
 }
 
 /** The Windows process-priority preference resolved from TM_ELECTRON_PRIORITY. */

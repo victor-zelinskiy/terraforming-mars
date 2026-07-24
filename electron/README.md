@@ -77,6 +77,7 @@ You can force `app://` mode on an already-built desktop bundle with
 | `TM_PARTICIPANT_ID` | — | Optional. If set, the window opens directly at the `player?id=<id>` route (direct-game testing) and injects it as `tmRuntimeConfig.participantId`. |
 | `TM_ELECTRON_DEVTOOLS` | — | `=1` opens detached DevTools (renderer profiling / debugging). |
 | `TM_ELECTRON_WINDOWED` | — | `=1` runs in a normal resizable window instead of the default **fullscreen** (handy for development). The app is fullscreen-only by default and re-enters fullscreen if it's ever exited. |
+| `TM_ELECTRON_AFFINITY` | `auto` (win32) | CPU-affinity pinning for the main + renderer processes. `auto` (default) auto-detects an Intel HYBRID CPU (P-cores + E-cores) and pins to the **P-cores** — keeps the layout-bound renderer main thread on the fast cores instead of the weak E-cores (the "same code, worse than the console" gap). No-op on a uniform CPU / non-hybrid. `off`/`normal` = leave the OS scheduler. An explicit `0xfff` / `4095` mask forces that affinity (unusual topology). Windows-only. See `perf.ts` `pCoreAffinityMask`. |
 | `TM_ELECTRON_PRIORITY` | `high` (win32) | Windows process-priority class for the main + renderer processes. `high` (default) = HIGH — most aggressively keeps the renderer's main thread on the performance cores at boost clocks and opts it out of EcoQoS/E-core parking (the fix for "smooth on the console, janky on a hybrid laptop" under a light GPU load); can in theory starve OS/audio threads, dial back if glitches appear. `above` = ABOVE_NORMAL (calmer, no starvation risk). `normal`/`off` = leave the OS default (baseline). No-op on Linux/SteamOS (gamescope owns scheduling). See `perf.ts` `processPriorityPref`. |
 | `TM_ELECTRON_NO_PERF` | — | `=1` skips ALL performance tuning (vanilla-Electron baseline for "is it our switches?" comparisons). See `perf.ts`. |
 | `TM_ELECTRON_SOFTWARE` | — | `=1` forces the SOFTWARE rendering path (`--disable-gpu` + parallel raster threads). The rollback if the Steam Deck's GPU/Vulkan default misbehaves; also a Windows diagnostic. |
@@ -128,6 +129,7 @@ Options**, clear the field to remove; no `setx`, no Steam restart, no registry.
 | `--tm-switches="disable-frame-rate-limit;disable-gpu-vsync"` | `TM_ELECTRON_SWITCHES` | multiple raw Chromium switches (`;`-separated, quoted) |
 | `--tm-features=none` | `TM_ELECTRON_FEATURES` | replace/disable the enable-features list |
 | `--tm-priority=above` | `TM_ELECTRON_PRIORITY` | dial the priority class back from the `high` default |
+| `--tm-affinity=off` | `TM_ELECTRON_AFFINITY` | disable P-core pinning (rollback) — or `0xfff` to force a mask |
 | `--tm-software` | `TM_ELECTRON_SOFTWARE=1` | force the software render path |
 | `--tm-no-perf` | `TM_ELECTRON_NO_PERF=1` | vanilla-Electron baseline |
 | `--tm-devtools` | `TM_ELECTRON_DEVTOOLS=1` | auto-open DevTools |

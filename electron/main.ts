@@ -22,7 +22,8 @@ import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
-import {applyPerformanceSwitches, logGpuStatus, parseCliEnvOverrides, processPriorityPref} from './perf';
+import {applyPerformanceSwitches, logGpuStatus, parseAffinityPref, parseCliEnvOverrides, pCoreAffinityMask, processPriorityPref} from './perf';
+import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
@@ -256,6 +257,81 @@ function applyProcessPriority(): void {
   }
 }
 
+/** Run a PowerShell one-liner, resolve its stdout (rejects on error/non-zero). */
+function runPowerShell(command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
+      {windowsHide: true, timeout: 8000},
+      (err, stdout) => (err ? reject(err) : resolve(stdout)));
+  });
+}
+
+// Resolved P-core affinity mask (win32): undefined = don't pin; resolved once.
+let affinityResolved = false;
+let affinityMask: number | undefined;
+
+/**
+ * Resolve the P-core affinity mask once. `auto` reads the physical + logical core
+ * counts (one PowerShell CIM query) and derives the mask via pCoreAffinityMask;
+ * an explicit TM_ELECTRON_AFFINITY mask skips detection; `off` disables.
+ */
+async function resolveAffinityMask(): Promise<number | undefined> {
+  const pref = parseAffinityPref(process.env.TM_ELECTRON_AFFINITY);
+  if (pref.mode === 'off') {
+    return undefined;
+  }
+  if (pref.mode === 'mask') {
+    return pref.mask;
+  }
+  try {
+    const out = await runPowerShell(
+      '$s=Get-CimInstance -ClassName Win32_Processor;' +
+      '($s|Measure-Object -Property NumberOfCores -Sum).Sum;' +
+      '($s|Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum');
+    const nums = out.split(/\s+/).map((t) => parseInt(t, 10)).filter((n) => Number.isInteger(n));
+    return pCoreAffinityMask(nums[0], nums[1]);
+  } catch {
+    return undefined; // detection failed → leave the OS scheduler alone
+  }
+}
+
+/**
+ * Pin the main + renderer processes to the P-cores on a hybrid Intel CPU, so the
+ * layout-bound renderer main thread stays on the FAST cores instead of migrating
+ * onto the weak E-cores (the "same code, worse than the console" gap). Windows-
+ * only, auto-detected, idempotent (re-applied each load); every step wrapped so a
+ * failure can never break the window. Disable/override via TM_ELECTRON_AFFINITY.
+ * See perf.ts `pCoreAffinityMask`.
+ */
+async function applyPCoreAffinity(): Promise<void> {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  if (!affinityResolved) {
+    affinityMask = await resolveAffinityMask();
+    affinityResolved = true;
+  }
+  if (affinityMask === undefined) {
+    return; // uniform CPU / disabled / detection failed
+  }
+  const pids = [process.pid];
+  const rendererPid = mainWindow?.webContents.getOSProcessId();
+  if (rendererPid !== undefined && rendererPid > 0) {
+    pids.push(rendererPid);
+  }
+  try {
+    await runPowerShell(
+      `foreach($id in @(${pids.join(',')})){try{(Get-Process -Id $id).ProcessorAffinity=[IntPtr]${affinityMask}}catch{}}`);
+    // eslint-disable-next-line no-console
+    console.log(`[electron] pinned pids ${pids.join(',')} to P-core affinity 0x${affinityMask.toString(16)}`);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[electron] set P-core affinity failed', err);
+  }
+}
+
 function createWindow(): void {
   const cfg = runtimeConfig();
 
@@ -342,10 +418,11 @@ function createWindow(): void {
   // inspectable mid-session. (Before the GPU status settles the payload is
   // undefined and the first echo comes from signalGpuReadyWhenLive instead.)
   mainWindow.webContents.on('did-finish-load', () => {
-    // Re-assert the process priority on every load — the renderer OS pid is
-    // guaranteed spawned here, and a game-boundary reload must not drop back to
-    // the OS default. Idempotent.
+    // Re-assert the process priority + P-core affinity on every load — the
+    // renderer OS pid is guaranteed spawned here, and a game-boundary reload must
+    // not drop back to the OS default. Both idempotent.
     applyProcessPriority();
+    void applyPCoreAffinity();
     if (perfEchoPayload !== undefined) {
       void mainWindow?.webContents
         .executeJavaScript(`console.info('[TM perf]', ${perfEchoPayload});`)

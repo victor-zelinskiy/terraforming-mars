@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseCliEnvOverrides, parseExtraSwitches, processPriorityPref, rasterThreadCount} from '../../electron/perf';
+import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseAffinityPref, parseCliEnvOverrides, parseExtraSwitches, pCoreAffinityMask, processPriorityPref, rasterThreadCount} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -286,6 +286,25 @@ describe('electron/perf', () => {
       expect(rasterThreadCount(12)).to.equal(6);  // Steam Machine (Zen 4 6C/12T)
       expect(rasterThreadCount(2)).to.equal(2);   // floor
       expect(rasterThreadCount(32)).to.equal(8);  // ceiling
+    });
+
+    it('pCoreAffinityMask: derives the P-core mask on a hybrid, undefined on a uniform CPU', () => {
+      expect(pCoreAffinityMask(14, 20)).to.equal(0xFFF); // i9-13900H: 6P(+HT)=12 logical + 8E → low 12 bits
+      expect(pCoreAffinityMask(14, 20)).to.equal(4095);
+      expect(pCoreAffinityMask(12, 16)).to.equal(0xFF);  // i5-13500H: 4P(+HT)=8 logical + 8E → low 8 bits
+      expect(pCoreAffinityMask(8, 16)).to.equal(undefined);  // all-HT desktop (no E-cores)
+      expect(pCoreAffinityMask(8, 8)).to.equal(undefined);   // no hyper-threading
+      expect(pCoreAffinityMask(6, 6)).to.equal(undefined);   // uniform, no HT
+    });
+
+    it('parseAffinityPref: auto by default, off disables, an explicit mask overrides', () => {
+      expect(parseAffinityPref(undefined)).to.deep.equal({mode: 'auto'});
+      expect(parseAffinityPref('')).to.deep.equal({mode: 'auto'});
+      expect(parseAffinityPref('auto')).to.deep.equal({mode: 'auto'});
+      expect(parseAffinityPref('off')).to.deep.equal({mode: 'off'});
+      expect(parseAffinityPref('0')).to.deep.equal({mode: 'off'});
+      expect(parseAffinityPref('0xfff')).to.deep.equal({mode: 'mask', mask: 4095});
+      expect(parseAffinityPref('4095')).to.deep.equal({mode: 'mask', mask: 4095});
     });
 
     it('processPriorityPref: HIGH by default, ABOVE opt-in, normal/off leaves the OS default', () => {

@@ -291,6 +291,21 @@ describe('consoleCardActions model', () => {
       expect(model.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
     });
 
+    it('a used-but-blocked action shows the CONCRETE preview reason, never the abstract fallback', () => {
+      const previews = new Map<CardName, ActionPreview>([
+        // UsedBlocked was used this gen but canAct is false NOW (no steel) — the
+        // preview branch carries the concrete reason.
+        ['UsedBlocked' as CardName, preview('UsedBlocked', [
+          {index: -1, title: '', available: false, unavailableReason: 'Not enough steel', renderKeys: [], effects: [], steps: []},
+        ])],
+      ]);
+      const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'}, repeat);
+      const usedBlocked = tileFor(model, 'UsedBlocked');
+      expect(usedBlocked?.status).to.eq('rules');
+      expect(usedBlocked?.reason?.message).to.eq('Not enough steel');
+      expect(usedBlocked?.reason?.message).to.not.eq('This action cannot be repeated right now');
+    });
+
     it('the activation dimension is INDEPENDENT of availability (a used candidate is BOTH)', () => {
       // «Активированы» (activation) is the used-this-gen set — Cand + UsedBlocked.
       const activated = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'activated'}, repeat);

@@ -8850,6 +8850,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: 0;
         display: none;
     }
+    /*
+     * Kill the browser's default focus ring on the scroll container itself.
+     * Chromium 125+ (Electron ships a newer Chromium) turns an overflow scroll
+     * container with NO focusable children into a KEYBOARD-FOCUSABLE scroll
+     * container: it takes DOM focus (on click, or when focus returns to it after
+     * an overlay/modal closes) and paints the OS-accent default focus ring around
+     * itself. In console-native every `.con-scrollbars()` surface (resource rail,
+     * inspector, sheet, turn menu, …) is pad/keyboard-INTENT driven — scrolling is
+     * owned by ConsoleScrollArea + the intent system, never by tabbing to the
+     * container — so this ring is pure desktop noise. It read as the left rail
+     * "arbitrarily" gaining an amber focus frame. Same call as `.con-zoom__btn:focus`.
+     */
+    &:focus,
+    &:focus-visible {
+        outline: none;
+    }
 }
 
 .con-inspector,
