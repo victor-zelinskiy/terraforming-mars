@@ -1,0 +1,22 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Console PERFORMANCE MODE ("perf-lite") — see src/client/console/consolePerfMode.ts.
+
+   Opt-in (main-menu Options → «Производительность»). Cuts the expensive
+   DECORATIVE paint for smoothness on weak / Windows-hybrid setups where the
+   renderer is paint/Layerize-bound:
+     - `filter` (blur / drop-shadow) — each forces its own compositing LAYER +
+       costly per-frame raster, directly feeding the Layerize bottleneck;
+     - box-shadow / text-shadow — heavy per-frame PAINT across the glass UI.
+
+   MOTION IS UNTOUCHED: transforms, opacity and every GSAP/CSS animation keep
+   running byte-identically — only the per-frame paint/layer cost drops.
+
+   Gated on `html.console-native.con-perf-lite` so it never touches the desktop
+   UI. A universal `*` selector is the CHEAPEST broad match (no attribute
+   substring matching) and is applied ONCE on toggle, never per frame.
+   ───────────────────────────────────────────────────────────────────────── */
+html.console-native.con-perf-lite * {
+    filter: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}

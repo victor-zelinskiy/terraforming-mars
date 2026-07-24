@@ -14410,9 +14410,6 @@ html.con-profile-handheld .con-composer {
     .con-composer__panel--play { width: min(58rem, 97vw); }
     .con-composer__playmain { gap: .7rem; }
     .con-composer__playcard { zoom: 0.82; }
-    /* Handheld: the composer's inert source-card column costs width the
-       Deck doesn't have — the name + chips carry the context there. */
-    .con-composer__actcard { display: none; }
     .con-composer__panel--act { width: min(44rem, 94vw); }
     .con-composer__name { font-size: 1.05rem; }
     .con-composer__stepper-value { font-size: 1.2rem; min-width: 2.6rem; }
@@ -14423,13 +14420,14 @@ html.con-profile-handheld .con-composer {
     .con-composer__foot-item { font-size: .65rem; }
 }
 /* Handheld ACTION FOCUS stage: full-frame geometry (the floating-panel width
-   caps above must not squeeze the in-frame stage); the hero-card column
-   costs width the Deck doesn't have — the frame header + the chips carry
-   the identity, decisions take the whole frame. */
+   caps above must not squeeze the in-frame stage). The SOURCE CARD stays
+   visible (scaled down) — the player must SEE which action they compose /
+   confirm; the full-frame stage has the room for it even on the Deck. */
 html.con-profile-handheld .con-composer--stage {
     .con-composer__panel--stage { width: 100%; padding: .1rem 0 0; }
-    .con-composer__actside { display: none; }
-    .con-composer__actmain--stage { grid-template-columns: minmax(0, 1fr); max-width: none; }
+    .con-composer__actside { display: flex; }
+    .con-composer__actcard--stage { zoom: calc(0.62 * var(--con-ui-scale, 1)); }
+    .con-composer__actmain--stage { grid-template-columns: auto minmax(0, 1fr); max-width: none; column-gap: .9rem; align-items: center; }
 }
 
 /* Large / 4K — a gentle readability boost only. */

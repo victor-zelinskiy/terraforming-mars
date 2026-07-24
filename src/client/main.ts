@@ -9,6 +9,7 @@ import {startOauth} from '@/client/oauth';
 import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
 import {applyMotionCssScale} from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
+import {applyConsolePerfClass} from '@/client/console/consolePerfMode';
 const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
 // Registered globally so ModernOptionPicker can host a nested input recursively
 // via `<modal-input-host>` WITHOUT a static import — breaks the
@@ -43,6 +44,9 @@ async function bootstrap() {
   // preference reaches the heavy card-deal / FLIP cinematics (motionFpsCap alone
   // only throttles createFrameGate loops). 'auto' = native rAF (unchanged).
   applyGsapTickerFps();
+  // Apply the console performance-mode class (cuts decorative paint; motion
+  // untouched) from the persisted preference before first paint.
+  applyConsolePerfClass();
   const lang = getPreferences().lang;
 
   // Stamp the active language on <html> at bootstrap (guaranteed to run before

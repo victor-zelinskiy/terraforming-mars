@@ -96,6 +96,7 @@ import {
   setMotionSpeedPreset,
 } from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
+import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
 import {translateText} from '@/client/directives/i18n';
 
 // English i18n keys ('Standard' / 'Auto' already exist in console.json — reused).
@@ -113,7 +114,7 @@ const MOTION_FPS_LABELS: Record<'auto' | '30' | '60', string> = {
 const MOTION_FPS_CYCLE: ReadonlyArray<MotionFpsCap> = ['auto', 60, 30];
 
 type OptionRowId =
-  'interface' | 'display' | 'controller' | 'buttons' | 'motionSpeed' | 'motionRate' | 'privateScore';
+  'interface' | 'display' | 'controller' | 'buttons' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
@@ -130,7 +131,7 @@ export default defineComponent({
   emits: ['close'],
   data() {
     return {
-      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState,
+      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState, consolePerfState,
       // Motion prefs are module-cached (motionTokens), not reactive — mirror
       // them here so the row value re-renders when this panel cycles them.
       motionSpeed: motionSpeedPreset() as MotionSpeedPreset,
@@ -194,6 +195,17 @@ export default defineComponent({
           sub: 'Frame-rate cap for animations',
           glyph: '⚡',
           value: translateText(MOTION_FPS_LABELS[this.motionRate === 'auto' ? 'auto' : (String(this.motionRate) as '30' | '60')]),
+        },
+        {
+          // Performance mode — cuts the expensive DECORATIVE paint (filter
+          // blur/drop-shadow + box/text shadows) for smoothness on weak /
+          // Windows-hybrid hardware. MOTION IS UNTOUCHED (transforms/opacity/
+          // animations run identically) — only per-frame paint/layer cost drops.
+          id: 'perfMode',
+          label: 'Performance mode',
+          sub: 'Cut shadows and blur for smoothness',
+          glyph: '🚀',
+          value: translateText(this.consolePerfState.enabled ? 'On' : 'Off'),
         },
       );
       // Private score is a per-GAME preference — offered ONLY in-game (from the
@@ -295,6 +307,11 @@ export default defineComponent({
         applyGsapTickerFps(next);
         break;
       }
+      case 'perfMode':
+        // Toggle the paint-cut mode in place; setConsolePerfLite persists +
+        // flips the `<html>.con-perf-lite` class live (console_perf.less).
+        setConsolePerfLite(!this.consolePerfState.enabled);
+        break;
       case 'privateScore':
         // Local, per-browser display pref — masks only THIS viewer's own VP on
         // passive surfaces (the console score cap reads shouldMaskOwnPassiveVp).
