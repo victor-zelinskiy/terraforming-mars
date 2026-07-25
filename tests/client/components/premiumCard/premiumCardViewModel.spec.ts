@@ -456,12 +456,16 @@ describe('card lore coverage — full premium-face scope (project + prelude + co
   const LORE_BY_CARD_NUMBER: Readonly<Record<string, string>> = loreTexts;
 
   function loreTextFor(card: ClientCard, seen = new Set<CardName>()): string | undefined {
-    if (seen.has(card.name)) return undefined;
+    if (seen.has(card.name)) {
+      return undefined;
+    }
     seen.add(card.name);
 
     const cardNumber = card.metadata.cardNumber;
     const ownLore = cardNumber === undefined ? undefined : LORE_BY_CARD_NUMBER[cardNumber];
-    if (typeof ownLore === 'string' && ownLore.trim() !== '') return ownLore;
+    if (typeof ownLore === 'string' && ownLore.trim() !== '') {
+      return ownLore;
+    }
 
     const reimplements = card.metadata.reimplements;
     return reimplements === undefined ? undefined : loreTextFor(getCardOrThrow(reimplements), seen);
@@ -484,7 +488,9 @@ describe('card lore coverage — full premium-face scope (project + prelude + co
     const cardsByNumber = new Map<string, Array<string>>();
     for (const card of cards) {
       const cardNumber = card.metadata.cardNumber;
-      if (cardNumber === undefined) continue;
+      if (cardNumber === undefined) {
+        continue;
+      }
       const names = cardsByNumber.get(cardNumber) ?? [];
       names.push(card.name);
       cardsByNumber.set(cardNumber, names);
