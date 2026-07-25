@@ -222,7 +222,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    /* ONE ROW, NEVER WRAPPING: the bar reserves exactly one chip row, and a
+       wrapped second row would grow it — which shifts the whole card strip
+       (the fit engine measures the bar; the frame is vertically centred).
+       Under width pressure the chips shrink + ellipsize instead. */
+    flex-wrap: nowrap;
+    max-width: 100%;
     gap: .6rem;
     min-width: 0;
     /* The settle materialization: the bar's box is reserved from the first

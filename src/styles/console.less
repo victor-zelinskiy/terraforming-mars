@@ -9819,6 +9819,10 @@ html.con-scale-focus-venus .arc-scale--venus {
         border-radius: 49.95rem;
         font-size: .8rem;
         font-weight: 700;
+        /* The bar is one non-wrapping row: the button-hint chips keep their
+           full size and the REASON chip (--blocked, min-width 0 + ellipsis) is
+           the one that absorbs any width pressure. */
+        flex-shrink: 0;
 
         &--ok {
             background: fade(@con-cyan, 12%);
@@ -9834,8 +9838,27 @@ html.con-scale-focus-venus .arc-scale--venus {
             background: fade(@con-red, 10%);
             box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
             color: #ffc9c4;
-            max-width: 16rem;
-            text-align: center;
+            /* ONE LINE, ALWAYS (mirrors --limit below). The old
+               `max-width: 16rem` with no nowrap let «Сначала снимите выбор с
+               другой карты» wrap to TWO rows, which grew the verdict BAR by a
+               whole text row — and the bar's height is both measured by the
+               card fit engine and part of the vertically-centred `.con-task`
+               box, so the whole card row jumped as focus moved between a
+               pickable and a blocked candidate. There is plenty of horizontal
+               room (the frame is min(78rem, 94vw); on TV far more), so the
+               reason reads on one line and ellipsizes under pressure instead
+               of ever reflowing. The FULL reason still lives on the card
+               itself (`.con-cards__reason`). */
+            max-width: 34rem;
+            min-width: 0;
+            flex-shrink: 1;
+            white-space: nowrap;
+            /* The task host wraps the reason text in its own span (the hand
+               dock's texts are short bare nodes) — ellipsize that one. */
+            > span:last-child {
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
         }
         /* Start-scene context rail: a reached pick LIMIT is a NORMAL state —
            calm amber (never the red error look, never a ✕ that collides with
@@ -10073,7 +10096,17 @@ html.con-scale-focus-venus .arc-scale--venus {
            the reason rail reads as solid chrome, not a transparent film. */
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        min-height: 2rem;
+        /* RESERVED ROW HEIGHT (the `.con-hand__verdictbar` twin at ~4005 does
+           the same for the hand dock, and for the same reason): the bar's
+           height is measured by `modalChromeHeight()` and the frame is
+           vertically centred, so ANY height change re-fits / shifts the whole
+           card row. The reserve is sized ABOVE the natural one-row height at
+           every profile, so the bar keeps one constant height whether the
+           focused card is pickable, blocked with a reason, or not yet focused
+           at all (`__verdict-inner` is v-if'd). The chips themselves can no
+           longer wrap (see --blocked / __verdict-inner), so nothing can grow
+           past it. */
+        min-height: 2.6rem;
     }
     &__verdictbar--held > .con-cards__verdict-inner {
         opacity: 0;
@@ -10082,6 +10115,7 @@ html.con-scale-focus-venus .arc-scale--venus {
     &__verdict-name {
         font-size: .9rem;
         font-weight: 700;
+        flex-shrink: 0;
         max-width: 17rem;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -14947,7 +14981,11 @@ html.con-profile-handheld {
     .con-cards {
         gap: .4rem;
 
-        &__verdictbar { min-height: 1.7rem; padding: .3rem .5rem; gap: .4rem; }
+        /* min-height = the RESERVE at handheld metrics (chip .65rem + .2rem×2
+           padding inside .3rem×2 bar padding ≈ 1.9rem) — it must stay ABOVE
+           the natural one-row height or the bar changes height when the
+           verdict content mounts. See the base rule's comment. */
+        &__verdictbar { min-height: 2rem; padding: .3rem .5rem; gap: .4rem; }
         &__verdict-name { font-size: .75rem; max-width: 12rem; }
         &__verdict { font-size: .65rem; padding: .2rem .55rem; }
         /* P17 clip-safe at handheld densities: top headroom covers the
