@@ -169,7 +169,9 @@ export default defineComponent({
     },
     tooltip(): string {
       const descriptions = [this.metadata.build, this.metadata.trade, this.metadata.colony].map((b) => b.description);
-      const titles = ['Build Colony bonus', 'Trade bonus', 'Colony bonus'].map(translateText);
+      // Wrapped, not point-free: `translateText` takes an options argument, and
+      // `map` would hand it the array index.
+      const titles = ['Build Colony bonus', 'Trade bonus', 'Colony bonus'].map((t) => translateText(t));
 
       return `${titles[0]}: ${translateText(descriptions[0])}
 ${titles[1]}: ${translateText(descriptions[1])}

@@ -15451,14 +15451,11 @@ html.con-profile-large {
    (CONSOLE_TV_PREMIUM_PLAN.md Этап 1-R2.) The console viewer's stable
    right-hand rules surface. Scoped to `.con-zoom` — desktop viewers never
    render the side slot, and their midrow keeps its shipped layout. */
-.con-zoom .card-zoom-midrow--side {
-    /* The no-nav default is display:contents — with a side child that
-       would drop the panel out of the row. Force the flanked row. */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1.1rem;
-}
+/* The flanked row itself is laid out in card_lore.less
+   (`.card-zoom-midrow--flank`): a symmetric grid that keeps the CARD on the
+   viewport centre line no matter how wide the archive entry (left) or this
+   rules panel (right) turn out. The no-nav default is display:contents, which
+   would drop a flank out of the row — the grid replaces it. */
 .con-zoom .card-zoom-side {
     flex-shrink: 0;
     align-self: center;

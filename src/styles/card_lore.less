@@ -1,0 +1,314 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ *  CARD LORE — the fullscreen viewer's ARCHIVE ENTRY (CardLoreAside)
+ *
+ *  A literary note in the LEFT gutter of the fullscreen card, opposite the
+ *  technical rules panel on the right. The contrast is deliberate and is
+ *  carried by TYPOGRAPHY, AIR and two decorative quotation marks — never by
+ *  another framed surface: no border, no head bar, no glass card, no readable
+ *  rectangle, no buttons, no hover, no focus, no scroll. The only backdrop is
+ *  a radial darkening that dissolves well inside the element box, so the
+ *  player perceives dimmed space behind the words, not a panel.
+ *
+ *  Units: authored in rem, like every console-native surface (1rem = 20px
+ *  logical, scaled by --con-ui-scale on the TV profile). The two exceptions
+ *  are marked `keep-px`: they are tied to the CARD's physical pixels via
+ *  --card-zoom-fit (the zoom CardZoomModal applies to the card face), not to
+ *  the UI scale.
+ *
+ *  Palette: warm ivory / muted gold — the RULES side is cold cyan. The lore
+ *  is never tinted by card type: a green/blue/red literary text would read as
+ *  a game rule or a status effect.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── the flanked fullscreen row ──────────────────────────────────────────
+ *  STRICT CENTRING. The plain viewer centres a flex row; with a gutter block
+ *  that centres the GROUP, so the card drifts off-centre by half the flank.
+ *  With a flank present the row becomes a symmetric grid instead and the card
+ *  keeps the middle column — the two 1fr gutters are equal by construction and
+ *  the nav controls sit in their own mirrored auto columns, so neither the
+ *  archive entry's length nor the rules panel's width can move the card.
+ *  Every child is placed EXPLICITLY, so a hidden control (console hides the
+ *  touch chevrons) cannot shift its siblings into the wrong column. */
+.card-zoom-midrow.card-zoom-midrow--flank {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+    align-items: center;
+    justify-content: center;
+    /* No column-gap: a hidden nav slot still leaves its (zero-width) track, so
+       a gap would be applied twice on each side. The breathing room is a MARGIN
+       on each flank instead — a margin lives inside its own 1fr gutter and
+       therefore cannot move the centre column, which is the whole point. */
+    column-gap: 0;
+
+    > .card-zoom-lore {
+        grid-column: 1;
+        justify-self: end;
+        /* total air between the entry and the card frame */
+        margin-right: 3rem;
+    }
+    > .card-zoom-nav-slot--prev {
+        grid-column: 2;
+    }
+    > .card-zoom-stage {
+        grid-column: 3;
+        justify-self: center;
+    }
+    > .card-zoom-nav-slot--next {
+        grid-column: 4;
+    }
+    > .card-zoom-side {
+        grid-column: 5;
+        justify-self: start;
+        margin-left: 1.1rem;
+    }
+}
+
+/* ── the block ───────────────────────────────────────────────────────────
+ *  Vertically it hangs off the CARD's centre, lifted a touch so its optical
+ *  centre lands against the card's artwork rather than its lower chrome. The
+ *  lift is expressed in the card's own pixels (--card-zoom-fit is the zoom the
+ *  viewer applied to the 320x460 card face), so it is identical for every card
+ *  and the block never bounces while browsing. */
+.card-zoom-lore {
+    --zlore-text: rgba(241, 234, 215, 0.88);
+    --zlore-heading: rgba(216, 190, 133, 0.76);
+    --zlore-accent: rgba(216, 177, 91, 0.68);
+    --zlore-line: rgba(216, 177, 91, 0.24);
+    --zlore-quote: rgba(230, 211, 166, 0.11);
+    /* keep-px: card pixels, not UI-scale pixels (see the header). */
+    --zlore-lift: calc(34px * var(--card-zoom-fit, 1));
+
+    box-sizing: border-box;
+    width: ~"clamp(16rem, 21vw, 22.5rem)";
+    min-width: 0;
+    padding: 1.5rem 1.1rem 2.4rem;
+    transform: translateY(calc(-1 * var(--zlore-lift)));
+
+    /* The ONLY backdrop: a soft darkening that fades to nothing before the
+       box edges, so there is no perceivable panel. No backdrop-filter — a
+       full-area blur here would be a permanent GPU cost for decoration. */
+    background: radial-gradient(ellipse 118% 88% at 46% 48%,
+        rgba(5, 8, 13, 0.66) 0%,
+        rgba(5, 8, 13, 0.46) 44%,
+        rgba(5, 8, 13, 0.16) 68%,
+        rgba(5, 8, 13, 0) 82%);
+
+    /* Purely presentational: never a pointer target, never in the controller
+       or tab order (it also has no focusable descendant). */
+    pointer-events: none;
+}
+
+/* ── heading + the hairline that points at the card ──────────────────── */
+
+.card-zoom-lore__label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 0.85rem;
+    font-family: Prototype, Ubuntu, sans-serif;
+    font-size: 0.55rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.19em;
+    text-transform: uppercase;
+    color: var(--zlore-heading);
+}
+
+.card-zoom-lore__label-text {
+    flex: 0 0 auto;
+}
+
+/* A small gold lozenge — the premium UI's own accent motif, not a new one. */
+.card-zoom-lore__spark {
+    flex: 0 0 auto;
+    width: 0.3rem;
+    height: 0.3rem;
+    transform: rotate(45deg);
+    background: var(--zlore-accent);
+    box-shadow: 0 0 0.35rem rgba(216, 177, 91, 0.35);
+}
+
+/* The trace toward the card: thin, fading out long before the card frame. */
+.card-zoom-lore__rule {
+    flex: 1 1 auto;
+    min-width: 0.8rem;
+    height: 1px;
+    background: linear-gradient(90deg, var(--zlore-line) 0%, rgba(216, 177, 91, 0.07) 72%, rgba(216, 177, 91, 0) 100%);
+}
+
+.card-zoom-lore__tip {
+    flex: 0 0 auto;
+    width: 0.22rem;
+    height: 0.22rem;
+    transform: rotate(45deg);
+    border: 1px solid rgba(216, 177, 91, 0.3);
+}
+
+/* ── the quotation ───────────────────────────────────────────────────── */
+
+.card-zoom-lore__quote {
+    position: relative;
+    /* Kill the browser's blockquote margins AND its generated quotes — every
+       visible mark in this block is ours. */
+    margin: 0;
+    padding: 0;
+    quotes: none;
+    color: var(--zlore-text);
+    font-style: italic;
+    font-weight: 500;
+    text-align: left;
+    /* Keep any paragraph breaks the source text carries; never justify. */
+    white-space: pre-line;
+    text-wrap: pretty;
+
+    &::before,
+    &::after {
+        content: none;
+    }
+}
+
+/* The face is chosen by the ACTIVE LOCALE (cardLore.loreScriptForLocale), not
+   by sniffing the string. */
+.card-zoom-lore--latin .card-zoom-lore__quote {
+    font-family: "Newsreader", "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+.card-zoom-lore--cyrillic .card-zoom-lore__quote {
+    font-family: "Literata", "Source Serif 4", Georgia, serif;
+}
+
+/* Optical compensation by length. Never a size STEP the eye can name — the
+   short pull-quote simply reads as an intentional line, the corporate
+   paragraph as a calm block. Nothing scrolls, nothing truncates. */
+.card-zoom-lore--short .card-zoom-lore__quote {
+    font-size: ~"clamp(1.2rem, 1.42vw, 1.4rem)";
+    line-height: 1.36;
+    /* A short entry keeps a tighter measure so it reads as a quotation
+       rather than one lost line across the full column. */
+    max-width: 15rem;
+}
+.card-zoom-lore--regular .card-zoom-lore__quote {
+    font-size: ~"clamp(1.06rem, 1.24vw, 1.22rem)";
+    line-height: 1.47;
+}
+.card-zoom-lore--extended .card-zoom-lore__quote {
+    font-size: ~"clamp(0.96rem, 1.1vw, 1.1rem)";
+    line-height: 1.51;
+}
+
+.card-zoom-lore__text {
+    display: block;
+}
+
+/* ── decorative quotation marks ──────────────────────────────────────────
+ *  aria-hidden spans with CSS-generated glyphs: the lore strings already carry
+ *  their own punctuation (« », ‘ ’, a full Kennedy quotation), so nothing is
+ *  ever added to the string itself. Curly typographic marks, NOT « » — those
+ *  would read as the LB/RB browse chevrons at this size.
+ *
+ *  The closing mark is anchored to the blockquote's BOTTOM edge, so it follows
+ *  the real height of the text on every card. */
+.card-zoom-lore__mark {
+    position: absolute;
+    line-height: 1;
+    color: var(--zlore-quote);
+    font-family: inherit;
+    font-style: normal;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.card-zoom-lore__mark--open {
+    top: -1.45rem;
+    left: -0.95rem;
+    font-size: 4.4rem;
+
+    &::before {
+        content: "\201C";
+    }
+}
+
+.card-zoom-lore__mark--close {
+    right: -0.15rem;
+    bottom: -2.15rem;
+    font-size: 3.5rem;
+
+    &::before {
+        content: "\201D";
+    }
+}
+
+/* A missing entry is honest, quieter, and carries no quotation marks — it is
+   a notice, not a quotation. It never renders as an empty container. */
+.card-zoom-lore--fallback {
+    .card-zoom-lore__quote {
+        color: rgba(226, 221, 208, 0.42);
+        font-style: italic;
+    }
+    .card-zoom-lore__label {
+        color: rgba(216, 190, 133, 0.5);
+    }
+    .card-zoom-lore__spark {
+        background: rgba(216, 177, 91, 0.34);
+        box-shadow: none;
+    }
+}
+
+/* ── reveal choreography ─────────────────────────────────────────────────
+ *  The entry is silent until the card has LANDED (the viewer's settle nonce):
+ *  heading + trace first, the text a beat later, the marks last and softest.
+ *  Leaving (a browse step / the close flight) is a single quick fade with no
+ *  delay, so two entries can never be legible at once and the close is never
+ *  held back. Transform + opacity only; the blur is transient, never resting. */
+.card-zoom-lore__label,
+.card-zoom-lore__quote,
+.card-zoom-lore__mark {
+    opacity: 0;
+    transform: translateX(8px);
+    transition:
+        opacity calc(120ms * var(--motion-scale, 1)) ease,
+        transform calc(120ms * var(--motion-scale, 1)) ease,
+        filter calc(120ms * var(--motion-scale, 1)) ease;
+}
+.card-zoom-lore__quote {
+    filter: blur(2.5px);
+}
+
+.card-zoom-lore--in {
+    .card-zoom-lore__label,
+    .card-zoom-lore__quote,
+    .card-zoom-lore__mark {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    .card-zoom-lore__label {
+        transition:
+            opacity calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    .card-zoom-lore__quote {
+        filter: blur(0);
+        transition:
+            opacity calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc(90ms * var(--motion-scale, 1)),
+            transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) calc(90ms * var(--motion-scale, 1)),
+            filter calc(260ms * var(--motion-scale, 1)) ease calc(90ms * var(--motion-scale, 1));
+    }
+    .card-zoom-lore__mark {
+        opacity: 1;
+        transition:
+            opacity calc(340ms * var(--motion-scale, 1)) ease calc(170ms * var(--motion-scale, 1)),
+            transform calc(340ms * var(--motion-scale, 1)) ease calc(170ms * var(--motion-scale, 1));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-zoom-lore__label,
+    .card-zoom-lore__quote,
+    .card-zoom-lore__mark,
+    .card-zoom-lore--in .card-zoom-lore__label,
+    .card-zoom-lore--in .card-zoom-lore__quote,
+    .card-zoom-lore--in .card-zoom-lore__mark {
+        transform: none;
+        filter: none;
+        transition: opacity 90ms linear;
+    }
+}

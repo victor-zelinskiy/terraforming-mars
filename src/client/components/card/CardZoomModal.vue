@@ -65,7 +65,19 @@
         single-card use is byte-identical (the stage stays a direct container
         child); only nav mode turns it into the flanking flex row.
       -->
-      <div class="card-zoom-midrow" :class="{'card-zoom-midrow--side': hasSide}">
+      <div class="card-zoom-midrow" :class="{'card-zoom-midrow--side': hasSide, 'card-zoom-midrow--flank': hasFlank}">
+        <!--
+          LEFT gutter: the card's ARCHIVE ENTRY (its lore text) — opt-in via
+          the `lore` prop, so it exists in the TRUE fullscreen viewer only and
+          never in a list / hero / compact zoom. It is a grid CELL of its own
+          (see `.card-zoom-midrow--flank` in card_lore.less): the stage keeps
+          the centre column, so neither this block's length nor the right-hand
+          rules panel's width can push the card off the viewport centre.
+        -->
+        <CardLoreAside v-if="loreVisible"
+                       :cardName="loreCardName"
+                       :nonce="settleNonce"
+                       :closing="closing" />
         <!--
           Prev / next navigation controls. Premium side controls that live in
           the viewer's gutters, never on the card. Bounded: at the first / last
@@ -199,6 +211,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
+import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
 import dialogPolyfill from 'dialog-polyfill';
 
@@ -241,6 +254,7 @@ export default defineComponent({
   name: 'CardZoomModal',
   components: {
     CardZoomCard,
+    CardLoreAside,
     CardAnnotationsLayer,
   },
   props: {
@@ -332,6 +346,19 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /*
+     * ARCHIVE ENTRY (opt-in; the console shell passes true). Shows the card's
+     * lore text in the LEFT gutter — the one place in the app it appears. It is
+     * opt-in for two reasons: (1) this component also backs plain single-card
+     * previews that are NOT a true fullscreen inspect, and (2) the DESKTOP
+     * viewer fills BOTH gutters with the floating `CardAnnotationsLayer`
+     * callouts, which a left-hand block would collide with. Desktop hosts bind
+     * nothing → default false → byte-identical.
+     */
+    lore: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['close', 'navigate', 'update:index'],
   data() {
@@ -414,6 +441,27 @@ export default defineComponent({
     /** The rule-overlay card: project cards only (a bonus entry has no rules model). */
     annotationCardName(): CardName | undefined {
       return isBonusZoom(this.activeCard) ? undefined : this.activeCard.name as CardName;
+    },
+    /** The archive entry shows for real game cards only — an Automa bonus
+     *  entry is not a card and has no lore. */
+    loreVisible(): boolean {
+      return this.lore && !isBonusZoom(this.activeCard);
+    },
+    /** The archive-entry card. Only ever READ behind `loreVisible`, which is
+     *  true solely for a non-bonus entry (a `CardModel`), so the cast is sound
+     *  — same idiom as the shell's `zoomRulesCardName`. */
+    loreCardName(): CardName {
+      return this.activeCard.name as CardName;
+    },
+    /*
+     * The midrow carries a flanking block (archive entry and/or rules panel).
+     * It then switches from the centred FLEX row (which centres the card+panel
+     * PAIR, pushing the card off-centre) to a symmetric grid that pins the card
+     * to the middle column — see `.card-zoom-midrow--flank` in card_lore.less.
+     * The fit engine reserves the gutters symmetrically to match.
+     */
+    hasFlank(): boolean {
+      return this.hasSide || this.loreVisible;
     },
   },
   watch: {
@@ -909,10 +957,20 @@ export default defineComponent({
       // so at conUiScale()=2 they physically double — scale them, and lift the
       // zoom ceiling so the card is the HERO of the 4K stage (~85% of the
       // viewport height) instead of stalling at the 1080-tuned 2.8 cap.
+      //
+      // FLANK reservation: with a gutter block present the midrow becomes a
+      // symmetric grid whose MIDDLE column holds the card, so the card stays on
+      // the viewport centre line whatever the flanks measure. That means the
+      // reservation must be symmetric too — BOTH gutters get the width of the
+      // WIDER flank (archive entry ≈ 22.5rem + its breathing margin; rules
+      // panel = 20rem + gap). Reserving only one side would let the wider
+      // gutter overrun the card.
       const s = this.consoleMotion ? conUiScale() : 1;
-      const sideReserve = this.hasSide ? 440 * s : 0;
+      const sideReserve = this.hasSide ? 440 : 0;
+      const loreReserve = this.loreVisible ? 500 : 0;
+      const flankReserve = 2 * Math.max(sideReserve, loreReserve) * s;
       const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
-      const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + sideReserve;
+      const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + flankReserve;
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 

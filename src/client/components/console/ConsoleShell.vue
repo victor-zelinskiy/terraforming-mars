@@ -492,6 +492,7 @@
                    :closing="zoomClosing"
                    :consoleMotion="true"
                    :annotationsSuppressed="zoomSideVisible"
+                   :lore="true"
                    @navigate="onCardZoomNavigate"
                    @close="onCardZoomClosed">
       <!-- TV rules panel (Этап 1-R2): the stable right-hand rules surface —

@@ -1447,5 +1447,7 @@
   "Choose a variant": "Выберите вариант",
   "Choice required": "Нужен выбор",
   "Choose before playing": "Выбор перед розыгрышем",
-  "Not enough resources": "Недостаточно ресурсов"
+  "Not enough resources": "Недостаточно ресурсов",
+  "FROM THE ARCHIVES": "ЗАПИСЬ ИЗ АРХИВА",
+  "No archive entry is available.": "Архивная запись отсутствует."
 }

@@ -48,7 +48,7 @@ const JS_FILES = new Set<string>([
   'sw.js', 'sw.js.map',
 ]);
 
-const ASSET_EXT = /\.(ttf|png|jpe?g|gif|svg|webp|json|ico)$/i;
+const ASSET_EXT = /\.(ttf|woff2?|png|jpe?g|gif|svg|webp|json|ico)$/i;
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -57,6 +57,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.ttf': 'font/ttf',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',

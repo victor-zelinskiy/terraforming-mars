@@ -210,4 +210,25 @@ describe('ServeAsset', () => {
     await scaffolding.get(instance, res);
     expect(res.statusCode).eq(statusCode.ok);
   });
+
+  // The fullscreen card's archive entry (card_lore.less) is set in these two
+  // literary faces. Unlike art, a font is NOT covered by the generic extension
+  // branch — it needs an explicit entry in toFile()'s allowlist, and the right
+  // content type (a wrong one makes Chromium refuse the face silently).
+  const LORE_FONTS = [
+    'Literata-Italic-latin.woff2',
+    'Literata-Italic-cyrillic.woff2',
+    'Newsreader-Italic-latin.woff2',
+  ];
+  for (const font of LORE_FONTS) {
+    it(`serves ${font} as font/woff2`, async () => {
+      expect(fs.existsSync(`assets/${font}`), `assets/${font} must ship with the app`).is.true;
+      instance = new ServeAsset(undefined, false, fileApi);
+      scaffolding.url = `/assets/${font}`;
+      scaffolding.req.headers['accept-encoding'] = '';
+      await scaffolding.get(instance, res);
+      expect(res.statusCode).eq(statusCode.ok);
+      expect(res.headers.get('Content-Type')).eq('font/woff2');
+    });
+  }
 });

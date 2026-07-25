@@ -93,8 +93,20 @@ export function translateMessage(message: Message): string {
   });
 }
 
+export type TranslateTextOptions = {
+  /**
+   * Look the string up even when the generic guard classifies it as
+   * "non-word" (pure digits / punctuation, or a card-render multiplier glyph
+   * like `x` / `3x`). That guard exists for RENDER fragments; a PROSE corpus
+   * can legitimately contain such a sentence — the card's archive entry «42.»
+   * is a complete lore text — and must still be localized. Opt in only where
+   * the source is known to be prose.
+   */
+  translateNonWordText?: boolean,
+};
+
 let translated: Set<string> | undefined;
-export function translateText(englishText: string): string {
+export function translateText(englishText: string, options?: TranslateTextOptions): string {
   const lang = getPreferences().lang;
   const translations: {[key: string]: string} | undefined = (window as any)._translations;
   if (lang === 'en' || translations === undefined) {
@@ -104,7 +116,7 @@ export function translateText(englishText: string): string {
   englishText = normalizeText(englishText);
 
   // Don't translate non-word strings or card-render multiplier glyphs.
-  if (isNonTranslatableText(englishText)) {
+  if (options?.translateNonWordText !== true && isNonTranslatableText(englishText)) {
     return englishText;
   }
 
