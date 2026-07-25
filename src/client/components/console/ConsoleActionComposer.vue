@@ -214,13 +214,14 @@
               </div>
             </div>
 
-            <!-- A choice input row (amount inline / picker / payment / spend-heat). -->
+            <!-- A choice input row (amount inline / picker / spend-heat).
+                 PAYMENT is NOT here — it's a persistent panel below, edited by
+                 the dedicated LT + inline LB/RB, never a focus row. -->
             <div v-else-if="item.choice !== undefined"
                  class="con-composer__row"
                  :class="{
                    'con-composer__row--focused': focusIdx === i,
                    'con-composer__row--missing': choiceMissing(item.choice),
-                   'con-composer__row--payment': item.choice.kind === 'payment',
                  }"
                  :ref="focusIdx === i ? 'focusedEl' : undefined">
               <!-- The REPEAT slot (Viron): empty → a prompt; filled → the chosen
@@ -260,16 +261,6 @@
                 <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(item.choice) }} · {{ $t('Floaters') }}: {{ floatersFor(item.choice.id) }}</div>
               </template>
 
-              <!-- PAYMENT — the SHARED premium panel (icons + было → стало, «авто»
-                   M€, inline LB/RB quick-adjust, LT the detailed editor). Replaces
-                   the old text summary «2 M€ + 1 Сталь» → one premium language with
-                   the play-card composer. -->
-              <template v-else-if="item.choice.kind === 'payment'">
-                <ConsolePaymentPanel :view="paymentPanelView(item.choice)"
-                                     :cost="paymentCostOf(item.choice)"
-                                     :flash-nonce="payFlashNonce" />
-              </template>
-
               <template v-else>
                 <div class="con-composer__row-label">{{ choiceTitle(item.choice) }}</div>
                 <div class="con-composer__row-value">
@@ -305,6 +296,16 @@
           <div v-for="(n, i) in afterNotes" :key="'n' + i" class="con-composer__next">
             <span aria-hidden="true">›</span><span>{{ n }}</span>
           </div>
+
+          <!-- PAYMENT — the SHARED premium panel (icons + было → стало, «авто» M€,
+               inline LB/RB quick-adjust, LT the detailed editor). A persistent INFO
+               panel, NOT a focus row: edited by the dedicated LT + LB/RB so it never
+               competes with the decision rows / the CTA. One premium payment
+               language with the play-card composer. Usually 0 or 1. -->
+          <ConsolePaymentPanel v-for="pc in paymentChoices" :key="'pay' + pc.id"
+                               :view="paymentPanelView(pc)"
+                               :cost="paymentCostOf(pc)"
+                               :flash-nonce="payFlashNonce" />
 
         </template>
       </ConsoleScrollArea>
@@ -597,11 +598,19 @@ export default defineComponent({
     allChoices(): ReadonlyArray<ComposerChoice> {
       return [...this.preChoiceList, ...this.branchChoiceList];
     },
-    /** The flat focus list: preSteps · branch option cards · branch inputs. */
+    /**
+     * The flat FOCUS list: preSteps · branch option cards · branch inputs.
+     * PAYMENT is deliberately NOT a focusable row (mirrors the play composer):
+     * it is a persistent INFO panel edited by the DEDICATED LT button + inline
+     * LB/RB, so it never competes with the real decision rows / the CTA for the
+     * cursor. (`items` drives both the render loop and the nav walk.)
+     */
     items(): ReadonlyArray<Item> {
       const out: Array<Item> = [];
       for (const c of this.preChoiceList) {
-        out.push({id: c.id, kind: 'choice', choice: c});
+        if (c.kind !== 'payment') {
+          out.push({id: c.id, kind: 'choice', choice: c});
+        }
       }
       if (this.needBranchRow) {
         for (const pos of this.positions) {
@@ -609,9 +618,21 @@ export default defineComponent({
         }
       }
       for (const c of this.branchChoiceList) {
-        out.push({id: c.id, kind: 'choice', choice: c});
+        if (c.kind !== 'payment') {
+          out.push({id: c.id, kind: 'choice', choice: c});
+        }
       }
       return out;
+    },
+    /** Every payment choice (pre + branch) — rendered as persistent panels,
+     *  NOT nav rows. Normally 0 or 1; a card with several SelectPayment steps
+     *  shows one panel each (the dedicated LT / LB/RB target the FIRST). */
+    paymentChoices(): ReadonlyArray<ComposerChoice> {
+      return this.allChoices.filter((c) => c.kind === 'payment');
+    },
+    /** The payment the dedicated LT button / inline LB/RB act on. */
+    primaryPaymentChoice(): ComposerChoice | undefined {
+      return this.paymentChoices[0];
     },
     hasDecisions(): boolean {
       return this.items.length > 0;
@@ -742,9 +763,6 @@ export default defineComponent({
       if (item.choice.kind === 'spendHeat') {
         return 'spendHeat';
       }
-      if (item.choice.kind === 'payment') {
-        return 'payment';
-      }
       return 'pick';
     },
     /** The composer's live command contract, published to the ONE shell bar
@@ -770,18 +788,20 @@ export default defineComponent({
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
       const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
-      // On a focused payment row, hand the bar the live quick-adjust per-side +
-      // whether the LT lane editor exists (so LB/RB and LT never lie).
-      let payment: {canDecrease: boolean, canIncrease: boolean, configurable: boolean} | undefined;
-      if (kind === 'payment' && item?.kind === 'choice') {
-        const view = this.paymentPanelView(item.choice);
-        const chip = view.chips.find((c) => c.isAdjustable);
-        payment = {canDecrease: chip?.canDecrease ?? false, canIncrease: chip?.canIncrease ?? false, configurable: view.configurable};
-      }
+      // PAYMENT is review-level (not a focus row): LT «Configure payment» when a
+      // non-M€ mix exists, and inline LB/RB quick-adjust when the single-alt case
+      // applies AND a focused stepper doesn't already own LB/RB.
+      const pay = this.primaryPaymentChoice;
+      const payView = pay !== undefined ? this.paymentPanelView(pay) : undefined;
+      const focusedStepper = kind === 'amount' || kind === 'spendHeat';
+      const chip = payView?.chips.find((c) => c.isAdjustable);
+      const quickAdjust = (!focusedStepper && payView?.quickAdjustEligible === true && chip !== undefined) ?
+        {canDecrease: chip.canDecrease, canIncrease: chip.canIncrease} : undefined;
       return focusCommandRun({
         state: 'main', focused: kind, resolved, canConfirm: this.canConfirm,
         commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
-        payment,
+        configurablePayment: payView?.configurable === true,
+        quickAdjust,
       });
     },
     heroCost(): ReadonlyArray<ActionEffect> {
@@ -1494,8 +1514,6 @@ export default defineComponent({
         this.setAmount(item.choice, this.amountFor(item.choice.id) + (dir === 'left' ? -1 : 1));
       } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
         this.adjustFloaters(item.choice, dir === 'left' ? -1 : 1);
-      } else if (item?.kind === 'choice' && item.choice.kind === 'payment') {
-        this.adjustQuickPayment(item.choice, dir === 'left' ? -1 : 1);
       }
     },
     // MAIN state: A(primary) acts on the FOCUSED row (select a branch / open
@@ -1511,10 +1529,10 @@ export default defineComponent({
           this.submit();
         } else if (item.kind === 'branch') {
           this.selectBranch(item.pos);
-        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat' || item.choice.kind === 'payment') {
-          // A stepper / the payment panel adjusts via LB/RB (payment also LT) —
-          // A ADVANCES toward the CTA («Далее»), mirroring the play composer's
-          // grammar (the visible, editable default is already captured).
+        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat') {
+          // A stepper adjusts via LB/RB — A ADVANCES toward the CTA («Далее»),
+          // mirroring the play composer's grammar (the visible, editable
+          // default is already captured).
           this.focusIdx = Math.min(this.ctaIndex, this.focusIdx + 1);
           this.scrollFocused();
         } else {
@@ -1530,20 +1548,23 @@ export default defineComponent({
       case 'prevSection':
       case 'nextSection': {
         const step = action === 'prevSection' ? -1 : 1;
+        // A focused amount/spend-heat stepper OWNS LB/RB; otherwise LB/RB do the
+        // GLOBAL inline payment quick-adjust (the payment panel isn't a focus row,
+        // so no focus on it is needed) — parity with the play composer.
         if (item?.kind === 'choice' && item.choice.kind === 'amount') {
           this.setAmount(item.choice, this.amountFor(item.choice.id) + step);
         } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
           this.adjustFloaters(item.choice, step);
-        } else if (item?.kind === 'choice' && item.choice.kind === 'payment') {
-          this.adjustQuickPayment(item.choice, step);
+        } else if (this.primaryPaymentChoice !== undefined) {
+          this.adjustQuickPayment(this.primaryPaymentChoice, step);
         }
         return;
       }
       case 'prevTab':
-        // LT = the detailed payment lane editor (never A) — the user's «вход
-        // через отдельную кнопку LT».
-        if (item?.kind === 'choice' && item.choice.kind === 'payment') {
-          this.openPaymentEditor(item.choice);
+        // LT = the DEDICATED entry to the detailed payment lane editor (never A,
+        // never a focus row) — the user's «вход строго через отдельную кнопку LT».
+        if (this.primaryPaymentChoice !== undefined) {
+          this.openPaymentEditor(this.primaryPaymentChoice);
         }
         return;
       case 'nextTab':

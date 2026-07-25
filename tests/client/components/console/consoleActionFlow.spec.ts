@@ -71,24 +71,29 @@ describe('consoleActionFlow', () => {
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'Next', 'Inspect', 'Cancel']);
     });
 
-    it('main / payment row: LB/RB quick-adjust (per-side enabled) + LT editor + A Next', () => {
+    it('payment is REVIEW-level (never a focus row): on the CTA, LT + inline LB/RB while A stays Confirm', () => {
       const run = focusCommandRun({
-        state: 'main', focused: 'payment', canConfirm: true,
-        payment: {canDecrease: true, canIncrease: false, configurable: true},
+        state: 'main', focused: 'cta', canConfirm: true,
+        configurablePayment: true, quickAdjust: {canDecrease: true, canIncrease: false},
       });
-      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Next', 'Configure payment', 'Inspect', 'Cancel']);
+      // LB/RB split (per-side enabled) → A Confirm (still the commit, NOT hijacked by payment) → LT → Inspect/Cancel.
+      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Confirm', 'Configure payment', 'Inspect', 'Cancel']);
       expect(run.find((c) => c.control === 'bumperL')?.enabled).to.eq(true);
       expect(run.find((c) => c.control === 'bumperR')?.enabled).to.eq(false);
-      // A ADVANCES (Next) on a payment row — it never commits and never opens the editor.
-      expect(run.find((c) => c.control === 'confirm')?.label).to.eq('Next');
+      expect(run.find((c) => c.control === 'confirm')).to.deep.eq({control: 'confirm', label: 'Confirm', enabled: true});
     });
 
-    it('main / payment row: AUTO M€ (not configurable, no alt) shows neither LB/RB nor LT', () => {
+    it('payment: a focused STEPPER owns LB/RB (quickAdjust yields) but LT stays available', () => {
       const run = focusCommandRun({
-        state: 'main', focused: 'payment', canConfirm: true,
-        payment: {canDecrease: false, canIncrease: false, configurable: false},
+        state: 'main', focused: 'amount', canConfirm: true,
+        configurablePayment: true, quickAdjust: undefined,
       });
-      expect(run.map((c) => c.label)).to.deep.eq(['Next', 'Inspect', 'Cancel']);
+      expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Next', 'Configure payment', 'Inspect', 'Cancel']);
+    });
+
+    it('payment: AUTO M€ (not configurable, no alt) shows neither LB/RB nor LT', () => {
+      const run = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true});
+      expect(run.map((c) => c.label)).to.deep.eq(['Confirm', 'Inspect', 'Cancel']);
     });
 
     it('main / branch + pick rows: A names Select / Change (resolved re-opens)', () => {

@@ -1,12 +1,17 @@
 /*
  * CARD ART COVERAGE AUDIT (dev tool, ad-hoc).
  *
- * Lists every IN-SCOPE premium-face card (project + prelude, EXCLUDING
- * corporations) whose artwork is still missing — i.e. whose art does not
- * resolve to real per-card art via `assets/card-images/<cardNumber>.webp`
- * (mirroring the exact resolution in src/client/cards/cardArt.ts, including
- * the `reimplements` borrow: a reissue with no art of its own inherits the
- * base card's illustration).
+ * Lists every IN-SCOPE premium-face card (project + prelude) whose artwork
+ * is still missing — i.e. whose art does not resolve to real per-card art
+ * via `assets/card-images/<cardNumber>.webp` (mirroring the exact resolution
+ * in src/client/cards/cardArt.ts, including the `reimplements` borrow: a
+ * reissue with no art of its own inherits the base card's illustration).
+ *
+ * ALSO reports corporation art coverage separately — corporations render
+ * premium across EVERY module (not just SCOPE_MODULES) and opportunistically
+ * use real art when present, falling back to the wordmark identity zone
+ * otherwise (see resolveArt() in premiumCardViewModel.ts) — so a missing
+ * corp art is a cosmetic gap, not a hard scope violation.
  *
  * Run: npx tsx src/tools/audit_card_art.ts
  */
@@ -33,6 +38,7 @@ const metaByName = new Map<string, Meta>();
 
 type ScopeCard = {name: string; module: GameModule; type: CardType; cardNumber?: string};
 const scopeCards: Array<ScopeCard> = [];
+const corpCards: Array<ScopeCard> = [];
 
 for (const manifest of ALL_MODULE_MANIFESTS) {
   const module = manifest.module;
@@ -54,6 +60,9 @@ for (const manifest of ALL_MODULE_MANIFESTS) {
       metaByName.set(card.name, {cardNumber: md?.cardNumber, reimplements: md?.reimplements});
       if (inScopeDeck && SCOPE_MODULES.has(module) && SCOPE_TYPES.has(card.type)) {
         scopeCards.push({name: card.name, module, type: card.type, cardNumber: md?.cardNumber});
+      }
+      if (card.type === CardType.CORPORATION) {
+        corpCards.push({name: card.name, module, type: card.type, cardNumber: md?.cardNumber});
       }
     }
   }
@@ -101,5 +110,26 @@ for (const module of [...byModule.keys()].sort()) {
   for (const c of list) {
     // CardType is a STRING enum — the value IS the readable label.
     console.log(`  ${c.cardNumber ?? '(no cardNumber)'}\t${c.type}\t${c.name}`);
+  }
+}
+
+const missingCorps = corpCards.filter((c) => !hasArt(c.name));
+const byModuleCorp = new Map<GameModule, Array<ScopeCard>>();
+for (const c of missingCorps) {
+  const list = byModuleCorp.get(c.module) ?? [];
+  list.push(c);
+  byModuleCorp.set(c.module, list);
+}
+
+console.log('\n============= CORPORATION ART COVERAGE (all modules) =============');
+console.log(`Corporations   : ${corpCards.length}`);
+console.log(`With art       : ${corpCards.length - missingCorps.length}`);
+console.log(`No real art    : ${missingCorps.length} (renders the wordmark identity zone instead)`);
+console.log('====================================================================');
+for (const module of [...byModuleCorp.keys()].sort()) {
+  const list = (byModuleCorp.get(module) ?? []).sort((a, b) => a.name.localeCompare(b.name));
+  console.log(`\n[${module}] — ${list.length} without art`);
+  for (const c of list) {
+    console.log(`  ${c.cardNumber ?? '(no cardNumber)'}\t${c.name}`);
   }
 }

@@ -360,14 +360,14 @@ describe('corporation premium face', () => {
     expect(vm.tags).to.deep.eq([Tag.SPACE]);
   });
 
-  it('a corporation WITH real art shows it (Helion — R18); one WITHOUT falls back to the wordmark (Teractor)', () => {
+  it('a corporation WITH real art shows it (Helion — R18); one WITHOUT falls back to the wordmark (Beginner Corporation)', () => {
     // Corporations now use their per-card art when it exists, and keep the
     // identity-zone wordmark only when no art is shipped.
     const withArt = vmOf(CardName.HELION);
     expect(withArt.art, 'Helion has real art').to.not.eq(undefined);
     expect(withArt.art?.fallback, 'Helion resolves REAL art, not the generic fallback').to.eq(false);
 
-    const noArt = vmOf(CardName.TERACTOR);
+    const noArt = vmOf(CardName.BEGINNER_CORPORATION);
     expect(noArt.art, 'a corp with no art keeps the wordmark identity zone').to.eq(undefined);
   });
 
@@ -408,6 +408,36 @@ describe('corporation premium face', () => {
       }
     }
     expect(unexpected, `corporations without extractable mechanics:\n${unexpected.join('\n')}`).to.deep.eq([]);
+  });
+});
+
+describe('card art coverage — full premium-face scope (project + prelude + corporation)', () => {
+  // Every in-scope premium card — project, prelude, AND corporation — should
+  // resolve to REAL per-card art (never the generic -1.webp fallback). This
+  // mirrors the "premium face coverage guard" above but for artwork instead
+  // of mechanics, and it deliberately DOES cover corporations (unlike the
+  // project+prelude-only `audit_card_art.ts` tool), since a corp within this
+  // fork's SCOPE_MODULES is expected to be fully illustrated.
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  // Corporations with NO real illustration to scan — the corp premium face
+  // falls back to the wordmark identity zone by design in this case (see
+  // "Corporation face" in CLAUDE.md). A newly-added corp landing here should
+  // be triaged (is art genuinely missing from the source pack, or was this
+  // just never delivered?) — never silently accepted without a reason.
+  const NO_ART_ACCEPTED = new Set<string>([
+    CardName.BEGINNER_CORPORATION, // the rules/training corp — no printed illustration exists to scan
+  ]);
+
+  it('every in-scope premium card resolves real art', () => {
+    const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
+    expect(cards.length).to.be.greaterThan(490);
+    const missing: Array<string> = [];
+    for (const card of cards) {
+      if (premiumCardArt(card.name).fallback && !NO_ART_ACCEPTED.has(card.name)) {
+        missing.push(`${card.name} (${card.type})`);
+      }
+    }
+    expect(missing, `in-scope cards without real art:\n${missing.join('\n')}`).to.deep.eq([]);
   });
 });
 
