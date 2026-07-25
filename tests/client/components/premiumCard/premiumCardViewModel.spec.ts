@@ -17,6 +17,7 @@ import {buildPremiumCardViewModel, normalizeRequirement, vpVariantOf} from '@/cl
 import {isPremiumFaceType, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {tagClusterPlan} from '@/client/components/premiumCard/tagLayout';
 import {cardArtUrl, premiumCardArt, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
+import loreTexts from '../../../../assets/text/lore_texts.json';
 
 function model(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
   return {name, ...overrides} as CardModel;
@@ -438,6 +439,50 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
       }
     }
     expect(missing, `in-scope cards without real art:\n${missing.join('\n')}`).to.deep.eq([]);
+  });
+});
+
+describe('card lore coverage — full premium-face scope (project + prelude + corporation)', () => {
+  // Lore is keyed by the printed card number. A reimplementation may reuse the
+  // source card's lore when it has no entry of its own.
+  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares']);
+  const LORE_CARD_TYPES = new Set<CardType>([
+    CardType.AUTOMATED,
+    CardType.ACTIVE,
+    CardType.EVENT,
+    CardType.PRELUDE,
+    CardType.CORPORATION,
+  ]);
+  const LORE_BY_CARD_NUMBER: Readonly<Record<string, string>> = loreTexts;
+
+  function loreTextFor(card: ClientCard, seen = new Set<CardName>()): string | undefined {
+    if (seen.has(card.name)) return undefined;
+    seen.add(card.name);
+
+    const cardNumber = card.metadata.cardNumber;
+    const ownLore = cardNumber === undefined ? undefined : LORE_BY_CARD_NUMBER[cardNumber];
+    if (typeof ownLore === 'string' && ownLore.trim() !== '') return ownLore;
+
+    const reimplements = card.metadata.reimplements;
+    return reimplements === undefined ? undefined : loreTextFor(getCardOrThrow(reimplements), seen);
+  }
+
+  it('every in-scope project, prelude, and corporation has non-empty lore text', () => {
+    const cards = getCards((c) =>
+      SCOPE.has(c.module) &&
+      LORE_CARD_TYPES.has(c.type) &&
+      c.name !== CardName.BEGINNER_CORPORATION,
+    );
+    expect(cards.length).to.be.greaterThan(490);
+    const missing: Array<string> = [];
+    for (const card of cards) {
+      const cardNumber = card.metadata.cardNumber;
+      const loreText = loreTextFor(card);
+      if (typeof loreText !== 'string' || loreText.trim() === '') {
+        missing.push(`${card.name} (${card.type}, ${cardNumber ?? 'no card number'})`);
+      }
+    }
+    expect(missing, `in-scope cards without lore text:\n${missing.join('\n')}`).to.deep.eq([]);
   });
 });
 
