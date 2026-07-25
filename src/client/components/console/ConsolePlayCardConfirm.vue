@@ -221,45 +221,11 @@
                 </template>
               </div>
 
-              <!-- PAYMENT — an INFO panel (resource chips + было → стало), NOT a
-                   button. One unified layout for auto / quick-adjust / complex:
-                   the SINGLE-alt case gets inline LB/RB pills on its chip; M€ is
-                   badged «авто»; LT opens the full editor when configurable. -->
-              <div class="con-composer__pay">
-                <div class="con-composer__pay-head">
-                  <span class="con-composer__pay-title">{{ $t('Payment') }}</span>
-                  <span class="con-composer__pay-cost">{{ $t('Cost') }}: <b>{{ cost }}</b></span>
-                  <span v-if="paymentView.configurable" class="con-composer__pay-lt">
-                    <GamepadGlyph control="triggerL" /><span>{{ $t('Configure payment') }}</span>
-                  </span>
-                </div>
-                <div class="con-composer__pay-rows">
-                  <div v-for="(chip, k) in paymentView.chips" :key="k"
-                       class="con-composer__pay-row" :class="{'con-composer__pay-row--adjustable': chip.isAdjustable}">
-                    <ActionEffectChip :effect="chip.effect" />
-                    <span v-if="chip.isAutoBalanced" class="con-composer__pay-badge">{{ $t('auto') }}</span>
-                    <span v-if="chip.isAdjustable" class="con-composer__pay-pills">
-                      <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canDecrease}"><GamepadGlyph control="bumperL" /><span>−1</span></span>
-                      <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canIncrease}"><GamepadGlyph control="bumperR" /><span>+1</span></span>
-                    </span>
-                    <span v-if="chip.isAdjustable" :key="'flash' + payFlashNonce" class="con-composer__pay-flash" aria-hidden="true"></span>
-                  </div>
-                  <span v-if="paymentView.chips.length === 0" class="con-composer__pay-free">{{ cost === 0 ? $t('Free') : (cost + ' M€') }}</span>
-                </div>
-                <div v-if="!paymentReady" class="con-composer__pay-short">
-                  <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="paymentView.deficit > 0">:
-                    <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ paymentView.deficit }}</template>
-                </div>
-                <!-- Overpay: a resource mix spends N M€ of value ABOVE the cost
-                     (unavoidable rate remainder). Flagged in orange so the wasted
-                     value is never silent. -->
-                <div v-else-if="paymentView.overpay > 0" class="con-composer__pay-over">
-                  <span class="con-composer__pay-over-glyph" aria-hidden="true">⚠</span>
-                  <span class="con-composer__pay-over-label">{{ $t('Overpaying') }}</span>
-                  <span class="con-composer__pay-over-amt">+{{ paymentView.overpay }}</span>
-                  <i class="resource_icon resource_icon--megacredits con-composer__pay-over-icon" aria-hidden="true"></i>
-                </div>
-              </div>
+              <!-- PAYMENT — the SHARED premium panel (icon chips + было → стало,
+                   «авто» M€, inline LB/RB quick-adjust, LT for the full editor).
+                   The host owns the LB/RB/LT input (onReviewPress); the panel
+                   only renders the pure `paymentView`. -->
+              <ConsolePaymentPanel :view="paymentView" :cost="cost" :flash-nonce="payFlashNonce" />
 
               <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
                    glyph, so what A does is never ambiguous: A plays ONLY when this
@@ -326,6 +292,7 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -435,7 +402,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

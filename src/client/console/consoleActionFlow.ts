@@ -85,8 +85,9 @@ export function focusKicker(hasDecisions: boolean): string {
 /** What kind of row the focus cursor is on (drives the A-verb). */
 export type FocusRowKind =
   | 'amount' | 'spendHeat' // inline steppers: LB/RB adjust, A advances (Next)
+  | 'payment' // the premium payment panel: LB/RB quick-adjust, LT the editor, A advances
   | 'branch' // a variant option card: A selects it
-  | 'pick' // a card/player/or/payment decision row: A opens (or re-opens) it
+  | 'pick' // a card/player/or decision row: A opens (or re-opens) it
   | 'cta' // the confirm row: A commits
   | 'none'; // no decision rows at all (bare confirm)
 
@@ -111,6 +112,9 @@ export type FocusCommandCtx =
       /** The commit-CTA label (i18n key) when it is not the default «Confirm»
        *  (the repeat pick's compose stage reads «Выбрать это действие»). */
       commitLabel?: string,
+      /** When the focused row is `'payment'`: the inline quick-adjust per-side
+       *  live state + whether a detailed lane editor (LT) exists. */
+      payment?: {canDecrease: boolean, canIncrease: boolean, configurable: boolean},
     };
 
 /**
@@ -163,6 +167,17 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       run.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
       run.push({control: 'confirm', label: 'Next'});
       break;
+    case 'payment':
+      // The premium payment panel: LB/RB quick-adjust the single alt resource
+      // (split so a dead side never shows), LT (below) opens the detailed lane
+      // editor, and A ADVANCES toward the CTA — editing is LB/RB / LT, NEVER A
+      // (parity with the play composer + the user's «вход через LT»).
+      if (ctx.payment !== undefined && (ctx.payment.canDecrease || ctx.payment.canIncrease)) {
+        run.push({control: 'bumperL', label: '−1', enabled: ctx.payment.canDecrease});
+        run.push({control: 'bumperR', label: '+1', enabled: ctx.payment.canIncrease});
+      }
+      run.push({control: 'confirm', label: 'Next'});
+      break;
     case 'branch':
       run.push({control: 'confirm', label: 'Select'});
       break;
@@ -173,6 +188,11 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       // The CTA row (or a decision-less confirm) — A commits.
       run.push({control: 'confirm', label: ctx.commitLabel ?? 'Confirm', enabled: ctx.canConfirm});
       break;
+    }
+    // LT opens the detailed lane editor when the focused payment supports a
+    // non-M€ mix (never for a pure-AUTO M€ payment — nothing to configure).
+    if (ctx.focused === 'payment' && ctx.payment?.configurable === true) {
+      run.push({control: 'triggerL', label: 'Configure payment'});
     }
     run.push({control: 'secondary', label: 'Inspect'});
     run.push({control: 'back', label: 'Cancel'});

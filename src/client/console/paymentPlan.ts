@@ -21,6 +21,7 @@
 
 import {DEFAULT_PAYMENT_VALUES, Payment, PaymentOptions} from '@/common/inputs/Payment';
 import {SpendableResource} from '@/common/inputs/Spendable';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {Units} from '@/common/Units';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -259,4 +260,125 @@ export function initialCounts(
     counts[lane.unit] = payment[lane.unit];
   }
   return counts;
+}
+
+// ── Premium payment VIEW-MODEL (unified chips + inline quick-adjust) ──────────
+//
+// The SINGLE source of truth for the console-native premium payment PANEL —
+// shared by BOTH the play-card composer (ConsolePlayCardConfirm) and the
+// blue-card action composer (ConsoleActionComposer), so the two flows speak the
+// exact same premium language (icon chips with «было → стало», an «авто» M€
+// lane, inline LB/RB quick-adjust for the single-alt case, LT for the detailed
+// editor). It lives HERE (not in either composer) precisely so neither owns it
+// and they can't diverge — the component only renders it, every rule is below.
+
+const STANDARD_PAY_UNITS: ReadonlySet<string> =
+  new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+
+/** One payment chip = an `ActionEffect` (icon + spent + было → стало) + the
+ *  quick-adjust metadata the UI needs, all derived from the payment logic. */
+export type PaymentResourceChip = {
+  /** The visual — the SAME chip the result uses (rendered by ActionEffectChip). */
+  effect: ActionEffect;
+  /** The M€ lane — auto-balances to the remainder (badge «авто»). */
+  isAutoBalanced: boolean;
+  /** The single quick-adjust alt resource — LB/RB pills live on this chip. */
+  isAdjustable: boolean;
+  /** LB is live (the alt resource can go down AND M€ still covers the remainder). */
+  canDecrease: boolean;
+  /** RB is live (the alt resource can go up within its cap). */
+  canIncrease: boolean;
+};
+
+/**
+ * The whole payment as a view-model so the UI never re-derives the rules: the
+ * chip list, whether a detailed editor exists (`configurable` → LT), and
+ * whether the simple inline LB/RB quick-adjust applies (`quickAdjustEligible`:
+ * EXACTLY one non-M€ lane, with M€ auto-covering the remainder). All amounts /
+ * caps / coverage come from the lane math above.
+ */
+export type PlayPaymentView = {
+  totalCost: number;
+  chips: ReadonlyArray<PaymentResourceChip>;
+  /** Any non-M€ lane → the detailed payment editor (LT) is available. */
+  configurable: boolean;
+  /** Exactly one non-M€ lane → inline LB/RB quick-adjust on the MAIN screen. */
+  quickAdjustEligible: boolean;
+  quickAdjustUnit: SpendableResource | undefined;
+  paymentValid: boolean;
+  /** M€-equivalent shortfall (0 when valid). */
+  deficit: number;
+  /** M€-equivalent OVERPAY — value spent above the cost (unavoidable rate
+   *  remainder; 0 when exact). Mutually exclusive with `deficit`. */
+  overpay: number;
+};
+
+export function payChipEffect(unit: string, spent: number, stock: Partial<Record<string, number>>): ActionEffect {
+  const cur = STANDARD_PAY_UNITS.has(unit) ? stock[unit] : undefined;
+  if (cur !== undefined) {
+    return {direction: 'cost', icon: unit, amount: spent, current: cur, resulting: Math.max(0, cur - spent)};
+  }
+  return {direction: 'cost', icon: unit, amount: spent};
+}
+
+export function buildPaymentView(args: {
+  cost: number,
+  lanes: ReadonlyArray<PaymentLane>,
+  counts: Partial<Record<SpendableResource, number>>,
+  mcAvailable: number,
+  /** Current stock per unit (megacredits/steel/titanium/plants/energy/heat). */
+  stock: Partial<Record<string, number>>,
+}): PlayPaymentView {
+  const {cost, lanes, counts, mcAvailable, stock} = args;
+  const mcSpent = autoMegacredits(cost, lanes, counts, mcAvailable);
+  const paymentValid = paymentCovers(cost, lanes, counts, mcAvailable);
+  const configurable = lanes.length > 0;
+  // The 90% case: exactly ONE alt resource, M€ auto-fills the rest.
+  const quickAdjustEligible = lanes.length === 1;
+  const quickLane = quickAdjustEligible ? lanes[0] : undefined;
+
+  const mcChip: PaymentResourceChip = {
+    effect: payChipEffect('megacredits', mcSpent, stock),
+    isAutoBalanced: true, isAdjustable: false, canDecrease: false, canIncrease: false,
+  };
+  const laneChip = (lane: PaymentLane): PaymentResourceChip => {
+    const n = counts[lane.unit] ?? 0;
+    const adjustable = quickLane !== undefined && lane.unit === quickLane.unit;
+    const cap = laneCap(cost, lane);
+    return {
+      effect: payChipEffect(lane.unit, n, stock),
+      isAutoBalanced: false,
+      isAdjustable: adjustable,
+      // Up = more alt (less M€), bounded by the anti-overpay cap.
+      canIncrease: adjustable && n < cap,
+      // Down = less alt, all the way to 0 — PARITY with the detailed lanes editor
+      // (adjustLane), which clamps at 0 and freely lets the player dial DOWN into an
+      // underpayment; the resulting shortfall is surfaced (deficit / «Not enough
+      // resources») and blocks the CONFIRM, never the button. Quick-adjust must not
+      // be stricter than the LT editor — an M€-coverage guard here made LB dead the
+      // moment the mix reached the exact cost, which read as broken.
+      canDecrease: adjustable && n > 0,
+    };
+  };
+
+  // Layout: quick-adjust → the adjustable alt FIRST (LB/RB read on top), then M€.
+  // Else → M€ first (when spent), then each spent lane. A 0-spend non-adjustable
+  // lane is noise and omitted; the adjustable lane is ALWAYS shown (its pills live there).
+  let chips: Array<PaymentResourceChip>;
+  if (quickAdjustEligible) {
+    chips = mcSpent > 0 ? [laneChip(lanes[0]), mcChip] : [laneChip(lanes[0])];
+  } else if (lanes.length === 0) {
+    chips = [mcChip];
+  } else {
+    chips = mcSpent > 0 ? [mcChip] : [];
+    for (const lane of lanes) {
+      if ((counts[lane.unit] ?? 0) > 0) {
+        chips.push(laneChip(lane));
+      }
+    }
+  }
+
+  const deficit = Math.max(0, cost - paymentTotal(cost, lanes, counts, mcAvailable));
+  const overpay = paymentOverpay(cost, lanes, counts, mcAvailable);
+  return {totalCost: cost, chips, configurable, quickAdjustEligible, quickAdjustUnit: quickLane?.unit, paymentValid, deficit, overpay};
 }

@@ -217,7 +217,11 @@
             <!-- A choice input row (amount inline / picker / payment / spend-heat). -->
             <div v-else-if="item.choice !== undefined"
                  class="con-composer__row"
-                 :class="{'con-composer__row--focused': focusIdx === i, 'con-composer__row--missing': choiceMissing(item.choice)}"
+                 :class="{
+                   'con-composer__row--focused': focusIdx === i,
+                   'con-composer__row--missing': choiceMissing(item.choice),
+                   'con-composer__row--payment': item.choice.kind === 'payment',
+                 }"
                  :ref="focusIdx === i ? 'focusedEl' : undefined">
               <!-- The REPEAT slot (Viron): empty → a prompt; filled → the chosen
                    action drawn as a button with its own action graphic. -->
@@ -256,17 +260,14 @@
                 <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(item.choice) }} · {{ $t('Floaters') }}: {{ floatersFor(item.choice.id) }}</div>
               </template>
 
+              <!-- PAYMENT — the SHARED premium panel (icons + было → стало, «авто»
+                   M€, inline LB/RB quick-adjust, LT the detailed editor). Replaces
+                   the old text summary «2 M€ + 1 Сталь» → one premium language with
+                   the play-card composer. -->
               <template v-else-if="item.choice.kind === 'payment'">
-                <div class="con-composer__row-label">{{ $t('Payment') }}</div>
-                <div class="con-composer__row-value">
-                  <span v-if="paymentSummary(item.choice) !== ''">{{ paymentSummary(item.choice) }}</span>
-                  <span v-else class="con-composer__row-empty">{{ $t('Configure payment') }}…</span>
-                  <span v-if="paymentOverpayOf(item.choice) > 0" class="con-composer__payover con-composer__payover--inline">
-                    <span class="con-composer__payover-label">{{ $t('Overpaying') }}</span>
-                    <span class="con-composer__payover-amt">+{{ paymentOverpayOf(item.choice) }}</span>
-                    <i class="resource_icon resource_icon--megacredits con-composer__payover-icon" aria-hidden="true"></i>
-                  </span>
-                </div>
+                <ConsolePaymentPanel :view="paymentPanelView(item.choice)"
+                                     :cost="paymentCostOf(item.choice)"
+                                     :flash-nonce="payFlashNonce" />
               </template>
 
               <template v-else>
@@ -413,11 +414,12 @@ import {
   orderedStepResponses,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
-import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane} from '@/client/console/paymentPlan';
+import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane, buildPaymentView, PlayPaymentView} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -485,7 +487,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsoleCardFaceLite, GamepadGlyph},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -523,6 +525,9 @@ export default defineComponent({
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
       payCounts: {} as Record<string, Partial<Record<SpendableResource, number>>>,
+      /** Re-keyed on each inline quick-adjust so the payment chip's one-shot
+       *  pulse replays (mirror of the play composer's payFlashNonce). */
+      payFlashNonce: 0,
       picks: {} as Record<string, string>,
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
@@ -737,6 +742,9 @@ export default defineComponent({
       if (item.choice.kind === 'spendHeat') {
         return 'spendHeat';
       }
+      if (item.choice.kind === 'payment') {
+        return 'payment';
+      }
       return 'pick';
     },
     /** The composer's live command contract, published to the ONE shell bar
@@ -762,9 +770,18 @@ export default defineComponent({
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
       const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
+      // On a focused payment row, hand the bar the live quick-adjust per-side +
+      // whether the LT lane editor exists (so LB/RB and LT never lie).
+      let payment: {canDecrease: boolean, canIncrease: boolean, configurable: boolean} | undefined;
+      if (kind === 'payment' && item?.kind === 'choice') {
+        const view = this.paymentPanelView(item.choice);
+        const chip = view.chips.find((c) => c.isAdjustable);
+        payment = {canDecrease: chip?.canDecrease ?? false, canIncrease: chip?.canIncrease ?? false, configurable: view.configurable};
+      }
       return focusCommandRun({
         state: 'main', focused: kind, resolved, canConfirm: this.canConfirm,
         commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
+        payment,
       });
     },
     heroCost(): ReadonlyArray<ActionEffect> {
@@ -1203,22 +1220,11 @@ export default defineComponent({
         }
         return out;
       }
-      if (c.kind === 'payment' && this.paymentCaptureOf(c) !== undefined) {
-        const state = this.paymentStateFor(c);
-        const out: Array<ActionEffect> = [];
-        if (state.mc > 0) {
-          const stock = this.stockOf('megacredits');
-          out.push({direction: 'cost', icon: 'megacredits', amount: state.mc, current: stock, resulting: stock !== undefined ? stock - state.mc : undefined});
-        }
-        for (const lane of state.lanes) {
-          const n = state.counts[lane.unit] ?? 0;
-          if (n > 0) {
-            const stock = this.stockOf(lane.unit);
-            out.push({direction: 'cost', icon: lane.unit, amount: n, current: stock, resulting: stock !== undefined ? stock - n : undefined});
-          }
-        }
-        return out;
-      }
+      // Payment is NOT synthesized into the «БУДЕТ СПИСАНО» hero anymore — the
+      // premium payment PANEL below shows the exact mix (M€ + alt resource, было →
+      // стало) with inline adjust, so folding it into the hero would DOUBLE it.
+      // The hero now carries only genuine NON-payment costs (spent card resources,
+      // energy, an asteroid, …); a payment-only action shows an empty cost side.
       return [];
     },
     syntheticGain(c: ComposerChoice): Array<ActionEffect> {
@@ -1298,6 +1304,46 @@ export default defineComponent({
       this.captureFor(c, spendHeatResponse(plan, next));
     },
     // ── payment helpers ─────────────────────────────────────────────────
+    /** The premium payment VIEW-MODEL for the inline panel (icons + было → стало
+     *  + quick-adjust eligibility) — the SAME `buildPaymentView` the play composer
+     *  uses, so both flows render one payment language. */
+    paymentPanelView(c: ComposerChoice): PlayPaymentView {
+      const model = c.input as SelectPaymentModel;
+      const lanes = paymentLanes(model, this.thisPlayer);
+      const counts = this.payCounts[c.id] ?? {};
+      const mcAvail = megacreditsAvailable(this.thisPlayer);
+      const p = this.thisPlayer as unknown as Record<string, number>;
+      return buildPaymentView({
+        cost: model.amount, lanes, counts, mcAvailable: mcAvail,
+        stock: {megacredits: p.megacredits, steel: p.steel, titanium: p.titanium, plants: p.plants, energy: p.energy, heat: p.heat},
+      });
+    },
+    paymentCostOf(c: ComposerChoice): number {
+      return (c.input as SelectPaymentModel).amount;
+    },
+    /** Inline LB/RB quick-adjust of the SINGLE alt lane (M€ auto-fills the rest),
+     *  mirroring the play composer's main-screen quick-adjust. The detailed
+     *  multi-lane editor stays behind LT (`openPaymentEditor`). */
+    adjustQuickPayment(c: ComposerChoice, step: number): void {
+      const model = c.input as SelectPaymentModel;
+      const lanes = paymentLanes(model, this.thisPlayer);
+      if (lanes.length !== 1) {
+        return;
+      }
+      const before = (this.payCounts[c.id] ?? {})[lanes[0].unit] ?? 0;
+      this.adjustPayment(c, 0, step);
+      const after = (this.payCounts[c.id] ?? {})[lanes[0].unit] ?? 0;
+      if (before !== after) {
+        this.payFlashNonce++;
+      }
+    },
+    /** LT — open the detailed lane editor (only when a non-M€ mix exists; a
+     *  pure-AUTO M€ payment has nothing to configure). */
+    openPaymentEditor(c: ComposerChoice): void {
+      if (paymentLanes(c.input as SelectPaymentModel, this.thisPlayer).length > 0) {
+        this.sub = {kind: 'payment', choiceId: c.id, index: 0};
+      }
+    },
     paymentStateFor(c: ComposerChoice) {
       const model = c.input as SelectPaymentModel;
       const lanes = paymentLanes(model, this.thisPlayer);
@@ -1306,28 +1352,6 @@ export default defineComponent({
       const payment = paymentFromCounts(model.amount, lanes, counts, mcAvail);
       const total = paymentTotal(model.amount, lanes, counts, mcAvail);
       return {lanes, counts, mc: payment.megacredits, total, cost: model.amount, covers: paymentCovers(model.amount, lanes, counts, mcAvail), overpay: Math.max(0, total - model.amount)};
-    },
-    paymentSummary(c: ComposerChoice): string {
-      if (this.paymentCaptureOf(c) === undefined) {
-        return '';
-      }
-      const state = this.paymentStateFor(c);
-      const parts: Array<string> = [];
-      if (state.mc > 0) {
-        parts.push(`${state.mc} M€`);
-      }
-      for (const lane of state.lanes) {
-        const n = state.counts[lane.unit] ?? 0;
-        if (n > 0) {
-          parts.push(`${n} ${translateText(this.laneLabel(lane.unit))}`);
-        }
-      }
-      return parts.join(' + ');
-    },
-    /** M€-value overpaid by the captured mix (unavoidable rate remainder), 0 when
-     *  exact / not yet captured — drives the orange overpay badge on the row. */
-    paymentOverpayOf(c: ComposerChoice): number {
-      return this.paymentCaptureOf(c) === undefined ? 0 : this.paymentStateFor(c).overpay;
     },
     paymentCaptureOf(c: ComposerChoice): unknown {
       if (c.scope === 'option') {
@@ -1470,6 +1494,8 @@ export default defineComponent({
         this.setAmount(item.choice, this.amountFor(item.choice.id) + (dir === 'left' ? -1 : 1));
       } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
         this.adjustFloaters(item.choice, dir === 'left' ? -1 : 1);
+      } else if (item?.kind === 'choice' && item.choice.kind === 'payment') {
+        this.adjustQuickPayment(item.choice, dir === 'left' ? -1 : 1);
       }
     },
     // MAIN state: A(primary) acts on the FOCUSED row (select a branch / open
@@ -1485,10 +1511,10 @@ export default defineComponent({
           this.submit();
         } else if (item.kind === 'branch') {
           this.selectBranch(item.pos);
-        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat') {
-          // A stepper adjusts via LB/RB — A ADVANCES toward the CTA («Далее»),
-          // mirroring the play composer's grammar (its visible, editable
-          // default is already captured).
+        } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat' || item.choice.kind === 'payment') {
+          // A stepper / the payment panel adjusts via LB/RB (payment also LT) —
+          // A ADVANCES toward the CTA («Далее»), mirroring the play composer's
+          // grammar (the visible, editable default is already captured).
           this.focusIdx = Math.min(this.ctaIndex, this.focusIdx + 1);
           this.scrollFocused();
         } else {
@@ -1508,9 +1534,18 @@ export default defineComponent({
           this.setAmount(item.choice, this.amountFor(item.choice.id) + step);
         } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
           this.adjustFloaters(item.choice, step);
+        } else if (item?.kind === 'choice' && item.choice.kind === 'payment') {
+          this.adjustQuickPayment(item.choice, step);
         }
         return;
       }
+      case 'prevTab':
+        // LT = the detailed payment lane editor (never A) — the user's «вход
+        // через отдельную кнопку LT».
+        if (item?.kind === 'choice' && item.choice.kind === 'payment') {
+          this.openPaymentEditor(item.choice);
+        }
+        return;
       case 'nextTab':
         if (item?.kind === 'choice' && item.choice.kind === 'amount') {
           this.setAmount(item.choice, this.amountModel(item.choice).max);
@@ -1546,10 +1581,9 @@ export default defineComponent({
       }
       if (c.kind === 'card' || c.kind === 'player' || c.kind === 'or') {
         this.sub = {kind: 'list', choiceId: c.id, index: 0};
-      } else if (c.kind === 'payment') {
-        this.sub = {kind: 'payment', choiceId: c.id, index: 0};
       }
-      // amount / spendHeat adjust inline (A is a no-op on them).
+      // amount / spendHeat / payment adjust inline (A advances; payment's detailed
+      // lane editor is LT → `openPaymentEditor`, never A).
     },
     /**
      * Hand Viron's repeat pick to the ДЕЙСТВИЯ КАРТ surface in repeat mode: the

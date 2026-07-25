@@ -71,6 +71,26 @@ describe('consoleActionFlow', () => {
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'Next', 'Inspect', 'Cancel']);
     });
 
+    it('main / payment row: LB/RB quick-adjust (per-side enabled) + LT editor + A Next', () => {
+      const run = focusCommandRun({
+        state: 'main', focused: 'payment', canConfirm: true,
+        payment: {canDecrease: true, canIncrease: false, configurable: true},
+      });
+      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Next', 'Configure payment', 'Inspect', 'Cancel']);
+      expect(run.find((c) => c.control === 'bumperL')?.enabled).to.eq(true);
+      expect(run.find((c) => c.control === 'bumperR')?.enabled).to.eq(false);
+      // A ADVANCES (Next) on a payment row — it never commits and never opens the editor.
+      expect(run.find((c) => c.control === 'confirm')?.label).to.eq('Next');
+    });
+
+    it('main / payment row: AUTO M€ (not configurable, no alt) shows neither LB/RB nor LT', () => {
+      const run = focusCommandRun({
+        state: 'main', focused: 'payment', canConfirm: true,
+        payment: {canDecrease: false, canIncrease: false, configurable: false},
+      });
+      expect(run.map((c) => c.label)).to.deep.eq(['Next', 'Inspect', 'Cancel']);
+    });
+
     it('main / branch + pick rows: A names Select / Change (resolved re-opens)', () => {
       expect(focusCommandRun({state: 'main', focused: 'branch', canConfirm: false})
         .map((c) => c.label)).to.deep.eq(['Select', 'Inspect', 'Cancel']);
