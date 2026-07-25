@@ -82,8 +82,31 @@ describe('CardLoreAside', () => {
     expect(marks.length).to.eq(2);
     expect(wrapper.find('.card-zoom-lore__mark--open').attributes('aria-hidden')).to.eq('true');
     expect(wrapper.find('.card-zoom-lore__mark--close').attributes('aria-hidden')).to.eq('true');
-    // Decoration carries no text of its own — the glyphs are CSS-generated.
+    // Decoration carries no text of its own — the glyphs are drawn, never typed.
     marks.forEach((m) => expect(m.text()).to.eq(''));
+    expect(wrapper.text()).to.not.match(/[“”❝❞]/);
+  });
+
+  it('draws the marks as LOCAL svg — never a font glyph or an emoji', () => {
+    // A drawn mark is identical on every platform AND identical in Literata and
+    // Newsreader; a font glyph would differ between the two literary faces.
+    const wrapper = mountLore(CardName.HACKERS);
+    for (const cls of ['--open', '--close']) {
+      const mark = wrapper.find(`.card-zoom-lore__mark${cls}`);
+      expect(mark.element.tagName.toLowerCase(), cls).to.eq('svg');
+      expect(mark.attributes('focusable'), cls).to.eq('false');
+      // Two commas: a bowl + a tail each.
+      expect(mark.findAll('circle').length, cls).to.eq(2);
+      expect(mark.findAll('path').length, cls).to.eq(2);
+    }
+  });
+
+  it('never re-introduces a quote RULE — no border on the blockquote element', () => {
+    // Spectre.css styles every blockquote with a light `border-left`; the block
+    // must not carry one inline either. (The stylesheet reset is covered by the
+    // e2e, which has real CSS.)
+    const quote = mountLore(CardName.HACKERS).find('blockquote');
+    expect(quote.attributes('style') ?? '').to.not.include('border');
   });
 
   it('marks the heading ornaments decorative and keeps the heading readable', () => {

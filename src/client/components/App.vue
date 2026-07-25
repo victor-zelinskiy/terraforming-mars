@@ -10,6 +10,8 @@
     <PlayerCubePlayground v-if="showCubePlayground" />
     <!-- Dev-only premium-card-face showcase (URL: ?premiumCardsPlayground). -->
     <PremiumCardsPlayground v-if="showPremiumCardsPlayground" />
+    <!-- Dev-only archive-entry (card lore) showcase (URL: ?lorePlayground). -->
+    <CardLorePlayground v-if="showLorePlayground" />
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on in-game screens
       (player-home / spectator-home) — start / create / load / the-end
@@ -405,6 +407,7 @@ const EffectsPlayground = defineAsyncComponent(() => import(/* webpackChunkName:
 const ActionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "actions-playground" */ '@/client/components/actions/ActionsPlayground.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
+const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
 import JournalPanel from '@/client/components/journal/JournalPanel.vue';
 import {journalState} from '@/client/components/journal/journalState';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
@@ -570,6 +573,7 @@ export default defineComponent({
     ActionsPlayground,
     PlayerCubePlayground,
     PremiumCardsPlayground,
+    CardLorePlayground,
     JournalPanel,
     NotificationLayer,
     GamepadLayer,
@@ -684,6 +688,11 @@ export default defineComponent({
     // `?premiumCardsPlayground`. Never shown in normal play.
     showPremiumCardsPlayground(): boolean {
       return window.location.search.includes('premiumCardsPlayground');
+    },
+    // Dev-only: render the archive-entry (card lore) showcase when the URL
+    // carries `?lorePlayground`. Never shown in normal play.
+    showLorePlayground(): boolean {
+      return window.location.search.includes('lorePlayground');
     },
     // The active view (player or spectator) ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.

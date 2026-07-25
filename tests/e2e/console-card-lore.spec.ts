@@ -99,6 +99,12 @@ const PROFILES = [
   {tag: 'tv4k', width: 3840, height: 2160},
 ] as const;
 
+// The two profiles drive a REAL game through the start wizard against one
+// shared dev server; running them concurrently (the repo's `fullyParallel`
+// default) makes both walks race for it and drop keypresses. They are cheap —
+// serialise them rather than leave a flaky spec behind.
+test.describe.configure({mode: 'serial'});
+
 for (const profile of PROFILES) {
   test.describe(`console archive entry · ${profile.tag}`, () => {
     test.use({
@@ -128,9 +134,13 @@ for (const profile of PROFILES) {
       }
       expect(await slots.count(), 'the project-buy step is on screen').toBeGreaterThanOrEqual(4);
 
-      // ── X → the shared fullscreen viewer. ──────────────────────────────
-      await key(page, 'KeyX', 1800);
-      await expect(page.locator('.con-zoom .card-zoom-lore')).toHaveCount(1, {timeout: 10_000});
+      // ── X → the shared fullscreen viewer. Retried: an X landing before the
+      //    freshly-mounted step accepts input is silently dropped. ─────────
+      const loreBlock = page.locator('.con-zoom .card-zoom-lore');
+      for (let tries = 0; tries < 5 && await loreBlock.count() === 0; tries++) {
+        await key(page, 'KeyX', 1800);
+      }
+      await expect(loreBlock).toHaveCount(1, {timeout: 10_000});
       await page.waitForTimeout(900); // the staged reveal settles
 
       // 1. Heading + a REAL entry (never the fallback notice).
@@ -159,17 +169,52 @@ for (const profile of PROFILES) {
         expect(side.left, 'the rules panel stays clear of the card').toBeGreaterThanOrEqual(card!.right);
       }
 
-      // 3. Inert: nothing focusable, no pointer target.
-      const inert = await page.locator('.card-zoom-lore').evaluate((el) => ({
-        focusable: el.querySelectorAll('button, a, input, select, textarea, [tabindex]').length,
-        pointerEvents: getComputedStyle(el).pointerEvents,
-        fontFamily: getComputedStyle(el.querySelector('.card-zoom-lore__quote')!).fontFamily,
-        fontStyle: getComputedStyle(el.querySelector('.card-zoom-lore__quote')!).fontStyle,
-      }));
+      // 3. Inert: nothing focusable, no pointer target — and NO quote RULE.
+      //    Spectre.css gives every blockquote a light `border-left`; leaking it
+      //    made the entry read as a Markdown quote / a text caret / the edge of
+      //    another panel. This is the real-CSS guard that it stays killed.
+      const inert = await page.locator('.card-zoom-lore').evaluate((el) => {
+        const quote = el.querySelector('.card-zoom-lore__quote') as HTMLElement;
+        const qs = getComputedStyle(quote);
+        return {
+          focusable: el.querySelectorAll('button, a, input, select, textarea, [tabindex]').length,
+          pointerEvents: getComputedStyle(el).pointerEvents,
+          fontFamily: qs.fontFamily,
+          fontStyle: qs.fontStyle,
+          fontWeight: qs.fontWeight,
+          fontSynthesis: qs.fontSynthesis,
+          borders: [qs.borderLeftWidth, qs.borderRightWidth, qs.borderTopWidth, qs.borderBottomWidth],
+          marks: el.querySelectorAll('.card-zoom-lore__mark').length,
+          markTags: [...el.querySelectorAll('.card-zoom-lore__mark')].map((m) => m.tagName.toLowerCase()),
+        };
+      });
       expect(inert.focusable, 'the entry holds nothing focusable').toBe(0);
       expect(inert.pointerEvents).toBe('none');
       expect(inert.fontFamily, 'the Cyrillic literary face').toContain('Literata');
       expect(inert.fontStyle).toBe('italic');
+      expect(inert.fontWeight, 'a real 500, never a synthesized bold').toBe('500');
+      expect(inert.fontSynthesis, 'no faux italic / faux bold').toBe('none');
+      expect(inert.borders, 'NO vertical rule — the Spectre blockquote border stays killed')
+        .toEqual(['0px', '0px', '0px', '0px']);
+      expect(inert.markTags, 'both marks are local SVG, not font glyphs').toEqual(['svg', 'svg']);
+
+      // 3b. The marks frame the text: the opening one above-left of the first
+      //     line, the closing one below-right of the LAST line (so it tracks the
+      //     real height of the entry, whatever its length).
+      const frame = await page.locator('.card-zoom-lore').evaluate((el) => {
+        const r = (n: Element) => n.getBoundingClientRect();
+        const quote = r(el.querySelector('.card-zoom-lore__quote')!);
+        const text = r(el.querySelector('.card-zoom-lore__text')!);
+        const open = r(el.querySelector('.card-zoom-lore__mark--open')!);
+        const close = r(el.querySelector('.card-zoom-lore__mark--close')!);
+        return {quote, text, open, close};
+      });
+      expect(frame.open.right, 'the opening mark clears the text column').toBeLessThanOrEqual(frame.text.left + 1);
+      expect(frame.open.top, 'the opening mark sits above the first line').toBeLessThan(frame.text.top);
+      expect(frame.close.top, 'the closing mark sits below the last line').toBeGreaterThanOrEqual(frame.quote.bottom - 1);
+      expect(frame.close.top - frame.quote.bottom, 'and keeps real air under it').toBeGreaterThan(2);
+      expect(frame.close.left, 'the closing mark stays on the text side, never adrift')
+        .toBeGreaterThan(frame.open.right);
 
       // 4. LB / RB browsing swaps the entry with the card.
       await key(page, 'KeyE', 1500); // RB → next card
@@ -185,6 +230,30 @@ for (const profile of PROFILES) {
       await key(page, 'KeyQ', 1500); // LB → back
       await page.waitForTimeout(700);
       expect((await page.locator('.card-zoom-lore__text').innerText()).trim()).toBe(firstText);
+
+      // 5. prefers-reduced-motion: the entry still reads, it just stops
+      //    travelling — no offset, no blur, and never a lost entrance.
+      await page.emulateMedia({reducedMotion: 'reduce'});
+      await page.waitForTimeout(500);
+      const reduced = await page.locator('.card-zoom-lore').evaluate((el) => {
+        const q = getComputedStyle(el.querySelector('.card-zoom-lore__quote')!);
+        const m = getComputedStyle(el.querySelector('.card-zoom-lore__mark--close')!);
+        return {
+          transform: q.transform,
+          filter: q.filter,
+          opacity: q.opacity,
+          // the closing mark keeps its 180° rotation — that is its GLYPH, not motion
+          markTransform: m.transform,
+          markOpacity: m.opacity,
+        };
+      });
+      expect(reduced.transform, 'no travel under reduced motion').toBe('none');
+      expect(reduced.filter, 'no blur under reduced motion').toBe('none');
+      expect(Number(reduced.opacity), 'the entry is still fully shown').toBe(1);
+      expect(Number(reduced.markOpacity), 'the closing mark is still shown').toBeGreaterThan(0);
+      expect(reduced.markTransform, 'the closing mark stays rotated (glyph, not motion)')
+        .toContain('matrix');
+      await page.emulateMedia({reducedMotion: null});
     });
   });
 }

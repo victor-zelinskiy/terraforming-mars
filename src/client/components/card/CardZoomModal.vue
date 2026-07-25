@@ -967,7 +967,7 @@ export default defineComponent({
       // gutter overrun the card.
       const s = this.consoleMotion ? conUiScale() : 1;
       const sideReserve = this.hasSide ? 440 : 0;
-      const loreReserve = this.loreVisible ? 500 : 0;
+      const loreReserve = this.loreVisible ? 540 : 0;
       const flankReserve = 2 * Math.max(sideReserve, loreReserve) * s;
       const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
       const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + flankReserve;

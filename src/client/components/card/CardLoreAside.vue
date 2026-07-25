@@ -15,13 +15,28 @@
     <!--
       The quotation marks are DECORATION, never punctuation: the lore strings
       already carry «», ‘’, dashes and, in one case, a full quotation. They are
-      aria-hidden spans whose glyph is CSS-generated, so the accessible text
-      stays exactly the localized sentence.
+      aria-hidden inline SVG, so the accessible text stays exactly the
+      localized sentence — and the silhouette is identical on every platform
+      and in both literary faces.
     -->
     <blockquote class="card-zoom-lore__quote" :lang="textLang">
-      <span v-if="!model.fallback" class="card-zoom-lore__mark card-zoom-lore__mark--open" aria-hidden="true"></span>
+      <svg v-if="!model.fallback"
+           class="card-zoom-lore__mark card-zoom-lore__mark--open"
+           :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
+        <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
+          <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
+          <path :d="MARK_TAIL" />
+        </g>
+      </svg>
       <span class="card-zoom-lore__text">{{ model.text }}</span>
-      <span v-if="!model.fallback" class="card-zoom-lore__mark card-zoom-lore__mark--close" aria-hidden="true"></span>
+      <svg v-if="!model.fallback"
+           class="card-zoom-lore__mark card-zoom-lore__mark--close"
+           :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
+        <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
+          <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
+          <path :d="MARK_TAIL" />
+        </g>
+      </svg>
     </blockquote>
   </aside>
 </template>
@@ -66,6 +81,26 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
  */
 const translateLore = (englishText: string): string => translateText(englishText, {translateNonWordText: true});
 
+/*
+ * The decorative quotation mark, drawn LOCALLY as two commas.
+ *
+ * One comma = a bowl (the disc) + a tail sweeping up and to the left — the
+ * classic "6" silhouette, so the pair reads as “ and, rotated 180° in CSS, as
+ * ” (the real typographic relationship between the two, for free). Authored as
+ * primitives rather than a font glyph so the shape is identical on Windows /
+ * SteamOS and identical in Literata and Newsreader, and so its weight can be
+ * tuned independently of the text face. No external asset, no filter, no mask.
+ */
+const MARK_VIEWBOX = '0 0 41 30';
+const MARK_BOWL = {cx: 11.5, cy: 22.5, r: 7.5} as const;
+// The tail: out of the bowl's right flank, up and to the left, tapering to a
+// point at the top. Deliberately carries roughly half the bowl's visual mass —
+// a smaller bowl with a longer tail is what makes the pair read as quotation
+// marks rather than as two dots.
+const MARK_TAIL = 'M18.6 19.2C19.4 11.5 13.6 4.2 2.6 0L0.6 5.6C8.6 8.6 12.4 13.6 12.4 19.6Z';
+/** x offsets of the two commas inside the viewBox. */
+const MARK_OFFSETS: ReadonlyArray<number> = [0, 22];
+
 export default defineComponent({
   name: 'CardLoreAside',
   props: {
@@ -85,6 +120,20 @@ export default defineComponent({
     };
   },
   computed: {
+    // The decorative mark's geometry, exposed to the template (see the
+    // MARK_* constants above — pure data, never state).
+    MARK_VIEWBOX(): string {
+      return MARK_VIEWBOX;
+    },
+    MARK_BOWL(): {cx: number, cy: number, r: number} {
+      return MARK_BOWL;
+    },
+    MARK_TAIL(): string {
+      return MARK_TAIL;
+    },
+    MARK_OFFSETS(): ReadonlyArray<number> {
+      return MARK_OFFSETS;
+    },
     model(): CardLoreModel {
       return buildCardLoreModel(this.shownName, translateLore);
     },
