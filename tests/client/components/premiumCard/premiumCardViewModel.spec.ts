@@ -467,6 +467,13 @@ describe('card lore coverage — full premium-face scope (project + prelude + co
     return reimplements === undefined ? undefined : loreTextFor(getCardOrThrow(reimplements), seen);
   }
 
+  it('every lore text ends with terminal punctuation', () => {
+    const missingPunctuation = Object.entries(LORE_BY_CARD_NUMBER)
+      .filter(([, text]) => !/[.!?…]$/.test(text.trim()))
+      .map(([cardNumber]) => cardNumber);
+    expect(missingPunctuation, `lore texts without terminal punctuation:\n${missingPunctuation.join('\n')}`).to.deep.eq([]);
+  });
+
   it('every in-scope project, prelude, and corporation has non-empty lore text', () => {
     const cards = getCards((c) =>
       SCOPE.has(c.module) &&
@@ -474,6 +481,19 @@ describe('card lore coverage — full premium-face scope (project + prelude + co
       c.name !== CardName.BEGINNER_CORPORATION,
     );
     expect(cards.length).to.be.greaterThan(490);
+    const cardsByNumber = new Map<string, Array<string>>();
+    for (const card of cards) {
+      const cardNumber = card.metadata.cardNumber;
+      if (cardNumber === undefined) continue;
+      const names = cardsByNumber.get(cardNumber) ?? [];
+      names.push(card.name);
+      cardsByNumber.set(cardNumber, names);
+    }
+    const duplicateNumbers = [...cardsByNumber]
+      .filter(([, names]) => names.length > 1)
+      .map(([cardNumber, names]) => `${cardNumber}: ${names.join(', ')}`);
+    expect(duplicateNumbers, `in-scope cards with duplicate card numbers:\n${duplicateNumbers.join('\n')}`).to.deep.eq([]);
+
     const missing: Array<string> = [];
     for (const card of cards) {
       const cardNumber = card.metadata.cardNumber;

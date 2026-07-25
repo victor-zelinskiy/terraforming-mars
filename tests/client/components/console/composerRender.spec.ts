@@ -156,7 +156,7 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
-  it('A on an amount row ADVANCES toward the CTA («Далее») instead of a silent no-op', () => {
+  it('a LONE amount stepper is FOCUS-FREE: LB/RB dial it while the cursor waits on the CTA', () => {
     const w = factory({
       card: 'Hi-Tech Lab', isCorporation: false, kind: 'bespoke',
       branches: [{
@@ -165,10 +165,50 @@ describe('ConsoleActionComposer — premium render', () => {
         steps: [{kind: 'input', input: {type: 'amount', title: 'Select amount of energy to spend', min: 1, max: 5, maxByDefault: false, icon: 'energy', amountResult: {icon: 'cards', perUnit: 1}}}],
       }],
     }, 'Hi-Tech Lab');
-    expect((w.vm as any).focusedRowKind).to.eq('amount');
-    (w.vm as any).handleIntent({kind: 'press', button: 'confirm'});
-    expect((w.vm as any).ctaFocused).to.eq(true);
-    // ...and nothing was submitted by that press.
+    const vm = w.vm as any;
+    // The stepper still RENDERS (with its own LB/RB pills) but left the nav list,
+    // so the cursor starts on the CTA — «покрутил и подтвердил», no extra A.
+    expect(w.find('.con-composer__stepper').exists()).to.eq(true);
+    expect(w.find('.con-composer__dial-pills').exists()).to.eq(true);
+    expect(vm.navItems.length).to.eq(0);
+    expect(vm.ctaFocused).to.eq(true);
+    expect(vm.focusedRowKind).to.eq('none');
+    // ...yet it is a SETUP, not a bare confirmation (the header must not lie).
+    expect(vm.hasDecisions).to.eq(true);
+    // LB/RB dial it with no focus on it at all; RT takes it to MAX.
+    const before = vm.amountFor(vm.focusFreeDialId);
+    vm.handleIntent({kind: 'press', button: 'bumperR'});
+    expect(vm.amountFor(vm.focusFreeDialId)).to.eq(before + 1);
+    vm.handleIntent({kind: 'press', button: 'bumperL'});
+    expect(vm.amountFor(vm.focusFreeDialId)).to.eq(before);
+    vm.handleIntent({kind: 'press', button: 'triggerR'});
+    expect(vm.amountFor(vm.focusFreeDialId)).to.eq(5);
+    // The bar advertises the dial + the confirm, never a «Далее» detour.
+    expect(vm.footCommands.map((c: any) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Confirm', 'Inspect', 'Cancel']);
+    // A goes straight to the commit — one press.
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('confirm')).to.have.length(1);
+    w.unmount();
+  });
+
+  it('TWO steppers keep their focus rows (focus is what disambiguates two dials)', () => {
+    const w = factory({
+      card: 'Two Dials', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [
+          {kind: 'input', input: {type: 'amount', title: 'First', min: 0, max: 4, maxByDefault: false, icon: 'energy'}},
+          {kind: 'input', input: {type: 'amount', title: 'Second', min: 0, max: 4, maxByDefault: false, icon: 'heat'}},
+        ],
+      }],
+    }, 'Two Dials');
+    const vm = w.vm as any;
+    expect(vm.focusFreeDialId).to.eq(undefined);
+    expect(vm.navItems.length).to.eq(2);
+    expect(vm.focusedRowKind).to.eq('amount');
+    expect(w.find('.con-composer__dial-pills').exists()).to.eq(false);
+    // A still ADVANCES off a focused stepper (it never silently confirms).
+    vm.handleIntent({kind: 'press', button: 'confirm'});
     expect(w.emitted('confirm')).to.eq(undefined);
     w.unmount();
   });

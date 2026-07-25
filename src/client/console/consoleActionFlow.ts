@@ -112,15 +112,17 @@ export type FocusCommandCtx =
        *  (the repeat pick's compose stage reads «Выбрать это действие»). */
       commitLabel?: string,
       /**
-       * PAYMENT is NOT a focus row — it's a persistent panel edited by the
-       * DEDICATED LT + inline LB/RB (review-level, focus-independent — mirrors
-       * the play composer). `configurablePayment` → the LT «Configure payment»
-       * hint; `quickAdjust` (present only when the single-alt inline case
-       * applies AND no focused stepper owns LB/RB) → the split LB/RB hints with
-       * per-side enabled, so a dead button never shows.
+       * The INLINE DIAL LB/RB currently drives — the ONE source of the −1/+1
+       * (and amount MAX) hints, so the bar can never offer a dead dial. It is
+       * deliberately INDEPENDENT of `focused`: a dial is focus-free when it is
+       * the only one on screen (`soleInlineDial`), and the payment quick-adjust
+       * is focus-free by design. `canDecrease`/`canIncrease` split the hint
+       * per-side when the dial reports its limits (payment).
        */
+      dial?: {kind: 'amount' | 'spendHeat' | 'payment', canDecrease?: boolean, canIncrease?: boolean},
+      /** A non-M€ payment mix exists → the DEDICATED LT «Configure payment»
+       *  entry (review-level, never a focus row / never A). */
       configurablePayment?: boolean,
-      quickAdjust?: {canDecrease: boolean, canIncrease: boolean},
     };
 
 /**
@@ -163,19 +165,22 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     ];
   default: {
     const run: Array<ConsoleCommand> = [];
-    // LB/RB OWNERSHIP: a focused amount/spend-heat stepper first; otherwise the
-    // GLOBAL inline payment quick-adjust owns them (split per-side so a dead
-    // button never shows) — the payment panel isn't a focus row.
-    if (ctx.focused === 'amount') {
-      run.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
-      run.push({control: 'triggerR', label: 'MAX'});
-    } else if (ctx.focused === 'spendHeat') {
-      run.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
-    } else if (ctx.quickAdjust !== undefined) {
-      run.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});
-      run.push({control: 'bumperR', label: '+1', enabled: ctx.quickAdjust.canIncrease});
+    // LB/RB belong to the ACTIVE DIAL (focused stepper / sole focus-free stepper /
+    // payment quick-adjust) — resolved by the caller, so the bar shows −1/+1
+    // exactly when something can actually be dialed. A dial that reports limits
+    // splits the hint per-side, so a dead button never appears.
+    if (ctx.dial !== undefined) {
+      if (ctx.dial.canDecrease === undefined && ctx.dial.canIncrease === undefined) {
+        run.push({control: 'bumperL', control2: 'bumperR', label: '−1 / +1'});
+      } else {
+        run.push({control: 'bumperL', label: '−1', enabled: ctx.dial.canDecrease !== false});
+        run.push({control: 'bumperR', label: '+1', enabled: ctx.dial.canIncrease !== false});
+      }
+      if (ctx.dial.kind === 'amount') {
+        run.push({control: 'triggerR', label: 'MAX'});
+      }
     }
-    // The A-verb by the FOCUSED row (never the payment — A ignores it entirely).
+    // The A-verb by the FOCUSED row (never a dial — A never dials anything).
     switch (ctx.focused) {
     case 'amount':
     case 'spendHeat':

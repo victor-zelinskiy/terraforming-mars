@@ -174,16 +174,16 @@
 
         <!-- MAIN: preSteps + branch OPTION CARDS + the selected branch's inputs. -->
         <template v-else>
-          <template v-for="(item, i) in items" :key="item.id">
+          <template v-for="item in items" :key="item.id">
             <!-- A branch OPTION CARD (premium chips, like the desktop radiogroup). -->
             <div v-if="item.kind === 'branch'"
                  class="con-composer__branch"
                  :class="{
-                   'con-composer__branch--focused': focusIdx === i,
+                   'con-composer__branch--focused': isFocused(item),
                    'con-composer__branch--selected': selectedPos === item.pos,
                    'con-composer__branch--disabled': !branchAt(item.pos).available,
                  }"
-                 :ref="focusIdx === i ? 'focusedEl' : undefined">
+                 :ref="isFocused(item) ? 'focusedEl' : undefined">
               <span v-if="selectedPos === item.pos" class="con-composer__branch-check" aria-hidden="true">◉</span>
               <span v-else class="con-composer__branch-check con-composer__branch-check--off" aria-hidden="true">○</span>
               <div class="con-composer__branch-body">
@@ -220,10 +220,11 @@
             <div v-else-if="item.choice !== undefined"
                  class="con-composer__row"
                  :class="{
-                   'con-composer__row--focused': focusIdx === i,
+                   'con-composer__row--focused': isFocused(item),
                    'con-composer__row--missing': choiceMissing(item.choice),
+                   'con-composer__row--dial': item.choice.id === focusFreeDialId,
                  }"
-                 :ref="focusIdx === i ? 'focusedEl' : undefined">
+                 :ref="isFocused(item) ? 'focusedEl' : undefined">
               <!-- The REPEAT slot (Viron): empty → a prompt; filled → the chosen
                    action drawn as a button with its own action graphic. -->
               <template v-if="item.choice.repeatAction === true">
@@ -246,6 +247,13 @@
                   <i v-if="amountIcon(item.choice)" class="con-composer__stepper-icon" :class="iconClass(amountIcon(item.choice))" aria-hidden="true"></i>
                   <span class="con-composer__stepper-value">{{ amountFor(item.choice.id) }}</span>
                   <span class="con-composer__stepper-range">{{ amountModel(item.choice).min }} – {{ amountModel(item.choice).max }}</span>
+                  <!-- A FOCUS-FREE dial advertises its own controls (the cursor
+                       never visits it, so the pills are how the player learns it
+                       is live) — the same affordance the payment chip wears. -->
+                  <span v-if="item.choice.id === focusFreeDialId" class="con-composer__dial-pills">
+                    <span class="con-composer__dial-pill" :class="{'con-composer__dial-pill--off': amountFor(item.choice.id) <= amountModel(item.choice).min}"><GamepadGlyph control="bumperL" /><span>−1</span></span>
+                    <span class="con-composer__dial-pill" :class="{'con-composer__dial-pill--off': amountFor(item.choice.id) >= amountModel(item.choice).max}"><GamepadGlyph control="bumperR" /><span>+1</span></span>
+                  </span>
                 </div>
                 <div v-if="amountResultLine(item.choice) !== ''" class="con-composer__row-note">{{ amountResultLine(item.choice) }}</div>
                 <div v-else-if="amountStockLine(item.choice) !== ''" class="con-composer__row-note">{{ amountStockLine(item.choice) }}</div>
@@ -257,6 +265,10 @@
                   <i class="con-composer__stepper-icon" :class="iconClass('floater')" aria-hidden="true"></i>
                   <span class="con-composer__stepper-value">{{ floatersFor(item.choice.id) }}</span>
                   <span class="con-composer__stepper-range">{{ $t('Floaters (2 heat each)') }}</span>
+                  <span v-if="item.choice.id === focusFreeDialId" class="con-composer__dial-pills">
+                    <span class="con-composer__dial-pill"><GamepadGlyph control="bumperL" /><span>−1</span></span>
+                    <span class="con-composer__dial-pill"><GamepadGlyph control="bumperR" /><span>+1</span></span>
+                  </span>
                 </div>
                 <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(item.choice) }} · {{ $t('Floaters') }}: {{ floatersFor(item.choice.id) }}</div>
               </template>
@@ -413,6 +425,8 @@ import {
   spendHeatValid,
   orderedPreResponses,
   orderedStepResponses,
+  focusFreeDialId,
+  InlineDial,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane, buildPaymentView, PlayPaymentView} from '@/client/console/paymentPlan';
@@ -599,11 +613,9 @@ export default defineComponent({
       return [...this.preChoiceList, ...this.branchChoiceList];
     },
     /**
-     * The flat FOCUS list: preSteps · branch option cards · branch inputs.
-     * PAYMENT is deliberately NOT a focusable row (mirrors the play composer):
-     * it is a persistent INFO panel edited by the DEDICATED LT button + inline
-     * LB/RB, so it never competes with the real decision rows / the CTA for the
-     * cursor. (`items` drives both the render loop and the nav walk.)
+     * The RENDER list, in reading order: preSteps · branch option cards · branch
+     * inputs. PAYMENT is not here (it's a persistent panel of its own, below);
+     * a FOCUS-FREE dial IS here — it renders in place, it just isn't navigable.
      */
     items(): ReadonlyArray<Item> {
       const out: Array<Item> = [];
@@ -624,6 +636,18 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * The NAV list — what the cursor actually walks: the render rows MINUS the
+     * focus-free dial. A dial you can drive globally with LB/RB must not eat a
+     * cursor stop (and an extra A to leave it): with a lone stepper the cursor
+     * starts on the CTA, so «покрутил LB/RB → A» is the whole interaction.
+     */
+    navItems(): ReadonlyArray<Item> {
+      const free = this.focusFreeDialId;
+      return free === undefined ?
+        this.items :
+        this.items.filter((it) => !(it.kind === 'choice' && it.choice.id === free));
+    },
     /** Every payment choice (pre + branch) — rendered as persistent panels,
      *  NOT nav rows. Normally 0 or 1; a card with several SelectPayment steps
      *  shows one panel each (the dedicated LT / LB/RB target the FIRST). */
@@ -634,8 +658,40 @@ export default defineComponent({
     primaryPaymentChoice(): ComposerChoice | undefined {
       return this.paymentChoices[0];
     },
+    /** Every INLINE DIAL on screen (steppers + the single-alt payment quick-adjust). */
+    inlineDials(): ReadonlyArray<InlineDial> {
+      const out: Array<InlineDial> = [];
+      for (const c of this.allChoices) {
+        if (c.kind === 'amount' || c.kind === 'spendHeat') {
+          out.push({id: c.id, kind: c.kind});
+        }
+      }
+      const pay = this.primaryPaymentChoice;
+      // A payment counts as a dial only when it OFFERS the inline quick-adjust
+      // (exactly one alt lane); a complex / pure-M€ payment is LT-only.
+      if (pay !== undefined && this.paymentPanelView(pay).quickAdjustEligible) {
+        out.push({id: pay.id, kind: 'payment'});
+      }
+      return out;
+    },
+    /** The stepper that leaves the focus list (the sole non-payment dial). */
+    focusFreeDialId(): string | undefined {
+      return focusFreeDialId(this.inlineDials);
+    },
+    /** That stepper's choice — the global LB/RB / RT target. */
+    focusFreeDialChoice(): ComposerChoice | undefined {
+      const id = this.focusFreeDialId;
+      return id === undefined ? undefined : this.allChoices.find((c) => c.id === id);
+    },
+    /**
+     * Is there anything to SET UP (drives the «Настройка действия» kicker + the
+     * bare-confirm plain line)? Counts the NON-focusable surfaces too — the
+     * payment panel and a focus-free dial are decisions even though the cursor
+     * never stops on them; without this a payment-only / stepper-only action
+     * would mislabel itself as a bare confirmation.
+     */
     hasDecisions(): boolean {
-      return this.items.length > 0;
+      return this.items.length > 0 || this.paymentChoices.length > 0;
     },
     /** The hero is the selected/single branch's live formula (multi-branch
      *  option cards carry their own chips → no hero until one is chosen). */
@@ -744,7 +800,7 @@ export default defineComponent({
     /** What kind of row the focus cursor is on — drives the A-verb of the
      *  command contract (the bar always names exactly what A will do). */
     focusedRowKind(): FocusRowKind {
-      if (this.items.length === 0) {
+      if (this.navItems.length === 0) {
         return 'none';
       }
       if (this.ctaFocused) {
@@ -788,21 +844,45 @@ export default defineComponent({
       const kind = this.focusedRowKind;
       const item = this.focusedItem;
       const resolved = kind === 'pick' && item?.kind === 'choice' && !this.choiceMissing(item.choice);
-      // PAYMENT is review-level (not a focus row): LT «Configure payment» when a
-      // non-M€ mix exists, and inline LB/RB quick-adjust when the single-alt case
-      // applies AND a focused stepper doesn't already own LB/RB.
       const pay = this.primaryPaymentChoice;
       const payView = pay !== undefined ? this.paymentPanelView(pay) : undefined;
-      const focusedStepper = kind === 'amount' || kind === 'spendHeat';
-      const chip = payView?.chips.find((c) => c.isAdjustable);
-      const quickAdjust = (!focusedStepper && payView?.quickAdjustEligible === true && chip !== undefined) ?
-        {canDecrease: chip.canDecrease, canIncrease: chip.canIncrease} : undefined;
       return focusCommandRun({
         state: 'main', focused: kind, resolved, canConfirm: this.canConfirm,
         commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
+        // LB/RB follow the ACTIVE dial (the same resolution the input uses), and
+        // LT is the payment editor's dedicated, focus-independent entry.
+        dial: this.activeDialHint,
         configurablePayment: payView?.configurable === true,
-        quickAdjust,
       });
+    },
+    /**
+     * WHICH dial LB/RB drive right now — the SINGLE resolution shared by the
+     * command bar and `onMainPress`, so the bar can never promise a dial the
+     * input doesn't move: a FOCUSED stepper first (it's the one the cursor is
+     * on), else the focus-free sole stepper, else the payment quick-adjust.
+     */
+    activeDialChoice(): ComposerChoice | undefined {
+      const item = this.focusedItem;
+      if (item?.kind === 'choice' && (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat')) {
+        return item.choice;
+      }
+      if (this.focusFreeDialChoice !== undefined) {
+        return this.focusFreeDialChoice;
+      }
+      const pay = this.primaryPaymentChoice;
+      return pay !== undefined && this.paymentPanelView(pay).quickAdjustEligible ? pay : undefined;
+    },
+    /** The active dial as the command bar's hint (payment reports its limits). */
+    activeDialHint(): {kind: 'amount' | 'spendHeat' | 'payment', canDecrease?: boolean, canIncrease?: boolean} | undefined {
+      const c = this.activeDialChoice;
+      if (c === undefined) {
+        return undefined;
+      }
+      if (c.kind === 'amount' || c.kind === 'spendHeat') {
+        return {kind: c.kind};
+      }
+      const chip = this.paymentPanelView(c).chips.find((x) => x.isAdjustable);
+      return {kind: 'payment', canDecrease: chip?.canDecrease === true, canIncrease: chip?.canIncrease === true};
     },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
@@ -929,11 +1009,11 @@ export default defineComponent({
       return c === undefined || c.kind !== 'payment' ? undefined : this.paymentStateFor(c);
     },
     focusedItem(): Item | undefined {
-      return this.items[this.focusIdx];
+      return this.navItems[this.focusIdx];
     },
-    /** The CTA row's virtual focus index — one past the decision items. */
+    /** The CTA row's virtual focus index — one past the navigable rows. */
     ctaIndex(): number {
-      return this.items.length;
+      return this.navItems.length;
     },
     ctaFocused(): boolean {
       return this.sub === undefined && this.focusIdx >= this.ctaIndex;
@@ -1162,7 +1242,7 @@ export default defineComponent({
       // Focus the first AVAILABLE branch (or the first item) so the player
       // starts on a meaningful choice, not the top of a list.
       if (this.needBranchRow) {
-        const firstAvail = this.items.findIndex((it) => it.kind === 'branch' && this.branches[it.pos]?.available === true);
+        const firstAvail = this.navItems.findIndex((it) => it.kind === 'branch' && this.branches[it.pos]?.available === true);
         this.focusIdx = firstAvail >= 0 ? firstAvail : 0;
       }
       this.seedDefaults();
@@ -1198,6 +1278,11 @@ export default defineComponent({
       // candidate (the fork's non-negotiable no-auto-select rule): the player
       // must consciously pick the target, so a single-target choice is never
       // silently skipped. Only amount/heat/payment get a visible, editable default.
+    },
+    /** Is this RENDERED row the focused one? Identity-based, because the render
+     *  list and the nav list differ (a focus-free dial renders but never focuses). */
+    isFocused(item: Item): boolean {
+      return this.sub === undefined && this.focusedItem?.id === item.id;
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
       if (c.scope === 'pre') {
@@ -1509,11 +1594,22 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
-      const item = this.focusedItem;
-      if (item?.kind === 'choice' && item.choice.kind === 'amount') {
-        this.setAmount(item.choice, this.amountFor(item.choice.id) + (dir === 'left' ? -1 : 1));
-      } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
-        this.adjustFloaters(item.choice, dir === 'left' ? -1 : 1);
+      // d-pad ←→ mirrors LB/RB on the active dial (a lone stepper is adjustable
+      // straight from the CTA — the cursor never has to visit it).
+      this.dialActive(dir === 'left' ? -1 : 1);
+    },
+    /** Nudge the ACTIVE dial by `step` (the one `activeDialChoice` resolved). */
+    dialActive(step: number): void {
+      const c = this.activeDialChoice;
+      if (c === undefined) {
+        return;
+      }
+      if (c.kind === 'amount') {
+        this.setAmount(c, this.amountFor(c.id) + step);
+      } else if (c.kind === 'spendHeat') {
+        this.adjustFloaters(c, step);
+      } else {
+        this.adjustQuickPayment(c, step);
       }
     },
     // MAIN state: A(primary) acts on the FOCUSED row (select a branch / open
@@ -1546,20 +1642,12 @@ export default defineComponent({
         this.$emit('cancel');
         return;
       case 'prevSection':
-      case 'nextSection': {
-        const step = action === 'prevSection' ? -1 : 1;
-        // A focused amount/spend-heat stepper OWNS LB/RB; otherwise LB/RB do the
-        // GLOBAL inline payment quick-adjust (the payment panel isn't a focus row,
-        // so no focus on it is needed) — parity with the play composer.
-        if (item?.kind === 'choice' && item.choice.kind === 'amount') {
-          this.setAmount(item.choice, this.amountFor(item.choice.id) + step);
-        } else if (item?.kind === 'choice' && item.choice.kind === 'spendHeat') {
-          this.adjustFloaters(item.choice, step);
-        } else if (this.primaryPaymentChoice !== undefined) {
-          this.adjustQuickPayment(this.primaryPaymentChoice, step);
-        }
+      case 'nextSection':
+        // LB/RB drive the ACTIVE DIAL — a focused stepper, else the focus-free
+        // sole stepper, else the payment quick-adjust. No focus needed for the
+        // lone dial: «покрутил и подтвердил».
+        this.dialActive(action === 'prevSection' ? -1 : 1);
         return;
-      }
       case 'prevTab':
         // LT = the DEDICATED entry to the detailed payment lane editor (never A,
         // never a focus row) — the user's «вход строго через отдельную кнопку LT».
@@ -1567,11 +1655,14 @@ export default defineComponent({
           this.openPaymentEditor(this.primaryPaymentChoice);
         }
         return;
-      case 'nextTab':
-        if (item?.kind === 'choice' && item.choice.kind === 'amount') {
-          this.setAmount(item.choice, this.amountModel(item.choice).max);
+      case 'nextTab': {
+        // RT = MAX on the active AMOUNT dial (focused or focus-free).
+        const dial = this.activeDialChoice;
+        if (dial !== undefined && dial.kind === 'amount') {
+          this.setAmount(dial, this.amountModel(dial).max);
         }
         return;
+      }
       default:
         return;
       }

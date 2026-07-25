@@ -14,6 +14,8 @@ import {
   orderedPreResponses,
   orderedStepResponses,
   tabbedStepsOf,
+  soleInlineDial,
+  focusFreeDialId,
 } from '@/client/console/consoleActionComposer';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
@@ -259,6 +261,39 @@ describe('consoleActionComposer', () => {
         type: 'and',
         responses: [{type: 'amount', amount: 2}, {type: 'amount', amount: 3}],
       });
+    });
+  });
+
+  describe('inline dials (a value you DIAL vs a choice you OPEN)', () => {
+    it('a LONE stepper is focus-free — LB/RB drives it, the cursor never stops on it', () => {
+      // Power Infrastructure: one amount stepper and nothing else → the whole
+      // interaction is «покрутил LB/RB → A подтвердил».
+      const dials = [{id: 'step#0', kind: 'amount' as const}];
+      expect(soleInlineDial(dials)).to.deep.eq({id: 'step#0', kind: 'amount'});
+      expect(focusFreeDialId(dials)).to.eq('step#0');
+    });
+
+    it('TWO dials keep focus — it is the only thing that disambiguates them', () => {
+      const dials = [{id: 'step#0', kind: 'amount' as const}, {id: 'step#1', kind: 'spendHeat' as const}];
+      expect(soleInlineDial(dials)).to.eq(undefined);
+      expect(focusFreeDialId(dials)).to.eq(undefined);
+    });
+
+    it('a stepper alongside an adjustable PAYMENT keeps focus (two dials, one LB/RB)', () => {
+      const dials = [{id: 'step#0', kind: 'amount' as const}, {id: 'step#1', kind: 'payment' as const}];
+      expect(focusFreeDialId(dials)).to.eq(undefined);
+    });
+
+    it('a LONE payment is never pulled out of the focus list by this rule — it is focus-free BY DESIGN (LT)', () => {
+      const dials = [{id: 'step#0', kind: 'payment' as const}];
+      expect(soleInlineDial(dials)).to.deep.eq({id: 'step#0', kind: 'payment'});
+      // `focusFreeDialId` only names STEPPERS to remove; payment already never navigates.
+      expect(focusFreeDialId(dials)).to.eq(undefined);
+    });
+
+    it('no dials → nothing to drive', () => {
+      expect(soleInlineDial([])).to.eq(undefined);
+      expect(focusFreeDialId([])).to.eq(undefined);
     });
   });
 });

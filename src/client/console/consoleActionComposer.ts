@@ -129,6 +129,48 @@ export function afterConfirmSteps(branch: ActionPreviewBranch | undefined): Arra
   return (branch?.steps ?? []).filter((s) => s.kind === 'note' || s.kind === 'boardPlacement');
 }
 
+// ── INLINE DIALS — a value you DIAL, not a choice you OPEN ───────────────────
+
+/**
+ * The composer's decisions split in two by INTERACTION, not by data type:
+ *
+ *  - a PICK (card / player / or / branch / repeat) is a choice you OPEN — it
+ *    needs the cursor, because A must know WHICH pick to open;
+ *  - a DIAL (an amount stepper, the spend-heat stepper, the single-alt payment
+ *    quick-adjust) is a value you NUDGE with LB/RB — the cursor buys nothing,
+ *    it only costs presses (focus it, dial it, press A to leave it).
+ *
+ * So a dial takes focus ONLY when focus is the thing that disambiguates it —
+ * i.e. when there are ≥2 dials on screen. With EXACTLY ONE dial there is nothing
+ * to disambiguate: it becomes FOCUS-FREE (rendered as a live panel with its own
+ * LB/RB pills, driven globally), and A stays free for the real buttons — the
+ * player just dials and confirms. This is the same grammar the payment panel
+ * already uses (its dedicated LT + inline LB/RB, never a focus row).
+ */
+export type InlineDialKind = 'amount' | 'spendHeat' | 'payment';
+
+export type InlineDial = {
+  /** The owning `ComposerChoice.id` (`pre#i` / `option` / `step#i`). */
+  id: string;
+  kind: InlineDialKind;
+};
+
+/**
+ * The ONE dial LB/RB can drive with no focus target — `undefined` when there are
+ * 0 dials (nothing to drive) or ≥2 (focus decides which). PAYMENT is never made
+ * focus-free by this rule: it is focus-free BY DESIGN (LT owns its editor), so a
+ * lone payment dial simply keeps the LB/RB it already had.
+ */
+export function soleInlineDial(dials: ReadonlyArray<InlineDial>): InlineDial | undefined {
+  return dials.length === 1 ? dials[0] : undefined;
+}
+
+/** The STEPPER that should leave the focus list entirely (a sole non-payment dial). */
+export function focusFreeDialId(dials: ReadonlyArray<InlineDial>): string | undefined {
+  const sole = soleInlineDial(dials);
+  return sole !== undefined && sole.kind !== 'payment' ? sole.id : undefined;
+}
+
 // ── Confirm gating (mirror of CardActionConfirmContent.canConfirm) ──────────
 
 export type ComposerCaptures = {

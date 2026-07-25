@@ -38,7 +38,7 @@ export class WeatherBalloons extends ActionCard implements IProjectCard {
       },
 
       metadata: {
-        cardNumber: '033',
+        cardNumber: 'X76',
         description: 'Draw 1 card.',
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 floater here.', (ab) =>

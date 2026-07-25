@@ -95,6 +95,16 @@ html.console-native {
     background: radial-gradient(120% 92% at 50% 44%, rgba(5, 9, 16, 0.9) 0%, rgba(2, 4, 8, 0.97) 100%);
 }
 
+/* THE inline-dial pill (a bumper glyph + its delta) — worn by every value the
+   player NUDGES with LB/RB instead of opening: the payment chip's quick-adjust
+   and a focus-free stepper. ONE look, so «this is dialable» reads identically
+   wherever it appears. The `--off` (at-limit) state is set by the callers. */
+.con-dial-pill() {
+    display: inline-flex; align-items: center; gap: .2rem;
+    padding: .1rem .45rem .1rem .3rem; border-radius: 49.95rem; font-size: .7rem; font-weight: 700;
+    color: #cfe6ff; background: rgba(18, 34, 50, 0.7); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
+}
+
 /* PERF (Steam Deck): premium full-screen DIM without backdrop-filter blur.
    A live full-screen blur — worse when several stack over the board, only the
    top of which is ever visible — is the single most GPU-expensive effect on
@@ -13959,6 +13969,17 @@ html.console-mode {
         &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
         &--missing { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); }
         &--missing&--focused { box-shadow: inset 0 0 0 .1rem @con-amber, 0 0 .9rem fade(@con-amber, 28%); }
+        /* A FOCUS-FREE dial (the sole stepper, driven globally by LB/RB): a calm
+           cyan rim says «this is live right now» without the strong focus ring —
+           it is not a cursor stop, so it must not read as one. */
+        &--dial { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%); }
+    }
+    /* Inline dial controls (the LB/RB pills a focus-free stepper wears — the same
+       affordance the payment chip uses; one look via `.con-dial-pill()`). */
+    &__dial-pills { display: inline-flex; align-items: center; gap: .3rem; margin-left: .4rem; }
+    &__dial-pill {
+        .con-dial-pill();
+        &--off { opacity: 0.32; filter: saturate(0.4); }
     }
     &__row-label { font-size: .7rem; letter-spacing: .04rem; text-transform: uppercase; color: @con-text-dim; }
     &__row-value { font-size: .95rem; font-weight: 700; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
@@ -14254,9 +14275,7 @@ html.console-mode {
     }
     &__pay-pills { display: inline-flex; align-items: center; gap: .3rem; margin-left: .2rem; }
     &__pay-pill {
-        display: inline-flex; align-items: center; gap: .2rem;
-        padding: .1rem .45rem .1rem .3rem; border-radius: 49.95rem; font-size: .7rem; font-weight: 700;
-        color: #cfe6ff; background: rgba(18, 34, 50, 0.7); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
+        .con-dial-pill();
         &--off { opacity: 0.32; filter: saturate(0.4); }
     }
     /* One-shot pulse on the adjustable chip when LB/RB fires (re-keyed nonce). */
@@ -14639,7 +14658,8 @@ html.con-profile-handheld .con-composer {
     .con-composer__opt-name { font-size: .75rem; }
     .con-composer__variant-title { font-size: .8rem; }
     .con-composer__cta-label { font-size: .85rem; }
-    .con-composer__pay-pill { font-size: .65rem; }
+    .con-composer__pay-pill,
+    .con-composer__dial-pill { font-size: .65rem; }
     .con-composer__foot-item { font-size: .65rem; }
 }
 /* Handheld ACTION FOCUS stage: full-frame geometry (the floating-panel width

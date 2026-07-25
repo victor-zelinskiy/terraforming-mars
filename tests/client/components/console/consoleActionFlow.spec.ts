@@ -62,36 +62,43 @@ describe('consoleActionFlow', () => {
     });
 
     it('main / amount row: LB/RB + MAX + Next — A never silently confirms', () => {
-      const run = focusCommandRun({state: 'main', focused: 'amount', canConfirm: true});
+      const run = focusCommandRun({state: 'main', focused: 'amount', canConfirm: true, dial: {kind: 'amount'}});
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Next', 'Inspect', 'Cancel']);
     });
 
     it('main / spend-heat row: LB/RB + Next (no MAX)', () => {
-      const run = focusCommandRun({state: 'main', focused: 'spendHeat', canConfirm: false});
+      const run = focusCommandRun({state: 'main', focused: 'spendHeat', canConfirm: false, dial: {kind: 'spendHeat'}});
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'Next', 'Inspect', 'Cancel']);
     });
 
-    it('payment is REVIEW-level (never a focus row): on the CTA, LT + inline LB/RB while A stays Confirm', () => {
-      const run = focusCommandRun({
-        state: 'main', focused: 'cta', canConfirm: true,
-        configurablePayment: true, quickAdjust: {canDecrease: true, canIncrease: false},
-      });
-      // LB/RB split (per-side enabled) → A Confirm (still the commit, NOT hijacked by payment) → LT → Inspect/Cancel.
-      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Confirm', 'Configure payment', 'Inspect', 'Cancel']);
-      expect(run.find((c) => c.control === 'bumperL')?.enabled).to.eq(true);
-      expect(run.find((c) => c.control === 'bumperR')?.enabled).to.eq(false);
+    it('a FOCUS-FREE dial keeps LB/RB + MAX while A stays the CONFIRM (the sole-stepper case)', () => {
+      // The cursor sits on the CTA (the stepper left the nav list), yet the dial
+      // is fully live: «покрутил LB/RB → A подтвердил», one press instead of two.
+      const run = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true, dial: {kind: 'amount'}});
+      expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Confirm', 'Inspect', 'Cancel']);
       expect(run.find((c) => c.control === 'confirm')).to.deep.eq({control: 'confirm', label: 'Confirm', enabled: true});
     });
 
-    it('payment: a focused STEPPER owns LB/RB (quickAdjust yields) but LT stays available', () => {
+    it('payment is REVIEW-level (never a focus row): on the CTA, LT + split LB/RB while A stays Confirm', () => {
+      const run = focusCommandRun({
+        state: 'main', focused: 'cta', canConfirm: true,
+        configurablePayment: true, dial: {kind: 'payment', canDecrease: true, canIncrease: false},
+      });
+      // LB/RB split (per-side enabled) → A Confirm (NOT hijacked) → LT → Inspect/Cancel. No MAX for payment.
+      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Confirm', 'Configure payment', 'Inspect', 'Cancel']);
+      expect(run.find((c) => c.control === 'bumperL')?.enabled).to.eq(true);
+      expect(run.find((c) => c.control === 'bumperR')?.enabled).to.eq(false);
+    });
+
+    it('a focused STEPPER owns LB/RB (the payment dial yields) but LT stays available', () => {
       const run = focusCommandRun({
         state: 'main', focused: 'amount', canConfirm: true,
-        configurablePayment: true, quickAdjust: undefined,
+        configurablePayment: true, dial: {kind: 'amount'},
       });
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Next', 'Configure payment', 'Inspect', 'Cancel']);
     });
 
-    it('payment: AUTO M€ (not configurable, no alt) shows neither LB/RB nor LT', () => {
+    it('no dial at all (AUTO M€ / pure picks): neither LB/RB nor MAX nor LT ever shows', () => {
       const run = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true});
       expect(run.map((c) => c.label)).to.deep.eq(['Confirm', 'Inspect', 'Cancel']);
     });
