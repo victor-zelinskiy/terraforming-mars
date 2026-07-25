@@ -811,7 +811,14 @@ export default defineComponent({
              */
             const tileHeroEvent = detectTilePlacement(
               this.playerView.game?.spaces, newView.game?.spaces,
-              {aresExtension: this.playerView.game?.gameOptions?.expansions?.ares === true});
+              {
+                aresExtension: this.playerView.game?.gameOptions?.expansions?.ares === true,
+                // The server's own ocean-adjacency breakdown for this response
+                // (which neighbouring oceans paid, and how much each). Accepted
+                // only when it names the space we armed — the scene never
+                // re-derives board adjacency or the M€ rule.
+                oceanBonus: newView.lastOceanBonus,
+              });
             if (tileHeroEvent !== undefined) {
               this.holdingForTilePlacementHero = true;
               try {

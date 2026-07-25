@@ -32,6 +32,7 @@ import {CardDrawRevealSource, ColonyTradeRevealSegment} from '../common/models/C
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {StartingSetupModel} from '../common/models/StartingSetupModel';
 import {AlliedParty} from '../common/turmoil/Types';
 import {IParty} from './turmoil/parties/IParty';
@@ -199,6 +200,15 @@ export interface IPlayer {
    * EnergyHeatConversionModel.
    */
   energyHeatConversion: EnergyHeatConversionModel | undefined;
+  /**
+   * Transient (NOT serialized) snapshot of the OCEAN ADJACENCY bonus this player
+   * just earned by placing next to oceans — set in `Game.grantPlacementBonuses`,
+   * serialized self-only in the player model, cleared at the start of the next
+   * input (Player.process). Names the paying neighbours so the premium placement
+   * scene can pay out one coin per ocean without re-deriving the rule. See
+   * OceanAdjacencyBonusModel.
+   */
+  lastOceanBonus: OceanAdjacencyBonusModel | undefined;
   /**
    * Transient (NOT serialized) snapshot of the start-of-game setup applied by
    * this player's corporation — its starting bonuses + the M€ paid for the

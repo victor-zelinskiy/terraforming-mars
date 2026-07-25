@@ -85,6 +85,94 @@ export const BONUS_HOVER_PX = 14;
  *  hovering bonuses over the placed tile for one calm beat. */
 export const BONUS_HANDOFF_BREATH_MS = 90;
 
+/**
+ * OCEAN ADJACENCY — "I built next to water, so THAT water paid me".
+ *
+ * A second, self-contained reward beat that runs AFTER the printed-bonus one
+ * (never on top of it): each ocean the server says paid (`lastOceanBonus`)
+ * wakes locally at the shore it shares with the new tile, condenses ONE M€
+ * coin out of that light, and hands it to the shared Resource Transfer
+ * Framework — one ocean, one coin, always. The flight, the halo, the touchdown
+ * and the delta chip are the framework's, unchanged; only this entrance is new.
+ */
+/** The water's response at the shared shore (glow + expanding ring). */
+export const OCEAN_PULSE_MS = 300;
+/** How far into the pulse the coin starts condensing out of the lit water. */
+export const OCEAN_COIN_LEAD_MS = 120;
+/** Condensation → contour → gold mass → numeral + sheen (the whole birth). */
+export const OCEAN_COIN_FORM_MS = 420;
+/** The calm breath before the water wakes (after the tile — or the printed
+ *  bonuses — has settled). The cause is read before the consequence starts. */
+export const OCEAN_BEAT_BREATH_MS = 140;
+/** Coin float above the water surface at birth (px @ uiScale 1). */
+export const OCEAN_COIN_LIFT_PX = 12;
+/** Number of condensation particles per coin — a hint of matter, not confetti. */
+export const OCEAN_COIN_SPARKS = 6;
+
+/**
+ * Where along the ocean→tile axis a coin is BORN: 0 = the ocean's centre,
+ * 0.5 = the shared border (the midpoint between two adjacent hex centres).
+ * Kept inside the water so the coin visually BELONGS to the ocean and never
+ * overlaps the tile that was just placed.
+ */
+export const OCEAN_COIN_T = 0.30;
+/** Where the water's own response is centred — nearer the shared shore. */
+export const OCEAN_PULSE_T = 0.40;
+/** How far back INTO the ocean the pulse's light starts before sliding to the
+ *  shore (as a fraction of the ocean hex width) — the directional sheen. */
+export const OCEAN_PULSE_DRIFT = 0.22;
+
+/** When the ocean beat's transfer wave launches, relative to the beat's start:
+ *  the first coin has just finished forming. Later coins ride the SAME per-index
+ *  stagger as the wave itself, so every chip is born on its own finished coin. */
+export function oceanWaveLeadMs(): number {
+  return OCEAN_COIN_LEAD_MS + OCEAN_COIN_FORM_MS;
+}
+
+/**
+ * A point on the segment from the OCEAN's centre toward the placed tile's
+ * centre, at fraction `t`, lifted `liftPx` off the surface.
+ *
+ * Everything is viewport space (both rects come from `getBoundingClientRect`),
+ * so board pan/zoom, the `--board-scale` transform and the TV `--con-ui-scale`
+ * are already baked in — there is no second coordinate system to keep in sync.
+ * Degenerate input (coincident centres) degrades to the ocean's own centre.
+ */
+export function oceanEdgePoint(ocean: TileRect, tile: TileRect, t: number, liftPx = 0): TransferPoint {
+  const ox = ocean.x + ocean.w / 2;
+  const oy = ocean.y + ocean.h / 2;
+  const dx = (tile.x + tile.w / 2) - ox;
+  const dy = (tile.y + tile.h / 2) - oy;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1) {
+    return {x: ox, y: oy - liftPx};
+  }
+  return {x: ox + dx * t, y: oy + dy * t - liftPx};
+}
+
+/** The unit vector ocean → tile (the shore direction), for the pulse's drift. */
+export function oceanShoreDirection(ocean: TileRect, tile: TileRect): TransferPoint {
+  const dx = (tile.x + tile.w / 2) - (ocean.x + ocean.w / 2);
+  const dy = (tile.y + tile.h / 2) - (ocean.y + ocean.h / 2);
+  const dist = Math.hypot(dx, dy);
+  return dist < 1 ? {x: 0, y: -1} : {x: dx / dist, y: dy / dist};
+}
+
+/**
+ * The transfer manifest of an ocean payout: ONE `perOcean` M€ spec per paying
+ * ocean — never merged into a single fat chip, because the whole point is that
+ * the player sees each ocean contribute its own share. (The DELTA CHIP is
+ * aggregated separately, by releasing the panel hold once at the last
+ * touchdown — see `consoleTilePlacement.runOceanBonusBeat`.)
+ */
+export function oceanTransferSpecs(count: number, perOcean: number): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (let i = 0; i < count; i++) {
+    out.push({channel: 'stock', resource: 'megacredits', amount: perOcean});
+  }
+  return out;
+}
+
 /** Departure pose: the tile is picked up CLOSE to the camera… */
 export const TILE_START_SCALE = 1.32;
 /** …with a slight carried tilt that fully unwinds before the approach. */

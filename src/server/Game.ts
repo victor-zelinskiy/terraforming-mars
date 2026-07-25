@@ -1840,12 +1840,23 @@ export class Game implements IGame, Logger {
       }
     }
 
-    const {oceans: adjacentOceanCount, megacredits: oceanAdjacencyBonus} = this.board.oceanAdjacencyBonus(player, space);
+    const {oceans: adjacentOceanCount, megacredits: oceanAdjacencyBonus, spaceIds: oceanSpaceIds} =
+      this.board.oceanAdjacencyBonus(player, space);
     if (oceanAdjacencyBonus > 0) {
       this.events.withSource({kind: 'oceanBonus'}, () => {
         player.stock.add(Resource.MEGACREDITS, oceanAdjacencyBonus);
         this.log('${0} gained ${1} ${2} from ${3} ocean(s)', (b) => b.player(player).number(oceanAdjacencyBonus).resource(Resource.MEGACREDITS).number(adjacentOceanCount));
       });
+      // Presentation-only breakdown for the premium placement scene: WHICH
+      // neighbours paid, so it can materialize one M€ coin at each of them.
+      // Self-only + transient (cleared on the player's next input); the money
+      // above is the single source of truth, this never moves any.
+      player.lastOceanBonus = {
+        spaceId: space.id,
+        oceanSpaceIds,
+        perOcean: player.oceanBonus,
+        megacredits: oceanAdjacencyBonus,
+      };
     }
 
     // TODO(kberg): these might not apply for some bonuses, e.g. Frontier Town.

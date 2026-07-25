@@ -16,6 +16,7 @@ import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
 import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
+import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
 
@@ -167,6 +168,13 @@ export interface PlayerViewModel extends ViewModel {
   // amount). Drives the premium paired "Energy −X → Heat +X" transition
   // animation. Absent whenever no energy was converted. See EnergyHeatConversionModel.
   energyHeatConversion?: EnergyHeatConversionModel;
+  // Self-only, transient (cleared on the next input): the ocean-adjacency M€ the
+  // player just earned by placing a tile next to oceans, broken down to the
+  // PAYING neighbour spaces. The rule is applied server-side; this only names
+  // the sources so the premium placement scene can materialize one M€ coin per
+  // triggered ocean instead of re-deriving board adjacency client-side. Absent
+  // whenever a placement earned no ocean bonus. See OceanAdjacencyBonusModel.
+  lastOceanBonus?: OceanAdjacencyBonusModel;
   // Self-only, transient (cleared on the next input): the start-of-game setup the
   // corporation just applied — its starting bonuses + the M€ paid for the bought
   // project cards, over the pre-corp baseline. Drives the premium start flow's

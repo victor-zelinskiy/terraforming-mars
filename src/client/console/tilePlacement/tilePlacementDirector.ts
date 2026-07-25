@@ -36,6 +36,10 @@ export type TileStageEls = {
   shadow: HTMLElement | undefined,
   /** The printed-bonus icon proxies (reward beat), in bonusProxies order. */
   bonusIcons: ReadonlyArray<HTMLElement>,
+  /** The ocean-activation pulses (ocean beat), in oceanCoins order. */
+  oceanPulses: ReadonlyArray<HTMLElement>,
+  /** The materializing M€ coin roots (ocean beat), in oceanCoins order. */
+  oceanCoins: ReadonlyArray<HTMLElement>,
 };
 
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
@@ -242,6 +246,136 @@ export function playBonusHandoff(els: TileStageEls, opts: {count: number}): void
   });
 }
 
+// ── the OCEAN beat: the water pays, coin by coin ───────────────────────────
+
+export type OceanActivationOpts = {
+  /** Per-ocean launch delay (ms, motion-scaled) — index-aligned with the
+   *  transfer wave's own stagger, so cause and payment stay locked. */
+  delays: ReadonlyArray<number>;
+  /** Unit shore direction (ocean → placed tile), index-aligned. */
+  shores: ReadonlyArray<TransferPoint>;
+  /** How far back into the water each pulse's light starts, in px. */
+  drifts: ReadonlyArray<number>;
+  pulseMs: number;
+};
+
+/**
+ * THE WATER RESPONDS (fire-and-forget). A local swell at the shore the ocean
+ * shares with the new tile: the light gathers a little way out and SLIDES to
+ * the shore while a thin ring opens over it, then settles. Cold turquoise,
+ * confined to the shoreline — economic infrastructure waking up, not magic.
+ */
+export function playOceanActivation(els: TileStageEls, opts: OceanActivationOpts): void {
+  els.oceanPulses.forEach((el, i) => {
+    const wash = el.querySelector<HTMLElement>('.con-tileplace__oceanpulse-wash');
+    const ring = el.querySelector<HTMLElement>('.con-tileplace__oceanpulse-ring');
+    const shore = opts.shores[i] ?? {x: 0, y: -1};
+    const drift = opts.drifts[i] ?? 0;
+    const delay = (opts.delays[i] ?? 0) / 1000;
+    const ms = opts.pulseMs / 1000;
+    if (wash !== null) {
+      // The sheen travels FROM the open water TO the materialization point.
+      gsap.set(wash, {
+        x: -shore.x * drift, y: -shore.y * drift,
+        scale: 0.5, autoAlpha: 0, transformOrigin: 'center center',
+      });
+      gsap.timeline({delay})
+        .to(wash, {x: 0, y: 0, scale: 1, autoAlpha: 0.55, duration: ms * 0.55, ease: 'power2.out'}, 0)
+        .to(wash, {scale: 1.1, autoAlpha: 0, duration: ms * 0.75, ease: 'power1.inOut'}, ms * 0.55);
+    }
+    if (ring !== null) {
+      gsap.set(ring, {scale: 0.34, autoAlpha: 0, transformOrigin: 'center center'});
+      gsap.timeline({delay: delay + ms * 0.12})
+        .to(ring, {autoAlpha: 0.7, duration: ms * 0.2, ease: 'power1.out'}, 0)
+        .to(ring, {scale: 1.15, autoAlpha: 0, duration: ms * 0.95, ease: 'power2.out'}, 0);
+    }
+  });
+}
+
+export type OceanCoinOpts = {
+  /** Per-coin launch delay (ms, motion-scaled) — index-aligned. */
+  delays: ReadonlyArray<number>;
+  /** How far into the ocean's pulse the condensation begins (ms). */
+  leadMs: number;
+  /** The whole birth: condensation → contour → gold mass → numeral + sheen. */
+  formMs: number;
+  /** Condensation particles per coin. */
+  sparks: number;
+};
+
+/**
+ * THE COIN CONDENSES (fire-and-forget). Never a fade-in and never a bare
+ * `scale 0 → 1`: particles gather out of the lit water (mostly gold, a couple
+ * of cold blue ones that keep the tie to the ocean), the outer METAL CONTOUR
+ * closes first, the gold MASS fills it, and only then the M€ numeral strikes
+ * with one short specular sweep. The scaffold ring then dissolves, leaving a
+ * coin that is pixel-identical to the framework's own M€ chip — which is what
+ * makes the handoff into the flight invisible.
+ */
+export function playOceanCoinMaterialize(els: TileStageEls, opts: OceanCoinOpts): void {
+  const f = opts.formMs / 1000;
+  els.oceanCoins.forEach((root, i) => {
+    const delay = ((opts.delays[i] ?? 0) + opts.leadMs) / 1000;
+    const ring = root.querySelector<HTMLElement>('.con-tileplace__coin-ring');
+    const body = root.querySelector<HTMLElement>('.con-tileplace__coin-body');
+    const value = root.querySelector<HTMLElement>('.con-tileplace__coin-value');
+    const sheen = root.querySelector<HTMLElement>('.con-tileplace__coin-sheen');
+    const sparks = Array.from(root.querySelectorAll<HTMLElement>('.con-tileplace__coin-spark'));
+
+    gsap.set(root, {autoAlpha: 1, scale: 1, y: 0, transformOrigin: 'center center'});
+    const radius = (root.offsetWidth || 44) * 0.9;
+    const tl = gsap.timeline({delay});
+
+    sparks.forEach((s, k) => {
+      // Deterministic gather ring (no randomness — replays identically, and a
+      // second coin in the same wave is rotated so the two never read as twins).
+      const angle = (k / Math.max(1, opts.sparks)) * Math.PI * 2 + i * 0.7;
+      gsap.set(s, {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        scale: 0.7, autoAlpha: 0, transformOrigin: 'center center',
+      });
+      tl.to(s, {autoAlpha: 0.95, duration: f * 0.12, ease: 'power1.out'}, f * 0.02 + k * 0.012);
+      tl.to(s, {x: 0, y: 0, scale: 0.35, autoAlpha: 0, duration: f * 0.46, ease: 'power2.in'}, f * 0.06 + k * 0.012);
+    });
+    if (ring !== null) {
+      // The contour closes in — the coin's outline exists before its substance.
+      gsap.set(ring, {scale: 1.5, autoAlpha: 0, transformOrigin: 'center center'});
+      tl.to(ring, {scale: 1, autoAlpha: 1, duration: f * 0.34, ease: 'back.out(1.1)'}, f * 0.2);
+      tl.to(ring, {autoAlpha: 0, duration: f * 0.22, ease: 'power1.in'}, f * 0.78);
+    }
+    if (body !== null) {
+      // …then the gold mass fills that outline.
+      gsap.set(body, {scale: 0.28, autoAlpha: 0, transformOrigin: 'center center'});
+      tl.to(body, {scale: 1, autoAlpha: 1, duration: f * 0.4, ease: 'power2.out'}, f * 0.42);
+    }
+    if (value !== null) {
+      gsap.set(value, {scale: 0.72, autoAlpha: 0, transformOrigin: 'center center'});
+      tl.to(value, {scale: 1, autoAlpha: 1, duration: f * 0.26, ease: 'back.out(1.6)'}, f * 0.7);
+    }
+    if (sheen !== null) {
+      gsap.set(sheen, {xPercent: -160, rotation: 18, autoAlpha: 0, transformOrigin: 'center center'});
+      tl.to(sheen, {autoAlpha: 0.75, duration: f * 0.1, ease: 'power1.out'}, f * 0.74);
+      tl.to(sheen, {xPercent: 160, duration: f * 0.32, ease: 'power1.inOut'}, f * 0.74);
+      tl.to(sheen, {autoAlpha: 0, duration: f * 0.14, ease: 'power1.in'}, f * 0.92);
+    }
+  });
+}
+
+/**
+ * THE HANDOFF (fire-and-forget — the framework's chip wave is the awaited
+ * half): each formed coin lifts off and dissolves exactly as its transfer chip
+ * is born at the same point, on the SAME per-index stagger. One continuous
+ * object: condensed here, carried from here.
+ */
+export function playOceanCoinHandoff(els: TileStageEls, opts: {delays: ReadonlyArray<number>, uiScale: number}): void {
+  const lift = Math.max(3, Math.round(5 * opts.uiScale));
+  els.oceanCoins.forEach((root, i) => {
+    gsap.timeline({delay: ((opts.delays[i] ?? 0) + 70) / 1000})
+      .to(root, {y: -lift, scale: 1.04, autoAlpha: 0, duration: 0.16, ease: 'power1.in'}, 0);
+  });
+}
+
 /** Abort/unmount: kill every tween on the stage (idempotent). */
 export function killTileTweens(els: TileStageEls): void {
   gsap.killTweensOf(els.tile);
@@ -255,4 +389,10 @@ export function killTileTweens(els: TileStageEls): void {
     gsap.killTweensOf(els.shadow);
   }
   els.bonusIcons.forEach((el) => gsap.killTweensOf(el));
+  // The ocean pieces animate their CHILDREN (wash / ring / body / sparks), so
+  // killing the roots alone would leave sub-tweens running on a detached tree.
+  [...els.oceanPulses, ...els.oceanCoins].forEach((el) => {
+    gsap.killTweensOf(el);
+    el.querySelectorAll<HTMLElement>('*').forEach((child) => gsap.killTweensOf(child));
+  });
 }

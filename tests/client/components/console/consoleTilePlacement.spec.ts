@@ -1,6 +1,8 @@
 import {expect} from 'chai';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {SpaceId} from '@/common/Types';
+import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {TileType} from '@/common/TileType';
 import {
   armTilePlacement,
@@ -156,6 +158,95 @@ describe('consoleTilePlacement (the animation transaction)', () => {
     await endTilePlacement();
     await settle(5);
     expect(tilePlacementState.phase).to.eq('idle');
+  });
+
+  describe('ocean adjacency (the water pays, coin by coin)', () => {
+    const oceanBonus = (spaceId: string, oceans: Array<string>, perOcean = 2): OceanAdjacencyBonusModel => ({
+      spaceId: spaceId as SpaceId,
+      oceanSpaceIds: oceans as Array<SpaceId>,
+      perOcean,
+      megacredits: oceans.length * perOcean,
+    });
+
+    it('holds the WHOLE payout as ONE M€ entry — the delta chip is aggregated', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05')];
+      const next = [space('05', {tileType: TileType.CITY, color: 'red'})];
+      expect(detectTilePlacement(prev, next, {oceanBonus: oceanBonus('05', ['32', '33', '41'])})).to.not.be.undefined;
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      // 3 oceans × 2 M€ — one hold, so ONE release → one «+6 M€» chip, never
+      // three «+2 M€» ones. (The three COINS tell the per-ocean story.)
+      expect(heldStock('megacredits')).to.eq(6);
+      await endTilePlacement();
+      expect(panelRewardHold.active).to.be.false;
+      expect(heldStock('megacredits')).to.eq(0);
+      expect(isTilePlacementActive()).to.be.false;
+    });
+
+    it('composes with a printed M€ bonus on the same cell', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05', {bonus: [SpaceBonus.MEGACREDITS, SpaceBonus.PLANT]})];
+      const next = [space('05', {bonus: [SpaceBonus.MEGACREDITS, SpaceBonus.PLANT], tileType: TileType.CITY})];
+      expect(detectTilePlacement(prev, next, {oceanBonus: oceanBonus('05', ['32'])})).to.not.be.undefined;
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(heldStock('megacredits')).to.eq(3); // 1 printed + 1 ocean × 2
+      expect(heldStock('plants')).to.eq(1);
+      await endTilePlacement();
+      expect(heldStock('megacredits')).to.eq(0);
+    });
+
+    it('honours a raised per-ocean rate (Lakefront Resorts)', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05')];
+      const next = [space('05', {tileType: TileType.GREENERY})];
+      detectTilePlacement(prev, next, {oceanBonus: oceanBonus('05', ['32', '33'], 3)});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(heldStock('megacredits')).to.eq(6);
+      await endTilePlacement();
+    });
+
+    it('IGNORES a snapshot that names another space (stale / a second tile)', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05')];
+      const next = [space('05', {tileType: TileType.CITY})];
+      // The armed space is '05'; the server's snapshot is about '09'.
+      detectTilePlacement(prev, next, {oceanBonus: oceanBonus('09', ['32', '33'])});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(panelRewardHold.active).to.be.false; // nothing mis-attributed
+      await endTilePlacement();
+      expect(isTilePlacementActive()).to.be.false;
+    });
+
+    it('no adjacent oceans → no beat, no hold, not one extra frame', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05')];
+      const next = [space('05', {tileType: TileType.CITY})];
+      detectTilePlacement(prev, next, {oceanBonus: undefined});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(panelRewardHold.active).to.be.false;
+      const before = Date.now();
+      await endTilePlacement();
+      expect(Date.now() - before).to.be.lessThan(120);
+    });
+
+    it('an abort between the commit and the beat drops the ocean hold too', async () => {
+      armTilePlacement({spaceId: '05'});
+      const prev = [space('05')];
+      const next = [space('05', {tileType: TileType.CITY})];
+      detectTilePlacement(prev, next, {oceanBonus: oceanBonus('05', ['32'])});
+      await runTilePlacement(prev, next);
+      seedTilePlacementRewardHold();
+      expect(heldStock('megacredits')).to.eq(2);
+      abortTilePlacement();
+      expect(panelRewardHold.active).to.be.false;
+      await endTilePlacement(); // clean no-op
+      expect(isTilePlacementActive()).to.be.false;
+    });
   });
 
   it('sequential placements stay separate transactions (fresh arm re-keys)', async () => {

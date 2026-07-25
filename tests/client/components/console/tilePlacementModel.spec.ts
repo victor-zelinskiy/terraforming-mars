@@ -8,6 +8,8 @@ import {
   TILE_START_SCALE, TILE_FLIGHT_MS, TILE_SETTLE_MS,
   OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
   BONUS_PRELIFT_START_T, BONUS_RISE_MS,
+  oceanEdgePoint, oceanShoreDirection, oceanTransferSpecs, oceanWaveLeadMs,
+  OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds,
@@ -210,6 +212,70 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       // …and the icons are FULLY hovering before the landing settles, so a
       // bonus is never covered and never pops out from beneath the tile.
       expect(riseStart + BONUS_RISE_MS).to.be.at.most(TILE_FLIGHT_MS + TILE_SETTLE_MS);
+    });
+  });
+
+  describe('ocean adjacency geometry (one ocean, one coin, at ITS shore)', () => {
+    // Two adjacent hexes, 100px apart on the x axis: the ocean on the left,
+    // the freshly placed tile on the right. Rects are viewport-space (what
+    // getBoundingClientRect returns), so board zoom / TV scale need no
+    // compensation — they are already inside the numbers.
+    const ocean = {x: 0, y: 0, w: 100, h: 100};
+    const tile = {x: 100, y: 0, w: 100, h: 100};
+
+    it('the coin is born INSIDE the water, on the side facing the new tile', () => {
+      const p = oceanEdgePoint(ocean, tile, OCEAN_COIN_T);
+      // Toward the tile from the ocean's centre…
+      expect(p.x).to.be.greaterThan(50);
+      // …but short of the shared border (the midpoint of the two centres), so
+      // the coin never overlaps the tile that was just placed.
+      expect(p.x).to.be.lessThan(100);
+      expect(p.y).to.eq(50);
+    });
+
+    it('the water wakes NEARER the shared shore than the coin is born', () => {
+      expect(OCEAN_PULSE_T).to.be.greaterThan(OCEAN_COIN_T);
+      expect(OCEAN_PULSE_T).to.be.at.most(0.5); // never past the border
+      const pulse = oceanEdgePoint(ocean, tile, OCEAN_PULSE_T);
+      const coin = oceanEdgePoint(ocean, tile, OCEAN_COIN_T);
+      expect(pulse.x).to.be.greaterThan(coin.x);
+    });
+
+    it('the coin floats ABOVE the surface so it never sits inside the tile art', () => {
+      const lifted = oceanEdgePoint(ocean, tile, OCEAN_COIN_T, 12);
+      expect(lifted.y).to.eq(oceanEdgePoint(ocean, tile, OCEAN_COIN_T).y - 12);
+    });
+
+    it('works in every direction — the shore is derived, never assumed', () => {
+      const above = {x: 100, y: -100, w: 100, h: 100};
+      const p = oceanEdgePoint(ocean, above, OCEAN_COIN_T);
+      expect(p.x).to.be.greaterThan(50); // toward it on x…
+      expect(p.y).to.be.lessThan(50); // …and up on y
+      const dir = oceanShoreDirection(ocean, above);
+      expect(Math.hypot(dir.x, dir.y)).to.be.closeTo(1, 1e-9);
+      expect(dir.y).to.be.lessThan(0);
+    });
+
+    it('degenerate geometry (coincident hexes) degrades to the ocean centre', () => {
+      const p = oceanEdgePoint(ocean, ocean, OCEAN_COIN_T, 5);
+      expect(p).to.deep.eq({x: 50, y: 45});
+      expect(oceanShoreDirection(ocean, ocean)).to.deep.eq({x: 0, y: -1});
+    });
+
+    it('one ocean = one coin: N specs of the per-ocean rate, never merged', () => {
+      const specs = oceanTransferSpecs(3, 2);
+      expect(specs).to.have.length(3);
+      expect(specs.every((s) => s.channel === 'stock' && s.resource === 'megacredits' && s.amount === 2)).to.be.true;
+      // A raised rate (Lakefront Resorts) rides the same shape.
+      expect(oceanTransferSpecs(2, 3).map((s) => s.amount)).to.deep.eq([3, 3]);
+      expect(oceanTransferSpecs(0, 2)).to.have.length(0);
+    });
+
+    it('the wave launches exactly when the first coin has finished forming', () => {
+      expect(oceanWaveLeadMs()).to.eq(OCEAN_COIN_LEAD_MS + OCEAN_COIN_FORM_MS);
+      // The condensation starts INSIDE the water's response, not after it —
+      // the coin is made OF that light, not announced by it.
+      expect(OCEAN_COIN_LEAD_MS).to.be.lessThan(OCEAN_COIN_FORM_MS);
     });
   });
 });

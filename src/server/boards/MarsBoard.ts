@@ -191,10 +191,16 @@ export class MarsBoard extends Board {
    * (NOT applied). The single source of truth for the ocean-adjacency rule —
    * called by BOTH the live grant path (`Game.grantPlacementBonuses`) and the
    * read-only `BoardInformationEngine` preview, so the two can never drift.
+   *
+   * `spaceIds` names the paying neighbours (board clockwise order). It costs
+   * nothing here — the filter already computed them — and it is what lets the
+   * grant path publish an honest per-ocean breakdown to the client
+   * (`OceanAdjacencyBonusModel`) instead of a bare count, without anyone
+   * re-implementing the adjacency rule.
    */
-  public oceanAdjacencyBonus(player: IPlayer, space: Space): {oceans: number, megacredits: number} {
-    const oceans = this.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
-    return {oceans, megacredits: oceans * player.oceanBonus};
+  public oceanAdjacencyBonus(player: IPlayer, space: Space): {oceans: number, megacredits: number, spaceIds: ReadonlyArray<SpaceId>} {
+    const spaceIds = this.getAdjacentSpaces(space).filter(Board.isOceanSpace).map((s) => s.id);
+    return {oceans: spaceIds.length, megacredits: spaceIds.length * player.oceanBonus, spaceIds};
   }
 
   /**

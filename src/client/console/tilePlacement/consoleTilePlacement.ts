@@ -19,10 +19,17 @@
  *   tile paints silently under the proxy), SEEDS the panel reward hold for
  *   the printed stock bonuses, then COMMITS (payment / TR / everything else
  *   fires normally — the bonuses stay held), and finally endTilePlacement()
- *   plays the post-commit REWARD BEAT: the printed icons rise through the
- *   placed tile, materialize into physical resource chips (the shared
- *   Resource Transfer Framework, per-icon origins) and pay out — each
- *   touchdown releases its metric, firing that delta chip at the contact.
+ *   plays the post-commit REWARD BEATS, in sequence:
+ *     1. PRINTED bonuses — the cell's own icons rise through the placed tile,
+ *        materialize into physical resource chips (the shared Resource
+ *        Transfer Framework, per-icon origins) and pay out; each touchdown
+ *        releases its metric, firing that delta chip at the contact.
+ *     2. OCEAN ADJACENCY — every neighbouring ocean the SERVER says paid
+ *        (`thisPlayer.lastOceanBonus`) wakes at the shore it shares with the
+ *        new tile and condenses ONE M€ coin, which rides the SAME framework
+ *        onto the M€ row. Its delta chip is AGGREGATED (one release at the
+ *        last coin's touchdown), because the per-ocean story is told by the
+ *        coins, not by three identical «+2 M€» chips.
  *   abortTilePlacement() is wired into every error path and a safety timer.
  *
  * Ownership map:
@@ -52,20 +59,25 @@ import {
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {
   TilePlacementPhase, PlacementBonus, TileRect,
   placementBonuses, verifyPlacement, findSpace, applySpacePreview,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
   BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
+  OCEAN_PULSE_MS, OCEAN_COIN_LEAD_MS, OCEAN_COIN_FORM_MS, OCEAN_BEAT_BREATH_MS,
+  OCEAN_COIN_LIFT_PX, OCEAN_COIN_SPARKS, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
+  oceanEdgePoint, oceanShoreDirection, oceanTransferSpecs, oceanWaveLeadMs,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
   placeBonusProxies, playBonusPreLift, playBonusHandoff, killTileTweens,
+  playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type BonusProxy = {
   id: number,
@@ -73,6 +85,27 @@ export type BonusProxy = {
   icon: string,
   /** The printed icon's LIVE rect, captured while the cell was uncovered. */
   rect: TileRect,
+};
+
+/**
+ * ONE paying ocean, ready to be staged: where its water wakes, where its coin
+ * condenses, and which way the shore faces. All viewport-space (measured live
+ * from the real hexes), so board zoom / TV scale need no compensation.
+ */
+export type OceanCoinProxy = {
+  id: number,
+  /** The M€ this single ocean pays (the numeral struck on its coin). */
+  amount: number,
+  /** The coin's birth point — just inside the water, lifted off the surface. */
+  at: TransferPoint,
+  /** The activation pulse's centre — nearer the shared shore. */
+  pulseAt: TransferPoint,
+  /** The pulse's box size (proportional to the ocean hex, never fixed px). */
+  pulseSize: number,
+  /** Unit vector ocean → placed tile (the light drifts along it). */
+  shore: TransferPoint,
+  /** How far back into the water the pulse's light starts, in px. */
+  drift: number,
 };
 
 export const tilePlacementState = reactive({
@@ -86,6 +119,8 @@ export const tilePlacementState = reactive({
   aresExtension: false,
   /** The printed stock-bonus icons that rise + pay out after the commit. */
   bonusProxies: [] as Array<BonusProxy>,
+  /** The paying adjacent oceans, staged for the ocean beat (empty otherwise). */
+  oceanCoins: [] as Array<OceanCoinProxy>,
   reducedMotion: false,
 });
 
@@ -97,6 +132,9 @@ let sceneSafety: number | undefined;
 let runResolve: (() => void) | undefined;
 /** The printed bonuses the reward beat carries (captured at detect). */
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
+/** The SERVER's ocean-adjacency breakdown for THIS placement (captured at
+ *  detect, matched on the armed space) — the ocean beat's manifest. */
+let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
 /** The armed hex's live rect (captured at detect — post pan/zoom truth). */
 let hexRect: TileRect | undefined;
 /** The REAL printed-icon container we blanked under the proxies (the
@@ -167,6 +205,7 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   clearTimers();
   claimed = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   hexRect = undefined;
   restoreHeldBonuses();
   bonusesHovering = false;
@@ -179,6 +218,7 @@ export function armTilePlacement(opts: {spaceId: string}): void {
   tilePlacementState.spaceId = opts.spaceId;
   tilePlacementState.tileType = undefined;
   tilePlacementState.bonusProxies = [];
+  tilePlacementState.oceanCoins = [];
   tilePlacementState.reducedMotion = consoleReducedMotionActive();
   armSafety = window.setTimeout(() => abortTilePlacement(), TILE_ARM_SAFETY_MS);
 }
@@ -189,11 +229,16 @@ export function armTilePlacement(opts: {spaceId: string}): void {
  * (empty → tiled; hazards and covered-tile replacements ride their own
  * premium sequences), then CAPTURES the cell's live geometry + printed
  * bonus icons while the cell is still uncovered on the displayed board.
+ *
+ * `opts.oceanBonus` is the SERVER's own ocean-adjacency breakdown for this
+ * response (`thisPlayer.lastOceanBonus`): it is accepted only when it names
+ * the space WE armed, so a stale snapshot from an earlier input — or the
+ * second tile of a two-tile card — can never mis-attribute a payout.
  */
 export function detectTilePlacement(
   prevSpaces: ReadonlyArray<SpaceModel> | undefined,
   newSpaces: ReadonlyArray<SpaceModel> | undefined,
-  opts?: {aresExtension?: boolean},
+  opts?: {aresExtension?: boolean, oceanBonus?: OceanAdjacencyBonusModel},
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
     return undefined;
@@ -220,6 +265,9 @@ export function detectTilePlacement(
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
   pendingBonuses = space !== undefined ? placementBonuses(space.bonus) : [];
   tilePlacementState.bonusProxies = captureBonusIcons(spaceId, pendingBonuses);
+  const ocean = opts?.oceanBonus;
+  pendingOceanBonus = ocean !== undefined && ocean.spaceId === spaceId &&
+    ocean.megacredits > 0 && ocean.oceanSpaceIds.length > 0 ? ocean : undefined;
   return {spaceId};
 }
 
@@ -327,7 +375,8 @@ async function executeApproach(
 }
 
 /**
- * Seed the PANEL REWARD HOLD for the cell's printed bonuses — the caller MUST
+ * Seed the PANEL REWARD HOLD for the cell's printed bonuses AND the ocean
+ * adjacency M€ — the caller MUST
  * call this in the SAME SYNCHRONOUS BLOCK as `updatePlayerView` (WaitingFor's
  * commit path), never from inside the flight's promise chain: the panel shows
  * `committed − held`, so seeding a micro-task early lets Vue flush a frame
@@ -340,15 +389,25 @@ async function executeApproach(
  * defaults — those chips ride the commit).
  */
 export function seedTilePlacementRewardHold(): void {
-  if (!tilePlacementState.active || bonusHoldSeeded || pendingBonuses.length === 0) {
+  if (!tilePlacementState.active || bonusHoldSeeded ||
+      (pendingBonuses.length === 0 && pendingOceanBonus === undefined)) {
     return;
   }
   if (tilePlacementState.reducedMotion) {
     pendingBonuses = [];
+    pendingOceanBonus = undefined;
     return;
   }
   bonusHoldSeeded = true;
-  beginPanelRewardHold(pendingBonuses.map((b) => b.spec));
+  const specs = pendingBonuses.map((b) => b.spec);
+  if (pendingOceanBonus !== undefined) {
+    // ONE hold entry for the whole ocean payout (the map is keyed by resource
+    // and additive, so this composes with a printed M€ bonus). It is released
+    // in ONE go at the LAST coin's touchdown — which is exactly what makes the
+    // delta chip read «+6 M€», not three separate «+2 M€».
+    specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
+  }
+  beginPanelRewardHold(specs);
 }
 
 /**
@@ -364,12 +423,36 @@ export async function endTilePlacement(): Promise<void> {
     return;
   }
   const bonuses = pendingBonuses;
+  const ocean = pendingOceanBonus;
   pendingBonuses = [];
-  if (bonuses.length === 0 || tilePlacementState.reducedMotion) {
+  pendingOceanBonus = undefined;
+  if (tilePlacementState.reducedMotion || (bonuses.length === 0 && ocean === undefined)) {
     finish();
     return;
   }
   tilePlacementState.phase = 'rewarding';
+  // The two payouts of one placement run in SEQUENCE, never on top of each
+  // other: what the CELL was printed with, then what the NEIGHBOURING WATER
+  // pays. Each awaits its own touchdowns (not the absorb tail), so the second
+  // beat starts while the first chips are still being absorbed — continuous,
+  // not queued.
+  if (bonuses.length > 0) {
+    await runPrintedBonusBeat(bonuses);
+  }
+  if (ocean !== undefined && tilePlacementState.active) {
+    await runOceanBonusBeat(ocean);
+  }
+  // Belt-and-braces: any hold a degraded transfer left behind snaps to the
+  // committed truth now (its chip fires marginally late, never lost).
+  clearPanelRewardHold();
+  finish();
+}
+
+/**
+ * The PRINTED-BONUS beat (the cell's own icons). Unchanged behaviour, lifted
+ * into its own function so the ocean beat can follow it.
+ */
+async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Promise<void> {
   const els = stage?.els();
   const ui = conUiScale();
   const hoverPx = Math.round(BONUS_HOVER_PX * ui);
@@ -402,10 +485,134 @@ export async function endTilePlacement(): Promise<void> {
     arrival: 'auto',
     onArrive: (spec) => releasePanelRewardHold(spec),
   });
-  // Belt-and-braces: any hold a degraded transfer left behind snaps to the
-  // committed truth now (its chip fires marginally late, never lost).
-  clearPanelRewardHold();
-  finish();
+}
+
+/**
+ * The OCEAN ADJACENCY beat — "I built next to water, so THAT water paid me".
+ *
+ * The server already granted the M€ and already told us WHICH neighbours paid
+ * (`OceanAdjacencyBonusModel`); this only stages it. Per paying ocean: the
+ * shoreline it shares with the new tile wakes, an M€ coin CONDENSES out of
+ * that light just inside the water, and the coin is handed to the shared
+ * Resource Transfer Framework — same arc, same halo, same touchdown as every
+ * other reward in the game. One ocean → one coin, always.
+ *
+ * The DELTA CHIP is deliberately AGGREGATED: the panel hold covers the whole
+ * payout and is released ONCE, at the last coin's touchdown, so the counter
+ * moves after the money has physically arrived and announces «+2/+4/+6 M€»
+ * once — the individual sources are told by the coins themselves.
+ *
+ * Degrades honestly at every step (no stage, unmeasurable hexes, rAF stall):
+ * the hold is released and the reward is announced by its delta chip alone.
+ */
+async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void> {
+  let released = false;
+  const releaseTotal = () => {
+    if (released) {
+      return;
+    }
+    released = true;
+    releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
+  };
+
+  const ui = conUiScale();
+  const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
+  if (tileRect === undefined || typeof document === 'undefined') {
+    releaseTotal();
+    return;
+  }
+  const coins = buildOceanCoins(bonus, tileRect, ui);
+  if (coins.length === 0) {
+    releaseTotal();
+    return;
+  }
+
+  // One calm breath after the cause (the tile — or the printed icons — has
+  // settled), then the water responds.
+  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  if (!tilePlacementState.active) {
+    releaseTotal();
+    return;
+  }
+  tilePlacementState.oceanCoins = coins;
+  await nextTick(); // the layer mounts the pulses + coins
+  const els = stage?.els();
+  if (!tilePlacementState.active || els === undefined ||
+      els.oceanCoins.length !== coins.length || els.oceanPulses.length !== coins.length) {
+    tilePlacementState.oceanCoins = [];
+    releaseTotal();
+    return;
+  }
+
+  // The cascade uses the framework's OWN per-index wave stagger, so each coin
+  // finishes forming exactly as its chip is born on it — for any ocean count,
+  // and compressing automatically when several oceans pay at once.
+  const delays = coins.map((_, i) => motionMs(transferWaveDelayMs(i, coins.length)));
+  playOceanActivation(els, {
+    delays,
+    shores: coins.map((c) => c.shore),
+    drifts: coins.map((c) => c.drift),
+    pulseMs: motionMs(OCEAN_PULSE_MS),
+  });
+  playOceanCoinMaterialize(els, {
+    delays,
+    leadMs: motionMs(OCEAN_COIN_LEAD_MS),
+    formMs: motionMs(OCEAN_COIN_FORM_MS),
+    sparks: OCEAN_COIN_SPARKS,
+  });
+  await wait(motionMs(oceanWaveLeadMs()));
+  if (!tilePlacementState.active) {
+    tilePlacementState.oceanCoins = [];
+    releaseTotal();
+    return;
+  }
+  playOceanCoinHandoff(els, {delays, uiScale: ui});
+
+  let arrived = 0;
+  await runResourceTransfers({
+    specs: oceanTransferSpecs(coins.length, bonus.perOcean),
+    origins: coins.map((c) => c.at),
+    source: {point: {x: tileRect.x + tileRect.w / 2, y: tileRect.y + tileRect.h / 2}},
+    arrival: 'auto',
+    // ONE aggregated release, only once EVERY coin of this bonus has landed.
+    // (`onArrive` can legitimately fire more than once per spec — the wave's
+    // safety net re-releases everything — hence the guard inside releaseTotal.)
+    onArrive: () => {
+      arrived++;
+      if (arrived >= coins.length) {
+        releaseTotal();
+      }
+    },
+  });
+  releaseTotal(); // no-op when the arrivals already did it
+  tilePlacementState.oceanCoins = [];
+}
+
+/**
+ * Measure the paying oceans and derive each coin's staging geometry. Oceans
+ * whose hex isn't on screen (an off-grid slot, a mid-scroll measurement) are
+ * skipped — their share still rides the aggregated delta chip, so the money is
+ * never misreported, only its source is not illustrated.
+ */
+function buildOceanCoins(bonus: OceanAdjacencyBonusModel, tileRect: TileRect, uiScale: number): Array<OceanCoinProxy> {
+  const lift = Math.round(OCEAN_COIN_LIFT_PX * uiScale);
+  const out: Array<OceanCoinProxy> = [];
+  bonus.oceanSpaceIds.forEach((id, i) => {
+    const rect = measureBoardHexRect(id);
+    if (rect === undefined) {
+      return;
+    }
+    out.push({
+      id: i,
+      amount: bonus.perOcean,
+      at: oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift),
+      pulseAt: oceanEdgePoint(rect, tileRect, OCEAN_PULSE_T),
+      pulseSize: Math.round(rect.w * 0.66),
+      shore: oceanShoreDirection(rect, tileRect),
+      drift: Math.round(rect.w * OCEAN_PULSE_DRIFT),
+    });
+  });
+  return out;
 }
 
 /**
@@ -435,10 +642,12 @@ export function abortTilePlacement(): void {
   bonusesHovering = false;
   bonusHoldSeeded = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   hexRect = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
+  tilePlacementState.oceanCoins = [];
   freeRunGate();
   void nextTick(() => {
     if (tilePlacementState.phase === 'failed') {
@@ -463,10 +672,12 @@ function finish(): void {
   bonusesHovering = false;
   bonusHoldSeeded = false;
   pendingBonuses = [];
+  pendingOceanBonus = undefined;
   hexRect = undefined;
   tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
+  tilePlacementState.oceanCoins = [];
   void nextTick(() => {
     if (tilePlacementState.phase === 'done') {
       tilePlacementState.phase = 'idle';

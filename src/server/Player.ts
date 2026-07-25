@@ -79,6 +79,7 @@ import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {StartingSetupModel, StartingSetupSnapshot} from '../common/models/StartingSetupModel';
 import {UnderworldExpansion} from './underworld/UnderworldExpansion';
 import {Counter} from './behavior/Counter';
@@ -205,6 +206,10 @@ export class Player implements IPlayer {
   // player's production phase (self-only, cleared at the start of the next
   // input). See IPlayer.energyHeatConversion.
   public energyHeatConversion: EnergyHeatConversionModel | undefined = undefined;
+  // Transient snapshot of the ocean-adjacency M€ this player just earned by
+  // placing next to oceans — names the paying neighbours (self-only, cleared at
+  // the start of the next input). See IPlayer.lastOceanBonus.
+  public lastOceanBonus: OceanAdjacencyBonusModel | undefined = undefined;
   // Transient snapshot of the start-of-game corporation setup (starting bonuses
   // + card payment) over the pre-corp baseline (self-only, cleared at the start
   // of the next input). Drives the premium start flow's explicit reveal stages.
@@ -2307,6 +2312,11 @@ export class Player implements IPlayer {
     // (For Supercapacitors the conversion is APPLIED inside this very input's
     // deferred callback, which runs after this line, so its snapshot survives.)
     this.energyHeatConversion = undefined;
+    // Likewise the ocean-adjacency breakdown: it exists only to let the premium
+    // placement scene pay out one coin per ocean for the tile THIS input placed.
+    // (The grant runs inside this very input, after this line, so its snapshot
+    // survives — exactly like the reveal / conversion above.)
+    this.lastOceanBonus = undefined;
     // The start-of-game setup reveal is a one-shot at the ceremony; the player's
     // next input (their first prelude / corp action) means that moment passed.
     this.startingSetup = undefined;

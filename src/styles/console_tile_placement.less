@@ -100,11 +100,141 @@
         filter: drop-shadow(0 .18rem .3rem rgba(10, 5, 2, 0.55));
         will-change: transform, opacity;
     }
+
+    /* ── OCEAN ADJACENCY: the water pays, coin by coin ────────────────────
+       One paying ocean → one local swell at the shore it shares with the new
+       tile → one M€ coin condensed out of that light. The coin ends as a
+       PIXEL TWIN of `.con-transfer__chip--mc` (same art, same 2.9rem, same
+       dark-ink numeral) so handing it to the flight is invisible. */
+
+    /* The swell: a cold turquoise wash that drifts to the shore under a thin
+       opening ring. Local — sized from the ocean hex, never a field-wide
+       effect; soft-edged so it lights the water without hiding tiles. */
+    &__oceanpulse {
+        position: fixed;
+        pointer-events: none;
+    }
+    &__oceanpulse-wash,
+    &__oceanpulse-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        opacity: 0;
+        visibility: hidden; /* the director wakes them on their cascade slot */
+        will-change: transform, opacity;
+    }
+    &__oceanpulse-wash {
+        background: radial-gradient(50% 50% at 50% 50%,
+            rgba(186, 246, 255, 0.85) 0%,
+            rgba(96, 208, 240, 0.45) 42%,
+            transparent 74%);
+        mix-blend-mode: screen;
+    }
+    &__oceanpulse-ring {
+        border: .12rem solid rgba(196, 244, 255, 0.75);
+        box-shadow:
+            0 0 .5rem rgba(120, 220, 250, 0.5),
+            inset 0 0 .4rem rgba(150, 230, 255, 0.35);
+    }
+
+    /* The coin: rem-sized (so it grows with the TV profile exactly like the
+       transfer chip) and self-centred on its birth point via a negative
+       margin — the director only animates transform/opacity. */
+    &__oceancoin {
+        position: fixed;
+        width: 2.9rem;
+        height: 2.9rem;
+        margin: -1.45rem 0 0 -1.45rem;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        will-change: transform, opacity;
+    }
+
+    /* Condensation: a few grains of value gathering out of the lit water —
+       mostly gold, a couple cold-blue ones keeping the tie to the ocean. */
+    &__coin-spark {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: .34rem;
+        height: .34rem;
+        margin: -.17rem 0 0 -.17rem;
+        border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, #fff4c8 0%, #e8b53a 55%, transparent 78%);
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+
+        &--cool {
+            background: radial-gradient(50% 50% at 50% 50%, #eaffff 0%, #7fd8f2 55%, transparent 78%);
+        }
+    }
+
+    /* The metal CONTOUR closes first — the coin's outline exists before its
+       substance, then dissolves once the gold has filled it. */
+    &__coin-ring {
+        position: absolute;
+        inset: -.1rem;
+        border-radius: 50%;
+        border: .11rem solid rgba(255, 226, 150, 0.9);
+        box-shadow:
+            0 0 .45rem rgba(255, 205, 96, 0.55),
+            inset 0 0 .3rem rgba(255, 240, 200, 0.5);
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
+
+    /* …then the gold MASS: the game's own M€ tile, identical to the chip the
+       resource-transfer framework will carry away. */
+    &__coin-body {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: url('./assets/resources/megacredit.png') center / 100% 100% no-repeat;
+        filter: drop-shadow(0 .25rem .5rem rgba(0, 0, 0, 0.6));
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
+    /* The struck numeral — the same dark ink on gold as the transfer chip. */
+    &__coin-value {
+        color: #2a1f04;
+        font-size: 1.2rem;
+        font-weight: 800;
+        line-height: 1.15;
+        font-variant-numeric: tabular-nums;
+        text-shadow: 0 .05rem 0 rgba(255, 244, 205, 0.55);
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
+    /* One short specular pass over the finished face — the mint mark. */
+    &__coin-sheen {
+        position: absolute;
+        top: -20%;
+        left: 0;
+        width: 42%;
+        height: 140%;
+        /* The tilt is applied by the director (GSAP owns this element's whole
+           transform — a CSS `rotate` here would be overwritten by the sweep). */
+        background: linear-gradient(90deg, transparent, rgba(255, 253, 235, 0.92), transparent);
+        opacity: 0;
+        visibility: hidden;
+        will-change: transform, opacity;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
     /* The controller degrades the scene wholesale under reduced motion;
        belt-and-braces the decorative movers. */
     .con-tileplace__touch,
-    .con-tileplace__shadow { display: none; }
+    .con-tileplace__shadow,
+    .con-tileplace__oceanpulse,
+    .con-tileplace__coin-spark,
+    .con-tileplace__coin-sheen { display: none; }
 }
