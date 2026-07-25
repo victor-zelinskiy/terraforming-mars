@@ -500,7 +500,7 @@
            details); cards with no structured rules render no panel and the
            fit reclaims the width.
            When opened as an INSPECT DOSSIER (X from the Action Browser) the
-           panel becomes a two-tab ПРАВИЛА/ИСТОРИЯ box (LB/RB switch, handled
+           panel becomes a two-tab ПРАВИЛА/СТАТИСТИКА box (LB/RB switch, handled
            in handleZoomIntent); every other inspect keeps the plain rules. -->
       <template v-if="zoomSideVisible" #side="side">
         <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
@@ -3430,7 +3430,7 @@ export default defineComponent({
       return name !== undefined && cardHasRules(name);
     },
     /** The right SIDE panel shows for a card with structured rules OR whenever
-     *  the viewer is an inspect DOSSIER (which always offers ИСТОРИЯ, even if a
+     *  the viewer is an inspect DOSSIER (which always offers СТАТИСТИКА, even if a
      *  card had no rules). Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
       return this.zoomHasRules || this.consoleCardZoom.inspect !== undefined;
@@ -6310,7 +6310,7 @@ export default defineComponent({
         return true;
       }
       const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
-      // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/ИСТОРИЯ tab (never browse —
+      // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/СТАТИСТИКА tab (never browse —
       // the inspect list is always ONE card, so prev/next are free here). A
       // repeated press just re-sets the same tab (idempotent, no overlap).
       if (this.consoleCardZoom.inspect !== undefined) {
@@ -6360,7 +6360,7 @@ export default defineComponent({
         }
         return true;
       case 'nextSection':
-        // In the inspect dossier RB switches to ИСТОРИЯ (else browse next).
+        // In the inspect dossier RB switches to СТАТИСТИКА (else browse next).
         if (this.consoleCardZoom.inspect !== undefined) {
           setConsoleZoomInspectTab('history');
         } else {

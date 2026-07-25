@@ -29,7 +29,7 @@ function stat(over: Partial<EffectOverlayStat>): EffectOverlayStat {
   };
 }
 
-describe('buildActionInspectHistory (fullscreen inspect ИСТОРИЯ)', () => {
+describe('buildActionInspectHistory (fullscreen inspect СТАТИСТИКА)', () => {
   it('splits card-wide facts from the action footprint', () => {
     const h = buildActionInspectHistory(
       stat({triggerCount: 3, tr: 2, lastTrigger: {generation: 5, impact: {} as never}}),

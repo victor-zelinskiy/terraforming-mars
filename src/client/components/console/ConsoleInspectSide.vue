@@ -8,13 +8,13 @@
                 :class="{'con-inspect-side__tab--active': tab === 'rules'}"
                 role="tab" :aria-selected="tab === 'rules'">
           <span class="con-inspect-side__tab-mark" aria-hidden="true">§</span>
-          <span>{{ $t('Card rules') }}</span>
+          <span>{{ $t('Rules') }}</span>
         </button>
         <button type="button" class="con-inspect-side__tab"
                 :class="{'con-inspect-side__tab--active': tab === 'history'}"
                 role="tab" :aria-selected="tab === 'history'">
           <span class="con-inspect-side__tab-mark" aria-hidden="true">◷</span>
-          <span>{{ $t('History') }}</span>
+          <span>{{ $t('Statistics') }}</span>
         </button>
         <span class="con-inspect-side__tab-key" aria-hidden="true"><GamepadGlyph control="bumperR" /></span>
       </div>
@@ -40,7 +40,7 @@
 /**
  * CONSOLE fullscreen-card INSPECT DOSSIER — the two-tab right panel of the
  * card viewer's inspect mode (the Action Browser's X-inspect). ONE stable
- * glass box hosting a ПРАВИЛА ⇄ ИСТОРИЯ tab bar; LB/RB (owned by the shell)
+ * glass box hosting a ПРАВИЛА ⇄ СТАТИСТИКА tab bar; LB/RB (owned by the shell)
  * switch `tab`, only the BODY content crossfades — the big card, the backdrop
  * and the box geometry never move (a page swap of a dossier, never a new
  * modal). Reduced motion drops the swap to an instant content change.

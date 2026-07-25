@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
- * Console Action Browser · the inspect DOSSIER (ПРАВИЛА / ИСТОРИЯ).
+ * Console Action Browser · the inspect DOSSIER (ПРАВИЛА / СТАТИСТИКА).
  *
  * Drives a real solo Venus game to a turn holding «Газосборники» (Extractor
  * Balloons — a MULTI-action card whose on-play adds 3 floaters, so its card
@@ -13,7 +13,7 @@ import * as path from 'node:path';
  *     (`__detail-usage` gone) — only the calm inspect hint remains;
  *  2. X opens the fullscreen dossier on ПРАВИЛА (the card rules), the big card
  *     stable on the left;
- *  3. RB switches to ИСТОРИЯ — the card-history block (stored floaters) shows,
+ *  3. RB switches to СТАТИСТИКА — the card-history block (stored floaters) shows,
  *     the same card unchanged;
  *  4. LB returns to ПРАВИЛА, the big card never re-created;
  *  5. B closes the dossier back to the browser, focus preserved.
@@ -99,7 +99,7 @@ for (const profile of PROFILES) {
       screen: {width: profile.width, height: profile.height},
     });
 
-    test('the per-game history moves to the X-inspect ПРАВИЛА/ИСТОРИЯ tabs', async ({page, request}) => {
+    test('the per-game history moves to the X-inspect ПРАВИЛА/СТАТИСТИКА tabs', async ({page, request}) => {
       test.setTimeout(480_000);
 
       // Find a Venus deal holding Extractor Balloons (Газосборники).
@@ -208,9 +208,9 @@ for (const profile of PROFILES) {
         .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width).catch(() => 0);
       await shoot(page, `${profile.tag}-02-inspect-rules`);
 
-      // ── 3. RB → ИСТОРИЯ; the card is unchanged, the history block shows. ─
+      // ── 3. RB → СТАТИСТИКА; the card is unchanged, the history block shows. ─
       await key(page, 'KeyE', 900); // RB (+ the content crossfade settles)
-      const histTab = page.locator('.con-inspect-side__tab--active', {hasText: 'ИСТОРИЯ'});
+      const histTab = page.locator('.con-inspect-side__tab--active', {hasText: 'СТАТИСТИКА'});
       await expect(histTab).toHaveCount(1);
       await expect(page.locator('.con-cardhist')).toHaveCount(1);
       // Card history block present (stored floaters from the on-play +3).

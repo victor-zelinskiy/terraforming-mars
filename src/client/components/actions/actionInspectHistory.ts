@@ -2,7 +2,7 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {ActionBranchScope, ActionUsageViewModel, getActionUsageSummary} from '@/client/components/actions/actionUsageSummary';
 
 /**
- * PURE view-model for the fullscreen INSPECT «ИСТОРИЯ» tab of a blue-card /
+ * PURE view-model for the fullscreen INSPECT «СТАТИСТИКА» tab of a blue-card /
  * corporation action (the console Action Browser's X-inspect). It splits the
  * whole-game per-card ACTION aggregate ({@link EffectOverlayStat}, from
  * `actionOverlayStats`) into the TWO semantic blocks the brief asks for:

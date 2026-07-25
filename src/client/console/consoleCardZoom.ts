@@ -168,7 +168,7 @@ export function slotZoomOrigin(
 /**
  * The INSPECT-DOSSIER context (the Action Browser's X-inspect). When present,
  * the fullscreen viewer's right panel becomes a two-tab dossier — ПРАВИЛА
- * (the card's structured rules, the default) ⇄ ИСТОРИЯ (this pre-built
+ * (the card's structured rules, the default) ⇄ СТАТИСТИКА (this pre-built
  * per-game history snapshot for the SELECTED action option). LB/RB switch the
  * tab (browsing is never active here — the inspect list is always ONE card).
  * A pure read-only snapshot: the viewer never mutates it.
@@ -234,7 +234,7 @@ export type ConsoleZoomExtra = {
   discards?: () => void,
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
-  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
+  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect?: ConsoleZoomInspect,
 };
 
@@ -269,7 +269,7 @@ export const consoleCardZoom = reactive({
   discards: undefined as (() => void) | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
-  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / ИСТОРИЯ tabs). */
+  /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect: undefined as ConsoleZoomInspect | undefined,
   /** The active dossier tab (default ПРАВИЛА — X keeps its familiar meaning). */
   inspectTab: 'rules' as ConsoleZoomInspectTab,

@@ -67,7 +67,7 @@
 
 <script lang="ts">
 /**
- * CONSOLE fullscreen-card HISTORY PANEL — the ИСТОРИЯ tab of the inspect
+ * CONSOLE fullscreen-card HISTORY PANEL — the СТАТИСТИКА tab of the inspect
  * dossier (the console Action Browser's X-inspect). Read-only presentation of
  * the pre-built {@link ActionInspectHistory} snapshot, split into the two
  * semantic blocks the brief asks for:

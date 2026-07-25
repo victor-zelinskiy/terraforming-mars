@@ -198,7 +198,7 @@
           </div>
 
           <!-- The per-game USAGE HISTORY moved to the fullscreen dossier
-               (X → «Осмотреть» → ИСТОРИЯ) — the browser stays a decision
+               (X → «Осмотреть» → СТАТИСТИКА) — the browser stays a decision
                surface. A calm hint points there so the data is never "lost". -->
           <div class="con-cardactions__detail-history-hint">
             <GamepadGlyph control="secondary" />
@@ -314,7 +314,7 @@
  *  (COMPLETE cost→reward formulas — static chips + player-chosen variable
  *  ranges, never a lossy simplification), two labeled faceted filters counted
  *  BY VARIANT, and a persistent inspector anchored by the source-card
- *  THUMBNAIL (X lifts it into the fullscreen ПРАВИЛА/ИСТОРИЯ dossier).
+ *  THUMBNAIL (X lifts it into the fullscreen ПРАВИЛА/СТАТИСТИКА dossier).
  *
  *  ACTION FOCUS — A recomposes the SAME frame around the chosen action (the
  *  browse layer yields in place, its filters / selection / scroll surviving
@@ -913,7 +913,7 @@ export default defineComponent({
       // per-branch scope (undefined for a single-action card), the resource
       // stored on the card right now, and the option index/total. The
       // `buildActionInspectHistory` split is the ONE source of truth for the
-      // dossier's ИСТОРИЯ tab (the browser no longer renders it inline).
+      // dossier's СТАТИСТИКА tab (the browser no longer renders it inline).
       const group = this.focusedGroup;
       const entry = this.entries.find((e) => e.cardName === tile.cardName);
       const branches = this.previews[tile.cardName]?.branches ?? [];
@@ -934,7 +934,7 @@ export default defineComponent({
       });
     },
     /** X inside the ACTION FOCUS stage: inspect the SOURCE card (same
-     *  ПРАВИЛА/ИСТОРИЯ dossier), lifting from the stage's hero card slot —
+     *  ПРАВИЛА/СТАТИСТИКА dossier), lifting from the stage's hero card slot —
      *  the draft underneath survives untouched and the player returns to the
      *  exact same focus state on close. */
     onInspectSource(): void {

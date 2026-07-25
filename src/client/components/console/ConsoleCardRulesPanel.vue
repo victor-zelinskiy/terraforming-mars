@@ -1,11 +1,11 @@
 <template>
   <div class="con-zoom-rules-host" :class="{'con-zoom-rules-host--closing': closing, 'con-zoom-rules-host--embedded': embedded}">
-    <aside class="con-zoom-rules" aria-label="Card rules">
+    <aside class="con-zoom-rules" aria-label="Rules">
       <!-- The head is HIDDEN when embedded in the inspect dossier — the
-           dossier's own ПРАВИЛА/ИСТОРИЯ tab bar replaces it. -->
+           dossier's own ПРАВИЛА/СТАТИСТИКА tab bar replaces it. -->
       <div v-if="!embedded" class="con-zoom-rules__head">
         <span class="con-zoom-rules__mark" aria-hidden="true">§</span>
-        <span class="con-zoom-rules__title">{{ $t('Card rules') }}</span>
+        <span class="con-zoom-rules__title">{{ $t('Rules') }}</span>
       </div>
       <ConsoleScrollArea class="con-zoom-rules__scroll" axis="y">
         <div class="con-zoom-rules__body">
