@@ -81,6 +81,22 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
+async function expectLocalizedTabBarToFit(page: Page): Promise<void> {
+  const fit = await page.locator('.con-inspect-side__tabs').evaluate((tabs) => {
+    const bounds = tabs.getBoundingClientRect();
+    const keys = tabs.querySelectorAll('.con-inspect-side__tab-key');
+    const rightKey = keys.item(keys.length - 1).getBoundingClientRect();
+    return {
+      clientWidth: tabs.clientWidth,
+      scrollWidth: tabs.scrollWidth,
+      panelRight: bounds.right,
+      rightKeyRight: rightKey.right,
+    };
+  });
+  expect(fit.scrollWidth, 'localized tab labels stay inside the dossier').toBeLessThanOrEqual(fit.clientWidth + 1);
+  expect(fit.rightKeyRight, 'the RB glyph stays inside the tab bar').toBeLessThanOrEqual(fit.panelRight + 1);
+}
+
 // The full end-to-end drive (wizard → play a card → wheel → browser →
 // inspect) runs on the 1080 logical profile — a deterministic, complete
 // proof of the feature. The 4K TV profile is a rem-scale recomposition of
@@ -97,6 +113,33 @@ for (const profile of PROFILES) {
       viewport: {width: profile.width, height: profile.height},
       deviceScaleFactor: 1,
       screen: {width: profile.width, height: profile.height},
+    });
+
+    test('localized tab labels keep the RB glyph inside the dossier', async ({page}) => {
+      await page.goto('/');
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        document.documentElement.classList.add('console-mode', 'console-native', 'con-profile-tv');
+        document.body.replaceChildren();
+        document.body.insertAdjacentHTML('afterbegin', `
+          <div class="con-inspect-side">
+            <aside class="con-inspect-side__box">
+              <div class="con-inspect-side__tabs" role="tablist">
+                <span class="con-inspect-side__tab-key"><span class="gp-glyph gp-glyph--pill">LB</span></span>
+                <button class="con-inspect-side__tab con-inspect-side__tab--active">
+                  <span class="con-inspect-side__tab-mark">§</span><span>ПРАВИЛА</span>
+                </button>
+                <button class="con-inspect-side__tab">
+                  <span class="con-inspect-side__tab-mark">◷</span><span>СТАТИСТИКА</span>
+                </button>
+                <span class="con-inspect-side__tab-key"><span class="gp-glyph gp-glyph--pill">RB</span></span>
+              </div>
+            </aside>
+          </div>
+        `);
+      });
+
+      await expectLocalizedTabBarToFit(page);
     });
 
     test('the per-game history moves to the X-inspect ПРАВИЛА/СТАТИСТИКА tabs', async ({page, request}) => {
@@ -204,6 +247,7 @@ for (const profile of PROFILES) {
       await expect(rulesTab).toHaveCount(1);
       await expect(page.locator('.con-inspect-side .con-zoom-rules')).toHaveCount(1);
       await expect(page.locator('.con-cardhist')).toHaveCount(0);
+      await expectLocalizedTabBarToFit(page);
       const cardSig = await page.locator('.con-zoom .card-zoom-stage .pcard, .con-zoom .card-zoom-stage .card-container').first()
         .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width).catch(() => 0);
       await shoot(page, `${profile.tag}-02-inspect-rules`);
