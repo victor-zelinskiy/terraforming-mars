@@ -137,9 +137,39 @@ export function untakenNameMultiset(): Map<CardName, number> {
   return m;
 }
 
-/** The oldest non-dismissed batch that still has untaken cards (the one shown). */
+/*
+ * FOLLOW-UP HOLD — a batch whose cards are ALL taken but whose payout is not
+ * finished: the Pluto colony bonus pays "draw N, then discard N", and the
+ * discard is presented as the closing step of the SAME reveal modal (otherwise
+ * the player is asked to throw a card away by a prompt that looks unrelated to
+ * the trade they just made). While held, the batch stays CURRENT, so the modal
+ * keeps the foreground, input stays routed to it, and the follow-up prompt's own
+ * surface is not opened behind it. The overlay releases the hold when the player
+ * presses the discard CTA — the only way out of the modal.
+ */
+let followUpHoldId: number | undefined;
+
+/** Keep a fully-taken batch on screen for its mandatory follow-up step. */
+export function holdRevealForFollowUp(id: number): void {
+  followUpHoldId = id;
+}
+
+/** The player took the follow-up step (or the batch is gone) — let it close. */
+export function releaseRevealFollowUp(): void {
+  followUpHoldId = undefined;
+}
+
+export function isRevealHeldForFollowUp(id: number | undefined): boolean {
+  return id !== undefined && followUpHoldId === id;
+}
+
+/**
+ * The oldest non-dismissed batch that still has untaken cards — or one being
+ * HELD for a mandatory follow-up (see above).
+ */
 export function currentRevealEvent(): DrawnCardEntry | undefined {
-  return drawnCardsState.events.find((e) => !e.dismissed && untakenCount(e) > 0);
+  return drawnCardsState.events.find((e) =>
+    !e.dismissed && (untakenCount(e) > 0 || isRevealHeldForFollowUp(e.id)));
 }
 
 /**

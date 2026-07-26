@@ -81,17 +81,32 @@
 .con-reveal__bonus-zone {
     position: relative;
     display: flex;
-    align-items: center;
+    /* flex-START, like the strip itself: `center` made a focused card inside the
+       zone grow in BOTH directions while an income card grew downward only. */
+    align-items: flex-start;
     gap: inherit; /* the strip's card rhythm continues inside the zone */
-    margin-left: .4rem;
-    padding: 1.1rem .9rem .8rem;
-    border-radius: .6rem;
-    background: linear-gradient(180deg, fade(@con-mint, 5%), fade(@con-mint, 1%) 72%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 17%);
+    margin-left: 1.5rem; /* room for the frame drawn outside the content box */
+    /*
+     * NO PADDING. The frame used to be a padded box, which pushed its cards
+     * 1.1rem BELOW the income cards — on a 4K TV that is a ~44 px step and the
+     * row read crooked (and the flying covers, which land on these rects, came
+     * down on a different line than their neighbours). The frame is now purely
+     * decorative: ::before inflates it OUTSIDE the content box, so the bonus
+     * cards sit on exactly the same line as every other card in the strip.
+     */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: -1.05rem -.85rem -.75rem;
+        border-radius: .6rem;
+        background: linear-gradient(180deg, fade(@con-mint, 5%), fade(@con-mint, 1%) 72%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 17%);
+        pointer-events: none;
+    }
 }
 .con-reveal__bonus-zone-label {
     position: absolute;
-    top: -.62rem;
+    top: -1.62rem;
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
@@ -185,4 +200,65 @@
     .con-coltile__cell--reward-settled { animation: none; }
     .con-coltrade-reward-enter-active,
     .con-coltrade-reward-leave-active { transition-duration: 1ms; }
+}
+
+/* ── The reveal modal's MANDATORY closing step ──────────────────────────────
+   Pluto's colony bonus is "draw N, then discard N", so the discard is the last
+   step of THIS payout — hosted here rather than arriving as a prompt the player
+   cannot connect to the trade. Locked (and honestly labelled) until every card
+   of the payout has been taken; there is no dismiss action while it is owed. */
+.con-reveal__closer {
+    align-self: center;
+    display: flex;
+    /* ONE compact ROW: the modal's height is already spent on the cards, and a
+       stacked block was clipped by its bottom edge. */
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .2rem .8rem;
+    margin-top: .4rem;
+    padding: .32rem .95rem .34rem;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, fade(@con-mint, 6%), rgba(8, 14, 20, 0.5));
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 20%);
+    transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease,
+        background calc(220ms * var(--motion-scale, 1)) ease;
+
+    &--ready {
+        background: linear-gradient(180deg, fade(@con-mint, 13%), rgba(8, 14, 20, 0.5));
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%),
+            0 0 1.1rem fade(@con-mint, 22%);
+    }
+}
+.con-reveal__closer-note {
+    font-size: .6rem;
+    letter-spacing: .06rem;
+    text-transform: uppercase;
+    color: @con-text-dim;
+}
+.con-reveal__closer-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .8rem;
+    font-weight: 700;
+    color: @con-text;
+
+    /* LOCKED is dimmed, never see-through: the step must stay readable as the
+       thing that finishes the payout (the fork's disabled-control rule). */
+    &--locked {
+        filter: saturate(0.45) brightness(0.72);
+    }
+}
+.con-reveal__closer-count {
+    padding: 0 .3rem;
+    border-radius: .3rem;
+    font-size: .7rem;
+    color: fade(@con-mint, 92%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 34%);
+}
+.con-reveal__closer-lock {
+    font-size: .58rem;
+    color: @con-amber;
 }

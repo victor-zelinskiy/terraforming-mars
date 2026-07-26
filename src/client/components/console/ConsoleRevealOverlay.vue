@@ -106,7 +106,12 @@
                      grouping wrapper: the slots keep the strip's zoom /
                      focus / cover-landing contracts. -->
                 <div v-if="drawnGrouped.bonus.length > 0" class="con-reveal__bonus-zone">
-                  <span class="con-reveal__bonus-zone-label">{{ $t('Colony bonus payout') }}</span>
+                  <span class="con-reveal__bonus-zone-label">
+                    {{ $t('Colony bonus payout') }}
+                    <!-- SEVERAL cubes on this colony pay several cards into the
+                         SAME zone — the count says so outright. -->
+                    <b v-if="drawnGrouped.bonus.length > 1">×{{ drawnGrouped.bonus.length }}</b>
+                  </span>
                   <div v-for="entry in drawnGrouped.bonus" :key="entry.card.name + '#' + entry.index"
                        class="con-cards__slot con-start__deal"
                        :style="dealDelay(entry.pos)"
@@ -126,6 +131,25 @@
                 <span class="con-reveal__pager-s">/</span>
                 <span class="con-reveal__pager-n">{{ drawnUntaken.length }}</span>
                 <span class="con-reveal__pager-b">]</span>
+              </div>
+              <!--
+                THE PAYOUT'S CLOSING STEP — Pluto's colony bonus is "draw N, then
+                discard N", so the discard belongs to THIS modal, not to a prompt
+                that arrives afterwards looking unrelated. Mandatory: there is no
+                way out of the modal except through it, and it stays locked until
+                every card of the payout (bonus AND trade income) has been taken.
+              -->
+              <div v-if="discardStep !== undefined" class="con-reveal__closer"
+                   :class="{'con-reveal__closer--ready': discardStepReady}">
+                <span class="con-reveal__closer-note">
+                  {{ $t('The colony bonus is completed by a discard') }}
+                </span>
+                <span class="con-reveal__closer-cta" :class="{'con-reveal__closer-cta--locked': !discardStepReady}">
+                  <GamepadGlyph control="confirm" />
+                  <span>{{ $t(discardStep.label) }}</span>
+                  <b v-if="discardStep.count > 1" class="con-reveal__closer-count">×{{ discardStep.count }}</b>
+                </span>
+                <span v-if="!discardStepReady" class="con-reveal__closer-lock">{{ $t(discardStep.lockedReason) }}</span>
               </div>
             </div>
             <!--
@@ -329,8 +353,11 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
-  DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, markAllTaken, markCardTaken,
+  DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
+  markCardTaken, releaseRevealFollowUp,
 } from '@/client/components/drawnCards/drawnCardsState';
+import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
+import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
@@ -378,7 +405,7 @@ export default defineComponent({
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
   },
-  emits: ['dismiss-result'],
+  emits: ['dismiss-result', 'discard-pick'],
   data() {
     return {
       focusIdx: 0,
@@ -471,7 +498,31 @@ export default defineComponent({
      * one still stays multi (never a jarring mid-session mode flip).
      */
     singleCardMode(): boolean {
+      // A colony-bonus discard is CLOSED inside this modal (see bonusDiscard), so
+      // even a one-card payout keeps the real modal — the headless fullscreen has
+      // nowhere to host the mandatory step. This is the 1-cube foreign-trade case:
+      // one bonus card, then discard one.
+      if (this.bonusDiscard !== undefined) {
+        return false;
+      }
       return this.mode === 'drawn' && this.drawnEvent !== undefined && this.drawnEvent.cards.length === 1;
+    },
+    /**
+     * THE PAYOUT ISN'T FINISHED: this trade's colony bonus pays "draw N, then
+     * discard N" (Pluto), and the server marked the pending discard prompt
+     * structurally (`colonyBonusDiscard`). The modal hosts that discard as its
+     * closing, MANDATORY step — the player reads the whole bonus as one thing
+     * instead of being handed a discard prompt that looks unrelated to the trade.
+     */
+    bonusDiscard(): ColonyBonusDiscardMeta | undefined {
+      return this.mode === 'drawn' ? this.playerView.waitingFor?.colonyBonusDiscard : undefined;
+    },
+    /** The closing step — ONE shared derivation with the shell's command bar. */
+    discardStep(): BonusDiscardStep | undefined {
+      return bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length);
+    },
+    discardStepReady(): boolean {
+      return this.discardStep?.ready === true;
     },
     /** The single received card (single-card mode). */
     singleCard(): CardModel | undefined {
@@ -550,19 +601,11 @@ export default defineComponent({
      */
     stripZoom(): number {
       const n = this.stripCount;
-      if (n <= 2) {
-        return 0.94;
-      }
-      if (n <= 3) {
-        return 0.82;
-      }
-      if (n <= 4) {
-        return 0.72;
-      }
-      if (n <= 6) {
-        return 0.6;
-      }
-      return 0.52;
+      const ladder = n <= 2 ? 0.94 : n <= 3 ? 0.82 : n <= 4 ? 0.72 : n <= 6 ? 0.6 : 0.52;
+      // The payout's closing step lives UNDER the strip, and the modal's height
+      // was already fully spent on the cards — without giving the row back a
+      // notch the step (and the bonus zone's caption) get clipped by the frame.
+      return this.discardStep !== undefined ? ladder * 0.88 : ladder;
     },
     /**
      * The base ladder rides two PROFILE factors resolved in CSS: the TV rem
@@ -850,12 +893,22 @@ export default defineComponent({
       switch (this.mode) {
       case 'drawn':
         if (action === 'primary') {
-          this.takeFocused();
+          // Once everything is taken, A IS the payout's closing step; while
+          // cards remain it keeps its ordinary "take the focused card" job.
+          if (this.discardStepReady) {
+            this.openDiscardPick();
+          } else {
+            this.takeFocused();
+          }
         } else if (action === 'inspect') {
           // P13 global rule: X reads the focused card fullscreen.
           this.zoomFocused();
         } else if (action === 'nextTab' || action === 'back') {
-          this.takeAll();
+          // Take-all is the shortcut, never an exit: with nothing left to take
+          // and a discard owed, the modal has no dismiss action at all.
+          if (this.drawnUntaken.length > 0) {
+            this.takeAll();
+          }
         }
         return;
       case 'result':
@@ -1115,14 +1168,38 @@ export default defineComponent({
         return;
       }
       const commit = () => {
-        if (this.drawnUntaken.length <= 1) {
-          closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
-        } else {
+        if (this.drawnUntaken.length > 1) {
           markCardTaken(e.id, entry.index);
+          return;
         }
+        // The LAST card. A payout that still owes its discard does NOT close:
+        // the cards land in the hand, and the modal stays up on its closing
+        // step (released + acknowledged when the player presses it).
+        if (this.bonusDiscard !== undefined) {
+          markCardTaken(e.id, entry.index);
+          holdRevealForFollowUp(e.id);
+          return;
+        }
+        closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {commit});
+    },
+    /**
+     * THE CLOSING STEP: release the held batch (ack the reveal) and hand the
+     * player over to the discard pick. The press IS the acknowledgement of the
+     * mandatory beat, so the shell opens the hand overlay straight away instead
+     * of announcing the prompt a second time — from the player's side the same
+     * payout simply continues into "now choose what goes".
+     */
+    openDiscardPick(): void {
+      const e = this.drawnEvent;
+      if (e === undefined || !this.discardStepReady) {
+        return;
+      }
+      releaseRevealFollowUp();
+      closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
+      this.$emit('discard-pick');
     },
     /** RT / B: take everything — the STACK intake gesture: the fan gathers
      *  into one back-stack above the hand dock (one confirmation pulse),
@@ -1133,7 +1210,14 @@ export default defineComponent({
       if (e === undefined) {
         return;
       }
-      const commit = () => closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+      const commit = () => {
+        if (this.bonusDiscard !== undefined) {
+          markAllTaken(e.id);
+          holdRevealForFollowUp(e.id);
+          return;
+        }
+        closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+      };
       const entries = this.drawnUntaken
         .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));
       void runHandIntake(entries, {mode: 'stack', commit});

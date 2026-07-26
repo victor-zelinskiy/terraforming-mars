@@ -7,6 +7,7 @@ import {AutomaColonies} from '../automa/AutomaColonies';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {MultiSet} from 'mnemonist';
+import {batchesColonyBonusPerRecipient} from '../colonies/colonyBonusBatching';
 
 export class GiveColonyBonus extends DeferredAction {
   private waitingFor = new MultiSet<PlayerId>();
@@ -47,8 +48,19 @@ export class GiveColonyBonus extends DeferredAction {
   }
 
   private giveColonyBonus(player: IPlayer): void {
-    if (this.waitingFor.get(player.id) ?? 0 > 0) {
-      this.waitingFor.remove(player.id);
+    const cubes = this.waitingFor.get(player.id) ?? 0;
+    if (cubes > 0) {
+      /*
+       * BATCHED bonuses resolve ALL of this recipient's cubes in one payout
+       * (Pluto: draw N, then discard N once) — see colonyBonusBatching.ts for
+       * why. Every other bonus keeps the per-cube fan-out: it is a plain grant,
+       * so paying twice is indistinguishable from paying double, and the
+       * per-cube loop is what lets an INTERACTIVE bonus prompt between cubes.
+       */
+      const batch = batchesColonyBonusPerRecipient(this.colony.metadata.colony.type) ? cubes : 1;
+      for (let i = 0; i < batch; i++) {
+        this.waitingFor.remove(player.id);
+      }
       // MarsBot never takes the printed colony bonus (nor any prompt): it gains
       // 1 resource into the matching storage area — Europa: 1 M€ into its
       // supply (Adding Expansions p.5).
@@ -61,7 +73,7 @@ export class GiveColonyBonus extends DeferredAction {
         this.giveColonyBonus(player);
         return;
       }
-      const input = this.colony.giveColonyBonus(player, true);
+      const input = this.colony.giveColonyBonus(player, true, batch);
       if (input !== undefined) {
         player.setWaitingFor(input, () => this.giveColonyBonus(player));
       } else {

@@ -311,8 +311,15 @@ export abstract class Colony implements IColony {
       {type: 'colony', colonyName: this.name};
   }
 
-  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false): undefined | PlayerInput {
-    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus);
+  /**
+   * `cubes` is how many of THIS recipient's cubes this call settles. It is 1 for
+   * every ordinary bonus (GiveColonyBonus fans those out per cube); a BATCHED
+   * bonus — Pluto's "draw N, then discard N" — is handed the recipient's whole
+   * cube count so it pays out once instead of prompting per cube
+   * (colonyBonusBatching.ts explains why).
+   */
+  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, cubes: number = 1): undefined | PlayerInput {
+    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', cubes);
   }
 
   /**
@@ -327,12 +334,12 @@ export abstract class Colony implements IColony {
    * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
    * is already a `colony` root, so re-sourcing there is a harmless no-op.
    */
-  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus'): undefined | PlayerInput {
+  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', cubes: number = 1): undefined | PlayerInput {
     return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
-      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit));
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, cubes));
   }
 
-  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus'): undefined | PlayerInput {
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', cubes: number = 1): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
@@ -382,15 +389,29 @@ export abstract class Colony implements IColony {
       action = DrawCards.keepSome(player, 1, {paying: true, logDrawnCard: true});
       break;
 
-    case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
+    case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE: {
       // Capture the trade-stamped source NOW — the deferred callback runs
       // later, when the trade-stamping window may have moved on.
       const drawAndDiscardSource = this.colonyRevealSource(benefit);
+      // BATCHED per recipient (colonyBonusBatching.ts): all of this player's
+      // cubes draw together and answer ONE discard-N prompt. `cubes` is 1 for a
+      // single cube, so the ordinary case is byte-identical to before.
+      const count = Math.max(1, cubes);
+      const discardTitle = count === 1 ?
+        this.name + ' colony bonus. Select a card to discard' :
+        message('${0} colony bonus. Select ${1} cards to discard', (b) => b.colony(this).number(count));
       player.defer(() => {
-        player.drawCard(1, {source: drawAndDiscardSource});
-        player.game.defer(new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard'), Priority.SUPERPOWER);
+        player.drawCard(count, {source: drawAndDiscardSource});
+        // SUPERPOWER keeps the discard ahead of the trade's own track reset (and
+        // of any other recipient's bonus), so the payout stays one tight beat.
+        player.game.defer(
+          new DiscardCards(player, count, count, discardTitle, {
+            colonyBonus: {colonyName: this.name, count},
+          }),
+          Priority.SUPERPOWER);
       });
       break;
+    }
 
     case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
       action = DrawCards.keepSome(player, quantity, {keepMax: 1});

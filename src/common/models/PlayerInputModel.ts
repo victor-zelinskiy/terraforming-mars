@@ -3,6 +3,7 @@ import {ColonyModel} from './ColonyModel';
 import type {ActionEffect} from './ActionPreviewModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
+import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {ProductionLossSource} from './ProductionLossSource';
@@ -145,6 +146,21 @@ export type SpendHeatPromptMeta = {
   amount: number;
 }
 
+/**
+ * Marks the DISCARD half of a colony bonus that pays "draw N, then discard N"
+ * (Pluto). Structural, never detected from the title: the console reveal modal
+ * reads it to host the discard as the FINAL, mandatory step of the SAME payout
+ * the drawn cards arrived in — the player must not be told to discard by a
+ * detached prompt that looks unrelated to the trade they just made.
+ *
+ * `count` is how many cards must go (one per cube the recipient owns on that
+ * colony), which is also what makes the pick single- or multi-select.
+ */
+export type ColonyBonusDiscardMeta = {
+  colonyName: ColonyName;
+  count: number;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -158,6 +174,7 @@ export type BaseInputModel = {
   placementContext?: PlacementContext;
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
+  colonyBonusDiscard?: ColonyBonusDiscardMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

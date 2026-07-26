@@ -32,6 +32,11 @@ export interface IColony {
   isFull(): boolean;
   addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void;
   trade(player: IPlayer, tradeOptions?: TradeOptions, bonusTradeOffset?: number): void;
-  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean): undefined | PlayerInput;
+  /**
+   * `cubes` = how many of this recipient's cubes the call settles (1 for the
+   * per-cube fan-out; the recipient's whole count for a BATCHED bonus — see
+   * colonyBonusBatching.ts).
+   */
+  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, cubes?: number): undefined | PlayerInput;
   serialize(): SerializedColony;
 }

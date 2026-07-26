@@ -28,6 +28,13 @@ import {TRADE_COVER_FLIGHT_MS} from '@/client/console/colonyTrade/colonyTradeMod
 /** BASE ms → seconds, through the fork-wide speed preset. */
 const s = (baseMs: number) => motionMs(baseMs) / 1000;
 
+/**
+ * How long a released real card takes to become opaque — the CSS transition in
+ * `console_board_bonus.less` (`.con-reveal--bonus-mode … .card-container`).
+ * The handoff waits it out before dissolving the proxy above it.
+ */
+export const CARD_RELEASE_MS = 160;
+
 export type TradeDirectorHandle = {kill: () => void};
 
 export type RectLike = {left: number, top: number, width: number, height: number};
@@ -154,18 +161,32 @@ export function runTradeCoverFlight(args: {
   return {kill: () => tl.kill()};
 }
 
-/** The proxies dissolve over the released real cards (never a swap). */
+/**
+ * The proxies dissolve over the released real cards (never a swap).
+ *
+ * ⚠️ THE LEAD-IN IS LOAD-BEARING. Releasing the cards flips
+ * `.con-reveal--bonus-held` off, and the card's own CSS transition fades it in
+ * over `CARD_RELEASE_MS`. Fading the proxy out at the SAME instant runs two
+ * opposing opacity ramps over the same pixels: mid-way both are ~50 %
+ * transparent and the board shows through — the reveal visibly BLINKS as the
+ * cards arrive. The proxy therefore holds fully opaque until the real card
+ * underneath is opaque, and only then dissolves — the crossfade the design
+ * always described ("never a swap") instead of a dip through nothing.
+ */
 export function runTradeCoversHandoff(args: {
   proxies: ReadonlyArray<HTMLElement>,
   reduced: boolean,
   onDone: () => void,
 }): TradeDirectorHandle {
   const tl = gsap.timeline({onComplete: args.onDone});
-  const dur = s(args.reduced ? 90 : 220);
+  const dur = s(args.reduced ? 90 : 260);
+  // Mirrors the `.con-reveal--bonus-mode` card release transition (160ms) in
+  // console_board_bonus.less — keep the two in step if either changes.
+  const leadIn = args.reduced ? 0 : s(CARD_RELEASE_MS);
   if (args.proxies.length === 0) {
     tl.to({}, {duration: dur});
   } else {
-    tl.to(args.proxies, {autoAlpha: 0, duration: dur, ease: 'power1.out'}, 0);
+    tl.to(args.proxies, {autoAlpha: 0, duration: dur, ease: 'power2.inOut'}, leadIn);
   }
   return {kill: () => tl.kill()};
 }

@@ -424,7 +424,8 @@
                             ref="revealOverlay"
                             :playerView="playerView"
                             :mode="consoleRevealMode"
-                            @dismiss-result="onDismissRevealResult" />
+                            @dismiss-result="onDismissRevealResult"
+                            @discard-pick="onRevealDiscardPick" />
     </transition>
 
     <!-- CTS T0: the honest guard for a prompt NO surface serves (the
@@ -974,6 +975,7 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/ConsoleHydroDrawLayer.vue';
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
+import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -1782,6 +1784,20 @@ export default defineComponent({
         return false;
       }
       return currentRevealEvent() !== undefined;
+    },
+    /**
+     * The reveal modal's MANDATORY closing step, when the pending prompt is the
+     * discard half of a colony bonus (Pluto — the server marks it structurally).
+     * `ready` once every card of the payout has been taken; the label is
+     * singular for one cube and plural for several.
+     */
+    revealDiscardCloser(): BonusDiscardStep | undefined {
+      if (this.consoleRevealMode !== 'drawn') {
+        return undefined;
+      }
+      const ev = currentRevealEvent();
+      const untaken = ev === undefined ? 0 : ev.cards.length - ev.takenIndices.size;
+      return bonusDiscardStep(this.playerView.waitingFor?.colonyBonusDiscard, untaken);
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
@@ -2965,7 +2981,11 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [];
         if (this.consoleRevealMode === 'drawn') {
           const ev = currentRevealEvent();
-          cmds.push({control: 'confirm', label: 'Take card'});
+          // A colony bonus that still owes its discard (Pluto) closes INSIDE the
+          // modal: once everything is taken, A is that step and there is no
+          // take-all / dismiss left to advertise — the step is mandatory.
+          const closer = this.revealDiscardCloser;
+          cmds.push({control: 'confirm', label: closer?.ready === true ? closer.label : 'Take card'});
           cmds.push({control: 'secondary', label: 'Inspect'});
           if (ev?.source?.type === 'card') {
             cmds.push({control: 'stickL', label: 'Source'});
@@ -2975,7 +2995,9 @@ export default defineComponent({
           if (ev?.sequence?.some((step) => !step.matched) === true) {
             cmds.push({control: 'stickR', label: 'Discarded pile'});
           }
-          cmds.push({control: 'back', label: 'Take all cards'});
+          if (closer?.ready !== true) {
+            cmds.push({control: 'back', label: 'Take all cards'});
+          }
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'secondary', label: 'Inspect'});
           cmds.push({control: 'back', label: 'Close'});
@@ -6115,6 +6137,26 @@ export default defineComponent({
       }
       // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once the
       // gate releases — nothing else to open here.
+    },
+    /**
+     * The reveal modal's closing step was pressed: the payout's discard now runs
+     * on its ordinary surface (the hand overlay in select mode — single-select
+     * for one card, multi-select + confirm for several, exactly as any other
+     * discard). The press is the acknowledgement of the mandatory beat, so the
+     * announcement card is skipped and the player lands straight in the hand —
+     * the payout continues instead of restarting as a fresh demand.
+     */
+    onRevealDiscardPick(): void {
+      const beat = this.mandatoryBeat;
+      if (beat !== undefined) {
+        acknowledgeMandatoryBeat(beat.key);
+      }
+      void this.$nextTick(() => {
+        const task = taskFor(this.playerView);
+        if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
+          this.openShellTaskSurface(task);
+        }
+      });
     },
     /** Navigating away from a shell task's surface DEFERS it (the prompt card
      *  flips to its «Вернуться к решению» state). */

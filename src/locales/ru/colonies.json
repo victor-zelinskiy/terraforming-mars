@@ -176,6 +176,10 @@
     "Your choices": "Ваши решения",
     "No trade fleet here": "Здесь нет торгового флота",
     "Colony bonus payout": "Бонус колонии",
-    "Colony update": "Обновление колонии"
+    "Colony update": "Обновление колонии",
+    "The colony bonus is completed by a discard": "Бонус колонии завершается сбросом",
+    "Pick a card to discard": "Выбрать карту для сброса",
+    "Pick cards to discard": "Выбрать карты для сброса",
+    "Take every card first": "Сначала заберите все карты"
 
 }

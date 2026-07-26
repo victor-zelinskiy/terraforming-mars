@@ -25,6 +25,9 @@ confirmTrade (composer X)
    wrapper; focus/take order unchanged; sizes to
    1..N cards per the viewer's own cubes)
 → confirmAllReceivedCards (take / take all → hand intake)
+→ [PLUTO ONLY] the payout's CLOSING STEP inside the
+   SAME modal: «Выбрать карту(ы) для сброса» → the
+   hand overlay's ordinary select mode
 → the white marker GLIDES LEFT to the reset cell     (only after the server's own reset committed —
    cell-by-cell impulse, settle                       Colony.handleTrade's finalizer runs at
 → «4/7» flips + «ТОРГОВАТЬ» value morphs             DECREASE_COLONY_TRACK_AFTER_TRADE, i.e. after
@@ -108,6 +111,51 @@ any claim-timing race. Known accepted compromise: in the staged path the
 bot's turn cards present BEFORE the trade's reward waves (both ride the same
 buffered commit — same as the tile-hero's staged reward beat).
 
+## Pluto: the bonus is a payout, not two errands (2026-07-26)
+
+Pluto's colony bonus pays **"draw N, then discard N"**. Upstream resolves it once
+per CUBE, so two cubes produced draw → discard → draw → discard: two reveal
+batches, two prompts, and the player choosing what to throw away before seeing
+what else the trade was about to give. The discard also arrived AFTER the reveal
+modal had gone, reading as an unrelated demand.
+
+- **SERVER — batched per recipient.** `colonyBonusBatching.ts`
+  (`batchesColonyBonusPerRecipient`) marks `DRAW_CARDS_AND_DISCARD_ONE` as
+  batched; `GiveColonyBonus` then drains ALL of one recipient's cubes in a single
+  call and passes the count as `IColony.giveColonyBonus(player, true, cubes)`.
+  Pluto's branch draws `cubes` cards and defers ONE `DiscardCards(p, N, N)` — so
+  every card of the payout is in the player's hand before anything must go, and
+  the trade is ONE reveal batch (the tradeId merge now has nothing to split it).
+  Every other colony keeps the per-cube fan-out (a plain grant paid twice is
+  indistinguishable from paying double, and the loop is what lets an interactive
+  bonus prompt between cubes). Priority stays `SUPERPOWER`, so the discard is
+  still ahead of the trade's own track reset.
+  **Deliberate rule nuance:** the printed card resolves each cube separately, so
+  a batched player sees all drawn cards before choosing. Strictly more
+  informative, never more cards — the UX gain is the reason.
+- **The prompt is MARKED, never sniffed.** `ColonyBonusDiscardMeta`
+  (`{colonyName, count}`) rides `BaseInputModel.colonyBonusDiscard` via
+  `BasePlayerInput.markColonyBonusDiscard` (serialized centrally in
+  `ServerModel.getWaitingFor`, carried by `DiscardCards`' new `options`). `count`
+  is the cube count, which is also what makes the pick single- or multi-select.
+- **CLIENT — the modal closes the payout.** `bonusDiscardStep`
+  (`colonyBonusDiscardStep.ts`, pure) is the ONE derivation the reveal modal and
+  the command bar share, so they can never disagree. `.con-reveal__closer` is
+  MANDATORY: locked (with an honest reason) until every card — bonus AND income —
+  is taken, and while it is owed the modal has **no dismiss action at all** (B
+  stays the take-all shortcut; with nothing left to take it is inert). Pressing it
+  releases the batch, acknowledges the mandatory beat (so the announcement card is
+  skipped) and opens the hand overlay's ordinary select mode: 1 cube →
+  single-select, N cubes → multi-select + confirm.
+- **A fully taken batch is HELD on screen** for that step
+  (`holdRevealForFollowUp` / `releaseRevealFollowUp`; `currentRevealEvent()`
+  honours it). Without the hold the batch drops out the instant the last card is
+  taken — which is exactly how the discard used to escape into a prompt of its own.
+- **A ONE-card payout keeps the real modal** (`singleCardMode` returns false when
+  a discard is owed): the headless fullscreen has nowhere to host the step. This
+  is the 1-cube FOREIGN-trade case — the viewer draws only the bonus card, so the
+  modal shows the bonus zone alone and then its closing step.
+
 ## The invariants (the done-criteria)
 
 1. Nothing reward-shaped appears before the fleet docks (the existing fleet
@@ -121,6 +169,18 @@ buffered commit — same as the tile-hero's staged reward beat).
 4. Pluto covers are REAL card-backs leaving the exact interface areas; one
    cover per real card, staggered; income and bonus waves are visually
    distinct; all of one trade's cards land in ONE reveal (server merge).
+   4a. **The strip is ONE line while the covers fly.** The bonus zone's frame is
+   decorative (`::before`, inflated outside the content box) — it used to be a
+   PADDED box that sank its cards 1.1rem below the income cards (~44 px on a 4K
+   TV), and the covers, which land on those rects, came down on a different line.
+   `--bonus-held` additionally suppresses the focused slot's lift + 1.1× scale, so
+   every cover lands pixel-exact and the focus eases in with the handoff instead of
+   the row jumping.
+   4b. **The handoff crossfades, never dips.** Releasing the cards starts a
+   160 ms opacity ramp UP on each card; fading the proxy out at the same instant
+   ran two opposing ramps over the same pixels and the reveal visibly BLINKED as
+   the cards arrived. `runTradeCoversHandoff` therefore holds the proxy opaque for
+   `CARD_RELEASE_MS` first — keep it in step with the CSS transition.
 5. Counters / hand / track change only at their visual commit (touchdown /
    intake landing / glide landing).
 6. Reduced motion: no covers (the modal mounts with its stock entrance), the
@@ -136,8 +196,17 @@ buffered commit — same as the tile-hero's staged reward beat).
 ## Guards
 
 - Server: `tests/colonies/ColonyTradeManifest.spec.ts` (manifest fields,
-  merge + segments, pairwise Pluto ordering, reset-last, selfish, partial
-  trades, no-decrease, exhausted deck).
+  merge + segments, the BATCHED Pluto payout — one reveal + one discard-N prompt
+  with its marker, reset-last, selfish, partial trades, no-decrease, exhausted
+  deck) + `tests/colonies/Pluto.spec.ts` (one cube vs several: merged draw, a
+  single prompt, and no second prompt hiding behind it).
 - Client: `tests/client/components/console/colonyTradeModel.spec.ts` (pure
   mapping / waves / glide) + `consoleColonyTrade.spec.ts` (lifecycle,
-  three-gate conclusion, claims, dedupe, holds release on abort).
+  three-gate conclusion, claims, dedupe, holds release on abort) +
+  `colonyBonusDiscardStep.spec.ts` (the closing step's lock/label derivation and
+  the follow-up hold that keeps the modal up for it).
+- ⚠️ `ConsoleRevealOverlay` cannot be MOUNTED under mochapack (it fails to load
+  in that bundle — the pre-existing `consoleRevealResultFlight.spec.ts` shows the
+  same 0-passing symptom), which is why the modal's logic lives in the pure
+  `bonusDiscardStep` / `drawnCardsState` helpers that CAN be guarded. Keep new
+  reveal logic out of the component for the same reason.

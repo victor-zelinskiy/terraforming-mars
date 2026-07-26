@@ -104,6 +104,17 @@
     .con-start__slot-a {
         opacity: 0 !important;
     }
+    /*
+     * …and no focus LIFT either. The flying covers land on the slot rects
+     * measured right now, so a slot that is already lifted + scaled 1.1 makes
+     * its cover come down on a different line and at a different size from its
+     * neighbours. Held flat, every cover lands pixel-exact on one row; the lift
+     * then eases in with the handoff (the slot's own transform transition), so
+     * the focus reads as arriving rather than as the row jumping.
+     */
+    .con-reveal__strip .con-cards__slot--focused {
+        transform: none;
+    }
 }
 
 /* ── Reduced motion: short/static — the path (cell → reveal → cards)

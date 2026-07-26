@@ -5,6 +5,16 @@ import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {IProjectCard} from '../cards/IProjectCard';
+import {ColonyBonusDiscardMeta} from '../../common/models/PlayerInputModel';
+
+export type DiscardCardsOptions = {
+  /**
+   * This discard is the closing half of a colony bonus ("draw N, then discard
+   * N" — Pluto). Rides onto the prompt as a structural marker so the client can
+   * present it inside the same payout the cards arrived in.
+   */
+  colonyBonus?: ColonyBonusDiscardMeta,
+};
 
 export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
   constructor(
@@ -12,6 +22,7 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
     public min: number = 1,
     public max: number = 1,
     public title?: string | Message,
+    public options: DiscardCardsOptions = {},
   ) {
     super(player, Priority.DISCARD_CARDS);
   }
@@ -38,11 +49,15 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
         title = message('Select between ${0} and ${1} cards to discard', (b) => b.number(this.min).number(this.max));
       }
     }
-    return new SelectCard(
+    const select = new SelectCard(
       title,
       'Discard',
       this.player.cardsInHand,
-      {min: this.min, max: this.max})
+      {min: this.min, max: this.max});
+    if (this.options.colonyBonus !== undefined) {
+      select.markColonyBonusDiscard(this.options.colonyBonus);
+    }
+    return select
       .andThen((discards) => {
         for (const card of discards) {
           this.player.discardCardFromHand(card);
