@@ -4,21 +4,24 @@ import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
 import {GameId, ParticipantId, isGameId, safeCast} from '../../common/Types';
 import {SerializedGame} from '../SerializedGame';
-import {daysAgoToSeconds, stringToNumber} from './utils';
+import {daysAgoToSeconds, stringToBoolean, stringToNumber} from './utils';
 import {GameIdLedger} from './IDatabase';
 import {Session, SessionId} from '../auth/Session';
 import {toID} from '../../common/utils/utils';
 import {parseInterned} from './parseInterned';
 import {LogMessage} from '../../common/logs/LogMessage';
+import {compressToBrotli, decompressFromBrotli} from './compression';
 
 type StoredSerializedGame = Omit<SerializedGame, 'gameOptions' | 'gameLog'> & {logLength: number};
 
 export const POSTGRESQL_TABLES = ['game', 'games', 'game_results', 'participants', 'completed_game', 'session'] as const;
 
 const POSTGRES_TRIM_COUNT = stringToNumber(process.env.POSTGRES_TRIM_COUNT, 10);
+const DB_COMPRESS_ON_WRITE = stringToBoolean(process.env.DB_COMPRESS_ON_WRITE, false);
 
 export class PostgreSQL implements IDatabase {
   protected trimCount = POSTGRES_TRIM_COUNT;
+  protected compressOnWrite = DB_COMPRESS_ON_WRITE;
 
   protected statistics = {
     saveCount: 0,
@@ -56,6 +59,7 @@ export class PostgreSQL implements IDatabase {
       players integer,
       save_id integer,
       game text,
+      game_compressed bytea,
       status text default 'running',
       created_time timestamp default now(),
       PRIMARY KEY (game_id, save_id));
@@ -102,6 +106,10 @@ export class PostgreSQL implements IDatabase {
     CREATE INDEX IF NOT EXISTS session_idx_expiration_time on session(expiration_time);
     `;
     await this.client.query(sql);
+
+    // games.game_compressed is already in the CREATE TABLE above for fresh databases;
+    // this covers databases where the table already existed without it.
+    await this.client.query('ALTER TABLE games ADD COLUMN IF NOT EXISTS game_compressed bytea;');
   }
 
   public async getPlayerCount(gameId: GameId): Promise<number> {
@@ -126,6 +134,19 @@ export class PostgreSQL implements IDatabase {
     ORDER BY created_time DESC`;
     const res = await this.client.query(sql);
     return res.rows.map((row) => row.game_id);
+  }
+
+  // game_compressed is the new format (Brotli-compressed JSON); game is the old
+  // plain-text format, kept for rows not yet migrated. New writes only populate
+  // game_compressed, so at most one of the two is ever set for a given row.
+  private resolveGameText(row: {game: string | null; game_compressed: Buffer | null}): string {
+    if (row.game_compressed !== null) {
+      return decompressFromBrotli(row.game_compressed);
+    }
+    if (row.game !== null) {
+      return row.game;
+    }
+    throw new Error('games row has neither game nor game_compressed set');
   }
 
   private compose(game: string, log: string, options: string): SerializedGame {
@@ -178,6 +199,7 @@ export class PostgreSQL implements IDatabase {
     const res = await this.client.query(
       `SELECT
         games.game as game,
+        games.game_compressed as game_compressed,
         game.log as log,
         game.options as options
       FROM games
@@ -191,13 +213,14 @@ export class PostgreSQL implements IDatabase {
       throw new Error(`Game ${gameId} not found`);
     }
     const row = res.rows[0];
-    return this.compose(row.game, row.log, row.options);
+    return this.compose(this.resolveGameText(row), row.log, row.options);
   }
 
   async getGameVersion(gameId: GameId, saveId: number): Promise<SerializedGame> {
     const res = await this.client.query(
       `SELECT
         games.game as game,
+        games.game_compressed as game_compressed,
         game.log as log,
         game.options as options
       FROM games
@@ -211,7 +234,7 @@ export class PostgreSQL implements IDatabase {
       throw new Error(`Game ${gameId} not found at save_id ${saveId}`);
     }
     const row = res.rows[0];
-    return this.compose(row.game, row.log, row.options);
+    return this.compose(this.resolveGameText(row), row.log, row.options);
   }
 
   saveGameResults(gameId: GameId, players: number, generations: number, gameOptions: GameOptions, scores: Array<Score>): void {
@@ -300,6 +323,7 @@ export class PostgreSQL implements IDatabase {
     (storedSerialized as any).gameLog = [];
     (storedSerialized as any).gameOptions = {};
     const gameJSON = JSON.stringify(storedSerialized);
+    const gameCompressed = this.compressOnWrite ? compressToBrotli(gameJSON) : null;
 
     this.statistics.saveCount++;
     try {
@@ -308,12 +332,15 @@ export class PostgreSQL implements IDatabase {
       // Holding onto a value avoids certain race conditions where saveGame is called twice in a row.
       const thisSaveId = game.lastSaveId;
       // xmax = 0 is described at https://stackoverflow.com/questions/39058213/postgresql-upsert-differentiate-inserted-and-updated-rows-using-system-columns-x
+      //
+      // When compressOnWrite is true, the game state is written to game_compressed; when it's
+      // false, it's written to game. The other column is set to null so a row never carries both.
       const res = await this.client.query(
-        `INSERT INTO games (game_id, save_id, game, players)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (game_id, save_id) DO UPDATE SET game = $3
+        `INSERT INTO games (game_id, save_id, game, game_compressed, players)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (game_id, save_id) DO UPDATE SET game = $3, game_compressed = $4
         RETURNING (xmax = 0) AS inserted`,
-        [game.id, game.lastSaveId, gameJSON, game.players.length]);
+        [game.id, game.lastSaveId, this.compressOnWrite ? null : gameJSON, this.compressOnWrite ? gameCompressed : null, game.players.length]);
 
       await this.client.query(
         `INSERT INTO game (game_id, log, options)
