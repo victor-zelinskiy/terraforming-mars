@@ -19,12 +19,11 @@ describe('consoleHydroDraw', () => {
     expect(hydroDrawState.nonce).to.eq(before + 1);
   });
 
-  it('arm carries the reward CARD ICON rect the cover lifts off', () => {
-    armHydroDraw(5, {left: 400, top: 300, width: 26, height: 26});
-    expect(hydroDrawState.sourceRect).to.deep.eq({left: 400, top: 300, width: 26, height: 26});
-    // No icon captured → the layer falls back to the reached track stop.
-    armHydroDraw(5);
-    expect(hydroDrawState.sourceRect).to.eq(undefined);
+  it('arm names the CELL the cards come out of (the stop the marker advances to)', () => {
+    armHydroDraw(7);
+    // The layer waits for the marker to SETTLE on this stop before the cards
+    // appear — the landing is what puts the cell in focus.
+    expect(hydroDrawState.stopPosition).to.eq(7);
   });
 
   it('an armed-but-unclaimed scene NEVER veils the pick modal', () => {
@@ -56,14 +55,13 @@ describe('consoleHydroDraw', () => {
   });
 
   it('end drops the veil + the input gate (idempotent)', () => {
-    armHydroDraw(5, {left: 1, top: 2, width: 26, height: 26});
+    armHydroDraw(5);
     markHydroDrawClaimed();
     endHydroDraw();
     expect(isHydroDrawActive()).to.eq(false);
     expect(isHydroDrawClaimed()).to.eq(false);
     expect(hydroDrawState.phase).to.eq('idle');
     expect(hydroDrawState.stopPosition).to.eq(-1);
-    expect(hydroDrawState.sourceRect).to.eq(undefined);
     endHydroDraw(); // idempotent
     expect(isHydroDrawActive()).to.eq(false);
   });

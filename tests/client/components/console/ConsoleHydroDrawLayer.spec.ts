@@ -38,7 +38,7 @@ describe('ConsoleHydroDrawLayer — scene wiring', () => {
 
   it('arming reaches the mounted layer — the scene is TAKEN, never left armed and unplayed', async () => {
     const w = factory();
-    armHydroDraw(5, {left: 400, top: 300, width: 26, height: 26});
+    armHydroDraw(5);
     expect(hydroDrawState.active).to.eq(true); // armed synchronously by the shell
 
     await w.vm.$nextTick();
@@ -52,7 +52,7 @@ describe('ConsoleHydroDrawLayer — scene wiring', () => {
 
   it('a second advance is taken too (the watcher stays live across arms)', async () => {
     const w = factory();
-    armHydroDraw(5, {left: 400, top: 300, width: 26, height: 26});
+    armHydroDraw(5);
     await w.vm.$nextTick();
     expect(hydroDrawState.active).to.eq(false);
 

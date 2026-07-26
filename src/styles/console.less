@@ -1867,6 +1867,25 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--grade-needs-energy .con-hydro__stop-badge--grade { color: @con-amber; }
         &--dimmed { filter: saturate(0.55); opacity: 0.7; }
 
+        /* SOURCE OF THE DRAW: the «Гидромоделирование» cards are leaving THIS
+           cell right now (the stop the marker just landed on). A calm rim +
+           inner bloom, never a moving decoration — the cards are the motion.
+           Driven declaratively by ConsoleHydroSection.drawEmittingStop, so it
+           can never be stranded on a cell by a re-render. Wins over the state
+           rims above by being LAST; --focused (the magnified hero) still wins,
+           which is correct: focus is the louder state. */
+        &--emitting {
+            background: fade(@con-hydro-aqua, 16%);
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-hydro-aqua, 85%),
+                inset 0 0 1.4rem fade(@con-hydro-aqua, 30%),
+                0 0 1.4rem fade(@con-hydro-aqua, 28%);
+            /* Longer than the rail's own 150ms so the glow arrives with the
+               cards rather than snapping on ahead of them. */
+            transition: box-shadow calc(320ms * var(--motion-scale, 1)) ease,
+                background calc(320ms * var(--motion-scale, 1)) ease;
+        }
+
         /* The SELECTED stop is the magnified hero of the rail. */
         &--focused {
             width: 9.5rem;

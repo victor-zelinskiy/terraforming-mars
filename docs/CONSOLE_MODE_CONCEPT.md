@@ -1726,20 +1726,31 @@ the desktop-gamepad mode are untouched throughout.
   up to 2).** The stage-5 reward is a plain `SelectCard` served by
   `ConsoleTaskHost`, so — unlike the board card-bonus — there is NO
   reveal to match and the scene is CLIENT-armed at the confirm
-  (`consoleHydroDraw.ts` / `ConsoleHydroDrawLayer.vue`, reusing the
-  board-bonus GSAP director). **Two acts, the board-bonus story:** (1) the
-  reward's own CARD ICON in the «ВЫ ПОЛУЧИТЕ» column separates and
-  FLOATS while the marker glides and the server resolves — its rect is
-  captured SYNCHRONOUSLY in `ConsoleHydroSection.onModalConfirm` (the
-  commit re-renders that panel to the next stage, so it can only be
-  measured before the submit) and rides `armHydroDraw(pos, rect)`; the
-  icon hides beneath the cover (`hydro-reward--source-lifted`, the
-  one-object rule). No capture → the lift falls back to the reached
-  `[data-hydro-stop]`. (2) Once the marker settles AND the veiled pick
-  modal's `[data-zoom-slot]`s are measurable, the cover unpacks into N
-  proxies that fan into those exact slots, flip open, and the modal
-  materializes around them (`--liftin` / `--liftin-veiled` /
+  (`consoleHydroDraw.ts` controller, `hydroDrawModel.ts` pure plan,
+  `hydroDrawDirector.ts` GSAP, `ConsoleHydroDrawLayer.vue` stage).
+  **THE SOURCE IS THE TRACK CELL THE MARKER LANDS ON.** The scene waits
+  for the marker to SETTLE (`waitForReady`: marker idle + the veiled
+  modal's `[data-zoom-slot]`s measurable) and only then puts the cards on
+  screen — that landing is what puts the cell in focus, so the cards read
+  as ITS payout instead of pre-empting it. The cell carries a calm source
+  glow for the flight (`con-hydro__stop--emitting`, bound declaratively
+  from `ConsoleHydroSection.drawEmittingStop` — never an imperative class
+  on a `v-for` element, which a re-render would wipe or strand).
+  **Three beats:** a face-down stack rises out of the cell and OPENS into
+  a fan → the completed fan HOLDS a beat → the group TRAVELS into the
+  modal's exact slots, flipping face-up, and settles flat; the modal then
+  materializes around the landed cards (`--liftin` / `--liftin-veiled` /
   `--liftin-held`).
+  **Why its own model/director instead of the board bonus's:** that one is
+  ONE cover leaving a board icon while the server thinks (brisk on
+  purpose); this is a four-card presentation the player is meant to
+  watch. Every beat is roughly double, and the smoothness is structural —
+  each property is ONE continuous tween per leg (the bonus director chains
+  a gather leg into a fan leg, which reads as a stutter with four cards),
+  the arc comes from LAGGING the vertical tween behind the horizontal one
+  rather than from a mid waypoint, and every leg ends on an `inOut`/`out`
+  ease so cards settle instead of arriving at speed. The fan hold is a
+  pause at a completed pose (zero velocity either side), never a stall.
   **Three invariants — break any of them and the player gets a black,
   inert screen (the shipped 2026-07-26 bug):**
   1. **The layer must MIRROR `hydroDrawState` in `data()`.** Its start
@@ -1762,7 +1773,13 @@ the desktop-gamepad mode are untouched throughout.
   Every wait is bounded (`READY_TIMEOUT_MS` wall-clock, a foreign-host
   fence for an advance that resolves into a different prompt, an episode
   guard per arm); every degrade drops the veil FIRST and fades whatever
-  is in the air over the arriving modal.
+  is in the air over the arriving modal. Timings live ONLY in
+  `hydroDrawTimings()` / `reducedHydroDrawTimings()` and resolve through
+  `motionMs()`, so the fork-wide calm/standard/swift presets scale the
+  whole scene — never hand-roll a duration in the director.
+  Guards: `hydroDrawModel.spec.ts` (fan symmetry / ordering / "nobody
+  departs before the fan is open" / reduced motion / budget),
+  `consoleHydroDraw.spec.ts`, `ConsoleHydroDrawLayer.spec.ts`.
 
 ---
 

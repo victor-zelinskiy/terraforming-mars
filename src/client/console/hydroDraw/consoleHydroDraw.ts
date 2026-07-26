@@ -1,17 +1,19 @@
 /*
  * CONSOLE HYDRO DRAW — controller + reactive state for the «Гидромоделирование»
  * draw cinematic (Delta stage 5: "look at 4 cards, take up to 2"). The card-
- * lift sibling of the board card-bonus (consoleBoardCardBonus): four card
- * backs lift out of the reached track stop, fan out, flip open and land in the
- * pick-2-of-4 modal's exact slots — the modal materializes AROUND the landed
- * cards, then the player picks two.
+ * lift sibling of the board card-bonus (consoleBoardCardBonus): the marker
+ * glides to its new stop, and the four cards then come OUT OF THAT CELL — a
+ * face-down stack rises from it, opens into a fan, holds a beat and travels
+ * into the pick-2-of-4 modal's exact slots, flipping face-up on the way; the
+ * modal materializes AROUND the landed cards, then the player picks two.
+ * Choreography: hydroDrawModel.ts (pure) + hydroDrawDirector.ts (GSAP).
  *
  * Unlike the board bonus (which claims a `cardDrawReveal`), the stage-5 reward
  * is a plain `SelectCard` served by ConsoleTaskHost — there is NO reveal to
  * match. So the scene is CLIENT-armed at the confirm (mirroring the marker
  * glide): the shell arms it when the confirmed advance lands on the draw
- * stage; the app-level layer then waits for the marker to settle + the select
- * modal's slots to mount (VEILED) and drives the lift → fan → handoff.
+ * stage; the app-level layer then waits for the marker to SETTLE + the select
+ * modal's slots to mount (VEILED) and drives the flight → handoff.
  *
  * This scene NEVER holds the commit — the commit is what produces the modal it
  * fans into. It only DECORATES the modal's arrival (like the board bonus), so
@@ -25,13 +27,13 @@
 import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {RectLike} from '@/client/console/boardCardBonus/boardCardBonusModel';
 
 /**
- * lift  — the reward's own CARD ICON separates from the «ВЫ ПОЛУЧИТЕ» panel
- *         and floats while the marker glides / the server resolves;
- * fan   — N covers peel into the modal's exact slot rects, flipping open;
- * frame — the covers stand in the slots; the modal frame materializes around them;
+ * lift  — the stack is staged inside the reached track cell (the stop the
+ *         marker just landed on — where the player is already looking);
+ * fan   — the flight: the stack rises out of that cell, opens into a fan,
+ *         holds a beat, then travels into the modal's exact slots, flipping;
+ * frame — the cards stand in the slots; the modal frame materializes around them;
  * handoff — the real modal cards fade in UNDER the proxies, which dissolve.
  */
 export type HydroDrawPhase = 'idle' | 'lift' | 'fan' | 'frame' | 'handoff';
@@ -48,16 +50,13 @@ type HydroDrawState = {
    * The claim safety below turns that into an instant, honest modal instead.
    */
   claimed: boolean;
-  /** The stop the cards lift off (the just-reached draw stage). */
-  stopPosition: number;
   /**
-   * The reward's CARD ICON rect, captured synchronously at confirm (while the
-   * «ВЫ ПОЛУЧИТЕ» panel still shows the stage-5 reward — the commit re-renders
-   * it away). The cover takes it over pixel-perfect, exactly like the board
-   * card-bonus takes over the cell's own icon. Undefined → the reached stop
-   * cell carries the lift.
+   * The track cell the cards come out of — the stop the marker advances to.
+   * The scene deliberately waits for the marker to SETTLE there before the
+   * cards appear: that landing is what puts the cell in focus, and the cards
+   * must read as its payout rather than pre-empt it.
    */
-  sourceRect: RectLike | undefined;
+  stopPosition: number;
   /** Bumped per arm — the layer (re)starts on this. */
   nonce: number;
   reducedMotion: boolean;
@@ -68,7 +67,6 @@ export const hydroDrawState = reactive<HydroDrawState>({
   phase: 'idle',
   claimed: false,
   stopPosition: -1,
-  sourceRect: undefined,
   nonce: 0,
   reducedMotion: false,
 });
@@ -125,18 +123,17 @@ function clearArmSafety(): void {
 
 /**
  * ARM (confirm modal, when the advance lands on the draw stage). Sets `active`
- * synchronously so the input gate closes; the cover lifts off the reward's card
- * icon immediately and floats while the marker glides. The layer then waits for
- * the marker to settle + the modal slots to appear and runs the fan. Two safety
- * nets: an unclaimed scene (no layer) and a scene whose modal never arrives.
+ * synchronously so the input gate closes. The layer then waits for the marker
+ * to SETTLE on `stopPosition` and for the modal slots to appear, and only then
+ * flies the cards out of that cell. Two safety nets: an unclaimed scene (no
+ * layer) and a scene whose modal never arrives.
  */
-export function armHydroDraw(stopPosition: number, sourceRect?: RectLike): void {
+export function armHydroDraw(stopPosition: number): void {
   clearArmSafety();
   hydroDrawState.active = true;
   hydroDrawState.phase = 'lift';
   hydroDrawState.claimed = false;
   hydroDrawState.stopPosition = stopPosition;
-  hydroDrawState.sourceRect = sourceRect;
   hydroDrawState.reducedMotion = consoleReducedMotionActive();
   hydroDrawState.nonce++;
   armSafetyId = setTimeout(() => abortHydroDraw(), ARM_SAFETY_MS) as unknown as number;
@@ -167,7 +164,6 @@ export function endHydroDraw(): void {
   hydroDrawState.phase = 'idle';
   hydroDrawState.claimed = false;
   hydroDrawState.stopPosition = -1;
-  hydroDrawState.sourceRect = undefined;
 }
 
 /** ABORT (safety / unmount / the modal degraded) — instantly reveal the modal
@@ -183,7 +179,6 @@ export function abortHydroDraw(): void {
   hydroDrawState.phase = 'idle';
   hydroDrawState.claimed = false;
   hydroDrawState.stopPosition = -1;
-  hydroDrawState.sourceRect = undefined;
   h?.abort();
 }
 
@@ -195,7 +190,6 @@ export function resetHydroDraw(): void {
   hydroDrawState.phase = 'idle';
   hydroDrawState.claimed = false;
   hydroDrawState.stopPosition = -1;
-  hydroDrawState.sourceRect = undefined;
   hydroDrawState.nonce = 0;
   hydroDrawState.reducedMotion = false;
 }

@@ -36,6 +36,7 @@
                stop.grade !== undefined ? 'con-hydro__stop--grade-' + stop.grade : '',
                {
                  'con-hydro__stop--focused': stop.vm.isSelected,
+                 'con-hydro__stop--emitting': drawEmittingStop === stop.position,
                  'con-hydro__stop--vp': stop.vm.stage.vp !== undefined,
                  'con-hydro__stop--dimmed': !globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed',
                },
@@ -198,12 +199,7 @@
                 <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
                 <span v-if="l.noteKey" class="con-hydro__delta-note">{{ $t(l.noteKey) }}: {{ l.noteValue }}</span>
               </div>
-              <!-- The card-lift cinematic takes this chip's CARD ICON over and
-                   flies it into the pick modal; the icon hides beneath the
-                   cover for the flight (the fork's one-object rule). -->
-              <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0"
-                           :chips="rewardView.rawChips"
-                           :class="{'hydro-reward--source-lifted': drawSceneLive}" />
+              <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
               <div v-if="rewardView.vp !== undefined" class="con-hydro__vpline">
                 <span class="con-hydro__stage-vp">{{ rewardView.vp }} {{ $t('VP') }}</span>
                 <span>{{ $t('VP at game end') }}</span>
@@ -407,11 +403,15 @@ export default defineComponent({
     };
   },
   computed: {
-    /** The draw cinematic is carrying the reward's card icon across the screen
-     *  — the icon itself must not sit here at the same time (one-object rule).
-     *  Bounded by the controller's own safety nets, so it always comes back. */
-    drawSceneLive(): boolean {
-      return this.hydroDrawState.active;
+    /**
+     * The stop the «Гидромоделирование» cards are coming out of, while they are
+     * still leaving it — the cell gets a calm source glow so the flight reads as
+     * ITS payout. Declarative (never an imperative class on a v-for element, which
+     * a re-render would wipe or strand); bounded by the controller's safety nets.
+     */
+    drawEmittingStop(): number {
+      const d = this.hydroDrawState;
+      return d.active && (d.phase === 'lift' || d.phase === 'fan') ? d.stopPosition : -1;
     },
     /** The advance glide is running for THIS viewer — hide the FROM marker
      *  (the proxy carries it) so the token is never in two places at once. */
@@ -779,32 +779,10 @@ export default defineComponent({
         this.ui.confirmOpen = true;
       }
     },
-    /**
-     * The reward's CARD ICON rect, measured NOW — the confirm commits and the
-     * panel re-renders to the next stage, so this is the last moment the icon
-     * the cards visibly come out of can be measured. Scoped to the «ВЫ
-     * ПОЛУЧИТЕ» column so the rail's compact twin can never be picked instead.
-     */
-    drawSourceRect(): {left: number, top: number, width: number, height: number} | undefined {
-      const root = this.$el as HTMLElement | null | undefined;
-      if (root === null || root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      const icon = root.querySelector<HTMLElement>('.con-hydro__gains [data-hydro-card-icon]');
-      if (icon === null) {
-        return undefined;
-      }
-      const r = icon.getBoundingClientRect();
-      return r.width > 2 && r.height > 2 ?
-        {left: r.left, top: r.top, width: r.width, height: r.height} :
-        undefined;
-    },
     onModalConfirm(): void {
       if (!this.model.canConfirm) {
         return;
       }
-      const drawStage = this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2');
-      const drawSource = drawStage ? this.drawSourceRect() : undefined;
       this.ui.confirmOpen = false;
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
@@ -818,9 +796,8 @@ export default defineComponent({
         rewards: hydroRewardTransfers(this.rewardView),
         // «Гидромоделирование» (draw 4, keep 2): the follow-up SelectCard is
         // dressed by the card-lift cinematic (Part 3) instead of a bare modal —
-        // the cover separates from the reward's own card icon (`drawSource`).
-        drawStage,
-        drawSource,
+        // the cards come out of the stop the marker lands on (`toPosition`).
+        drawStage: this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2'),
       });
     },
     /** The shell routes every hydro-section intent here. */
