@@ -22,7 +22,7 @@ import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 import {IGame} from '../IGame';
 import {Turmoil} from '../turmoil/Turmoil';
 import {SerializedColony} from '../SerializedColony';
-import {IColony, TradeOptions} from './IColony';
+import {ColonyBonusOrdinal, IColony, TradeOptions} from './IColony';
 import {ColonyMetadata, colonyMetadata, InputColonyMetadata} from '../../common/colonies/ColonyMetadata';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {ColonyBenefitRole} from '../../common/events/EventSource';
@@ -312,14 +312,13 @@ export abstract class Colony implements IColony {
   }
 
   /**
-   * `cubes` is how many of THIS recipient's cubes this call settles. It is 1 for
-   * every ordinary bonus (GiveColonyBonus fans those out per cube); a BATCHED
-   * bonus — Pluto's "draw N, then discard N" — is handed the recipient's whole
-   * cube count so it pays out once instead of prompting per cube
-   * (colonyBonusBatching.ts explains why).
+   * `ordinal` is WHICH of this recipient's cubes on this colony is resolving
+   * (1-based) and how many they own. Each cube resolves separately and in full
+   * — the rules never merge them — so an INTERACTIVE bonus (Pluto's "draw 1,
+   * then discard 1") uses it to tell the player which colony is paying out.
    */
-  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, cubes: number = 1): undefined | PlayerInput {
-    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', cubes);
+  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
+    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', ordinal);
   }
 
   /**
@@ -334,12 +333,12 @@ export abstract class Colony implements IColony {
    * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
    * is already a `colony` root, so re-sourcing there is a harmless no-op.
    */
-  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', cubes: number = 1): undefined | PlayerInput {
+  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
     return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
-      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, cubes));
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, ordinal));
   }
 
-  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', cubes: number = 1): undefined | PlayerInput {
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
@@ -393,20 +392,17 @@ export abstract class Colony implements IColony {
       // Capture the trade-stamped source NOW — the deferred callback runs
       // later, when the trade-stamping window may have moved on.
       const drawAndDiscardSource = this.colonyRevealSource(benefit);
-      // BATCHED per recipient (colonyBonusBatching.ts): all of this player's
-      // cubes draw together and answer ONE discard-N prompt. `cubes` is 1 for a
-      // single cube, so the ordinary case is byte-identical to before.
-      const count = Math.max(1, cubes);
-      const discardTitle = count === 1 ?
-        this.name + ' colony bonus. Select a card to discard' :
-        message('${0} colony bonus. Select ${1} cards to discard', (b) => b.colony(this).number(count));
+      // ONE CUBE, ONE PAYOUT: draw 1, then discard 1, and only then does the
+      // recipient's NEXT cube start (Priority.SUPERPOWER puts this discard
+      // ahead of every other queued bonus AND of the trade's own track reset).
+      // The ordinal rides onto the prompt so the console reveal modal can lay
+      // out one zone per colony and show which one is resolving.
+      const seat = ordinal ?? {index: 1, total: 1};
       player.defer(() => {
-        player.drawCard(count, {source: drawAndDiscardSource});
-        // SUPERPOWER keeps the discard ahead of the trade's own track reset (and
-        // of any other recipient's bonus), so the payout stays one tight beat.
+        player.drawCard(1, {source: drawAndDiscardSource});
         player.game.defer(
-          new DiscardCards(player, count, count, discardTitle, {
-            colonyBonus: {colonyName: this.name, count},
+          new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard', {
+            colonyBonus: {colonyName: this.name, index: seat.index, total: seat.total},
           }),
           Priority.SUPERPOWER);
       });

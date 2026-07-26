@@ -81,10 +81,13 @@
 .con-reveal__bonus-zone {
     position: relative;
     display: flex;
-    /* flex-START, like the strip itself: `center` made a focused card inside the
-       zone grow in BOTH directions while an income card grew downward only. */
-    align-items: flex-start;
-    gap: inherit; /* the strip's card rhythm continues inside the zone */
+    /* A COLUMN: one colony pays exactly one card, and that colony's own
+       discard button belongs directly under it — the step must never read as
+       belonging to the row as a whole. `flex-start` on the cross axis keeps the
+       card on the strip's line (see the no-padding note below). */
+    flex-direction: column;
+    align-items: center;
+    gap: .45rem;
     margin-left: 1.5rem; /* room for the frame drawn outside the content box */
     /*
      * NO PADDING. The frame used to be a padded box, which pushed its cards
@@ -102,6 +105,24 @@
         background: linear-gradient(180deg, fade(@con-mint, 5%), fade(@con-mint, 1%) 72%);
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 17%);
         pointer-events: none;
+    }
+}
+/* ── The sequence states: exactly ONE zone is live ────────────────────── */
+.con-reveal__bonus-zone {
+    /* The live colony — a touch brighter rim, the only zone with actions. */
+    &--active::before {
+        background: linear-gradient(180deg, fade(@con-mint, 9%), fade(@con-mint, 2%) 72%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%), 0 0 1.1rem fade(@con-mint, 12%);
+    }
+    /* Not started: its card is not even drawn yet — quiet and inert. */
+    &--future {
+        filter: saturate(0.5);
+        opacity: 0.62;
+    }
+    /* Paid out and discarded for — it settles into the background. */
+    &--done {
+        filter: saturate(0.4);
+        opacity: 0.5;
     }
 }
 .con-reveal__bonus-zone-label {
@@ -261,4 +282,87 @@
 .con-reveal__closer-lock {
     font-size: .58rem;
     color: @con-amber;
+}
+
+/* ── The colony's card on the table ───────────────────────────────────── */
+.con-reveal__bonus-slot {
+    position: relative;
+
+    /* A placeholder (future / done) is a bare card back at the slot's size —
+       it must occupy exactly the space its real card will, so the row never
+       reflows when the card arrives. */
+    &--waiting > .con-card-back,
+    &--done > .con-card-back {
+        display: block;
+        width: 20rem;
+        height: 28.75rem; /* the premium face ratio 320×460 */
+        border-radius: .55rem;
+        box-shadow: 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
+    }
+}
+.con-reveal__bonus-done {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 3.4rem;
+    color: fade(@con-mint, 78%);
+    text-shadow: 0 0 1.2rem fade(@con-mint, 35%);
+}
+.con-reveal__bonus-wait {
+    max-width: 20rem;
+    text-align: center;
+    font-size: .6rem;
+    line-height: 1.3;
+    color: @con-text-dim;
+}
+
+/* ── THE TURN: the card is opened on the table ─────────────────────────
+   A real 3D turn about the vertical axis — the side swaps at the halfway
+   point by backface culling, never by a cross-fade. Transform + opacity
+   only; the lift/settle is part of the same keyframe, so there is one
+   motion, not a stack of effects. */
+.con-reveal__flip {
+    position: relative;
+    transform-style: preserve-3d;
+    will-change: transform;
+
+    &--down { transform: rotateY(180deg); }
+    &--up { transform: none; }
+    &--flipping {
+        animation: con-bonus-turn calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0.9, 0.28, 1) both;
+    }
+}
+.con-reveal__flip-face,
+.con-reveal__flip-back {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.con-reveal__flip-back {
+    position: absolute;
+    inset: 0;
+    transform: rotateY(180deg);
+
+    .con-card-back {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: .55rem;
+    }
+}
+
+@keyframes con-bonus-turn {
+    0% { transform: translateY(0) scale(1) rotateY(180deg); }
+    /* Lifted off the table and turning — the shadow deepens with the lift. */
+    38% { transform: translateY(-.7rem) scale(1.035) rotateY(112deg); }
+    72% { transform: translateY(-.55rem) scale(1.02) rotateY(18deg); }
+    /* …and laid back down, open. */
+    100% { transform: translateY(0) scale(1) rotateY(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* The card still opens — it simply does not travel. */
+    .con-reveal__flip--flipping {
+        animation-duration: 1ms;
+    }
 }

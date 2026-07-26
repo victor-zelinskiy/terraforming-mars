@@ -298,6 +298,9 @@ export default defineComponent({
           naturalH: target.height / scaleTo,
           delayMs: p.delayMs,
           reduced: colonyTradeState.reducedMotion,
+          // A colony-bonus card is opened ON THE TABLE by its zone, so its
+          // cover must not turn in the air (see runTradeCoverFlight.faceDown).
+          faceDown: p.role === 'bonus',
           onLanded: () => {
             landed++;
             if (landed >= plan.length) {

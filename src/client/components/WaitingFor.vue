@@ -156,6 +156,11 @@ import {
   placementHoldDurationMs,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {
+  applyMarkerPlacementPreview,
+  markerPlacementHoldDurationMs,
+  shouldHoldForMarkerPlacement,
+} from '@/client/components/board/markerPlacementAnimation';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {
@@ -354,6 +359,12 @@ type DataModel = {
    * enough for the placement impact frame to land before resource
    * chips / scale markers / next prompt fire. See
    * src/client/components/board/tilePlacementAnimation.ts.
+   *
+   * ALSO covers an OVERLAY MARKER landing on an existing tile (St. Joseph's
+   * cathedral — see markerPlacementAnimation.ts): same "keep the eye on the
+   * board" contract, but the hold spans the WHOLE landing, because the marker
+   * is what CAUSES the city owner's follow-up decision prompt and that modal
+   * must never open over its own explanation.
    */
   holdingForTilePlacement: boolean;
   /*
@@ -957,6 +968,15 @@ export default defineComponent({
               this.playerView.game.spaces,
               newView.game.spaces,
             );
+            // An OVERLAY MARKER landed on an existing tile (St. Joseph's
+            // cathedral): NOT an `undefined → tile` placement, so neither the
+            // generic tile hold above nor the console hero (which verifies
+            // exactly that transition) ever fires for it — without this the
+            // marker popped in together with the prompt it causes.
+            const cathedralHold = shouldHoldForMarkerPlacement(
+              this.playerView.game.spaces,
+              newView.game.spaces,
+            );
             /*
              * Energy→heat conversion hold (end of generation). Detect BEFORE
              * the marker/tile previews mutate the displayed view; claims the
@@ -972,7 +992,7 @@ export default defineComponent({
             // tile-placement hold above never fires for it). Mutually exclusive
             // with the conversion in practice (placement vs production phase).
             const hazardCleanups = detectHazardCleanup(this.playerView, newView);
-            if (markerHold || tileHold) {
+            if (markerHold || tileHold || cathedralHold) {
               if (markerHold) {
                 this.applyGlobalParamPreview(newView);
                 this.holdingForMarker = true;
@@ -997,9 +1017,24 @@ export default defineComponent({
                 );
                 this.holdingForTilePlacement = true;
               }
+              if (cathedralHold) {
+                // Arm BEFORE mutating the spaces — the marker watcher this
+                // mutation wakes checks the gate, so arming afterwards would
+                // let it read a CLOSED gate and skip the landing (the same
+                // ordering contract the tile branch above documents).
+                armPlacementAnimations();
+                applyMarkerPlacementPreview(
+                  this.playerView.game.spaces,
+                  newView.game.spaces,
+                );
+                this.holdingForTilePlacement = true;
+              }
               const holdMs = Math.max(
                 markerHold ? motionMs(WGT_MARKER_HOLD_MS) : 0,
                 tileHold ? placementHoldDurationMs() : 0,
+                // The FULL landing (not the shorter perceptual window): the
+                // prompt this marker causes opens strictly after it settles.
+                cathedralHold ? markerPlacementHoldDurationMs() : 0,
               );
               try {
                 await new Promise<void>((resolve) => setTimeout(resolve, holdMs));

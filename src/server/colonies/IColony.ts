@@ -13,6 +13,9 @@ export type TradeOptions = {
   selfishTrade?: boolean;
 };
 
+/** Which of a recipient's cubes on a colony is resolving (1-based) of how many. */
+export type ColonyBonusOrdinal = {index: number, total: number};
+
 export interface IColony {
   readonly name: ColonyName;
   readonly metadata: ColonyMetadata;
@@ -33,10 +36,10 @@ export interface IColony {
   addColony(player: IPlayer, options?: {giveBonusTwice: boolean}): void;
   trade(player: IPlayer, tradeOptions?: TradeOptions, bonusTradeOffset?: number): void;
   /**
-   * `cubes` = how many of this recipient's cubes the call settles (1 for the
-   * per-cube fan-out; the recipient's whole count for a BATCHED bonus — see
-   * colonyBonusBatching.ts).
+   * `ordinal` = WHICH of this recipient's cubes on this colony is resolving
+   * (1-based) out of how many they own. Each cube resolves separately and in
+   * full; an interactive bonus uses this only to say which colony is paying.
    */
-  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, cubes?: number): undefined | PlayerInput;
+  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, ordinal?: ColonyBonusOrdinal): undefined | PlayerInput;
   serialize(): SerializedColony;
 }

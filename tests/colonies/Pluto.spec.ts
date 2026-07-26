@@ -51,13 +51,12 @@ describe('Pluto', () => {
     expect(player2.cardsInHand).has.lengthOf(1);
   });
 
-  // FORK BEHAVIOUR (colonyBonusBatching.ts): a recipient's cubes resolve their
-  // colony bonus as ONE payout — draw one card per cube, then answer a SINGLE
-  // discard-N prompt — instead of upstream's draw→discard→draw→discard pairing.
-  // The player therefore sees everything the trade pays before choosing what to
-  // throw away, and the console presents it as one coherent reward (#4536 was
-  // about ordering the DRAW before the DISCARD, which still holds).
-  it('two cubes: ONE merged draw + ONE discard-2 prompt (never a pair per cube)', () => {
+  // THE RULES resolve each colony SEPARATELY and in full: draw 1 → discard 1,
+  // and only then does the next cube start. Never a merged draw and never a
+  // multi-card discard (#4536 pinned the draw-before-discard order; this pins
+  // the whole pairwise sequence). The prompt carries its ORDINAL so the console
+  // reveal modal can lay out one zone per colony.
+  it('two cubes: draw → discard → draw → discard, each prompt carrying its ordinal', () => {
     pluto.addColony(player);
     pluto.addColony(player);
     runAllActions(game);
@@ -66,24 +65,29 @@ describe('Pluto', () => {
     pluto.trade(player2);
     runAllActions(game);
 
-    // Both bonus cards are in hand BEFORE anything must be discarded.
-    const selectCard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
-    expect(player.cardsInHand).has.lengthOf(6);
-    expect(selectCard.config.min).to.eq(2);
-    expect(selectCard.config.max).to.eq(2);
-    // The prompt carries the structural marker the console reveal modal reads
-    // to host this discard as the closing step of the same payout.
-    expect(selectCard.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, count: 2});
-
-    selectCard.cb([selectCard.cards[0], selectCard.cards[1]]);
+    // Cube 1: ONE card drawn, ONE to discard — the second bonus has not started.
+    const first = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(player.cardsInHand).has.lengthOf(5);
+    expect(first.config.min).to.eq(1);
+    expect(first.config.max).to.eq(1);
+    expect(first.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 2});
+    first.cb([first.cards[0]]);
     expect(player.cardsInHand).has.lengthOf(4);
 
-    // …and there is no SECOND discard prompt hiding behind it.
+    runAllActions(game);
+
+    // Cube 2 only now draws — its card could not have been seen before choosing.
+    const second = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(player.cardsInHand).has.lengthOf(5);
+    expect(second.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 2, total: 2});
+    second.cb([second.cards[0]]);
+    expect(player.cardsInHand).has.lengthOf(4);
+
     runAllActions(game);
     expect(player.getWaitingFor()).is.undefined;
   });
 
-  it('one cube: still a single-card discard (the ordinary case is unchanged)', () => {
+  it('one cube: a single draw → discard pair, ordinal 1 of 1', () => {
     pluto.addColony(player);
     runAllActions(game);
     expect(player.cardsInHand).has.lengthOf(2);
@@ -94,7 +98,7 @@ describe('Pluto', () => {
     const selectCard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
     expect(selectCard.config.min).to.eq(1);
     expect(selectCard.config.max).to.eq(1);
-    expect(selectCard.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, count: 1});
+    expect(selectCard.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 1});
     selectCard.cb([selectCard.cards[0]]);
     runAllActions(game);
     expect(player.getWaitingFor()).is.undefined;

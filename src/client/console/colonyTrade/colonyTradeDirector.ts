@@ -87,6 +87,15 @@ export function runTradeCoverFlight(args: {
   naturalH: number,
   delayMs: number,
   reduced: boolean,
+  /**
+   * Deliver the card FACE DOWN — the colony-bonus cover does not turn in the
+   * air, because the card is opened ON THE TABLE afterwards (the reveal modal
+   * plays the turn in its zone). The handoff then lands a face-down cover on a
+   * face-down card: one object, no contradiction, and the turn reads as the
+   * player opening the bonus rather than as something already decided in
+   * mid-flight.
+   */
+  faceDown?: boolean,
   onLanded: () => void,
 }): TradeDirectorHandle {
   const {proxy, flip, from, naturalH, reduced} = args;
@@ -136,7 +145,9 @@ export function runTradeCoverFlight(args: {
 
   if (reduced) {
     tl.to(proxy, {x: landX, y: landY, scale: landScale, rotation: 0, duration: s(140), ease: 'power2.out'}, 0);
-    tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, 0);
+    if (args.faceDown !== true) {
+      tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, 0);
+    }
     return {kill: () => tl.kill()};
   }
 
@@ -152,12 +163,18 @@ export function runTradeCoverFlight(args: {
   tl.to(proxy, {x: landX, duration: travel, ease: 'power1.inOut'}, travelAt);
   tl.to(proxy, {y: landY, duration: travel, ease: 'power3.out'}, travelAt);
   tl.to(proxy, {rotation: 0, duration: travel * 0.8, ease: 'power2.out'}, travelAt);
-  addTurn(tl, {
-    proxy, flip,
-    at: travelAt + travel * 0.32,
-    dur: travel * 0.68,
-    poseScale: landScale,
-  });
+  if (args.faceDown !== true) {
+    addTurn(tl, {
+      proxy, flip,
+      at: travelAt + travel * 0.32,
+      dur: travel * 0.68,
+      poseScale: landScale,
+    });
+  } else {
+    // Face down all the way: only the landing scale is applied, so the cover
+    // settles at the slot's exact size with its back still up.
+    tl.to(proxy, {scale: landScale, duration: travel * 0.68, ease: 'power2.out'}, travelAt + travel * 0.32);
+  }
   return {kill: () => tl.kill()};
 }
 

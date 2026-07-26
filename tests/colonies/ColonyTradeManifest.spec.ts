@@ -56,36 +56,37 @@ describe('ColonyTradeManifest', () => {
     expect(manifest.colonyBonus).deep.eq({benefit: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE, quantity: 1});
     expect(manifest.bonusRecipients).deep.eq([{color: player.color, cubes: 2}]);
 
-    // Income (3) + the BATCHED own bonus (one card per cube = 2) merged into ONE
-    // batch with segments — the whole trade is a single reveal, which is what
-    // lets the console show every card of the payout in one modal.
+    // Income (3) + the FIRST cube's bonus draw (1) merged into ONE batch with
+    // segments. Cube 2 has not drawn yet — by the rules it only starts once
+    // cube 1's discard is answered.
     expect(player.cardDrawReveals).has.lengthOf(1);
     const batch = player.cardDrawReveals[0];
-    expect(batch.cards).has.lengthOf(5);
+    expect(batch.cards).has.lengthOf(4);
     expect(batch.source).deep.eq({
       type: 'colony',
       colonyName: pluto.name,
       trade: {tradeId: manifest.tradeId, role: 'income'},
     });
-    expect(batch.tradeSegments).deep.eq([{role: 'income', count: 3}, {role: 'bonus', count: 2}]);
+    expect(batch.tradeSegments).deep.eq([{role: 'income', count: 3}, {role: 'bonus', count: 1}]);
 
     // The track is NOT reset while rewards are still resolving.
     expect(pluto.trackPosition).eq(5);
 
     // The player acknowledges the reveal (the client always does before the
-    // discard prompt is reachable), then answers the ONE discard-2 prompt that
-    // closes the payout — never a prompt per cube.
+    // discard prompt is reachable), then resolves each cube in turn.
     player.acknowledgeCardDrawReveals('all');
-    const discard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
-    expect(discard.config.min).to.eq(2);
-    expect(discard.config.max).to.eq(2);
-    expect(discard.colonyBonusDiscard).deep.eq({colonyName: pluto.name, count: 2});
-    discard.cb([discard.cards[0], discard.cards[1]]);
+    const discard1 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(discard1.colonyBonusDiscard).deep.eq({colonyName: pluto.name, index: 1, total: 2});
+    discard1.cb([discard1.cards[0]]);
     runAllActions(game);
 
-    // No second batch, no second prompt — the payout is finished.
-    expect(player.cardDrawReveals).has.lengthOf(0);
-    expect(player.getWaitingFor()).is.undefined;
+    // Cube 2's draw is its OWN batch — the modal reveals it only now.
+    expect(player.cardDrawReveals).has.lengthOf(1);
+    expect(player.cardDrawReveals[0].tradeSegments).deep.eq([{role: 'bonus', count: 1}]);
+    const discard2 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
+    expect(discard2.colonyBonusDiscard).deep.eq({colonyName: pluto.name, index: 2, total: 2});
+    discard2.cb([discard2.cards[0]]);
+    runAllActions(game);
 
     // Only now — after every reward — the track resets to the colony count.
     expect(pluto.trackPosition).eq(2);

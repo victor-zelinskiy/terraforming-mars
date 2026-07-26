@@ -1,7 +1,6 @@
 import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
-import {batchesColonyBonusPerRecipient} from './colonyBonusBatching';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
@@ -64,13 +63,9 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
 
   // ── The player's OWN colony bonuses on this tile (GiveColonyBonus prompts
   //    the trading player once per own colony, BEFORE the reward pick). A
-  //    BATCHED bonus (Pluto's draw-then-discard — colonyBonusBatching.ts) is
-  //    ONE payout for all of the player's cubes, so it previews as one step. ──
+  //    Each cube is its own step — the rules resolve them one at a time. ─────
   const ownColonies = colony.colonies.filter((id) => id === player.id).length;
-  const bonusSteps = batchesColonyBonusPerRecipient(metadata.colony.type) ?
-    Math.min(1, ownColonies) :
-    ownColonies;
-  for (let i = 0; i < bonusSteps; i++) {
+  for (let i = 0; i < ownColonies; i++) {
     const followUp = benefitFollowUp(player, colony, 'colonyBonus', metadata.colony.type, metadata.colony.quantity ?? 1);
     if (followUp !== undefined) {
       followUps.push(followUp);

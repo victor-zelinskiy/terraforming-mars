@@ -3,25 +3,26 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
- * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL.
+ * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
  *
- * The colony bonus pays "draw N, then discard N". The server batches it per
- * recipient (one merged draw + ONE discard-N prompt, marked structurally with
- * `colonyBonusDiscard`) and the reveal modal hosts that discard as its final,
- * MANDATORY step. Guarded here against the real CSS/DOM:
+ * The colony bonus pays "draw 1, then discard 1", and by the rules each colony
+ * resolves separately and in FULL before the next is revealed. The modal lays
+ * the sequence out as one ZONE per colony (exactly one live) and hosts each
+ * discard under the card it belongs to. Guarded here against the real CSS/DOM:
  *
- *  1. the merged batch shows ONE bonus zone holding ALL bonus cards, on the same
- *     line as the trade income (a padded zone used to sink them);
- *  2. the closing step renders LOCKED, with an honest reason, while any card is
- *     still untaken;
- *  3. B does NOT dismiss an owed payout — there is no exit but the step;
- *  4. taking everything unlocks it and the command bar's A becomes the step
- *     (plural for several cubes);
- *  5. pressing it leaves the modal (handing over to the hand pick).
+ *  1. three cubes render THREE zones — one active with the drawn card, the rest
+ *     face-down placeholders (their cards are not drawn yet);
+ *  2. the active colony's card is dealt FACE DOWN and opens by itself, and only
+ *     then becomes takeable;
+ *  3. the step is LOCKED, with an honest reason, while any card is untaken;
+ *  4. B does NOT dismiss an owed payout — there is no exit but the step;
+ *  5. taking everything unlocks THIS colony's own button (always singular —
+ *     never a merged multi-discard) and the command bar's A becomes it;
+ *  6. pressing it leaves the modal (handing over to the single-select hand pick).
  *
  * Driven through the route-interception harness (the same one the reveal modal's
  * TV matrix uses) so an arbitrary cube count can be exercised without walking a
- * real game to two colonies on Pluto.
+ * real game to three colonies on Pluto.
  */
 
 const OUT = path.resolve('screenshots', 'pluto-bonus-discard');
@@ -143,30 +144,32 @@ async function walkUntilActionReady(page: Page): Promise<void> {
   expect(false, 'never reached the action phase').toBeTruthy();
 }
 
-/** Inject a merged Pluto payout: 2 income + 2 bonus cards, discard 2 owed. */
-async function injectPayout(page: Page, bonusCubes: number): Promise<void> {
+/**
+ * Inject the trade's FIRST payout: the trade income plus colony 1's single
+ * bonus card, with colony 1 of `cubes` owing its discard. Colonies 2..N have
+ * not drawn yet — exactly what the server does.
+ */
+async function injectPayout(page: Page, cubes: number): Promise<void> {
   await page.route('**/api/player*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     body.cardDrawReveals = [{
       id: 990,
       source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'probe:g1:a1', role: 'income'}},
-      cards: [
-        {name: 'Micro-Mills'}, {name: 'Insulation'},
-        {name: 'Windmills'}, {name: 'Bushes'},
-      ].slice(0, 2 + bonusCubes),
-      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: bonusCubes}],
+      cards: [{name: 'Micro-Mills'}, {name: 'Insulation'}, {name: 'Windmills'}],
+      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
     }];
-    // The discard half of the same payout — marked, never sniffed from the title.
+    // The discard half of THIS colony's payout — marked, never sniffed from the
+    // title; the ordinal is what lays the sequence out.
     body.waitingFor = {
       type: 'card',
-      title: 'Pluto colony bonus. Select 2 cards to discard',
+      title: 'Pluto colony bonus. Select a card to discard',
       buttonLabel: 'Discard',
       cards: (body.cardsInHand ?? []).slice(0, 6),
-      min: bonusCubes,
-      max: bonusCubes,
+      min: 1,
+      max: 1,
       showOnlyInLearnerMode: false,
-      colonyBonusDiscard: {colonyName: 'Pluto', count: bonusCubes},
+      colonyBonusDiscard: {colonyName: 'Pluto', index: 1, total: cubes},
     };
     await route.fulfill({response, json: body});
   });
@@ -182,33 +185,32 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await walkUntilActionReady(page);
 
   // NOW the payout can arrive: a real hand, a real dock, no wizard in the way.
-  await injectPayout(page, 2);
+  await injectPayout(page, 3);
   await page.reload();
   await page.waitForSelector('.con-reveal__closer', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(2500); // the entrance settles
+  await page.waitForTimeout(3000); // the entrance + the card's own turn settle
   await shoot(page, 'locked');
 
-  // 1 · ONE bonus zone holding ALL the bonus cards, and the whole row on one line.
-  const zone = page.locator('.con-reveal__bonus-zone');
-  expect(await zone.count(), 'the bonus cards must share ONE zone').toBe(1);
-  expect(await zone.locator('.con-cards__slot').count()).toBe(2);
-  await expect(page.locator('.con-reveal__bonus-zone-label')).toContainText('×2');
-  const tops = await page.locator('.con-reveal__strip .con-cards__slot').evaluateAll(
-    (els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  const unfocused = tops.slice(1); // the focused slot legitimately rides higher
-  expect(Math.max(...unfocused) - Math.min(...unfocused),
-    `bonus and income cards must sit on ONE line (tops: ${tops.join(',')})`).toBeLessThanOrEqual(2);
+  // 1 · THREE zones — one live, the rest waiting face-down.
+  const zones = page.locator('.con-reveal__bonus-zone');
+  expect(await zones.count(), 'one zone per colony').toBe(3);
+  expect(await page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
+  expect(await page.locator('.con-reveal__bonus-zone--future').count()).toBe(2);
+  await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-zone-label')).toContainText('1/3');
+  // A waiting colony offers nothing and says why.
+  expect(await page.locator('.con-reveal__bonus-zone--future .con-reveal__closer').count()).toBe(0);
+  await expect(page.locator('.con-reveal__bonus-wait').first()).toContainText(/Ожидает/i);
 
-  // 2 · LOCKED with an honest reason while cards are untaken.
+  // 2 · the live colony's card finished opening by itself — no input was given.
+  await expect(page.locator('.con-reveal__flip--up')).toHaveCount(1);
+
+  // 3 · LOCKED with an honest reason while cards are untaken.
   await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(1);
   await expect(page.locator('.con-reveal__closer-lock')).toContainText(/Сначала заберите/i);
-  await expect(page.locator('.con-reveal__closer-cta')).toContainText(/Выбрать карты для сброса/i);
+  await expect(page.locator('.con-reveal__closer-cta')).toContainText(/Выбрать карту для сброса/i);
 
-  // 3 · B is the take-all shortcut, never an exit — the modal survives it and,
-  //     with everything taken, stays put instead of dismissing.
+  // 4 · B is the take-all shortcut, never an exit.
   await page.keyboard.press('Escape');
-  // The stack intake gathers, flies to the dock and lands card by card — the
-  // takes commit on the touchdowns, so give the whole cinematic time.
   await page.waitForSelector('.con-reveal__closer--ready', {state: 'visible', timeout: 20_000});
   await shoot(page, 'ready');
   expect(await page.locator('.con-reveal').count(), 'the modal must NOT be dismissable').toBe(1);
@@ -216,12 +218,11 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await page.waitForTimeout(600);
   expect(await page.locator('.con-reveal').count(), 'a second B must not close it either').toBe(1);
 
-  // 4 · unlocked, and the command bar's A now IS the step.
-  await expect(page.locator('.con-reveal__closer--ready')).toHaveCount(1);
+  // 5 · unlocked, and the command bar's A now IS this colony's step (singular).
   await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(0);
-  await expect(page.locator('.con-cmdbar')).toContainText(/Выбрать карты для сброса/i);
+  await expect(page.locator('.con-cmdbar')).toContainText(/Выбрать карту для сброса/i);
 
-  // 5 · pressing it hands over (the modal releases; the hand pick takes it from here).
+  // 6 · pressing it hands over to the single-select hand pick.
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1200);
   await shoot(page, 'handed-over');

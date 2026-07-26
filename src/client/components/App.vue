@@ -442,6 +442,7 @@ import {
   armPlacementAnimations,
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
+import {shouldHoldForMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
@@ -843,8 +844,11 @@ export default defineComponent({
               gamePhase: model.game.phase,
               viewerColor: (model as PlayerViewModel).thisPlayer?.color,
             });
+            // …and an OVERLAY MARKER an opponent just placed (a cathedral in
+            // one of their cities) gets its own landing instead of popping in.
             if (prevView !== undefined &&
-                shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces)) {
+                (shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces) ||
+                 shouldHoldForMarkerPlacement(prevView.game.spaces, model.game.spaces))) {
               armPlacementAnimations();
             }
             // Structural sharing (viewSnapshotShare.ts): the assigned tree is

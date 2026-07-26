@@ -75,7 +75,7 @@
         <div class="con-task__main">
           <!-- INFO PARITY (CTS-3.8): the SOURCE CARD renders as the real
                premium card wherever the desktop docks it. -->
-          <div v-if="sourceCardName !== undefined" class="con-task__source">
+          <div v-if="sourceCardName !== undefined" class="con-task__source" ref="sourceCard">
             <div class="con-task__source-label">{{ $t('Source') }}</div>
             <Card :card="{name: sourceCardName}" :key="sourceCardName" />
           </div>
@@ -105,7 +105,14 @@
                   <span v-if="entry.preview !== ''" class="con-task__opt-preview">{{ entry.preview }}</span>
                   <span v-if="entry.isSpace" class="con-task__opt-board">{{ $t('Choose a location on the board') }} →</span>
                   <span v-else-if="entry.isNested" class="con-task__opt-board" aria-hidden="true">›</span>
-                  <GamepadGlyph v-if="focusIdx === i" :control="armed ? 'secondary' : 'confirm'" class="con-task__opt-a" />
+                  <!-- A CONTEXTUAL choice commits on A in one press, so the badge
+                       ALWAYS advertises A — never the old "A selects, now press X"
+                       two-step (a risky option arms and the second A confirms,
+                       which is still this same glyph). A GENERIC OrOptions keeps
+                       its desktop-parity select → confirm, and says so. -->
+                  <GamepadGlyph v-if="focusIdx === i"
+                                :control="!choiceOnePress && armed ? 'secondary' : 'confirm'"
+                                class="con-task__opt-a" />
                 </div>
                 <div v-if="entry.effects.length > 0" class="con-task__opt-effects">
                   <ActionEffectChip v-for="(eff, k) in entry.effects" :key="k" :effect="eff" />
@@ -649,6 +656,27 @@ export default defineComponent({
       const label = this.wf?.buttonLabel;
       return label !== undefined && label !== '' ? label : 'Confirm';
     },
+    /**
+     * Does A decide a CHOICE in ONE press? Exactly for the CONTEXTUAL flavor —
+     * DESKTOP PARITY, precisely: `ContextualChoiceContent` hosts its options
+     * `controlled` (one click commits) + `confirmRisky` (only an irreversible
+     * option arms an inline confirm), whereas a GENERIC `OrOptions` renders as
+     * `ModernOptionPicker`'s select → ПОДТВЕРДИТЬ — a deliberate two-step so a
+     * destructive target is never a single mis-press. The console mirrors both.
+     */
+    choiceOnePress(): boolean {
+      return this.activeTask.kind === 'choice' && this.activeTask.flavor === 'contextual';
+    },
+    /**
+     * The A verb of a one-press CHOICE. A LEAF option is decided on the spot, so
+     * A reads «Подтвердить»; an option that OPENS something (a nested wizard
+     * step, a board pick) honestly reads «Выбрать» — it selects the branch and
+     * the decision lands one screen later.
+     */
+    choiceCommandLabel(): string {
+      const entry = this.choiceEntries[this.focusIdx];
+      return entry !== undefined && (entry.isNested || entry.isSpace) ? 'Select' : 'Confirm';
+    },
     // ── choice ───────────────────────────────────────────────────────
     orOptions(): ReadonlyArray<PlayerInputModel> {
       if (this.wf?.type === 'or') {
@@ -980,7 +1008,32 @@ export default defineComponent({
       }
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
       const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined ? 'Back' : this.deferLabel};
+      // The select → confirm contract (A picks, X commits) every arm-then-confirm
+      // kind shares — a generic OrOptions / player / resource pick.
+      const selectThenConfirm: Array<ConsoleCommand> = [
+        {control: 'dpad', label: 'Navigate'},
+        {control: 'confirm', label: 'Select'},
+        confirm, defer,
+      ];
       switch (this.activeTask.kind) {
+      case 'choice': {
+        if (!this.choiceOnePress) {
+          return selectThenConfirm; // a GENERIC OrOptions keeps the two-step
+        }
+        // ONE press decides: A commits the focused option, so the bar must NOT
+        // advertise a second «Выполнить» on X (that read as a required step —
+        // and it WAS one: A only armed). X becomes the console-wide INSPECT
+        // verb, offered only when there IS a source card to inspect.
+        const cmds: Array<ConsoleCommand> = [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: this.choiceCommandLabel, enabled: this.confirmReady},
+        ];
+        if (this.sourceCardName !== undefined) {
+          cmds.push({control: 'secondary', label: 'Inspect'});
+        }
+        cmds.push(defer);
+        return cmds;
+      }
       case 'amount':
         return [
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
@@ -1025,11 +1078,7 @@ export default defineComponent({
         ];
       }
       default:
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          confirm, defer,
-        ];
+        return selectThenConfirm;
       }
     },
     focusCount(): number {
@@ -1368,6 +1417,27 @@ export default defineComponent({
       if (this.draftedCards.length > 0) {
         openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
       }
+    },
+    /**
+     * X on a CHOICE: inspect the docked SOURCE card fullscreen — read-only (no
+     * select / action bridge, so it can never submit the choice). The card is a
+     * VISIBLE tile, so it lifts physically out of its dock and dives back into
+     * it on close.
+     */
+    zoomSourceCard(): void {
+      const name = this.sourceCardName;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        origin: {
+          kind: 'physical',
+          resolve: () => {
+            const host = this.$refs.sourceCard as HTMLElement | null | undefined;
+            return host?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+          },
+        },
+      });
     },
     /**
      * Row jump in GRID mode — measured from the real DOM (offsetTop groups),
@@ -1869,6 +1939,14 @@ export default defineComponent({
           this.zoomFocusedCard();
           return;
         }
+        // CONTEXTUAL CHOICE: A already commits, so X is free for the console-wide
+        // INSPECT verb — the docked SOURCE card fullscreen (the card that caused
+        // this choice). Without a source card X stays a harmless confirm alias,
+        // and a GENERIC OrOptions keeps X as its real commit.
+        if (this.choiceOnePress && this.sourceCardName !== undefined) {
+          this.zoomSourceCard();
+          return;
+        }
         this.onConfirm();
         return;
       case 'back':
@@ -1899,6 +1977,16 @@ export default defineComponent({
       }
       if (this.wf?.type === 'option') {
         this.onConfirm(); // bare confirm — a single A is enough
+        return;
+      }
+      // CONTEXTUAL CHOICE: picking a listed option IS the decision, so A commits
+      // it in ONE press (see `choiceOnePress` for the desktop parity this
+      // mirrors). `onConfirm` still arms a RISKY option (tradeoff / warning)
+      // first, so an irreversible branch keeps its «нажмите ещё раз». Every
+      // other kind — a GENERIC OrOptions, `player`, `resource` — keeps the
+      // arm-then-confirm two-step its desktop twin also demands.
+      if (this.choiceOnePress) {
+        this.onConfirm();
         return;
       }
       if (this.armed) {

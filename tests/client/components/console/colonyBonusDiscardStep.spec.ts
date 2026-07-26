@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {
-  bonusDiscardStep, BONUS_DISCARD_LOCKED_REASON,
+  bonusDiscardStep, bonusZones, BONUS_DISCARD_LABEL, BONUS_DISCARD_LOCKED_REASON,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {
   drawnCardsState, currentRevealEvent, holdRevealForFollowUp, isRevealHeldForFollowUp,
@@ -9,46 +9,81 @@ import {
 } from '@/client/components/drawnCards/drawnCardsState';
 
 /*
- * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL. The colony bonus pays
- * "draw N, then discard N", so the discard is the last step of the SAME payout —
- * hosted by the reveal modal instead of arriving as a detached prompt the player
- * cannot connect to the trade they just made.
+ * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL, ONE COLONY AT A TIME.
  *
- * Guarded here: the step's own derivation (shared by the modal and the command
- * bar, so they can never disagree) and the follow-up HOLD that keeps a fully
- * taken batch on screen until the player takes that step.
+ * The colony bonus pays "draw 1, then discard 1", and by the rules each colony
+ * resolves separately and in FULL before the next is revealed — a player with
+ * three cubes answers three payouts in a row and must never see all three cards
+ * before choosing what to throw away. The modal shows that as one zone per
+ * colony (exactly one live) and hosts each discard under the card it belongs to,
+ * instead of letting it arrive as a detached prompt.
+ *
+ * Guarded here: the zone layout and the step derivation (both shared by the
+ * modal and the command bar, so they can never disagree) and the follow-up HOLD
+ * that keeps a fully taken batch on screen until the player takes that step.
  */
-describe('the colony bonus\'s closing discard step', () => {
-  describe('bonusDiscardStep', () => {
+describe('the colony bonus sequence', () => {
+  const meta = (index: number, total: number) => ({colonyName: ColonyName.PLUTO, index, total});
+
+  describe('bonusZones — one zone per colony, exactly one live', () => {
+    it('is empty without the marker (an ordinary reveal has no sequence)', () => {
+      expect(bonusZones(undefined)).to.deep.eq([]);
+    });
+
+    it('a single cube is a single ACTIVE zone (the ordinary case is unchanged)', () => {
+      expect(bonusZones(meta(1, 1))).to.deep.eq([{index: 1, total: 1, state: 'active'}]);
+    });
+
+    it('lays the whole sequence out: earlier done, current active, later waiting', () => {
+      // The rules resolve one colony at a time, so the later zones cannot show a
+      // card — the server has not drawn it yet. They are placeholders.
+      expect(bonusZones(meta(2, 3))).to.deep.eq([
+        {index: 1, total: 3, state: 'done'},
+        {index: 2, total: 3, state: 'active'},
+        {index: 3, total: 3, state: 'future'},
+      ]);
+    });
+
+    it('the last colony leaves nothing waiting behind it', () => {
+      const zones = bonusZones(meta(3, 3));
+      expect(zones.map((z) => z.state)).to.deep.eq(['done', 'done', 'active']);
+    });
+
+    it('clamps a degenerate marker instead of rendering a broken strip', () => {
+      expect(bonusZones(meta(0, 0))).to.deep.eq([{index: 1, total: 1, state: 'active'}]);
+      expect(bonusZones(meta(9, 2)).map((z) => z.state)).to.deep.eq(['done', 'active']);
+    });
+  });
+
+  describe('bonusDiscardStep — the step that closes ONE colony', () => {
     it('is absent unless the server marked the prompt', () => {
       expect(bonusDiscardStep(undefined, 0)).to.eq(undefined);
     });
 
     it('stays LOCKED, with an honest reason, while any card is untaken', () => {
-      const step = bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 1}, 2);
+      const step = bonusDiscardStep(meta(1, 3), 2);
       expect(step?.ready).to.eq(false);
       expect(step?.lockedReason).to.eq(BONUS_DISCARD_LOCKED_REASON);
     });
 
-    it('unlocks only when EVERY card of the payout has been taken', () => {
-      // Choosing what to throw away before seeing everything that arrived would
-      // be the wrong order — bonus cards and trade income alike must land first.
-      expect(bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 1}, 1)?.ready).to.eq(false);
-      const ready = bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 1}, 0);
+    it('unlocks only when everything on the table has been taken', () => {
+      // On the trade's first payout that includes the trade income, not just
+      // the bonus card — you take what you were given before choosing.
+      expect(bonusDiscardStep(meta(1, 3), 1)?.ready).to.eq(false);
+      const ready = bonusDiscardStep(meta(1, 3), 0);
       expect(ready?.ready).to.eq(true);
       expect(ready?.lockedReason).to.eq('');
     });
 
-    it('is singular for ONE cube and plural for several (the count IS the cubes)', () => {
-      expect(bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 1}, 0)?.label)
-        .to.eq('Pick a card to discard');
-      expect(bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 3}, 0)?.label)
-        .to.eq('Pick cards to discard');
-      expect(bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 3}, 0)?.count).to.eq(3);
+    it('is ALWAYS singular — one colony, one card, never a merged discard', () => {
+      expect(bonusDiscardStep(meta(1, 1), 0)?.label).to.eq(BONUS_DISCARD_LABEL);
+      expect(bonusDiscardStep(meta(2, 4), 0)?.label).to.eq(BONUS_DISCARD_LABEL);
     });
 
-    it('never asks for fewer than one card (a degenerate marker)', () => {
-      expect(bonusDiscardStep({colonyName: ColonyName.PLUTO, count: 0}, 0)?.count).to.eq(1);
+    it('carries its place in the sequence for the zone caption', () => {
+      const step = bonusDiscardStep(meta(2, 3), 0);
+      expect(step?.index).to.eq(2);
+      expect(step?.total).to.eq(3);
     });
   });
 

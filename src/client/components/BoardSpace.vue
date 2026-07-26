@@ -22,8 +22,13 @@
         <div v-if="space.gagarin === 0" class='gagarin'></div>
         <div v-else class='gagarin visited'></div>
       </template>
+      <!-- An OVERLAY MARKER lands ON the existing city tile, so it has its own
+           arrival beat (markerPlacementAnimation) — without it the cathedral
+           popped into the board in the same frame as the prompt it causes. -->
       <template v-if="space.cathedral === true">
-        <div class='board-cube--cathedral'></div>
+        <div class='board-cube--cathedral'
+             :class="{'board-cube--placing': cathedralPlacing}"
+             :style="markerPlacementStyle"></div>
       </template>
       <template v-if="space.nomads === true">
         <div class='board-cube--nomad'></div>
@@ -51,6 +56,15 @@ import {SpaceType} from '@/common/boards/SpaceType';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {isRemoteRevealHeld} from '@/client/console/tilePlacement/remoteRevealHold';
 import {observeCube, cubePhase as cubePhaseForSpace, CubePhase} from '@/client/components/board/cubeDropState';
+import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
+
+type Data = {
+  cathedralPlacing: boolean;
+  markerDurationMs: number;
+  markerDelayMs: number;
+  markerTimer: number | null;
+};
+
 export default defineComponent({
   name: 'board-space',
   props: {
@@ -70,8 +84,13 @@ export default defineComponent({
       required: true,
     },
   },
-  data() {
-    return {};
+  data(): Data {
+    return {
+      cathedralPlacing: false,
+      markerDurationMs: 0,
+      markerDelayMs: 0,
+      markerTimer: null,
+    };
   },
   components: {
     'bonus': Bonus,
@@ -88,6 +107,43 @@ export default defineComponent({
       handler(): void {
         observeCube(this.space);
       },
+    },
+    // The overlay-marker landing (mirrors BoardSpaceTile's placement watcher:
+    // immediate, module-tracked, so a mid-beat remount RESUMES the keyframe).
+    'space.cathedral': {
+      immediate: true,
+      handler(): void {
+        this.refreshMarkerPlacement();
+      },
+    },
+  },
+  beforeUnmount() {
+    if (this.markerTimer !== null) {
+      clearTimeout(this.markerTimer);
+      this.markerTimer = null;
+    }
+  },
+  methods: {
+    refreshMarkerPlacement(): void {
+      if (this.markerTimer !== null) {
+        clearTimeout(this.markerTimer);
+        this.markerTimer = null;
+      }
+      const result = observeMarkerPlacement(this.space);
+      if (result === null) {
+        this.cathedralPlacing = false;
+        return;
+      }
+      this.cathedralPlacing = true;
+      this.markerDurationMs = result.durationMs;
+      this.markerDelayMs = result.delayMs;
+      const spaceId = this.space.id;
+      const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
+      this.markerTimer = window.setTimeout(() => {
+        this.cathedralPlacing = false;
+        this.markerTimer = null;
+        clearActiveMarker(spaceId);
+      }, remaining);
     },
   },
   computed: {
@@ -111,6 +167,17 @@ export default defineComponent({
     // reads the `symbol_overlay` preference itself for the colour-blind glyph.
     cubePhase(): CubePhase {
       return cubePhaseForSpace(this.space.id);
+    },
+    // Inline duration/delay for the marker keyframe (negative delay resumes a
+    // beat interrupted by a remount) — same contract as `--placement-duration`.
+    markerPlacementStyle(): Record<string, string> {
+      if (!this.cathedralPlacing) {
+        return {};
+      }
+      return {
+        '--marker-placement-duration': `${this.markerDurationMs}ms`,
+        '--marker-placement-delay': `${this.markerDelayMs}ms`,
+      };
     },
     claimedToken(): ClaimedToken | undefined {
       if (this.space.undergroundResource === undefined) {

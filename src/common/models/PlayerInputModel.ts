@@ -147,18 +147,22 @@ export type SpendHeatPromptMeta = {
 }
 
 /**
- * Marks the DISCARD half of a colony bonus that pays "draw N, then discard N"
+ * Marks the DISCARD half of a colony bonus that pays "draw 1, then discard 1"
  * (Pluto). Structural, never detected from the title: the console reveal modal
- * reads it to host the discard as the FINAL, mandatory step of the SAME payout
- * the drawn cards arrived in — the player must not be told to discard by a
- * detached prompt that looks unrelated to the trade they just made.
+ * reads it to host the discard as the closing step of the SAME payout the card
+ * arrived in — the player must not be told to discard by a detached prompt that
+ * looks unrelated to the trade they just made.
  *
- * `count` is how many cards must go (one per cube the recipient owns on that
- * colony), which is also what makes the pick single- or multi-select.
+ * By the rules EACH colony resolves separately and in full before the next one
+ * is revealed, so a recipient with several cubes answers several of these — one
+ * per cube. `index` (1-based) and `total` are the recipient's position in that
+ * sequence: they let the modal lay out one zone per colony and show which is
+ * resolving («Бонус колонии 2 из 3») without re-deriving anything client-side.
  */
 export type ColonyBonusDiscardMeta = {
   colonyName: ColonyName;
-  count: number;
+  index: number;
+  total: number;
 }
 
 export type BaseInputModel = {

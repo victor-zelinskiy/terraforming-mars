@@ -275,3 +275,95 @@
     0%   { opacity: 0; }
     100% { opacity: 1; }
 }
+
+/*
+ * ── OVERLAY MARKER landing (St. Joseph's cathedral) ────────────────────────
+ *
+ * A marker is placed ON an existing tile, so it gets its own — lighter —
+ * arrival: the token descends onto the city, contacts with one small damped
+ * settle, and a warm halo retires around it. Driven by
+ * markerPlacementAnimation.ts via `--placing` + the inline
+ * `--marker-placement-duration` / `--marker-placement-delay` (negative delay
+ * resumes a beat a remount interrupted), exactly like the tile framework.
+ *
+ * Same performance contract as the tile animation: ONLY transform + opacity
+ * animate (both compositor channels), the halo is a separate pseudo-element
+ * layer, `will-change` is bounded to the class's lifetime, and nothing here
+ * animates `filter` (which the console performance profile strips anyway —
+ * the landing must read identically with it on).
+ *
+ * All lengths are BOARD px: this element lives inside the board's
+ * `scale(--board-scale)` space, where the hexes themselves are px-authored.
+ */
+.board-cube--placing {
+    /* Gold — the cathedral's own material, distinct from the cyan/green
+       accents the three iconic player tiles use. */
+    --marker-accent:       rgba(255, 226, 150, 0.95);
+    --marker-accent-soft:  rgba(255, 205, 110, 0.45);
+    --marker-placement-duration: 620ms;
+    --marker-placement-delay:    0ms;
+
+    animation: marker-placement-drop var(--marker-placement-duration) cubic-bezier(0.33, 1, 0.68, 1) var(--marker-placement-delay) both;
+    will-change: transform, opacity;
+    /* The halo must not be clipped by the 20px token box. */
+    overflow: visible;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -7px; /* board px-space */
+        border-radius: 50%;
+        border: 1.5px solid var(--marker-accent); /* board px-space */
+        box-shadow: 0 0 8px var(--marker-accent-soft), inset 0 0 6px var(--marker-accent-soft); /* board px-space */
+        opacity: 0;
+        animation: marker-placement-halo var(--marker-placement-duration) cubic-bezier(0.33, 1, 0.68, 1) var(--marker-placement-delay) both;
+        pointer-events: none;
+    }
+}
+
+/*
+ * The descent: the token comes down from a little above the tile, slightly
+ * oversized (it is closer to the camera), and seats with ONE baked overshoot
+ * + a short damped tail — the same value-encoded spring the tile uses, so the
+ * two placements read as one language.
+ */
+@keyframes marker-placement-drop {
+    0%   { opacity: 0;    transform: translate3d(0, -13px, 0) scale3d(1.30, 1.30, 1); }
+    18%  { opacity: 0.45; transform: translate3d(0, -9px, 0)  scale3d(1.22, 1.22, 1); }
+    36%  { opacity: 0.82; transform: translate3d(0, -5px, 0)  scale3d(1.13, 1.13, 1); }
+    52%  { opacity: 1;    transform: translate3d(0, -1px, 0)  scale3d(1.04, 1.04, 1); }
+    /* Contact — the single overshoot (the token presses into the tile). */
+    62%  { opacity: 1;    transform: translate3d(0, 0, 0)     scale3d(0.94, 0.94, 1); }
+    76%  { opacity: 1;    transform: translate3d(0, 0, 0)     scale3d(1.03, 1.03, 1); }
+    88%  { opacity: 1;    transform: translate3d(0, 0, 0)     scale3d(0.99, 0.99, 1); }
+    100% { opacity: 1;    transform: translate3d(0, 0, 0)     scale3d(1, 1, 1); }
+}
+
+/* The halo is the CONTACT cue: nothing before the token is nearly down, one
+   peak at the touch (62 %), then it expands away and retires. */
+@keyframes marker-placement-halo {
+    0%, 44% { opacity: 0;    transform: scale3d(0.55, 0.55, 1); }
+    56%     { opacity: 0.55; transform: scale3d(0.86, 0.86, 1); }
+    64%     { opacity: 1;    transform: scale3d(1.02, 1.02, 1); }
+    80%     { opacity: 0.42; transform: scale3d(1.24, 1.24, 1); }
+    100%    { opacity: 0;    transform: scale3d(1.42, 1.42, 1); }
+}
+
+/* Reduced motion: the marker simply fades in where it belongs — no descent,
+   no overshoot, no halo (the JS side already shortens the duration). */
+@media (prefers-reduced-motion: reduce) {
+    .board-cube--placing {
+        animation: marker-placement-drop-reduced var(--marker-placement-duration) ease-out var(--marker-placement-delay) both;
+        will-change: opacity;
+
+        &::after {
+            animation: none;
+            opacity: 0;
+        }
+    }
+}
+
+@keyframes marker-placement-drop-reduced {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+}

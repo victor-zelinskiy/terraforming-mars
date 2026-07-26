@@ -51,6 +51,27 @@ Each shows: source card preview, a translated trigger line, per-option result ch
 (`+3 TR`, `+1 card`, `−2 microbes`, …), and — where relevant — the **tradeoff/price**
 (Pharmacy Union's "card turned face down"). The "do nothing" option is a calm skip.
 
+### A PAID branch is a LEAF option, never a nested `SelectPayment`
+
+An option whose price is a FIXED amount (St. Joseph's «pay 2 M€ to draw a card») is
+built as a `SelectOption` + `optionResult({effects: […]})`, and its callback defers a
+`SelectPaymentDeferred`. Three reasons, all of them user-visible:
+
+1. **One press decides.** A nested `SelectPayment` sitting in the `OrOptions` makes the
+   row a WIZARD STEP (the console draws a `›`, the desktop expands a sub-panel) — the
+   player opens a payment screen with nothing to dial and confirms twice.
+2. **The chips can exist at all.** `metadata` lives on `SelectOption`; a `SelectPayment`
+   model carries none, so the paid branch rendered as bare text next to its own
+   metadata-rich siblings.
+3. **The payment still happens correctly.** `SelectPaymentDeferred` auto-pays when M€
+   is the only way and prompts ONLY when the player genuinely has a choice (Helion
+   heat, Luna Trade Federation titanium) — the dial appears exactly when it means
+   something.
+
+Build the offer LAZILY (`player.defer(() => …)`) when the numbers describe ANOTHER
+player: the affordability gate and the `current → resulting` wallet chip must be
+PROMPT-TIME truth, not "whatever was true inside the acting player's resolution".
+
 ## Already premium — NOT a generic-modal gap (no change needed)
 
 - **Blue-card / corporation `action()` choices** (AsteroidRights, Astrodrill,

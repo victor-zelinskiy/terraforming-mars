@@ -16,18 +16,18 @@ confirmTrade (composer X)
 → wave 2 «Бонус колонии»: the viewer's own per-cube
    bonuses leave the «БОНУС» cell (one flight PER
    cube — countable, staggered)
-→ ONE merged reveal modal (1/N) for ALL cards of
-   the trade (the SERVER merged the batches by
+→ ONE reveal modal for the cards of THIS payout
+   (the SERVER merged the same-response batches by
    tradeId; segments keep the income/bonus split);
-   the colony-bonus cards sit in their own quietly
-   framed «Бонус колонии» zone inside the strip
-   (`.con-reveal__bonus-zone` — a pure grouping
-   wrapper; focus/take order unchanged; sizes to
-   1..N cards per the viewer's own cubes)
+   the colony bonus gets ONE ZONE PER COLONY
+   («Бонус колонии 2/3»), exactly one live — later
+   colonies show a face-down placeholder, their card
+   is not drawn yet
 → confirmAllReceivedCards (take / take all → hand intake)
-→ [PLUTO ONLY] the payout's CLOSING STEP inside the
-   SAME modal: «Выбрать карту(ы) для сброса» → the
-   hand overlay's ordinary select mode
+→ [PLUTO] the live zone's OWN «Выбрать карту для
+   сброса» → the hand overlay, single-select → back
+   into the modal, where the next colony's card turns
+   face up; repeated per colony
 → the white marker GLIDES LEFT to the reset cell     (only after the server's own reset committed —
    cell-by-cell impulse, settle                       Colony.handleTrade's finalizer runs at
 → «4/7» flips + «ТОРГОВАТЬ» value morphs             DECREASE_COLONY_TRACK_AFTER_TRADE, i.e. after
@@ -53,9 +53,10 @@ confirmTrade (composer X)
   `source.trade = {tradeId, role: 'income'|'bonus'}` onto its reveal source.
   `Player.enqueueCardDrawReveal` MERGES a same-trade draw into the still-
   pending batch (`tradeSegments` keeps the per-role split), so ONE trade =
-  ONE reveal modal / ONE acknowledgement. A draw resolving after the player
-  already confirmed the earlier cards (Pluto's rules-accurate
-  draw→discard→draw pairing) honestly starts a new batch.
+  ONE reveal modal / ONE acknowledgement per response. A draw resolving after
+  the player already confirmed the earlier cards (Pluto's rules-accurate
+  draw→discard→draw pairing — each colony in its own batch) honestly starts a
+  new batch.
 - **The track reset needs no new sequencing** — upstream already defers it at
   `Priority.DECREASE_COLONY_TRACK_AFTER_TRADE`, AFTER the income and every
   colony bonus (including their prompts). The manifest just exposes the pre /
@@ -111,50 +112,69 @@ any claim-timing race. Known accepted compromise: in the staged path the
 bot's turn cards present BEFORE the trade's reward waves (both ride the same
 buffered commit — same as the tile-hero's staged reward beat).
 
-## Pluto: the bonus is a payout, not two errands (2026-07-26)
+## Pluto: one colony at a time, inside the reveal modal (2026-07-26)
 
-Pluto's colony bonus pays **"draw N, then discard N"**. Upstream resolves it once
-per CUBE, so two cubes produced draw → discard → draw → discard: two reveal
-batches, two prompts, and the player choosing what to throw away before seeing
-what else the trade was about to give. The discard also arrived AFTER the reveal
-modal had gone, reading as an unrelated demand.
+Pluto's colony bonus pays **"draw 1, then discard 1"**, and by the rules EACH
+colony resolves **separately and in full** before the next is revealed. A player
+with three cubes answers three payouts in a row and must never see all three
+cards before choosing what to throw away. (An earlier iteration of this fork
+batched them into one draw-N/discard-N payout; that was a rules error and has
+been reverted — do not re-introduce it.)
 
-- **SERVER — batched per recipient.** `colonyBonusBatching.ts`
-  (`batchesColonyBonusPerRecipient`) marks `DRAW_CARDS_AND_DISCARD_ONE` as
-  batched; `GiveColonyBonus` then drains ALL of one recipient's cubes in a single
-  call and passes the count as `IColony.giveColonyBonus(player, true, cubes)`.
-  Pluto's branch draws `cubes` cards and defers ONE `DiscardCards(p, N, N)` — so
-  every card of the payout is in the player's hand before anything must go, and
-  the trade is ONE reveal batch (the tradeId merge now has nothing to split it).
-  Every other colony keeps the per-cube fan-out (a plain grant paid twice is
-  indistinguishable from paying double, and the loop is what lets an interactive
-  bonus prompt between cubes). Priority stays `SUPERPOWER`, so the discard is
-  still ahead of the trade's own track reset.
-  **Deliberate rule nuance:** the printed card resolves each cube separately, so
-  a batched player sees all drawn cards before choosing. Strictly more
-  informative, never more cards — the UX gain is the reason.
+What the fork changes is only the PRESENTATION: the whole sequence happens
+inside the reveal modal instead of arriving as detached discard prompts the
+player cannot connect to the trade.
+
+- **SERVER — unchanged rules, plus an ORDINAL.** `GiveColonyBonus` fans the
+  bonus out per CUBE as upstream does (`MultiSet`, one entry per cube, drained
+  one at a time), and Pluto's branch draws 1 and defers one
+  `DiscardCards(p, 1, 1)` at `Priority.SUPERPOWER` — so the discard is ahead of
+  every other queued bonus AND of the trade's own track reset, and cube 2 only
+  draws once cube 1 is finished. The one addition is
+  `ColonyBonusOrdinal {index, total}` (which of the recipient's cubes is
+  resolving), passed as `IColony.giveColonyBonus(player, true, ordinal)`.
 - **The prompt is MARKED, never sniffed.** `ColonyBonusDiscardMeta`
-  (`{colonyName, count}`) rides `BaseInputModel.colonyBonusDiscard` via
+  `{colonyName, index, total}` rides `BaseInputModel.colonyBonusDiscard` via
   `BasePlayerInput.markColonyBonusDiscard` (serialized centrally in
-  `ServerModel.getWaitingFor`, carried by `DiscardCards`' new `options`). `count`
-  is the cube count, which is also what makes the pick single- or multi-select.
-- **CLIENT — the modal closes the payout.** `bonusDiscardStep`
-  (`colonyBonusDiscardStep.ts`, pure) is the ONE derivation the reveal modal and
-  the command bar share, so they can never disagree. `.con-reveal__closer` is
-  MANDATORY: locked (with an honest reason) until every card — bonus AND income —
-  is taken, and while it is owed the modal has **no dismiss action at all** (B
-  stays the take-all shortcut; with nothing left to take it is inert). Pressing it
-  releases the batch, acknowledges the mandatory beat (so the announcement card is
-  skipped) and opens the hand overlay's ordinary select mode: 1 cube →
-  single-select, N cubes → multi-select + confirm.
-- **A fully taken batch is HELD on screen** for that step
-  (`holdRevealForFollowUp` / `releaseRevealFollowUp`; `currentRevealEvent()`
-  honours it). Without the hold the batch drops out the instant the last card is
-  taken — which is exactly how the discard used to escape into a prompt of its own.
-- **A ONE-card payout keeps the real modal** (`singleCardMode` returns false when
-  a discard is owed): the headless fullscreen has nowhere to host the step. This
-  is the 1-cube FOREIGN-trade case — the viewer draws only the bonus card, so the
-  modal shows the bonus zone alone and then its closing step.
+  `ServerModel.getWaitingFor`, carried by `DiscardCards`' `options`).
+- **CLIENT — one ZONE per colony, exactly one live.** `bonusZones(meta)`
+  (`colonyBonusDiscardStep.ts`, pure) derives the whole strip from the marker
+  alone — zones before `index` are `done`, `index` is `active`, the rest
+  `future`. **Nothing is carried across reveal batches**: `index`/`total`
+  already say where in the sequence we are, and each colony's card arrives in
+  its own batch.
+  - `future` zones show a **face-down placeholder**, not a card: the server has
+    not drawn that card yet, so there is nothing to leak. It says "one more
+    bonus is coming" and carries no actions.
+  - the `active` zone owns **its own** discard button, directly under its card,
+    locked (with an honest reason) until everything on the table is taken — on
+    the trade's first payout that includes the trade income.
+  - **always single-select** (`min = max = 1`); the generic hand overlay keeps
+    its multi-select support for other mechanics, this flow just never uses it.
+- **THE CARD IS OPENED ON THE TABLE.** Its cover is delivered **face down**
+  (`runTradeCoverFlight({faceDown: true})` for `role === 'bonus'` — the turn is
+  NOT spent in the air), so the handoff lands a face-down cover on a face-down
+  card: one object, no contradiction. The zone then plays the turn
+  (`con-bonus-turn`: lift → rotateY 180→0 with backface culling → settle),
+  and the card becomes takeable only on `animationend`.
+- **⚠️ THE TURN'S TRIGGER IS EXPLICIT STATE, NEVER A TIMER.** `bonusFlipAllowed`
+  = the card exists AND no scene is veiling/holding the modal; the watcher
+  re-arms per `activeBonusKey` and confirms with a double-rAF **layout-settled
+  probe**. That is what makes colony 2..N open only after the player is back:
+  their card arrives in a NEW batch, so the modal remounts, and it cannot be
+  veiled/held or unmounted while the hand overlay is up. Never start the turn
+  from a delay — behind the hand overlay it would be spent unseen.
+- **Input is swallowed while a card is turning** (`bonusFlipPhase === 'flipping'`
+  returns early from `onPress`), so no take, take-all or hand-over can be
+  double-pressed through the beat; the step additionally requires the phase to
+  be `up`.
+- A fully taken batch is HELD on screen for its step (`holdRevealForFollowUp` /
+  `releaseRevealFollowUp`); `singleCardMode` returns false whenever a discard is
+  owed, so the 1-card FOREIGN-trade payout keeps the real modal (the headless
+  fullscreen has nowhere to host a zone).
+- **The foreign-trade case is the same code path**: the viewer's bonus draws are
+  trade-tagged too, so their batch carries only `role: 'bonus'` segments — no
+  income zone renders, and the sequence proceeds identically.
 
 ## The invariants (the done-criteria)
 
@@ -209,15 +229,18 @@ modal had gone, reading as an unrelated demand.
 ## Guards
 
 - Server: `tests/colonies/ColonyTradeManifest.spec.ts` (manifest fields,
-  merge + segments, the BATCHED Pluto payout — one reveal + one discard-N prompt
-  with its marker, reset-last, selfish, partial trades, no-decrease, exhausted
-  deck) + `tests/colonies/Pluto.spec.ts` (one cube vs several: merged draw, a
-  single prompt, and no second prompt hiding behind it).
+  merge + segments, Pluto's per-cube sequence — income + cube 1 in one batch,
+  cube 2 in its OWN batch after cube 1's discard, each prompt carrying its
+  ordinal, reset-last, selfish, partial trades, no-decrease, exhausted deck) +
+  `tests/colonies/Pluto.spec.ts` (one cube vs several: draw → discard → draw →
+  discard, never a merged draw and never a multi-card discard).
 - Client: `tests/client/components/console/colonyTradeModel.spec.ts` (pure
   mapping / waves / glide) + `consoleColonyTrade.spec.ts` (lifecycle,
-  three-gate conclusion, claims, dedupe, holds release on abort) +
-  `colonyBonusDiscardStep.spec.ts` (the closing step's lock/label derivation and
-  the follow-up hold that keeps the modal up for it).
+  three-gate conclusion, claims, dedupe, holds release on abort, the pre-claim
+  veil's one-shot latch) + `colonyBonusDiscardStep.spec.ts` (the zone layout and
+  the step's lock/label derivation, plus the follow-up hold) +
+  `tests/e2e/console-pluto-bonus-discard.spec.ts` (the real DOM: three zones,
+  the card opening by itself, the per-zone locked/ready button, B never exiting).
 - ⚠️ `ConsoleRevealOverlay` cannot be MOUNTED under mochapack (it fails to load
   in that bundle — the pre-existing `consoleRevealResultFlight.spec.ts` shows the
   same 0-passing symptom), which is why the modal's logic lives in the pure

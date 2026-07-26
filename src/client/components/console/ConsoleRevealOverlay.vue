@@ -99,30 +99,69 @@
                     <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                   </div>
                 </div>
-                <!-- The COLONY-BONUS cards of a merged trade batch sit in
-                     their own quietly framed zone («Бонус колонии») so the
-                     player reads which cards the settlements earned —
-                     usually one, several with multiple own cubes. A pure
-                     grouping wrapper: the slots keep the strip's zoom /
-                     focus / cover-landing contracts. -->
-                <div v-if="drawnGrouped.bonus.length > 0" class="con-reveal__bonus-zone">
+                <!--
+                  ONE ZONE PER COLONY. By the rules each colony resolves
+                  separately and in full — draw 1, discard 1 — so the sequence
+                  is laid out as a table: exactly one zone is ACTIVE, earlier
+                  ones carry a calm completion mark, and later ones show a
+                  face-down placeholder (their card is not drawn yet — the
+                  server only draws it once this one is finished).
+                -->
+                <div v-for="zone in bonusZones" :key="'zone' + zone.index"
+                     class="con-reveal__bonus-zone"
+                     :class="'con-reveal__bonus-zone--' + zone.state">
                   <span class="con-reveal__bonus-zone-label">
-                    {{ $t('Colony bonus payout') }}
-                    <!-- SEVERAL cubes on this colony pay several cards into the
-                         SAME zone — the count says so outright. -->
-                    <b v-if="drawnGrouped.bonus.length > 1">×{{ drawnGrouped.bonus.length }}</b>
+                    {{ $t('Colony bonus') }}
+                    <b v-if="zone.total > 1">{{ zone.index }}/{{ zone.total }}</b>
                   </span>
-                  <div v-for="entry in drawnGrouped.bonus" :key="entry.card.name + '#' + entry.index"
-                       class="con-cards__slot con-start__deal"
-                       :style="dealDelay(entry.pos)"
-                       :data-zoom-slot="entry.card.name + '#' + entry.index"
-                       :class="{'con-cards__slot--focused': focusIdx === entry.pos}"
-                       :ref="focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
-                    <Card :card="entry.card" :key="entry.card.name" lightweight />
-                    <div v-if="focusIdx === entry.pos" class="con-start__slot-a">
+
+                  <!-- ACTIVE: the real card, face DOWN until it flips open. -->
+                  <div v-if="zone.state === 'active' && activeBonusEntry !== undefined"
+                       class="con-cards__slot con-reveal__bonus-slot"
+                       :data-zoom-slot="activeBonusEntry.card.name + '#' + activeBonusEntry.index"
+                       :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
+                       :ref="focusIdx === activeBonusEntry.pos ? 'focusedCardSlot' : undefined">
+                    <div class="con-reveal__flip"
+                         :class="'con-reveal__flip--' + bonusFlipPhase"
+                         @animationend="onBonusFlipEnd">
+                      <div class="con-reveal__flip-face">
+                        <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
+                      </div>
+                      <div class="con-reveal__flip-back" aria-hidden="true">
+                        <span class="con-card-back"></span>
+                      </div>
+                    </div>
+                    <div v-if="focusIdx === activeBonusEntry.pos && bonusFlipPhase === 'up'" class="con-start__slot-a">
                       <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                     </div>
                   </div>
+
+                  <!-- FUTURE: a face-down placeholder — an honest "one more
+                       bonus is coming", never a card the player could read. -->
+                  <div v-else-if="zone.state === 'future'" class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--waiting" aria-hidden="true">
+                    <span class="con-card-back"></span>
+                  </div>
+
+                  <!-- DONE: the colony has paid out and been discarded for. -->
+                  <div v-else class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--done" aria-hidden="true">
+                    <span class="con-card-back"></span>
+                    <span class="con-reveal__bonus-done">✓</span>
+                  </div>
+
+                  <!-- THIS COLONY's own discard — the step that closes THIS
+                       payout, under the card it belongs to. -->
+                  <div v-if="zone.state === 'active' && discardStep !== undefined"
+                       class="con-reveal__closer"
+                       :class="{'con-reveal__closer--ready': discardStepReady}">
+                    <span class="con-reveal__closer-cta" :class="{'con-reveal__closer-cta--locked': !discardStepReady}">
+                      <GamepadGlyph control="confirm" />
+                      <span>{{ $t(discardStep.label) }}</span>
+                    </span>
+                    <span v-if="!discardStepReady" class="con-reveal__closer-lock">{{ $t(discardStep.lockedReason) }}</span>
+                  </div>
+                  <span v-else-if="zone.state === 'future'" class="con-reveal__bonus-wait">
+                    {{ $t('Waits for the previous bonus') }}
+                  </span>
                 </div>
               </div>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
@@ -131,25 +170,6 @@
                 <span class="con-reveal__pager-s">/</span>
                 <span class="con-reveal__pager-n">{{ drawnUntaken.length }}</span>
                 <span class="con-reveal__pager-b">]</span>
-              </div>
-              <!--
-                THE PAYOUT'S CLOSING STEP — Pluto's colony bonus is "draw N, then
-                discard N", so the discard belongs to THIS modal, not to a prompt
-                that arrives afterwards looking unrelated. Mandatory: there is no
-                way out of the modal except through it, and it stays locked until
-                every card of the payout (bonus AND trade income) has been taken.
-              -->
-              <div v-if="discardStep !== undefined" class="con-reveal__closer"
-                   :class="{'con-reveal__closer--ready': discardStepReady}">
-                <span class="con-reveal__closer-note">
-                  {{ $t('The colony bonus is completed by a discard') }}
-                </span>
-                <span class="con-reveal__closer-cta" :class="{'con-reveal__closer-cta--locked': !discardStepReady}">
-                  <GamepadGlyph control="confirm" />
-                  <span>{{ $t(discardStep.label) }}</span>
-                  <b v-if="discardStep.count > 1" class="con-reveal__closer-count">×{{ discardStep.count }}</b>
-                </span>
-                <span v-if="!discardStepReady" class="con-reveal__closer-lock">{{ $t(discardStep.lockedReason) }}</span>
               </div>
             </div>
             <!--
@@ -357,7 +377,9 @@ import {
   markCardTaken, releaseRevealFollowUp,
 } from '@/client/components/drawnCards/drawnCardsState';
 import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
-import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
+import {
+  bonusDiscardStep, bonusZones, BonusDiscardStep, BonusZone,
+} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
@@ -408,6 +430,17 @@ export default defineComponent({
   emits: ['dismiss-result', 'discard-pick'],
   data() {
     return {
+      /**
+       * THE ACTIVE COLONY'S CARD is dealt FACE DOWN and opens on the table:
+       *   down     — on the table, back up (its cover just delivered it, or it
+       *              is the next colony's card the player has come back to);
+       *   flipping — the one-shot 3D turn is playing; input is swallowed and
+       *              the card cannot be taken yet;
+       *   up       — open and takeable.
+       * Keyed per batch, so every colony in the sequence opens on its own.
+       */
+      bonusFlipPhase: 'down' as 'down' | 'flipping' | 'up',
+      bonusFlipKey: '',
       focusIdx: 0,
       // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
       /** pending → the card is flying / flipping (status shows); settled → the
@@ -521,8 +554,36 @@ export default defineComponent({
     discardStep(): BonusDiscardStep | undefined {
       return bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length);
     },
+    /** Ready to hand over — and never while the card is still turning over. */
     discardStepReady(): boolean {
-      return this.discardStep?.ready === true;
+      return this.discardStep?.ready === true && this.bonusFlipPhase === 'up';
+    },
+    /** One zone per colony of the recipient's sequence (see bonusZones). */
+    bonusZones(): ReadonlyArray<BonusZone> {
+      return bonusZones(this.bonusDiscard);
+    },
+    /**
+     * The card of the colony resolving right now. The batch carries exactly one
+     * bonus card (the rules draw one per colony), so this is that card — the
+     * later colonies have not drawn yet and render as face-down placeholders.
+     */
+    activeBonusEntry(): StripEntry | undefined {
+      return this.drawnGrouped.bonus[0];
+    },
+    /** Identity of the card currently on the table — re-arms the flip per colony. */
+    activeBonusKey(): string {
+      const e = this.activeBonusEntry;
+      return e === undefined ? '' : `${this.drawnEvent?.id ?? 0}|${e.card.name}#${e.index}`;
+    },
+    /**
+     * THE TURN MAY BEGIN. Explicit state, never a timer: the card must be on a
+     * modal the player is actually looking at — no scene veiling it, nothing
+     * holding its cards back, and (for the second colony onward) the hand
+     * overlay that took the previous discard already gone, which is exactly
+     * what mounting this modal again means.
+     */
+    bonusFlipAllowed(): boolean {
+      return this.activeBonusEntry !== undefined && !this.bonusVeiled && !this.bonusHeld;
     },
     /** The single received card (single-card mode). */
     singleCard(): CardModel | undefined {
@@ -724,6 +785,28 @@ export default defineComponent({
     },
   },
   watch: {
+    /*
+     * ARM THE TURN. Re-armed per colony (`activeBonusKey`), and only once the
+     * card is on a modal the player can see (`bonusFlipAllowed`). The
+     * double-rAF is a LAYOUT-SETTLED probe, not a delay: the first frame
+     * applies the freshly mounted zone, the second guarantees it has been laid
+     * out, so the turn never plays against a modal that is still assembling —
+     * or, for the second colony onward, behind the hand overlay that has only
+     * just closed.
+     */
+    activeBonusKey: {
+      immediate: true,
+      handler(key: string): void {
+        this.bonusFlipKey = key;
+        this.bonusFlipPhase = 'down';
+        this.armBonusFlip(key);
+      },
+    },
+    bonusFlipAllowed(allowed: boolean): void {
+      if (allowed) {
+        this.armBonusFlip(this.bonusFlipKey);
+      }
+    },
     revealKey() {
       this.focusIdx = 0;
       // A fresh reveal (result mode) restarts the deck→slot flight from the top.
@@ -900,6 +983,12 @@ export default defineComponent({
     onPress(action: ConsoleAction): void {
       switch (this.mode) {
       case 'drawn':
+        // The card is physically turning over — no take, no take-all, no
+        // hand-over can be triggered mid-turn (and no double-press can slip
+        // through the beat).
+        if (this.bonusFlipPhase === 'flipping') {
+          return;
+        }
         if (action === 'primary') {
           // Once everything is taken, A IS the payout's closing step; while
           // cards remain it keeps its ordinary "take the focused card" job.
@@ -1208,6 +1297,28 @@ export default defineComponent({
       releaseRevealFollowUp();
       closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
       this.$emit('discard-pick');
+    },
+    /**
+     * Start the turn once the zone is genuinely on screen and laid out. Guarded
+     * by the key so a batch that changes mid-probe can never flip the wrong
+     * card, and by the phase so it can never restart a turn already playing.
+     */
+    armBonusFlip(key: string): void {
+      if (key === '' || !this.bonusFlipAllowed || this.bonusFlipPhase !== 'down' ||
+          typeof requestAnimationFrame !== 'function') {
+        return;
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (this.bonusFlipKey === key && this.bonusFlipPhase === 'down' && this.bonusFlipAllowed) {
+          this.bonusFlipPhase = 'flipping';
+        }
+      }));
+    },
+    /** The turn finished — the card is open and may be taken. */
+    onBonusFlipEnd(): void {
+      if (this.bonusFlipPhase === 'flipping') {
+        this.bonusFlipPhase = 'up';
+      }
     },
     /** RT / B: take everything — the STACK intake gesture: the fan gathers
      *  into one back-stack above the hand dock (one confirmation pulse),
