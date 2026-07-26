@@ -176,6 +176,19 @@ modal had gone, reading as an unrelated demand.
    `--bonus-held` additionally suppresses the focused slot's lift + 1.1× scale, so
    every cover lands pixel-exact and the focus eases in with the handoff instead of
    the row jumping.
+   4c. **The modal veils on its FIRST render, not on the claim.** The claim rides
+   `ConsoleColonyTradeLayer`'s pre-flush watcher, whose scheduler job is ordered by
+   the LAYER's component uid — higher than the shell's, so the shell's render (which
+   MOUNTS the modal) runs first and the modal gets one render with no veil classes:
+   it paints frame, header, source chip and closer at full opacity, starts its
+   entrance, and is then faded away by the arriving veil. That is the reported
+   flash — a whole modal appearing for a beat before the cards fly. The veil
+   therefore reads `colonyTradeWillDressReveal(source)` (active ∧ !reduced ∧
+   `cardScene === 'idle'` ∧ claims-this-batch), which is true from the instant the
+   batch exists; it hands off to `isColonyTradeRevealStaged` the moment the layer
+   stages (`cardScene` leaves `'idle'`), and is bounded by the transaction's own
+   lifetime. **Never gate a scene's veil on its own claim landing** — the claim is
+   always at least one scheduler job behind the mount.
    4b. **The handoff crossfades, never dips.** Releasing the cards starts a
    160 ms opacity ramp UP on each card; fading the proxy out at the same instant
    ran two opposing ramps over the same pixels and the reveal visibly BLINKED as

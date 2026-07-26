@@ -242,6 +242,31 @@ export function isColonyTradeRevealStaged(eventId: number | undefined): boolean 
 }
 
 /**
+ * ⚠️ THE ONE-FRAME FLASH GUARD. This batch belongs to the live transaction and
+ * the scene is ABOUT to claim it — true from the instant the batch exists,
+ * BEFORE the layer's watcher has run.
+ *
+ * The reveal modal must veil on THIS, not on `isColonyTradeRevealStaged`. The
+ * claim rides `ConsoleColonyTradeLayer`'s pre-flush watcher, whose scheduler job
+ * is ordered by the LAYER's component uid — which is higher than the shell's, so
+ * the shell's render (which MOUNTS the modal) runs first. The modal therefore
+ * gets one render with no veil classes: it paints its frame, header and source
+ * chip at full opacity and starts its entrance, and the veil then fades it away
+ * — the flash the player sees before the cards fly in.
+ *
+ * Hands off cleanly: the moment the layer stages, `cardScene` leaves `'idle'`
+ * and this returns false while `isColonyTradeRevealStaged` takes over. Bounded
+ * by the transaction's own lifetime (arm safety / ceiling / abort all clear
+ * `active`), so an un-claimed batch can never stay veiled indefinitely.
+ */
+export function colonyTradeWillDressReveal(source: CardDrawRevealSource | undefined): boolean {
+  return colonyTradeState.active &&
+    !colonyTradeState.reducedMotion &&
+    colonyTradeState.cardScene === 'idle' &&
+    colonyTradeClaimsReveal(source);
+}
+
+/**
  * The batch belongs to a trade THIS client presented (armed + claimed) this
  * session — even after the transaction closed, and even when reduced motion
  * skipped the cover flight. The deck-draw scene consults this so a
