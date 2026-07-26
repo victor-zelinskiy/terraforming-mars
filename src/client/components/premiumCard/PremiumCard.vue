@@ -255,6 +255,10 @@ export default defineComponent({
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,
         'pcard--has-res': this.resourceInfo !== undefined,
+        // No lower rules block at all (a requirement/VP-only card): the art
+        // runs down to the bottom inner border and the corner anchors overlay
+        // it — see `.pcard--no-mech` in premium_card.less.
+        'pcard--no-mech': this.vm.mechanics.textOnly,
       };
       if (this.vm.vp !== undefined) {
         classes['pcard--vp-' + vpVariantOf(this.vm.vp)] = true;

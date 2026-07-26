@@ -1389,6 +1389,32 @@
   justify-content: flex-end;
   min-height: 18px;
 }
+
+/* ── NO LOWER RULES BLOCK → the art runs to the bottom inner border ────
+ * A card whose whole rule is the requirement bar + the VP badge prints
+ * NOTHING in the lower section (mechanics.textOnly — Advanced Ecosystems,
+ * Dust Seals, Luxury Foods …), so the reserved strip under the art read as
+ * an empty band. The lower box is lifted OUT of the grid flow and collapsed
+ * onto the content's bottom edge: the art row (1fr) then extends to that
+ * edge, growing its CONTAINER only — the <img> keeps `object-fit: cover`, so
+ * no aspect distortion. The corner anchors were ALREADY positioned against
+ * that same bottom edge, so the expansion stamp (bottom-left) and the VP
+ * badge (bottom-right) keep their EXACT coordinates and simply overlay the
+ * art. A card WITH mechanics keeps the four-row grid untouched. */
+.pcard--no-mech .pcard__content {
+  grid-template-rows:
+    var(--pcard-plate-h)                   /* header shell (title plate) */
+    auto                                   /* requirements rail / divider */
+    minmax(var(--pcard-art-min), 1fr);     /* art — down to the bottom edge */
+}
+.pcard--no-mech .pcard__lower {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  min-height: 0;
+}
 /* The mechanics panel ALWAYS takes the full free width — the corner
    elements (VP badge bottom-right, resource slot bottom-left) sit on/in it
    and only the CONTENT yields, LOCALLY and SYMMETRICALLY: the last content
