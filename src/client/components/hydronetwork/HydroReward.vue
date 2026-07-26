@@ -35,7 +35,10 @@
       </span>
 
       <span v-else-if="chip.special === 'draw-4-keep-2'" class="hydro-reward__chip hydro-reward__chip--special">
-        <span class="hydro-reward__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+        <!-- `data-hydro-card-icon`: the anchor the console draw cinematic lifts
+             its cover off (ConsoleHydroSection captures this rect at confirm —
+             see consoleHydroDraw.ts). Keep the attribute on the ICON itself. -->
+        <span class="hydro-reward__icon resource_icon resource_icon--cards" data-hydro-card-icon aria-hidden="true"></span>
         <span class="hydro-reward__mini">4→2</span>
         <span v-if="!compact" class="hydro-reward__label" v-i18n>{{ SPECIAL_LABEL['draw-4-keep-2'] }}</span>
       </span>

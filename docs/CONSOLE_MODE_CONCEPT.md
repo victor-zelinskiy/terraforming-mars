@@ -1722,6 +1722,48 @@ the desktop-gamepad mode are untouched throughout.
   Select action). Gates: 95 console specs, vue-tsc, eslint, make:json,
   make:css, build:client — green.
 
+- **P24b — the «Гидромоделирование» CARD LIFT (stage 5: look at 4, take
+  up to 2).** The stage-5 reward is a plain `SelectCard` served by
+  `ConsoleTaskHost`, so — unlike the board card-bonus — there is NO
+  reveal to match and the scene is CLIENT-armed at the confirm
+  (`consoleHydroDraw.ts` / `ConsoleHydroDrawLayer.vue`, reusing the
+  board-bonus GSAP director). **Two acts, the board-bonus story:** (1) the
+  reward's own CARD ICON in the «ВЫ ПОЛУЧИТЕ» column separates and
+  FLOATS while the marker glides and the server resolves — its rect is
+  captured SYNCHRONOUSLY in `ConsoleHydroSection.onModalConfirm` (the
+  commit re-renders that panel to the next stage, so it can only be
+  measured before the submit) and rides `armHydroDraw(pos, rect)`; the
+  icon hides beneath the cover (`hydro-reward--source-lifted`, the
+  one-object rule). No capture → the lift falls back to the reached
+  `[data-hydro-stop]`. (2) Once the marker settles AND the veiled pick
+  modal's `[data-zoom-slot]`s are measurable, the cover unpacks into N
+  proxies that fan into those exact slots, flip open, and the modal
+  materializes around them (`--liftin` / `--liftin-veiled` /
+  `--liftin-held`).
+  **Three invariants — break any of them and the player gets a black,
+  inert screen (the shipped 2026-07-26 bug):**
+  1. **The layer must MIRROR `hydroDrawState` in `data()`.** Its start
+     hook is the PATH watcher `'hydroDrawState.nonce'`, resolved against
+     the component instance — without the mirror the path never resolves,
+     the watcher never fires, the scene never runs, and the task host
+     stays veiled on its behalf. Guarded by
+     `tests/client/components/console/ConsoleHydroDrawLayer.spec.ts`
+     (the controller specs cannot see it — they never mount the layer).
+  2. **The veil gates on `isHydroDrawClaimed()`, never on
+     `isHydroDrawActive()`.** The layer CLAIMS the scene synchronously in
+     `beginScene`; an armed-but-unclaimed scene (no layer / no frame
+     clock) is recalled by `CLAIM_SAFETY_MS` and the modal shows at once.
+  3. **The task host's own deck DEAL is suppressed while the lift owns
+     the arrival** (`prepareDeal` early-returns, consuming the deal-once
+     key). Otherwise two flocks of cards race in from two origins — the
+     dealer's from the bottom-centre dealer deck — and the dealer's
+     proxies dissolve at the end of THEIR flight while the hydro veil
+     still hides the real ones.
+  Every wait is bounded (`READY_TIMEOUT_MS` wall-clock, a foreign-host
+  fence for an advance that resolves into a different prompt, an episode
+  guard per arm); every degrade drops the veil FIRST and fades whatever
+  is in the air over the arriving modal.
+
 ---
 
 ## STATUS LOG (implementation)

@@ -529,6 +529,14 @@
     width: 22px;
     height: 22px;
 }
+// ONE-OBJECT RULE (console «Гидромоделирование» card lift): while the draw
+// cinematic is carrying this very icon across the screen as a card sleeve, the
+// icon must not also sit here — the cover IS it. `visibility` (not `display`)
+// so the chip's layout, and therefore the row, never shifts. The controller's
+// safety nets bound the scene, so the icon always comes back.
+.hydro-reward--source-lifted .hydro-reward__icon {
+    visibility: hidden;
+}
 // The production frame is on the WRAPPER, not the icon (so the icon background
 // survives). Brown beveled box, mirrors the game's production tile.
 .hydro-reward__prod {

@@ -198,7 +198,12 @@
                 <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
                 <span v-if="l.noteKey" class="con-hydro__delta-note">{{ $t(l.noteKey) }}: {{ l.noteValue }}</span>
               </div>
-              <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
+              <!-- The card-lift cinematic takes this chip's CARD ICON over and
+                   flies it into the pick modal; the icon hides beneath the
+                   cover for the flight (the fork's one-object rule). -->
+              <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0"
+                           :chips="rewardView.rawChips"
+                           :class="{'hydro-reward--source-lifted': drawSceneLive}" />
               <div v-if="rewardView.vp !== undefined" class="con-hydro__vpline">
                 <span class="con-hydro__stage-vp">{{ rewardView.vp }} {{ $t('VP') }}</span>
                 <span>{{ $t('VP at game end') }}</span>
@@ -351,6 +356,7 @@ import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroDrawState} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -396,9 +402,17 @@ export default defineComponent({
       ui: consoleHydroUi,
       /** The marker-advance controller (drives the glide hide + settle glow). */
       hydroMarkerState,
+      /** The card-lift controller (hides the reward icon it flies away with). */
+      hydroDrawState,
     };
   },
   computed: {
+    /** The draw cinematic is carrying the reward's card icon across the screen
+     *  — the icon itself must not sit here at the same time (one-object rule).
+     *  Bounded by the controller's own safety nets, so it always comes back. */
+    drawSceneLive(): boolean {
+      return this.hydroDrawState.active;
+    },
     /** The advance glide is running for THIS viewer — hide the FROM marker
      *  (the proxy carries it) so the token is never in two places at once. */
     markerGliding(): boolean {
@@ -765,10 +779,32 @@ export default defineComponent({
         this.ui.confirmOpen = true;
       }
     },
+    /**
+     * The reward's CARD ICON rect, measured NOW — the confirm commits and the
+     * panel re-renders to the next stage, so this is the last moment the icon
+     * the cards visibly come out of can be measured. Scoped to the «ВЫ
+     * ПОЛУЧИТЕ» column so the rail's compact twin can never be picked instead.
+     */
+    drawSourceRect(): {left: number, top: number, width: number, height: number} | undefined {
+      const root = this.$el as HTMLElement | null | undefined;
+      if (root === null || root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
+      }
+      const icon = root.querySelector<HTMLElement>('.con-hydro__gains [data-hydro-card-icon]');
+      if (icon === null) {
+        return undefined;
+      }
+      const r = icon.getBoundingClientRect();
+      return r.width > 2 && r.height > 2 ?
+        {left: r.left, top: r.top, width: r.width, height: r.height} :
+        undefined;
+    },
     onModalConfirm(): void {
       if (!this.model.canConfirm) {
         return;
       }
+      const drawStage = this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2');
+      const drawSource = drawStage ? this.drawSourceRect() : undefined;
       this.ui.confirmOpen = false;
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
@@ -781,8 +817,10 @@ export default defineComponent({
         // flown to the panel as the marker locks (Part 2 reward beat).
         rewards: hydroRewardTransfers(this.rewardView),
         // «Гидромоделирование» (draw 4, keep 2): the follow-up SelectCard is
-        // dressed by the card-lift cinematic (Part 3) instead of a bare modal.
-        drawStage: this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2'),
+        // dressed by the card-lift cinematic (Part 3) instead of a bare modal —
+        // the cover separates from the reward's own card icon (`drawSource`).
+        drawStage,
+        drawSource,
       });
     },
     /** The shell routes every hydro-section intent here. */

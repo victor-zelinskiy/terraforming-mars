@@ -417,6 +417,7 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
+import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 import {
   beginRiseScene, draftPickBeatActive, draftTrayState, finishRiseScene, resolveTraySlot,
@@ -426,7 +427,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
-import {hydroDrawState, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
+import {hydroDrawState, isHydroDrawActive, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -543,7 +544,10 @@ export default defineComponent({
      * task, since the scene is only ever armed right before its own SelectCard.
      */
     hydroLiftIn(): boolean {
-      return isHydroDrawActive() && this.activeTask.kind === 'cardSelect';
+      // CLAIMED, not merely armed: the veil is only ever worn for a scene that
+      // is genuinely on stage. An armed scene whose layer never took it would
+      // otherwise hold this modal invisible with nothing flying into it.
+      return isHydroDrawClaimed() && this.activeTask.kind === 'cardSelect';
     },
     /** Pre-frame (lift/fan): the whole frame is transparent (layout kept). */
     hydroLiftVeiled(): boolean {
@@ -1231,6 +1235,18 @@ export default defineComponent({
       const names = cards.map((c) => c.name);
       const keys = cards.map((c, i) => c.name + '#' + i);
       const dealKey = `${this.playerView.id}|${this.resetKey}`;
+      // ANOTHER cinematic already owns this set's arrival: the «Гидромоделирование»
+      // card-lift flies these very cards out of the hydronetwork into these very
+      // slots. Two deals over one row means two flocks of cards racing from two
+      // origins, and the dealer's proxies vanishing at the end of THEIR flight
+      // while the hydro veil still hides the real ones — an empty, dark modal.
+      // The lift owns the hold (`--liftin-held`), so the set is consumed here to
+      // keep the once-per-set memory honest and no deck deal is armed.
+      if (isHydroDrawActive() && names.length > 0) {
+        this.deal.dispose();
+        shouldRunDealOnce(dealKey);
+        return;
+      }
       if (this.deal.prepare(dealKey, names, keys)) {
         // Launch after the con-task-swap frame transition (160ms) settles +
         // fitCardStrip has sized the row — the measured rects are final.

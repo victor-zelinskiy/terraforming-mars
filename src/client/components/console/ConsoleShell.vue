@@ -974,6 +974,7 @@ import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/Con
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/ConsoleHydroDrawLayer.vue';
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
+import {RectLike} from '@/client/console/boardCardBonus/boardCardBonusModel';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -5902,7 +5903,7 @@ export default defineComponent({
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
-    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean}): void {
+    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean, drawSource?: RectLike}): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
       if (path === undefined || isHydroMarkerActive()) {
         return; // guard a double-confirm: the marker glide owns the moment
@@ -5927,10 +5928,13 @@ export default defineComponent({
       // you in hydro). Desktop is unaffected (never arms).
       armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards ?? []);
       // «Гидромоделирование» (draw 4, keep 2): dress the follow-up SelectCard
-      // with the card-lift cinematic — 4 cards lift off the reached stop, fan
-      // out + flip, and land in the pick modal, which materializes around them.
+      // with the card-lift cinematic — the cover separates from the reward's
+      // own CARD ICON (measured by the section before this commit re-renders
+      // that panel away) and floats through the marker glide, then unpacks
+      // into 4 cards that fan out + flip and land in the pick modal, which
+      // materializes around them. No icon → it lifts off the reached stop.
       if (payload.drawStage === true) {
-        armHydroDraw(payload.toPosition);
+        armHydroDraw(payload.toPosition, payload.drawSource);
       }
       this.submitBatch(responses);
     },
