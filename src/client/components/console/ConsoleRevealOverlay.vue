@@ -570,7 +570,7 @@ export default defineComponent({
           // …and from the very first render for a batch the live trade is about
           // to claim: the claim lands one scheduler job LATER than this mount,
           // and that gap is a fully visible modal — see colonyTradeWillDressReveal.
-          colonyTradeWillDressReveal(this.drawnEvent?.source));
+          colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source));
     },
     /** Pre-frame: the modal is mounted for measurement but fully veiled. */
     bonusVeiled(): boolean {
@@ -583,7 +583,7 @@ export default defineComponent({
           colonyTradeState.cardScene === 'fly') ||
         // The pre-claim frames: veiled from mount, so the modal never paints
         // before its cards are on the way.
-        colonyTradeWillDressReveal(this.drawnEvent?.source);
+        colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source);
     },
     /** The static cards stay hidden until the handoff releases them. */
     bonusHeld(): boolean {
@@ -596,7 +596,7 @@ export default defineComponent({
           (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame')) ||
         (isColonyTradeActive() && isColonyTradeRevealStaged(this.drawnEvent?.id) &&
           (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'frame')) ||
-        colonyTradeWillDressReveal(this.drawnEvent?.source);
+        colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source);
     },
     /** The visible card count driving the strip layout (drawn OR viewer). */
     stripCount(): number {

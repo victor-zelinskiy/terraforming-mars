@@ -10,11 +10,12 @@ import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {heldStock, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   abortColonyTrade, armColonyTrade, colonyTradeClaimsReveal, colonyTradeHoldingSingleZoom,
+  colonyTradeWillDressReveal,
   colonyTradeState, colonyTradeTileStatusText, detectColonyTrade, finishColonyTrackReset,
   isColonyTradeActive, isColonyTradeInputLocked, isColonyTradeRevealStaged, isPresentedTradeReveal,
   markColonyTradeZoomReady, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
   presentedColonyModel, resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold,
-  stageColonyTradeReveal,
+  setColonyTradeCardScene, stageColonyTradeReveal,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
@@ -217,5 +218,66 @@ describe('consoleColonyTrade', () => {
     noticeColonyTradeCommit(view(manifest()));
     await new Promise((resolve) => setTimeout(resolve, 350)); // waves settle (no anchors under JSDOM)
     expect(colonyTradeState.phase).eq('awaiting');
+  });
+  /*
+   * THE MODAL MUST BE VEILED FROM ITS FIRST RENDER — and un-veiled for good
+   * afterwards. The claim rides the layer's pre-flush watcher, which the
+   * scheduler runs AFTER the shell's render (higher component uid), so a veil
+   * gated on the claim leaves the modal painted for a frame: the reported flash.
+   * The predicate below closes that gap, and the staged latch keeps it ONE-SHOT.
+   */
+  describe('colonyTradeWillDressReveal (the pre-claim veil)', () => {
+    const tradeSource = {
+      type: 'colony' as const,
+      colonyName: ColonyName.TRITON,
+      trade: {tradeId: 'Triton:g3:a120', role: 'income' as const},
+    };
+
+    it('is TRUE the instant the batch exists — before the layer has claimed it', () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      expect(isColonyTradeRevealStaged(7)).to.eq(false);
+      expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(true);
+    });
+
+    it('hands off to the staged veil the moment the scene takes the batch', () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      stageColonyTradeReveal(7);
+      // cardScene left 'idle' AND the batch is latched — both say "not mine".
+      expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(false);
+      expect(isColonyTradeRevealStaged(7)).to.eq(true);
+    });
+
+    it('NEVER fires again once the scene finished — the modal stays visible', () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      stageColonyTradeReveal(7);
+      setColonyTradeCardScene('frame');
+      setColonyTradeCardScene('handoff');
+      setColonyTradeCardScene('idle'); // the scene is done…
+      expect(isColonyTradeActive()).to.eq(true); // …but the trade still waits for the takes
+      // Without the staged latch this re-veiled the finished modal: cards gone,
+      // input still live — "I press B and cards are taken, but I see nothing".
+      expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(false);
+    });
+
+    it('never dresses a batch belonging to another transaction', () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      const foreign = {type: 'colony' as const, colonyName: ColonyName.LUNA,
+        trade: {tradeId: 'Luna:g3:a121', role: 'bonus' as const}};
+      expect(colonyTradeWillDressReveal(9, foreign)).to.eq(false);
+      expect(colonyTradeWillDressReveal(9, undefined)).to.eq(false);
+    });
+
+    it('stays out of the way with no live transaction / reduced motion', () => {
+      expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(false); // nothing armed
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      colonyTradeState.reducedMotion = true;
+      // Reduced motion runs no cover flight — the modal keeps its own entrance.
+      expect(colonyTradeWillDressReveal(7, tradeSource)).to.eq(false);
+    });
   });
 });

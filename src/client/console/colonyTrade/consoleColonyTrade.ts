@@ -254,15 +254,26 @@ export function isColonyTradeRevealStaged(eventId: number | undefined): boolean 
  * chip at full opacity and starts its entrance, and the veil then fades it away
  * — the flash the player sees before the cards fly in.
  *
- * Hands off cleanly: the moment the layer stages, `cardScene` leaves `'idle'`
- * and this returns false while `isColonyTradeRevealStaged` takes over. Bounded
- * by the transaction's own lifetime (arm safety / ceiling / abort all clear
- * `active`), so an un-claimed batch can never stay veiled indefinitely.
+ * ⚠️ STRICTLY ONE-SHOT, per batch. `stagedRevealIds` is the latch: once the
+ * layer has taken this batch, this must NEVER answer true again. The scene
+ * returns `cardScene` to `'idle'` when it FINISHES (the transaction stays active
+ * afterwards — it is still waiting for the player to take the cards), so
+ * without the staged check the predicate fires a second time and re-veils the
+ * modal that has just finished materializing: the cards are gone but the input
+ * still works. Hands off cleanly instead — from the claim on,
+ * `isColonyTradeRevealStaged` owns this batch exclusively.
+ *
+ * Bounded by the transaction's own lifetime (arm safety / ceiling / abort all
+ * clear `active`), so an un-claimed batch can never stay veiled indefinitely.
  */
-export function colonyTradeWillDressReveal(source: CardDrawRevealSource | undefined): boolean {
+export function colonyTradeWillDressReveal(
+  eventId: number | undefined,
+  source: CardDrawRevealSource | undefined,
+): boolean {
   return colonyTradeState.active &&
     !colonyTradeState.reducedMotion &&
     colonyTradeState.cardScene === 'idle' &&
+    !isColonyTradeRevealStaged(eventId) &&
     colonyTradeClaimsReveal(source);
 }
 
