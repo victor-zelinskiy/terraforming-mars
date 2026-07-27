@@ -164,8 +164,16 @@ export type ActionPreviewBranch = {
    * NOTHING): the i18n text shown in a confirm popup when the player submits with no
    * slot filled — so an empty submit (valid but easy to do by accident) is a
    * conscious choice, not a misclick.
+   *
+   * `title`: the ONE prompt of the merged pick — for a surface that hosts the slots
+   * as a SINGLE multi-select (console: one row, one "up to N" tableau pick) the
+   * per-slot titles («Select FIRST event…») are a lie: the player answers all N in
+   * one screen. Set it to the LIVE prompt the card's real `SelectCard` uses, so the
+   * pre-collected pick and the live play read identically. Absent → a merged host
+   * falls back to the first slot's title (a surface that draws one zone per slot —
+   * the desktop modal — keeps using the per-slot titles either way).
    */
-  mergeCardSteps?: {min: number, emptyWarning?: string | Message};
+  mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message};
 };
 
 /**

@@ -501,7 +501,7 @@ export function playPreview(
   player: IPlayer,
   extraEffects: ReadonlyArray<ActionEffect> = [],
   steps: ReadonlyArray<ActionPreviewStep | undefined> = [],
-  opts: {mergeCardSteps?: {min: number, emptyWarning?: string | Message}} = {},
+  opts: {mergeCardSteps?: {min: number, title?: string | Message, emptyWarning?: string | Message}} = {},
 ): ActionPreview {
   const behaviorEffects = card.behavior !== undefined ? effectsForBehavior(player, card, card.behavior) : [];
   const branch: ActionPreviewBranch = {

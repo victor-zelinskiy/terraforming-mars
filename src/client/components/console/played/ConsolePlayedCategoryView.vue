@@ -40,9 +40,20 @@
         </span>
         <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? (pickActive ? 'pick' : ''))">{{ titleText }}</span>
         <span class="con-played-cat__count">{{ cards.length }}</span>
-        <!-- Multi-pick running counter (single picks resolve in one press). -->
-        <span v-if="pickActive && !pickSingle" class="con-played-cat__pickcount">
-          <b>{{ state.pickSelected.length }}</b><i>/ {{ pickMax }}</i>
+        <!-- Multi-pick: the running counter IS the commit CTA (single picks
+             resolve in one press and need none). The trigger that CONFIRMS is
+             named ON the count it commits — a multi pick accumulates, so
+             without this the player has no idea the selection must be sent. -->
+        <span v-if="pickActive && !pickSingle"
+              class="con-played-cat__pickcta"
+              :class="{'con-played-cat__pickcta--ready': pickValid}">
+          <span class="con-played-cat__pickcount">
+            <b>{{ state.pickSelected.length }}</b><i>/ {{ pickMax }}</i>
+          </span>
+          <span class="con-played-cat__pickcta-go">
+            <GamepadGlyph control="triggerR" />
+            <span class="con-played-cat__pickcta-label">{{ $t('Confirm') }}</span>
+          </span>
         </span>
       </div>
 
@@ -54,12 +65,17 @@
              :style="{width: layout.slotW + 'px', height: layout.slotH + 'px'}"
              :data-zoom-slot="cards[0].name"
              @click="onSlotClick(0)">
-          <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
-            <ConsolePlayedCardLite :name="cards[0].name" />
+          <!-- __lift is THE focus-transform target (the tableau's own idiom):
+               the card AND its state badges are ONE physical object — a lift
+               that moved only the face left the ✓ band floating behind. -->
+          <div class="con-played-cat__lift">
+            <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
+              <ConsolePlayedCardLite :name="cards[0].name" />
+            </div>
+            <span v-if="(cards[0].resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ cards[0].resources }}</span>
+            <span v-if="pickBand(cards[0].name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
+            <span v-else-if="pickBand(cards[0].name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(cards[0].name) }}</span>
           </div>
-          <span v-if="(cards[0].resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ cards[0].resources }}</span>
-          <span v-if="pickBand(cards[0].name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
-          <span v-else-if="pickBand(cards[0].name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(cards[0].name) }}</span>
         </div>
       </div>
 
@@ -82,12 +98,14 @@
                    :style="{width: gridPlan.slotW + 'px', height: gridPlan.slotH + 'px'}"
                    :data-zoom-slot="card.name"
                    @click="onSlotClick(row * gridPlan.cols + ci)">
-                <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
-                  <ConsolePlayedCardLite :name="card.name" />
+                <div class="con-played-cat__lift">
+                  <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
+                    <ConsolePlayedCardLite :name="card.name" />
+                  </div>
+                  <span v-if="(card.resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ card.resources }}</span>
+                  <span v-if="pickBand(card.name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
+                  <span v-else-if="pickBand(card.name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(card.name) }}</span>
                 </div>
-                <span v-if="(card.resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ card.resources }}</span>
-                <span v-if="pickBand(card.name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
-                <span v-else-if="pickBand(card.name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(card.name) }}</span>
               </div>
             </div>
             <div class="con-played-cat__spacer" :style="{height: bottomSpacerPx + 'px'}" aria-hidden="true"></div>
@@ -174,6 +192,7 @@ import {
   CategoryFlightPlan, CATEGORY_FRAME_MS,
 } from '@/client/console/played/playedCategoryDirector';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 /** Rows kept mounted above/below the viewport (hand-section discipline). */
 const OVERSCAN = 2;
@@ -192,7 +211,7 @@ function clampNum(lo: number, hi: number, v: number): number {
 
 export default defineComponent({
   name: 'ConsolePlayedCategoryView',
-  components: {ConsolePlayedCardLite},
+  components: {ConsolePlayedCardLite, GamepadGlyph},
   props: {
     /** The open category's cards (tableau order — matches state.names). */
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},

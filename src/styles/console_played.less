@@ -431,18 +431,63 @@
         font-weight: 800;
         color: #eaf3fb;
     }
-    /* Multi-pick running counter «N / max» (pick mode). */
-    &__pickcount {
+    /* Multi-pick COMMIT CTA: the running counter «N / max» fused with the
+       trigger that sends it. A multi pick ACCUMULATES — without the verb on
+       the count the screen never says the selection has to be confirmed. The
+       capsule is calm while the pick is incomplete and lights up (mint, the
+       "act now" accent) the moment the count is valid. */
+    &__pickcta {
         margin-left: auto;
+        display: inline-flex;
+        align-items: stretch;
+        gap: .5rem;
+        padding: .16rem .16rem .16rem .55rem;
+        border-radius: 1rem;
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        transition:
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+            background-color calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &__pickcount {
         display: inline-flex;
         align-items: baseline;
         gap: .25rem;
-        padding: .12rem .6rem;
-        border-radius: 1rem;
-        background: fade(@con-cyan, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%);
         b { font-size: .95rem; color: #d6f3ff; font-variant-numeric: tabular-nums; }
         i { font-size: .72rem; font-style: normal; color: @con-text-dim; }
+    }
+    /* The verb plate — a real button silhouette, so it reads as "press this",
+       never as a caption. The glyph is the ONE naming of the control. */
+    &__pickcta-go {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .1rem .55rem;
+        border-radius: .85rem;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.10);
+        opacity: .55;
+        transition:
+            opacity calc(180ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+            background-color calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &__pickcta-label {
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: #eaf3fb;
+    }
+    &__pickcta--ready {
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
+        .con-played-cat__pickcta-go {
+            opacity: 1;
+            background: linear-gradient(180deg, fade(@con-mint, 26%), fade(@con-mint, 12%));
+            box-shadow: inset 0 0 0 .06rem fade(@con-mint, 85%), 0 0 .8rem fade(@con-mint, 22%);
+        }
+        .con-played-cat__pickcount b { color: #d8fff0; }
     }
 
     /* ── PICK MODE (the composer's tableau pick hosted on this view) ──── */
@@ -541,14 +586,23 @@
         flex-shrink: 0;
         cursor: pointer;
     }
-    &__face {
+    /* THE focus-transform target (the tableau's `.con-played__lift` idiom):
+       the card AND everything that MARKS it (the ✓/reason band, the resource
+       chip) are one physical object. Lifting the face alone detached the band
+       — it stayed put while the card jumped out from under it. `relative`
+       pins the badges' containing block here in BOTH states, so the transform
+       appearing/disappearing can never re-anchor them. */
+    &__lift {
+        position: relative;
         transition: transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    &__face {
         > :is(.card-container, .pcard) {
             margin: 0;
             box-shadow: 0 .18rem .5rem rgba(0, 0, 0, 0.45);
         }
     }
-    &__slot--focused .con-played-cat__face {
+    &__slot--focused .con-played-cat__lift {
         transform: translateY(-.35rem);
     }
     &__slot--focused .con-played-cat__face > :is(.card-container, .pcard) {
@@ -562,9 +616,10 @@
         top: .18rem;
         right: -.28rem;
     }
-    /* HELD: the flights own the cards — faces keep layout, paint nothing. */
-    &--held &__face,
-    &--held &__res {
+    /* HELD: the flights own the cards — the slot keeps layout, paints
+       nothing (badges included: a ✓ band over an empty slot while its card
+       is airborne reads as a second, ghost selection). */
+    &--held &__lift {
         visibility: hidden;
     }
 
@@ -669,7 +724,9 @@
     .con-played-hero__shade { display: none; }
     .con-played-cat__backdrop { animation: none; opacity: 1; }
     .con-played-cat__panel { transition: none; }
-    .con-played-cat__face { transition: none; }
+    .con-played-cat__lift { transition: none; }
+    .con-played-cat__pickcta,
+    .con-played-cat__pickcta-go { transition: none; }
 }
 
 /* ── START SCENE: the card-payment beat ───────────────────────────────

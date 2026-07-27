@@ -116,6 +116,10 @@ export class AstraMechanica extends Card implements IProjectCard {
     return actionPreviews.playPreview(this, player, [], steps, {
       mergeCardSteps: {
         min: 0,
+        // The ONE prompt for a surface that hosts both slots as a single
+        // "up to 2" pick (console): the SAME string the live SelectCard above
+        // asks — the pre-collect and the live play can never read differently.
+        title: 'Select up to 2 events to return to your hand',
         emptyWarning: 'No events are selected. The card will be played, but no events will return to your hand.',
       },
     });

@@ -6,13 +6,13 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../../src/server/inputs/SelectOption';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {Space} from '../../../src/server/boards/Space';
-import {IPlayer} from '../../../src/server/IPlayer';
 import {IGame} from '../../../src/server/IGame';
+import {TestPlayer} from '../../TestPlayer';
 import {CardName} from '../../../src/common/cards/CardName';
 import {cast} from '../../../src/common/utils/utils';
 
 /** Play the action as `builder`, then put the cathedral on `space`. */
-function buildCathedralIn(game: IGame, builder: IPlayer, space: Space): void {
+function buildCathedralIn(game: IGame, builder: TestPlayer, space: Space): void {
   const card = new StJosephOfCupertinoMission();
   builder.megaCredits = 5;
   builder.steel = 0;

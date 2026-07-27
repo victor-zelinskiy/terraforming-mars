@@ -1195,6 +1195,13 @@ export default defineComponent({
     },
     // ── pick rows ───────────────────────────────────────────────────────
     choiceTitle(c: ComposerChoice): string {
+      // A MERGED pick (Astra) is ONE multi-select here — its per-slot titles
+      // («Выберите ПЕРВОЕ событие…») would promise a sequence the console
+      // never shows. The branch's own merged prompt is the honest ask.
+      const merged = this.mergedPickTitle(c);
+      if (merged !== '') {
+        return merged;
+      }
       const t = textOf(c.input.title);
       if (t !== '') {
         return t;
@@ -1207,6 +1214,11 @@ export default defineComponent({
       }
     },
     pickPlaceholder(c: ComposerChoice): string {
+      // The merged pick answers N slots at once ON THE TABLE — the generic
+      // «Выберите себе карту» promises one card from the wrong place.
+      if (this.isMergedPickChoice(c)) {
+        return translateText('Pick cards on the table');
+      }
       switch (c.kind) {
       case 'card': return translateText(this.isMultiCardChoice(c) ? 'Pick cards from hand' : 'Choose a card');
       case 'player': return translateText('Choose a player');
@@ -1488,6 +1500,15 @@ export default defineComponent({
       return this.mergeBranchActive && c.scope === 'step' &&
         c.input.type === 'card' && c.index === this.firstMergeCardStepIndex;
     },
+    /** The merged pick's ONE prompt (the branch's `mergeCardSteps.title`) —
+     *  '' when this choice is not the merge host / the branch declares none. */
+    mergedPickTitle(c: ComposerChoice): string {
+      if (!this.isMergedPickChoice(c)) {
+        return '';
+      }
+      const t = this.selectedBranch?.mergeCardSteps?.title;
+      return t !== undefined ? textOf(t) : '';
+    },
     /** Open the pick surface a decision row needs (a list / tabbed picker /
      *  the hand or tableau pick). An amount / spend-heat row adjusts inline,
      *  so opening it is a no-op. */
@@ -1571,7 +1592,9 @@ export default defineComponent({
         (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
       const merge = this.selectedBranch?.mergeCardSteps;
       enterPlayedTableauPick({
-        title: model.title,
+        // The merged pick asks ONCE for all its slots — the pick screen is
+        // titled by the branch's merged prompt, never a per-slot «первое…».
+        title: (merged ? merge?.title : undefined) ?? model.title,
         buttonLabel: model.buttonLabel || 'Select',
         selectable,
         disabled: disabledNames,
@@ -1580,6 +1603,10 @@ export default defineComponent({
         max: merged ? Math.max(1, this.mergeCardStepCount) : 1,
         selected: prior,
         faceDown,
+        // The pick surface names the operation it serves — the player keeps
+        // the WHY (which card asked) while the composer waits hidden under it
+        // (the repeat / action-setup picks already do; this one didn't).
+        source: {kicker: 'Play card', card: this.cardName},
       }, (cards) => {
         // Re-locate by id — the preview may have refreshed under the pick.
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;

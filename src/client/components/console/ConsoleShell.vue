@@ -2819,6 +2819,11 @@ export default defineComponent({
         // A composer's card pick is out on the hand — the bar names the pick.
         return 'Card selection';
       }
+      // ...and its TABLEAU twin (hoisted above the composers for the same
+      // reason: the pick owns the screen, so the bar must name IT).
+      if (this.playedPickActive) {
+        return 'Card selection';
+      }
       if (this.pendingPlayCard !== undefined) {
         return 'Play project card';
       }
@@ -3080,6 +3085,14 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
+      // A composer's TABLEAU pick owns the pad the same way (the composers are
+      // hidden under «Разыграно»). It MUST be hoisted above them: the intent
+      // routing already gives the pick the pad, so leaving the bar on the
+      // composer's contract advertised A/X/B only — the RT that COMMITS a
+      // multi pick (Astra's "up to 2") went completely unnamed.
+      if (this.playedPickActive) {
+        return this.playedPickCommands();
+      }
       if (this.pendingPlayCard !== undefined) {
         // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
         // resolved choice / X inspects / LB·RB only where a value dials / LT
@@ -3196,20 +3209,7 @@ export default defineComponent({
         // TABLEAU PICK: A is the pick verb (single resolves / multi toggles,
         // RT confirms), X inspects, B cancels back to the composer.
         if (consolePlayedUi.pickActive) {
-          if (consolePlayedUi.categoryBusy) {
-            return [{control: 'back', label: 'Cancel'}];
-          }
-          const verb = consolePlayedUi.pickVerb !== '' ? consolePlayedUi.pickVerb : 'Select';
-          const cmds: Array<ConsoleCommand> = [];
-          if (consolePlayedUi.pickSingle) {
-            cmds.push({control: 'confirm', label: verb, enabled: consolePlayedUi.pickFocusOk});
-          } else {
-            cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: consolePlayedUi.pickFocusOk});
-            cmds.push({control: 'triggerR', label: verb, enabled: consolePlayedUi.pickValid, badge: consolePlayedUi.pickCount, highlight: consolePlayedUi.pickCount > 0});
-          }
-          cmds.push({control: 'secondary', label: 'Inspect'});
-          cmds.push({control: 'back', label: 'Cancel'});
-          return cmds;
+          return this.playedPickCommands();
         }
         if (consolePlayedUi.categoryBusy) {
           return [{control: 'back', label: 'Back'}];
@@ -4056,6 +4056,31 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * The command run of a composer's TABLEAU pick — ONE definition for the
+     * two places it applies (hoisted above the composers, and the ordinary
+     * «Разыграно» branch), so the bar can never advertise two contracts for
+     * the same screen. A MULTI pick accumulates: A toggles, RT COMMITS — and
+     * the trigger is labelled «Подтвердить» in lock-step with the in-screen
+     * CTA on the N/max counter (the server's buttonLabel is the per-card
+     * verb, which read as a second "select" on the commit).
+     */
+    playedPickCommands(): Array<ConsoleCommand> {
+      if (consolePlayedUi.categoryBusy) {
+        return [{control: 'back', label: 'Cancel'}];
+      }
+      const verb = consolePlayedUi.pickVerb !== '' ? consolePlayedUi.pickVerb : 'Select';
+      const cmds: Array<ConsoleCommand> = [];
+      if (consolePlayedUi.pickSingle) {
+        cmds.push({control: 'confirm', label: verb, enabled: consolePlayedUi.pickFocusOk});
+      } else {
+        cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: consolePlayedUi.pickFocusOk});
+        cmds.push({control: 'triggerR', label: 'Confirm', enabled: consolePlayedUi.pickValid, badge: consolePlayedUi.pickCount, highlight: consolePlayedUi.pickValid});
+      }
+      cmds.push({control: 'secondary', label: 'Inspect'});
+      cmds.push({control: 'back', label: 'Cancel'});
+      return cmds;
+    },
     /** Titles of the inner SelectOptions — the server's claimable/fundable set. */
     /**
      * Fetch the focused cell's placement preview (the same bounded read-only

@@ -975,6 +975,12 @@ describe('cardPlayPreview', () => {
       // returning nothing) + an emptyWarning for the confirm popup on an empty submit.
       expect(branch.mergeCardSteps?.min).eq(0);
       expect(branch.mergeCardSteps?.emptyWarning, 'an empty-submit warning is supplied').is.not.undefined;
+      // The MERGED prompt for a surface that hosts both slots as ONE pick
+      // (console): it must be the SAME ask the live SelectCard makes, or the
+      // pre-collect and the live play would describe the choice differently.
+      const live = cast(new AstraMechanica().bespokePlay(player), SelectCard);
+      expect(branch.mergeCardSteps?.title, 'the merged pick carries its own prompt').is.not.undefined;
+      expect(branch.mergeCardSteps?.title).deep.eq(live.title);
     });
 
     it('AstraMechanica: only ONE slot when a single event is in play', () => {
