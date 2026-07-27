@@ -287,27 +287,39 @@
 /* ── The colony's card on the table ───────────────────────────────────── */
 .con-reveal__bonus-slot {
     position: relative;
+}
 
-    /* A placeholder (future / done) is a bare card back at the slot's size —
-       it must occupy exactly the space its real card will, so the row never
-       reflows when the card arrives. */
-    &--waiting > .con-card-back,
-    &--done > .con-card-back {
-        display: block;
-        width: 20rem;
-        height: 28.75rem; /* the premium face ratio 320×460 */
-        border-radius: .55rem;
-        box-shadow: 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
-    }
+/* A zone's placeholder occupies EXACTLY its card's box, so the row never
+   reflows or rescales as the sequence advances:
+     cover  — the next colony's card, face down (its face is not drawn yet);
+     socket — the empty space THIS card came out of, once it was taken.
+   keep-px: the premium face is a 320×460 PX design box (premium_card.less) and
+   the slot's own `zoom` scales it — rem here would be scaled twice and the
+   placeholder would no longer match the card it stands in for. */
+.con-reveal__bonus-cover,
+.con-reveal__bonus-socket {
+    display: block;
+    width: 320px; /* keep-px */
+    height: 460px; /* keep-px */
+    border-radius: .55rem;
+}
+.con-reveal__bonus-cover {
+    box-shadow: 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
+}
+/* The socket reads as a place a card WAS: a recessed, empty frame — never a
+   card back, which would say a card is still lying there. */
+.con-reveal__bonus-socket {
+    background: linear-gradient(180deg, rgba(6, 12, 18, 0.5), rgba(6, 12, 18, 0.2));
+    box-shadow: inset 0 0 0 .1rem fade(@con-mint, 13%);
 }
 .con-reveal__bonus-done {
     position: absolute;
     inset: 0;
     display: grid;
     place-items: center;
-    font-size: 3.4rem;
-    color: fade(@con-mint, 78%);
-    text-shadow: 0 0 1.2rem fade(@con-mint, 35%);
+    font-size: 72px; /* keep-px: sized against the card box above */
+    color: fade(@con-mint, 72%);
+    text-shadow: 0 0 1.2rem fade(@con-mint, 30%);
 }
 .con-reveal__bonus-wait {
     max-width: 20rem;
@@ -365,4 +377,27 @@
     .con-reveal__flip--flipping {
         animation-duration: 1ms;
     }
+}
+
+/* ── Taking a card RE-CENTRES the row, it never snaps ──────────────────────
+   The strip is a TransitionGroup: the survivors FLIP to their new positions on
+   transform only, while the taken card leaves the flow immediately (its
+   hand-intake proxy is already carrying it to the dock, so a leave animation
+   here would show the same card twice). `position: relative` on the strip keeps
+   the absolutely-positioned leaver inside it. Applies to EVERY reveal — the
+   colony bonus, a deck draw, a board bonus. */
+.con-reveal__strip {
+    position: relative;
+}
+.con-reveal-shift-move {
+    transition: transform calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.con-reveal-shift-leave-active {
+    position: absolute;
+    opacity: 0;
+    transition: opacity calc(90ms * var(--motion-scale, 1)) linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-reveal-shift-move { transition-duration: 1ms; }
 }

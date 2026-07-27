@@ -82,7 +82,16 @@
           <!-- ── DRAWN: take the received cards (source is the header chip) ── -->
           <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__body con-reveal__body--drawn con-info__scroll">
             <div class="con-reveal__main">
-              <div class="con-cards__strip con-reveal__strip"
+              <!--
+                A TransitionGroup, so taking a card never SNAPS the row: the
+                survivors FLIP to their new centred positions on transform
+                only (`--shift-move`), and the taken card leaves the flow at
+                once — its hand-intake proxy is already carrying it away, so a
+                leave animation here would be a second copy of the same card.
+                Applies to every reveal, not just the colony bonus.
+              -->
+              <transition-group tag="div" name="con-reveal-shift"
+                   class="con-cards__strip con-reveal__strip"
                    :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1}]"
                    :style="stripZoomStyle">
                 <!-- The trade-income cards (or the whole batch when it isn't
@@ -139,12 +148,15 @@
                   <!-- FUTURE: a face-down placeholder — an honest "one more
                        bonus is coming", never a card the player could read. -->
                   <div v-else-if="zone.state === 'future'" class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--waiting" aria-hidden="true">
-                    <span class="con-card-back"></span>
+                    <span class="con-reveal__bonus-cover con-card-back"></span>
                   </div>
 
-                  <!-- DONE: the colony has paid out and been discarded for. -->
-                  <div v-else class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--done" aria-hidden="true">
-                    <span class="con-card-back"></span>
+                  <!-- TAKEN / DONE: the EMPTY SOCKET the card came out of —
+                       the same footprint, so nothing resizes or shifts, with
+                       the ✓ that says this colony has paid. Showing its BACK
+                       here would read as a card still on the table. -->
+                  <div v-else class="con-cards__slot con-reveal__bonus-slot con-reveal__bonus-slot--empty" aria-hidden="true">
+                    <span class="con-reveal__bonus-socket"></span>
                     <span class="con-reveal__bonus-done">✓</span>
                   </div>
 
@@ -163,7 +175,7 @@
                     {{ $t('Waits for the previous bonus') }}
                   </span>
                 </div>
-              </div>
+              </transition-group>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
                 <span class="con-reveal__pager-b">[</span>
                 <span class="con-reveal__pager-i">{{ focusIdx + 1 }}</span>
@@ -554,9 +566,15 @@ export default defineComponent({
     discardStep(): BonusDiscardStep | undefined {
       return bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length);
     },
-    /** Ready to hand over — and never while the card is still turning over. */
+    /**
+     * Ready to hand over — and never while a card is still turning over.
+     * NOT `phase === 'up'`: the phase re-arms to `down` the moment the card
+     * leaves the table (there is nothing left to flip), so requiring `up` would
+     * lock the step exactly when it should open. `ready` already means every
+     * card was taken, so a card that is still turning cannot have been.
+     */
     discardStepReady(): boolean {
-      return this.discardStep?.ready === true && this.bonusFlipPhase === 'up';
+      return this.discardStep?.ready === true && this.bonusFlipPhase !== 'flipping';
     },
     /** One zone per colony of the recipient's sequence (see bonusZones). */
     bonusZones(): ReadonlyArray<BonusZone> {
@@ -659,9 +677,25 @@ export default defineComponent({
           (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'frame')) ||
         colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source);
     },
-    /** The visible card count driving the strip layout (drawn OR viewer). */
+    /**
+     * The slot count driving the strip layout.
+     *
+     * ⚠️ It counts what the row HOLDS, not what is left to take. Taking a card
+     * must never resize the ones beside it: a taken card leaves its empty
+     * socket, a future colony holds a face-down placeholder, so the row's width
+     * — and with it the card scale — is fixed from the batch's first frame. On
+     * the untaken count the ladder stepped up as cards left and every remaining
+     * card visibly GREW.
+     */
     stripCount(): number {
-      return this.mode === 'viewer' ? (this.viewerReveal?.cards.length ?? 0) : this.drawnUntaken.length;
+      if (this.mode === 'viewer') {
+        return this.viewerReveal?.cards.length ?? 0;
+      }
+      const cards = this.drawnEvent?.cards.length ?? 0;
+      const zones = this.bonusZones.length;
+      // The batch carries exactly ONE bonus card (one colony resolves at a
+      // time), so the extra slots are the OTHER zones of the sequence.
+      return zones === 0 ? cards : cards + zones - 1;
     },
     /**
      * Count-driven card scale so 1–4 cards stay roomy with a generous safe gap

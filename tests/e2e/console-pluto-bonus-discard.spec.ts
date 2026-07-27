@@ -16,9 +16,11 @@ import * as path from 'node:path';
  *     then becomes takeable;
  *  3. the step is LOCKED, with an honest reason, while any card is untaken;
  *  4. B does NOT dismiss an owed payout — there is no exit but the step;
- *  5. taking everything unlocks THIS colony's own button (always singular —
+ *  5. taking a card RE-CENTRES the row without resizing it, and the taken bonus
+ *     card leaves an EMPTY SOCKET (never its back);
+ *  6. taking everything unlocks THIS colony's own button (always singular —
  *     never a merged multi-discard) and the command bar's A becomes it;
- *  6. pressing it leaves the modal (handing over to the single-select hand pick).
+ *  7. pressing it leaves the modal (handing over to the single-select hand pick).
  *
  * Driven through the route-interception harness (the same one the reveal modal's
  * TV matrix uses) so an arbitrary cube count can be exercised without walking a
@@ -209,20 +211,37 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await expect(page.locator('.con-reveal__closer-lock')).toContainText(/Сначала заберите/i);
   await expect(page.locator('.con-reveal__closer-cta')).toContainText(/Выбрать карту для сброса/i);
 
-  // 4 · B is the take-all shortcut, never an exit.
+  // 4 · Card scale is FIXED for the batch: taking cards must re-centre the row,
+  //     never resize what is left. Measure a survivor before and after.
+  const cardBox = () => page.locator('.con-reveal__strip .con-cards__slot').first()
+    .evaluate((el) => {
+      const b = el.getBoundingClientRect(); return {w: Math.round(b.width), x: Math.round(b.left)};
+    });
+  const before = await cardBox();
+
+  // 5 · B is the take-all shortcut, never an exit.
   await page.keyboard.press('Escape');
   await page.waitForSelector('.con-reveal__closer--ready', {state: 'visible', timeout: 20_000});
+  await page.waitForTimeout(900); // the re-centring glide settles
   await shoot(page, 'ready');
+
+  // …and the taken bonus card left an EMPTY SOCKET at the same size — never its
+  // back, which would read as a card still lying on the table.
+  expect(await page.locator('.con-reveal__bonus-socket').count(), 'the taken card leaves its socket').toBe(1);
+  expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(),
+    'the resolved colony must NOT show a card back').toBe(0);
+  const after = await cardBox();
+  expect(after.w, `card width must not change (${before.w} → ${after.w})`).toBe(before.w);
   expect(await page.locator('.con-reveal').count(), 'the modal must NOT be dismissable').toBe(1);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
   expect(await page.locator('.con-reveal').count(), 'a second B must not close it either').toBe(1);
 
-  // 5 · unlocked, and the command bar's A now IS this colony's step (singular).
+  // 6 · unlocked, and the command bar's A now IS this colony's step (singular).
   await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(0);
   await expect(page.locator('.con-cmdbar')).toContainText(/Выбрать карту для сброса/i);
 
-  // 6 · pressing it hands over to the single-select hand pick.
+  // 7 · pressing it hands over to the single-select hand pick.
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1200);
   await shoot(page, 'handed-over');

@@ -172,6 +172,23 @@ player cannot connect to the trade.
   `releaseRevealFollowUp`); `singleCardMode` returns false whenever a discard is
   owed, so the 1-card FOREIGN-trade payout keeps the real modal (the headless
   fullscreen has nowhere to host a zone).
+- **A TAKEN card leaves its EMPTY SOCKET, never its back.** The resolved zone
+  renders `.con-reveal__bonus-socket` — a recessed, empty frame at the card's
+  exact box plus the ✓ — because a card BACK there reads as a card still lying on
+  the table. `future` zones keep a back (that IS a card, just not turned yet).
+  Both placeholders are sized in **px** (320×460, `keep-px`): the premium face is
+  a px design box and the slot's own `zoom` scales it, so a rem size would be
+  scaled twice and stop matching its card.
+- **⚠️ `stripCount` counts what the row HOLDS, not what is left to take.** On the
+  untaken count the scale ladder stepped up as cards left and every remaining
+  card visibly GREW. The taken card's socket and the future colonies' backs keep
+  the row's width, so the card scale is fixed from the batch's first frame.
+- **The row RE-CENTRES on transform, it never snaps.** The strip is a
+  `TransitionGroup` (`con-reveal-shift`): survivors FLIP to their new centred
+  positions (`--move`, transform only), while the taken card leaves the flow at
+  once — its hand-intake proxy is already carrying it to the dock, so a leave
+  animation would show the same card twice. This is on the strip itself, so it
+  covers EVERY reveal (colony bonus, deck draw, board bonus), not just Pluto.
 - **The foreign-trade case is the same code path**: the viewer's bonus draws are
   trade-tagged too, so their batch carries only `role: 'bonus'` segments — no
   income zone renders, and the sequence proceeds identically.
