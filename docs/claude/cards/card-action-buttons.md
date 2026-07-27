@@ -1,0 +1,20 @@
+<!-- Reference material moved out of the root CLAUDE.md (2026-07-27 context-budget reorg).
+     NOT auto-loaded. Read on demand when working on this subsystem. Verbatim, unedited. -->
+
+## Card-action button design system (`card_action_buttons.less` — `cab-*`)
+
+Every card-selection flow (hand overlay "КАРТЫ В РУКЕ", sale-patents mode, the fullscreen viewer, buy / draft / select / research modals, initial-draft steps, drawn-cards reveal) draws its buttons from ONE angular/HUD language so nothing reads as a premium HUD plate in one place and a plain rounded web-button in another. The system lives in `src/styles/card_action_buttons.less` (imported in `common.less` BEFORE every consumer so the mixins resolve). It is LESS-mixin-only — no markup changed; existing class names keep working, they just pull a shared look.
+
+**Apply pattern:** `.cab-base()` on the BASE class (so its `&__label`, `&__glow`, `&::before` selectors resolve onto the real BEM children), then a `.cab-palette-*()` on the base AND/OR a `--modifier` (palette mixins only touch `&` / `&::before` / `&::after` / `&:hover`, never BEM children, so they're safe on a modifier). The canonical silhouette is `@cab-shape` (a px-based parallelogram → width-independent); the chassis is the parent `background` showing through a 1-px-inset `::before` (rim brighter than body).
+
+**Roles (visual weight low → high) + where used:**
+- `cab-palette-secondary` — ЗАКРЫТЬ / ОТМЕНА (quiet dark glass). `hand-sale-cancel-btn`, modal `--secondary`.
+- `cab-palette-neutral` — ВЫБРАТЬ (steel/cyan dark glass). `hand-card-sell-btn` rest, `card-selection__card-action-btn`, `initial-draft-pick__card-btn`, fullscreen `hand-zoom-sell`.
+- `cab-palette-deselect` — СНЯТЬ ВЫБОР (dark glass + **amber rim**, NO breathing). **The key tone-down:** it used to be a solid bright fill that competed with the CTA; it is now deliberately calmer than any CTA, everywhere (`--selected` / `--unselect` in hand, card_selection, initial_draft, modal). Amber regardless of mode (per the spec's СНЯТЬ ВЫБОР = amber).
+- `cab-palette-play` — РАЗЫГРАТЬ КАРТУ (mint dark glass). `hand-card-play-btn--ready`; fullscreen `hand-zoom-play` recolours the modal primary to mint.
+- `cab-palette-cta-cyan / -mint / -amber` — the SINGLE strongest control (КУПИТЬ / ПОДТВЕРДИТЬ = mint, ПРОДАТЬ = amber, hand-select ПОДТВЕРДИТЬ = cyan, ВЗЯТЬ = mint). The ONLY role that inverts to a **bright accent plate with DARK text** (`@cab-text-dark` — white fails contrast on light mint/amber) + a slow breathing under-glow. `card-selection__confirm`, `initial-draft-pick__confirm`, `hand-sale-confirm-btn`, `hand-select-confirm-btn`, `draw-reveal__take-all` + fullscreen `draw-reveal__fs-take`.
+
+**Selected-card state is unified (one look in every flow) — `cab-selected-ribbon()`:** a selected card always shows **cyan glow + a "ВЫБРАНА" steel-silver-cyan ribbon (shared mixin) + a calm amber СНЯТЬ ВЫБОР button**; a leftover checkmark tick (hand) is a SECONDARY indicator only (recoloured cyan). Cyan is used for the selected accent in EVERY mode (buy / draft / research / sale / mandatory-select) — the mode is carried by the strip + the CTA colour (amber sale strip + amber ПРОДАТЬ, cyan select strip + cyan ПОДТВЕРДИТЬ), never by recolouring the card. The fullscreen viewer shows the same state because hosts pass `:selected` (HandCardsOverlay passes `:selected="zoomSelected"`), driving `.card-zoom-card--selected` (cyan halo + "ВЫБРАНА"). The modal's strong cyan `--primary` reference plate is intentionally left as-is (white-on-cyan); only `--unselect` was toned down.
+
+**Extending:** to add a new card-action button, pick the role, `.cab-base()` + `.cab-palette-<role>()` it, and size via padding/font on the base — don't hand-roll a new gradient. New accent? add a `@cab-*` token + a `cab-palette-cta-*` wrapper; don't inline colours at the call site. NOT yet done (deliberate, optional — not in the acceptance criteria): the multi-select `#N` pick-order index on the ribbon (would need a DOM ribbon element + the pick-order index threaded from each multi-select host, replacing the pure-CSS `content:'ВЫБРАНА'` pseudo).
+

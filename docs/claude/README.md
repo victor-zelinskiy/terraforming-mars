@@ -1,0 +1,47 @@
+# `docs/claude/` — reference material extracted from the root `CLAUDE.md`
+
+The root `CLAUDE.md` had grown to ~352k characters and was loaded into **every** session, blowing the 40k budget many times over. On 2026-07-27 it was split:
+
+- **`CLAUDE.md`** — only what must apply in every session (north star, hard prohibitions, commands, architecture skeleton).
+- **`.claude/rules/*.md`** — condensed subsystem contracts with narrow `paths:` frontmatter, so a rule loads only when you touch its files.
+- **`docs/claude/**`** — this directory: the FULL, verbatim, unedited subsystem write-ups. **Not auto-loaded.** Read one on demand before working on that subsystem.
+- **`CLAUDE.md.backup.md`** (repo root) — the complete pre-split original, byte-for-byte.
+
+Nothing was thrown away: every character of the old file is either in `CLAUDE.md`, in a rule, or here.
+
+## Index
+
+| Document | Read it before … |
+| --- | --- |
+| `north-star-and-goals.md` | questioning what this fork optimises for (console-native product, 4 visual goals) |
+| `expansion-adaptation-checklist.md` | **widening scope to a new expansion** — the master to-do + guard worklists + per-module gotchas |
+| `architecture-reference.md` | needing the full three-layer / card-system / behavior / deferred-action / DB / testing / i18n / card-centering reference |
+| `board-information.md` | touching board facts, placement previews, pay-on-commit or placement cancel |
+| `journal.md` | touching the game log side panel, tokens or chips |
+| `notifications.md` | touching the floating notification layer, variants, hostile events, reveals |
+| `presentation-flow.md` | touching foreground sequencing, leases, MarsBot turn presentation |
+| `terraforming-progress-hud.md` | touching the terraforming % HUD or the completion ceremony |
+| `energy-heat-conversion.md` | touching the end-of-generation energy→heat transition |
+| `modal-inputs-and-metadata-contract.md` | routing a new modal input type or attaching per-card option metadata |
+| `premium-tooltips.md` | the full tooltip rationale + adopter list |
+| `start-game-flow.md` | touching the generation-1 orchestration modal |
+| `rematch-flow.md` | touching the end-of-game rematch subsystem |
+| `desktop-ui/deprecation-and-update-model.md` | the full desktop-freeze rationale + the no-remount/structural-sharing/motion rework |
+| `desktop-ui/action-ui-rework-and-philosophy.md` | the dedicated-button migration contract + modal philosophy |
+| `desktop-ui/overlay-played-cards.md` | the РАЗЫГРАНО tableau, fit planner, pick-mode |
+| `desktop-ui/overlay-effects.md` | the ЭФФЕКТЫ master-detail overlay + per-effect stats |
+| `desktop-ui/overlay-actions.md` | the ДЕЙСТВИЯ overlay, per-branch availability, confirm modal |
+| `desktop-ui/overlay-victory-points.md` | the VP breakdown overlay + server breakdown model |
+| `desktop-ui/overlay-hand-cards.md` | the КАРТЫ В РУКЕ overlay, play/sale/select modes, play preview |
+| `cards/premium-card-renderer.md` | the `.pcard` face internals |
+| `cards/card-information-model.md` | the generated structured card text |
+| `cards/fullscreen-card-viewer.md` | the bounded card browser |
+| `cards/card-lore-archive-entry.md` | the fullscreen lore aside |
+| `cards/card-action-buttons.md` | the `cab-*` button design system |
+| `console/*.md` | the full console contracts: task-summary copy, start-scene summary, leak detector, mandatory gate, VueUse foundation, surface motion, TV profile, performance mode |
+
+Sibling docs that already lived outside `CLAUDE.md` and are still current: `docs/CONSOLE_MODE_CONCEPT.md`, `docs/CONSOLE_FOUNDATION.md`, `docs/CONSOLE_SURFACE_MOTION.md`, `docs/DESKTOP_UI_PHILOSOPHY.md`, `docs/DESKTOP_DEPRECATION_AUDIT.md`, `docs/MODAL_INPUTS.md`, `docs/EVENT_STAT_FOUNDATION.md`, `docs/ENDGAME_STORYTELLING.md`, `docs/CHOICE_CONTEXT_AUDIT.md`, `docs/DELAYED_TARGET_AUDIT.md`, `docs/PENDING_ACTION_CANCEL_AUDIT.md`, `docs/SPECIAL_TILE_AUDIT.md`.
+
+## Maintenance rule
+
+**Do not @-import these back into `CLAUDE.md`** — that re-spends the context this split reclaimed. When a subsystem changes, update its `docs/claude/` write-up and, only if a *load-bearing prohibition* changed, the matching `.claude/rules/` file. New status/history notes belong here (or in `docs/claude/archive/`), never in the root file.
