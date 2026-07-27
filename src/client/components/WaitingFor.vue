@@ -188,6 +188,7 @@ import {
   runPlayedHero,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
+import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {
   abortHydroMarker,
@@ -779,6 +780,13 @@ export default defineComponent({
              */
             const playedHeroEvent = detectPlayedHero(newView);
             if (playedHeroEvent !== undefined) {
+              // The play's RETURN BEAT (Astra Mechanica): work out from the
+              // authoritative diff which cards travelled table → hand and
+              // withhold them from the dock NOW, so the commit below cannot
+              // show them in the pack before they have physically flown
+              // there. The beat itself plays as the hero scene's last
+              // movement (phase 'returning'), inside the still-open table.
+              stagePlayedCardReturns(this.playerView, newView);
               this.holdingForPlayedHero = true;
               try {
                 await runPlayedHero(newView);

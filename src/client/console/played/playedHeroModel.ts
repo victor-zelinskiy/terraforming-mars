@@ -42,6 +42,7 @@ export type PlayedHeroPhase =
   | 'landing' // deceleration + settle into the reserved slot
   | 'committing' // reveal real slot, remove proxy, commit the playerView
   | 'showing-result' // the landed table breathes; delta-chips tick in
+  | 'returning' // cards this play sent back to hand fly out of the table
   | 'closing' // the auto-opened table closes back to the board
   | 'done'
   | 'failed'; // server error / fallback — transaction cleaned up

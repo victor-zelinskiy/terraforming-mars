@@ -48,6 +48,9 @@ import {
 import {
   ResourceTransferSpec, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
+import {
+  abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
+} from '@/client/console/played/playedCardReturn';
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
@@ -216,7 +219,14 @@ export function runPlayedHero(view: PlayerViewModel): Promise<void> {
       // rAF stall / lost element — force the gate open, degrade gracefully.
       freeRunGate();
     }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
-    void executeFlight().finally(() => freeRunGate());
+    void executeFlight().finally(() => {
+      // PRE-COMMIT, table on screen: measure where the cards this play sends
+      // back to hand are lying. The commit removes them from the tableau one
+      // frame later — a player whose last events these were loses the pile
+      // element entirely, and with it any chance of an honest departure.
+      capturePlayedCardReturnSource();
+      freeRunGate();
+    });
   });
 }
 
@@ -409,6 +419,18 @@ export async function endPlayedHero(): Promise<void> {
   if (!playedHeroState.active) {
     return;
   }
+  if (hasPendingPlayedReturns()) {
+    // THE RETURN BEAT — the play's closing movement (Astra Mechanica): the
+    // cards it sent back to hand rise out of the pile they were lying in,
+    // turn face to the camera, and the standard intake carries them into the
+    // dock. It runs INSIDE the still-open table (one continuous scene) and
+    // the transaction finishes only after they have landed.
+    playedHeroState.phase = 'returning';
+    await runPlayedCardReturns();
+    if (!playedHeroState.active) {
+      return;
+    }
+  }
   playedHeroState.phase = 'closing';
   if (playedHeroState.autoClose && playedHeroState.tableOpen) {
     playedHeroState.tableOpen = false;
@@ -441,6 +463,10 @@ export function abortPlayedHero(): void {
   // zero trace and the panel snaps to the committed truth (any released
   // hold fires its chips in one honest transition — never a stale hold).
   abortResourceTransfers();
+  // The return beat unwinds with the scene too — and its dock withhold is
+  // released, so cards the server DID move into the hand can never be lost
+  // behind a failed animation.
+  abortPlayedCardReturns();
   clearPanelRewardHold();
   pendingRewards = [];
   rewardHoldSeeded = false;
@@ -463,6 +489,9 @@ export function abortPlayedHero(): void {
 function finish(): void {
   clearTimers();
   restoreSource();
+  // Safety — a beat that never ran (a path that skipped the return) must not
+  // leave its dock withhold behind; a completed one already cleared itself.
+  abortPlayedCardReturns();
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
   pendingRewards = [];
   rewardHoldSeeded = false;

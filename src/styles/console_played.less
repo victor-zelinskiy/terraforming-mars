@@ -676,6 +676,25 @@
         will-change: transform, opacity;
         pointer-events: none;
     }
+    /* THE RETURN BEAT's proxies (playedCardReturn): the cards a play sent
+       back to hand, rising out of the table's events pile. Same fixed stage
+       + perspective as the hero proxy (the turn is a real 3D flip); the
+       director places and reveals them pre-paint, so they never flash at the
+       origin. The hand intake takes over from their posed rect. */
+    &__ret {
+        position: fixed;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        visibility: hidden; /* the director reveals via autoAlpha at launch */
+        pointer-events: none;
+        perspective: 45rem;
+        will-change: transform, opacity;
+        /* The lift off the table reads as depth (the board-bonus flight's
+           own shadow recipe). Decorative only — the perf profile drops every
+           filter and the beat stays fully legible. */
+        filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
+    }
     /* ONE restrained apex light sweep — a gradient gliding INSIDE the card's
        own clip box (background-position, nothing translates outside). */
     &__sweep {

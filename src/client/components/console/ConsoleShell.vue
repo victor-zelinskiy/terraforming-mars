@@ -937,6 +937,7 @@ import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlay
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {isPlayedTableauPickActive, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
+import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {
   abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
@@ -7068,6 +7069,9 @@ export default defineComponent({
     // game switch never carries a live pick / dead callbacks across sessions.
     resetCategoryDirector();
     resetPlayedCategoryView();
+    // The play's return beat is module state as well — never carry a live
+    // flight (or its dock withhold) across a game switch.
+    resetPlayedCardReturns();
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {watch} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {
@@ -14,6 +15,8 @@ import {
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {panelRewardHold, heldStock, heldProduction} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {stagePlayedCardReturns, resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
+import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 
 function viewWithTableau(names: Array<CardName>): PlayerViewModel {
   return {
@@ -29,6 +32,8 @@ function settle(ms: number): Promise<void> {
 describe('consolePlayedHero (the animation transaction)', () => {
   afterEach(async () => {
     abortPlayedHero();
+    resetPlayedCardReturns(); // module state — never leak a beat into the next spec
+    handDeliveryState.held = [];
     await settle(5); // the abort lowers 'failed' → 'idle' on nextTick
   });
 
@@ -82,6 +87,38 @@ describe('consolePlayedHero (the animation transaction)', () => {
     expect(playedHeroState.phase).to.eq('idle');
     expect(isPlayedHeroActive()).to.be.false;
     expect(playedHeroState.tableOpen).to.be.false; // the system-opened table closed itself
+  });
+
+  it('a play that sent cards BACK to hand closes through the return beat', async () => {
+    // Astra Mechanica: the played card lands, then the events it returned
+    // leave the table for the dock — and only then does the scene finish.
+    const before = viewWithTableau([CardName.ASTEROID]);
+    const after = viewWithTableau([CardName.ASTRA_MECHANICA]);
+    (after as unknown as {cardsInHand: Array<{name: CardName}>}).cardsInHand = [{name: CardName.ASTEROID}];
+
+    armPlayedHero(CardName.ASTRA_MECHANICA, false, {manualTableOpen: false});
+    expect(detectPlayedHero(after)).to.not.be.undefined;
+    stagePlayedCardReturns(before, after);
+    // Withheld from the commit on: the pack must not show the card before it
+    // has physically flown there.
+    expect(handDeliveryState.held).to.deep.eq([CardName.ASTEROID]);
+
+    await runPlayedHero(after);
+    // Every transition (sync flush — the beat can be sub-frame in JSDOM,
+    // where the intake degrades instantly with no dock to fly to).
+    const phases: Array<string> = [];
+    const stop = watch(() => playedHeroState.phase, (p) => phases.push(p), {flush: 'sync'});
+    const end = endPlayedHero();
+    await settle(30);
+    skipPlayedHeroResult();
+    await end;
+    stop();
+
+    expect(phases, 'the beat is a phase of the scene, before the close').to.include('returning');
+    expect(phases.indexOf('returning')).to.be.lessThan(phases.indexOf('closing'));
+    expect(playedHeroState.phase).to.eq('idle');
+    // The cards are in the pack the moment the transaction is over.
+    expect(handDeliveryState.held).to.be.empty;
   });
 
   it('a manually-open table is NEVER auto-closed by the scene', async () => {

@@ -737,6 +737,43 @@ export function runHandDelivery(
   });
 }
 
+/**
+ * WITHHOLD names from the dock OUTSIDE the start-deal episode — for a
+ * cinematic that will deliver them itself (the played-card RETURN beat: the
+ * server puts the returned cards straight into `cardsInHand`, but they are
+ * still physically on the table until the beat carries them down).
+ *
+ * ADDITIVE on purpose: it composes with the episodic hold instead of
+ * replacing it (`armDeliveryHold` owns the whole array for its deal), and
+ * the dock reads the union as a MULTISET, so a duplicated name withholds
+ * exactly as many copies as were added. Always paired with
+ * `releaseDockCards` — fire that from the intake's `commit` so `held` hands
+ * over to `inFlight` in ONE reactive flush (no frame where the card is
+ * neither withheld nor flying = no flash in the pack).
+ */
+export function withholdDockCards(names: ReadonlyArray<CardName>): void {
+  if (names.length === 0) {
+    return;
+  }
+  handDeliveryState.held = [...handDeliveryState.held, ...names];
+}
+
+/** Release a withhold — ONE held copy per name (multiset-correct). */
+export function releaseDockCards(names: ReadonlyArray<CardName>): void {
+  if (names.length === 0) {
+    return;
+  }
+  const drop = [...names];
+  handDeliveryState.held = handDeliveryState.held.filter((n) => {
+    const at = drop.indexOf(n as CardName);
+    if (at === -1) {
+      return true;
+    }
+    drop.splice(at, 1);
+    return false;
+  });
+}
+
 /** A game switch / error / stall: reconcile so the dock never sticks empty. */
 export function resetHandDelivery(): void {
   gen++;
