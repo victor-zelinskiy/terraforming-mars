@@ -6,7 +6,7 @@
        when configurable. The panel only RENDERS the pure `PlayPaymentView`
        (buildPaymentView) — the host owns LB/RB/LT input, so it can never drift
        from the play flow. -->
-  <div class="con-composer__pay">
+  <div class="con-composer__pay" :class="{'con-composer__pay--quick': view.quickAdjustEligible}">
     <div class="con-composer__pay-head">
       <span class="con-composer__pay-title">{{ $t('Payment') }}</span>
       <span class="con-composer__pay-cost">{{ $t('Cost') }}: <b>{{ cost }}</b></span>

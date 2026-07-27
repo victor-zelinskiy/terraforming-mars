@@ -14242,9 +14242,10 @@ html.console-mode {
         display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
     }
     &__paycost {
+        display: inline-flex; align-items: center; gap: .18rem;
         font-size: .85rem; color: @con-text-dim;
         b { font-size: 1rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-        i { width: 1rem; height: 1rem; display: inline-block; vertical-align: middle; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+        i { flex: 0 0 auto; width: 1rem; height: 1rem; display: block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     }
     &__paytag {
         margin-left: auto;
@@ -14346,6 +14347,13 @@ html.console-mode {
         margin-top: .2rem; padding: .55rem .75rem; border-radius: .55rem;
         background: rgba(14, 22, 33, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        /* One adjustable alternative can render either alt + auto-M€ or alt +
+           overpay/shortfall feedback. Reserve the two-chip footprint so that
+           LB/RB changes do not recenter the whole modal. The chip icon token
+           keeps the reservation correct for base, TV, and handheld profiles. */
+        &--quick {
+            min-height: calc(var(--con-chip-icon, 1.3rem) + var(--con-chip-icon, 1.3rem) + 4.5rem);
+        }
     }
     &__pay-head { display: flex; align-items: center; gap: .6rem; }
     &__pay-title { font-size: .75rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 90%); }
