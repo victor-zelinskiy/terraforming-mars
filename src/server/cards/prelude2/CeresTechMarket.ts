@@ -8,6 +8,7 @@ import {CardType} from '../../../common/cards/CardType';
 import {IActionCard} from '../ICard';
 import {PlayerInput} from '../../PlayerInput';
 import {SelectCard} from '../../inputs/SelectCard';
+import {cardDiscard, discardForMegacredits} from '../../inputs/discardPrompt';
 
 export class CeresTechMarket extends Card implements IActionCard {
   constructor() {
@@ -51,6 +52,7 @@ export class CeresTechMarket extends Card implements IActionCard {
       'Discard',
       player.cardsInHand,
       {max: player.cardsInHand.length, played: false})
+      .markDiscardPrompt(cardDiscard(this, {min: 0, max: player.cardsInHand.length}, {exchange: discardForMegacredits(2)}))
       .andThen((cards) => {
         cards.forEach((card) => player.discardCardFromHand(card));
         const megacredits = cards.length * 2;

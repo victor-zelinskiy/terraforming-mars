@@ -1,5 +1,5 @@
 <template>
-  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene}" :style="rootStyle">
+  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined}" :style="rootStyle">
     <!-- HEADER: title + live counts + the premium tag-filter chips. Button
          hints live ONLY in the footer command bar — never here. -->
     <div class="con-hand__header">
@@ -40,10 +40,33 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ sale.after }}</b>
         </span>
       </div>
+      <!-- DISCARD mode: the ONE header block every discard gets, whoever asked
+           for it. It states the ask («Сбросьте 1 карту»), NAMES the source (a
+           card effect / a colony / a game rule), shows the colony-bonus
+           position when the discard closes a Pluto payout, and — when the
+           discard BUYS something — the exchange, live for the current pick.
+           Derived from the server marker in cardDiscard/discardIntent.ts, so
+           it cannot drift between cases. -->
+      <div v-if="discard !== undefined" class="con-hand__discard" role="status">
+        <span class="con-hand__discard-mark" aria-hidden="true">⌫</span>
+        <span class="con-hand__discard-ask">{{ discardAsk }}</span>
+        <span class="con-hand__discard-sep" aria-hidden="true">·</span>
+        <span class="con-hand__discard-src">{{ discardSource }}</span>
+        <span v-if="discard.sequence !== undefined" class="con-hand__discard-seq">{{ discardSequence }}</span>
+        <span v-if="discard.exchange !== undefined" class="con-hand__discard-swap">
+          <b class="con-hand__discard-out">−{{ Math.max(1, discard.picked) }}</b>
+          <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
+          <span class="con-hand__discard-arrow" aria-hidden="true">→</span>
+          <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.amount === 0}">+{{ discard.exchange.amount }}</b>
+          <i :class="discardExchangeIconClass" class="con-hand__discard-icon" aria-hidden="true"></i>
+        </span>
+      </div>
       <!-- SELECT mode: the SOURCE-OPERATION chip — a composer's target pick
            names the action it serves («Настройка действия · Газосборники»),
-           so the player never loses the WHY mid-pick. -->
-      <div v-if="selectActive && select !== undefined && select.context !== undefined" class="con-hand__pickctx">
+           so the player never loses the WHY mid-pick. Suppressed for a discard:
+           the block above already carries the source, and two source chips
+           would say the same thing twice. -->
+      <div v-if="selectActive && discard === undefined && select !== undefined && select.context !== undefined" class="con-hand__pickctx">
         <span class="con-hand__pickctx-mark" aria-hidden="true">◈</span>
         <span class="con-hand__pickctx-kicker">{{ $t(select.context.kicker) }}</span>
         <span class="con-hand__pickctx-sep" aria-hidden="true">·</span>
@@ -112,7 +135,10 @@
                    marker on a non-candidate, else a COMPACT play blocker chip
                    (the full reason is in the info panel below). -->
               <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
-              <span v-else-if="selectActive && isSelectPicked(entry.card.name)" class="con-cards__pickband con-cards__pickband--select" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+              <span v-else-if="selectActive && isSelectPicked(entry.card.name)"
+                    class="con-cards__pickband"
+                    :class="discard !== undefined ? 'con-cards__pickband--discard' : 'con-cards__pickband--select'"
+                    aria-hidden="true">{{ discard !== undefined ? '⌫ ' + $t('Discarded') : '✓ ' + $t('Card selected') }}</span>
               <span v-else-if="selectActive && !isSelectable(entry.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
               <span v-else-if="!saleActive && !selectActive && !entry.playable && chipLabel(entry)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(entry) || '') }}</span>
             </div>
@@ -143,15 +169,16 @@
            'con-hand__verdictbar--ok': !saleActive && !selectActive && selectedPlayable,
            'con-hand__verdictbar--blocked': !saleActive && !selectActive && !selectedPlayable,
            'con-hand__verdictbar--sale': saleActive,
-           'con-hand__verdictbar--select': selectActive,
+           'con-hand__verdictbar--select': selectActive && discard === undefined,
+           'con-hand__verdictbar--discard': discard !== undefined,
            'con-hand__verdictbar--hold': filterBusy,
          }">
       <span class="con-cards__verdict-name">{{ $t(selected.name) }}</span>
       <template v-if="selectActive">
         <!-- Picked / pickable / blocked — with the concrete «why not» reason
              for a non-candidate card (the fork's always-explain rule). -->
-        <span v-if="isSelectPicked(selected.name)" class="con-cards__verdict con-cards__verdict--picked"><span aria-hidden="true">✓</span> {{ $t('Card selected') }}</span>
-        <span v-else-if="isSelectable(selected.name)" class="con-cards__verdict con-cards__verdict--ok">{{ $t('Not selected') }}</span>
+        <span v-if="isSelectPicked(selected.name)" class="con-cards__verdict con-cards__verdict--picked"><span aria-hidden="true">{{ discard !== undefined ? '⌫' : '✓' }}</span> {{ $t(discard !== undefined ? 'Discarded' : 'Card selected') }}</span>
+        <span v-else-if="isSelectable(selected.name)" class="con-cards__verdict con-cards__verdict--ok">{{ $t(discard !== undefined ? 'Can be discarded' : 'Not selected') }}</span>
         <template v-else>
           <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unavailable') }}</span>
           <span v-if="focusedSelectReason !== ''" class="con-hand__reason con-hand__reason--bar con-hand__reason--rule">{{ focusedSelectReason }}</span>
@@ -217,6 +244,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
+import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
 
 export type ConsoleHandEntry = {
   card: CardModel,
@@ -257,6 +285,15 @@ export type ConsoleHandSelectMode = {
    *  i18n key + the source card name (i18n key). Rendered as a header chip so
    *  the player never loses WHY they are choosing here. */
   context?: {kicker: string, card: string},
+  /**
+   * THE DISCARD SKIN. Present ⇔ this pick throws cards away, derived by the
+   * shell from the server's single `discardPrompt` marker — so a card effect
+   * (Mars University), a colony bonus (Pluto), a colony effect (Hygiea), a
+   * global event and a CEO action all render identically. The section only
+   * READS it: the ask, the source, the colony-bonus position and the exchange
+   * are all pre-derived (cardDiscard/discardIntent.ts).
+   */
+  discard?: DiscardIntent,
 };
 
 /** Rows kept mounted above/below the viewport so a fast page never blanks. */
@@ -365,6 +402,41 @@ export default defineComponent({
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {
       return this.select?.active === true;
+    },
+    // ── DISCARD skin (one derivation, every discard case) ─────────────────
+    /** The pre-derived discard presentation, or undefined for a normal pick. */
+    discard(): DiscardIntent | undefined {
+      return this.selectActive ? this.select?.discard : undefined;
+    },
+    /** «Сбросьте 1 карту» / «Сбросьте 3 карты» / «Сбросьте до 3 карт». */
+    discardAsk(): string {
+      const headline = this.discard?.headline;
+      if (headline === undefined) {
+        return '';
+      }
+      return headline.amount === undefined ?
+        translateText(headline.key) :
+        translateTextWithParams(headline.key, [String(headline.amount)]);
+    },
+    /** WHO demands it: the source card's name when there is one, else the kind
+     *  («Колония» / «Правило игры») — never a bare unexplained ask. */
+    discardSource(): string {
+      const intent = this.discard;
+      if (intent === undefined) {
+        return '';
+      }
+      return intent.card !== undefined ? translateText(intent.card) : translateText(intent.sourceKey);
+    },
+    /** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. */
+    discardSequence(): string {
+      const seq = this.discard?.sequence;
+      if (seq === undefined) {
+        return '';
+      }
+      return translateTextWithParams('Colony bonus ${0} of ${1}', [String(seq.index), String(seq.total)]);
+    },
+    discardExchangeIconClass(): string {
+      return iconClassFor(this.discard?.exchange?.icon ?? 'cards');
     },
     /** SALE mode: the live pick summary (count / payout / before → after). */
     sale(): {count: number, payout: number, before: number, after: number} {

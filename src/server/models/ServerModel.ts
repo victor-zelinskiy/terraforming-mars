@@ -452,11 +452,12 @@ export class Server {
     if (waitingFor.spendHeatPrompt !== undefined) {
       model.spendHeatPrompt = waitingFor.spendHeatPrompt;
     }
-    // "This discard is the second half of a colony bonus" marker (Pluto) — lets
-    // the console reveal modal close the payout with the discard instead of a
-    // detached prompt the player can't connect to the trade.
-    if (waitingFor.colonyBonusDiscard !== undefined) {
-      model.colonyBonusDiscard = waitingFor.colonyBonusDiscard;
+    // "This SelectCard is a DISCARD FROM HAND" marker — the single signal the
+    // console's unified discard flow keys off (surface, copy and animation are
+    // the same whoever demands the discard). Carries the colony-bonus
+    // sequencing when the discard closes a Pluto payout.
+    if (waitingFor.discardPrompt !== undefined) {
+      model.discardPrompt = waitingFor.discardPrompt;
     }
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,

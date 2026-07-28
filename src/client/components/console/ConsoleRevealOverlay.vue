@@ -555,12 +555,14 @@ export default defineComponent({
     /**
      * THE PAYOUT ISN'T FINISHED: this trade's colony bonus pays "draw N, then
      * discard N" (Pluto), and the server marked the pending discard prompt
-     * structurally (`colonyBonusDiscard`). The modal hosts that discard as its
-     * closing, MANDATORY step — the player reads the whole bonus as one thing
-     * instead of being handed a discard prompt that looks unrelated to the trade.
+     * structurally (`discardPrompt.colonyBonus`). The modal hosts that discard
+     * as its closing, MANDATORY step — the player reads the whole bonus as one
+     * thing instead of being handed a discard prompt that looks unrelated to
+     * the trade. The pick itself, and the card physically leaving the hand,
+     * belong to the ONE shared discard flow (cardDiscard/*).
      */
     bonusDiscard(): ColonyBonusDiscardMeta | undefined {
-      return this.mode === 'drawn' ? this.playerView.waitingFor?.colonyBonusDiscard : undefined;
+      return this.mode === 'drawn' ? this.playerView.waitingFor?.discardPrompt?.colonyBonus : undefined;
     },
     /** The closing step — ONE shared derivation with the shell's command bar. */
     discardStep(): BonusDiscardStep | undefined {

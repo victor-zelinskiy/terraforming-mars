@@ -362,7 +362,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -370,7 +370,8 @@
                        :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
                        @submit="onTaskSubmit"
                        @defer="onTaskDefer"
-                       @space-pick="onTaskSpacePick" />
+                       @space-pick="onTaskSpacePick"
+                       @hand-pick="onTaskHandPick" />
     </transition>
 
     <!-- Government Support (World Government Terraforming) — the dedicated
@@ -666,6 +667,14 @@
          (consolePatentSale.ts / patentSaleDirector.ts). -->
     <ConsolePatentSaleLayer />
 
+    <!-- The CARD-DISCARD stage — the ONE "a card physically leaves the hand"
+         cinematic every discard ends at (a card effect, a colony bonus, a
+         global event, a CEO action): the chosen cards are seized out of the
+         hand with the condemned rim, the hand hands off, and they turn to
+         their backs across the throw onto the discard pile, whose count ticks
+         on contact (consoleCardDiscard.ts / discardDirector.ts). -->
+    <ConsoleCardDiscardLayer />
+
     <!-- The TILE-PLACEMENT HERO stage — the chosen tile physically flies
          from the table edge into the picked hex (thickness + tightening
          ground shadow + touchdown settle), then the cell's printed bonus
@@ -843,7 +852,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -908,6 +917,13 @@ import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/conso
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
+import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
+import {
+  armCardDiscard, cardDiscardTransaction, isCardDiscardActive, resetCardDiscard,
+} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {
+  DiscardIntent, deriveDiscardIntent, discardMetaOf,
+} from '@/client/console/cardDiscard/discardIntent';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
@@ -1006,7 +1022,7 @@ import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerCon
 import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {consoleHandPickState, cancelConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
+import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1104,6 +1120,7 @@ export default defineComponent({
     ConsolePlayCardConfirm,
     ConsoleCorpFirstActionConfirm,
     ConsoleCardExitLayer,
+    ConsoleCardDiscardLayer,
     ConsoleHandRevealLayer,
     ConsoleHandDeliveryLayer,
     ConsoleDraftTray,
@@ -1158,6 +1175,11 @@ export default defineComponent({
       handRevealState,
       handDeliveryState,
       patentSaleState,
+      /** The card-discard cinematic. MIRRORED HERE ON PURPOSE: a path watcher
+       *  key (`'cardDiscardTransaction.phase'`) resolves against the instance,
+       *  so a module reactive that is not in data() makes the watcher silently
+       *  never fire (the hydro black-screen bug). */
+      cardDiscardTransaction,
       tilePlacementState,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
@@ -1798,7 +1820,7 @@ export default defineComponent({
       }
       const ev = currentRevealEvent();
       const untaken = ev === undefined ? 0 : ev.cards.length - ev.takenIndices.size;
-      return bonusDiscardStep(this.playerView.waitingFor?.colonyBonusDiscard, untaken);
+      return bonusDiscardStep(this.playerView.waitingFor?.discardPrompt?.colonyBonus, untaken);
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
     consoleRevealMode(): ConsoleRevealMode | undefined {
@@ -2306,6 +2328,27 @@ export default defineComponent({
     handSelectReasons(): Record<string, string> {
       return this.handSelectDerived?.reasons ?? {};
     },
+    /**
+     * ── THE ONE DISCARD ENTRY POINT ──────────────────────────────────────
+     * The server marks EVERY "throw cards away" prompt structurally
+     * (`discardPrompt`), and both surfaces that can serve the pick — the
+     * mandatory `handSelect` task and the client hand-pick bridge (a discard
+     * nested in an OrOptions branch, e.g. Mars University) — feed that SAME
+     * marker into one derivation. Copy, verb, accent and the leaving
+     * animation therefore cannot diverge between cases; there is no
+     * per-card discard flow left to keep in sync.
+     */
+    discardMeta(): DiscardPromptMeta | undefined {
+      if (this.handPickActive) {
+        return consoleHandPickState.request?.discard;
+      }
+      return discardMetaOf(this.handSelectModel);
+    },
+    /** The presentation of the active discard (undefined = not a discard). */
+    discardIntent(): DiscardIntent | undefined {
+      const meta = this.discardMeta;
+      return meta === undefined ? undefined : deriveDiscardIntent(meta, this.handSelectPicked.length);
+    },
     /** The bundled select-mode state handed to the hand section (undefined when
      *  not in a hand-select). */
     handSelectProps(): ConsoleHandSelectMode | undefined {
@@ -2336,6 +2379,10 @@ export default defineComponent({
         } : undefined,
         // The source-operation chip (a composer's target pick names WHY).
         context: pick?.source !== undefined ? {kicker: pick.source.kicker, card: pick.source.card} : undefined,
+        // THE DISCARD SKIN. Derived from the ONE server marker, whichever
+        // source is serving the pick — so Mars University, a Pluto colony
+        // bonus and a global event all read the same.
+        discard: this.discardIntent,
       };
     },
     /** A hand-served shell task (play-from-hand OR mandatory hand-select) — the
@@ -3879,6 +3926,20 @@ export default defineComponent({
         resetHandDelivery();
       }
     },
+    /**
+     * THE DISCARD HAND-OFF. The cinematic seizes the chosen cards out of the
+     * still-open hand grid, and the moment it reaches `leaving` the pick
+     * surface closes underneath the flying cards (the survivors gather home
+     * into the dock, the condemned ones carry on to the pile). Driven by the
+     * scene's own phase — never a timer, and never at submit time, or the
+     * player would watch the hand disappear and the card silently cease to
+     * exist, which is the whole bug this flow exists to fix.
+     */
+    'cardDiscardTransaction.phase'(phase: string): void {
+      if (phase === 'leaving' && this.consoleState.section === 'hand') {
+        this.closeSurfaceForDiscard();
+      }
+    },
     /** The shade yields to a live pick bridge (surface motion). */
     pickBridgeActive: {
       immediate: true,
@@ -3910,6 +3971,14 @@ export default defineComponent({
       }
       const back = this.handPickReturn;
       this.handPickReturn = undefined;
+      // A DISCARD answer keeps the hand open: its cinematic has to seize the
+      // card out of the real grid first and hands the surface off itself
+      // (phase 'leaving'). Restoring the section here would blank the hand a
+      // beat before the card had visibly left it — the exact bug the unified
+      // discard flow exists to remove.
+      if (isCardDiscardActive()) {
+        return;
+      }
       // The play-composer pick stays in the hand (the composer re-shows over
       // it); the Action-Center pick returns to its origin section instantly —
       // the re-shown full-screen center covers the switch.
@@ -6204,6 +6273,40 @@ export default defineComponent({
       this.taskSpacePending = payload;
       this.consoleState.section = 'board';
     },
+    /**
+     * A nested option whose card candidates are ALL IN HAND (Mars University's
+     * "discard a card to draw a card" branch): the pick leaves the task host
+     * and rides the REAL hand overlay through the shared hand-pick bridge —
+     * the same surface a top-level in-hand prompt and a composer pick use. The
+     * answer is wrapped back into this option's OR index, byte-identical to
+     * what the host would have submitted from its own grid.
+     *
+     * Cancelling (B in the hand) returns to the branch list: the host is
+     * re-mounted by its own v-if, showing «Выберите вариант» again — which is
+     * exactly where the player was before choosing this branch.
+     */
+    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel}): void {
+      const prompt = payload.cardPrompt;
+      const reasons: Record<string, string> = {};
+      for (const d of prompt.disabledCards ?? []) {
+        reasons[d.name] = d.disabledReason === undefined ? '' :
+          (typeof d.disabledReason === 'string' ? translateText(d.disabledReason) : translateMessage(d.disabledReason));
+      }
+      enterConsoleHandPick({
+        title: prompt.title,
+        buttonLabel: prompt.buttonLabel || 'Select',
+        selectable: prompt.cards.map((c) => c.name),
+        reasons,
+        min: prompt.min,
+        max: prompt.max,
+        selected: [],
+        // The RAW server marker — the shell derives the discard skin from the
+        // very same field a top-level discard uses (one derivation, no drift).
+        discard: prompt.discardPrompt,
+      }, (cards) => {
+        this.submit(orWrappedResponse(payload.index, cardsResponse(cards)));
+      });
+    },
     onTaskSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
       const pending = this.taskSpacePending;
       this.taskSpacePending = undefined;
@@ -6915,6 +7018,11 @@ export default defineComponent({
       if (!this.handSelectUiActive) {
         return;
       }
+      // The answer is already on its way and the cards are being seized — a
+      // second A press must not submit twice.
+      if (isCardDiscardActive()) {
+        return;
+      }
       if (!this.handSelectSelectableNames.includes(name)) {
         const reason = this.handSelectReasons[name];
         this.showNotice(reason !== undefined && reason !== '' ? reason : translateText('This card cannot be chosen here'));
@@ -6930,11 +7038,66 @@ export default defineComponent({
     /** The single-pick answer of whichever select source is active: a client
      *  pick RESOLVES back to its composer; the server task SUBMITS. */
     handSelectExecuteSingle(name: string): void {
+      if (isCardDiscardActive()) {
+        return; // the answer is already in flight (fullscreen A / double press)
+      }
+      this.armDiscardScene([name as CardName]);
       if (this.handPickActive) {
         resolveConsoleHandPick([name as CardName]);
         return;
       }
       this.submitHandSelect([name]);
+    },
+    /**
+     * THE ONE ARM POINT of the discard cinematic. Both answer paths (the
+     * mandatory task's submit and the client bridge's resolve) call it
+     * SYNCHRONOUSLY before delivering, so the launch rects are captured while
+     * the pick surface is still on screen — a commit can unmount it three
+     * frames later. A non-discard pick, or a legal empty pick, arms nothing.
+     */
+    armDiscardScene(names: ReadonlyArray<CardName>): void {
+      const meta = this.discardMeta;
+      if (meta === undefined || names.length === 0) {
+        return;
+      }
+      armCardDiscard({
+        names,
+        meta,
+        // BOTH the live element AND a rect snapshot, always: the element is
+        // re-measured if it is still connected when the proxies spawn, and the
+        // snapshot carries the flight when the surface unmounted in between (a
+        // commit can tear the hand down three frames before the spawn). Without
+        // the snapshot the card would silently skip its flight.
+        sources: names.map((name) => {
+          const el = this.discardSourceElement(name);
+          return {name, el, rect: this.discardSourceRect(name, el)};
+        }),
+      });
+    },
+    /** The live element the card takes off from: its slot in the open hand
+     *  grid, else the fullscreen inspector holding it (A can be pressed from
+     *  the zoom), else nothing (the dock rect is the fallback). */
+    discardSourceElement(name: CardName): HTMLElement | undefined {
+      const slot = document.querySelector<HTMLElement>(`.con-hand__slot[data-zoom-slot="${name}"]`);
+      if (slot !== null) {
+        return slot;
+      }
+      const zoomed = document.querySelector<HTMLElement>(`.con-zoom [data-zoom-slot="${name}"]`);
+      return zoomed ?? undefined;
+    },
+    /** The launch rect captured NOW: the live slot's own box when there is one,
+     *  else the card's home in the dock — so a flight always starts from where
+     *  the player last saw the card, never from the viewport origin. */
+    discardSourceRect(name: CardName, el: HTMLElement | undefined): {left: number, top: number, width: number, height: number} | undefined {
+      if (el !== undefined) {
+        const card = el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? el;
+        const r = card.getBoundingClientRect();
+        if (r.width > 10 && r.height > 10) {
+          return {left: r.left, top: r.top, width: r.width, height: r.height};
+        }
+      }
+      const dock = this.$refs.handDock as {sourceRects?: (names: ReadonlyArray<CardName>) => Map<CardName, {left: number, top: number, width: number, height: number}>} | undefined;
+      return dock?.sourceRects?.([name])?.get(name);
     },
     /** Multi-select toggle (respects `max` — a full set ignores a new pick). */
     toggleHandSelectPick(name: string): void {
@@ -6965,12 +7128,16 @@ export default defineComponent({
     /** RT / confirm: deliver the accumulated multi-select picks (bounds-checked).
      *  A client pick resolves to its composer; the server task submits. */
     confirmHandSelect(): void {
+      if (isCardDiscardActive()) {
+        return; // the answer is already in flight — never submit a set twice
+      }
       if (this.handPickActive) {
         const req = consoleHandPickState.request;
         const picked = consoleHandPickState.selected;
         if (req === undefined || picked.length < req.min || picked.length > req.max) {
           return;
         }
+        this.armDiscardScene([...picked]);
         resolveConsoleHandPick([...picked]);
         return;
       }
@@ -6988,11 +7155,27 @@ export default defineComponent({
      *  the BARE {type:'card', cards} (no OR wrapping) — byte-identical to the
      *  desktop hand-select overlay's `onHandSelect`. */
     submitHandSelect(cards: ReadonlyArray<string>): void {
+      this.consoleState.select.selected = [];
+      this.consoleState.select.suitableOnly = true;
+      // A DISCARD keeps the hand open: the cinematic seizes the cards out of
+      // the real grid first and hands the surface off itself (phase 'leaving'),
+      // so the player watches the card leave the hand instead of the hand
+      // vanishing and the card silently ceasing to exist. Every other pick
+      // closes immediately, exactly as before.
+      if (!isCardDiscardActive()) {
+        closeConsoleLayers();
+        this.consoleState.section = 'board';
+      }
+      this.submit(cardsResponse(cards as ReadonlyArray<CardName>));
+    },
+    /** The discard cinematic's hand-off: the hand section closes (the surviving
+     *  cards fly home to the dock) while the condemned ones keep flying on the
+     *  app-level stage. Driven by the scene's phase, never by a timer. */
+    closeSurfaceForDiscard(): void {
       closeConsoleLayers();
       this.consoleState.select.selected = [];
       this.consoleState.select.suitableOnly = true;
       this.consoleState.section = 'board';
-      this.submit(cardsResponse(cards as ReadonlyArray<CardName>));
     },
     /** LT: flip the "suitable only" filter (candidates-only ↔ the whole hand)
      *  as the SAME physical card transition the tag filter plays (leavers
@@ -7072,6 +7255,9 @@ export default defineComponent({
     // The play's return beat is module state as well — never carry a live
     // flight (or its dock withhold) across a game switch.
     resetPlayedCardReturns();
+    // The discard cinematic is module state too — never carry a live scene (or
+    // its animation hold) across a game switch.
+    resetCardDiscard();
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

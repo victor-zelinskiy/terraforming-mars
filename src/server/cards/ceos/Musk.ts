@@ -9,6 +9,7 @@ import {DrawCards} from '../../deferredActions/DrawCards';
 import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
 import {SelectCard} from '../../inputs/SelectCard';
+import {cardDiscard} from '../../inputs/discardPrompt';
 
 
 export class Musk extends CeoCard {
@@ -44,6 +45,10 @@ export class Musk extends CeoCard {
       'Discard',
       eligibleCards,
       {min: 0, max: eligibleCards.length})
+      // A discard from hand — the console serves every one of them through the
+      // same surface. No `exchange`: the titanium is 6 + 1 per card, so no
+      // single per-card magnitude would be honest.
+      .markDiscardPrompt(cardDiscard(this, {min: 0, max: eligibleCards.length}))
       .andThen(
         (cards) => {
           player.stock.add(Resource.TITANIUM, cards.length + 6, {log: true});

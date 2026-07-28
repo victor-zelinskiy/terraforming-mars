@@ -8,6 +8,7 @@ import {SelectCard} from '../../inputs/SelectCard';
 import {SelectOption} from '../../inputs/SelectOption';
 import {skip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
+import {cardDiscard, discardForCards} from '../../inputs/discardPrompt';
 import {CardName} from '../../../common/cards/CardName';
 import {Priority} from '../../deferredActions/Priority';
 import {CardRenderer} from '../render/CardRenderer';
@@ -51,6 +52,10 @@ export class MarsUniversity extends Card implements IProjectCard {
         }
         return new OrOptions(
           new SelectCard('Select a card to discard', 'Discard', player.cardsInHand)
+            // The pick is a DISCARD, not a generic card choice: the marker sends
+            // it to the console's hand overlay in discard mode (with the card
+            // it buys back shown as the exchange) instead of a flat grid.
+            .markDiscardPrompt(cardDiscard(this, {min: 1, max: 1}, {exchange: discardForCards(1)}))
             .andThen(([card]) => {
               player.game.log('${0} is using their ${1} effect to draw a card by discarding a card.', (b) => b.player(player).card(this));
               player.discardCardFromHand(card, {log: true});

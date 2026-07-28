@@ -44,6 +44,7 @@ import {Message} from '@/common/logs/Message';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
 
 export interface ConsoleTaskSummary {
   /** The decision TYPE — a short English i18n KEY, rendered as the chip. */
@@ -59,6 +60,9 @@ export interface ConsoleTaskSummary {
   /** The context-aware B verb ("Вернуться к драфту") — an English i18n key. */
   returnKey: string;
 }
+
+/** The ONE kicker every discard decision carries, whichever surface hosts it. */
+export const DISCARD_KICKER = 'Discarding a card';
 
 /** The honest last resort — ONLY for a prompt the console cannot classify. */
 export const GENERIC_KICKER = 'Awaiting decision';
@@ -185,7 +189,10 @@ export function consoleTaskSummary(
       return {kickerKey: 'Confirmation', ask: ask(wf, 'Confirm the action'), sourceCard: source, returnKey: 'Return to the decision'};
     case 'contextual':
       return {
-        kickerKey: contextualKicker(wf),
+        // A choice whose branch is "discard a card to get something" (Mars
+        // University) is a DISCARD decision — say so on the chip rather than
+        // the generic effect kicker, so the pending state names the loss.
+        kickerKey: nestedDiscardBranch(wf) !== undefined ? DISCARD_KICKER : contextualKicker(wf),
         // The trigger ("A science tag was played") is the WHY; the title is
         // the WHAT. The chip shows the ask — the trigger belongs to the
         // host's own header, which has the room for it.
@@ -237,7 +244,13 @@ export function consoleTaskSummary(
     }
 
   case 'handSelect':
-    return {kickerKey: 'Cards in hand', ask: ask(wf, 'Choose a card'), sourceCard: source, returnKey: 'Return to selection'};
+    // A DISCARD names itself. The server marks every "throw cards away" prompt
+    // structurally, so the chip reads «Сброс карты» instead of the neutral
+    // «Карты в руке» — the player is told what they are about to LOSE, not
+    // merely that some card decision is pending.
+    return wf?.discardPrompt !== undefined ?
+      {kickerKey: DISCARD_KICKER, ask: ask(wf, 'Discard 1 card'), sourceCard: source, returnKey: 'Return to the discard'} :
+      {kickerKey: 'Cards in hand', ask: ask(wf, 'Choose a card'), sourceCard: source, returnKey: 'Return to selection'};
 
   case 'projectCard':
     return task.mode === 'standardProject' ?

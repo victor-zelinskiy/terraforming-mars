@@ -4,6 +4,7 @@ import {PlayerInput} from '../../PlayerInput';
 import {CardRenderer} from '../render/CardRenderer';
 import {CeoCard} from './CeoCard';
 import {SelectCard} from '../../inputs/SelectCard';
+import {cardDiscard, discardForMegacredits} from '../../inputs/discardPrompt';
 
 export class Stefan extends CeoCard {
   constructor() {
@@ -34,6 +35,9 @@ export class Stefan extends CeoCard {
       'Sell',
       player.cardsInHand,
       {min: 0, max: player.cardsInHand.length})
+      // Mechanically a discard from hand that pays out — same surface, same
+      // animation as every other discard; the prompt's own 'Sell' verb stands.
+      .markDiscardPrompt(cardDiscard(this, {min: 0, max: player.cardsInHand.length}, {exchange: discardForMegacredits(3)}))
       .andThen((cards) => {
         player.megaCredits += cards.length * 3;
 

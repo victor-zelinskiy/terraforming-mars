@@ -14,6 +14,7 @@ import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import * as reason from '../actionReasons';
+import {cardSource, discardForCards} from '../../inputs/discardPrompt';
 
 export class SponsoredAcademies extends Card implements IProjectCard {
   constructor() {
@@ -54,7 +55,10 @@ export class SponsoredAcademies extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new DiscardCards(player), Priority.SPONSORED_ACADEMIES).andThen(() => {});
+    player.game.defer(new DiscardCards(player, 1, 1, undefined, {
+      source: cardSource(this),
+      exchange: discardForCards(3),
+    }), Priority.SPONSORED_ACADEMIES).andThen(() => {});
     player.game.defer(DrawCards.keepAll(player, 3), Priority.SPONSORED_ACADEMIES);
     for (const p of player.opponents) {
       // Automa FAQ (rulebook p.11): "MarsBot gains 1 M€ instead of the free card draw."

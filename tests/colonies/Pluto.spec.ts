@@ -70,7 +70,7 @@ describe('Pluto', () => {
     expect(player.cardsInHand).has.lengthOf(5);
     expect(first.config.min).to.eq(1);
     expect(first.config.max).to.eq(1);
-    expect(first.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 2});
+    expect(first.discardPrompt?.colonyBonus).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 2});
     first.cb([first.cards[0]]);
     expect(player.cardsInHand).has.lengthOf(4);
 
@@ -79,7 +79,7 @@ describe('Pluto', () => {
     // Cube 2 only now draws — its card could not have been seen before choosing.
     const second = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
     expect(player.cardsInHand).has.lengthOf(5);
-    expect(second.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 2, total: 2});
+    expect(second.discardPrompt?.colonyBonus).to.deep.eq({colonyName: ColonyName.PLUTO, index: 2, total: 2});
     second.cb([second.cards[0]]);
     expect(player.cardsInHand).has.lengthOf(4);
 
@@ -98,7 +98,7 @@ describe('Pluto', () => {
     const selectCard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
     expect(selectCard.config.min).to.eq(1);
     expect(selectCard.config.max).to.eq(1);
-    expect(selectCard.colonyBonusDiscard).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 1});
+    expect(selectCard.discardPrompt?.colonyBonus).to.deep.eq({colonyName: ColonyName.PLUTO, index: 1, total: 1});
     selectCard.cb([selectCard.cards[0]]);
     runAllActions(game);
     expect(player.getWaitingFor()).is.undefined;

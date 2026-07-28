@@ -4,6 +4,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {PreludeCard} from '../prelude/PreludeCard';
 import {IPlayer} from '../../IPlayer';
 import {DiscardCards} from '../../deferredActions/DiscardCards';
+import {cardSource} from '../../inputs/discardPrompt';
 import {Priority} from '../../deferredActions/Priority';
 
 export class OldMiningColony extends PreludeCard {
@@ -31,7 +32,7 @@ export class OldMiningColony extends PreludeCard {
     return player.cardsInHand.length > 0;
   }
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new DiscardCards(player, 1), Priority.DISCARD_CARDS);
+    player.game.defer(new DiscardCards(player, 1, 1, undefined, {source: cardSource(this)}), Priority.DISCARD_CARDS);
     return undefined;
   }
 }

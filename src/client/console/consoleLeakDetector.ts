@@ -26,6 +26,7 @@ import {inputTitleText} from '@/client/console/turnIntents';
 import {translateText} from '@/client/directives/i18n';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
@@ -83,6 +84,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // draw has no modal for that window — the draw stage (mounted for the whole
   // scene) is what serves it.
   '.con-deckdraw',
+  // The CARD-DISCARD scene: the discard answer closes the hand section while
+  // the condemned cards are still flying to the pile, so a follow-up prompt
+  // committed at the landing has no surface for that window — the discard
+  // stage (mounted for the whole transaction) is what serves it.
+  '.con-discard',
   // ANIMATION HOLDS (animationHold.ts): the viewer's OWN milestone/award
   // coronation and the terraforming-complete cinematic hold mandatory
   // surfaces for their bounded beat — the ceremony IS the serving surface
@@ -254,6 +260,16 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // the chip status) and opens only on the player's press (B). While held the
   // prompt legitimately has no open surface; the announcement / chip serve it.
   if (isMandatoryGateHeld()) {
+    clearStranded();
+    return;
+  }
+  // A live CLIENT HAND PICK (consoleHandPick) is a serving beat by
+  // construction: the bridge exists ONLY while a composer or the task host is
+  // holding a prompt and has handed the card choice to the hand overlay,
+  // hiding itself for the pick's lifetime. The hand IS that prompt's surface —
+  // and matching `.con-hand` per kind would be wrong, because the player can
+  // also open the hand freely over a genuinely stranded prompt.
+  if (isConsoleHandPickActive()) {
     clearStranded();
     return;
   }

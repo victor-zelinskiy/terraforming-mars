@@ -76,7 +76,7 @@ describe('ColonyTradeManifest', () => {
     // discard prompt is reachable), then resolves each cube in turn.
     player.acknowledgeCardDrawReveals('all');
     const discard1 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
-    expect(discard1.colonyBonusDiscard).deep.eq({colonyName: pluto.name, index: 1, total: 2});
+    expect(discard1.discardPrompt?.colonyBonus).deep.eq({colonyName: pluto.name, index: 1, total: 2});
     discard1.cb([discard1.cards[0]]);
     runAllActions(game);
 
@@ -84,7 +84,7 @@ describe('ColonyTradeManifest', () => {
     expect(player.cardDrawReveals).has.lengthOf(1);
     expect(player.cardDrawReveals[0].tradeSegments).deep.eq([{role: 'bonus', count: 1}]);
     const discard2 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
-    expect(discard2.colonyBonusDiscard).deep.eq({colonyName: pluto.name, index: 2, total: 2});
+    expect(discard2.discardPrompt?.colonyBonus).deep.eq({colonyName: pluto.name, index: 2, total: 2});
     discard2.cb([discard2.cards[0]]);
     runAllActions(game);
 

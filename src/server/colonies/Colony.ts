@@ -402,6 +402,7 @@ export abstract class Colony implements IColony {
         player.drawCard(1, {source: drawAndDiscardSource});
         player.game.defer(
           new DiscardCards(player, 1, 1, this.name + ' colony bonus. Select a card to discard', {
+            source: {kind: 'colony'},
             colonyBonus: {colonyName: this.name, index: seat.index, total: seat.total},
           }),
           Priority.SUPERPOWER);
@@ -525,7 +526,9 @@ export abstract class Colony implements IColony {
           }
           return new SelectPlayer(playersWithCards, 'Select player to discard a card', 'Select')
             .andThen((selectedPlayer) => {
-              game.defer(new DiscardCards(selectedPlayer, 1, 1, this.name + ' colony effect. Select a card to discard'));
+              game.defer(new DiscardCards(selectedPlayer, 1, 1, this.name + ' colony effect. Select a card to discard', {
+                source: {kind: 'colony'},
+              }));
               return undefined;
             });
         });

@@ -165,6 +165,44 @@ export type ColonyBonusDiscardMeta = {
   total: number;
 }
 
+/**
+ * EXPLICIT, translation-proof marker that a `SelectCard` prompt is a DISCARD
+ * FROM HAND — the ONE signal the console's unified discard flow keys off.
+ *
+ * Every place the rules make a player throw cards away (the generic
+ * `DiscardCards` deferred action, Mars University's science-tag exchange, a
+ * colony bonus / effect, a global event, a CEO action, …) attaches this at the
+ * prompt's construction — CO-LOCATED with the rule that demands it — and the
+ * client routes ALL of them to the same surface, the same copy and the same
+ * "card physically leaves the hand" animation. Without the marker a discard is
+ * indistinguishable from "reveal a card" / "keep a card" / "place a card",
+ * which is why the console used to grow a separate flow per case.
+ *
+ * NEVER detected from the title or the button label: `Message.message` is
+ * rewritten in place by i18n, so an English-text match stops matching after the
+ * first render.
+ */
+export type DiscardPromptMeta = {
+  /** Prompt bounds, mirrored so the flow can phrase "1 card" / "up to N". */
+  min: number;
+  max: number;
+  /** Who demands the discard — drives the source-card preview + kicker. */
+  source?: ChoiceContextSource;
+  /**
+   * What the discard BUYS, when it is an exchange rather than a pure loss
+   * (Mars University: 1 card back; Ceres Tech Market: 2 M€ per card). `perCard`
+   * marks a payout that scales with the number of cards thrown. Rendered as the
+   * "→" side of the flow header and as the closing beat of the animation.
+   */
+  exchange?: {icon: string, amount: number, perCard?: boolean};
+  /**
+   * Pluto's "draw 1, then discard 1" sequencing. Present ONLY on a colony-bonus
+   * discard; `index`/`total` are the recipient's position in the per-cube
+   * sequence, so the payout surface can lay out one zone per colony.
+   */
+  colonyBonus?: ColonyBonusDiscardMeta;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -178,7 +216,7 @@ export type BaseInputModel = {
   placementContext?: PlacementContext;
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
-  colonyBonusDiscard?: ColonyBonusDiscardMeta;
+  discardPrompt?: DiscardPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

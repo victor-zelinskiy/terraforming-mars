@@ -9,6 +9,7 @@ import {PlaceGreeneryTile} from '../../deferredActions/PlaceGreeneryTile';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {OrOptions} from '../../inputs/OrOptions';
 import {DiscardCards} from '../../deferredActions/DiscardCards';
+import {cardSource} from '../../inputs/discardPrompt';
 
 export class ProjectEden extends PreludeCard {
   constructor() {
@@ -82,7 +83,7 @@ export class ProjectEden extends PreludeCard {
         new SelectOption('Discard 3 cards').andThen(() => {
           this.selected.push('discard');
           player.game
-            .defer(new DiscardCards(player, 3, 3, 'Select 3 cards to discard'))
+            .defer(new DiscardCards(player, 3, 3, 'Select 3 cards to discard', {source: cardSource(this)}))
             .andThen(() => this.selectNextAction(player));
           return undefined;
         }),

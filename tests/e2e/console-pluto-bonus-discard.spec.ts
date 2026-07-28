@@ -171,7 +171,7 @@ async function injectPayout(page: Page, cubes: number): Promise<void> {
       min: 1,
       max: 1,
       showOnlyInLearnerMode: false,
-      colonyBonusDiscard: {colonyName: 'Pluto', index: 1, total: cubes},
+      discardPrompt: {min: 1, max: 1, source: {kind: 'colony'}, colonyBonus: {colonyName: 'Pluto', index: 1, total: cubes}},
     };
     await route.fulfill({response, json: body});
   });

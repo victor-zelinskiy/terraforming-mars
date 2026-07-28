@@ -7,6 +7,7 @@ import {Units} from '../../../common/Units';
 import {sum} from '../../../common/utils/utils';
 import {AndOptions} from '../../inputs/AndOptions';
 import {SelectCard} from '../../inputs/SelectCard';
+import {cardDiscard} from '../../inputs/discardPrompt';
 import {SelectResource} from '../../inputs/SelectResource';
 import {PathfindersExpansion} from '../../pathfinders/PathfindersExpansion';
 
@@ -49,6 +50,7 @@ export class FocusedOrganization extends PreludeCard implements IActionCard {
           return undefined;
         }),
       new SelectCard('Select card to discard', 'select', player.cardsInHand)
+        .markDiscardPrompt(cardDiscard(this, {min: 1, max: 1}))
         .andThen(([card]) => {
           player.discardCardFromHand(card);
           return undefined;

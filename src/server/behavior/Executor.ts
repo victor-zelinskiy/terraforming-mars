@@ -41,6 +41,7 @@ import {MAXIMUM_HABITAT_RATE, MAXIMUM_LOGISTIC_RATE, MAXIMUM_MINING_RATE, MAX_OC
 import {CardName} from '../../common/cards/CardName';
 import {asArray, inplaceRemove} from '../../common/utils/utils';
 import {SelectCard} from '../inputs/SelectCard';
+import {cardDiscard} from '../inputs/discardPrompt';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -379,7 +380,7 @@ export class Executor implements BehaviorExecutor {
             undefined,
             cards,
             {min: count, max: count},
-          ).andThen((cards) => {
+          ).markDiscardPrompt(cardDiscard(card, {min: count, max: count})).andThen((cards) => {
             for (const c of cards) {
               inplaceRemove(player.cardsInHand, c);
               player.game.projectDeck.discard(c);

@@ -5,9 +5,21 @@ import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {IProjectCard} from '../cards/IProjectCard';
-import {ColonyBonusDiscardMeta} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, ColonyBonusDiscardMeta, DiscardPromptMeta} from '../../common/models/PlayerInputModel';
 
 export type DiscardCardsOptions = {
+  /**
+   * WHO demands the discard — a card, a colony, a global event, the engine.
+   * Rides onto the prompt inside the `discardPrompt` marker so the console's
+   * unified discard flow can name the source instead of asking the player to
+   * infer it. Defaults to the anonymous `system` source.
+   */
+  source?: ChoiceContextSource,
+  /**
+   * What the discard BUYS when it is an exchange rather than a pure loss
+   * (Ender's redraw, Sponsored Academies' three cards).
+   */
+  exchange?: DiscardPromptMeta['exchange'],
   /**
    * This discard is the closing half of a colony bonus ("draw N, then discard
    * N" — Pluto). Rides onto the prompt as a structural marker so the client can
@@ -54,9 +66,15 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
       'Discard',
       this.player.cardsInHand,
       {min: this.min, max: this.max});
-    if (this.options.colonyBonus !== undefined) {
-      select.markColonyBonusDiscard(this.options.colonyBonus);
-    }
+    // EVERY prompt this action builds is a discard — the client must never have
+    // to tell it apart from a "reveal a card" / "keep a card" pick by its title.
+    select.markDiscardPrompt({
+      min: this.min,
+      max: this.max,
+      source: this.options.source ?? {kind: 'system'},
+      exchange: this.options.exchange,
+      colonyBonus: this.options.colonyBonus,
+    });
     return select
       .andThen((discards) => {
         for (const card of discards) {

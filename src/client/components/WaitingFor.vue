@@ -15,7 +15,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForTilePlacementHero || holdingForColonyBuild">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -203,6 +203,12 @@ import {
   endPatentSale,
   runPatentSale,
 } from '@/client/console/patentSale/consolePatentSale';
+import {
+  abortCardDiscard,
+  detectCardDiscard,
+  endCardDiscard,
+  runCardDiscard,
+} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
   abortTilePlacement,
   detectTilePlacement,
@@ -420,6 +426,7 @@ type DataModel = {
    * src/client/console/patentSale/consolePatentSale.ts.
    */
   holdingForPatentSale: boolean;
+  holdingForCardDiscard: boolean;
   /*
    * Console TILE-PLACEMENT HERO gate: the commit is held through the tile's
    * physical flight + touchdown into the picked hex (the real board tile
@@ -512,6 +519,7 @@ export default defineComponent({
       holdingForHydroMarker: false,
       holdingForPlayedHero: false,
       holdingForPatentSale: false,
+      holdingForCardDiscard: false,
       holdingForTilePlacementHero: false,
       holdingForColonyBuild: false,
       holdingForHazardCleanup: false,
@@ -815,6 +823,36 @@ export default defineComponent({
               }
             }
             /*
+             * Console CARD-DISCARD gate — the ONE "a card physically leaves the
+             * hand" scene every discard ends at (Mars University's science-tag
+             * exchange, a Pluto colony bonus, a colony effect, a global event,
+             * a CEO action, Project Eden…). Detect the ARMED answer (undefined
+             * on desktop / every non-discard submit, so this is a no-op there);
+             * the detect VERIFIES the server actually removed the cards from
+             * the hand, so a refused answer can never fake a disposal.
+             *
+             * HOLD the commit until the cards have LANDED on the pile: the
+             * seize beat plays over the still-open hand grid (the real cards
+             * are held empty under their proxies), the scene closes the pick
+             * surface itself at its hand-off phase, and only then does the
+             * shorter hand commit. The post-commit half (the pile's
+             * acknowledgement, the tray withdrawing) runs on the next tick,
+             * mirroring the sale / hero gates.
+             *
+             * Runs ABOVE the bot staging on purpose: a discard can be the last
+             * thing a turn does, so its response carries the bot's turns, and
+             * an early `return` down there would skip everything below it.
+             */
+            const discardEvent = detectCardDiscard(newView);
+            if (discardEvent !== undefined) {
+              this.holdingForCardDiscard = true;
+              try {
+                await runCardDiscard();
+              } finally {
+                this.holdingForCardDiscard = false;
+              }
+            }
+            /*
              * Console TILE-PLACEMENT HERO gate. Detect the ARMED transaction
              * (undefined on desktop / every non-space submit); the detect
              * VERIFIES the server actually put a tile on the armed space and
@@ -921,6 +959,13 @@ export default defineComponent({
               if (patentSaleEvent !== undefined) {
                 nextTick(() => {
                   void endPatentSale();
+                });
+              }
+              // …and the discard pile's acknowledgement, so a staged response
+              // never leaves the tray + landed backs frozen on screen.
+              if (discardEvent !== undefined) {
+                nextTick(() => {
+                  void endCardDiscard();
                 });
               }
               // …and the placement reward beat (the landed tile is already
@@ -1168,6 +1213,15 @@ export default defineComponent({
                 void endPatentSale();
               });
             }
+            if (discardEvent !== undefined) {
+              // Post-commit half of the discard: the hand just committed one
+              // card shorter, exactly under the backs the player watched land
+              // — hold the pile's acknowledgement for a beat, then withdraw
+              // the tray. The animation's own completion releases the hold.
+              nextTick(() => {
+                void endCardDiscard();
+              });
+            }
             if (tileHeroEvent !== undefined) {
               // The REWARD BEAT of the placement: the cell's printed icons
               // rise through the placed tile, become physical chips and pay
@@ -1199,6 +1253,10 @@ export default defineComponent({
           // return to the hand (un-blanked) and no chip is ever dispensed.
           this.holdingForPatentSale = false;
           abortPatentSale();
+          // …and the card discard: the server kept the cards — nothing is
+          // seized, nothing lands on the pile, the hand stays intact.
+          this.holdingForCardDiscard = false;
+          abortCardDiscard();
           // …and the tile-placement hero: the placement did NOT happen — no
           // tile flies, no bonus is ever collected, the board stays intact.
           this.holdingForTilePlacementHero = false;
@@ -1231,6 +1289,8 @@ export default defineComponent({
           abortPlayedHero(); // …and the played-card hero — no ghost card, ever
           this.holdingForPatentSale = false;
           abortPatentSale(); // …and the patent sale — the hand cards un-blank
+          this.holdingForCardDiscard = false;
+          abortCardDiscard(); // …and the discard — the hand cards un-blank
           this.holdingForTilePlacementHero = false;
           abortTilePlacement(); // …and the tile hero — the board stays intact
           this.holdingForColonyBuild = false;

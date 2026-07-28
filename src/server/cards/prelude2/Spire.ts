@@ -7,6 +7,7 @@ import {ICard} from '../ICard';
 import {Tag} from '../../../common/cards/Tag';
 import {digit} from '../Options';
 import {SelectCard} from '../../inputs/SelectCard';
+import {cardDiscard} from '../../inputs/discardPrompt';
 import {CardResource} from '../../../common/CardResource';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 
@@ -38,6 +39,7 @@ export class Spire extends CorporationCard implements ICorporationCard {
   public override initialAction(player: IPlayer) {
     player.drawCard(4);
     return new SelectCard('Select 3 cards to discard', 'Discard', player.cardsInHand, {min: 3, max: 3})
+      .markDiscardPrompt(cardDiscard(this, {min: 3, max: 3}))
       .andThen((cards) => {
         for (const card of cards) {
           player.discardCardFromHand(card);

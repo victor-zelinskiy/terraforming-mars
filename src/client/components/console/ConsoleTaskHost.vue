@@ -435,6 +435,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import {hydroDrawState, isHydroDrawActive, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
+import {isHandCardSelection} from '@/client/console/consoleHandPick';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -511,7 +512,7 @@ export default defineComponent({
     /** The B affordance label: 'Minimize' (server prompt) / 'Cancel' (client). */
     deferLabel: {type: String, default: 'Minimize'},
   },
-  emits: ['submit', 'defer', 'space-pick'],
+  emits: ['submit', 'defer', 'space-pick', 'hand-pick'],
   data() {
     return {
       focusIdx: 0,
@@ -837,6 +838,15 @@ export default defineComponent({
     },
     distributeReady(): boolean {
       return this.distributedSum === this.distributeTarget;
+    },
+    /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
+     *  ownership test behind routing a nested pick to the hand overlay. */
+    handNames(): ReadonlySet<string> {
+      const view = this.playerView;
+      return new Set<string>([
+        ...view.cardsInHand.map((c) => c.name),
+        ...(view.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name),
+      ]);
     },
     // ── card browser (T2) ────────────────────────────────────────────
     cardModel(): SelectCardModel | undefined {
@@ -2021,6 +2031,17 @@ export default defineComponent({
           return;
         }
         if (entry.isNested) {
+          // A nested pick whose candidates are ALL IN HAND is never a flat grid
+          // inside this modal: it rides the real hand overlay, exactly like a
+          // top-level in-hand prompt and like a composer's hand pick. That is
+          // what makes Mars University's "discard a card to draw a card" the
+          // SAME experience as every other discard instead of a third one.
+          const handPick = entry.option.type === 'card' &&
+            isHandCardSelection(entry.option, this.handNames) ? entry.option : undefined;
+          if (handPick !== undefined) {
+            this.$emit('hand-pick', {index: entry.index, cardPrompt: handPick});
+            return;
+          }
           // T9: OPEN the nested input as a one-level wizard step — its
           // submit is wrapped into this option's OR index; B returns here.
           this.nested = {index: entry.index, input: entry.option};

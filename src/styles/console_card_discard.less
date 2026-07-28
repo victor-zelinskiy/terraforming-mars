@@ -1,0 +1,232 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE CARD DISCARD — the ONE "a card physically leaves the hand"
+   cinematic (consoleCardDiscard.ts / discardDirector.ts).
+
+   The flyers ARE the shared deal flip chassis (.con-deal-proxy__flip/
+   __face/__back) and the pile IS the deck-draw discard tray's material:
+   the same place, reached from the player's side instead of the deck's.
+
+   Transform/opacity only; the stage is clipped; nothing animates layout.
+   Authored in rem (the console logical space). The condemned rim is a
+   BOX-SHADOW, never a filter — con-perf-lite strips filters, and "this is
+   the card that is going" is functional state, not decoration.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The app-level flight stage (ConsoleCardDiscardLayer) ────────────── */
+.con-discard {
+    position: fixed;
+    inset: 0;
+    /* Above the hand grid, the reveal modal (11520) and the hand-intake
+       layer (11646) — the discarded card is the foreground event; below the
+       command bar (11700), which must stay readable throughout. */
+    z-index: 11648;
+    pointer-events: none;
+    overflow: clip;
+    contain: layout style;
+}
+
+/* One flying card. The director sizes/positions it and reveals via
+   autoAlpha; `perspective` (inherited from .con-deal-proxy) is what makes
+   the face→back turn read as a physical flip rather than a squash. */
+.con-discard-proxy {
+    filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.55));
+}
+
+/* CONDEMNED — the beat between "I picked this" and "it is gone". A warm rim
+   plus a faint inner wash, both box-shadow so the cue survives perf mode. */
+.con-discard-proxy--seized .con-deal-proxy__face {
+    box-shadow:
+        0 0 0 .12rem fade(@con-amber, 72%),
+        0 0 1.4rem fade(@con-amber, 26%),
+        inset 0 0 2.2rem fade(@con-amber, 14%);
+    border-radius: .5rem;
+}
+
+/* ── The pile the cards land on ──────────────────────────────────────
+   Parked in the free band right of the action, clear of BOTH side rails
+   (the left resource rail ends ~11%, the right dashboard starts ~76%) —
+   the exact berth the deck-draw tray uses, because it is the same pile. */
+.con-discard__tray {
+    position: fixed;
+    left: 66%;
+    top: 38vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    pointer-events: none;
+    animation: con-discard-trayin calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+@keyframes con-discard-trayin {
+    from { opacity: 0; transform: translateY(.7rem) scale(0.93); }
+    to { opacity: 1; transform: none; }
+}
+
+.con-discard__pile {
+    position: relative;
+    width: 3.4rem;
+    height: 4.8rem;
+    filter: drop-shadow(0 .35rem .8rem rgba(0, 0, 0, 0.6));
+}
+/* Thickness caps at three backs; the count carries the rest (mirrors the
+   deck-draw tray and the played-events pile — a pile of 9 must not become
+   9 DOM cards). */
+.con-discard__back {
+    position: absolute;
+    inset: 0;
+    border-radius: .3rem;
+    box-shadow: inset 0 0 0 .04rem rgba(150, 180, 210, 0.24);
+}
+.con-discard__back--2 { transform: translate(-.11rem, .13rem) rotate(-1.8deg); opacity: .88; }
+.con-discard__back--3 { transform: translate(.13rem, .26rem) rotate(2.3deg); opacity: .72; }
+
+/* The landing box the flying cards aim at — the director measures THIS, so
+   the pile grows under a proxy that has actually arrived, never beside it. */
+.con-discard__slot {
+    position: absolute;
+    inset: 0;
+}
+/* Before the first card lands the pile has none, so the berth itself is
+   drawn: a quiet dashed outline that says "this is where they go". */
+.con-discard__pile--empty {
+    filter: none;
+
+    .con-discard__slot {
+        border: .05rem dashed fade(@con-amber, 32%);
+        border-radius: .3rem;
+    }
+}
+.con-discard__pile--pulse {
+    animation: con-discard-pilepulse calc(280ms * var(--motion-scale, 1)) ease-out 1;
+}
+@keyframes con-discard-pilepulse {
+    0% { transform: scale(1); }
+    42% { transform: scale(1.055); }
+    100% { transform: scale(1); }
+}
+
+.con-discard__meta {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+.con-discard__label {
+    font-size: .5rem;
+    letter-spacing: .09rem;
+    text-transform: uppercase;
+    color: fade(@con-text-dim, 82%);
+}
+.con-discard__count {
+    min-width: 1.1rem;
+    padding: 0 .25rem;
+    border-radius: 49.95rem;
+    background: fade(@con-amber, 14%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
+    color: fade(@con-amber, 95%);
+    font-size: .65rem;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   THE DISCARD SKIN of the hand overlay (`.con-hand--discard`).
+
+   A discard is not a neutral "pick a card": the chosen card is about to
+   be destroyed, so the pick reads AMBER (the loss accent, shared with
+   the patent sale) instead of the cyan of every constructive select.
+   These rules RE-DECLARE the select-mode slot/band/verdict contracts
+   from console.less with one extra class of specificity — keep them in
+   lock-step with their cyan originals.
+
+   Every functional cue here is box-shadow / colour, never a filter:
+   con-perf-lite strips filters and "this card is going" must survive.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* The header block: the ask, the source, the colony-bonus position and the
+   live exchange. One line, never wrapped — the ask is the shortest useful
+   sentence and the source is the card's own name. */
+.con-hand--discard .con-hand__discard {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .22rem .8rem;
+    border-radius: 49.95rem;
+    background: linear-gradient(180deg, fade(@con-amber, 17%), fade(@con-amber, 7%)), rgba(12, 20, 30, 0.66);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 62%), 0 0 .8rem fade(@con-amber, 16%);
+    white-space: nowrap;
+    min-width: 0;
+}
+.con-hand__discard-mark {
+    color: fade(@con-amber, 95%);
+    font-size: .85rem;
+    line-height: 1;
+}
+.con-hand__discard-ask {
+    font-size: .8rem;
+    font-weight: 800;
+    color: @con-text;
+}
+.con-hand__discard-sep { color: rgba(150, 175, 205, 0.55); }
+.con-hand__discard-src {
+    font-size: .7rem;
+    letter-spacing: .04rem;
+    color: fade(@con-amber, 92%);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 14rem;
+}
+/* Pluto pays one cube at a time — the position is part of the ask, not a
+   footnote, so the player knows another bonus is still coming. */
+.con-hand__discard-seq {
+    padding: .1rem .45rem;
+    border-radius: 49.95rem;
+    background: rgba(8, 14, 22, 0.7);
+    box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.26);
+    font-size: .62rem;
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    color: fade(@con-text-dim, 92%);
+}
+/* The exchange: what the discard BUYS, live for the current pick. */
+.con-hand__discard-swap {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding-left: .45rem;
+    margin-left: .1rem;
+    border-left: .05rem solid rgba(150, 180, 210, 0.22);
+    font-variant-numeric: tabular-nums;
+}
+.con-hand__discard-out { color: fade(@con-amber, 95%); font-size: .78rem; font-weight: 800; }
+.con-hand__discard-arrow { color: rgba(150, 175, 205, 0.7); }
+.con-hand__discard-in { color: @con-mint; font-size: .78rem; font-weight: 800; }
+.con-hand__discard-in--zero { color: fade(@con-text-dim, 70%); }
+.con-hand__discard-icon {
+    width: .9rem;
+    height: .9rem;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+/* A card marked for the pile: the amber loss frame instead of the cyan
+   select frame (same geometry, so nothing shifts between modes). */
+.con-hand--discard .con-hand__slot--select-picked > :is(.card-container, .pcard) {
+    filter: none;
+    box-shadow: 0 0 0 .15rem fade(@con-amber, 86%), 0 0 1rem fade(@con-amber, 40%);
+}
+.con-cards__pickband--discard {
+    background: linear-gradient(180deg, fade(@con-amber, 32%), fade(@con-amber, 14%)), @con-glass;
+    box-shadow: inset 0 0 0 .075rem fade(@con-amber, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 22%);
+    color: #ffe6c4;
+}
+/* The verdict bar's discard accent (twin of `--select`, amber). */
+.con-hand__verdictbar--discard {
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 46%), 0 -.4rem 1.2rem -.6rem rgba(0, 0, 0, 0.6);
+}
+.con-hand__verdictbar--discard .con-cards__verdict--picked {
+    color: fade(@con-amber, 96%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+}

@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusDiscardMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DiscardPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -29,10 +29,10 @@ export interface PlayerInput {
     // heat-source AndOptions to the premium SpendHeatContent modal. Serialized in
     // getWaitingFor.
     spendHeatPrompt?: SpendHeatPromptMeta;
-    // Explicit "this discard IS the second half of a colony bonus" marker (see
-    // ColonyBonusDiscardMeta). Lets the console reveal modal host the discard as
-    // the last step of the same payout. Serialized in getWaitingFor.
-    colonyBonusDiscard?: ColonyBonusDiscardMeta;
+    // Explicit "this SelectCard is a DISCARD FROM HAND" marker (see
+    // DiscardPromptMeta) — the ONE signal the console's unified discard flow
+    // keys off, whoever demands the discard. Serialized in getWaitingFor.
+    discardPrompt?: DiscardPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -85,7 +85,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public placementContext: PlacementContext | undefined;
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
-  public colonyBonusDiscard: ColonyBonusDiscardMeta | undefined;
+  public discardPrompt: DiscardPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -168,11 +168,13 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
     return this;
   }
 
-  /** Mark this discard as the second half of a colony bonus (Pluto's
-   *  "draw N, then discard N") so the client can present it as the closing
-   *  step of that payout rather than a detached prompt (chainable). */
-  public markColonyBonusDiscard(meta: ColonyBonusDiscardMeta): this {
-    this.colonyBonusDiscard = meta;
+  /** Mark this `SelectCard` as a DISCARD FROM HAND (chainable). Every rule that
+   *  makes a player throw cards away attaches this at the prompt's construction
+   *  so the client can route ALL discards — a card effect, a colony bonus, a
+   *  global event, a CEO action — to the same surface and the same animation.
+   *  See {@link DiscardPromptMeta} and `inputs/discardPrompt.ts` for factories. */
+  public markDiscardPrompt(meta: DiscardPromptMeta): this {
+    this.discardPrompt = meta;
     return this;
   }
 }

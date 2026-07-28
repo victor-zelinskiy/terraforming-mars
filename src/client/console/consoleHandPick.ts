@@ -23,7 +23,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
-import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -46,6 +46,16 @@ export type ConsoleHandPickRequest = {
    *  activated + a kicker i18n key, e.g. 'Action setup') — the pick surface
    *  shows it so the player never loses WHY they are choosing a target. */
   source?: {kicker: string, card: CardName};
+  /**
+   * The server's DISCARD marker, when this pick is a discard from hand (a
+   * discard nested in an OrOptions branch — Mars University — or a composer
+   * step that throws cards away). Carrying the RAW marker (never a re-derived
+   * flag) is what keeps the client-bridge path and the server `handSelect`
+   * path on ONE derivation: the shell feeds either into
+   * `deriveDiscardIntent`, so the skin, the copy and the leaving animation are
+   * physically the same code. See `cardDiscard/discardIntent.ts`.
+   */
+  discard?: DiscardPromptMeta;
 };
 
 export const consoleHandPickState = reactive({
