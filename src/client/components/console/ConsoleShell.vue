@@ -1212,6 +1212,13 @@ export default defineComponent({
       consoleRepeatPickState,
       /** The section to restore when a client hand pick resolves/cancels. */
       handPickReturn: undefined as ConsoleSection | undefined,
+      /**
+       * The pick surface FROZEN at the moment a discard was answered. The client
+       * hand-pick bridge resets itself as it resolves, but the cinematic still
+       * has to lift the card out of that very grid — so the section keeps
+       * rendering this snapshot until the scene hands off (phase 'leaving').
+       */
+      discardFreeze: undefined as ConsoleHandSelectMode | undefined,
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
       returningPlayCard: undefined as CardName | undefined,
@@ -1661,6 +1668,14 @@ export default defineComponent({
       const p = this.tilePlacementState.phase;
       return this.tilePlacementState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
     },
+    /** The discard cinematic owns the screen for its bounded beat — the same
+     *  contract the played / tile heroes have. Without it the task host would
+     *  re-mount the instant its nested pick resolved and paint the branch list
+     *  back OVER the card that is still flying out of the hand. */
+    cardDiscardHolds(): boolean {
+      const p = this.cardDiscardTransaction.phase;
+      return this.cardDiscardTransaction.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — the task host (and, cascading
@@ -1668,6 +1683,7 @@ export default defineComponent({
       // Also held while a drawn reveal is pending, and while THIS interruptive
       // host prompt is still GATED (announced, not yet opened — consoleMandatoryGate).
       if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds ||
+          this.cardDiscardHolds ||
           this.consoleRevealMode !== undefined || this.rawDrawnRevealPending || this.taskGateHeld) {
         return undefined;
       }
@@ -2342,7 +2358,11 @@ export default defineComponent({
       if (this.handPickActive) {
         return consoleHandPickState.request?.discard;
       }
-      return discardMetaOf(this.handSelectModel);
+      const live = discardMetaOf(this.handSelectModel);
+      // A CLIENT bridge pick resets itself the moment it resolves, but the
+      // cinematic has not seized the card yet — keep the surface exactly as the
+      // player left it until it hands off (see `discardFreeze`).
+      return live ?? (this.cardDiscardHolds ? this.discardFreeze?.discard : undefined);
     },
     /** The presentation of the active discard (undefined = not a discard). */
     discardIntent(): DiscardIntent | undefined {
@@ -2354,7 +2374,11 @@ export default defineComponent({
     handSelectProps(): ConsoleHandSelectMode | undefined {
       const d = this.handSelectDerived;
       if (d === undefined) {
-        return undefined;
+        // Frozen discard surface (see `discardFreeze`): the answer is delivered
+        // and the bridge is gone, but the card is still being lifted out of
+        // this very grid. Reverting to browse mode here would flash tag filters
+        // and an unrelated «Нельзя разыграть» verdict under the flying card.
+        return this.cardDiscardHolds ? this.discardFreeze : undefined;
       }
       const pick = this.handPickActive ? consoleHandPickState.request : undefined;
       const gain = pick?.gainPerCard;
@@ -2857,7 +2881,7 @@ export default defineComponent({
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Government Support';
       }
-      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
         // "ДРАФТ"), not a generic "awaiting" — the host's own header carries
         // the full ask right under it.
@@ -3092,7 +3116,7 @@ export default defineComponent({
           {control: 'back', label: 'Minimize'},
         ])];
       }
-      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The task host publishes its live contract (browse / pick / lanes /
         // payment differ) — the bar renders it; no in-frame footer anymore.
         return [...(panelCommands('taskHost') ?? [
@@ -3936,8 +3960,11 @@ export default defineComponent({
      * exist, which is the whole bug this flow exists to fix.
      */
     'cardDiscardTransaction.phase'(phase: string, was: string | undefined): void {
-      if (phase === 'leaving' && this.consoleState.section === 'hand') {
-        this.closeSurfaceForDiscard();
+      if (phase === 'leaving') {
+        this.discardFreeze = undefined; // the surface is handing off
+        if (this.consoleState.section === 'hand') {
+          this.closeSurfaceForDiscard();
+        }
         return;
       }
       // SAFETY: the scene may end WITHOUT ever reaching its hand-off — the
@@ -3946,9 +3973,11 @@ export default defineComponent({
       // something must still close it, or the player is left staring at a pick
       // surface for a decision that is already over. Only when nothing else is
       // asking for the hand (a still-pending prompt legitimately keeps it).
-      if (phase === 'idle' && was !== undefined && was !== 'idle' &&
-          this.consoleState.section === 'hand' && !this.handSelectUiActive) {
-        this.closeSurfaceForDiscard();
+      if (phase === 'idle' && was !== undefined && was !== 'idle') {
+        this.discardFreeze = undefined;
+        if (this.consoleState.section === 'hand' && !this.handSelectUiActive) {
+          this.closeSurfaceForDiscard();
+        }
       }
     },
     /** The shade yields to a live pick bridge (surface motion). */
@@ -4546,7 +4575,12 @@ export default defineComponent({
       }
       // CTS T1–T3: the task host owns input while it serves (B inside the
       // host = defer-to-board / cancel, handled there). No View-peek.
-      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
+      // …EXCEPT while it has handed a card pick to the hand overlay
+      // (`handPickActive`): the host is UNMOUNTED then (same condition as its
+      // v-if), so routing here would drop every press into a dead ref. Keep
+      // this gate, the two command-bar gates and the template's v-if in
+      // LOCK-STEP — a mismatch silently swallows the pad.
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
         return true;
@@ -7071,6 +7105,8 @@ export default defineComponent({
       if (meta === undefined || names.length === 0) {
         return;
       }
+      // The surface as it looks RIGHT NOW — replayed while the scene seizes.
+      this.discardFreeze = this.handSelectProps;
       armCardDiscard({
         names,
         meta,

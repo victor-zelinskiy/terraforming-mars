@@ -202,12 +202,9 @@ async function interceptSubmit(page: Page, discarded: () => string | undefined):
 
 test('a nested discard rides the hand overlay and the card visibly leaves it', async ({page, request}) => {
   test.setTimeout(180_000);
-  page.on('console', (m) => console.log(`[browser:${m.type()}]`, m.text()));
-  page.on('request', (r) => {
-    if (r.method() === 'POST') {
-      console.log('[POST]', r.url());
-    }
-  });
+  // Surface a browser-side error as test output — a silent exception in the
+  // scene would otherwise look like a timeout.
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   const playerId = await createGame(request);
   await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
@@ -248,24 +245,37 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
   expect(focused, 'a hand card must be focused').toBeTruthy();
   await interceptSubmit(page, () => focused ?? undefined);
 
-  // 3 · the cinematic: the proxy stands over the real slot, which is held EMPTY.
+  // 3 · THE CINEMATIC. Each beat is awaited on its own DOM signal (never a
+  //     fixed sleep): the card is seized out of the real slot, the hand hands
+  //     off, the pile catches it and its count ticks ON CONTACT.
   await page.keyboard.press('Enter');
-  await page.waitForSelector('.con-discard-proxy', {timeout: 15_000});
-  await shoot(page, '3-seized');
-  expect(await page.locator(`.con-hand__slot[data-zoom-slot="${focused}"] .con-deal-hold`).count() +
-    await page.locator(`.con-hand__slot[data-zoom-slot="${focused}"].con-deal-hold`).count(),
-  'the real card is hidden under its proxy — never both at once').toBeGreaterThan(0);
 
-  // …the pile arrives and the count ticks on physical contact.
+  // SEIZE — the proxy stands over the real card, which is held EMPTY under it
+  // (never both at once: that is the "card flies while still in its slot" bug).
+  await page.waitForSelector('.con-discard-proxy', {timeout: 15_000});
+  const heldUnderProxy = await page.evaluate((name) => {
+    const slot = document.querySelector(`.con-hand__slot[data-zoom-slot="${name}"]`);
+    if (slot === null) {
+      return 'gone'; // the hand already handed off — also honest
+    }
+    return slot.classList.contains('con-deal-hold') ||
+      slot.querySelector('.con-deal-hold') !== null ? 'held' : 'visible';
+  }, focused);
+  expect(heldUnderProxy, 'the real card must not be visible under its own proxy').not.toBe('visible');
+  await shoot(page, '3-seized');
+
+  // HAND-OFF + PILE + LANDING. Asserted back-to-back with NO screenshot in
+  // between: the pile withdraws once the count has settled, and a full-page
+  // capture costs more than that beat lasts.
   await page.waitForSelector('.con-discard__tray', {timeout: 15_000});
-  await shoot(page, '4-tray');
-  await expect(page.locator('.con-discard__count')).toHaveText('1', {timeout: 15_000});
-  await shoot(page, '5-landed');
+  await expect(page.locator('.con-discard__count'), 'the count ticks on contact')
+    .toHaveText('1', {timeout: 15_000});
   expect(await page.locator('.con-discard__back').count(), 'the pile physically thickened').toBe(1);
+  await shoot(page, '4-landed');
 
   // 4 · the scene ends clean and the card really left the hand.
   await page.waitForSelector('.con-discard', {state: 'detached', timeout: 20_000});
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(600);
   await shoot(page, '6-settled');
   expect(await page.locator('.con-discard-proxy').count(), 'no proxy may survive the scene').toBe(0);
   expect(await page.locator('.con-hand--discard').count(), 'the discard mode is over').toBe(0);
