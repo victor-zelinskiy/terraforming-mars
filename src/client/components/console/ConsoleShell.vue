@@ -3935,8 +3935,19 @@ export default defineComponent({
      * player would watch the hand disappear and the card silently cease to
      * exist, which is the whole bug this flow exists to fix.
      */
-    'cardDiscardTransaction.phase'(phase: string): void {
+    'cardDiscardTransaction.phase'(phase: string, was: string | undefined): void {
       if (phase === 'leaving' && this.consoleState.section === 'hand') {
+        this.closeSurfaceForDiscard();
+        return;
+      }
+      // SAFETY: the scene may end WITHOUT ever reaching its hand-off — the
+      // server refused the answer, the response never came, an error path
+      // aborted. The hand was deliberately kept open for the seize beat, so
+      // something must still close it, or the player is left staring at a pick
+      // surface for a decision that is already over. Only when nothing else is
+      // asking for the hand (a still-pending prompt legitimately keeps it).
+      if (phase === 'idle' && was !== undefined && was !== 'idle' &&
+          this.consoleState.section === 'hand' && !this.handSelectUiActive) {
         this.closeSurfaceForDiscard();
       }
     },
