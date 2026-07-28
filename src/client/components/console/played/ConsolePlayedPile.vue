@@ -25,7 +25,7 @@
          :data-zoom-slot="card.name">
       <div class="con-played__lift">
         <div class="con-played__face con-played__focusbox" :style="{zoom: String(zoom)}">
-          <ConsolePlayedCardLite :name="card.name" />
+          <ConsolePlayedCardLite :name="card.name" :peek="coveredAt(i)" />
         </div>
         <!-- Live stored-resource counter (microbes / animals / floaters …) —
              a SLOT chip so a count change never patches the card face. -->
@@ -57,6 +57,25 @@ export default defineComponent({
     slotW: {type: Number, required: true},
     cardH: {type: Number, required: true},
     peekH: {type: Number, required: true},
+  },
+  methods: {
+    /**
+     * The card is COVERED by the pile (only its peek band can ever show) —
+     * its face renders the cheap peek crop. Everything but the topmost card
+     * is covered; the one exception is the hero scene's reserved LAST slot
+     * (invisible until the commit), which leaves the previous top card fully
+     * exposed for the whole flight. A slot lifted into the category view
+     * still counts as covering: its card is only ever away TOGETHER with the
+     * hold that keeps this pile's geometry, and keeping the modes stable is
+     * what makes the close handoff pixel-true.
+     */
+    coveredAt(i: number): boolean {
+      const last = this.cards.length - 1;
+      if (i >= last) {
+        return false;
+      }
+      return !(i === last - 1 && this.cards[last].name === this.hiddenKey);
+    },
   },
 });
 </script>

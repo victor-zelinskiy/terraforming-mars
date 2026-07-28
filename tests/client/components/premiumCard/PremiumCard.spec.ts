@@ -88,6 +88,40 @@ describe('PremiumCard', () => {
     expect(wrapper.text()).to.not.contain('-1');
   });
 
+  it('peek face: corpus + header + requirements rail only — no art <img>, no lower section', () => {
+    // Predators has requirements — the rail's top pixels live inside the
+    // peek band, so the peek face must keep it.
+    const wrapper = mount(PremiumCard, {props: {name: CardName.PREDATORS, inert: true, peek: true}});
+    expect(wrapper.find('.pcard-nameplate').exists()).to.eq(true);
+    expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(true);
+    expect(wrapper.find('.pcard__reqs').exists()).to.eq(true);
+    expect(wrapper.find('.pcard__art').exists()).to.eq(false);
+    expect(wrapper.find('.pcard__lower').exists()).to.eq(false);
+    // The box + theme classes stay those of the full face (pixel-true band).
+    expect(wrapper.classes()).to.include('pcard--theme-azure');
+  });
+
+  it('peek face: a requirement-less card keeps the divider; a corporation skips its identity zone', () => {
+    const comet = mount(PremiumCard, {props: {name: CardName.COMET, inert: true, peek: true}});
+    expect(comet.find('.pcard__divider').exists()).to.eq(true);
+    expect(comet.find('.pcard__art').exists()).to.eq(false);
+    const corp = mount(PremiumCard, {props: {name: CardName.HELION, inert: true, peek: true}});
+    expect(corp.find('.pcard-corp').exists()).to.eq(false);
+    expect(corp.find('.pcard__lower').exists()).to.eq(false);
+    expect(corp.classes()).to.include('pcard--theme-corporation');
+  });
+
+  it('an inert/static face plants no teleport anchors in body; a live face does', () => {
+    const before = document.body.childNodes.length;
+    const inert = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
+    expect(document.body.childNodes.length).to.eq(before);
+    inert.unmount();
+    const live = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect(document.body.childNodes.length).to.be.greaterThan(before);
+    live.unmount();
+    expect(document.body.childNodes.length).to.eq(before);
+  });
+
   it('lower anchors: VP variant class reserves the panel column', () => {
     const formula = mount(PremiumCard, {props: {card: model(CardName.SEARCH_FOR_LIFE)}});
     expect(formula.classes()).to.include('pcard--vp-formula');

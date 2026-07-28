@@ -41,10 +41,13 @@ export const PLAYED_CARD_NATURAL_W = 320;
 export const PLAYED_CARD_NATURAL_H = 460;
 /**
  * The natural peek band (px @ zoom 1): the `.pcard` title plate (pad-top 15 +
- * plate 46) plus a sliver of the theme body, so a peeked card still reads
- * cost + tags + name + type colour.
+ * plate 46) plus the divider row (gap 6 + divider 2 + gap 6), so a peeked
+ * card still reads cost + tags + name + type colour + the top of its
+ * requirements cassette. Exactly 75 — the art row starts at 75, so no art
+ * sliver ever peeks out of the stack (and covered cards can render the cheap
+ * art-less peek face with zero visual difference).
  */
-export const PLAYED_PEEK_NATURAL = 78;
+export const PLAYED_PEEK_NATURAL = 75;
 /** Pile-cap bounds — a pile is never a lone peek band nor an endless column. */
 export const MIN_PILE_CAP = 2;
 export const MAX_PILE_CAP = 9;

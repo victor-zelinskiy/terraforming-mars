@@ -11,7 +11,7 @@
     once; live extras (resource counters) are the SLOT's chips, never the
     card's (so a count change patches one chip, not a card subtree).
   -->
-  <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" aria-hidden="true" />
+  <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" :peek="peek" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
@@ -30,6 +30,14 @@ export default defineComponent({
     name: {
       type: String as () => CardName,
       required: true,
+    },
+    /** COVERED in a pile: only the header band can show — the premium face
+     *  renders its peek crop (no art <img>, no mechanics subtree). The legacy
+     *  fallback face (CEO …) has no peek mode and stays full. */
+    peek: {
+      type: Boolean,
+      required: false,
+      default: false,
     },
   },
   computed: {

@@ -38,9 +38,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
 
       <!-- art viewport; a corporation shows real art if it has any, else the
            brand wordmark identity zone (vm.art is undefined only for an
-           art-less corporation) -->
-      <PremiumCardArt v-if="vm.art !== undefined" :art="vm.art" />
-      <PremiumCorpIdentity v-else-if="isCorporation" :name="vm.name" />
+           art-less corporation). A PEEK face skips this zone entirely — the
+           art row starts below the peek band, so nothing of it can show. -->
+      <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" />
+      <PremiumCorpIdentity v-else-if="!peek && isCorporation" :name="vm.name" />
 
       <!-- ── LOWER SECTION ────────────────────────────────────────────
            Mechanics content + ANCHORED service elements (no footer row).
@@ -48,7 +49,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
            (per-variant, only when VP exists); the expansion stamp and the
            resource capsule are pinned at the bottom-left corner — tiny,
            overlapping the panel's border zone only. -->
-      <div class="pcard__lower">
+      <div v-if="!peek" class="pcard__lower">
         <PremiumMechanicsPanel v-if="!vm.mechanics.textOnly" :mechanics="vm.mechanics" />
         <div class="pcard__exp" aria-hidden="true">
           <span class="pcard__exp-medallion"
@@ -74,8 +75,10 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     <slot/>
 
     <!-- fullscreen zoom (same viewer shell as the legacy face; teleported to
-         body to escape ancestor containing blocks — see Card.vue's note) -->
-    <Teleport to="body">
+         body to escape ancestor containing blocks — see Card.vue's note).
+         Mounted only for faces that can actually open it (onClick's own
+         gate) — an inert/static proxy never plants teleport anchors. -->
+    <Teleport v-if="zoomable" to="body">
       <CardZoomModal v-if="showZoom" ref="zoomModal" :card="cardModel" :actionUsed="actionUsed" @close="showZoom = false" />
     </Teleport>
   </div>
@@ -189,6 +192,19 @@ export default defineComponent({
       required: false,
       default: false,
     },
+    /**
+     * COVERED-IN-A-PILE mode: render only the layers that can peek out of a
+     * stack — corpus (body/rim/frame), header shell and the requirements
+     * rail / divider. The art viewport, the corp identity zone and the whole
+     * lower section are NOT mounted (no art <img>, no decode, no mechanics
+     * subtree). The card box and every rendered layer stay pixel-identical
+     * to the full face, so a pile can swap peek ↔ full without a shift.
+     */
+    peek: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
     selected: {
       type: Boolean,
       required: false,
@@ -240,6 +256,10 @@ export default defineComponent({
     },
     interactive(): boolean {
       return !this.inert;
+    },
+    /** The fullscreen viewer is reachable (mirrors onClick's own gate). */
+    zoomable(): boolean {
+      return !this.inert && this.card !== undefined;
     },
     isCorporation(): boolean {
       return this.vm.type === CardType.CORPORATION;
