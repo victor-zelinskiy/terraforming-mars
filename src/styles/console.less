@@ -1730,10 +1730,16 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         min-width: 0;
     }
     &__glyph {
-        font-size: 1.7rem;
-        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.7rem;
+        height: 1.7rem;
         color: @con-hydro-aqua;
-        text-shadow: 0 0 .7rem fade(@con-hydro-aqua, 55%);
+        /* decorative glow only (perf-lite may cut it; the colour carries) */
+        filter: drop-shadow(0 0 .45rem fade(@con-hydro-aqua, 45%));
+
+        .bar-btn-icon { width: 100%; height: 100%; }
     }
     &__title {
         margin: 0;
@@ -4377,6 +4383,13 @@ html.console-mode {
 }
 
 /* ── P27: RT / LT QUICK SELECTORS (direct-input command cross) ───── */
+/* PRESS→RELEASE physicality (wheelArmModel drives the classes):
+   every tile is a two-layer mechanism — the SHELL (.__slot, a positioning
+   cell carrying the floating key cap) and the BODY (.__slot-body, the
+   physical plate that sinks under the player's finger). The key cap never
+   moves: the button label is the fixed part of the machine, the plate is
+   the moving part. All state cues ride box-shadow / transform / opacity —
+   perf-lite (con-perf-lite cuts filter/text-shadow) keeps every one. */
 .con-quick {
     /* THE MODAL BAND: the command cross centres between the bars (compact —
        visually unchanged; the band only guarantees it can never touch them). */
@@ -4395,18 +4408,35 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .9rem;
+        gap: 1rem;
     }
     &__kicker {
-        display: inline-flex;
-        align-items: center;
-        gap: .6rem;
+        position: relative;
+        padding-bottom: .35rem;
         font-size: 1.1rem;
         font-weight: 700;
-        letter-spacing: .12rem;
+        letter-spacing: .14rem;
         text-transform: uppercase;
         color: fade(@con-cyan, 95%);
         text-shadow: 0 0 .9rem fade(@con-cyan, 35%);
+
+        /* The identity rail under the title — the panel reads as one
+           engineered assembly, not a floating caption. */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            width: 9rem;
+            height: .06rem;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, transparent, fade(@con-cyan, 55%), transparent);
+        }
+    }
+    &__kicker-inner {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
     }
     /* The cross: up / left-center-right / down (grid keeps it rigid).
        EQUAL fixed columns on purpose — content-sized tracks let a long
@@ -4417,48 +4447,98 @@ html.console-mode {
         display: grid;
         grid-template-columns: repeat(3, 14rem);
         grid-template-rows: repeat(3, auto);
-        gap: .7rem .8rem;
+        gap: .8rem .9rem;
         align-items: stretch;
         justify-items: stretch;
     }
     &__slot {
         position: relative;
+        min-height: 5.1rem;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: .35rem;
-        min-height: 4.8rem;
-        padding: .7rem 1rem .6rem;
-        border-radius: .6rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.26), 0 .5rem 1.5rem rgba(0, 0, 0, 0.5);
+        align-items: stretch;
+        justify-items: stretch;
 
         &--up { grid-area: 1 / 2; }
         &--left { grid-area: 2 / 1; }
         &--right { grid-area: 2 / 3; }
         &--down { grid-area: 3 / 2; }
-        &--center {
-            grid-area: 2 / 2;
-            background: rgba(14, 24, 36, 0.96);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%), 0 0 1.3rem fade(@con-cyan, 22%), 0 .5rem 1.5rem rgba(0, 0, 0, 0.5);
-        }
-        &--disabled {
-            opacity: 0.55;
-            filter: saturate(0.5);
+        &--center { grid-area: 2 / 2; }
+    }
+    /* THE PLATE — the tile's physical body (the layer that presses). */
+    &__slot-body {
+        position: relative;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .35rem;
+        box-sizing: border-box;
+        padding: .85rem 1rem .65rem;
+        border-radius: .7rem;
+        background:
+            /* the luminous top seam (machined edge catching the light) */
+            linear-gradient(90deg, transparent 12%, rgba(150, 200, 240, 0.28) 50%, transparent 88%) no-repeat top center / 100% .07rem,
+            /* the material: brushed dark alloy falling away from the light */
+            linear-gradient(172deg, rgba(30, 44, 62, 0.97) 0%, rgba(15, 23, 35, 0.985) 46%, rgba(8, 13, 21, 0.99) 100%);
+        box-shadow:
+            inset 0 .07rem 0 rgba(210, 235, 255, 0.07),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.55),
+            inset 0 0 0 .05rem rgba(122, 156, 190, 0.3),
+            0 .6rem 1.4rem rgba(0, 0, 0, 0.55),
+            0 .15rem .35rem rgba(0, 0, 0, 0.5);
+        transition:
+            transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            box-shadow calc(120ms * var(--motion-scale, 1)) ease,
+            background-color calc(120ms * var(--motion-scale, 1)) ease;
+
+        /* The inner service line — depth between ring and content. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: .18rem;
+            border-radius: .55rem;
+            box-shadow: inset 0 0 0 .05rem rgba(140, 180, 215, 0.09);
+            pointer-events: none;
         }
     }
+    &__slot--center &__slot-body {
+        background:
+            linear-gradient(90deg, transparent 10%, fade(@con-cyan, 45%) 50%, transparent 90%) no-repeat top center / 100% .07rem,
+            linear-gradient(172deg, rgba(26, 46, 70, 0.97) 0%, rgba(13, 25, 42, 0.985) 48%, rgba(8, 15, 26, 0.99) 100%);
+        box-shadow:
+            inset 0 .07rem 0 rgba(210, 240, 255, 0.09),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.55),
+            inset 0 0 0 .05rem fade(@con-cyan, 65%),
+            0 0 1.3rem fade(@con-cyan, 16%),
+            0 .6rem 1.4rem rgba(0, 0, 0, 0.55);
+    }
+    /* THE KEY CAP — the physical button label, bolted to the shell on its
+       own mount plate. It floats OVER the sinking body: press a direction
+       and the plate seats while the cap holds its place (the fixed vs the
+       moving part of one mechanism). */
     &__slot-key {
         position: absolute;
-        top: -.6rem;
+        top: -.68rem;
         left: 50%;
         transform: translateX(-50%);
+        z-index: 2;
+        display: inline-flex;
+        padding: .1rem .28rem;
+        border-radius: .45rem;
+        background: linear-gradient(178deg, rgba(22, 33, 48, 0.98), rgba(10, 16, 26, 0.98));
+        box-shadow:
+            inset 0 .05rem 0 rgba(200, 230, 255, 0.1),
+            inset 0 0 0 .05rem rgba(122, 156, 190, 0.4),
+            0 .2rem .5rem rgba(0, 0, 0, 0.5);
+        transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease;
     }
     &__slot-icon {
-        color: @con-text;
-        .bar-btn-icon { width: 1.7rem; height: 1.7rem; }
-        .resource_icon { display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .std-icon { display: inline-block; width: 1.7rem; height: 1.7rem; }
+        color: #dfeaf5;
+        transition: transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        .bar-btn-icon { width: 1.8rem; height: 1.8rem; }
+        .resource_icon { display: inline-block; width: 1.6rem; height: 1.6rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .std-icon { display: inline-block; width: 1.8rem; height: 1.8rem; }
     }
     &__slot-glyph {
         font-size: 1.4rem;
@@ -4500,12 +4580,84 @@ html.console-mode {
         font-weight: 700;
     }
     &__slot-reason {
+        display: inline-block;
         font-size: .725rem;
         line-height: 1.25;
         text-align: center;
         color: @con-amber;
         max-width: 12rem;
     }
+
+    /* ── DISABLED: an opaque, de-energized plate (never a see-through tile —
+       the content dims, the chassis keeps its full body). ── */
+    &__slot--disabled &__slot-body {
+        background:
+            linear-gradient(90deg, transparent 15%, rgba(140, 160, 180, 0.14) 50%, transparent 85%) no-repeat top center / 100% .07rem,
+            linear-gradient(172deg, rgba(21, 28, 38, 0.97) 0%, rgba(12, 17, 25, 0.985) 50%, rgba(8, 11, 17, 0.99) 100%);
+        box-shadow:
+            inset 0 .07rem 0 rgba(210, 235, 255, 0.03),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .05rem rgba(110, 130, 155, 0.22),
+            0 .4rem 1rem rgba(0, 0, 0, 0.45);
+    }
+    &__slot--disabled &__slot-icon,
+    &__slot--disabled &__slot-label,
+    &__slot--disabled &__slot-meta { opacity: 0.42; }
+    &__slot--disabled &__slot-key { opacity: 0.45; }
+
+    /* ── ARMED: the plate seats under the finger. The body sinks and
+       tightens to the ground; the icon counter-floats (parallax depth);
+       the key cap lights — ITS physical button is being held. ── */
+    &__slot--armed &__slot-body {
+        transform: translateY(.14rem) scale(0.982);
+        box-shadow:
+            inset 0 .12rem .45rem -.1rem rgba(0, 0, 0, 0.6),
+            inset 0 -.15rem .4rem -.3rem rgba(0, 0, 0, 0.4),
+            inset 0 0 0 .07rem fade(@con-cyan, 80%),
+            0 .25rem .7rem rgba(0, 0, 0, 0.5),
+            0 0 1.5rem fade(@con-cyan, 18%);
+    }
+    &__slot--armed &__slot-icon {
+        transform: translateY(-.08rem) scale(1.07);
+    }
+    &__slot--armed &__slot-key {
+        box-shadow:
+            inset 0 .05rem 0 rgba(210, 240, 255, 0.12),
+            inset 0 0 0 .05rem fade(@con-cyan, 85%),
+            0 0 .8rem fade(@con-cyan, 40%),
+            0 .2rem .5rem rgba(0, 0, 0, 0.5);
+    }
+    /* Blocked arm: the mechanism reaches its stop — a shallow seat, the
+       ring flares amber, the reason pulses once. No shake, no error pop:
+       resistance, honestly felt. */
+    &__slot--armed-blocked &__slot-body {
+        transform: translateY(.05rem) scale(0.995);
+        box-shadow:
+            inset 0 .1rem .4rem -.12rem rgba(0, 0, 0, 0.55),
+            inset 0 0 0 .07rem fade(@con-amber, 70%),
+            0 .4rem 1rem rgba(0, 0, 0, 0.5),
+            0 0 1.2rem fade(@con-amber, 14%);
+    }
+    &__slot--armed-blocked &__slot-icon { transform: none; }
+    &__slot--armed-blocked &__slot-key {
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-amber, 75%),
+            0 0 .7rem fade(@con-amber, 30%),
+            0 .2rem .5rem rgba(0, 0, 0, 0.5);
+    }
+    &__slot--armed-blocked &__slot-reason {
+        color: #ffd98f;
+        animation: con-quick-reason-pulse calc(240ms * var(--motion-scale, 1)) ease;
+    }
+    /* Neighbours yield while a slot is seated — the machine has ONE live
+       control at a time (a transient dim over the dark shade, never a
+       readability state). */
+    &__slot--muted {
+        opacity: 0.58;
+        transition: opacity calc(110ms * var(--motion-scale, 1)) ease;
+    }
+    &__slot--muted &__slot-key { opacity: 0.5; }
+
     &__foot {
         display: flex;
         gap: 1.5rem;
@@ -4516,6 +4668,84 @@ html.console-mode {
         gap: .4rem;
         color: @con-text-dim;
         font-size: .9rem;
+    }
+}
+@keyframes con-quick-reason-pulse {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+}
+
+/* LT↔RT switch: the cross swaps in place, drawn in from the pulling
+   trigger's side (LT ← left shoulder, RT → right shoulder). */
+.con-quick-swapl-enter-active,
+.con-quick-swapr-enter-active {
+    transition: transform calc(130ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1), opacity calc(130ms * var(--motion-scale, 1)) ease;
+}
+.con-quick-swapl-leave-active,
+.con-quick-swapr-leave-active {
+    transition: transform calc(70ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2), opacity calc(70ms * var(--motion-scale, 1)) ease;
+}
+.con-quick-swapl-enter-from { transform: translateX(-1.1rem); opacity: 0; }
+.con-quick-swapl-leave-to { transform: translateX(1.1rem); opacity: 0; }
+.con-quick-swapr-enter-from { transform: translateX(1.1rem); opacity: 0; }
+.con-quick-swapr-leave-to { transform: translateX(-1.1rem); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    .con-quick-swapl-enter-active,
+    .con-quick-swapr-enter-active,
+    .con-quick-swapl-leave-active,
+    .con-quick-swapr-leave-active { transition: opacity 80ms ease; }
+    .con-quick-swapl-enter-from,
+    .con-quick-swapl-leave-to,
+    .con-quick-swapr-enter-from,
+    .con-quick-swapr-leave-to { transform: none; }
+    .con-quick__slot--armed-blocked .con-quick__slot-reason { animation: none; }
+}
+
+/* ── QUICK-WHEEL FLIGHT (wheelFlight.ts): the committed slot's icon
+   travelling into the opened surface's data-wheel-anchor. Above the
+   footer/dock/status chrome (11700-11706), below ceremonies (11720) and
+   the notice rail (11740) — a decorative courier, never a blocker. ── */
+.con-wheelflight {
+    position: fixed;
+    inset: 0;
+    z-index: 11710;
+    pointer-events: none;
+
+    &__proxy {
+        position: fixed;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #eaf4ff;
+        opacity: 0;
+        will-change: transform;
+
+        .bar-btn-icon { width: 100%; height: 100%; }
+        .resource_icon {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    }
+    &__glyph { font-size: 1.4rem; line-height: 1; }
+    &__ember {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: .55rem;
+        height: .55rem;
+        margin: -.275rem 0 0 -.275rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ffd9a0 0%, @con-orange 55%, rgba(255, 120, 60, 0) 78%);
+        box-shadow: 0 0 .6rem fade(@con-orange, 65%);
+        opacity: 0;
+        will-change: transform;
     }
 }
 
@@ -6575,10 +6805,34 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-align: center;
     }
     &__title {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
         font-size: 1.3rem;
         font-weight: 700;
         letter-spacing: .05rem;
         margin-bottom: .5rem;
+    }
+    /* The wheel-flight landing emblem (data-wheel-anchor="confirm"): a pass /
+       max-temp heat commit carries its tile icon into this card. */
+    &__emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        color: fade(@con-amber, 95%);
+
+        .bar-btn-icon { width: 100%; height: 100%; }
+        .resource_icon {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
     }
     &__body {
         font-size: 1.05rem;
@@ -7641,6 +7895,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 0;
     }
     &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
         font-family: @con-font;
         font-size: .85rem;
         font-weight: 700;
@@ -7648,6 +7905,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         text-transform: uppercase;
         color: @con-text-dim;
         white-space: nowrap;
+    }
+    /* «Торговля» emblem — the SAME icon as the wheel tile that opened this
+       screen and the wheel flight's landing anchor (data-wheel-anchor). */
+    &__kicker-emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        color: fade(@con-cyan, 92%);
+
+        .bar-btn-icon { width: 100%; height: 100%; }
     }
     &__mode-chip {
         padding: .15rem .6rem;
@@ -13611,6 +13880,17 @@ html.console-mode {
         font-size: .75rem; letter-spacing: .11rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
     }
     &__kicker-mark { color: @con-cyan; }
+    /* The wheel-flight landing emblem (data-wheel-anchor="card-actions"). */
+    &__kicker-emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.1rem;
+        height: 1.1rem;
+        color: @con-cyan;
+
+        .bar-btn-icon { width: 100%; height: 100%; }
+    }
     /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
     &__kicker-sep { color: fade(@con-cyan, 50%); }
     &__kicker-step { color: @con-text; }
@@ -15014,7 +15294,8 @@ html.con-profile-handheld {
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
     .con-quick__cross { gap: .5rem .6rem; grid-template-columns: repeat(3, 12rem); }
-    .con-quick__slot { min-height: 4.1rem; padding: .55rem .7rem .5rem; }
+    .con-quick__slot { min-height: 4.1rem; }
+    .con-quick__slot-body { padding: .5rem .7rem .45rem; }
     .con-quick__slot-label { font-size: .85rem; }
 
     /* ── 7 · LT Information Mode ─────────────────────────────────── */

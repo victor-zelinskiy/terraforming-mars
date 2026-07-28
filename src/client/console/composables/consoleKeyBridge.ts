@@ -27,7 +27,8 @@
  */
 
 import {useEventListener} from '@vueuse/core';
-import {CONSOLE_KEY_BUTTON, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
+import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
+import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {clickDesktopUpdatePrimary, desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
@@ -81,8 +82,12 @@ function onKeyup(e: KeyboardEvent): void {
   if (menuPadState.textEntry || isEditableTarget(e.target)) {
     return;
   }
-  const button = CONSOLE_KEY_BUTTON[e.code];
-  if (button === undefined) {
+  // Arrow keyups mirror the pad's directional FALLING edge (`navEnd`) — the
+  // quick wheel's press→release slots pair a keyboard hold exactly like a
+  // d-pad hold. Unknown codes stay silent (whoever else wants the key).
+  const dir = CONSOLE_KEY_NAV[e.code];
+  const button = dir === undefined ? CONSOLE_KEY_BUTTON[e.code] : undefined;
+  if (dir === undefined && button === undefined) {
     return;
   }
   if (desktopUpdateBlocking()) {
@@ -90,7 +95,9 @@ function onKeyup(e: KeyboardEvent): void {
     e.stopImmediatePropagation();
     return;
   }
-  if (dispatchConsoleIntent({kind: 'release', button})) {
+  const intent: GamepadIntent = dir !== undefined ?
+    {kind: 'navEnd', dir} : {kind: 'release', button: button as SemanticButton};
+  if (dispatchConsoleIntent(intent)) {
     e.preventDefault();
     e.stopImmediatePropagation();
   }

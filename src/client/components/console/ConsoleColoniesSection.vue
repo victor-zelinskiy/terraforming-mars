@@ -4,7 +4,15 @@
          One slim row — never a floating banner over the grid. -->
     <header class="con-colonies__head">
       <div class="con-colonies__head-title">
-        <span class="con-colonies__kicker">{{ $t(pick !== undefined ? 'Colony selection' : 'Colonies') }}</span>
+        <!-- «Торговля» — the same term and the same emblem as the wheel tile
+             that opens this screen; the emblem is the wheel flight's landing
+             anchor (data-wheel-anchor). Colony terms stay INSIDE the screen. -->
+        <span class="con-colonies__kicker">
+          <span class="con-colonies__kicker-emblem" data-wheel-anchor="trading" aria-hidden="true">
+            <BarButtonIcon name="colonies" />
+          </span>
+          <span>{{ $t(pick !== undefined ? 'Colony selection' : 'Trading') }}</span>
+        </span>
         <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.buttonLabel) }}</span>
       </div>
       <!-- Fleet DOCK for ALL players (viewer first): every fleet is a physical
@@ -189,6 +197,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
@@ -233,7 +242,7 @@ const FIT_SLACK = 12;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph, PlayerCube},
+  components: {ConsoleColonyTile, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph, PlayerCube, BarButtonIcon},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},

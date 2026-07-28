@@ -3,7 +3,9 @@
     <!-- ── HEADER BAND: identity + live status chips ─────────────────── -->
     <header class="con-hydro__head">
       <div class="con-hydro__id">
-        <span class="con-hydro__glyph" aria-hidden="true">≈</span>
+        <span class="con-hydro__glyph" data-wheel-anchor="hydro" aria-hidden="true">
+          <BarButtonIcon name="hydronetwork" />
+        </span>
         <div class="con-hydro__titles">
           <h2 class="con-hydro__title">{{ $t('Mars Hydronetwork') }}</h2>
           <p class="con-hydro__sub">{{ $t('A joint engineering megaproject: spend energy to advance; only the stage you stop on grants its reward.') }}</p>
@@ -334,6 +336,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import ConsoleHydroConfirm from './ConsoleHydroConfirm.vue';
 import {Color} from '@/common/Color';
@@ -383,7 +386,7 @@ type RailStop = {
 
 export default defineComponent({
   name: 'ConsoleHydroSection',
-  components: {GamepadGlyph, HydroReward, ConsoleHydroConfirm},
+  components: {GamepadGlyph, BarButtonIcon, HydroReward, ConsoleHydroConfirm},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     actionAvailable: {type: Boolean, default: false},

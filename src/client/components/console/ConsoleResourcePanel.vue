@@ -54,8 +54,12 @@
                convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
              ]"
              :data-conversion-cell="conversionAnchor(row.key)">
+          <!-- data-wheel-anchor="res-heat": the LT wheel's heat-conversion
+               commit lands its flying icon HERE (wheelFlight 'ember'), then
+               a spark continues to the temperature readout. -->
           <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
-             :data-conversion-icon="conversionAnchor(row.key)"></i>
+             :data-conversion-icon="conversionAnchor(row.key)"
+             :data-wheel-anchor="row.key === 'heat' ? 'res-heat' : undefined"></i>
           <!-- Delta chips (CTS T7): the SAME AnimatedMetricValue + metric keys
                as the desktop PlayerResource, so every stock/production change
                fires the premium ±N chip in console too (and the energy→heat

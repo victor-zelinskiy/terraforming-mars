@@ -45,7 +45,9 @@
              flip-swap of the value itself (nested INSIDE the value cell —
              see ConsoleFlipValue's layering note) plus the delta chip. -->
         <span class="con-status__param">
-          <i class="wgt-icon wgt-icon--temperature con-status__icon" aria-hidden="true"></i>
+          <!-- data-wheel-anchor="temp": the heat-conversion ember spark's
+               landing point (wheelFlight) — heat visibly becomes temperature. -->
+          <i class="wgt-icon wgt-icon--temperature con-status__icon" data-wheel-anchor="temp" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.temperature" :text="`${game.temperature}°C`" />
           </span>

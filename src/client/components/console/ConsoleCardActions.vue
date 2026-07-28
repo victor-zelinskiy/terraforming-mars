@@ -13,7 +13,10 @@
       <header class="con-cardactions__head">
         <div class="con-cardactions__head-main">
           <div class="con-cardactions__kicker">
-            <span class="con-cardactions__kicker-mark" aria-hidden="true">{{ repeat ? '⟳' : '◈' }}</span>
+            <span v-if="repeat" class="con-cardactions__kicker-mark" aria-hidden="true">⟳</span>
+            <span v-else class="con-cardactions__kicker-emblem" data-wheel-anchor="card-actions" aria-hidden="true">
+              <BarButtonIcon name="actions" />
+            </span>
             <span>{{ $t(repeat ? 'Repeat action' : 'Card actions') }}</span>
             <!-- Repeat mode names the SOURCE card (ProjInsp / Viron) in the breadcrumb. -->
             <template v-if="repeat && repeatRequest !== undefined">
@@ -339,6 +342,7 @@
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -425,7 +429,7 @@ type ComposerContext = ActionFlowDraft;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, BarButtonIcon},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

@@ -32,7 +32,10 @@ function triggerSnap(index: 6 | 7, value: number): GamepadSnapshot {
 }
 
 function kinds(intents: Array<GamepadIntent>): Array<string> {
-  return intents.map((i) => (i.kind === 'press' || i.kind === 'release' ? `${i.kind}:${i.button}` : i.kind === 'nav' ? `nav:${i.dir}:${i.repeat ? 'r' : 'f'}` : 'scroll'));
+  return intents.map((i) => (
+    i.kind === 'press' || i.kind === 'release' ? `${i.kind}:${i.button}` :
+      i.kind === 'nav' ? `nav:${i.dir}:${i.repeat ? 'r' : 'f'}` :
+        i.kind === 'navEnd' ? `navEnd:${i.dir}` : 'scroll'));
 }
 
 describe('gamepadPollModel', () => {
@@ -104,19 +107,32 @@ describe('gamepadPollModel', () => {
     const right = snap({buttons: [15]});
     let r = diffSnapshots(emptySnapshot(), down, initialPollState(), 0);
     r = diffSnapshots(down, right, r.state, 50);
-    expect(kinds(r.intents)).to.deep.eq(['nav:right:f']);
+    // The old direction ENDS before the new one begins (a coherent
+    // down…up pairing per direction for press→release consumers).
+    expect(kinds(r.intents)).to.deep.eq(['navEnd:down', 'nav:right:f']);
     // The delay re-armed: no repeat before it elapses.
     r = diffSnapshots(right, right, r.state, 50 + NAV_REPEAT_DELAY_MS - 1);
     expect(r.intents).to.be.empty;
   });
 
-  it('releasing the direction clears the hold so the next press is fresh', () => {
+  it('releasing the direction emits its falling edge and clears the hold', () => {
     const down = snap({buttons: [13]});
     let r = diffSnapshots(emptySnapshot(), down, initialPollState(), 0);
     r = diffSnapshots(down, snap(), r.state, 100);
+    expect(kinds(r.intents)).to.deep.eq(['navEnd:down']);
     expect(r.state.heldDir).to.eq(undefined);
+    // The falling edge fires ONCE — a still-idle next frame is silent.
+    r = diffSnapshots(snap(), snap(), r.state, 116);
+    expect(r.intents).to.be.empty;
     r = diffSnapshots(snap(), down, r.state, 200);
     expect(kinds(r.intents)).to.deep.eq(['nav:down:f']);
+  });
+
+  it('a held repeat never carries a falling edge', () => {
+    const held = snap({buttons: [12]}); // d-pad up
+    let r = diffSnapshots(emptySnapshot(), held, initialPollState(), 0);
+    r = diffSnapshots(held, held, r.state, NAV_REPEAT_DELAY_MS);
+    expect(kinds(r.intents)).to.deep.eq(['nav:up:r']);
   });
 
   it('left stick navigates only past the radial deadzone, dominant axis wins', () => {

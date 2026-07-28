@@ -291,7 +291,9 @@
       <ConsoleQuickSelector v-if="consoleState.quick !== undefined"
                             :entries="quickEntries"
                             :title="quickTitle"
-                            :trigger="quickTrigger" />
+                            :trigger="quickTrigger"
+                            :armedSlot="wheelArm !== undefined ? wheelArm.slot : undefined"
+                            :armedBlocked="wheelArm !== undefined && wheelArm.blocked" />
     </transition>
     <!-- P26: milestones/awards render as the dedicated premium strategic
          panel; P27 adds the Standard-Projects premium screen (incl. Patent
@@ -332,7 +334,15 @@
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
     <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog" data-motion-surface="confirm">
       <div class="con-confirm__card" data-motion-panel>
-        <div class="con-confirm__title">{{ $t(confirmTitle) }}</div>
+        <!-- The emblem doubles as the wheel flight's landing anchor: a pass /
+             max-temp heat commit carries its tile icon INTO this card. -->
+        <div class="con-confirm__title">
+          <span class="con-confirm__emblem" data-wheel-anchor="confirm" aria-hidden="true">
+            <BarButtonIcon v-if="consoleState.confirm === 'pass'" name="pass" />
+            <i v-else class="resource_icon resource_icon--heat"></i>
+          </span>
+          <span>{{ $t(confirmTitle) }}</span>
+        </div>
         <div class="con-confirm__body">{{ $t(confirmBody) }}</div>
         <!-- T7 info parity: the desktop PassConfirmContent warnings (unused
              actions / free trade fleet / conversions / hydro) carry over. -->
@@ -698,6 +708,11 @@
          (consoleResourceTransfer.ts / resourceTransferDirector). -->
     <ConsoleResourceTransferLayer />
 
+    <!-- QUICK-WHEEL FLIGHT — the committed slot's icon travelling into the
+         opened surface's data-wheel-anchor (wheelFlight.ts). Decoration
+         only: pointer-inert, never gates logic. -->
+    <ConsoleWheelFlightLayer />
+
     <!-- The FOOTER — one composed band: the command bar with its centre BAY
          + the permanent HAND DOCK sitting in it. The dock is absolutely
          positioned at left:50% of this full-width wrapper (symmetric root
@@ -1023,6 +1038,11 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {WheelArm, WheelArmEvent, reduceWheelArm} from '@/client/console/quickWheel/wheelArmModel';
+import {beginWheelFlight, cancelWheelFlight, retargetWheelFlight, resetWheelFlight} from '@/client/console/quickWheel/wheelFlight';
+import {CONFIRM_FLIGHT} from '@/client/console/quickWheel/wheelFlightModel';
+import ConsoleWheelFlightLayer from '@/client/components/console/ConsoleWheelFlightLayer.vue';
+import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
@@ -1104,6 +1124,8 @@ export default defineComponent({
     ConsoleMaInspect,
     ConsoleMaCeremony,
     ConsoleQuickSelector,
+    ConsoleWheelFlightLayer,
+    BarButtonIcon,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
     ConsoleSystemAlert,
@@ -1240,6 +1262,8 @@ export default defineComponent({
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
       journalColonyInspect: undefined as ColonyName | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
+      /** The quick wheel's live arm (press→release lifecycle, wheelArmModel). */
+      wheelArm: undefined as WheelArm | undefined,
       /**
        * The focused cell's PLACEMENT preview (cost / gains / who else receives
        * / endgame VP). Fetched per focused cell while a placement is active —
@@ -3671,6 +3695,12 @@ export default defineComponent({
         cancelNotifHold();
       }
     },
+    // The quick wheel closed or switched under a live arm (closeConsoleLayers,
+    // a shell-task surface, the trigger toggle) — the arm dies with its wheel;
+    // the eventual release of the held control matches nothing and is dropped.
+    'consoleState.quick'() {
+      this.wheelArm = undefined;
+    },
     // Start-of-game setup reveal: while the ceremony is DEFERRED (B → inspect the
     // board), suspend the panel override so the left rail shows the REAL applied
     // state (not a mid-reveal staged snapshot). Restored on return.
@@ -4439,7 +4469,14 @@ export default defineComponent({
       if (fallback) {
         return false;
       }
-      if (intent.kind === 'release') {
+      if (intent.kind === 'release' || intent.kind === 'navEnd') {
+        // PRESS→RELEASE surfaces consume falling edges; everywhere else they
+        // die here so no legacy handler ever double-acts on a button-up. The
+        // quick wheel is the one such surface today: its armed slot commits
+        // on the release of the SAME control that seated it (wheelArmModel).
+        if (this.consoleState.quick !== undefined) {
+          this.handleQuickIntent(intent);
+        }
         return true;
       }
       if (intent.kind === 'scroll') {
@@ -4771,10 +4808,27 @@ export default defineComponent({
       }
     },
     // ── P27: the quick selectors — DIRECT input, no aiming ───────────────
+    /**
+     * PRESS→RELEASE (wheelArmModel): the DOWN edge of A / a d-pad direction
+     * ARMS its slot (the tile seats under the finger), the UP edge of the
+     * SAME control COMMITS it. A fast tap arms+commits within its natural
+     * duration — no hold threshold. Repeats, cross-control conflicts and
+     * stale releases are resolved by the pure machine; this handler only
+     * feeds edges in and executes the effects out.
+     */
     handleQuickIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        // A d-pad direction ACTIVATES its slot immediately.
-        this.activateQuickSlot(intent.dir);
+        this.feedWheelArm({type: 'navDown', dir: intent.dir, repeat: intent.repeat});
+        return;
+      }
+      if (intent.kind === 'navEnd') {
+        this.feedWheelArm({type: 'navUp', dir: intent.dir});
+        return;
+      }
+      if (intent.kind === 'release') {
+        if (intent.button === 'confirm') {
+          this.feedWheelArm({type: 'confirmUp'});
+        }
         return;
       }
       if (intent.kind !== 'press') {
@@ -4782,17 +4836,46 @@ export default defineComponent({
       }
       switch (consoleActionOf(intent)) {
       case 'primary':
-        this.activateQuickSlot('center');
+        this.feedWheelArm({type: 'confirmDown'});
         break;
       case 'back':
-        this.consoleState.quick = undefined;
+        // B cancels instantly — armed or not, nothing executes.
+        this.feedWheelArm({type: 'cancel'});
         break;
       case 'nextTab':
-        // The opening trigger toggles its own selector closed.
+        // The opening trigger toggles its own selector closed; the other
+        // switches wheels in place (any live arm dissolves first).
+        this.feedWheelArm({type: 'reset'});
         this.consoleState.quick = this.consoleState.quick === 'actions' ? undefined : 'actions';
         break;
       case 'prevTab':
+        this.feedWheelArm({type: 'reset'});
         this.consoleState.quick = this.consoleState.quick === 'basics' ? undefined : 'basics';
+        break;
+      default:
+        break;
+      }
+    },
+    feedWheelArm(event: WheelArmEvent): void {
+      const result = reduceWheelArm(this.wheelArm, event, {
+        has: (slot) => this.quickEntries.some((e) => e.slot === slot),
+        available: (slot) => this.quickEntries.find((e) => e.slot === slot)?.available === true,
+      });
+      this.wheelArm = result.arm;
+      const effect = result.effect;
+      switch (effect.kind) {
+      case 'commit':
+        this.activateQuickSlot(effect.slot);
+        break;
+      case 'refuse': {
+        // The blocked slot resisted through the hold; the release restates
+        // the honest reason on the shared notice rail.
+        const entry = this.quickEntries.find((e) => e.slot === effect.slot);
+        this.showNotice(entry !== undefined && entry.reason !== '' ? entry.reason : 'Unavailable right now');
+        break;
+      }
+      case 'dismiss':
+        this.consoleState.quick = undefined;
         break;
       default:
         break;
@@ -4808,10 +4891,17 @@ export default defineComponent({
         return;
       }
       // WHEEL HANDOFF (surface motion): record the chosen slot + its centre
-      // BEFORE the wheel unmounts — the leave hook flashes the slot's
-      // impulse and the next surface enters FROM its direction (one player
-      // intent, one continuous gesture — never two unrelated pops).
-      markWheelHandoff(slot, document.querySelector(`.con-quick__slot--${slot}`));
+      // BEFORE the wheel unmounts — the leave hook plays the slot's commit
+      // pop and the next surface enters FROM its direction. The FLIGHT
+      // (wheelFlight) detaches the slot's icon in the same measured tick:
+      // it travels to the destination's `data-wheel-anchor` while the
+      // surface opens in parallel (one player intent, one continuous
+      // gesture — never two unrelated pops).
+      const slotEl = document.querySelector(`.con-quick__slot--${slot}`);
+      markWheelHandoff(slot, slotEl);
+      beginWheelFlight(entry.id, slot, slotEl, {
+        barIcon: entry.barIcon, iconClass: entry.iconClass, glyph: entry.glyph,
+      });
       const quick = this.consoleState.quick;
       this.consoleState.quick = undefined;
       if (quick === 'actions') {
@@ -4961,6 +5051,7 @@ export default defineComponent({
       const wf = this.playerView.waitingFor;
       const guardPlacement = (): boolean => {
         if (this.placementActive) {
+          cancelWheelFlight(); // the refused commit's icon lets go mid-air
           this.showNotice('Finish your current action first');
           return true;
         }
@@ -4980,6 +5071,8 @@ export default defineComponent({
         if (path !== undefined) {
           closeConsoleLayers();
           this.submit(optionResponseForPath(path));
+        } else {
+          cancelWheelFlight();
         }
         break;
       }
@@ -4996,9 +5089,13 @@ export default defineComponent({
         }
         const found = findConvertHeatOption(wf);
         if (found === undefined) {
+          cancelWheelFlight();
           return;
         }
         if ((found.option.warnings ?? []).includes('maxtemp')) {
+          // The commit lands in the confirm card, not the heat row — the
+          // flight follows the question instead of the reservoir.
+          retargetWheelFlight(CONFIRM_FLIGHT);
           this.consoleState.confirm = 'convertHeat';
         } else {
           this.submit(optionResponseForPath(found.path));
@@ -5011,6 +5108,7 @@ export default defineComponent({
         }
         const found = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
         if (found === undefined) {
+          cancelWheelFlight();
           return;
         }
         this.convertPlantsPending = found;
@@ -7369,6 +7467,7 @@ export default defineComponent({
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
+    resetWheelFlight(); // kill a travelling wheel icon + restore its concealed anchor
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

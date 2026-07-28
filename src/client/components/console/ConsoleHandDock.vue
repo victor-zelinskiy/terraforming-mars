@@ -43,7 +43,9 @@
          semantics (mint active / neutral total). Digits are re-keyed so a
          change animates ONLY the digit that moved; the group is absolutely
          centred, so digit growth can never shift the centre. -->
-    <div class="con-handdock__plate" aria-hidden="true">
+    <!-- data-wheel-anchor="hand-dock": the RT wheel's «Карты» commit dives
+         its tile icon into THIS plate as the hand rises out of it. -->
+    <div class="con-handdock__plate" data-wheel-anchor="hand-dock" aria-hidden="true">
       <span class="con-handdock__plate-face"></span>
       <span class="con-handdock__status">
         <span class="con-handdock__status-label">{{ $t('Cards') }}</span>

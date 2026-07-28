@@ -6,7 +6,7 @@
       <!-- Identity band: emblem + title + the viewer's wallet with a live
            before → after preview for the FOCUSED project's price. -->
       <div class="con-stdp__head">
-        <div class="con-stdp__emblem" aria-hidden="true"><BarButtonIcon name="standard-projects" class="con-stdp__emblem-icon" /></div>
+        <div class="con-stdp__emblem" data-wheel-anchor="std-projects" aria-hidden="true"><BarButtonIcon name="standard-projects" class="con-stdp__emblem-icon" /></div>
         <div class="con-stdp__title">{{ $t('Standard Projects') }}</div>
         <div class="con-stdp__wallet" :class="{'con-stdp__wallet--short': focusedShort > 0}">
           <span class="con-stdp__wallet-label">{{ $t('You have') }}</span>

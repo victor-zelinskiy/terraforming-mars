@@ -5,29 +5,44 @@
   <div class="con-quick" role="dialog" :aria-label="$t(title)" data-motion-surface="quick">
     <div class="con-quick__panel" data-motion-panel>
       <div class="con-quick__kicker">
-        <GamepadGlyph :control="trigger" class="con-quick__trigger" />
-        <span>{{ $t(title) }}</span>
-      </div>
-      <div class="con-quick__cross">
-        <div v-for="entry in entries"
-             :key="entry.id"
-             class="con-quick__slot"
-             :class="[`con-quick__slot--${entry.slot}`, {
-               'con-quick__slot--center': entry.slot === 'center',
-               'con-quick__slot--disabled': !entry.available,
-             }]">
-          <GamepadGlyph :control="slotGlyph(entry.slot)" class="con-quick__slot-key" />
-          <span class="con-quick__slot-icon" aria-hidden="true">
-            <BarButtonIcon v-if="entry.barIcon !== undefined" :name="entry.barIcon" />
-            <i v-else-if="entry.iconClass !== undefined" :class="entry.iconClass"></i>
-            <span v-else-if="entry.glyph !== undefined" class="con-quick__slot-glyph">{{ entry.glyph }}</span>
+        <transition :name="swapName" mode="out-in">
+          <span :key="trigger" class="con-quick__kicker-inner">
+            <GamepadGlyph :control="trigger" class="con-quick__trigger" />
+            <span>{{ $t(title) }}</span>
           </span>
-          <span class="con-quick__slot-label">{{ $t(entry.label) }}</span>
-          <span v-if="entry.meta !== undefined && entry.available" class="con-quick__slot-meta">{{ entry.meta }}</span>
-          <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-quick__slot-badge">{{ entry.badge }}</span>
-          <span v-if="!entry.available" class="con-quick__slot-reason">{{ $t(entry.reason) }}</span>
-        </div>
+        </transition>
       </div>
+      <transition :name="swapName" mode="out-in">
+        <div :key="trigger"
+             class="con-quick__cross"
+             :class="{'con-quick__cross--armed': armedSlot !== undefined}">
+          <div v-for="entry in entries"
+               :key="entry.id"
+               class="con-quick__slot"
+               :class="[`con-quick__slot--${entry.slot}`, {
+                 'con-quick__slot--center': entry.slot === 'center',
+                 'con-quick__slot--disabled': !entry.available,
+                 'con-quick__slot--armed': armedSlot === entry.slot,
+                 'con-quick__slot--armed-blocked': armedSlot === entry.slot && armedBlocked,
+                 'con-quick__slot--muted': armedSlot !== undefined && armedSlot !== entry.slot,
+               }]">
+            <!-- The KEY CAP floats on the shell — the tile's body sinks under
+                 it while the physical button label holds its place. -->
+            <GamepadGlyph :control="slotGlyph(entry.slot)" class="con-quick__slot-key" />
+            <div class="con-quick__slot-body">
+              <span class="con-quick__slot-icon" aria-hidden="true">
+                <BarButtonIcon v-if="entry.barIcon !== undefined" :name="entry.barIcon" />
+                <i v-else-if="entry.iconClass !== undefined" :class="entry.iconClass"></i>
+                <span v-else-if="entry.glyph !== undefined" class="con-quick__slot-glyph">{{ entry.glyph }}</span>
+              </span>
+              <span class="con-quick__slot-label">{{ $t(entry.label) }}</span>
+              <span v-if="entry.meta !== undefined && entry.available" class="con-quick__slot-meta">{{ entry.meta }}</span>
+              <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-quick__slot-badge">{{ entry.badge }}</span>
+              <span v-if="!entry.available" class="con-quick__slot-reason">{{ $t(entry.reason) }}</span>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -40,8 +55,15 @@
  * d-pad direction = its slot), so a category is always exactly one press
  * away. Disabled slots stay visible with an honest reason (never hidden).
  *
- * PURE presentation: the entries come from consoleQuickModel (unit-tested);
- * ALL input handling stays in ConsoleShell (handleQuickIntent).
+ * PRESS→RELEASE: the shell's arm machine (wheelArmModel) drives `armedSlot`
+ * — the DOWN edge seats the tile (its body sinks, neighbours yield), the UP
+ * edge commits. This component stays PURE presentation: the entries come
+ * from consoleQuickModel (unit-tested); ALL input handling stays in
+ * ConsoleShell (handleQuickIntent).
+ *
+ * The LT↔RT switch swaps the cross in place (same mounted surface): a short
+ * keyed out-in slide whose direction follows the pulling trigger — LT draws
+ * the basics in from the left, RT the categories from the right.
  */
 import {defineComponent, PropType} from 'vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
@@ -58,6 +80,15 @@ export default defineComponent({
     title: {type: String, required: true},
     /** Which trigger opened it (shown in the kicker). */
     trigger: {type: String as PropType<GlyphControl>, required: true},
+    /** The slot seated under the player's finger right now (arm machine). */
+    armedSlot: {type: String as PropType<QuickSlot>, default: undefined},
+    /** The armed slot is unavailable — pressed against its stop. */
+    armedBlocked: {type: Boolean, default: false},
+  },
+  computed: {
+    swapName(): string {
+      return this.trigger === 'triggerL' ? 'con-quick-swapl' : 'con-quick-swapr';
+    },
   },
   methods: {
     slotGlyph(slot: QuickSlot): GlyphControl {

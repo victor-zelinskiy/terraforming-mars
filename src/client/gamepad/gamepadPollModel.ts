@@ -33,6 +33,10 @@ export type GamepadIntent =
   | {kind: 'press', button: SemanticButton}
   | {kind: 'release', button: SemanticButton}
   | {kind: 'nav', dir: NavDirection, repeat: boolean}
+  /** The directional FALLING edge (d-pad / stick let go, or rocked away from
+   *  `dir`). Consumed by press→release surfaces (the quick wheel's armed
+   *  slots); every list-navigation consumer ignores it. */
+  | {kind: 'navEnd', dir: NavDirection}
   | {kind: 'scroll', dx: number, dy: number};
 
 /** A plain copy of a Gamepad's inputs — never retain the live object. */
@@ -207,11 +211,20 @@ export function diffSnapshots(
   }
 
   // 3. Directional navigation with hold-repeat (d-pad OR left stick).
+  //    The FALLING edge (`navEnd`) is emitted both on full release and on a
+  //    direction change (the old direction ends, the new one begins) — the
+  //    press→release consumers see a coherent down/up pairing per direction.
   const dir = navDirection(next, deadzone);
   if (dir === undefined) {
+    if (out.heldDir !== undefined) {
+      intents.push({kind: 'navEnd', dir: out.heldDir});
+    }
     out.heldDir = undefined;
   } else if (dir !== out.heldDir) {
     // Fresh direction (or a direction change) fires immediately.
+    if (out.heldDir !== undefined) {
+      intents.push({kind: 'navEnd', dir: out.heldDir});
+    }
     out.heldDir = dir;
     out.nextRepeatAt = now + NAV_REPEAT_DELAY_MS;
     intents.push({kind: 'nav', dir, repeat: false});

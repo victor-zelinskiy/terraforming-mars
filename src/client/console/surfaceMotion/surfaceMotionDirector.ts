@@ -238,17 +238,39 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     enterPhase(el, panel, departure as SurfaceDeparture, done);
     return;
   case 'wheel-open':
-    guarded(el, WHEEL_IN_MS + 120, done, (finish) => {
+    guarded(el, WHEEL_IN_MS + 160, done, (finish) => {
       const tl = gsap.timeline({onComplete: finish});
       tl.fromTo(panel,
-        {autoAlpha: 0, scale: 0.955, transformOrigin: '50% 58%'},
+        {autoAlpha: 0, scale: 0.96, transformOrigin: '50% 58%'},
         {autoAlpha: 1, scale: 1, duration: s(WHEEL_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
-      // The slots materialize in a micro-cascade — transform-only, subtle.
-      const slots = el.querySelectorAll<HTMLElement>('.con-quick__slot');
-      if (slots.length > 0) {
-        tl.fromTo(slots,
-          {y: 7 * conUiScale(), opacity: 0},
-          {y: 0, opacity: 1, duration: s(110), ease: 'power2.out', stagger: WHEEL_SLOT_STAGGER_S, clearProps: 'transform,opacity'}, s(20));
+      // The cross ASSEMBLES from its hub: the centre slot pops first, the
+      // four arms slide out into their places (each from the centre's
+      // direction), the key caps print on last. Transform/opacity only,
+      // fully input-transparent — a press mid-assembly lands normally.
+      const u = conUiScale();
+      const centre = el.querySelector<HTMLElement>('.con-quick__slot--center');
+      if (centre !== null) {
+        tl.fromTo(centre,
+          {scale: 0.9, opacity: 0},
+          {scale: 1, opacity: 1, duration: s(120), ease: 'back.out(1.5)', clearProps: 'transform,opacity'}, 0);
+      }
+      const arms: ReadonlyArray<readonly [string, number, number]> = [
+        ['up', 0, 12], ['down', 0, -12], ['left', 12, 0], ['right', -12, 0],
+      ];
+      arms.forEach(([slot, dx, dy], i) => {
+        const armEl = el.querySelector<HTMLElement>(`.con-quick__slot--${slot}`);
+        if (armEl !== null) {
+          tl.fromTo(armEl,
+            {x: dx * u, y: dy * u, opacity: 0},
+            {x: 0, y: 0, opacity: 1, duration: s(130), ease: 'expo.out', clearProps: 'transform,opacity'},
+            s(25) + i * WHEEL_SLOT_STAGGER_S);
+        }
+      });
+      const keys = el.querySelectorAll<HTMLElement>('.con-quick__slot-key');
+      if (keys.length > 0) {
+        tl.fromTo(keys,
+          {opacity: 0},
+          {opacity: 1, duration: s(90), ease: 'power1.out', clearProps: 'opacity'}, s(70));
       }
       return tl;
     });
@@ -399,22 +421,41 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
   }
   if (id === 'quick') {
     const chosen = takeWheelChosenSlot();
-    guarded(el, WHEEL_OUT_MS + 80, done, (finish) => {
+    guarded(el, WHEEL_OUT_MS + 110, done, (finish) => {
       const tl = gsap.timeline({onComplete: finish});
+      const u = conUiScale();
       if (chosen !== undefined) {
         const chosenEl = el.querySelector<HTMLElement>(`.con-quick__slot--${chosen}`);
         const rest = [...el.querySelectorAll<HTMLElement>('.con-quick__slot')].filter((n) => n !== chosenEl);
-        // The un-chosen slots let go first; the chosen one carries the
-        // impulse — a brief press-forward, then it follows the panel out.
+        // COMMIT: the released mechanism. The un-chosen slots UNLOCK — a
+        // slight drift away from the hub as they let go; the chosen slot
+        // springs forward out of its pressed seat (its body's CSS release
+        // runs in the same beat; its icon is already flying — wheelFlight).
         if (rest.length > 0) {
-          tl.to(rest, {opacity: 0, duration: s(65), ease: 'power1.in'}, 0);
+          for (const n of rest) {
+            const cls = n.className;
+            const dx = cls.includes('--left') ? -6 : cls.includes('--right') ? 6 : 0;
+            const dy = cls.includes('--up') ? -6 : cls.includes('--down') ? 6 : 0;
+            tl.to(n, {x: dx * u, y: dy * u, opacity: 0, duration: s(70), ease: 'power1.in'}, 0);
+          }
         }
         if (chosenEl !== null) {
-          tl.to(chosenEl, {scale: 1.06, duration: s(70), ease: 'power2.out'}, 0);
+          tl.fromTo(chosenEl, {scale: 1}, {scale: 1.07, duration: s(80), ease: 'back.out(2)'}, 0);
         }
-        tl.to(panel, {autoAlpha: 0, scale: 0.985, duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(30));
+        tl.to(panel, {autoAlpha: 0, scale: 0.985, duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(40));
       } else {
-        tl.to(panel, {autoAlpha: 0, scale: 0.972, transformOrigin: '50% 58%', duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, 0);
+        // DISMISS (B): the cross lets go inward — the assembly in reverse,
+        // faster and softer (no celebratory beat, just a clean release).
+        const slots = el.querySelectorAll<HTMLElement>('.con-quick__slot');
+        if (slots.length > 0) {
+          for (const n of slots) {
+            const cls = n.className;
+            const dx = cls.includes('--left') ? 5 : cls.includes('--right') ? -5 : 0;
+            const dy = cls.includes('--up') ? 5 : cls.includes('--down') ? -5 : 0;
+            tl.to(n, {x: dx * u, y: dy * u, opacity: 0, duration: s(75), ease: 'power2.in'}, 0);
+          }
+        }
+        tl.to(panel, {autoAlpha: 0, scale: 0.975, transformOrigin: '50% 58%', duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(15));
       }
       return tl;
     });
