@@ -1,5 +1,5 @@
 <template>
-  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined}" :style="rootStyle">
+  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding}" :style="rootStyle">
     <!-- HEADER: title + live counts + the premium tag-filter chips. Button
          hints live ONLY in the footer command bar — never here. -->
     <div class="con-hand__header">
@@ -333,6 +333,13 @@ export default defineComponent({
     /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
      *  the section is the normal play/browse hand. */
     select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
+    /**
+     * The discard cinematic is holding the chosen cards ABOVE this grid (they
+     * are proxies on the discard layer; their real slots are held empty). The
+     * rest of the hand recedes so the eye stays on what is leaving — a pure
+     * CSS beat (`.con-hand--discarding`), no timeline, transform/opacity only.
+     */
+    discarding: {type: Boolean, default: false},
     /** The turn/phase reason (i18n key) for a card that is rules-OK but not
      *  playable right now (opponent's turn / mid-action). Set by the shell. */
     softReason: {type: String, default: 'Not your turn to take any actions'},

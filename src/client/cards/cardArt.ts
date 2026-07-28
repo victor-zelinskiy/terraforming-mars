@@ -68,3 +68,23 @@ export function premiumCardArt(name: CardName): PremiumCardArt {
     {url: CARD_ART_FALLBACK_URL, fallback: true} :
     {url, fallback: false};
 }
+
+/**
+ * Decode a card's art UP FRONT, before a cinematic mounts a premium face for
+ * it. A face that mounts on a not-yet-decoded webp paints a BLACK body for a
+ * frame or two — very visible on a card that holds still (a discard's turn, a
+ * draw's flip). A bare `Image()` warms the browser cache; `premiumCardArt`
+ * always resolves (real art, else the shared fallback), so both cases warm.
+ *
+ * Cheap and bounded — a handful of small webps per scene — and a no-op under
+ * JSDOM/SSR. Every console scene that spawns card proxies should call it at
+ * ARM time, which is where the round-trip gives the decode its head start.
+ */
+export function preloadPremiumCardArt(names: ReadonlyArray<CardName>): void {
+  if (typeof Image === 'undefined') {
+    return; // JSDOM / SSR — nothing to warm.
+  }
+  for (const name of names) {
+    new Image().src = premiumCardArt(name).url;
+  }
+}

@@ -44,7 +44,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
-import {premiumCardArt} from '@/client/cards/cardArt';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
   colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState, finishColonyTrackReset,
   isColonyTradeRevealStaged, markColonyTradeZoomReady, registerColonyTradeZoomOrigin,
@@ -93,16 +93,6 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
 
 function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
-}
-
-/** Warm the faces so the tumble never lands on a not-yet-decoded (black) art. */
-function preloadFaceArt(names: ReadonlyArray<CardName>): void {
-  if (typeof Image === 'undefined') {
-    return;
-  }
-  for (const name of names) {
-    new Image().src = premiumCardArt(name).url;
-  }
 }
 
 /* Non-reactive scene context — GSAP handles must never enter Vue reactivity. */
@@ -196,7 +186,7 @@ export default defineComponent({
       if (!stageColonyTradeReveal(e.id)) {
         return;
       }
-      preloadFaceArt(e.cards.map((c) => c.name));
+      preloadPremiumCardArt(e.cards.map((c) => c.name));
       void this.runCoverScene(e);
     },
 

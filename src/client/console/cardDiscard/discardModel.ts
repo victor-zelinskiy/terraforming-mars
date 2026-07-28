@@ -9,65 +9,93 @@
 import {CardName} from '@/common/cards/CardName';
 
 /**
- * The scene's phase ladder. It runs in this order on EVERY path, including the
- * degraded ones (reduced motion / off-screen sources / a JSDOM test), so the
- * shell watchers that key off a phase can never desynchronise.
+ * The scene's phase ladder — a TABLETOP gesture, in order. It runs in this
+ * order on EVERY path, including the degraded ones (reduced motion /
+ * off-screen sources / a JSDOM test), so the shell watchers that key off a
+ * phase can never desynchronise.
  *
  *  idle      — nothing armed.
  *  armed     — the player answered; sources captured, the server round-trip is
  *              in flight. Nothing is on screen yet.
- *  seizing   — the proxies stand over the real hand cards (which are held
- *              empty) and lift: "these are the ones".
- *  leaving   — the pick surface hands off (the shell closes the hand section;
- *              the survivors fly home to the dock) and the tray slides in.
- *  consuming — the cards turn face-down and are tossed onto the pile; the
- *              count ticks on contact.
- *  settling  — the pile acknowledges, the tray withdraws.
+ *  fixating  — the chosen cards come off the table a little and the rest of
+ *              the hand recedes: "these are the ones, in my hand now".
+ *  flipping  — they are turned FACE DOWN where they lie, one after another
+ *              like a hand turning cards over — they stop being yours.
+ *  gathering — the turned cards are squared up into one compact packet.
+ *  leaving   — the pick surface hands off: the UNCHOSEN cards go home to the
+ *              dock through the ORDINARY close episode, while the packet stays
+ *              over the table on its own layer (object permanence), and the
+ *              discard pile lights up as the receiver.
+ *  carrying  — the packet is picked up and carried over to the pile on an arc.
+ *  landing   — it lands: contact settle, the pile takes the weight, the count
+ *              ticks.
+ *  settling  — the pile keeps the acknowledgement, then the tray withdraws.
  *  failed    — the server did NOT take the cards: no fake disposal is drawn.
  */
-export type DiscardPhase = 'idle' | 'armed' | 'seizing' | 'leaving' | 'consuming' | 'settling' | 'failed';
+export type DiscardPhase =
+  | 'idle' | 'armed'
+  | 'fixating' | 'flipping' | 'gathering' | 'leaving' | 'carrying' | 'landing' | 'settling'
+  | 'failed';
 
 /** The scene owns the foreground for every phase that has something on screen. */
 export function discardPhaseHolds(phase: DiscardPhase): boolean {
   return phase !== 'idle' && phase !== 'armed' && phase !== 'failed';
 }
 
+/** Phases where the chosen cards are still INSIDE the pick surface — the hand
+ *  must keep rendering (frozen) and the packet must not be carried yet. */
+export function discardPhaseInOverlay(phase: DiscardPhase): boolean {
+  return phase === 'fixating' || phase === 'flipping' || phase === 'gathering';
+}
+
 export type DiscardTimings = {
-  /** The lift out of the hand slot. */
-  seizeMs: number,
-  /** The readable beat at the top of the lift — "this one is going". */
-  condemnMs: number,
-  /** The tray sliding into the scene. */
-  trayInMs: number,
-  /** The toss onto the pile. */
-  tossMs: number,
-  /** The face→back turn, overlapped with the toss. */
-  turnMs: number,
+  /** A — the chosen cards lift out of the row; the rest recede. */
+  fixateMs: number,
+  /** B — the face→back turn, per card, in place. */
+  flipMs: number,
+  /** B — cascade between cards, so a hand turns them over one by one. */
+  flipStepMs: number,
+  /** C — squaring the turned cards into one packet. */
+  gatherMs: number,
+  /** D — the beat the packet holds while the overlay goes home behind it. */
+  handoffMs: number,
+  /** E — the pick-up before the carry (never an instant jerk). */
+  liftMs: number,
+  /** E — the carry itself. */
+  carryMs: number,
+  /** E — cascade on the final approach when several cards travel loose. */
+  carryStepMs: number,
+  /** F — contact settle on the pile. */
+  landMs: number,
   /** The pile's acknowledgement + the tray withdrawing. */
   settleMs: number,
-  /** Per-card offset in a multi-card discard. */
-  stepMs: number,
 };
 
 export const DISCARD_TIMINGS: DiscardTimings = {
-  seizeMs: 200,
-  condemnMs: 150,
-  trayInMs: 220,
-  tossMs: 460,
-  turnMs: 360,
-  settleMs: 280,
-  stepMs: 90,
+  fixateMs: 130,
+  flipMs: 300,
+  flipStepMs: 85,
+  gatherMs: 220,
+  handoffMs: 260,
+  liftMs: 180,
+  carryMs: 620,
+  carryStepMs: 70,
+  landMs: 260,
+  settleMs: 620,
 };
 
 /** Reduced motion keeps the ladder but collapses every beat to a short fade. */
 export const DISCARD_TIMINGS_REDUCED: DiscardTimings = {
-  seizeMs: 80,
-  condemnMs: 0,
-  trayInMs: 80,
-  tossMs: 140,
-  turnMs: 100,
-  settleMs: 100,
-  stepMs: 30,
+  fixateMs: 60,
+  flipMs: 110,
+  flipStepMs: 20,
+  gatherMs: 60,
+  handoffMs: 60,
+  liftMs: 50,
+  carryMs: 160,
+  carryStepMs: 15,
+  landMs: 70,
+  settleMs: 180,
 };
 
 export function discardTimings(reduced: boolean): DiscardTimings {
@@ -128,6 +156,39 @@ export function stackOffset(index: number, count: number, unit: number): {dx: nu
     dx: centered * 3 * unit,
     dy: centered * 2 * unit,
     rotation: centered * 2.4,
+  };
+}
+
+/**
+ * Where the packet is squared up: the CENTROID of the cards' own positions, so
+ * the gather happens where they were lying rather than at some arbitrary
+ * "collection point" the player never looked at. Physical, not decorative.
+ */
+export function packetCentre(rects: ReadonlyArray<DiscardRect>): {x: number, y: number} {
+  if (rects.length === 0) {
+    return {x: 0, y: 0};
+  }
+  let x = 0;
+  let y = 0;
+  for (const r of rects) {
+    x += r.left + r.width / 2;
+    y += r.top + r.height / 2;
+  }
+  return {x: x / rects.length, y: y / rects.length};
+}
+
+/**
+ * The squared-up packet pose. Much tighter than {@link stackOffset} (which is
+ * the loose pile pose): a packet in a hand is a NEAT stack, offset just enough
+ * that the player can count its edges and read the top card.
+ */
+export function packetOffset(index: number, count: number, unit: number): {dx: number, dy: number, rotation: number} {
+  const centered = index - (count - 1) / 2;
+  return {
+    dx: centered * 1.6 * unit,
+    dy: centered * 2.4 * unit,
+    // Alternating, tiny — hand-squared, never machine-perfect.
+    rotation: centered * 0.9 + pileJitterDeg(index) * 0.12,
   };
 }
 

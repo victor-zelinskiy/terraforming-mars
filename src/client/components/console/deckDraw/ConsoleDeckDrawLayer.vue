@@ -107,7 +107,7 @@ import {
   DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckDrawSettle,
   runDeckSettleTick,
 } from '@/client/console/deckDraw/deckDrawDirector';
-import {premiumCardArt} from '@/client/cards/cardArt';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -115,21 +115,6 @@ const CARD_NATURAL_H = 460;
 /** The top-bar deck's own top card — the source every flight is born at. */
 const DECK_SEL = '.con-deckstack__pile';
 
-/**
- * Decode each card's art up front so the FLIP never lands on a black (not-yet-
- * loaded) body. A bare `Image()` warms the browser cache; the premium face's
- * background-image then paints instantly. `premiumCardArt` always resolves
- * (real art, else the shared `-1.webp` fallback), so both cases are warmed.
- * Bounded: at most a handful of small webps per draw.
- */
-function preloadFaceArt(names: ReadonlyArray<CardName>): void {
-  if (typeof Image === 'undefined') {
-    return; // JSDOM / SSR — nothing to warm.
-  }
-  for (const name of names) {
-    new Image().src = premiumCardArt(name).url;
-  }
-}
 
 /**
  * How long we wait for the scene that EARNED this draw to finish before
@@ -373,7 +358,7 @@ export default defineComponent({
       // face turns into view — otherwise the flip can land on a not-yet-loaded
       // (black) art body, reading as a content switch. Discards never flip
       // face-up, so only matched cards need it.
-      preloadFaceArt(steps.filter((st) => st.matched).map((st) => st.name));
+      preloadPremiumCardArt(steps.filter((st) => st.matched).map((st) => st.name));
       void this.runScene(steps, plain);
     },
 

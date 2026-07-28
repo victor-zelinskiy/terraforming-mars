@@ -4,9 +4,12 @@ import {
   DISCARD_SAFETY_MS,
   DISCARD_TIMINGS,
   discardPhaseHolds,
+  discardPhaseInOverlay,
   discardPileBacks,
   discardTimings,
   discardedFromHand,
+  packetCentre,
+  packetOffset,
   pileJitterDeg,
   stackOffset,
   usableDiscardRect,
@@ -20,9 +23,40 @@ describe('discardModel', () => {
     expect(discardPhaseHolds('armed')).is.false;
     // A refused answer must not keep the game frozen behind a dead scene.
     expect(discardPhaseHolds('failed')).is.false;
-    for (const phase of ['seizing', 'leaving', 'consuming', 'settling'] as const) {
+    for (const phase of
+      ['fixating', 'flipping', 'gathering', 'leaving', 'carrying', 'landing', 'settling'] as const) {
       expect(discardPhaseHolds(phase), phase).is.true;
     }
+  });
+
+  it('knows which beats still happen INSIDE the pick surface', () => {
+    // The hand must stay frozen (and the packet must not be carried) for
+    // exactly the beats that play among the real cards.
+    for (const phase of ['fixating', 'flipping', 'gathering'] as const) {
+      expect(discardPhaseInOverlay(phase), phase).is.true;
+    }
+    for (const phase of ['idle', 'armed', 'leaving', 'carrying', 'landing', 'settling', 'failed'] as const) {
+      expect(discardPhaseInOverlay(phase), phase).is.false;
+    }
+  });
+
+  it('is a TABLETOP gesture: pick up, turn over, square up, carry, land', () => {
+    const t = DISCARD_TIMINGS;
+    // The grip is the shortest beat — it is a grip, not a presentation.
+    expect(t.fixateMs).lessThan(t.flipMs);
+    // The turn is readable (the brief said 260–340ms per card).
+    expect(t.flipMs).within(260, 340);
+    // Several cards cascade rather than turning in machine unison…
+    expect(t.flipStepMs).greaterThan(0);
+    // …but the cascade must never out-run the turn itself.
+    expect(t.flipStepMs).lessThan(t.flipMs / 2);
+    // The carry is the longest travelling beat, and it is PRECEDED by a lift:
+    // the packet never snaps straight into motion.
+    expect(t.liftMs).greaterThan(0);
+    expect(t.carryMs).greaterThan(t.liftMs);
+    // The pile keeps the acknowledgement longer than the landing itself, so it
+    // cannot be cut one frame after the cards arrive.
+    expect(t.settleMs).greaterThan(t.landMs);
   });
 
   it('keeps its own ceiling BELOW the animation-hold registry net', () => {
@@ -34,7 +68,9 @@ describe('discardModel', () => {
   it('reduced motion keeps the whole ladder, only shorter', () => {
     const reduced = discardTimings(true);
     expect(Object.keys(reduced)).deep.eq(Object.keys(DISCARD_TIMINGS));
-    expect(reduced.tossMs).lessThan(DISCARD_TIMINGS.tossMs);
+    for (const key of Object.keys(DISCARD_TIMINGS) as Array<keyof typeof DISCARD_TIMINGS>) {
+      expect(reduced[key], key).lessThan(DISCARD_TIMINGS[key]);
+    }
     expect(discardTimings(false)).deep.eq(DISCARD_TIMINGS);
   });
 
@@ -61,6 +97,22 @@ describe('discardModel', () => {
     expect(usableDiscardRect(undefined)).is.false;
     expect(usableDiscardRect({left: 0, top: 0, width: 0, height: 0})).is.false;
     expect(usableDiscardRect({left: 10, top: 10, width: 200, height: 280})).is.true;
+  });
+
+  it('squares the packet at the cards OWN centroid — where they were lying', () => {
+    const rect = (left: number, top: number) => ({left, top, width: 200, height: 280});
+    expect(packetCentre([rect(0, 0), rect(200, 0)])).deep.eq({x: 200, y: 140});
+    expect(packetCentre([])).deep.eq({x: 0, y: 0});
+  });
+
+  it('squares a packet TIGHTER than the loose pile pose', () => {
+    // A packet in a hand is neat; the pile it lands on is not.
+    const packet = packetOffset(0, 3, 1);
+    const pile = stackOffset(0, 3, 1);
+    expect(Math.abs(packet.dx)).lessThan(Math.abs(pile.dx));
+    expect(Math.abs(packet.rotation)).lessThan(Math.abs(pile.rotation));
+    // The middle card of an odd packet still carries a hair of hand-squaring.
+    expect(packetOffset(1, 3, 1).dx).eq(0);
   });
 
   it('stacks a multi-card discard as ONE object, centred on the pile', () => {

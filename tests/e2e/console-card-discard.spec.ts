@@ -135,7 +135,7 @@ async function walkUntilActionReady(page: Page): Promise<void> {
  * "do nothing" leaf. Also intercept the submit so its response really has the
  * chosen card gone — the scene's detect verifies the server's truth.
  */
-async function injectMarsUniversityDiscard(page: Page): Promise<void> {
+async function injectMarsUniversityDiscard(page: Page, count = 1): Promise<void> {
   await page.route('**/api/player*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -159,14 +159,14 @@ async function injectMarsUniversityDiscard(page: Page): Promise<void> {
           title: 'Select a card to discard',
           buttonLabel: 'Discard',
           cards: hand,
-          min: 1,
-          max: 1,
+          min: count,
+          max: count,
           showOnlyInLearnerMode: false,
           selectBlueCardAction: false,
           showOwner: false,
           showSelectAll: false,
           discardPrompt: {
-            min: 1, max: 1,
+            min: count, max: count,
             source: {kind: 'card', card: 'Mars University'},
             exchange: {icon: 'cards', amount: 1, perCard: false},
           },
@@ -186,7 +186,7 @@ async function injectMarsUniversityDiscard(page: Page): Promise<void> {
  */
 async function interceptSubmit(
   page: Page,
-  discarded: () => string | undefined,
+  discarded: () => ReadonlyArray<string>,
   opts: {withDraw?: boolean} = {},
 ): Promise<void> {
   await page.route('**/player/input*', async (route) => {
@@ -195,9 +195,9 @@ async function interceptSubmit(
       await route.fulfill({status: 200, json: {}});
       return;
     }
-    const gone = discarded();
+    const gone = new Set(discarded());
     const body = JSON.parse(JSON.stringify(view));
-    body.cardsInHand = (body.cardsInHand ?? []).filter((c: {name: string}) => c.name !== gone);
+    body.cardsInHand = (body.cardsInHand ?? []).filter((c: {name: string}) => !gone.has(c.name));
     body.waitingFor = undefined;
     body.game.gameAge = (body.game?.gameAge ?? 0) + 1;
     if (opts.withDraw === true) {
@@ -223,8 +223,9 @@ async function interceptSubmit(
 async function runDiscardFlow(
   page: Page,
   request: APIRequestContext,
-  opts: {withDraw: boolean, tag: string},
+  opts: {withDraw: boolean, tag: string, count?: number},
 ): Promise<void> {
+  const count = opts.count ?? 1;
   // Surface a browser-side error as test output — a silent exception in the
   // scene would otherwise look like a timeout.
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
@@ -235,7 +236,7 @@ async function runDiscardFlow(
   await page.waitForTimeout(3500);
   await walkUntilActionReady(page);
 
-  await injectMarsUniversityDiscard(page);
+  await injectMarsUniversityDiscard(page, count);
   await page.reload();
   await page.waitForSelector('.con-task-host', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(2000);
@@ -254,9 +255,9 @@ async function runDiscardFlow(
 
   // 2 · the mode states the ask, names the source and shows the exchange.
   const header = page.locator('.con-hand__discard');
-  await expect(header).toContainText(/Сбросьте 1 карту/i);
+  await expect(header).toContainText(count === 1 ? /Сбросьте 1 карту/i : /Сбросьте 2 карты/i);
   await expect(header).toContainText(/Марсианский университет/i);
-  await expect(header).toContainText('−1');
+  // The exchange chip is live: it counts what is picked right now.
   await expect(header).toContainText('+1');
 
   // The dock's TOTAL — the honest "cards you hold" figure; it must really drop.
@@ -266,12 +267,29 @@ async function runDiscardFlow(
 
   const focused = await page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot');
   expect(focused, 'a hand card must be focused').toBeTruthy();
-  await interceptSubmit(page, () => focused ?? undefined, {withDraw: opts.withDraw});
+  const chosen: Array<string> = [focused ?? ''];
+  await interceptSubmit(page, () => chosen, {withDraw: opts.withDraw});
 
   // 3 · THE CINEMATIC. Each beat is awaited on its own DOM signal (never a
-  //     fixed sleep): the card is seized out of the real slot, the hand hands
-  //     off, the pile catches it and its count ticks ON CONTACT.
-  await page.keyboard.press('Enter');
+  //     fixed sleep): the cards are lifted out of the real row, turned over,
+  //     squared into a packet, the hand hands off through its ORDINARY close,
+  //     and the pile catches the packet — its count ticking ON CONTACT.
+  if (count > 1) {
+    // A multi-card discard toggles with A and confirms with RT, so the packet
+    // beat (gather) is genuinely exercised — it is skipped for a single card.
+    await key(page, 'Enter', 300);
+    for (let i = 1; i < count; i++) {
+      await key(page, 'ArrowRight', 250);
+      const next = await page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot');
+      if (next !== null) {
+        chosen.push(next);
+      }
+      await key(page, 'Enter', 300);
+    }
+    await page.keyboard.press('Period'); // RT — confirm the set
+  } else {
+    await page.keyboard.press('Enter');
+  }
 
   // SEIZE — the proxy stands over the real card, which is held EMPTY under it
   // (never both at once: that is the "card flies while still in its slot" bug).
@@ -283,8 +301,12 @@ async function runDiscardFlow(
     }
     return slot.classList.contains('con-deal-hold') ||
       slot.querySelector('.con-deal-hold') !== null ? 'held' : 'visible';
-  }, focused);
+  }, chosen[0]);
   expect(heldUnderProxy, 'the real card must not be visible under its own proxy').not.toBe('visible');
+  // One frame's grace: a screenshot fired the instant the proxy mounts captures
+  // the browser's very first raster of a brand-new <img>, which is not what a
+  // player ever sees at 60fps.
+  await page.waitForTimeout(140);
   await shoot(page, opts.tag + '-3-seized');
 
   // HAND-OFF + PILE + LANDING. Asserted back-to-back with NO screenshot in
@@ -292,8 +314,8 @@ async function runDiscardFlow(
   // capture costs more than that beat lasts.
   await page.waitForSelector('.con-discard__tray', {timeout: 15_000});
   await expect(page.locator('.con-discard__count'), 'the count ticks on contact')
-    .toHaveText('1', {timeout: 15_000});
-  expect(await page.locator('.con-discard__back').count(), 'the pile physically thickened').toBe(1);
+    .toHaveText(String(count), {timeout: 15_000});
+  expect(await page.locator('.con-discard__back').count(), 'the pile physically thickened').toBe(count);
   await shoot(page, opts.tag + '-4-landed');
 
   // 4 · the scene ends clean and the card really left the hand.
@@ -303,7 +325,7 @@ async function runDiscardFlow(
   expect(await page.locator('.con-discard-proxy').count(), 'no proxy may survive the scene').toBe(0);
   expect(await page.locator('.con-hand--discard').count(), 'the discard mode is over').toBe(0);
   if (!opts.withDraw) {
-    expect(await handCount(), `the hand must be one card shorter (was ${before})`).toBe(before - 1);
+    expect(await handCount(), `the hand must be ${count} card(s) shorter (was ${before})`).toBe(before - count);
   }
 }
 
@@ -322,4 +344,14 @@ test('a discard that also draws still plays the discard cinematic first', async 
   test.setTimeout(180_000);
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   await runDiscardFlow(page, request, {withDraw: true, tag: 'draw'});
+});
+
+/**
+ * SEVERAL CARDS: the beat a single discard never reaches — the turned cards are
+ * squared into ONE packet and travel together, and the pile takes all of them.
+ */
+test('several discarded cards are squared into one packet and land together', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await runDiscardFlow(page, request, {withDraw: false, tag: 'packet', count: 2});
 });

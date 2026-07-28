@@ -27,12 +27,34 @@
 
 /* One flying card. The director sizes/positions it and reveals via
    autoAlpha; `perspective` (inherited from .con-deal-proxy) is what makes
-   the face→back turn read as a physical flip rather than a squash. */
-.con-discard-proxy {
+   the face→back turn read as a physical flip rather than a squash.
+
+   ⚠️ NO `filter` ON THIS ELEMENT. It hosts the `perspective` whose child
+   carries `transform-style: preserve-3d`, and a filter on that element creates
+   a containing block that FLATTENS the 3D subtree — which paints the premium
+   face's art black (the card renders as an empty frame). The card's shadow
+   therefore lives on the two 3D FACES below, where it is harmless. */
+.con-discard-proxy .con-deal-proxy__face,
+.con-discard-proxy .con-deal-proxy__back {
     filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.55));
 }
 
-/* CONDEMNED — the beat between "I picked this" and "it is gone". A warm rim
+/* ⚠️ THE ART IS ALREADY ON SCREEN — DO NOT RE-FADE IT IN.
+   `premium_card.less` starts every `.pcard__art img` at `opacity: 0` and fades
+   it to 1 on the image's own `load` event, which is right for a card that
+   MOUNTS for the first time. A discard proxy is not that: it stands over a card
+   the player is looking at RIGHT NOW, so the fresh <img> re-runs that fade and
+   the packet spends its first ~250ms as a black frame — precisely during the
+   grip and the start of the turn, where the card must read. The art is
+   guaranteed decoded here (`preloadPremiumCardArt` warms it at arm time, and
+   the same webp is painting in the grid a few pixels away), so it is shown
+   outright. */
+.con-discard-proxy .pcard__art img {
+    opacity: 1;
+    transition: none;
+}
+
+/* CHOSEN — the beat between "I picked this" and "it is turned over". A warm rim
    plus a faint inner wash, both box-shadow so the cue survives perf mode. */
 .con-discard-proxy--seized .con-deal-proxy__face {
     box-shadow:
@@ -40,6 +62,42 @@
         0 0 1.4rem fade(@con-amber, 26%),
         inset 0 0 2.2rem fade(@con-amber, 14%);
     border-radius: .5rem;
+}
+
+/* MID-TURN — the card is edge-on and off the table, so its shadow spreads and
+   softens, then closes again as it comes to rest on its back. Decorative only
+   (a filter): perf-lite drops it and no information is lost. Applied to the
+   FACES, never the 3D root — see the note above. */
+.con-discard-proxy--turning :is(.con-deal-proxy__face, .con-deal-proxy__back) {
+    filter: drop-shadow(0 1.1rem 1.9rem rgba(0, 0, 0, 0.62));
+}
+.con-discard-proxy :is(.con-deal-proxy__face, .con-deal-proxy__back) {
+    transition: filter calc(150ms * var(--motion-scale, 1)) ease-out;
+}
+
+/* ── The hand RECEDES behind the cards that are leaving ───────────────
+   Phase A: the chosen cards are lifted onto the discard layer and the rest of
+   the row steps back — a depth cue, not a dim-out. transform + opacity only
+   (perf-lite keeps both), and the grid's own geometry never changes, so the
+   close episode still measures the same rects it always did. */
+.con-hand--discarding .con-hand__slot {
+    transition:
+        transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        opacity calc(220ms * var(--motion-scale, 1)) ease-out;
+    transform: scale(0.972);
+    opacity: .52;
+}
+/* The chosen slots are held empty under their proxies — never fade the hold
+   itself (it is `opacity: 0 !important` already) and never move it: the proxy
+   is measured against this exact box. */
+.con-hand--discarding .con-hand__slot--select-picked {
+    transform: none;
+}
+/* The chrome steps back with the row, so the surface reads as one object
+   handing its cards over rather than a grid with a dimmed area in it. */
+.con-hand--discarding :is(.con-hand__filters, .con-hand__verdictbar, .con-hand__scrollbar) {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease-out;
+    opacity: .4;
 }
 
 /* ── The pile the cards land on ──────────────────────────────────────
@@ -95,6 +153,24 @@
         border: .05rem dashed fade(@con-amber, 32%);
         border-radius: .3rem;
     }
+}
+
+/* ── ARMED AS A RECEIVER ──────────────────────────────────────────────
+   The pile lights up BEFORE the cards start travelling (phase D), so it is
+   visibly waiting for them instead of materialising underneath them at the
+   moment of contact. A slow, calm breath — never a blinking target. The cue
+   is box-shadow, so it survives perf mode. */
+.con-discard__tray--armed {
+    animation: con-discard-trayin calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+.con-discard__pile--armed .con-discard__slot {
+    box-shadow: 0 0 0 .06rem fade(@con-amber, 46%), 0 0 .9rem fade(@con-amber, 20%);
+    border-radius: .3rem;
+    animation: con-discard-receive calc(1400ms * var(--motion-scale, 1)) ease-in-out infinite;
+}
+@keyframes con-discard-receive {
+    0%, 100% { opacity: .72; }
+    50% { opacity: 1; }
 }
 .con-discard__pile--pulse {
     animation: con-discard-pilepulse calc(280ms * var(--motion-scale, 1)) ease-out 1;

@@ -25,6 +25,9 @@ export const cardDiscardState = reactive({
   flights: [] as Array<DiscardFlight>,
   /** The tray is visible from `leaving` until the scene settles out. */
   trayVisible: false,
+  /** ARMED as a RECEIVER: the pile lights up BEFORE the cards start travelling,
+   *  so it visibly waits for them instead of materialising under them. */
+  trayArmed: false,
   /** Cards ALREADY swallowed by this pile — ticks on physical contact. */
   trayCount: 0,
   /** Bumped on each contact so the layer can replay its one-shot pulse. */
@@ -78,6 +81,7 @@ export function resetCardDiscardStage(): void {
   cardDiscardState.phase = 'idle';
   cardDiscardState.flights = [];
   cardDiscardState.trayVisible = false;
+  cardDiscardState.trayArmed = false;
   cardDiscardState.trayCount = 0;
   cardDiscardState.trayPulseNonce = 0;
   els.clear();

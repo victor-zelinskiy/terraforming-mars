@@ -137,6 +137,7 @@
                           :saleSelected="consoleState.sale.selected"
                           :saleMegacredits="thisPlayer.megacredits"
                           :select="handSelectProps"
+                          :discarding="discardInOverlay"
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
@@ -919,8 +920,10 @@ import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCo
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
 import {
-  armCardDiscard, cardDiscardTransaction, isCardDiscardActive, resetCardDiscard,
+  armCardDiscard, cardDiscardTransaction, isCardDiscardActive,
+  registerDiscardOverlayHandoff, resetCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
+import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf,
 } from '@/client/console/cardDiscard/discardIntent';
@@ -1676,6 +1679,11 @@ export default defineComponent({
       const p = this.cardDiscardTransaction.phase;
       return this.cardDiscardTransaction.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
     },
+    /** The chosen cards are still lying in the pick surface (fixate / flip /
+     *  gather): the hand recedes behind them and stays frozen. */
+    discardInOverlay(): boolean {
+      return this.cardDiscardTransaction.active && discardPhaseInOverlay(this.cardDiscardTransaction.phase);
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — the task host (and, cascading
@@ -1683,7 +1691,11 @@ export default defineComponent({
       // Also held while a drawn reveal is pending, and while THIS interruptive
       // host prompt is still GATED (announced, not yet opened — consoleMandatoryGate).
       if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds ||
-          this.cardDiscardHolds ||
+          // ANY live discard transaction, not just the animating phases: the
+          // window between the answer and the server's reply is exactly when
+          // the host would otherwise re-mount its branch list over the cards
+          // the player just chose (the pick surface has already released it).
+          this.cardDiscardTransaction.active ||
           this.consoleRevealMode !== undefined || this.rawDrawnRevealPending || this.taskGateHeld) {
         return undefined;
       }
@@ -3960,11 +3972,11 @@ export default defineComponent({
      * exist, which is the whole bug this flow exists to fix.
      */
     'cardDiscardTransaction.phase'(phase: string, was: string | undefined): void {
-      if (phase === 'leaving') {
-        this.discardFreeze = undefined; // the surface is handing off
-        if (this.consoleState.section === 'hand') {
-          this.closeSurfaceForDiscard();
-        }
+      // The hand-off itself is AWAITED by the sequence (phase D calls
+      // `handOffHandForDiscard`), so nothing is closed from here — a watcher
+      // firing alongside the orchestrator is exactly how the two used to race.
+      if (phase === 'carrying') {
+        this.discardFreeze = undefined; // the packet has left the surface
         return;
       }
       // SAFETY: the scene may end WITHOUT ever reaching its hand-off — the
@@ -4536,6 +4548,15 @@ export default defineComponent({
         }
         return true;
       }
+      // THE DISCARD CINEMATIC owns the screen while it plays (bounded — the
+      // transaction's own 7 s ceiling, and every beat resolves on its GSAP
+      // completion). Swallowing here is what stops a fast controller from
+      // tearing the sequence apart: re-opening the hand mid-flip, submitting
+      // the next prompt over the carry, or deferring the surface the packet is
+      // still standing on.
+      if (this.cardDiscardHolds) {
+        return true;
+      }
       // Draft re-pick WAITING: the pad is otherwise idle (the board stays
       // inspectable, Info Mode is handled above). X opens the read-only
       // drafted-cards viewer; every other button falls through to the board.
@@ -4848,7 +4869,7 @@ export default defineComponent({
      * back positions (faces flip back-side-out on approach). `B` mid-open
      * never reaches here — handleSectionBack reverses the running episode.
      */
-    async closeHandWithReveal(): Promise<void> {
+    async closeHandWithReveal(exclude?: ReadonlySet<string>): Promise<void> {
       if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand') {
         return;
       }
@@ -4858,12 +4879,41 @@ export default defineComponent({
       const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
       const pairs: Array<RevealPair> = [];
       for (const p of t.pairs) {
+        // `exclude` = cards that are NOT going home. The discard cinematic owns
+        // them on its own layer and is carrying them the other way, so flying a
+        // second (invisible) proxy to the dock would fight it and, worse, would
+        // land them in a pack they already left.
+        if (exclude?.has(p.name) === true) {
+          continue;
+        }
         const source = sources.get(p.name);
         if (source !== undefined) {
           pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
         }
       }
       await runHandCloseEpisode(pairs, t.scrollTop);
+    },
+    /**
+     * THE DISCARD HAND-OFF (phase D), registered with the discard transaction.
+     *
+     * It is deliberately the ORDINARY close: the unchosen cards gather back
+     * into the dock through the exact episode any other close plays, with the
+     * discarded names filtered out. Nothing about the close is duplicated for
+     * this case — the only discard-specific part is the exclusion set and the
+     * clean-up of the frozen surface once the hand is gone.
+     */
+    async handOffHandForDiscard(discarded: ReadonlySet<CardName>): Promise<void> {
+      if (this.consoleState.section !== 'hand') {
+        return;
+      }
+      await this.closeHandWithReveal(discarded);
+      // The episode already put the shell on the board; clear what the pick
+      // left behind so the next surface starts from a clean state.
+      closeConsoleLayers();
+      this.consoleState.select.selected = [];
+      this.consoleState.select.suitableOnly = true;
+      this.consoleState.section = 'board';
+      this.discardFreeze = undefined;
     },
     /** The hand dock (footer bay) clicked — the mouse/touch entry point to
      *  the hand. Same path as RT → КАРТЫ; guarded to the calm board home
@@ -7260,6 +7310,9 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
+    // the transaction awaits this instead of the shell watching a phase.
+    registerDiscardOverlayHandoff((discarded) => this.handOffHandForDiscard(discarded));
     this.offIntent = registerConsoleIntentHandler((intent) => this.handleIntent(intent));
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
@@ -7305,6 +7358,7 @@ export default defineComponent({
     // The discard cinematic is module state too — never carry a live scene (or
     // its animation hold) across a game switch.
     resetCardDiscard();
+    registerDiscardOverlayHandoff(undefined);
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }

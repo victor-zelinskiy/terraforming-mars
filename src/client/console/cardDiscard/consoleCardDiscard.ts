@@ -22,6 +22,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DiscardPromptMeta} from '@/common/models/PlayerInputModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
   DiscardPhase,
@@ -40,8 +41,12 @@ import {
   SpawnedDiscard,
   disposeDiscardProxies,
   landOnPile,
-  runDiscardSeize,
-  runDiscardToss,
+  runDiscardCarry,
+  runDiscardFixate,
+  runDiscardFlip,
+  runDiscardGather,
+  runDiscardHold,
+  runDiscardPileSettle,
   runDiscardTrayWithdraw,
   spawnDiscardProxies,
 } from '@/client/console/cardDiscard/discardDirector';
@@ -114,6 +119,10 @@ export function armCardDiscard(arm: CardDiscardArm): void {
   }
   abortCardDiscard();
   armed = arm;
+  // Warm the art NOW: the proxies mount a premium face, and a face that mounts
+  // on a not-yet-decoded webp shows a BLACK body — glaring on the turn beat,
+  // where the card holds still. The server round-trip pays for the decode.
+  preloadPremiumCardArt(arm.names);
   cardDiscardTransaction.active = true;
   cardDiscardTransaction.names = [...arm.names];
   setPhase('armed');
@@ -149,12 +158,33 @@ export function detectCardDiscard(next: PlayerViewModel): {names: ReadonlyArray<
 }
 
 /**
- * RUN — the pre-commit half: seize the cards out of the hand, hand the surface
- * off, and throw them on the pile. Resolves once the last card has physically
- * landed, which is when the caller may commit the new (shorter) hand.
+ * THE OVERLAY HAND-OFF, injected by the shell.
  *
- * Never rejects: a broken beat degrades to the next phase so the shell
- * watchers that key off the ladder can never desynchronise.
+ * Phase D reuses the pick surface's ORDINARY close episode — the very same
+ * "cards gather back into the dock" animation any other close plays — instead
+ * of a discard-only copy of it. The shell owns that episode (it is the only
+ * thing that can measure the live grid + the dock), so it registers the call
+ * here and the sequence simply awaits it between the gather and the carry.
+ *
+ * `keep` are the discarded names: the close must NOT fly them home — they are
+ * on the discard layer, going the other way.
+ */
+export type DiscardOverlayHandoff = (discarded: ReadonlySet<CardName>) => Promise<void>;
+
+let overlayHandoff: DiscardOverlayHandoff | undefined;
+
+export function registerDiscardOverlayHandoff(fn: DiscardOverlayHandoff | undefined): void {
+  overlayHandoff = fn;
+}
+
+/**
+ * RUN — the pre-commit half, as ONE orchestrated sequence (never a pile of
+ * timers): fixate → flip → gather → hand the overlay off → carry → land.
+ * Resolves once the packet has physically come to rest on the pile, which is
+ * when the caller may commit the new (shorter) hand.
+ *
+ * Never rejects: a broken beat degrades to the next phase so the shell watchers
+ * that key off the ladder can never desynchronise.
  */
 export async function runCardDiscard(): Promise<void> {
   const arm = armed;
@@ -164,44 +194,83 @@ export async function runCardDiscard(): Promise<void> {
   const reduced = consoleReducedMotionActive();
   const t = discardTimings(reduced);
   const gone = new Set(cardDiscardTransaction.names);
+  const alive = () => cardDiscardTransaction.active;
   try {
     cardDiscardState.live = true;
     cardDiscardState.trayCount = 0;
-    setPhase('seizing');
+
+    // ── A · FIXATE — the chosen cards come off the row, the rest recede. ────
+    setPhase('fixating');
     spawned = await spawnDiscardProxies(arm.sources.filter((source) => gone.has(source.name)));
-    if (!cardDiscardTransaction.active) {
+    if (!alive()) {
       return;
     }
-    await runDiscardSeize(spawned, t);
-    if (!cardDiscardTransaction.active) {
-      return;
-    }
-    // The pick surface hands off here: the shell watches this phase and closes
-    // the hand section (the survivors fly home to the dock). The tray slides in
-    // under the still-flying cards — but ONLY when there is something to catch:
-    // a scene with no usable launch rect draws no empty berth.
-    setPhase('leaving');
     if (spawned.length === 0) {
+      // Nothing measurable to animate: hand the overlay off anyway so the
+      // surface never sticks open, and finish quietly.
+      setPhase('leaving');
+      await overlayHandoff?.(gone);
       return;
     }
+    await runDiscardFixate(spawned, t);
+    if (!alive()) {
+      return;
+    }
+
+    // ── B · FLIP — turned face down where they lie. ─────────────────────────
+    setPhase('flipping');
+    await runDiscardFlip(spawned, t);
+    if (!alive()) {
+      return;
+    }
+
+    // ── C · GATHER — squared up into one packet. ────────────────────────────
+    setPhase('gathering');
+    await runDiscardGather(spawned, t);
+    if (!alive()) {
+      return;
+    }
+
+    // ── D · HAND-OFF — the overlay goes home through its OWN close episode
+    //    while the packet stays on the discard layer, over everything. The
+    //    receiver arms BEFORE the carry, so the pile is visibly waiting for
+    //    the cards rather than appearing under them. ─────────────────────────
+    setPhase('leaving');
     cardDiscardState.trayVisible = true;
-    // The toss MEASURES the pile, so wait for it to actually paint. Bounded:
+    cardDiscardState.trayArmed = true;
+    await Promise.all([
+      overlayHandoff?.(gone) ?? Promise.resolve(),
+      runDiscardHold(spawned, t),
+    ]);
+    if (!alive()) {
+      return;
+    }
+    // The carry MEASURES the pile, so wait for it to actually paint. Bounded:
     // a tray that never mounts degrades to the honest downward exit.
     await waitForTray(reduced ? 3 : 12);
-    if (!cardDiscardTransaction.active) {
+    if (!alive()) {
       return;
     }
-    setPhase('consuming');
-    await runDiscardToss(spawned, t, () => {
+
+    // ── E+F · CARRY and LAND. ──────────────────────────────────────────────
+    setPhase('carrying');
+    cardDiscardState.trayArmed = false;
+    await runDiscardCarry(spawned, t, () => {
       // A landing after an abort must not thicken a pile nobody is watching.
-      if (cardDiscardTransaction.active) {
+      if (alive()) {
         landOnPile();
       }
     });
+    if (!alive()) {
+      return;
+    }
+    setPhase('landing');
+    await runDiscardPileSettle(t);
   } catch (err) {
     console.warn('[card-discard] scene failed — degrading to a silent disposal', err);
   } finally {
     if (cardDiscardTransaction.active) {
+      cardDiscardState.trayArmed = false;
       setPhase('settling');
     }
   }

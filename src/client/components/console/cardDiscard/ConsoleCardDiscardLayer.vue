@@ -15,10 +15,12 @@
   -->
   <div v-if="cardDiscardState.live" class="con-discard" aria-hidden="true">
     <!-- The pile. Present from the hand-off beat until the scene settles. -->
-    <div v-if="cardDiscardState.trayVisible" class="con-discard__tray">
+    <div v-if="cardDiscardState.trayVisible" class="con-discard__tray"
+         :class="{'con-discard__tray--armed': cardDiscardState.trayArmed}">
       <div class="con-discard__pile"
            :class="{
              'con-discard__pile--empty': cardDiscardState.trayCount === 0,
+             'con-discard__pile--armed': cardDiscardState.trayArmed,
              'con-discard__pile--pulse': pulsing,
            }">
         <div v-for="n in backs" :key="n"
