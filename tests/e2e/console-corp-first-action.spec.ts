@@ -84,6 +84,33 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
+/**
+ * The right key for whatever the start wizard is CURRENTLY showing (read the
+ * DOM fresh each iteration rather than assuming a fixed press count — the
+ * corp pick's hero animation has variable timing, so a blind index-based
+ * cycle races it and can land an Enter on the projects step, toggling a card
+ * on instead of leaving the zero-project buy alone).
+ *
+ * Step navigation lives on the TRIGGERS (`START_INPUT_OVERRIDES` in
+ * ConsoleStartScene.vue remaps triggerR/Period to `nextSection`), not the
+ * bumpers — `KeyE` (RB) is a no-op here. `Period` (RT) advances the
+ * multi-pick projects step; every other surface (the single-pick corp step,
+ * the summary's launch CTA — pressed twice for the zero-projects
+ * double-confirm — and the ceremony's corp-play prompt) is driven by `Enter`.
+ */
+async function currentWizardKey(page: Page): Promise<string> {
+  if (await page.locator('.con-start__summary-cards').count() > 0) {
+    return 'Enter';
+  }
+  const activeIdx = await page.locator('.con-start__step').evaluateAll(
+    (els) => els.findIndex((el) => el.classList.contains('con-start__step--active')),
+  );
+  // Step 0 (corp) is single-pick: Enter both commits and advances. Any later
+  // step (projects, in this fixed config) is multi-pick: Period advances.
+  // -1 (no rail — the ceremony's own prompts) also falls back to Enter.
+  return activeIdx <= 0 ? 'Enter' : 'Period';
+}
+
 test.describe('console corp first-action modal', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
@@ -100,20 +127,29 @@ test.describe('console corp first-action modal', () => {
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
     await page.waitForTimeout(3500);
 
-    // Walk the start wizard adaptively (A picks / launches on the summary —
-    // pressed twice for the zero-projects double-confirm; RB advances a
-    // completed multi-pick step; extra presses are inert) until the start
+    // Walk the start wizard adaptively (see currentWizardKey) until the start
     // scene is gone — this also carries the corporation-play press.
     const startScene = page.locator('.con-start__frame');
-    const cycle = ['Enter', 'KeyE', 'Comma', 'Comma'];
     for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
-      await key(page, cycle[i % cycle.length], 1100);
+      await key(page, await currentWizardKey(page), 1100);
     }
     expect(await startScene.count(), 'start wizard never completed').toBe(0);
 
     // The player's first turn: the corporationInitialAction prompt must mount
-    // the DEDICATED modal (presence is derived — no imperative open).
+    // the DEDICATED modal (presence is derived — no imperative open). It is an
+    // INTERRUPTIVE mandatory decision (consoleMandatoryGate.ts scopes
+    // corpFirstAction as always-gated), so the shell first shows the
+    // announce card (ConsoleMandatoryAnnounce, `.con-mandatory`) instead of
+    // auto-opening it — A opens it.
     const modal = page.locator('.con-composer--corpfirst');
+    const announce = page.locator('.con-mandatory');
+    for (let i = 0; i < 10 && await modal.count() === 0; i++) {
+      if (await announce.count() > 0) {
+        await key(page, 'Enter', 800);
+      } else {
+        await page.waitForTimeout(800);
+      }
+    }
     await modal.waitFor({state: 'visible', timeout: 60_000});
     await page.waitForTimeout(1500); // entry transition settles
     await shoot(page, '01-first-action-modal');
