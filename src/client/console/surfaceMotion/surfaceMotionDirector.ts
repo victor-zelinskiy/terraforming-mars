@@ -281,47 +281,34 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     // collapse, rising from the chosen slot's direction — the commit's
     // impulse carries into the next screen (a small directional bias, never
     // a slide). The destination's own emblem ECHOES the pressed symbol a
-    // beat into the reveal (a local materialize — nothing travels).
+    // beat into the reveal (a local materialize — nothing travels), and the
+    // surface's CONTENT composes in its own short cascade (contentCascade).
     const origin = wheelOrigin as {x: number, y: number};
     const echo = takeWheelEcho();
     const echoEl = echo !== undefined ?
       el.querySelector<HTMLElement>(`[data-wheel-anchor="${echo}"]`) : null;
-    // The STANDARD-PROJECTS screen is the wheel's own centre unfolding — a
-    // firmer geometric expansion from the hub + a short content cascade
-    // (lighter than the full-screen workspace reveals by design).
-    if (id === 'std-projects') {
-      guarded(el, OPEN_MS + 160, done, (finish) => {
-        const tl = gsap.timeline({onComplete: finish});
+    guarded(el, OPEN_MS + 320, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      if (id === 'std-projects') {
+        // The Standard-Projects screen is the wheel's own centre unfolding —
+        // a firmer geometric expansion from the hub (lighter than the
+        // full-screen workspace reveals by design).
         tl.fromTo(panel,
           {autoAlpha: 0, scale: 0.955, transformOrigin: '50% 46%'},
           {autoAlpha: 1, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
-        const rows = [...el.querySelectorAll<HTMLElement>('.con-stdp__card')].slice(0, 10);
-        if (rows.length > 0) {
-          tl.fromTo(rows,
-            {y: 8 * conUiScale(), opacity: 0},
-            {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', stagger: 0.014, clearProps: 'transform,opacity'}, s(40));
-        }
-        if (echoEl !== null) {
-          tl.fromTo(echoEl,
-            {autoAlpha: 0, scale: 0.8},
-            {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
-        }
-        return tl;
-      });
-      return;
-    }
-    guarded(el, OPEN_MS + 120, done, (finish) => {
-      const rect = panel.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = origin.x - cx;
-      const dy = origin.y - cy;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const push = Math.min(18 * conUiScale(), len * 0.08);
-      const tl = gsap.timeline({onComplete: finish});
-      tl.fromTo(panel,
-        {autoAlpha: 0, x: (dx / len) * push, y: (dy / len) * push, scale: 0.985, transformOrigin: '50% 50%'},
-        {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+      } else {
+        const rect = panel.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = origin.x - cx;
+        const dy = origin.y - cy;
+        const len = Math.max(1, Math.hypot(dx, dy));
+        const push = Math.min(18 * conUiScale(), len * 0.08);
+        tl.fromTo(panel,
+          {autoAlpha: 0, x: (dx / len) * push, y: (dy / len) * push, scale: 0.985, transformOrigin: '50% 50%'},
+          {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+      }
+      contentCascade(id, el, tl, s(40));
       if (echoEl !== null) {
         tl.fromTo(echoEl,
           {autoAlpha: 0, scale: 0.8},
@@ -332,9 +319,81 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     return;
   }
   default:
-    guarded(el, OPEN_MS, done, (finish) => gsap.fromTo(panel,
-      {autoAlpha: 0, y: 14 * conUiScale(), scale: 0.986, transformOrigin: '50% 62%'},
-      {autoAlpha: 1, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', onComplete: finish}));
+    guarded(el, OPEN_MS + 320, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      tl.fromTo(panel,
+        {autoAlpha: 0, y: 14 * conUiScale(), scale: 0.986, transformOrigin: '50% 62%'},
+        {autoAlpha: 1, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+      contentCascade(id, el, tl, s(40));
+      return tl;
+    });
+  }
+}
+
+/**
+ * The per-surface CONTENT CASCADE of a fresh reveal: the shell/chrome leads
+ * (the base panel tween), then the surface's own large content composes in a
+ * short stagger — the premium "the context forms" beat. Selector-driven and
+ * capped (a miss is a silent no-op; a long list animates only its first
+ * rows), transform/opacity only. `fromTo` immediateRender hides the
+ * cascading elements from the first frame — no flash before their cue.
+ */
+function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline, at: number): void {
+  const u = conUiScale();
+  if (id === 'std-projects') {
+    const rows = [...el.querySelectorAll<HTMLElement>('.con-stdp__card')].slice(0, 10);
+    if (rows.length > 0) {
+      tl.fromTo(rows,
+        {y: 8 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', stagger: 0.014, clearProps: 'transform,opacity'}, at);
+    }
+    return;
+  }
+  if (id === 'card-actions') {
+    // Filters settle from above, the dossier column slides in from its
+    // flank, the action groups compose upward — three planes, one rhythm.
+    const filters = el.querySelector<HTMLElement>('.con-cardactions__filters');
+    const detail = el.querySelector<HTMLElement>('.con-cardactions__detail');
+    const groups = [...el.querySelectorAll<HTMLElement>('.con-cardactions__group')].slice(0, 8);
+    if (filters !== null) {
+      tl.fromTo(filters,
+        {y: -6 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(140), ease: 'power2.out', clearProps: 'transform,opacity'}, at);
+    }
+    if (detail !== null) {
+      tl.fromTo(detail,
+        {x: -10 * u, opacity: 0},
+        {x: 0, opacity: 1, duration: s(170), ease: 'power2.out', clearProps: 'transform,opacity'}, at + s(30));
+    }
+    if (groups.length > 0) {
+      tl.fromTo(groups,
+        {y: 10 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(160), ease: 'power2.out', stagger: 0.016, clearProps: 'transform,opacity'}, at + s(50));
+    }
+    return;
+  }
+  if (id === 'section' && el.querySelector('.con-colonies') !== null) {
+    // The TRADING workspace: the fleet bar docks from above, the colony
+    // tiles compose in reading order, the selected-trade summary seats
+    // last — the strategic context assembles, never pops.
+    const fleet = el.querySelector<HTMLElement>('.con-colonies__fleetbar');
+    const tiles = [...el.querySelectorAll<HTMLElement>('.con-coltile')].slice(0, 8);
+    const summary = el.querySelector<HTMLElement>('.con-colonies__summary');
+    if (fleet !== null) {
+      tl.fromTo(fleet,
+        {y: -6 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', clearProps: 'transform,opacity'}, at);
+    }
+    if (tiles.length > 0) {
+      tl.fromTo(tiles,
+        {y: 12 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(180), ease: 'power2.out', stagger: 0.026, clearProps: 'transform,opacity'}, at + s(40));
+    }
+    if (summary !== null) {
+      tl.fromTo(summary,
+        {y: 8 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity'}, at + s(120));
+    }
   }
 }
 

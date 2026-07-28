@@ -232,9 +232,14 @@
               </span>
             </div>
 
-            <div class="con-cardactions__variants">
+            <!-- TWO alternative variants sit SIDE BY SIDE with the «или»
+                 joint on their shared edge (the dominant OrOptions case);
+                 3+ variants keep the vertical run with inline dividers. -->
+            <div class="con-cardactions__variants"
+                 :class="{'con-cardactions__variants--pair': group.tiles.length === 2}">
+              <div v-if="group.tiles.length === 2" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
               <template v-for="(tile, ti) in group.tiles" :key="tile.key">
-                <div v-if="ti > 0" class="con-cardactions__or" aria-hidden="true">{{ $t('or') }}</div>
+                <div v-if="ti > 0 && group.tiles.length !== 2" class="con-cardactions__or" aria-hidden="true">{{ $t('or') }}</div>
                 <div class="con-cardactions__tile"
                      :class="[
                        'con-cardactions__tile--' + tile.status,
@@ -254,16 +259,22 @@
                     <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
                   </div>
 
-                  <!-- Non-amount pre-submit choices (a card / player / payment
-                       pick happens in the composer) — named, never a mute "X". -->
-                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                    <span aria-hidden="true">◈</span>
-                    <span>{{ choiceKindsLabel(tile) }}</span>
-                  </div>
-
-                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
-                    <span aria-hidden="true">✕</span>
-                    <span>{{ tileReason(tile) }}</span>
+                  <!-- The META STRIP is ALWAYS laid out at a fixed minimum
+                       height — a late-arriving reason / choice line fades
+                       into RESERVED space and can never change the tile's
+                       geometry (the "tiles grow and jump" hardening; the
+                       store pre-warm makes late arrival rare to begin with). -->
+                  <div class="con-cardactions__tile-meta">
+                    <!-- Non-amount pre-submit choices (a card / player / payment
+                         pick happens in the composer) — named, never a mute "X". -->
+                    <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                      <span aria-hidden="true">◈</span>
+                      <span>{{ choiceKindsLabel(tile) }}</span>
+                    </div>
+                    <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                      <span aria-hidden="true">✕</span>
+                      <span>{{ tileReason(tile) }}</span>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -345,6 +356,7 @@ import {CardName} from '@/common/cards/CardName';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {actionPreviewMap, ensureActionPreviews} from '@/client/console/actionPreviewStore';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -448,8 +460,6 @@ export default defineComponent({
       consoleCardActionsUi,
       /** The focused variant tile key (`cardName#nodeIndex`). */
       focusKey: '',
-      /** Per-card action previews (SWR — a card with none shows the DSL graphic). */
-      previews: {} as Record<string, ActionPreview | undefined>,
       /** Whole-game per-card action usage aggregate (for the "this game" panel). */
       stats: [] as ReadonlyArray<EffectOverlayStat>,
       /** The open ACTION COMPOSER context (undefined = the grid owns input). */
@@ -491,14 +501,12 @@ export default defineComponent({
       }
       return out;
     },
+    /** The MODULE preview cache (actionPreviewStore) — pre-warmed by the
+     *  shell at RT-wheel open, surviving close/reopen, so the grid renders
+     *  its final geometry and sort on the FIRST frame (the "tiles grow and
+     *  jump while previews trickle in" fix). */
     previewMap(): Map<CardName, ActionPreview> {
-      const m = new Map<CardName, ActionPreview>();
-      for (const [k, v] of Object.entries(this.previews)) {
-        if (v !== undefined) {
-          m.set(k as CardName, v);
-        }
-      }
-      return m;
+      return actionPreviewMap();
     },
     /** The active filter — the repeat instance keeps its OWN so it can overlay
      *  a normal Action Center (Viron) without sharing state. */
@@ -593,7 +601,7 @@ export default defineComponent({
     },
     composerPreview(): ActionPreview | undefined {
       const c = this.composer;
-      return c === undefined ? undefined : this.previews[c.cardName];
+      return c === undefined ? undefined : this.previewMap.get(c.cardName);
     },
     /** A change-key for the ORDER-INDEPENDENT reveal delivery — bumps when the
      *  reveal phase opens (revealFlow set + composer), or the server's answer
@@ -768,43 +776,11 @@ export default defineComponent({
       return '';
     },
     fetchAllPreviews(): void {
-      if (String(this.playerView.id) === '' || typeof fetch !== 'function') {
-        return;
-      }
-      for (const entry of this.entries) {
-        this.fetchPreview(entry.cardName);
-      }
-    },
-    fetchPreview(cardName: CardName): void {
-      const url = apiUrl(paths.API_ACTION_PREVIEW) +
-        '?id=' + encodeURIComponent(this.playerView.id) +
-        '&card=' + encodeURIComponent(cardName);
-      fetch(url)
-        .then((r) => (r.ok ? r.json() : undefined))
-        .then((p) => {
-          if (p !== undefined) {
-            this.previews[cardName] = p as ActionPreview;
-          } else {
-            this.seedFallbackPreview(cardName);
-          }
-        })
-        .catch(() => this.seedFallbackPreview(cardName));
-    },
-    /** A fetch failure must never BLOCK activation: seed a confirm-only
-     *  dynamic preview (the tile keeps the DSL graphic; the composer offers
-     *  a plain confirm — the follow-ups ride the native tasks, exactly the
-     *  graceful path a desktop fetch failure degrades to). Never overwrites
-     *  a previously-loaded good preview. */
-    seedFallbackPreview(cardName: CardName): void {
-      if (this.previews[cardName] !== undefined) {
-        return;
-      }
-      this.previews[cardName] = {
-        card: cardName,
-        isCorporation: false,
-        kind: 'dynamic',
-        branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
-      };
+      // The module store owns fetching (SWR + in-flight de-dup + stale
+      // guard + the confirm-only failure fallback); this is a cheap
+      // idempotent ensure — usually a no-op because the shell pre-warmed
+      // the cache when the RT wheel opened.
+      ensureActionPreviews(this.playerView);
     },
     fetchStats(): void {
       if (String(this.playerView.id) === '' || typeof fetch !== 'function') {
@@ -920,7 +896,7 @@ export default defineComponent({
       // dossier's СТАТИСТИКА tab (the browser no longer renders it inline).
       const group = this.focusedGroup;
       const entry = this.entries.find((e) => e.cardName === tile.cardName);
-      const branches = this.previews[tile.cardName]?.branches ?? [];
+      const branches = this.previewMap.get(tile.cardName)?.branches ?? [];
       const scope = entry !== undefined ? branchScopeForNode(entry.group, branches, tile.nodeIndex) : undefined;
       const stored = group?.cardResource !== undefined ?
         {icon: String(group.cardResource.type), count: group.cardResource.count} : undefined;
@@ -951,7 +927,7 @@ export default defineComponent({
         return;
       }
       const entry = this.entries.find((e) => e.cardName === comp.cardName);
-      const branches = this.previews[comp.cardName]?.branches ?? [];
+      const branches = this.previewMap.get(comp.cardName)?.branches ?? [];
       const scope = (entry !== undefined && comp.nodeIndex >= 0) ?
         branchScopeForNode(entry.group, branches, comp.nodeIndex) : undefined;
       const res = this.cardResources.get(comp.cardName);

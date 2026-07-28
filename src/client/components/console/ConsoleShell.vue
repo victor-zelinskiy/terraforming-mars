@@ -1060,6 +1060,7 @@ import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHa
 import {WheelArm, WheelArmEvent, reduceWheelArm} from '@/client/console/quickWheel/wheelArmModel';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
+import {ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
@@ -1760,6 +1761,27 @@ export default defineComponent({
         ...(this.playerView.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name),
       ]);
     },
+    /**
+     * A CARD-ARRIVAL cinematic owns the screen: cards are coming off the deck,
+     * or lifting off a board cell. THE PLAY RESOLVES BEFORE ITS PROMPTS —
+     * playing a science card that draws a card while Mars University is in
+     * play produced the draw animation and the university's decision at the
+     * same time, which is two stories told over each other.
+     *
+     * Why the existing sequencing missed it: both scenes hold the foreground
+     * as `'notification-only'` (they ASSEMBLE the reveal modal around their own
+     * landed cards, so a blocking hold would withhold the very surface they
+     * build into). `presentationHeld` counts only BLOCKING holds, and
+     * `rawDrawnRevealPending` deliberately goes false while they run — so
+     * nothing was left to hold the task surfaces back. This names them.
+     *
+     * Deliberately NOT every animation hold: the hydro draw lands its cards in
+     * a task-host pick, and the research buy runs its intake INSIDE the host —
+     * suppressing the host for those would unmount the stage they play on.
+     */
+    cardArrivalBusy(): boolean {
+      return deckDrawHolds() || isBoardCardBonusActive();
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — the task host (and, cascading
@@ -1772,6 +1794,7 @@ export default defineComponent({
           // the host would otherwise re-mount its branch list over the cards
           // the player just chose (the pick surface has already released it).
           this.cardDiscardTransaction.active ||
+          this.cardArrivalBusy ||
           this.consoleRevealMode !== undefined || this.rawDrawnRevealPending || this.taskGateHeld) {
         return undefined;
       }
@@ -5780,6 +5803,13 @@ export default defineComponent({
       }
       this.consoleState.quick = id;
       this.consoleState.sheet = undefined;
+      if (id === 'actions') {
+        // PRE-WARM the Action Center's preview cache the moment the RT wheel
+        // opens: by the time the player commits «Действия карт» the per-card
+        // previews are complete, so the grid renders its final geometry and
+        // sort on the FIRST frame (no trickle-in reflow). Idempotent + SWR.
+        ensureActionPreviews(this.playerView);
+      }
     },
     openSheet(sheet: ConsoleSheetId): void {
       // A sheet switch / (re)open closes a stale full-text reader.
@@ -7597,6 +7627,7 @@ export default defineComponent({
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
+    resetActionPreviews(); // per-game preview cache dies with the shell
     stopConsoleLeakDetector();
     resetGovScaleFocus();
     releaseZoomMotion();

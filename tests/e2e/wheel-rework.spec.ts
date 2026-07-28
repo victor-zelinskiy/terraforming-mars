@@ -59,12 +59,16 @@ function newGameConfig() {
     initialDraft: false,
     preludeDraftVariant: false,
     ceosDraftVariant: false,
-    startingCorporations: 2,
+    // UNMI: a corporation WITH a card action (spend 3 M€ → +1 TR, only after
+    // TR was raised this turn) — so the Action Center always shows a real
+    // premium tile: the status rail, the reserved meta strip with its honest
+    // reason, and the reveal cascade have something to prove on.
+    startingCorporations: 1,
     shuffleMapOption: false,
     randomMA: 'No randomization',
     includeFanMA: false,
     soloTR: false,
-    customCorporationsList: [],
+    customCorporationsList: ['United Nations Mars Initiative'],
     bannedCards: [],
     includedCards: [],
     customColoniesList: [],
@@ -233,11 +237,16 @@ test.describe('quick-wheel rework', () => {
     await shoot(page, '08-std-projects');
     await key(page, 'Escape', 1200);
 
-    // ── 9 · Card actions (RT up) — emblem anchor present ─────────────
+    // ── 9 · Card actions (RT up) — emblem anchor, the UNMI premium tile
+    //        (status rail + reserved meta strip with its reason), no
+    //        trickle-in reflow (the store was pre-warmed at wheel open) ──
     await openWheel(page, 'Period');
     await key(page, 'ArrowUp', 1500);
     await page.waitForSelector('.con-cardactions', {timeout: 8_000});
     await expect(page.locator('.con-cardactions [data-wheel-anchor="card-actions"]')).toHaveCount(1);
+    await expect(page.locator('.con-cardactions__group')).not.toHaveCount(0);
+    await expect(page.locator('.con-cardactions__tile-meta').first()).toBeAttached();
+    await expect(page.locator('.con-cardactions__tile-reason').first()).toContainText(/./); // the honest reason line
     await shoot(page, '09-card-actions');
     await key(page, 'Escape', 1200);
 
