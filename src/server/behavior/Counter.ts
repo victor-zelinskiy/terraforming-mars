@@ -77,7 +77,7 @@ export class Counter {
       return countable;
     }
 
-    let sum = countable.start ?? 0;
+    let sum = 0;
 
     const player = this.player;
     const card = this.card;
