@@ -27,11 +27,31 @@ Nothing travels across the screen. Continuity is carried by:
   materialize of `[data-wheel-anchor]`, scale .8→1 at ~90ms — never a
   flight); std-projects gets the firmer hub-expansion + row cascade.
 
-## Input: one machine, two families (`quickWheel/wheelArmModel.ts`)
+## Input: one machine, two CONTROL STYLES (`quickWheel/wheelArmModel.ts`)
 
-Pure reducer, unit-tested. The shell (`handleQuickIntent` → `feedWheelArm`)
-feeds edges in and executes effects out; `wheelArm` drives the
-`armedSlot`/`armedBlocked` props AND the shade's `--focus`.
+Pure reducer over `WheelInputState {focus, arm}`, parameterized by
+`wheelControlMode` (`quickWheel/wheelControlMode.ts` — persisted
+`tm_wheel_control_mode` + `?wheelControl=`, sanitize → `quick-select`,
+Options row «Wheel control», applies instantly — the shell's
+`wheelControl.mode` watcher cancels any mid-wheel state without executing).
+The shell (`handleQuickIntent` → `feedWheelArm`) feeds edges in and
+executes effects out; `wheelInput` drives `focusedSlot`/`armedSlot`/
+`armedBlocked` AND the shade's `--focus` vignette (armed only).
+
+**FOCUS-CONFIRM (the deliberate alternative):** directions and the stick
+only MOVE the persistent `focus` — their release/neutral does NOTHING. The
+d-pad follows the explicit spatial map (`stepWheelFocus`: centre→arm,
+opposite→centre, perpendicular→that arm, same = felt edge, missing slot
+keeps focus); the stick jumps to sectors directly. A DOWN fixes the action
+(navigation FREEZES while A is held — later movement can never swap the
+confirmed action), A UP commits — A confirms ANY focused tile. Fixed HOME
+focus = the CENTRE tile (LT «Стандартные проекты», RT «Карты») on EVERY
+open / LT↔RT switch / mode change — never remembered. Blocked tiles stay
+focusable (A refuses, focus survives). Visuals: calm `--focus` state (less
+than armed; neighbours NOT muted); the A-cap moves to the focused tile,
+direction caps hide; the bar leads with «A Выбрать».
+
+**QUICK-SELECT (default) — unchanged:**
 
 - **Digital (d-pad / A)**: DOWN arms (the tile lifts toward the player), UP
   of the same control commits. Fast tap = its natural ~80 ms; no thresholds.
@@ -41,8 +61,14 @@ feeds edges in and executes effects out; `wheelArm` drives the
 - Conflict rules: repeats never arm; stick-flagged `nav` never digital-arms;
   A vs stick vs d-pad is first-wins EXCEPT the d-pad deliberately takes over
   a stick focus; the merged `navEnd` finishes a d-pad arm even when the
-  stick let the direction go last; stale edges drop; **B always cancels**;
-  a blocked slot arms in resistance mode and REFUSES on its commit edge.
+  stick let the direction go last; stale edges drop.
+
+**Shared in both styles:** B always cancels without executing; `reset`
+dissolves everything silently; availability is RE-CHECKED at the commit
+edge (an action that died between press and release refuses); a blocked
+slot arms in resistance mode and REFUSES on its commit edge; the commit
+enters the ONE Mechanical Commit → Depth Collapse → Context Reveal
+pipeline (no per-mode timelines, no second polling loop, no second DOM).
 
 ### The AIM protocol (`gamepadPollModel.ts` §3.5)
 

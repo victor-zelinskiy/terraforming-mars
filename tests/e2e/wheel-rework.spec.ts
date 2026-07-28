@@ -109,11 +109,11 @@ async function openWheel(page: Page, code: 'Comma' | 'Period'): Promise<void> {
 }
 
 /** Boot a game, walk the start wizard, resolve the colony setup picks. */
-async function bootToBoard(page: Page, request: APIRequestContext): Promise<void> {
+async function bootToBoard(page: Page, request: APIRequestContext, extraQuery = ''): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1`);
+  await page.goto(`/player?id=${model.players[0].id}&console=1${extraQuery}`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   await page.waitForTimeout(3500);
@@ -333,5 +333,108 @@ test.describe('quick-wheel rework', () => {
     await page.waitForSelector('.con-colonies', {timeout: 8_000});
     await shoot(page, '16-stick-commit-trading');
     await key(page, 'Escape', 1400);
+  });
+
+  test('FOCUS & CONFIRM: home focus, navigation-only directions, universal A', async ({page, request}) => {
+    test.setTimeout(420_000);
+    await bootToBoard(page, request, '&wheelControl=focus-confirm');
+
+    const focusedCenter = page.locator('.con-quick__slot--center.con-quick__slot--focus');
+
+    // ── 1 · Every RT open starts at the fixed HOME focus («Карты»),
+    //        visible from the first beats of the entrance; the bar leads
+    //        with the mode's verb («A Выбрать») ─────────────────────────
+    await openWheel(page, 'Period');
+    await expect(focusedCenter).toHaveCount(1);
+    await expect(page.locator('.con-cmdbar')).toContainText(/выбрать/i);
+    await shoot(page, 'fc-01-home-focus');
+
+    // ── 2 · A direction only MOVES the focus — its release executes
+    //        NOTHING (the wheel stays open, no overlay) ─────────────────
+    await key(page, 'ArrowRight', 500);
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
+    expect(await page.locator('.con-colonies').count(), 'a direction release must not execute').toBe(0);
+    expect(await page.locator('.con-quick').count()).toBeGreaterThan(0);
+    await shoot(page, 'fc-02-focus-right');
+
+    // ── 3 · The OPPOSITE direction returns to the centre (the map) ─────
+    await key(page, 'ArrowLeft', 400);
+    await expect(focusedCenter).toHaveCount(1);
+
+    // ── 4 · The stick moves the focus; the confirmed neutral executes
+    //        NOTHING (the sharpest contrast with quick-select) ──────────
+    await page.evaluate(() => {
+      const pad = {
+        index: 0, id: 'Xbox 360 Controller (STANDARD GAMEPAD)', connected: true,
+        mapping: 'standard', timestamp: 1,
+        buttons: Array.from({length: 17}, () => ({pressed: false, touched: false, value: 0})),
+        axes: [0, 0, 0, 0],
+      };
+      navigator.getGamepads = function() {
+        return [pad, null, null, null] as unknown as ReturnType<typeof navigator.getGamepads>;
+      };
+      (window as unknown as {__stick: (x: number, y: number) => void}).__stick = (x: number, y: number) => {
+        pad.axes = [x, y, 0, 0];
+        pad.timestamp = performance.now();
+      };
+      try {
+        window.dispatchEvent(new GamepadEvent('gamepadconnected', {gamepad: pad as unknown as Gamepad}));
+      } catch (e) {
+        const ev = new Event('gamepadconnected') as Event & {gamepad: typeof pad};
+        ev.gamepad = pad;
+        window.dispatchEvent(ev);
+      }
+    });
+    await page.waitForTimeout(400);
+    const stick = async (x: number, y: number, settleMs = 250) => {
+      await page.evaluate(([sx, sy]) => (window as unknown as {__stick: (x: number, y: number) => void}).__stick(sx, sy), [x, y]);
+      await page.waitForTimeout(settleMs);
+    };
+    await stick(1, 0);
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
+    await stick(0, 0, 600); // confirmed neutral — must NOT commit
+    expect(await page.locator('.con-colonies').count(), 'stick neutral must not execute in focus-confirm').toBe(0);
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
+
+    // ── 5 · A confirms the CURRENT focus (not the centre): press seats the
+    //        tile, release commits → trading opens through the shared
+    //        commit/collapse/reveal pipeline ──────────────────────────────
+    await page.keyboard.down('Enter');
+    await page.waitForTimeout(250);
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--armed')).toHaveCount(1);
+    await shoot(page, 'fc-03-pressed');
+    await page.keyboard.up('Enter');
+    await page.waitForSelector('.con-colonies', {timeout: 8_000});
+    await key(page, 'Escape', 1400);
+
+    // ── 6 · The home focus is NEVER remembered: the next open (and every
+    //        LT↔RT switch) starts back at the centre ──────────────────────
+    await openWheel(page, 'Period');
+    await expect(focusedCenter).toHaveCount(1);
+    await key(page, 'Comma', 700); // switch to LT — home focus again
+    await expect(page.locator('.con-quick__kicker')).toContainText(/базовые/i);
+    await expect(focusedCenter).toHaveCount(1);
+    await key(page, 'Period', 700); // and back — home focus again
+    await expect(focusedCenter).toHaveCount(1);
+
+    // ── 7 · B during a held A cancels: nothing executes, later release inert ──
+    await page.keyboard.down('Enter');
+    await page.waitForTimeout(200);
+    await key(page, 'Escape', 500);
+    await page.keyboard.up('Enter');
+    await page.waitForTimeout(600);
+    expect(await page.locator('.con-quick').count(), 'B must close the wheel').toBe(0);
+    expect(await page.locator('.con-hand').count(), 'a cancelled A must not execute').toBe(0);
+
+    // ── 8 · A on a BLOCKED focus refuses: the wheel stays open, the focus
+    //        survives, navigation continues immediately ────────────────────
+    await openWheel(page, 'Period');
+    await key(page, 'ArrowDown', 400); // «Голосование» — blocked, still focusable
+    await expect(page.locator('.con-quick__slot--down.con-quick__slot--focus')).toHaveCount(1);
+    await key(page, 'Enter', 500);
+    expect(await page.locator('.con-quick').count(), 'a refused confirm keeps the wheel open').toBeGreaterThan(0);
+    await expect(page.locator('.con-quick__slot--down.con-quick__slot--focus')).toHaveCount(1);
+    await shoot(page, 'fc-04-blocked-refused');
+    await key(page, 'Escape', 600);
   });
 });

@@ -1,5 +1,12 @@
 import {expect} from 'chai';
-import {WheelArm, WheelArmEvent, reduceWheelArm} from '@/client/console/quickWheel/wheelArmModel';
+import {
+  WheelArmEvent,
+  WheelInputState,
+  initialWheelInput,
+  reduceWheel,
+  stepWheelFocus,
+} from '@/client/console/quickWheel/wheelArmModel';
+import {WheelControlMode} from '@/client/console/quickWheel/wheelControlMode';
 import {QuickSlot} from '@/client/console/consoleQuickModel';
 
 /** A standard five-slot wheel; `blocked` slots exist but are unavailable. */
@@ -10,19 +17,19 @@ function slots(blocked: ReadonlyArray<QuickSlot> = [], missing: ReadonlyArray<Qu
   };
 }
 
-function run(events: ReadonlyArray<WheelArmEvent>, table = slots()): {arm: WheelArm | undefined, effects: Array<string>} {
-  let arm: WheelArm | undefined = undefined;
+function run(mode: WheelControlMode, events: ReadonlyArray<WheelArmEvent>, table = slots()) {
+  let state: WheelInputState = initialWheelInput();
   const effects: Array<string> = [];
   for (const event of events) {
-    const r = reduceWheelArm(arm, event, table);
-    arm = r.arm;
+    const r = reduceWheel(state, event, mode, table);
+    state = r.state;
     if (r.effect.kind === 'commit' || r.effect.kind === 'refuse') {
       effects.push(`${r.effect.kind}:${r.effect.slot}`);
     } else if (r.effect.kind === 'dismiss') {
       effects.push('dismiss');
     }
   }
-  return {arm, effects};
+  return {state, effects};
 }
 
 const down = (dir: 'up' | 'down' | 'left' | 'right', opts: {repeat?: boolean, analog?: boolean} = {}): WheelArmEvent =>
@@ -30,145 +37,199 @@ const down = (dir: 'up' | 'down' | 'left' | 'right', opts: {repeat?: boolean, an
 const up = (dir: 'up' | 'down' | 'left' | 'right'): WheelArmEvent => ({type: 'navUp', dir});
 
 describe('wheelArmModel', () => {
-  describe('digital (d-pad / A): arm on DOWN, commit on UP', () => {
+  describe('QUICK-SELECT (regression: the shipped press→release model)', () => {
+    const qs = (events: ReadonlyArray<WheelArmEvent>, table = slots()) => run('quick-select', events, table);
+
     it('a d-pad tap arms on the down edge and commits on the up edge', () => {
-      const r = run([down('up'), up('up')]);
+      const r = qs([down('up'), up('up')]);
       expect(r.effects).to.deep.eq(['commit:up']);
-      expect(r.arm).to.eq(undefined);
+      expect(r.state.arm).to.eq(undefined);
     });
 
     it('A arms the centre and commits on its release', () => {
-      const r = run([{type: 'confirmDown'}, {type: 'confirmUp'}]);
-      expect(r.effects).to.deep.eq(['commit:center']);
+      expect(qs([{type: 'confirmDown'}, {type: 'confirmUp'}]).effects).to.deep.eq(['commit:center']);
     });
 
-    it('the mid-hold state is visible: armed after down, gone after up', () => {
-      const d = reduceWheelArm(undefined, down('left'), slots());
-      expect(d.arm).to.deep.eq({slot: 'left', source: 'nav', dir: 'left', blocked: false});
-      const u = reduceWheelArm(d.arm, up('left'), slots());
-      expect(u.arm).to.eq(undefined);
+    it('hold-repeat and stick-flagged nav never arm', () => {
+      expect(qs([down('down', {repeat: true}), up('down')]).effects).to.be.empty;
+      expect(qs([down('right', {analog: true}), up('right')]).effects).to.be.empty;
     });
 
-    it('hold-repeat never arms (a direction held from before the wheel opened)', () => {
-      expect(run([down('down', {repeat: true}), up('down')]).effects).to.be.empty;
+    it('a stale release commits nothing', () => {
+      expect(qs([up('right')]).effects).to.be.empty;
+      expect(qs([{type: 'confirmUp'}]).effects).to.be.empty;
     });
 
-    it('a stale release (control already down at open) commits nothing', () => {
-      expect(run([up('right')]).effects).to.be.empty;
-      expect(run([{type: 'confirmUp'}]).effects).to.be.empty;
+    it('rocking re-arms; the final release commits the live direction', () => {
+      expect(qs([down('up'), down('right'), up('up'), up('right')]).effects).to.deep.eq(['commit:right']);
     });
 
-    it('rocking the d-pad re-arms onto the live direction; the final release commits it', () => {
-      const rock = run([down('up'), down('right'), up('up'), up('right')]);
-      expect(rock.effects).to.deep.eq(['commit:right']);
+    it('first-wins across families (A vs d-pad, both orders)', () => {
+      expect(qs([{type: 'confirmDown'}, down('up'), up('up'), {type: 'confirmUp'}]).effects).to.deep.eq(['commit:center']);
+      expect(qs([down('left'), {type: 'confirmDown'}, {type: 'confirmUp'}, up('left')]).effects).to.deep.eq(['commit:left']);
     });
 
-    it('first-wins across families: d-pad cannot steal a confirm arm (and vice versa)', () => {
-      const confirmFirst = run([{type: 'confirmDown'}, down('up'), up('up'), {type: 'confirmUp'}]);
-      expect(confirmFirst.effects).to.deep.eq(['commit:center']);
-      const navFirst = run([down('left'), {type: 'confirmDown'}, {type: 'confirmUp'}, up('left')]);
-      expect(navFirst.effects).to.deep.eq(['commit:left']);
-    });
-
-    it('B cancels an armed slot: the wheel dismisses and the later release is inert', () => {
-      const r = run([down('up'), {type: 'cancel'}, up('up')]);
-      expect(r.effects).to.deep.eq(['dismiss']);
+    it('B cancels an armed slot; the later release is inert', () => {
+      expect(qs([down('up'), {type: 'cancel'}, up('up')]).effects).to.deep.eq(['dismiss']);
     });
 
     it('a blocked slot arms in blocked mode and REFUSES on release', () => {
-      const table = slots(['left']);
-      const d = reduceWheelArm(undefined, down('left'), table);
-      expect(d.arm?.blocked).to.eq(true);
-      const u = reduceWheelArm(d.arm, up('left'), table);
-      expect(u.effect).to.deep.eq({kind: 'refuse', slot: 'left'});
+      expect(qs([down('left'), up('left')], slots(['left'])).effects).to.deep.eq(['refuse:left']);
     });
 
-    it('a direction with no entry arms nothing', () => {
-      expect(run([down('down'), up('down')], slots([], ['down'])).effects).to.be.empty;
-    });
-
-    it('reset (LT↔RT switch / wheel closed) dissolves the arm silently', () => {
-      expect(run([{type: 'confirmDown'}, {type: 'reset'}, {type: 'confirmUp'}]).effects).to.be.empty;
-    });
-
-    it('a re-press while confirm-armed refreshes the arm (self-heal), one commit total', () => {
-      const r = run([{type: 'confirmDown'}, {type: 'confirmDown'}, {type: 'confirmUp'}, {type: 'confirmUp'}]);
-      expect(r.effects).to.deep.eq(['commit:center']);
-    });
-  });
-
-  describe('analog (left stick): focus follows the sector, neutral commits', () => {
-    it('aim focuses, aimEnd commits the focused slot', () => {
-      const r = run([{type: 'aim', dir: 'right'}, {type: 'aimEnd'}]);
-      expect(r.effects).to.deep.eq(['commit:right']);
-    });
-
-    it('circling re-focuses freely — only the FINAL sector commits', () => {
-      const r = run([
+    it('aim focuses, aimEnd commits; circling commits only the FINAL sector', () => {
+      const r = qs([
         {type: 'aim', dir: 'right'},
         {type: 'aim', dir: 'down'},
-        {type: 'aim', dir: 'left'},
         {type: 'aim', dir: 'up'},
         {type: 'aimEnd'},
       ]);
       expect(r.effects).to.deep.eq(['commit:up']);
     });
 
-    it('a stick-sourced nav NEVER digital-arms (the aim protocol owns the stick)', () => {
-      const r = run([down('right', {analog: true}), up('right')]);
-      expect(r.effects).to.be.empty;
-    });
-
-    it('an aimEnd without engagement commits nothing', () => {
-      expect(run([{type: 'aimEnd'}]).effects).to.be.empty;
-    });
-
-    it('B during tracking cancels; the later aimEnd is inert', () => {
-      const r = run([{type: 'aim', dir: 'left'}, {type: 'cancel'}, {type: 'aimEnd'}]);
-      expect(r.effects).to.deep.eq(['dismiss']);
-    });
-
-    it('the d-pad TAKES OVER a stick focus; the stale aimEnd drops, the d-pad release commits', () => {
-      const r = run([
-        {type: 'aim', dir: 'right'},
-        down('up'),
-        {type: 'aimEnd'},
-        up('up'),
-      ]);
+    it('the d-pad takes over a stick focus; the stale aimEnd drops', () => {
+      const r = qs([{type: 'aim', dir: 'right'}, down('up'), {type: 'aimEnd'}, up('up')]);
       expect(r.effects).to.deep.eq(['commit:up']);
     });
 
-    it('A pressed during tracking is ignored (first-wins), its release too', () => {
-      const r = run([
-        {type: 'aim', dir: 'down'},
-        {type: 'confirmDown'},
-        {type: 'confirmUp'},
-        {type: 'aimEnd'},
-      ]);
+    it('A during stick tracking is ignored (first-wins)', () => {
+      const r = qs([{type: 'aim', dir: 'down'}, {type: 'confirmDown'}, {type: 'confirmUp'}, {type: 'aimEnd'}]);
       expect(r.effects).to.deep.eq(['commit:down']);
     });
 
-    it('the merged navEnd finishes a d-pad arm even when the stick let go last', () => {
-      // D-pad armed 'right', stick also held right; the d-pad releases first
-      // (no navEnd — the merged direction persists via the stick), then the
-      // stick lets go → ONE navEnd commits the digital arm.
-      const r = run([down('right'), up('right')]);
-      expect(r.effects).to.deep.eq(['commit:right']);
+    it('an action that died between press and release REFUSES (live re-check)', () => {
+      let avail = true;
+      const table = {has: () => true, available: () => avail};
+      let state = initialWheelInput();
+      let r = reduceWheel(state, down('up'), 'quick-select', table);
+      state = r.state;
+      avail = false; // the server moved on mid-hold
+      r = reduceWheel(state, up('up'), 'quick-select', table);
+      expect(r.effect).to.deep.eq({kind: 'refuse', slot: 'up'});
     });
 
-    it('a blocked slot focused by the stick REFUSES on neutral', () => {
-      const table = slots(['left']);
-      const r = run([{type: 'aim', dir: 'left'}, {type: 'aimEnd'}], table);
-      expect(r.effects).to.deep.eq(['refuse:left']);
+    it('reset dissolves everything silently', () => {
+      expect(qs([{type: 'confirmDown'}, {type: 'reset'}, {type: 'confirmUp'}]).effects).to.be.empty;
+    });
+  });
+
+  describe('FOCUS-CONFIRM (persistent focus, A commits it)', () => {
+    const fc = (events: ReadonlyArray<WheelArmEvent>, table = slots()) => run('focus-confirm', events, table);
+
+    it('every wheel starts at the fixed HOME focus (the centre tile)', () => {
+      expect(initialWheelInput().focus).to.eq('center');
     });
 
-    it('aiming at an EMPTY sector clears the focus — neutral then commits nothing', () => {
-      const r = run([
+    it('an immediate A confirms the default focus', () => {
+      expect(fc([{type: 'confirmDown'}, {type: 'confirmUp'}]).effects).to.deep.eq(['commit:center']);
+    });
+
+    it('d-pad moves the focus; its release executes NOTHING', () => {
+      const r = fc([down('right'), up('right')]);
+      expect(r.effects).to.be.empty;
+      expect(r.state.focus).to.eq('right');
+    });
+
+    it('the stick moves the focus; the confirmed neutral executes NOTHING', () => {
+      const r = fc([{type: 'aim', dir: 'left'}, {type: 'aimEnd'}]);
+      expect(r.effects).to.be.empty;
+      expect(r.state.focus).to.eq('left');
+    });
+
+    it('circling the stick walks the focus; only A commits', () => {
+      const r = fc([
         {type: 'aim', dir: 'right'},
         {type: 'aim', dir: 'down'},
+        {type: 'aim', dir: 'left'},
         {type: 'aimEnd'},
-      ], slots([], ['down']));
+        {type: 'confirmDown'},
+        {type: 'confirmUp'},
+      ]);
+      expect(r.effects).to.deep.eq(['commit:left']);
+    });
+
+    it('A confirms ANY focused tile, not just the centre', () => {
+      expect(fc([down('up'), {type: 'confirmDown'}, {type: 'confirmUp'}]).effects).to.deep.eq(['commit:up']);
+    });
+
+    it('A press FIXES the action: navigation during the hold cannot swap it', () => {
+      const r = fc([
+        down('right'),
+        {type: 'confirmDown'},
+        down('left'), // frozen
+        {type: 'aim', dir: 'up'}, // frozen
+        {type: 'confirmUp'},
+      ]);
+      expect(r.effects).to.deep.eq(['commit:right']);
+      expect(r.state.focus).to.eq('right'); // the focus never silently moved
+    });
+
+    it('A while the stick is still deflected confirms the CURRENT focus', () => {
+      const r = fc([{type: 'aim', dir: 'down'}, {type: 'confirmDown'}, {type: 'confirmUp'}]);
+      expect(r.effects).to.deep.eq(['commit:down']);
+    });
+
+    it('B during a held A cancels; the later A release is inert', () => {
+      expect(fc([{type: 'confirmDown'}, {type: 'cancel'}, {type: 'confirmUp'}]).effects).to.deep.eq(['dismiss']);
+    });
+
+    it('a blocked tile stays focusable; A REFUSES and the focus survives', () => {
+      const r = fc([down('left'), {type: 'confirmDown'}, {type: 'confirmUp'}], slots(['left']));
+      expect(r.effects).to.deep.eq(['refuse:left']);
+      expect(r.state.focus).to.eq('left');
+    });
+
+    it('an action that died between A press and release REFUSES', () => {
+      let avail = true;
+      const table = {has: () => true, available: () => avail};
+      let state = initialWheelInput();
+      state = reduceWheel(state, down('up'), 'focus-confirm', table).state;
+      state = reduceWheel(state, {type: 'confirmDown'}, 'focus-confirm', table).state;
+      avail = false;
+      const r = reduceWheel(state, {type: 'confirmUp'}, 'focus-confirm', table);
+      expect(r.effect).to.deep.eq({kind: 'refuse', slot: 'up'});
+    });
+
+    it('gamepad repeat of a direction never moves twice per press, and repeats never commit', () => {
+      const r = fc([down('right'), down('right', {repeat: true}), down('right', {repeat: true})]);
+      expect(r.state.focus).to.eq('right');
       expect(r.effects).to.be.empty;
+    });
+
+    it('reset (LT↔RT switch / mode change) returns to the home focus, never executing', () => {
+      const r = fc([down('up'), {type: 'confirmDown'}, {type: 'reset'}, {type: 'confirmUp'}]);
+      expect(r.effects).to.be.empty;
+      expect(r.state.focus).to.eq('center');
+    });
+  });
+
+  describe('stepWheelFocus (the explicit d-pad neighbourhood map)', () => {
+    const has = () => true;
+
+    it('from the centre a direction reaches its arm tile', () => {
+      expect(stepWheelFocus('center', 'up', has)).to.eq('up');
+      expect(stepWheelFocus('center', 'left', has)).to.eq('left');
+    });
+
+    it('the OPPOSITE direction returns to the centre', () => {
+      expect(stepWheelFocus('up', 'down', has)).to.eq('center');
+      expect(stepWheelFocus('left', 'right', has)).to.eq('center');
+    });
+
+    it('a PERPENDICULAR direction crosses to that arm', () => {
+      expect(stepWheelFocus('up', 'left', has)).to.eq('left');
+      expect(stepWheelFocus('right', 'down', has)).to.eq('down');
+    });
+
+    it('the SAME direction is the felt edge', () => {
+      expect(stepWheelFocus('up', 'up', has)).to.eq('up');
+      expect(stepWheelFocus('down', 'down', has)).to.eq('down');
+    });
+
+    it('a missing slot keeps the focus (stable, never a surprise jump)', () => {
+      const missingLeft = (s: QuickSlot) => s !== 'left';
+      expect(stepWheelFocus('center', 'left', missingLeft)).to.eq('center');
+      expect(stepWheelFocus('up', 'left', missingLeft)).to.eq('up');
     });
   });
 });

@@ -90,17 +90,36 @@
         </div>
       </div>
 
-      <div v-if="tagEntries.length > 0" class="con-res__tags">
-        <div class="con-res__tags-title">{{ $t('Tags') }}</div>
-        <div class="con-res__tags-grid">
-          <tag-count v-for="t in tagEntries"
-                     :key="t.tag"
-                     :tag="t.tag"
-                     :count="t.count"
-                     size="big"
-                     type="secondary" />
+      <!-- МЕТКИ — the premium tag matrix. The FULL set of tags available in
+           THIS game (server game.tags + the events counter, consoleTagMatrix),
+           fixed 3-column layout: a tag's cell NEVER moves — a count change
+           only flips the number and the zero-state class, so acquiring the
+           first tag of a type brightens a cell that was already there. -->
+      <section v-if="tagEntries.length > 0" class="con-tagmx" :aria-label="$t('Tags')">
+        <div class="con-tagmx__head">
+          <span class="con-tagmx__title">{{ $t('Tags') }}</span>
+          <span class="con-tagmx__rule" aria-hidden="true"></span>
         </div>
-      </div>
+        <div class="con-tagmx__grid">
+          <div v-for="t in tagEntries" :key="t.tag"
+               class="con-tagmx__cell"
+               :class="{'con-tagmx__cell--zero': t.count === 0}"
+               :data-tag-cell="t.tag"
+               :aria-label="$t(t.tag) + ': ' + t.count">
+            <Tag class="con-tagmx__medal" :tag="t.tag" size="big" type="secondary" />
+            <span class="con-tagmx__numwrap">
+              <span class="con-tagmx__num">{{ t.count }}</span>
+              <AnimatedMetricValue
+                v-if="epoch !== ''"
+                :value="t.count"
+                :metricKey="'tag.' + t.tag"
+                :scopeKey="player.color"
+                :epoch="epoch"
+                variant="tag" />
+            </span>
+          </div>
+        </div>
+      </section>
     </aside>
 
     <!-- ДОП. РЕСУРСЫ satellite — an absolute column just RIGHT of the rail,
@@ -138,9 +157,10 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {Tag} from '@/common/cards/Tag';
+import {Tag as CardTag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
-import TagCount from '@/client/components/TagCount.vue';
+import Tag from '@/client/components/Tag.vue';
+import {consoleTagEntries, ConsoleTagEntry} from '@/client/components/console/consoleTagMatrix';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
@@ -154,18 +174,18 @@ import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransfe
 
 type ResourceRow = {key: string, value: number, production: number};
 
-/** Canonical printed-tag order (mirrors the desktop tag cluster). */
-const TAG_ORDER: ReadonlyArray<Tag> = [
-  Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
-  Tag.VENUS, Tag.PLANT, Tag.MICROBE, Tag.ANIMAL, Tag.CITY, Tag.MOON,
-  Tag.MARS, Tag.WILD, Tag.EVENT, Tag.CLONE,
-];
-
 export default defineComponent({
   name: 'ConsoleResourcePanel',
-  components: {'tag-count': TagCount, AnimatedMetricValue, ConsoleVpBadge, PrivateScoreMask},
+  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, PrivateScoreMask},
   props: {
     player: {type: Object as PropType<PublicPlayerModel>, required: true},
+    /**
+     * `playerView.game.tags` — the server-computed set of tags available in
+     * this game (scanned across every deck at creation). Drives WHICH cells
+     * the МЕТКИ matrix shows; counts never affect membership. An absent /
+     * empty set (a pre-`game.tags` save) falls back to the base-game set.
+     */
+    gameTags: {type: Array as PropType<ReadonlyArray<CardTag>>, default: () => []},
     /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
     epoch: {type: String, default: ''},
     /**
@@ -241,14 +261,12 @@ export default defineComponent({
         {key: 'heat', value: stock('heat', p.heat), production: prod('heat', p.heatProduction)},
       ];
     },
-    tagEntries(): Array<{tag: Tag, count: number}> {
-      // During the setup reveal the tags stage with the corp bonus (empty at
-      // baseline → the corporation's tags appear when it's applied), like the
-      // resources — the override carries the staged tag counts.
-      const counts = this.effectivePlayer.tags;
-      return TAG_ORDER
-        .map((tag) => ({tag, count: counts[tag] ?? 0}))
-        .filter((e) => e.count > 0);
+    tagEntries(): Array<ConsoleTagEntry> {
+      // The FULL matrix — every tag available in this game, zeros included
+      // (fixed positions; zero cells render dimmed, never hidden). During the
+      // setup reveal the counts stage with the corp bonus (empty at baseline →
+      // the corporation's tags appear when it's applied), like the resources.
+      return consoleTagEntries(this.gameTags, this.effectivePlayer.tags);
     },
     /**
      * Card-accumulated resources, in first-appearance order — the SAME

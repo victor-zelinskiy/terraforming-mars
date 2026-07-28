@@ -1364,33 +1364,135 @@ html.con-profile-handheld .con-terracere {
         }
     }
 
-    &__tags {
-        border-top: .05rem solid fade(@con-cyan, 20%);
-        padding-top: .6rem;
+}
+
+/* ── МЕТКИ — the premium tag matrix ─────────────────────────────────
+   The FULL set of tags available in THIS game (consoleTagMatrix over the
+   server's game.tags), 3 fixed columns, stable cell positions for the whole
+   game. Zero-count tags stay VISIBLE, dimmed — "exists, not collected yet".
+   Authored in rem (no zoom: the old cluster zoomed px TagCounts; these cells
+   are console-native), tokens (--ct-*) overridden per display profile.
+   State language is perf-lite safe: the zero state rides opacity + count
+   colour + transform; saturation via filter is a decorative assist only. */
+.con-tagmx {
+    --ct-icon: 1.9rem;    /* medallion box — the PNG's own ring lands flush */
+    --ct-num: .95rem;     /* count typography */
+    --ct-gap-y: .35rem;   /* row rhythm */
+    --ct-gap-x: .2rem;
+
+    border-top: .05rem solid fade(@con-cyan, 20%);
+    padding-top: .55rem;
+
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin-bottom: .5rem;
     }
-    &__tags-title {
+    &__title {
         font-size: .75rem;
         letter-spacing: .12rem;
         text-transform: uppercase;
         color: fade(@con-cyan, 85%);
-        margin-bottom: .5rem;
+        white-space: nowrap;
     }
-    &__tags-grid {
-        /* Fixed 3-column grid — the rail has the width, so pack the cluster
-           into three even columns instead of the old 2-column flex wrap
-           (which left ~a third of the row empty). Icons keep their size. */
+    /* Hairline tail after the title — ties the header to the panel's sci-fi
+       keyline language without adding another boxed divider. */
+    &__rule {
+        flex: 1 1 auto;
+        height: .05rem;
+        background: linear-gradient(90deg, fade(@con-cyan, 30%), transparent);
+    }
+
+    &__grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         justify-items: center;
         align-items: start;
-        gap: .5rem .3rem;
-        /* The shared TagCount holders read small on TV — scale the cluster. */
-        zoom: calc(1.2 * var(--con-ui-scale, 1));
+        row-gap: var(--ct-gap-y);
+        column-gap: var(--ct-gap-x);
+    }
 
-        /* The legacy per-holder right margin (player_home.less .tag-display)
-           is redundant with the grid gap and would shove each icon off the
-           column centre — zero it inside the console cluster. */
-        .tag-display { margin-right: 0; }
+    /* One cell = medallion over its count on a recessed micro-surface —
+       delicate enough that the matrix reads as ONE instrument, not a pile of
+       card-lets (flat fill + one inset line: cheap on Deck, calm on OLED). */
+    &__cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+        padding: .2rem 0 .15rem;
+        border-radius: .35rem;
+        background: rgba(10, 18, 28, 0.35);
+        box-shadow: inset 0 .05rem .2rem rgba(0, 0, 0, 0.35);
+    }
+
+    /* The medallion (Tag.vue root = legacy px .tag-count) re-seated in rem:
+       kill the white disc / px box / legacy margins; the PNG's own silver
+       ring stays the ONLY frame (premium_tags "seat, don't re-frame"), with
+       the SHARED per-tag @tag-fill measurements so every ring lands at the
+       box edge. The transition carries the 0 → collected reveal: the cell is
+       already in place, it only brightens and settles to full size. */
+    &__medal.tag-count {
+        width: var(--ct-icon);
+        height: var(--ct-icon);
+        margin: 0;
+        box-sizing: border-box;
+        border: none;
+        background-color: transparent;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: calc(100% * var(--tag-face-scale, 1.13));
+        border-radius: 50%;
+        z-index: auto;
+        box-shadow:
+            0 0 0 .05rem rgba(0, 0, 0, 0.34),
+            0 .1rem .2rem -.05rem rgba(0, 0, 0, 0.5);
+        transition:
+            opacity calc(320ms * var(--motion-scale, 1)) ease,
+            filter calc(320ms * var(--motion-scale, 1)) ease,
+            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.15);
+    }
+    each(@tag-fill, {
+        @n: extract(@value, 1);
+        @s: extract(@value, 2);
+        &__medal.tag-@{n} { --tag-face-scale: @s; }
+    });
+
+    &__numwrap {
+        position: relative;   /* the tag delta-chip anchor */
+        display: inline-flex;
+        justify-content: center;
+        margin-top: .15rem;
+    }
+    &__num {
+        font-size: var(--ct-num);
+        line-height: 1;
+        font-weight: 700;
+        letter-spacing: .02rem;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        text-shadow: 0 .05rem .2rem rgba(0, 0, 0, 0.55);
+        transition: color calc(320ms * var(--motion-scale, 1)) ease;
+    }
+
+    /* Zero state — clearly "not collected yet", still recognisable from the
+       couch: dimmed + slightly recessed, the 0 muted but never hidden. NOT a
+       disabled-control look (no blur, no grey-out to a silhouette). Opacity
+       and colour carry the state in perf-lite; saturate() is the assist. */
+    &__cell--zero {
+        .con-tagmx__medal.tag-count {
+            opacity: .48;
+            filter: saturate(0.4) contrast(0.94);
+            transform: scale(0.93);
+            box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.22);
+        }
+        .con-tagmx__num {
+            color: fade(@con-text, 42%);
+            font-weight: 600;
+            text-shadow: none;
+        }
     }
 }
 
@@ -4642,6 +4744,33 @@ html.console-mode {
     &__slot--disabled &__slot-label,
     &__slot--disabled &__slot-meta { opacity: 0.42; }
     &__slot--disabled &__slot-key { opacity: 0.45; }
+
+    /* ── FOCUS (focus-confirm's persistent cursor): the CALM first stage —
+       a clear ring, a touch of extra depth, a soft inner light. Deliberately
+       LESS than armed (the player must feel the second stage when A goes
+       down), steady for long display (no pulse, no motion loop), and the
+       neighbours stay fully readable (no muting at focus level). ── */
+    &__slot--focus &__slot-body {
+        transform: translateY(-.04rem);
+        box-shadow:
+            inset 0 .08rem 0 rgba(215, 240, 255, 0.1),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .06rem fade(@con-cyan, 55%),
+            0 .55rem 1.3rem rgba(0, 0, 0, 0.55),
+            0 0 1rem fade(@con-cyan, 10%);
+    }
+    &__slot--focus &__slot-icon {
+        transform: translateY(-.04rem) scale(1.03);
+        box-shadow:
+            inset 0 .1rem .3rem rgba(0, 0, 0, 0.4),
+            inset 0 0 0 .05rem fade(@con-cyan, 30%);
+    }
+    &__slot--focus &__slot-key {
+        box-shadow:
+            inset 0 .05rem 0 rgba(210, 240, 255, 0.1),
+            inset 0 0 0 .05rem fade(@con-cyan, 65%),
+            0 .2rem .5rem rgba(0, 0, 0, 0.5);
+    }
 
     /* ── ARMED: the tile comes TO THE PLAYER — a small forward lift carried
        mostly by DEPTH (elevated ground shadow, live ring, brighter inner
@@ -15408,8 +15537,19 @@ html.con-profile-handheld {
         &__row { gap: .35rem; padding: var(--cr-row-py) .35rem; }
         &__value { font-size: .85rem; }
         &__prod { font-size: .6rem; }
-        &__tags-title { font-size: .55rem; }
-        &__tags-grid { zoom: 0.82; }
+    }
+    /* Tag matrix on the handheld: compact tokens (never a blanket shrink) —
+       icons and counts stay above the readability floor, the tighter rhythm
+       keeps the full matrix inside the rail without horizontal overflow. */
+    .con-tagmx {
+        --ct-icon: 1.4rem;
+        --ct-num: .78rem;
+        --ct-gap-y: .25rem;
+        padding-top: .4rem;
+
+        &__head { margin-bottom: .35rem; }
+        &__title { font-size: .55rem; letter-spacing: .08rem; }
+        &__cell { padding: .15rem 0 .1rem; }
     }
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
     .con-score {

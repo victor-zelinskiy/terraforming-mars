@@ -22,13 +22,17 @@
                :class="[`con-quick__slot--${entry.slot}`, {
                  'con-quick__slot--center': entry.slot === 'center',
                  'con-quick__slot--disabled': !entry.available,
+                 'con-quick__slot--focus': focusedSlot === entry.slot && armedSlot === undefined,
                  'con-quick__slot--armed': armedSlot === entry.slot,
                  'con-quick__slot--armed-blocked': armedSlot === entry.slot && armedBlocked,
                  'con-quick__slot--muted': armedSlot !== undefined && armedSlot !== entry.slot,
                }]">
             <!-- The KEY CAP floats on the shell — the tile's body sinks under
-                 it while the physical button label holds its place. -->
-            <GamepadGlyph :control="slotGlyph(entry.slot)" class="con-quick__slot-key" />
+                 it while the physical button label holds its place. In
+                 FOCUS & CONFIRM the caps change meaning: directions are
+                 navigation (not activation), so only the FOCUSED tile wears
+                 a cap — the universal A confirm. -->
+            <GamepadGlyph v-if="slotCap(entry) !== undefined" :control="slotCap(entry)!" class="con-quick__slot-key" />
             <div class="con-quick__slot-body">
               <span class="con-quick__slot-icon" aria-hidden="true">
                 <BarButtonIcon v-if="entry.barIcon !== undefined" :name="entry.barIcon" />
@@ -70,6 +74,7 @@ import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {QuickEntry, QuickSlot, QUICK_SLOT_GLYPH} from '@/client/console/consoleQuickModel';
+import {WheelControlMode} from '@/client/console/quickWheel/wheelControlMode';
 
 export default defineComponent({
   name: 'ConsoleQuickSelector',
@@ -80,7 +85,11 @@ export default defineComponent({
     title: {type: String, required: true},
     /** Which trigger opened it (shown in the kicker). */
     trigger: {type: String as PropType<GlyphControl>, required: true},
-    /** The slot seated under the player's finger right now (arm machine). */
+    /** The active control style (wheelControlMode). */
+    mode: {type: String as PropType<WheelControlMode>, default: 'quick-select'},
+    /** FOCUS & CONFIRM only: the persistent focus cursor. */
+    focusedSlot: {type: String as PropType<QuickSlot>, default: undefined},
+    /** The slot seated / pressed under the player's finger (arm machine). */
     armedSlot: {type: String as PropType<QuickSlot>, default: undefined},
     /** The armed slot is unavailable — pressed against its stop. */
     armedBlocked: {type: Boolean, default: false},
@@ -91,8 +100,14 @@ export default defineComponent({
     },
   },
   methods: {
-    slotGlyph(slot: QuickSlot): GlyphControl {
-      return QUICK_SLOT_GLYPH[slot];
+    /** The key cap a slot wears. QUICK SELECT: its direct activator (the
+     *  spatial d-pad glyph / A on the centre). FOCUS & CONFIRM: directions
+     *  no longer activate, so only the focused tile wears the A confirm. */
+    slotCap(entry: QuickEntry): GlyphControl | undefined {
+      if (this.mode === 'focus-confirm') {
+        return (this.focusedSlot ?? (this.armedSlot ?? undefined)) === entry.slot ? 'confirm' : undefined;
+      }
+      return QUICK_SLOT_GLYPH[entry.slot];
     },
   },
 });

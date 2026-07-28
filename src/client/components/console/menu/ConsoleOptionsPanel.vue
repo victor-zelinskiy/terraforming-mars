@@ -56,6 +56,11 @@
  *  - CONTROLLER — the button GLYPH set (Auto / Xbox / PlayStation / Steam).
  *  - BUTTON LAYOUT — the confirm/cancel (A↔B) gamepad remap (buttonLayout.ts):
  *    cycling it swaps the input funnels + the glyph layer in lockstep.
+ *  - WHEEL CONTROL — the LT/RT quick wheel's control style
+ *    (wheelControlMode.ts): Quick select (a direction chooses AND activates
+ *    on release/neutral) vs Focus & confirm (navigation moves a persistent
+ *    focus, A activates it). Applies instantly — the shell's watcher safely
+ *    cancels any mid-wheel armed/tracking state without executing.
  *  - PRIVATE SCORE — IN-GAME ONLY (`context === 'game'`): a PER-GAME display
  *    pref masking the viewer's OWN victory points on the console score cap /
  *    passive surfaces (privateScoreState, keyed by the game's participant id).
@@ -86,6 +91,7 @@ import {
   resolveGlyphSetId,
 } from '@/client/gamepad/glyphSets';
 import {BUTTON_LAYOUT_LABELS, buttonLayoutState, cycleButtonLayout} from '@/client/gamepad/buttonLayout';
+import {WHEEL_CONTROL_LABELS, wheelControlState, cycleWheelControlMode} from '@/client/console/quickWheel/wheelControlMode';
 import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
 import {
   type MotionFpsCap,
@@ -114,7 +120,7 @@ const MOTION_FPS_LABELS: Record<'auto' | '30' | '60', string> = {
 const MOTION_FPS_CYCLE: ReadonlyArray<MotionFpsCap> = ['auto', 60, 30];
 
 type OptionRowId =
-  'interface' | 'display' | 'controller' | 'buttons' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
+  'interface' | 'display' | 'controller' | 'buttons' | 'wheelControl' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
@@ -131,7 +137,7 @@ export default defineComponent({
   emits: ['close'],
   data() {
     return {
-      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, privateScoreState, consolePerfState,
+      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, wheelControlState, privateScoreState, consolePerfState,
       // Motion prefs are module-cached (motionTokens), not reactive — mirror
       // them here so the row value re-renders when this panel cycles them.
       motionSpeed: motionSpeedPreset() as MotionSpeedPreset,
@@ -176,6 +182,17 @@ export default defineComponent({
           sub: 'Which face button confirms',
           glyph: '🅰',
           value: translateText(BUTTON_LAYOUT_LABELS[this.buttonLayoutState.layout]),
+        },
+        {
+          // The LT/RT wheel's control STYLE — a first-class choice, not a
+          // flag: Quick select = a direction chooses and activates on its
+          // release / the stick's confirmed neutral; Focus & confirm =
+          // navigation moves a persistent focus and A activates it.
+          id: 'wheelControl',
+          label: 'Wheel control',
+          sub: 'How the action wheel activates',
+          glyph: '🎯',
+          value: translateText(WHEEL_CONTROL_LABELS[this.wheelControlState.mode]),
         },
         {
           // Animation SPEED preset — Calm lengthens easings (fewer per-frame
@@ -289,6 +306,11 @@ export default defineComponent({
         // layer swap in lockstep (buttonLayout.ts), so the change is instant
         // and consistent (glyph shows the button that now confirms) + persists.
         cycleButtonLayout();
+        break;
+      case 'wheelControl':
+        // Cycle Quick select → Focus & confirm in place — applies instantly
+        // (the shell cancels any mid-wheel state without executing) + persists.
+        cycleWheelControlMode();
         break;
       case 'motionSpeed': {
         // Cycle Standard → Calm → Swift in place; setMotionSpeedPreset persists

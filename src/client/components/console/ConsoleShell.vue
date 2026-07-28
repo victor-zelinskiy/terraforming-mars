@@ -86,6 +86,7 @@
          furniture — flights dive BEHIND the rail, never over its text. -->
     <div class="con-main" :class="{'con-main--journal': journalPanelVisible, 'con-main--hand': consoleState.section === 'hand'}">
       <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId"
+                            :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady"
                             :boardVisible="consoleState.section === 'board'" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
@@ -283,7 +284,7 @@
          dimming is a transition instrument, not a static backdrop: open
          wheel → focused hold → (commit) the shade hands its darkness to the
          incoming surface, or releases toward a workspace. Opacity-only. -->
-    <div class="con-shade" :class="{'con-shade--on': surfaceShadeVisible, 'con-shade--veil': surfaceShadeVeil, 'con-shade--focus': wheelArm !== undefined}" aria-hidden="true"></div>
+    <div class="con-shade" :class="{'con-shade--on': surfaceShadeVisible, 'con-shade--veil': surfaceShadeVeil, 'con-shade--focus': wheelInput.arm !== undefined}" aria-hidden="true"></div>
 
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
          (RT = action categories, LT = basic actions). Surface-motion:
@@ -296,8 +297,10 @@
                             :entries="quickEntries"
                             :title="quickTitle"
                             :trigger="quickTrigger"
-                            :armedSlot="wheelArm !== undefined ? wheelArm.slot : undefined"
-                            :armedBlocked="wheelArm !== undefined && wheelArm.blocked" />
+                            :mode="wheelControl.mode"
+                            :focusedSlot="wheelControl.mode === 'focus-confirm' ? wheelInput.focus : undefined"
+                            :armedSlot="wheelInput.arm !== undefined ? wheelInput.arm.slot : undefined"
+                            :armedBlocked="wheelInput.arm !== undefined && wheelInput.arm.blocked" />
     </transition>
     <!-- P26: milestones/awards render as the dedicated premium strategic
          panel; P27 adds the Standard-Projects premium screen (incl. Patent
@@ -1057,7 +1060,8 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
-import {WheelArm, WheelArmEvent, reduceWheelArm} from '@/client/console/quickWheel/wheelArmModel';
+import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
+import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
 import {ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
@@ -1281,8 +1285,11 @@ export default defineComponent({
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
       journalColonyInspect: undefined as ColonyName | undefined,
       convertPlantsPending: undefined as ConvertPlantsMatch | undefined,
-      /** The quick wheel's live arm (press→release lifecycle, wheelArmModel). */
-      wheelArm: undefined as WheelArm | undefined,
+      /** The quick wheel's live input state (focus + arm, wheelArmModel). */
+      wheelInput: initialWheelInput() as WheelInputState,
+      /** The persisted control-style choice (quick-select / focus-confirm) —
+       *  mirrored for the path watcher below (module-reactive rule). */
+      wheelControl: wheelControlState,
       /**
        * The focused cell's PLACEMENT preview (cost / gains / who else receives
        * / endgame VP). Fetched per focused cell while a placement is active —
@@ -3437,13 +3444,17 @@ export default defineComponent({
         return cmds;
       }
       if (this.consoleState.quick !== undefined) {
-        // The cross's slots carry their OWN direction glyphs + labels on
-        // screen — the bar anchors the retreat plus the ONE affordance the
-        // wheel itself cannot show: the opposite trigger switches wheels in
-        // place (previously invisible; players never discovered it).
+        // The cross's slots carry their OWN glyphs + labels on screen — the
+        // bar anchors the retreat plus the ONE affordance the wheel itself
+        // cannot show: the opposite trigger switches wheels in place. In
+        // FOCUS & CONFIRM the bar additionally leads with the mode's core
+        // verb (A confirms whatever is focused — directions only navigate).
         const other: ConsoleCommand = this.consoleState.quick === 'actions' ?
           {control: 'triggerL', label: 'Basic actions'} :
           {control: 'triggerR', label: 'Actions'};
+        if (this.wheelControl.mode === 'focus-confirm') {
+          return [{control: 'confirm', label: 'Select'}, other, {control: 'back', label: 'Close'}];
+        }
         return [other, {control: 'back', label: 'Close'}];
       }
       if (this.consoleState.sheet === 'standardProjects') {
@@ -3801,10 +3812,20 @@ export default defineComponent({
       }
     },
     // The quick wheel closed or switched under a live arm (closeConsoleLayers,
-    // a shell-task surface, the trigger toggle) — the arm dies with its wheel;
-    // the eventual release of the held control matches nothing and is dropped.
+    // a shell-task surface, the trigger toggle) — the input state dies with
+    // its wheel and the NEXT wheel starts at the fixed HOME focus (centre:
+    // LT = Standard Projects, RT = Cards — never a remembered position).
+    // Eventual releases of still-held controls match nothing and drop.
     'consoleState.quick'() {
-      this.wheelArm = undefined;
+      this.wheelInput = initialWheelInput();
+    },
+    // The CONTROL STYLE changed (the Options row applies instantly, no
+    // restart): any armed / tracking / pressed state cancels WITHOUT
+    // executing, and an open wheel lands in the new strategy's clean start
+    // (home focus for focus-confirm; idle for quick-select). Stale releases
+    // of the old strategy match nothing afterwards.
+    'wheelControl.mode'() {
+      this.wheelInput = initialWheelInput();
     },
     // Start-of-game setup reveal: while the ceremony is DEFERRED (B → inspect the
     // board), suspend the panel override so the left rail shows the REAL applied
@@ -4990,11 +5011,11 @@ export default defineComponent({
       }
     },
     feedWheelArm(event: WheelArmEvent): void {
-      const result = reduceWheelArm(this.wheelArm, event, {
+      const result = reduceWheel(this.wheelInput, event, this.wheelControl.mode, {
         has: (slot) => this.quickEntries.some((e) => e.slot === slot),
         available: (slot) => this.quickEntries.find((e) => e.slot === slot)?.available === true,
       });
-      this.wheelArm = result.arm;
+      this.wheelInput = result.state;
       const effect = result.effect;
       switch (effect.kind) {
       case 'commit':

@@ -268,12 +268,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
-
-const TAG_ORDER: ReadonlyArray<Tag> = [
-  Tag.BUILDING, Tag.SPACE, Tag.SCIENCE, Tag.POWER, Tag.EARTH, Tag.JOVIAN,
-  Tag.VENUS, Tag.PLANT, Tag.MICROBE, Tag.ANIMAL, Tag.CITY, Tag.MOON,
-  Tag.MARS, Tag.WILD, Tag.EVENT, Tag.CLONE,
-];
+import {consoleTagEntries} from '@/client/components/console/consoleTagMatrix';
 
 const DETAIL_TITLES: Record<string, string> = {
   extras: 'Extra resources',
@@ -357,8 +352,10 @@ export default defineComponent({
       ];
     },
     tagEntries(): Array<{tag: Tag, count: number}> {
-      const counts = this.viewed.tags;
-      return TAG_ORDER.map((tag) => ({tag, count: counts[tag] ?? 0})).filter((e) => e.count > 0);
+      // Shared availability + order source (consoleTagMatrix). The dashboard
+      // block stays a SUMMARY of what's been played (zeros omitted here — the
+      // always-on left-rail matrix is where the full set lives).
+      return consoleTagEntries(this.playerView.game.tags, this.viewed.tags).filter((e) => e.count > 0);
     },
     /** Extra card resources aggregated by type (public — tableaus only). */
     extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
