@@ -84,6 +84,9 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // draw has no modal for that window — the draw stage (mounted for the whole
   // scene) is what serves it.
   '.con-deckdraw',
+  // The EFFECT DECISION screen — it stands in for the task host on a marked
+  // optional decision, so it is that prompt's serving surface.
+  '.con-decision',
   // The CARD-DISCARD scene: the discard answer closes the hand section while
   // the condemned cards are still flying to the pile, so a follow-up prompt
   // committed at the landing has no surface for that window — the discard

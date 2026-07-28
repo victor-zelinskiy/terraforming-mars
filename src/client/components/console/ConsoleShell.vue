@@ -373,7 +373,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -383,6 +383,23 @@
                        @defer="onTaskDefer"
                        @space-pick="onTaskSpacePick"
                        @hand-pick="onTaskHandPick" />
+    </transition>
+
+    <!-- EFFECT DECISION — the ONE screen for a MARKED optional decision
+         ("use the effect / pay the price / go and pick" vs a deliberate
+         decline). It stands in for the generic task host exactly like the
+         Government Support panel below, and ONLY when the pure adapter could
+         represent the prompt honestly — otherwise the host keeps it. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined"
+                             ref="effectDecision"
+                             :playerView="playerView"
+                             :vm="effectDecisionVm"
+                             @submit="onTaskSubmit"
+                             @defer="onTaskDefer"
+                             @hand-pick="onTaskHandPick" />
     </transition>
 
     <!-- Government Support (World Government Terraforming) — the dedicated
@@ -927,6 +944,9 @@ import ConsoleSystemAlert from '@/client/components/console/ConsoleSystemAlert.v
 import {consoleSystemAlertState, dismissConsoleAlert, isConsoleAlertActive} from '@/client/console/consoleSystemAlertState';
 import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
+import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDecision.vue';
+import {buildEffectDecision, EffectDecisionSource, EffectDecisionViewModel} from '@/client/console/effectDecision/effectDecisionModel';
+import {resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
@@ -1139,6 +1159,7 @@ export default defineComponent({
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
+    ConsoleEffectDecision,
     ConsoleProductionLoss,
     ConsoleStartScene,
     ConsoleRevealOverlay,
@@ -1707,6 +1728,40 @@ export default defineComponent({
      *  gather): the hand recedes behind them and stays frozen. */
     discardInOverlay(): boolean {
       return this.cardDiscardTransaction.active && discardPhaseInOverlay(this.cardDiscardTransaction.phase);
+    },
+    /**
+     * THE OPTIONAL-DECISION SCREEN. A top-level `OrOptions` that the server
+     * MARKED with `choiceContext` and whose every branch the adapter can serve
+     * honestly becomes a decision screen instead of a list of thin rows.
+     * `undefined` — for an unmarked prompt, a branch that needs a surface of
+     * its own (a payment dial, a board pick), or any shape the adapter has not
+     * been taught — keeps the existing task host. That is the whole migration
+     * gate; there is no per-card switch anywhere.
+     */
+    effectDecisionVm(): EffectDecisionViewModel | undefined {
+      if (this.hostTask?.kind !== 'choice') {
+        return undefined;
+      }
+      return buildEffectDecision(this.playerView.waitingFor, {handNames: this.viewerHandNames});
+    },
+    /** The decision's identity — a NEW one must not inherit a stale focus. */
+    effectDecisionKey(): string {
+      const vm = this.effectDecisionVm;
+      return vm === undefined ? '' : `${vm.eyebrowKey}|${vm.headlineKey}|${vm.actions.length}|${vm.source?.card ?? ''}`;
+    },
+    effectDecisionActive(): boolean {
+      return this.effectDecisionVm !== undefined &&
+        !this.govSupportActive && !this.productionLossActive &&
+        !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
+        !this.handPickActive;
+    },
+    /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
+     *  ownership test that decides whether a nested pick is a HAND pick. */
+    viewerHandNames(): ReadonlySet<string> {
+      return new Set<string>([
+        ...this.playerView.cardsInHand.map((c) => c.name),
+        ...(this.playerView.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name),
+      ]);
     },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
@@ -2376,6 +2431,15 @@ export default defineComponent({
     handSelectSingle(): boolean {
       return this.handSelectDerived?.single ?? false;
     },
+    /** The CARD that sent the player to this pick, when there is one — the
+     *  source of a contextual selection flow (a decision screen's hand pick, a
+     *  composer's target pick). Drives the L3 verb and its command hint. */
+    contextualSourceCard(): CardName | undefined {
+      if (this.consoleState.section !== 'hand' || !this.handPickActive) {
+        return undefined;
+      }
+      return consoleHandPickState.request?.source?.card;
+    },
     /** Per-card reason (pre-translated) for a NON-selectable hand card. */
     handSelectReasons(): Record<string, string> {
       return this.handSelectDerived?.reasons ?? {};
@@ -2917,6 +2981,9 @@ export default defineComponent({
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
         return 'Government Support';
       }
+      if (this.effectDecisionActive) {
+        return this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision';
+      }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
         // "ДРАФТ"), not a generic "awaiting" — the host's own header carries
@@ -3152,6 +3219,9 @@ export default defineComponent({
           {control: 'back', label: 'Minimize'},
         ])];
       }
+      if (this.effectDecisionActive) {
+        return [...(panelCommands('effectDecision') ?? [])];
+      }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The task host publishes its live contract (browse / pick / lanes /
         // payment differ) — the bar renders it; no in-frame footer anymore.
@@ -3187,6 +3257,11 @@ export default defineComponent({
           cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
         }
         cmds.push({control: 'secondary', label: 'Inspect'});
+        // X inspects the card under the cursor, so the EFFECT that sent the
+        // player here needs its own verb — never make them guess the context.
+        if (this.contextualSourceCard !== undefined) {
+          cmds.push({control: 'stickL', label: 'Inspect the source', priority: 1});
+        }
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
         }
@@ -3434,6 +3509,9 @@ export default defineComponent({
           cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
         }
         cmds.push({control: 'secondary', label: 'Inspect'});
+        if (this.contextualSourceCard !== undefined) {
+          cmds.push({control: 'stickL', label: 'Inspect the source', priority: 1});
+        }
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
         }
@@ -4020,6 +4098,13 @@ export default defineComponent({
         if (this.consoleState.section === 'hand' && !this.handSelectUiActive) {
           this.closeSurfaceForDiscard();
         }
+      }
+    },
+    /** A genuinely NEW decision starts at the top; returning from an overlay
+     *  (same prompt, same key) keeps the action card the player opened. */
+    effectDecisionKey(now: string, was: string | undefined): void {
+      if (now !== '' && now !== was) {
+        resetDecisionFocus();
       }
     },
     /** The shade yields to a live pick bridge (surface motion). */
@@ -4631,6 +4716,14 @@ export default defineComponent({
         panel?.handleIntent(intent);
         return true;
       }
+      // The EFFECT DECISION screen owns input while it stands in for the host
+      // (same contract, same gate — kept next to it so the two can never both
+      // claim the pad).
+      if (this.effectDecisionActive) {
+        const panel = this.$refs.effectDecision as InstanceType<typeof ConsoleEffectDecision> | undefined;
+        panel?.handleIntent(intent);
+        return true;
+      }
       // CTS T1–T3: the task host owns input while it serves (B inside the
       // host = defer-to-board / cancel, handled there). No View-peek.
       // …EXCEPT while it has handed a card pick to the hand overlay
@@ -5225,10 +5318,16 @@ export default defineComponent({
       // Stick-clicks are screen-specific (no base semantic action, by design) —
       // they carry board/hand context verbs, handled raw before the semantic switch.
       if (intent.button === 'stickL') {
+        // L3 — «ОСМОТРЕТЬ ИСТОЧНИК» whenever a CONTEXTUAL pick is running (the
+        // hand was opened BY an effect). Checked FIRST so the verb reads the
+        // same on every contextual selection surface; X stays the card under
+        // the cursor, which is why the source needs a button of its own.
         // P20: L3 = next AVAILABLE placement target during placement;
         // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
         // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
-        if (this.placementActive && this.consoleState.section === 'board') {
+        if (this.contextualSourceCard !== undefined) {
+          this.inspectContextualSource();
+        } else if (this.placementActive && this.consoleState.section === 'board') {
           this.handleNextJump();
         } else if (onBoard) {
           this.toggleInspection();
@@ -6478,7 +6577,7 @@ export default defineComponent({
      * re-mounted by its own v-if, showing «Выберите вариант» again — which is
      * exactly where the player was before choosing this branch.
      */
-    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel}): void {
+    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel, source?: EffectDecisionSource}): void {
       const prompt = payload.cardPrompt;
       const reasons: Record<string, string> = {};
       for (const d of prompt.disabledCards ?? []) {
@@ -6496,6 +6595,12 @@ export default defineComponent({
         // The RAW server marker — the shell derives the discard skin from the
         // very same field a top-level discard uses (one derivation, no drift).
         discard: prompt.discardPrompt,
+        // The CONTEXT travels with the pick, so the overlay keeps naming the
+        // effect that sent the player there and L3 can open it. Without it the
+        // hand reads as an unrelated screen they were dropped into.
+        source: payload.source?.card !== undefined ?
+          {kicker: this.effectDecisionVm?.eyebrowKey ?? 'Card effect', card: payload.source.card} :
+          undefined,
       }, (cards) => {
         this.submit(orWrappedResponse(payload.index, cardsResponse(cards)));
       });
@@ -7293,6 +7398,16 @@ export default defineComponent({
       }
       const dock = this.$refs.handDock as {sourceRects?: (names: ReadonlyArray<CardName>) => Map<CardName, {left: number, top: number, width: number, height: number}>} | undefined;
       return dock?.sourceRects?.([name])?.get(name);
+    },
+    /** L3 — open the effect's SOURCE in the ordinary fullscreen viewer. The
+     *  overlay, its scroll, the focused card and the pick all stay exactly as
+     *  they are underneath: the viewer owns nothing but itself. */
+    inspectContextualSource(): void {
+      const name = this.contextualSourceCard;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0);
     },
     /** Multi-select toggle (respects `max` — a full set ignores a new pick). */
     toggleHandSelectPick(name: string): void {

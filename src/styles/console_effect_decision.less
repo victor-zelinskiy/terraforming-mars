@@ -1,0 +1,248 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE EFFECT DECISION — the ONE screen for an optional game decision
+   (ConsoleEffectDecision.vue / effectDecisionModel.ts).
+
+   Premium here is hierarchy, type and physical focus — not glow. Three
+   deliberate departures from the list it replaces:
+
+   1. The panel sizes to its CONTENT (`height: auto`), so a two-choice
+      decision is a compact card, not a half-empty screen.
+   2. An offer is a CARD with room for a cost/result preview, not a row.
+   3. The decline is a real, readable, graphite choice with a full focus
+      state — declining is a legitimate play in this game, and it must
+      never read as a disabled control.
+
+   Authored in rem (the console logical space). Functional state — focus,
+   role, availability — rides box-shadow/colour so con-perf-lite (which
+   strips filters) cannot take a navigation cue away.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.con-decision {
+    .con-modal-band();
+    /* Same band as the task host it stands in for — one of them at a time. */
+    z-index: 11480;
+    contain: layout style;
+}
+
+.con-decision__panel {
+    width: min(46rem, 92vw);
+    /* Content-sized: the empty half-screen of the old list was the single
+       loudest "this is a generic dialog" signal. */
+    height: auto;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+    padding: 1.1rem 1.25rem 1.2rem;
+    border-radius: .75rem;
+    background:
+        linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
+    box-shadow:
+        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
+        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+}
+
+/* ── header ──────────────────────────────────────────────────────────── */
+.con-decision__head {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.con-decision__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .62rem;
+    letter-spacing: .11rem;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 92%);
+}
+.con-decision__kicker-mark { color: @con-cyan; }
+.con-decision__title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: @con-text;
+}
+.con-decision__trigger {
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.35;
+    color: fade(@con-text-dim, 92%);
+}
+
+/* ── body: source | actions ──────────────────────────────────────────── */
+.con-decision__main {
+    display: grid;
+    /* The source is recognisable but never dominant (~28% of the content). */
+    grid-template-columns: minmax(9rem, 28%) 1fr;
+    gap: 1.1rem;
+    align-items: start;
+    min-height: 0;
+}
+/* No source → no empty column, no placeholder. */
+.con-decision__main--sourceless {
+    grid-template-columns: 1fr;
+}
+
+.con-decision__source {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    zoom: calc(0.78 * var(--con-ui-scale, 1));
+
+    > :is(.card-container, .pcard) {
+        margin: 0;
+    }
+}
+.con-decision__source-label {
+    font-size: .58rem;
+    letter-spacing: .1rem;
+    text-transform: uppercase;
+    color: fade(@con-text-dim, 78%);
+}
+
+.con-decision__actions {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    min-width: 0;
+}
+
+/* ── an action CARD ──────────────────────────────────────────────────── */
+.con-decision__action {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding: .7rem .85rem;
+    border-radius: .55rem;
+    background: linear-gradient(180deg, rgba(22, 36, 52, 0.9), rgba(14, 23, 34, 0.92));
+    box-shadow: inset 0 0 0 .05rem rgba(120, 160, 200, 0.2);
+    transition:
+        transform calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow calc(140ms * var(--motion-scale, 1)) ease-out;
+
+    /* The state rail — the same grammar the task host uses. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: .5rem;
+        bottom: .5rem;
+        width: .12rem;
+        border-radius: 49.95rem;
+        background: fade(@con-cyan, 30%);
+    }
+}
+.con-decision__action--focused {
+    transform: translateX(.18rem);
+    box-shadow:
+        inset 0 0 0 .075rem fade(@con-cyan, 88%),
+        0 0 1.1rem fade(@con-cyan, 18%),
+        0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
+
+    &::before { background: @con-cyan; }
+}
+.con-decision__action--armed {
+    box-shadow:
+        inset 0 0 0 .075rem fade(@con-mint, 88%),
+        0 0 1.1rem fade(@con-mint, 20%);
+
+    &::before { background: @con-mint; }
+}
+
+/* THE DECLINE — graphite, calm, fully readable. Quieter than the offer, and
+   deliberately NOT dimmed: refusing is a decision, not an unavailable one. */
+.con-decision__action--decline {
+    background: linear-gradient(180deg, rgba(28, 33, 40, 0.9), rgba(18, 22, 28, 0.92));
+    box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.24);
+
+    &::before { background: rgba(160, 172, 188, 0.42); }
+
+    .con-decision__action-title { color: fade(@con-text, 92%); }
+}
+.con-decision__action--decline.con-decision__action--focused {
+    box-shadow:
+        inset 0 0 0 .075rem fade(@con-cyan, 82%),
+        0 0 1rem fade(@con-cyan, 15%);
+
+    &::before { background: @con-cyan; }
+}
+
+.con-decision__action-head {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-width: 0;
+}
+.con-decision__action-seat { display: inline-flex; }
+.con-decision__action-title {
+    font-size: .98rem;
+    font-weight: 700;
+    color: @con-text;
+    /* TV rule: never truncate a decision — wrap instead. */
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* "this opens another screen" */
+.con-decision__action-go {
+    color: fade(@con-mint, 90%);
+    font-size: 1rem;
+    line-height: 1;
+}
+.con-decision__action-a { margin-left: auto; }
+
+.con-decision__action-lead {
+    font-size: .74rem;
+    letter-spacing: .04rem;
+    color: fade(@con-mint, 86%);
+}
+.con-decision__action-desc {
+    font-size: .78rem;
+    line-height: 1.3;
+    color: fade(@con-text-dim, 92%);
+}
+.con-decision__action-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    /* ActionEffectChip is px-authored — integrate through zoom, per the
+       console scale model. */
+    zoom: calc(1.1 * var(--con-ui-scale, 1));
+}
+.con-decision__action-tradeoff {
+    font-size: .74rem;
+    color: fade(@con-amber, 92%);
+}
+
+/* ── unavailable targets (informational, never focusable) ────────────── */
+.con-decision__unavailable {
+    margin-top: .25rem;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.con-decision__unavailable-title {
+    font-size: .58rem;
+    letter-spacing: .09rem;
+    text-transform: uppercase;
+    color: fade(@con-text-dim, 72%);
+}
+.con-decision__unavailable-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .6rem;
+    border-radius: .4rem;
+    background: rgba(14, 18, 24, 0.7);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 140, 165, 0.16);
+    font-size: .76rem;
+    color: fade(@con-text-dim, 82%);
+}
+.con-decision__unavailable-reason {
+    margin-left: auto;
+    color: fade(@con-amber, 82%);
+}

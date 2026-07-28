@@ -14,6 +14,8 @@ import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {Phase} from '../../../common/Phase';
 import {TITLES} from '../../inputs/titles';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {cardEffect} from '../../inputs/choiceContext';
+import {chip, optionResult, skip} from '../../inputs/optionMetadata';
 
 export class CuriosityII extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -74,13 +76,26 @@ export class CuriosityII extends CorporationCard implements ICorporationCard {
       return undefined;
     }
 
+    // The premium client renders this as a DECISION, not a list of two lines:
+    // the source corporation, why it fired, what it costs and what it gives.
+    // All of that is structural — the wallet chip is prompt-time truth (the
+    // offer is built lazily), the decline carries the `skip()` marker so the
+    // UI never has to read its title. Mirrors St. Joseph of Cupertino Mission,
+    // which is the same offer from a card.
+    const wallet = player.megaCredits >= 2 ?
+      {current: player.megaCredits, resulting: player.megaCredits - 2} :
+      undefined;
     return new OrOptions(
-      new SelectOption('Pay 2 M€ to draw a card').andThen(() => {
-        player.game.defer(new SelectPaymentDeferred(player, 2, {title: TITLES.payForCardAction(this.name)}))
-          .andThen(() => player.game.defer(DrawCards.keepAll(player)));
-        return undefined;
-      }),
-      new SelectOption('Do nothing'),
-    );
+      new SelectOption('Pay 2 M€ to draw a card')
+        .withMetadata(optionResult({
+          effects: [chip('cost', 'megacredits', 2, wallet), chip('gain', 'cards', 1)],
+        }))
+        .andThen(() => {
+          player.game.defer(new SelectPaymentDeferred(player, 2, {title: TITLES.payForCardAction(this.name)}))
+            .andThen(() => player.game.defer(DrawCards.keepAll(player)));
+          return undefined;
+        }),
+      new SelectOption('Do not buy a card').withMetadata(skip()),
+    ).markChoiceContext(cardEffect(this, 'You placed a tile on a bonus space.', 'optional-effect'));
   }
 }

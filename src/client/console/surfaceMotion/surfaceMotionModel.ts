@@ -49,6 +49,7 @@ export type SurfaceMotionId =
   | 'ma-confirm'
   | 'colony-inspect'
   | 'ma-inspect'
+  | 'effect-decision'
   | 'gov-support'
   | 'production-loss'
   | 'info-mode'
