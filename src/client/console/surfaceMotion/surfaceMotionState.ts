@@ -53,8 +53,11 @@ export const surfaceMotionState = reactive({
   departure: undefined as SurfaceDeparture | undefined,
   /** The chosen quick-wheel slot's centre (undefined once consumed/stale). */
   wheelOrigin: undefined as WheelHandoffOrigin | undefined,
-  /** The slot id chosen on the wheel — the leave hook flashes it. */
+  /** The slot id chosen on the wheel — the leave hook plays its commit. */
   wheelChosenSlot: undefined as string | undefined,
+  /** The destination emblem to ECHO (`data-wheel-anchor` id) — the incoming
+   *  surface's enter materializes it a beat into the reveal. */
+  wheelEcho: undefined as string | undefined,
 });
 
 /** The ONE shade predicate the shell binds (`.con-shade--on`). */
@@ -164,15 +167,31 @@ export function isSurfaceAwaitingHandoff(): boolean {
 
 // ── the wheel handoff ───────────────────────────────────────────────────────
 
-/** Record the chosen slot (its centre drives the next surface's entry). */
-export function markWheelHandoff(slot: string, el: Element | null): void {
+/** Record the chosen slot (its centre drives the next surface's entry;
+ *  `echo` names the destination emblem the enter materializes). */
+export function markWheelHandoff(slot: string, el: Element | null, echo?: string): void {
   surfaceMotionState.wheelChosenSlot = slot;
+  surfaceMotionState.wheelEcho = echo;
   if (el === null || typeof window === 'undefined') {
     surfaceMotionState.wheelOrigin = undefined;
     return;
   }
   const r = el.getBoundingClientRect();
   surfaceMotionState.wheelOrigin = {x: r.left + r.width / 2, y: r.top + r.height / 2, at: now()};
+}
+
+/** The shell retargets the echo when the commit resolves into the shared
+ *  confirm card instead (pass always; heat at max temperature). */
+export function retargetWheelEcho(echo: string | undefined): void {
+  surfaceMotionState.wheelEcho = echo;
+}
+
+/** Consume the echo target for the incoming surface's enter (rides the same
+ *  freshness window as the wheel origin — a stale echo never fires). */
+export function takeWheelEcho(): string | undefined {
+  const echo = surfaceMotionState.wheelEcho;
+  surfaceMotionState.wheelEcho = undefined;
+  return echo;
 }
 
 /** Consume the wheel origin for the incoming surface's directional entry. */
@@ -201,4 +220,5 @@ export function resetSurfaceMotion(): void {
   surfaceMotionState.departure = undefined;
   surfaceMotionState.wheelOrigin = undefined;
   surfaceMotionState.wheelChosenSlot = undefined;
+  surfaceMotionState.wheelEcho = undefined;
 }

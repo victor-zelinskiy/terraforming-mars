@@ -10,8 +10,12 @@ import {
   HEADLINE_PAY,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
+  ACTION_DISCARD_DRAW,
   buildEffectDecision,
   chipsFromDiscard,
+  decisionCommandKeys,
+  decisionFocusStep,
+  decisionPressIntent,
   isDeclineOption,
 } from '@/client/console/effectDecision/effectDecisionModel';
 
@@ -142,6 +146,9 @@ describe('effectDecisionModel', () => {
     const offer = vm?.actions[0];
     expect(offer?.navigation).eq('handCards');
     expect(offer?.leadKey, 'the row must say it opens the hand').eq(LEAD_HAND_CARDS);
+    // The row states the DECISION; the server's «выберите карту…» is an
+    // instruction for the next screen, which the lead line already covers.
+    expect(offer?.title).eq(ACTION_DISCARD_DRAW);
     expect(offer?.nested, 'the pick itself rides along for the overlay').is.not.undefined;
     // «−1 карта → +1 карта», synthesized from the discard marker (a hand pick
     // carries no OptionMetadata of its own).
@@ -202,5 +209,72 @@ describe('effectDecisionModel', () => {
     const vm = buildEffectDecision(
       or([leaf('Turn the card face down'), leaf('Do nothing', {kind: 'skip'})], cardContext()), {handNames: HAND});
     expect(vm?.actions[1].title).eq(DECLINE_DEFAULT);
+  });
+
+  // ── the pad semantics ─────────────────────────────────────────────────────
+
+  describe('the pad', () => {
+    const vmOf = (options: Array<PlayerInputModel>) =>
+      buildEffectDecision(or(options, cardContext()), {handNames: HAND})!;
+
+    const offerThenDecline = () => [
+      leaf('Gain 3 TR', {effects: [{direction: 'gain', icon: 'tr', amount: 3}]}),
+      leaf('Do nothing', {kind: 'skip'}),
+    ];
+
+    it('A answers with the SERVER index of the focused action', () => {
+      const vm = vmOf(offerThenDecline());
+      expect(decisionPressIntent(vm, 0, 'primary')).deep.eq({kind: 'submit', optionIndex: 0});
+      expect(decisionPressIntent(vm, 1, 'primary')).deep.eq({kind: 'submit', optionIndex: 1});
+    });
+
+    it('B STEPS BACK — it is never a silent decline', () => {
+      // The single most dangerous thing a decision screen could do is treat the
+      // back button as "no". Declining happens on its own card, deliberately.
+      const vm = vmOf(offerThenDecline());
+      expect(decisionPressIntent(vm, 0, 'back')).deep.eq({kind: 'defer'});
+      expect(decisionPressIntent(vm, 1, 'back'), 'even ON the decline card').deep.eq({kind: 'defer'});
+    });
+
+    it('a second A cannot answer twice', () => {
+      const vm = vmOf(offerThenDecline());
+      expect(decisionPressIntent(vm, 0, 'primary', true)).is.undefined;
+    });
+
+    it('a navigating action HANDS OFF instead of answering', () => {
+      const pick = handPick({discardPrompt: {min: 1, max: 1}});
+      const vm = vmOf([pick, leaf('Do nothing', {kind: 'skip'})]);
+      const press = decisionPressIntent(vm, 0, 'primary');
+      expect(press?.kind).eq('handPick');
+      expect(press?.kind === 'handPick' ? press.action.optionIndex : -1).eq(0);
+    });
+
+    it('X inspects the source only when there IS an inspectable one', () => {
+      const withCard = vmOf(offerThenDecline());
+      expect(decisionPressIntent(withCard, 0, 'inspect'))
+        .deep.eq({kind: 'inspectSource', card: CardName.MARS_UNIVERSITY});
+
+      const colony = buildEffectDecision(
+        or(offerThenDecline(), {source: {kind: 'colony'}, mode: 'optional-effect'}), {handNames: HAND})!;
+      expect(decisionPressIntent(colony, 0, 'inspect'), 'no fake card for a colony').is.undefined;
+    });
+
+    it('focus wraps in both directions', () => {
+      const vm = vmOf(offerThenDecline());
+      expect(decisionFocusStep(vm, 1, 1)).eq(0);
+      expect(decisionFocusStep(vm, 0, -1)).eq(1);
+    });
+
+    it('says SELECT for a hand-off and CONFIRM for a decision made here', () => {
+      const pick = handPick({discardPrompt: {min: 1, max: 1}});
+      const nav = vmOf([pick, leaf('Do nothing', {kind: 'skip'})]);
+      expect(decisionCommandKeys(nav, 0)).deep.eq(['Navigate', 'Select', 'Inspect the source', 'Minimize']);
+      expect(decisionCommandKeys(nav, 1)).deep.eq(['Navigate', 'Confirm', 'Inspect the source', 'Minimize']);
+
+      const colony = buildEffectDecision(
+        or(offerThenDecline(), {source: {kind: 'colony'}, mode: 'optional-effect'}), {handNames: HAND})!;
+      expect(decisionCommandKeys(colony, 0), 'no source verb without a source')
+        .deep.eq(['Navigate', 'Confirm', 'Minimize']);
+    });
   });
 });

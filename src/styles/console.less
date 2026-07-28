@@ -138,7 +138,11 @@ html.console-native {
     pointer-events: none;
     .con-backdrop-dim();
     opacity: 0;
-    transition: opacity calc(210ms * var(--motion-scale, 1)) ease calc(70ms * var(--motion-scale, 1));
+    /* The OFF fade is the shade HANDING ITS DARKNESS OVER (a workspace
+       section forming, the board returning): a slightly longer, earlier
+       tail than the old 210/70 — the darkness dissolves INTO the arriving
+       context instead of snapping off behind it. */
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease calc(40ms * var(--motion-scale, 1));
 
     &--on {
         opacity: 1;
@@ -146,6 +150,23 @@ html.console-native {
     }
     &--on&--veil {
         opacity: 0.28; /* the table beat: tray focal, board readable */
+    }
+
+    /* FOCUS VIGNETTE — the dimming as a transition instrument: while a
+       wheel slot is ARMED the edges deepen and the centre stays readable
+       (attention gathers INWARD, matching the commit's character). A
+       pre-painted layer whose OPACITY moves — flat cost at 4K, no blur,
+       survives perf-lite (background, not filter). */
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(88% 72% at 50% 46%, rgba(0, 0, 0, 0) 42%, rgba(2, 4, 8, 0.5) 100%);
+        opacity: 0;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &--focus::after {
+        opacity: 1;
     }
 }
 
@@ -4533,12 +4554,26 @@ html.console-mode {
             0 .2rem .5rem rgba(0, 0, 0, 0.5);
         transition: box-shadow calc(120ms * var(--motion-scale, 1)) ease;
     }
+    /* THE ICON WELL — one optical mount for EVERY icon family (white line
+       glyphs, game resource icons, text fallbacks): a fixed recessed lens
+       so different artwork reads as one system — same slot, same depth,
+       same mass, same armed/commit response. */
     &__slot-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.55rem;
+        height: 2.55rem;
+        border-radius: .65rem;
         color: #dfeaf5;
+        background: radial-gradient(80% 80% at 50% 42%, rgba(10, 17, 27, 0.0) 30%, rgba(5, 9, 16, 0.55) 100%);
+        box-shadow:
+            inset 0 .1rem .3rem rgba(0, 0, 0, 0.45),
+            inset 0 0 0 .05rem rgba(120, 150, 185, 0.16);
         transition: transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-        .bar-btn-icon { width: 1.8rem; height: 1.8rem; }
-        .resource_icon { display: inline-block; width: 1.6rem; height: 1.6rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .std-icon { display: inline-block; width: 1.8rem; height: 1.8rem; }
+        .bar-btn-icon { width: 1.7rem; height: 1.7rem; }
+        .resource_icon { display: inline-block; width: 1.55rem; height: 1.55rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .std-icon { display: inline-block; width: 1.7rem; height: 1.7rem; }
     }
     &__slot-glyph {
         font-size: 1.4rem;
@@ -4584,8 +4619,11 @@ html.console-mode {
         font-size: .725rem;
         line-height: 1.25;
         text-align: center;
-        color: @con-amber;
+        /* QUIET at rest — several simultaneous reasons must never compete
+           with the one available action; the blocked ARM brightens it. */
+        color: fade(@con-amber, 72%);
         max-width: 12rem;
+        transition: color calc(120ms * var(--motion-scale, 1)) ease;
     }
 
     /* ── DISABLED: an opaque, de-energized plate (never a see-through tile —
@@ -4605,20 +4643,28 @@ html.console-mode {
     &__slot--disabled &__slot-meta { opacity: 0.42; }
     &__slot--disabled &__slot-key { opacity: 0.45; }
 
-    /* ── ARMED: the plate seats under the finger. The body sinks and
-       tightens to the ground; the icon counter-floats (parallax depth);
-       the key cap lights — ITS physical button is being held. ── */
+    /* ── ARMED: the tile comes TO THE PLAYER — a small forward lift carried
+       mostly by DEPTH (elevated ground shadow, live ring, brighter inner
+       edge, icon parallax), never a big excursion (4K magnifies travel).
+       The commit press-IN on release is GSAP's (surfaceMotionDirector). ── */
     &__slot--armed &__slot-body {
-        transform: translateY(.14rem) scale(0.982);
+        transform: translateY(-.1rem) scale(1.014);
         box-shadow:
-            inset 0 .12rem .45rem -.1rem rgba(0, 0, 0, 0.6),
-            inset 0 -.15rem .4rem -.3rem rgba(0, 0, 0, 0.4),
-            inset 0 0 0 .07rem fade(@con-cyan, 80%),
-            0 .25rem .7rem rgba(0, 0, 0, 0.5),
-            0 0 1.5rem fade(@con-cyan, 18%);
+            inset 0 .09rem 0 rgba(220, 242, 255, 0.14),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .07rem fade(@con-cyan, 82%),
+            0 .85rem 1.9rem rgba(0, 0, 0, 0.6),
+            0 .3rem .6rem rgba(0, 0, 0, 0.45),
+            0 0 1.6rem fade(@con-cyan, 16%);
+    }
+    &__slot--armed &__slot-body::before {
+        box-shadow: inset 0 0 0 .05rem rgba(160, 205, 240, 0.22);
     }
     &__slot--armed &__slot-icon {
-        transform: translateY(-.08rem) scale(1.07);
+        transform: translateY(-.09rem) scale(1.08);
+        box-shadow:
+            inset 0 .1rem .3rem rgba(0, 0, 0, 0.4),
+            inset 0 0 0 .05rem fade(@con-cyan, 45%);
     }
     &__slot--armed &__slot-key {
         box-shadow:
@@ -4649,14 +4695,24 @@ html.console-mode {
         color: #ffd98f;
         animation: con-quick-reason-pulse calc(240ms * var(--motion-scale, 1)) ease;
     }
-    /* Neighbours yield while a slot is seated — the machine has ONE live
-       control at a time (a transient dim over the dark shade, never a
-       readability state). */
+    /* Neighbours YIELD while a slot is armed — they step back HALF a layer
+       (depth, not disappearance): the wheel must stay one readable machine
+       so the thumb always knows where the other directions are. */
     &__slot--muted {
-        opacity: 0.58;
-        transition: opacity calc(110ms * var(--motion-scale, 1)) ease;
+        opacity: 0.88;
+        transform: scale(0.988);
+        transition:
+            opacity calc(110ms * var(--motion-scale, 1)) ease,
+            transform calc(110ms * var(--motion-scale, 1)) ease;
     }
-    &__slot--muted &__slot-key { opacity: 0.5; }
+    &__slot--muted &__slot-body {
+        box-shadow:
+            inset 0 .07rem 0 rgba(210, 235, 255, 0.04),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .05rem rgba(122, 156, 190, 0.2),
+            0 .35rem .9rem rgba(0, 0, 0, 0.45);
+    }
+    &__slot--muted &__slot-key { opacity: 0.75; }
 
     &__foot {
         display: flex;
@@ -4702,52 +4758,10 @@ html.console-mode {
     .con-quick__slot--armed-blocked .con-quick__slot-reason { animation: none; }
 }
 
-/* ── QUICK-WHEEL FLIGHT (wheelFlight.ts): the committed slot's icon
-   travelling into the opened surface's data-wheel-anchor. Above the
-   footer/dock/status chrome (11700-11706), below ceremonies (11720) and
-   the notice rail (11740) — a decorative courier, never a blocker. ── */
-.con-wheelflight {
-    position: fixed;
-    inset: 0;
-    z-index: 11710;
-    pointer-events: none;
-
-    &__proxy {
-        position: fixed;
-        left: 0;
-        top: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #eaf4ff;
-        opacity: 0;
-        will-change: transform;
-
-        .bar-btn-icon { width: 100%; height: 100%; }
-        .resource_icon {
-            display: block;
-            width: 100%;
-            height: 100%;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-    }
-    &__glyph { font-size: 1.4rem; line-height: 1; }
-    &__ember {
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: .55rem;
-        height: .55rem;
-        margin: -.275rem 0 0 -.275rem;
-        border-radius: 50%;
-        background: radial-gradient(circle, #ffd9a0 0%, @con-orange 55%, rgba(255, 120, 60, 0) 78%);
-        box-shadow: 0 0 .6rem fade(@con-orange, 65%);
-        opacity: 0;
-        will-change: transform;
-    }
-}
+/* (The one-off icon-flight layer that briefly lived here is gone: the
+   wheel's continuity is now carried by the commit/collapse/reveal grammar
+   in surfaceMotionDirector + the local emblem echo and HUD pulses —
+   nothing travels across a 4K screen.) */
 
 /* ── Context + Command panel (right) ─────────────────────────────── */
 .con-context {

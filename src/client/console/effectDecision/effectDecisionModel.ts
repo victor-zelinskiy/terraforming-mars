@@ -137,6 +137,11 @@ export const DECLINE_DEFAULT = 'Do not use the effect';
 export const DECLINE_BUY_CARD = 'Do not buy the card';
 
 export const LEAD_HAND_CARDS = 'Open cards in hand';
+/** The DECISION-level title of a discard-to-draw offer. The server's own title
+ *  ("Select a card to discard") is an instruction for the NEXT screen; on a
+ *  decision screen the row must say what the player is deciding TO DO. Derived
+ *  structurally — a hand pick whose discard marker gives cards back. */
+export const ACTION_DISCARD_DRAW = 'Discard a card and draw a new one';
 
 // ── structural helpers ──────────────────────────────────────────────────────
 
@@ -301,6 +306,11 @@ export function buildEffectDecision(
     const chips = nested !== undefined && item.chips.length === 0 ?
       chipsFromDiscard(nested.discardPrompt) :
       item.chips;
+    // A discard-for-a-card offer states the DECISION, not the next screen's
+    // instruction (the lead line below already says where it goes).
+    const title = nested !== undefined && nested.discardPrompt?.exchange?.icon === 'cards' ?
+      ACTION_DISCARD_DRAW :
+      item.label;
     const role: EffectDecisionRole = decline ? 'decline' : (seenOffer ? 'secondary' : 'primary');
     if (!decline) {
       seenOffer = true;
@@ -312,7 +322,7 @@ export function buildEffectDecision(
       // The decline speaks the decision's own language, not the server's
       // boilerplate — see `declineKeyOf`. Filled in below, once the headline
       // (which it mirrors) is known.
-      title: item.label,
+      title,
       leadKey: navigation === 'handCards' ? LEAD_HAND_CARDS : undefined,
       description: item.description,
       chips,

@@ -238,18 +238,22 @@ async function runDiscardFlow(
 
   await injectMarsUniversityDiscard(page, count);
   await page.reload();
-  await page.waitForSelector('.con-task-host', {state: 'visible', timeout: 40_000});
+  // The optional decision is served by the EFFECT DECISION screen (this shape
+  // is a marked `choiceContext` prompt) — the discard is one branch of it.
+  await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(2000);
   await shoot(page, opts.tag + '-1-choice');
 
   // The choice itself stays a CHOICE (the discard is optional — no auto-select).
-  await expect(page.locator('.con-task-host')).toContainText(/Марсианский университет/i);
+  await expect(page.locator('.con-decision__source')).toBeVisible();
+  await expect(page.locator('.con-decision__title')).toHaveText(/Использовать эффект\?/i);
 
   // 1 · taking the discard branch does NOT open a grid in the modal: the REAL
   //     hand overlay opens in discard mode.
   await key(page, 'Enter', 2600);
   await shoot(page, opts.tag + '-2-hand-discard-mode');
-  expect(await page.locator('.con-task-host').count(), 'the modal must hand over, not host a grid').toBe(0);
+  expect(await page.locator('.con-decision').count(), 'the decision must hand over, not host a grid').toBe(0);
+  expect(await page.locator('.con-task-host').count(), 'and never fall back to the generic host').toBe(0);
   const hand = page.locator('.con-hand--discard');
   await expect(hand).toHaveCount(1);
 

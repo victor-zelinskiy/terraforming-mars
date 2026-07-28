@@ -263,8 +263,10 @@ export default defineComponent({
       if (this.debug) {
         const line = rawIntent.kind === 'press' || rawIntent.kind === 'release' ?
           `${rawIntent.kind}:${rawIntent.button}` :
-          rawIntent.kind === 'nav' ? `nav:${rawIntent.dir}${rawIntent.repeat ? ' (r)' : ''}` :
-            rawIntent.kind === 'navEnd' ? `navEnd:${rawIntent.dir}` : 'scroll';
+          rawIntent.kind === 'nav' ? `nav:${rawIntent.dir}${rawIntent.repeat ? ' (r)' : ''}${rawIntent.analog === true ? ' (s)' : ''}` :
+            rawIntent.kind === 'navEnd' ? `navEnd:${rawIntent.dir}` :
+              rawIntent.kind === 'aim' ? `aim:${rawIntent.dir}` :
+                rawIntent.kind === 'aimEnd' ? 'aimEnd' : 'scroll';
         this.intentLog = [line, ...this.intentLog].slice(0, 5);
       }
       // BUTTON LAYOUT (Console → Options → «Раскладка кнопок»): swap the

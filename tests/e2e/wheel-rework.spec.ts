@@ -3,23 +3,29 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
- * Quick-wheel rework · press→release lifecycle + shared-element flights.
+ * Quick-wheel rework · press→release lifecycle + the commit/collapse/reveal
+ * transition grammar (PRESS → MECHANICAL COMMIT → DEPTH COLLAPSE → CONTEXT
+ * REVEAL — no icon flights).
  *
  * Drives a real solo COLONIES game through the console-native shell and
  * verifies the reworked RT/LT wheel end to end:
- *  - the ARMED state seats a tile on the d-pad DOWN edge (neighbours mute),
- *  - the commit fires on the UP edge and the destination screen opens with
- *    its `data-wheel-anchor` emblem (the flight's landing point),
+ *  - the ARMED state lifts a tile toward the player on the d-pad DOWN edge
+ *    (neighbours recede HALF a layer — never disappear),
+ *  - the commit fires on the UP edge; the destination forms in parallel and
+ *    its `data-wheel-anchor` emblem echoes in,
  *  - the trading screen is titled «Торговля» with the wheel's own emblem,
  *  - B mid-arm cancels without executing (and the stale release is inert),
  *  - a fast tap commits exactly like before,
  *  - a BLOCKED slot arms in resistance mode and refuses on release (wheel
  *    stays open, the honest reason surfaces),
- *  - LT↔RT switches swap the cross in place,
+ *  - LT↔RT switches swap the cross in place (and the command bar advertises
+ *    the opposite trigger),
  *  - heat conversion really spends 8 heat; plant conversion really enters
  *    (and B-cancels out of) greenery placement,
  *  - standard projects / card actions / pass-confirm all open with their
- *    anchors.
+ *    emblems,
+ *  - the LEFT STICK (injected fake pad): focus follows the sector, circling
+ *    re-focuses, the CONFIRMED neutral commits.
  *
  * Screenshot gallery → `screenshots/wheel-rework/`.
  */
@@ -169,7 +175,7 @@ test.describe('quick-wheel rework', () => {
     //        the wheel's emblem as the flight anchor ────────────────────
     await page.keyboard.up('ArrowRight');
     await page.waitForTimeout(260);
-    await shoot(page, '03-flight-midair');
+    await shoot(page, '03-collapse-reveal');
     await page.waitForSelector('.con-colonies', {timeout: 8_000});
     await page.waitForTimeout(1200);
     const kicker = page.locator('.con-colonies__kicker');
@@ -207,13 +213,16 @@ test.describe('quick-wheel rework', () => {
     expect(await page.locator('.con-quick').count(), 'a refused commit keeps the wheel open').toBeGreaterThan(0);
     await shoot(page, '06-blocked-refused-notice');
 
-    // ── 7 · LT↔RT switch swaps the cross in place ────────────────────
+    // ── 7 · LT↔RT switch swaps the cross in place; the command bar
+    //        advertises the opposite trigger (the switch affordance) ────
     await key(page, 'Comma', 700); // RT wheel open + LT → switches to basics
     await expect(page.locator('.con-quick__kicker')).toContainText(/базовые/i);
+    await expect(page.locator('.con-cmdbar')).toContainText(/действия/i); // «RT Действия»
     await shoot(page, '07-lt-wheel');
     await key(page, 'Period', 700); // and back to categories
     await expect(page.locator('.con-quick__kicker')).not.toContainText(/базовые/i);
     await expect(page.locator('.con-quick__kicker')).toContainText(/действия/i);
+    await expect(page.locator('.con-cmdbar')).toContainText(/базовые/i); // «LT Базовые действия»
     await key(page, 'Escape', 600);
 
     // ── 8 · Standard projects (LT centre) — emblem anchor present ────
@@ -256,8 +265,8 @@ test.describe('quick-wheel rework', () => {
     const heatBefore = parseInt((await heatValue.innerText()).trim(), 10);
     await openWheel(page, 'Comma');
     await key(page, 'ArrowRight', 500);
-    await shoot(page, '11-heat-flight');
-    await page.waitForTimeout(3000); // flight + server round trip + flip
+    await shoot(page, '11-heat-commit');
+    await page.waitForTimeout(3000); // commit pulse + server round trip + flip
     const heatAfter = parseInt((await heatValue.innerText()).trim(), 10);
     expect(heatAfter, `heat must drop by 8 (was ${heatBefore})`).toBe(heatBefore - 8);
     await shoot(page, '12-heat-after');
@@ -269,5 +278,51 @@ test.describe('quick-wheel rework', () => {
     await page.waitForSelector('.con-hand', {timeout: 10_000});
     await shoot(page, '14-hand-open');
     await key(page, 'Escape', 2200);
+
+    // ── 14 · LEFT STICK (fake pad): focus follows the sector, circling
+    //         re-focuses, the CONFIRMED neutral commits ─────────────────
+    await page.evaluate(() => {
+      const pad = {
+        index: 0, id: 'Xbox 360 Controller (STANDARD GAMEPAD)', connected: true,
+        mapping: 'standard', timestamp: 1,
+        buttons: Array.from({length: 17}, () => ({pressed: false, touched: false, value: 0})),
+        axes: [0, 0, 0, 0],
+      };
+      navigator.getGamepads = function() {
+        return [pad, null, null, null] as unknown as ReturnType<typeof navigator.getGamepads>;
+      };
+      (window as unknown as {__pad: typeof pad}).__pad = pad;
+      (window as unknown as {__stick: (x: number, y: number) => void}).__stick = (x: number, y: number) => {
+        pad.axes = [x, y, 0, 0];
+        pad.timestamp = performance.now();
+      };
+      // Chromium refuses a plain object in GamepadEventInit — fall back to a
+      // bare Event carrying the pad as an expando (onConnected only reads
+      // `e.gamepad.index/id`), so the poll loop reliably starts headless.
+      try {
+        window.dispatchEvent(new GamepadEvent('gamepadconnected', {gamepad: pad as unknown as Gamepad}));
+      } catch (e) {
+        const ev = new Event('gamepadconnected') as Event & {gamepad: typeof pad};
+        ev.gamepad = pad;
+        window.dispatchEvent(ev);
+      }
+    });
+    await page.waitForTimeout(400);
+    const stick = async (x: number, y: number, settleMs = 220) => {
+      await page.evaluate(([sx, sy]) => (window as unknown as {__stick: (x: number, y: number) => void}).__stick(sx, sy), [x, y]);
+      await page.waitForTimeout(settleMs);
+    };
+    await openWheel(page, 'Period');
+    await stick(1, 0); // engage RIGHT → trading focuses
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--armed')).toHaveCount(1);
+    await stick(0, 1); // circle to DOWN (voting — blocked focus, still honest)
+    await expect(page.locator('.con-quick__slot--down.con-quick__slot--armed-blocked')).toHaveCount(1);
+    await shoot(page, '15-stick-focus-blocked');
+    await stick(1, 0); // circle back to RIGHT
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--armed')).toHaveCount(1);
+    await stick(0, 0, 600); // CONFIRMED neutral → mechanical commit
+    await page.waitForSelector('.con-colonies', {timeout: 8_000});
+    await shoot(page, '16-stick-commit-trading');
+    await key(page, 'Escape', 1400);
   });
 });

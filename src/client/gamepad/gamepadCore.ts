@@ -42,6 +42,7 @@ import {
   electActivePad,
   emptySnapshot,
   initialPollState,
+  pollStatePending,
   readSnapshot,
   snapshotActivity,
 } from '@/client/gamepad/gamepadPollModel';
@@ -168,9 +169,13 @@ function pollOnce(now: number): void {
     const prev = prevSnapshots.get(pad.index) ?? emptySnapshot();
     const state = pollStates.get(pad.index) ?? initialPollState();
 
-    // Idle early-out: nothing pressed now AND nothing was pressed before →
-    // skip the diff entirely (the common case, every frame at rest).
-    if (!active && !snapshotActivity(prev, deadzone)) {
+    // Idle early-out: nothing pressed now AND nothing was pressed before AND
+    // no protocol is mid-flight in the carry state → skip the diff entirely
+    // (the common case, every frame at rest). `pollStatePending` keeps the
+    // diff alive through the aim protocol's neutral-confirm window — the
+    // stick already reads at-rest there, but the commit edge (`aimEnd`)
+    // still needs a few more frames to fire.
+    if (!active && !snapshotActivity(prev, deadzone) && !pollStatePending(state)) {
       prevSnapshots.set(pad.index, next);
       continue;
     }

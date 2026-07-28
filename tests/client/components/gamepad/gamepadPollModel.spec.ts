@@ -1,10 +1,16 @@
 import {expect} from 'chai';
 import {
+  AIM_ENGAGE_AT,
+  AIM_HYSTERESIS_DEG,
+  AIM_NEUTRAL_MS,
+  AIM_REAIM_FRAMES,
+  AIM_RELEASE_AT,
   DEFAULT_DEADZONE,
   GamepadIntent,
   GamepadSnapshot,
   NAV_REPEAT_DELAY_MS,
   NAV_REPEAT_INTERVAL_MS,
+  PollState,
   SCROLL_DEADZONE,
   TRIGGER_PRESS_AT,
   TRIGGER_RELEASE_AT,
@@ -12,6 +18,7 @@ import {
   electActivePad,
   emptySnapshot,
   initialPollState,
+  pollStatePending,
   readSnapshot,
   snapshotActivity,
 } from '@/client/gamepad/gamepadPollModel';
@@ -34,8 +41,10 @@ function triggerSnap(index: 6 | 7, value: number): GamepadSnapshot {
 function kinds(intents: Array<GamepadIntent>): Array<string> {
   return intents.map((i) => (
     i.kind === 'press' || i.kind === 'release' ? `${i.kind}:${i.button}` :
-      i.kind === 'nav' ? `nav:${i.dir}:${i.repeat ? 'r' : 'f'}` :
-        i.kind === 'navEnd' ? `navEnd:${i.dir}` : 'scroll'));
+      i.kind === 'nav' ? `nav:${i.dir}:${i.repeat ? 'r' : 'f'}${i.analog === true ? ':s' : ''}` :
+        i.kind === 'navEnd' ? `navEnd:${i.dir}` :
+          i.kind === 'aim' ? `aim:${i.dir}` :
+            i.kind === 'aimEnd' ? 'aimEnd' : 'scroll'));
 }
 
 describe('gamepadPollModel', () => {
@@ -140,19 +149,126 @@ describe('gamepadPollModel', () => {
     let r = diffSnapshots(emptySnapshot(), inside, initialPollState(), 0);
     expect(r.intents).to.be.empty;
 
+    // A strong deflection carries BOTH protocols: the analog-flagged nav
+    // (list navigation) and the wheel-grade aim sector event.
     const left = snap({axes: [-0.8, 0.3, 0, 0]});
     r = diffSnapshots(emptySnapshot(), left, initialPollState(), 0);
-    expect(kinds(r.intents)).to.deep.eq(['nav:left:f']);
+    expect(kinds(r.intents)).to.deep.eq(['nav:left:f:s', 'aim:left']);
 
     const up = snap({axes: [0.2, -0.9, 0, 0]});
     r = diffSnapshots(emptySnapshot(), up, initialPollState(), 0);
-    expect(kinds(r.intents)).to.deep.eq(['nav:up:f']);
+    expect(kinds(r.intents)).to.deep.eq(['nav:up:f:s', 'aim:up']);
   });
 
-  it('d-pad wins over the left stick', () => {
+  it('d-pad wins over the left stick (nav digital, aim engage suppressed)', () => {
     const both = snap({buttons: [12], axes: [0.9, 0, 0, 0]});
     const {intents} = diffSnapshots(emptySnapshot(), both, initialPollState(), 0);
     expect(kinds(intents)).to.deep.eq(['nav:up:f']);
+  });
+
+  describe('the AIM protocol (left stick → wheel focus)', () => {
+    const stick = (x: number, y: number) => snap({axes: [x, y, 0, 0]});
+    /** Step frames through the model, 8ms apart, collecting intent strings. */
+    function walk(frames: ReadonlyArray<{x: number, y: number, dt?: number}>): {seen: Array<string>, state: PollState} {
+      let state = initialPollState();
+      let prev = emptySnapshot();
+      let now = 1000;
+      const seen: Array<string> = [];
+      for (const f of frames) {
+        now += f.dt ?? 8;
+        const next = stick(f.x, f.y);
+        const r = diffSnapshots(prev, next, state, now);
+        seen.push(...kinds(r.intents).filter((k) => k.startsWith('aim')));
+        state = r.state;
+        prev = next;
+      }
+      return {seen, state};
+    }
+
+    it('engages only past the deliberate radius; drift never engages', () => {
+      expect(walk([{x: AIM_ENGAGE_AT - 0.05, y: 0}]).seen).to.deep.eq([]);
+      expect(walk([{x: 0.15, y: 0.1}, {x: 0.2, y: 0}, {x: 0.1, y: 0}]).seen).to.deep.eq([]); // drift
+      expect(walk([{x: AIM_ENGAGE_AT + 0.05, y: 0}]).seen).to.deep.eq(['aim:right']);
+    });
+
+    it('commits (aimEnd) only after neutral HELD for the confirm window', () => {
+      const settle = Math.ceil(AIM_NEUTRAL_MS / 8) + 1;
+      const frames = [{x: 0.9, y: 0}, {x: 0.1, y: 0}];
+      for (let i = 0; i < settle; i++) {
+        frames.push({x: 0.05, y: 0});
+      }
+      expect(walk(frames).seen).to.deep.eq(['aim:right', 'aimEnd']);
+    });
+
+    it('a single noisy neutral frame never commits (tracking resumes)', () => {
+      const r = walk([
+        {x: 0.9, y: 0},
+        {x: 0.1, y: 0}, // one noise frame at rest
+        {x: 0.9, y: 0}, // deflection back — same sector, tracking resumes
+        {x: 0.9, y: 0},
+      ]);
+      expect(r.seen).to.deep.eq(['aim:right']);
+      expect(r.state.aimSector).to.eq('right');
+    });
+
+    it('circling the stick walks the sectors with angular hysteresis (no border flicker)', () => {
+      // 0° → 90° → 180° → 270° full circle at full deflection.
+      const circle = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+        .map((deg) => ({x: Math.cos(deg * Math.PI / 180), y: Math.sin(deg * Math.PI / 180)}));
+      expect(walk(circle).seen).to.deep.eq(['aim:right', 'aim:down', 'aim:left', 'aim:up', 'aim:right']);
+      // Resting ON the 45° border: the current sector keeps ownership.
+      const border = Math.PI / 4;
+      const flickery = [
+        {x: 1, y: 0},
+        {x: Math.cos(border - 0.02), y: Math.sin(border - 0.02)},
+        {x: Math.cos(border + 0.02), y: Math.sin(border + 0.02)},
+        {x: Math.cos(border - 0.02), y: Math.sin(border - 0.02)},
+      ];
+      expect(walk(flickery).seen).to.deep.eq(['aim:right']);
+      // …but a decisive cross PAST the hysteresis margin hands over.
+      const past = border + (AIM_HYSTERESIS_DEG + 3) * Math.PI / 180;
+      expect(walk([{x: 1, y: 0}, {x: Math.cos(past), y: Math.sin(past)}]).seen)
+        .to.deep.eq(['aim:right', 'aim:down']);
+    });
+
+    it('a release flick through the far sector does not re-aim (sustain rule)', () => {
+      const r = walk([
+        {x: 0.9, y: 0}, // engaged right
+        {x: 0.2, y: 0}, // collapsing toward neutral — settle starts
+        {x: -0.8, y: 0}, // the spring-back overshoot (1 fast frame left)
+        {x: 0.1, y: 0}, // back inside release
+        {x: 0.05, y: 0, dt: AIM_NEUTRAL_MS + 10}, // neutral holds
+      ]);
+      expect(r.seen).to.deep.eq(['aim:right', 'aimEnd']);
+    });
+
+    it('a SUSTAINED redeflection during settle re-aims instead of committing', () => {
+      const frames = [{x: 0.9, y: 0}, {x: 0.2, y: 0}];
+      for (let i = 0; i < AIM_REAIM_FRAMES; i++) {
+        frames.push({x: -0.9, y: 0});
+      }
+      expect(walk(frames).seen).to.deep.eq(['aim:right', 'aim:left']);
+    });
+
+    it('the in-between band interrupts the neutral confirm (no commit while resting there)', () => {
+      const mid = (AIM_ENGAGE_AT + AIM_RELEASE_AT) / 2;
+      const r = walk([
+        {x: 0.9, y: 0},
+        {x: 0.2, y: 0},
+        {x: mid, y: 0, dt: AIM_NEUTRAL_MS + 20}, // hovers in the band past the window
+        {x: mid, y: 0, dt: AIM_NEUTRAL_MS + 20},
+      ]);
+      expect(r.seen).to.deep.eq(['aim:right']);
+      expect(r.state.aimSector).to.eq('right');
+    });
+
+    it('pollStatePending keeps the poll loop alive through the neutral confirm', () => {
+      expect(pollStatePending(initialPollState())).to.eq(false);
+      const engaged = walk([{x: 0.9, y: 0}]).state;
+      expect(pollStatePending(engaged)).to.eq(true);
+      const settling = walk([{x: 0.9, y: 0}, {x: 0.05, y: 0}]).state;
+      expect(pollStatePending(settling), 'still pending while neutral confirms').to.eq(true);
+    });
   });
 
   it('right stick produces normalized scroll intents outside its deadzone', () => {

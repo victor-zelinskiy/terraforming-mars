@@ -45,8 +45,9 @@
              flip-swap of the value itself (nested INSIDE the value cell —
              see ConsoleFlipValue's layering note) plus the delta chip. -->
         <span class="con-status__param">
-          <!-- data-wheel-anchor="temp": the heat-conversion ember spark's
-               landing point (wheelFlight) — heat visibly becomes temperature. -->
+          <!-- data-wheel-anchor="temp": reserved acknowledgement anchor (the
+               heat conversion's SERVER result animates here via the existing
+               flip/delta pipeline — no scripted pre-timing). -->
           <i class="wgt-icon wgt-icon--temperature con-status__icon" data-wheel-anchor="temp" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.temperature" :text="`${game.temperature}°C`" />

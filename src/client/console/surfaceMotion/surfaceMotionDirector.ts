@@ -47,6 +47,7 @@ import {
   takeSurfaceDeparture,
   takeWheelOrigin,
   takeWheelChosenSlot,
+  takeWheelEcho,
 } from '@/client/console/surfaceMotion/surfaceMotionState';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
@@ -276,10 +277,40 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     });
     return;
   case 'wheel-handoff': {
-    // Directional entry: the surface rises FROM the chosen slot's direction —
-    // the wheel's impulse carries into the next screen.
+    // CONTEXT REVEAL: the surface forms IN PARALLEL with the wheel's depth
+    // collapse, rising from the chosen slot's direction — the commit's
+    // impulse carries into the next screen (a small directional bias, never
+    // a slide). The destination's own emblem ECHOES the pressed symbol a
+    // beat into the reveal (a local materialize — nothing travels).
     const origin = wheelOrigin as {x: number, y: number};
-    guarded(el, OPEN_MS, done, (finish) => {
+    const echo = takeWheelEcho();
+    const echoEl = echo !== undefined ?
+      el.querySelector<HTMLElement>(`[data-wheel-anchor="${echo}"]`) : null;
+    // The STANDARD-PROJECTS screen is the wheel's own centre unfolding — a
+    // firmer geometric expansion from the hub + a short content cascade
+    // (lighter than the full-screen workspace reveals by design).
+    if (id === 'std-projects') {
+      guarded(el, OPEN_MS + 160, done, (finish) => {
+        const tl = gsap.timeline({onComplete: finish});
+        tl.fromTo(panel,
+          {autoAlpha: 0, scale: 0.955, transformOrigin: '50% 46%'},
+          {autoAlpha: 1, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+        const rows = [...el.querySelectorAll<HTMLElement>('.con-stdp__card')].slice(0, 10);
+        if (rows.length > 0) {
+          tl.fromTo(rows,
+            {y: 8 * conUiScale(), opacity: 0},
+            {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', stagger: 0.014, clearProps: 'transform,opacity'}, s(40));
+        }
+        if (echoEl !== null) {
+          tl.fromTo(echoEl,
+            {autoAlpha: 0, scale: 0.8},
+            {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
+        }
+        return tl;
+      });
+      return;
+    }
+    guarded(el, OPEN_MS + 120, done, (finish) => {
       const rect = panel.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
@@ -287,9 +318,16 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
       const dy = origin.y - cy;
       const len = Math.max(1, Math.hypot(dx, dy));
       const push = Math.min(18 * conUiScale(), len * 0.08);
-      return gsap.fromTo(panel,
+      const tl = gsap.timeline({onComplete: finish});
+      tl.fromTo(panel,
         {autoAlpha: 0, x: (dx / len) * push, y: (dy / len) * push, scale: 0.985, transformOrigin: '50% 50%'},
-        {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', onComplete: finish});
+        {autoAlpha: 1, x: 0, y: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+      if (echoEl !== null) {
+        tl.fromTo(echoEl,
+          {autoAlpha: 0, scale: 0.8},
+          {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
+      }
+      return tl;
     });
     return;
   }
@@ -421,28 +459,40 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
   }
   if (id === 'quick') {
     const chosen = takeWheelChosenSlot();
-    guarded(el, WHEEL_OUT_MS + 110, done, (finish) => {
+    guarded(el, WHEEL_OUT_MS + 150, done, (finish) => {
       const tl = gsap.timeline({onComplete: finish});
       const u = conUiScale();
       if (chosen !== undefined) {
+        // PRESS → MECHANICAL COMMIT → DEPTH COLLAPSE. The commit is the
+        // moment of отдача that replaced the arcade icon flight: small,
+        // dense, layered — never a bounce, never a show.
         const chosenEl = el.querySelector<HTMLElement>(`.con-quick__slot--${chosen}`);
+        const body = chosenEl === null ? null : chosenEl.querySelector<HTMLElement>('.con-quick__slot-body');
+        const icon = chosenEl === null ? null : chosenEl.querySelector<HTMLElement>('.con-quick__slot-icon');
         const rest = [...el.querySelectorAll<HTMLElement>('.con-quick__slot')].filter((n) => n !== chosenEl);
-        // COMMIT: the released mechanism. The un-chosen slots UNLOCK — a
-        // slight drift away from the hub as they let go; the chosen slot
-        // springs forward out of its pressed seat (its body's CSS release
-        // runs in the same beat; its icon is already flying — wheelFlight).
+        // 1 · MECHANICAL COMMIT: the armed body (held toward the player by
+        // its CSS state) drives IN — fast start, dense contact, immediate
+        // fixation. The icon lags a hair behind its shell: two masses, one
+        // mechanism.
+        if (body !== null) {
+          tl.to(body, {y: 3 * u, scale: 0.982, duration: s(60), ease: 'power3.in'}, 0);
+        }
+        if (icon !== null) {
+          tl.to(icon, {scale: 0.94, duration: s(70), ease: 'power2.in'}, s(15));
+        }
+        // 2 · DEPTH COLLAPSE: the neighbours lose their interactive layer
+        // first (a slight settle back, no drift)…
         if (rest.length > 0) {
-          for (const n of rest) {
-            const cls = n.className;
-            const dx = cls.includes('--left') ? -6 : cls.includes('--right') ? 6 : 0;
-            const dy = cls.includes('--up') ? -6 : cls.includes('--down') ? 6 : 0;
-            tl.to(n, {x: dx * u, y: dy * u, opacity: 0, duration: s(70), ease: 'power1.in'}, 0);
-          }
+          tl.to(rest, {scale: 0.985, y: 2 * u, autoAlpha: 0, duration: s(85), ease: 'power2.in'}, s(50));
         }
+        // …the chosen tile stays readable a few beats longer, then follows…
         if (chosenEl !== null) {
-          tl.fromTo(chosenEl, {scale: 1}, {scale: 1.07, duration: s(80), ease: 'back.out(2)'}, 0);
+          tl.to(chosenEl, {autoAlpha: 0, scale: 0.99, duration: s(80), ease: 'power2.in'}, s(95));
         }
-        tl.to(panel, {autoAlpha: 0, scale: 0.985, duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(40));
+        // …and the whole assembly recedes ONE layer back — never a zoom,
+        // never a point-collapse: it hands its depth to the incoming
+        // context, which is already forming in parallel.
+        tl.to(panel, {autoAlpha: 0, scale: 0.972, y: 6 * u, transformOrigin: '50% 58%', duration: s(110), ease: 'power2.in'}, s(70));
       } else {
         // DISMISS (B): the cross lets go inward — the assembly in reverse,
         // faster and softer (no celebratory beat, just a clean release).

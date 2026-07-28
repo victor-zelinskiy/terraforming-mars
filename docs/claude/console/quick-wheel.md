@@ -1,111 +1,118 @@
-# Quick wheel — press→release lifecycle + shared-element flights
+# Quick wheel — input lifecycle + the commit/collapse/reveal grammar
 
 The RT/LT quick selectors (`ConsoleQuickSelector.vue`, entries from
 `consoleQuickModel.ts`) are the console's most-used control. This doc is the
-contract for their input lifecycle, the tile physicality and the icon flights
-into the opened surfaces. (2026-07-28 rework.)
+contract for their input lifecycle, the tile physicality and the transition
+grammar into the opened surfaces. (2026-07-28 rework, v2 — the icon-flight
+approach of v1 was REMOVED as arcade-feeling on 4K; do not reintroduce it.)
 
-## Input: arm on DOWN, commit on UP (`quickWheel/wheelArmModel.ts`)
+## The transition grammar
 
-Pure reducer, unit-tested (`tests/client/components/console/wheelArmModel.spec.ts`).
-The shell (`handleQuickIntent` → `feedWheelArm`) feeds edges in and executes
-effects out; `wheelArm` (shell data) drives the `armedSlot`/`armedBlocked`
-props.
+**PRESS → MECHANICAL COMMIT → DEPTH COLLAPSE → CONTEXT REVEAL.**
+Nothing travels across the screen. Continuity is carried by:
 
-- **DOWN** (A / a d-pad direction) **arms** the slot — the tile's body seats
-  visually. **UP of the same control commits.** A fast tap arms+commits in its
-  natural ~80 ms; there is **no hold threshold and no timer** anywhere.
-- Hold-repeat (`nav` `repeat: true`) never arms — a direction held from before
-  the wheel opened cannot ghost-arm.
-- First-wins across sources (A vs d-pad); **rocking the d-pad re-arms** onto
-  the live direction (the stale direction's `navEnd` no longer matches).
-- A release matching nothing (control already down at open, arm cancelled) is
-  dropped — no phantom commits.
-- **B always disarms AND closes** without executing. LT/RT switch feeds
-  `reset` first. A shell watcher on `consoleState.quick` clears the arm on any
-  external close (`closeConsoleLayers`).
-- A **blocked** (unavailable) slot arms in `blocked` mode — shallow seat,
-  amber ring, reason pulse — and its release **refuses** (notice restates the
-  reason). Nothing executes.
+- the chosen tile's **mechanical commit** (a fast, dense press-IN on the
+  commit edge — GSAP in `surfaceMotionDirector`'s quick-leave, body+icon at
+  slightly different inertia);
+- **depth collapse**: neighbours lose their layer first, the chosen tile
+  stays readable a few beats longer, the whole assembly recedes ONE layer
+  back (scale 0.972 + small y — never a zoom, never a point-collapse);
+- **dimming as an instrument**: the shared `.con-shade` gains a FOCUS
+  vignette (`--focus`, driven by the shell while a slot is armed —
+  opacity-only `::after` layer) and a retuned off-fade (260ms/40ms) so its
+  darkness dissolves INTO an arriving workspace;
+- **context reveal in parallel**: the destination enters in the same flush
+  (directional bias from the chosen slot via `takeWheelOrigin`), and its
+  header emblem **echoes** the pressed symbol (`takeWheelEcho` → a local
+  materialize of `[data-wheel-anchor]`, scale .8→1 at ~90ms — never a
+  flight); std-projects gets the firmer hub-expansion + row cascade.
 
-### The `navEnd` intent (d-pad falling edge)
+## Input: one machine, two families (`quickWheel/wheelArmModel.ts`)
 
-`gamepadPollModel.diffSnapshots` §3 emits `{kind: 'navEnd', dir}` on full
-release **and on direction change** (old dir ends before the new begins).
-The keyboard bridge mirrors it from arrow `keyup`. **Every falling edge dies
-in `ConsoleShell.handleIntent`'s release block** — only the quick wheel (while
-open) consumes them; list-navigation consumers never see the kind. Button
-layout swap (`remapConsoleIntent`) passes `navEnd` through untouched.
+Pure reducer, unit-tested. The shell (`handleQuickIntent` → `feedWheelArm`)
+feeds edges in and executes effects out; `wheelArm` drives the
+`armedSlot`/`armedBlocked` props AND the shade's `--focus`.
+
+- **Digital (d-pad / A)**: DOWN arms (the tile lifts toward the player), UP
+  of the same control commits. Fast tap = its natural ~80 ms; no thresholds.
+- **Analog (left stick) — the AIM protocol**: `aim` moves the FOCUS between
+  sectors (circling is free), the CONFIRMED neutral (`aimEnd`) commits the
+  focused slot. Digital and analog share one visual armed state.
+- Conflict rules: repeats never arm; stick-flagged `nav` never digital-arms;
+  A vs stick vs d-pad is first-wins EXCEPT the d-pad deliberately takes over
+  a stick focus; the merged `navEnd` finishes a d-pad arm even when the
+  stick let the direction go last; stale edges drop; **B always cancels**;
+  a blocked slot arms in resistance mode and REFUSES on its commit edge.
+
+### The AIM protocol (`gamepadPollModel.ts` §3.5)
+
+Model-level guarantees (all unit-tested):
+- engage only past `AIM_ENGAGE_AT` (0.45) — drift/noise below never engages;
+- sector borders carry `AIM_HYSTERESIS_DEG` (12°) angular hysteresis — no
+  flicker at diagonals; circling hands focus over decisively;
+- `aimEnd` fires only after neutral HELD `AIM_NEUTRAL_MS` (45ms) below
+  `AIM_RELEASE_AT` (0.3) — a single noisy frame never commits;
+- a release FLICK swinging through the far sector re-aims only if sustained
+  `AIM_REAIM_FRAMES` (3 polls);
+- the in-between radial band interrupts the neutral confirm;
+- **`pollStatePending`** keeps `gamepadCore`'s idle early-out diffing while
+  any protocol is mid-flight — without it the neutral timer freezes at rest
+  and `aimEnd` never fires. Never remove that condition.
+
+`nav`/`navEnd` carry an `analog` flag (stick-sourced); lists ignore it, the
+wheel ignores analog `nav` (aim owns the stick). Keyboard arrows stay
+digital (keydown arm / keyup commit via the key bridge).
+
+## Handoffs (`quickWheel/wheelHandoffModel.ts` + `wheelPulse.ts`)
+
+Declarative per-entry table `WHEEL_HANDOFFS` — `echo` (destination emblem
+id) OR `pulse` (live HUD elements that acknowledge a direct action). The
+coverage spec fails on a surface-opening entry without an echo row.
+
+- echoes: trading / card-actions / std-projects / hydro / confirm (pass and
+  max-temp heat retarget via `retargetWheelEcho(CONFIRM_HANDOFF.echo)`);
+- pulses: `convertHeat` → `res-heat` (the reservoir answers the commit; the
+  SERVER result's own flip/delta/marker animations carry the change —
+  pulses never pre-time or fake), `cards` → `hand-dock` (the dock, already
+  raised under the RT wheel, is the hand's continuity; the existing reveal
+  flies the fan out of it);
+- no handoff: skipTurn (status flip is the reveal), convertPlants (the
+  placement mode itself is the reveal), voting (never commits).
+- Pulses fire only when the commit stayed DIRECT (the shell checks the
+  confirm card didn't open instead).
 
 ## Tile physicality (LESS `.con-quick`)
 
-Two-layer mechanism: the **shell** (`__slot`, positioning cell) carries the
-floating **key cap** (`__slot-key`, the glyph on its own mount plate — the
-FIXED part); the **body** (`__slot-body`, the plate with the material) is the
-MOVING part that sinks on arm. Icon counter-floats (parallax). Neighbours get
-`--muted`. All state cues are box-shadow/transform/opacity — **perf-lite safe**
-by construction. Disabled tiles keep an opaque chassis (content dims, never
-whole-tile opacity).
+- **Armed = toward the player**: body `translateY(-.1rem) scale(1.014)` +
+  elevated ground shadow + live ring + brighter inner edge + icon parallax.
+  Small travel by design — 4K magnifies excursions; depth carries the state.
+  The commit press-IN is GSAP's (never CSS) — it drives from the live
+  armed pose.
+- **Neighbours recede half a layer** (`--muted`: opacity 0.88 + scale 0.988
+  + calmer shadows) — the wheel stays ONE readable machine; they never
+  disappear.
+- **The icon well**: every icon family (line glyphs, resource icons, text
+  fallbacks) sits in the same recessed lens (`__slot-icon` — fixed box,
+  radial recess, hairline ring) — one optical mass, one armed response.
+- Reasons are QUIET at rest (amber 72%) and brighten on the blocked arm
+  (+ one small pulse; no shake, no red).
+- Key caps float on the shell (the fixed part of the mechanism).
+- All state cues are box-shadow/transform/opacity — perf-lite safe.
 
-LT↔RT switches swap the cross in place: keyed `<transition>` (`con-quick-swapl`
-/ `-swapr`), direction follows the pulling trigger. Reduced motion: fade only.
+## Command bar while the wheel is open
 
-Entrance/exit are GSAP in `surfaceMotionDirector.ts` (`wheel-open`: hub-out
-assembly, centre pops first, arms slide from the hub, key caps print last;
-commit leave: neighbours unlock outward + the chosen slot's release pop;
-dismiss leave: inward collapse). Slot-level GSAP transforms never collide with
-the body-level CSS arm transforms.
-
-## Flights (`quickWheel/wheelFlightModel.ts` + `wheelFlight.ts`)
-
-On commit the slot's icon detaches and travels into the opened surface's
-anchor — the wheel and destination read as one gesture. **Declarative table**
-`WHEEL_FLIGHTS` (entry id → `{anchor, character, landing}`); a new wheel entry
-gets its transition by adding a row, never bespoke shell code. The coverage
-spec (`wheelFlightModel.spec.ts`) fails on an entry without a row.
-
-- Runtime: `beginWheelFlight` (called in `activateQuickSlot`, same tick as the
-  commit, wheel still mounted) measures the icon, blanks it, arms the request;
-  the always-mounted `ConsoleWheelFlightLayer` (z 11710) poses a real-Vue proxy
-  and runs the director: detach lift → **rAF acquisition** of
-  `[data-wheel-anchor="<id>"]` (one stable frame; the surface opens in
-  PARALLEL — the flight never delays logic or the overlay's own entry) →
-  character travel leg (quadratic arc via `flightArcPoint`).
-- **Landings**: `become` — the anchor IS the icon (concealed at acquisition,
-  takes over at touchdown; restored on any kill); `absorb` — a live HUD element
-  (dock plate, heat row) swallows the proxy with a pulse, never concealed.
-- **Degrades honestly**: missing anchor → mid-air dissolve; reduced motion →
-  no flight at all; episode-guarded (new commit kills the live flight);
-  safety-timed. `retargetWheelFlight(CONFIRM_FLIGHT)` redirects pass /
-  max-temp heat into the confirm card's emblem; guarded execute paths call
-  `cancelWheelFlight()`. `resetWheelFlight()` runs in the shell unmount chain.
-
-### Anchors shipped
-
-| id | element |
-| --- | --- |
-| `trading` | `ConsoleColoniesSection` kicker emblem (screen retitled **«Торговля»** = existing `Trading` key; command bar already said it) |
-| `card-actions` | `ConsoleCardActions` kicker emblem (browse mode only; repeat keeps `⟳`) |
-| `std-projects` | `ConsoleStdProjectsScreen` `.con-stdp__emblem` |
-| `hydro` | `ConsoleHydroSection` `__glyph` (now the `hydronetwork` BarButtonIcon) |
-| `confirm` | the shell confirm card's `__emblem` (pass flag / heat icon) |
-| `hand-dock` | `ConsoleHandDock` `__plate` (absorb — the hand rises out of it) |
-| `res-heat` | `ConsoleResourcePanel` heat row icon (absorb) |
-| `temp` | `ConsoleStatusStrip` temperature icon (the ember spark's landing) |
-
-Characters: `orbit` (trading), `surge` (card actions), `forge` (std projects),
-`wave` (hydro), `deal` (cards→dock), `flag` (confirm hop), `ember` (heat row,
-then a spark rises to the temperature readout), `sprout` (dive into the board
-as placement mode lights up), `stamp` (skip turn — directional dash, no
-destination).
+Context is `''` (the wheel's kicker already names the mode — the start-scene
+precedent); commands advertise the OPPOSITE trigger («LT Базовые действия» /
+«RT Действия» — the switch affordance is otherwise invisible) + «B Закрыть».
 
 ## Gotchas
 
-- The flight layer is decoration: pointer-inert, **no animation hold, no leak
-  detector registration** (it never serves a prompt). Do not add gating to it.
-- `data-wheel-anchor` hosts must be transformable (`inline-block`/flex) — a
-  plain inline `<i>` silently ignores the receive pulse.
-- The proxy is a real Vue render (BarButtonIcon / resource icon / glyph — the
-  same visual triple as `QuickEntry`), NOT `cloneNode`.
+- `data-wheel-anchor` hosts must be transformable (inline-block/flex) — a
+  plain inline element silently ignores echo/pulse transforms.
+- The echo sets the emblem's `autoAlpha` from 0 INSIDE the enter timeline —
+  a surface opened WITHOUT a wheel commit shows its emblem statically
+  (no concealment leaks: `takeWheelEcho` is consume-once).
 - Handheld profile overrides target `__slot` (min-height) and `__slot-body`
   (padding) separately — keep both in sync when resizing tiles.
+- The armed visual lives on `__slot-body` (CSS class); GSAP entrance/exit
+  animates `__slot`/panel — the layers never fight.

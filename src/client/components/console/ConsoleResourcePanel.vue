@@ -55,8 +55,9 @@
              ]"
              :data-conversion-cell="conversionAnchor(row.key)">
           <!-- data-wheel-anchor="res-heat": the LT wheel's heat-conversion
-               commit lands its flying icon HERE (wheelFlight 'ember'), then
-               a spark continues to the temperature readout. -->
+               commit ACKNOWLEDGES here (wheelPulse) — the reservoir about to
+               be spent answers the press; the server's own flip/delta
+               animations then carry the actual change. -->
           <i class="con-res__icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"
              :data-conversion-icon="conversionAnchor(row.key)"
              :data-wheel-anchor="row.key === 'heat' ? 'res-heat' : undefined"></i>
