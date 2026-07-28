@@ -18,6 +18,8 @@ Persistent console SETTINGS live in the main-menu → «Настройки» (`C
 ## Leak detector (breaks silently if skipped)
 A new console surface that renders its OWN root class is invisible to `consoleLeakDetector.ts` and gets masked by the amber stranded guard even though it renders underneath. **Register its root selector**: general surface → `SERVING_SURFACES`; kind-specific section → `KIND_SURFACES[<kind>]`. The root must have layout. No spec enumerates the list — a miss fails only at runtime.
 
+**A hand-off to an ALWAYS-MOUNTED surface (board placement, hand carousel) has no registrable selector** — it needs a module-level MIRROR + early-return instead (`setConsoleTaskSpacePlacement`, `setConsoleTaskDeferred`, `isConsoleHandPickActive`, …) plus a spec row. This is how the final-greenery placement stranded (a nested `SelectSpace` branch keeps `waitingFor` classified as `choice` while every task surface unmounts). Full table: `docs/claude/console/leak-detector-contract.md`.
+
 ## Input — semantic, never raw
 Physical input → `GamepadIntent` → `ConsoleAction` (`consoleActionModel.ts`). The ONE keyboard map lives there; the global `consoleKeyBridge` feeds the same dispatch. **Never add a component-local `keydown` listener or a new physical binding at a call site** — new screens use `useConsoleInput({onAction, onNav, overrides})`. `useGamepad`/`useMagicKeys` from VueUse are deliberately not used.
 

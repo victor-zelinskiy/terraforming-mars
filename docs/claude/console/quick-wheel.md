@@ -42,7 +42,12 @@ executes effects out; `wheelInput` drives `focusedSlot`/`armedSlot`/
 only MOVE the persistent `focus` — their release/neutral does NOTHING. The
 d-pad follows the explicit spatial map (`stepWheelFocus`: centre→arm,
 opposite→centre, perpendicular→that arm, same = felt edge, missing slot
-keeps focus); the stick jumps to sectors directly. A DOWN fixes the action
+keeps focus). The STICK walks the SAME map (never an absolute sector):
+circling still sweeps the arms (a perpendicular deflection lands on that
+arm) and an OPPOSITE deflection returns HOME to the centre — the centre is
+not a sector, so an absolute-angle stick could never reach it, and
+returning focus home on NEUTRAL is not an option (it would steal the focus
+while the player lets the stick go to reach A). A DOWN fixes the action
 (navigation FREEZES while A is held — later movement can never swap the
 confirmed action), A UP commits — A confirms ANY focused tile. Fixed HOME
 focus = the CENTRE tile (LT «Стандартные проекты», RT «Карты») on EVERY

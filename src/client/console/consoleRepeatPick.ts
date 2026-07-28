@@ -41,8 +41,11 @@ export type ConsoleRepeatPickRequest = {
    *  (empty for ProjectInspection / Viron — the server only offers valid ones). */
   disabled: ReadonlyArray<{name: CardName, reason: string}>;
   /** The OPERATION this pick belongs to (the source card + a kicker i18n key) —
-   *  the pick surface names it so the player never loses WHY they are choosing. */
-  source: {kicker: string, card: CardName};
+   *  the pick surface names it so the player never loses WHY they are choosing.
+   *  `label` (i18n key) overrides the breadcrumb text for a NON-card source
+   *  (the Hydronetwork's stage 7 — the fork presents it as a systemic module,
+   *  never as the lore «Delta Project» card name). */
+  source: {kicker: string, card: CardName, label?: string};
   /** A previous pick preserved for a «change» re-open (pre-focus the grid). */
   prior?: {chosenCard: CardName, nodeIndex: number};
 };

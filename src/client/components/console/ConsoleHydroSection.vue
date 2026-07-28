@@ -209,10 +209,26 @@
             </div>
           </template>
 
-          <!-- Pos 7/9 card pick — resolved via the console sheet (A). -->
+          <!-- Pos 7/9 card pick. Stage 7 routes to the ДЕЙСТВИЯ КАРТ repeat
+               surface (the same premium browser Viron / Проверка проекта use);
+               stage 9 keeps the card sheet. A composed stage-7 pick renders as
+               the SAME chosen-action button the composers draw (icons + name);
+               clicking it re-opens the pick (X in the confirm modal ditto). -->
           <div v-if="model.needsCardSelect !== undefined" class="con-hydro__pick">
             <template v-if="model.eligibleCardNames.length > 0">
-              <span v-if="model.selectedCard !== undefined" class="con-hydro__pick-chosen">
+              <div v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
+                   class="con-composer__repeatpick con-hydro__pick-action"
+                   role="button"
+                   @click="onChangePick">
+                <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                  <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                  <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                  <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
+                </div>
+                <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
+                <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+              </div>
+              <span v-else-if="model.selectedCard !== undefined" class="con-hydro__pick-chosen">
                 <b>{{ $t(model.selectedCard) }}</b>
                 <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
                   <span class="card-resource card-resource-animal" aria-hidden="true"></span>{{ selectedAnimalCurrent }}
@@ -305,7 +321,9 @@
                            ref="confirm"
                            :model="model"
                            :rewardView="rewardView"
+                           :repeatNode="repeatNode"
                            @confirm="onModalConfirm"
+                           @change-pick="onChangePick"
                            @cancel="ui.confirmOpen = false" />
     </transition>
   </section>
@@ -323,7 +341,9 @@
  *  - rewards:   buildRewardView («сейчас → станет» deltas);
  *  - reasons:   hydroPlanReasons (pure, SPECIFIC unavailability);
  *  - submit:    emits the same {spend, rewardChoice, selectedCard} payload
- *               the shell's submitHydroAdvance has always batched.
+ *               the shell's submitHydroAdvance has always batched — plus the
+ *               console-only `repeat` composition for stage 7 (the chosen
+ *               action pre-composed on the ДЕЙСТВИЯ КАРТ repeat surface).
  *
  * Composition (Steam Deck-first): a header band with live status chips, a
  * single-row PROGRESS RAIL of all 12 stops (the selected one magnified), and
@@ -339,9 +359,15 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import ConsoleHydroConfirm from './ConsoleHydroConfirm.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
+import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
+import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -354,6 +380,7 @@ import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
 import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
+import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {hydroDrawState} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
@@ -384,9 +411,12 @@ type RailStop = {
   linkKind: 'done' | 'route' | 'dim';
 };
 
+type GroupNode = ActionGroup['nodes'][number];
+
 export default defineComponent({
   name: 'ConsoleHydroSection',
-  components: {GamepadGlyph, BarButtonIcon, HydroReward, ConsoleHydroConfirm},
+  components: {GamepadGlyph, BarButtonIcon, HydroReward, ConsoleHydroConfirm, CardRenderEffectBoxComponent, CardRenderData},
+  directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     actionAvailable: {type: Boolean, default: false},
@@ -484,6 +514,24 @@ export default defineComponent({
         return undefined;
       }
       return this.eligibleCards.find((c) => c.name === this.model.selectedCard)?.current;
+    },
+    /** The COMPOSED stage-7 repeat pick, honoured only while its chosen card
+     *  still matches the plan's card (the shared brain stays authoritative —
+     *  a stale composition degrades to the bare card pick in the batch). */
+    chosenRepeat(): ConsoleRepeatPickResult | undefined {
+      const r = consoleHydroUi.repeatResult;
+      return r !== undefined && r.chosenCard === this.model.selectedCard ? r : undefined;
+    },
+    /** The chosen action's render node — the SAME premium button graphic the
+     *  play/action composers draw in their filled repeat slot. */
+    repeatNode(): GroupNode | undefined {
+      const r = this.chosenRepeat;
+      if (r === undefined) {
+        return undefined;
+      }
+      const group = playerActionGroups([{name: r.chosenCard} as CardModel])[0];
+      const node = group?.nodes[r.nodeIndex] ?? group?.nodes[0];
+      return node !== undefined ? stripNodeOr(node) : undefined;
     },
     rewardView(): HydroRewardView {
       return buildRewardView({
@@ -693,6 +741,8 @@ export default defineComponent({
       consoleHydroUi.mode = m.mode;
       consoleHydroUi.bonusChoice = m.mode === 'plan' && m.targetNeedsChoice;
       consoleHydroUi.pickKind = m.mode === 'plan' ? m.needsCardSelect : undefined;
+      // The confirm modal's «Изменить выбор» (X) verb is live only with a pick.
+      consoleHydroUi.pickChosen = m.mode === 'plan' && m.needsCardSelect !== undefined && m.selectedCard !== undefined;
       // A is live when it can confirm OR resolve a to-do (bonus / card pick),
       // and in details mode (it jumps back to planning).
       const todoOnly = this.reasons.length > 0 && this.reasons.every((r) => !r.blocking);
@@ -758,6 +808,8 @@ export default defineComponent({
       const stage = HYDRO_STAGES[next];
       hydroNetworkState.rewardChoice = stage !== undefined && hydroStageNeedsChoice(stage) ? 0 : undefined;
       hydroNetworkState.selectedCard = undefined;
+      // The stage-7 composition belongs to the abandoned target.
+      consoleHydroUi.repeatResult = undefined;
     },
     /** A — the smart primary: resolve the first pending step, then confirm. */
     onPrimary(): void {
@@ -782,6 +834,16 @@ export default defineComponent({
         this.ui.confirmOpen = true;
       }
     },
+    /** «Изменить выбор» — X in the confirm modal / a click on the filled
+     *  stage-7 slot: re-open the pick with the previous choice pre-focused
+     *  (the old selection is kept if the player backs out). */
+    onChangePick(): void {
+      if (this.model.needsCardSelect === undefined || this.model.selectedCard === undefined) {
+        return;
+      }
+      this.ui.confirmOpen = false;
+      this.$emit('pick');
+    },
     onModalConfirm(): void {
       if (!this.model.canConfirm) {
         return;
@@ -791,6 +853,9 @@ export default defineComponent({
         spend: this.model.selectedSpend,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        // The stage-7 COMPOSED repeat (chosen action + its pre-collected
+        // responses) — the shell appends the ProjInsp/Viron-parity batch tail.
+        repeat: this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined,
         // The marker glide anchors: from the current stop to the planned one.
         fromPosition: this.model.currentPosition,
         toPosition: this.model.selectedPosition,

@@ -229,7 +229,13 @@
                    action drawn as a button with its own action graphic. -->
               <template v-if="item.choice.repeatAction === true">
                 <div class="con-composer__row-label">{{ $t('Action to repeat') }}</div>
-                <div v-if="repeatResult !== undefined" class="con-composer__repeatpick">
+                <!-- NESTED slot (composing an action that is itself a repeat
+                     source, inside the repeat pick surface): read-only — the
+                     server asks for this pick as the NEXT native task. -->
+                <div v-if="repeatPickDisabled" class="con-composer__row-value">
+                  <span class="con-composer__row-empty">↳ {{ $t('The action to repeat is chosen after confirming') }}</span>
+                </div>
+                <div v-else-if="repeatResult !== undefined" class="con-composer__repeatpick">
                   <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
                     <CardRenderEffectBoxComponent v-if="repeatNode !== undefined && repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
                     <CardRenderData v-else-if="repeatNode !== undefined && repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
@@ -525,6 +531,17 @@ export default defineComponent({
      * inner sets this FALSE and receives the contract via `@commands` instead.
      */
     publishCommands: {type: Boolean, default: true},
+    /**
+     * A NESTED repeat slot is read-only: the repeat pick surface hosts this
+     * composer to compose an already-CHOSEN action, and that action may itself
+     * be a repeat source (Viron picked from the Hydronetwork's stage 7 / from
+     * ProjectInspection). The `consoleRepeatPick` bridge is a singleton — a
+     * second `enterConsoleRepeatPick` would clobber the outer pick's callbacks.
+     * With this TRUE the slot renders as an honest «выбирается после
+     * подтверждения» note, confirm doesn't require it, and the server's own
+     * SelectCard arrives as the next native task (the sequential contract).
+     */
+    repeatPickDisabled: {type: Boolean, default: false},
   },
   emits: ['confirm', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
@@ -644,9 +661,17 @@ export default defineComponent({
      */
     navItems(): ReadonlyArray<Item> {
       const free = this.focusFreeDialId;
-      return free === undefined ?
-        this.items :
-        this.items.filter((it) => !(it.kind === 'choice' && it.choice.id === free));
+      return this.items.filter((it) => {
+        if (it.kind !== 'choice') {
+          return true;
+        }
+        // The focus-free dial is driven globally with LB/RB — no cursor stop.
+        if (free !== undefined && it.choice.id === free) {
+          return false;
+        }
+        // The read-only NESTED repeat slot is a note, not a control.
+        return !(it.choice.repeatAction === true && this.repeatPickDisabled);
+      });
     },
     /** Every payment choice (pre + branch) — rendered as persistent panels,
      *  NOT nav rows. Normally 0 or 1; a card with several SelectPayment steps
@@ -719,8 +744,9 @@ export default defineComponent({
       if (this.preview === undefined || branch === undefined || !branch.available) {
         return false;
       }
-      // The repeat slot (Viron) must be filled before confirming.
-      if (this.repeatChoice !== undefined && this.repeatResult === undefined) {
+      // The repeat slot (Viron) must be filled before confirming — unless the
+      // slot is the read-only NESTED one (resolved post-submit by the server).
+      if (!this.repeatPickDisabled && this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return false;
       }
       if (!this.preChoiceList.every((c) => this.capturedPre[c.index] !== undefined)) {
@@ -750,7 +776,7 @@ export default defineComponent({
       if (this.submitting || this.canConfirm) {
         return '';
       }
-      if (this.repeatChoice !== undefined && this.repeatResult === undefined) {
+      if (!this.repeatPickDisabled && this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return translateText('Choose an action to repeat');
       }
       if (this.selectedBranch === undefined && this.needBranchRow) {
@@ -1172,7 +1198,8 @@ export default defineComponent({
     },
     choiceMissing(c: ComposerChoice): boolean {
       if (c.repeatAction === true) {
-        return this.repeatResult === undefined;
+        // The nested read-only slot is never «missing» — it resolves post-submit.
+        return !this.repeatPickDisabled && this.repeatResult === undefined;
       }
       if (c.scope === 'option') {
         return this.capturedOption === undefined;
@@ -1672,7 +1699,11 @@ export default defineComponent({
       // surface ADAPTED for repeat mode (`consoleRepeatPick`): the player picks
       // the action AND composes it there, returning the composed responses.
       if (c.repeatAction === true) {
-        this.openRepeatPick(c);
+        // NESTED slot (this composer already lives inside the repeat pick
+        // surface): the bridge is busy — the slot is a read-only note.
+        if (!this.repeatPickDisabled) {
+          this.openRepeatPick(c);
+        }
         return;
       }
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
@@ -1907,9 +1938,10 @@ export default defineComponent({
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
         optionResponse: this.capturedOption,
         // The repeat step (Viron) is NEVER a plain captured step — it rides the
-        // `repeat` payload (the chosen action + its own composed responses).
+        // `repeat` payload (the chosen action + its own composed responses). A
+        // read-only NESTED slot never composed one — the server asks next.
         stepResponses: orderedStepResponses(branch, this.captured),
-        repeat: this.repeatResult,
+        repeat: this.repeatPickDisabled ? undefined : this.repeatResult,
       });
     },
     // ── the reveal phase ─────────────────────────────────────────────────

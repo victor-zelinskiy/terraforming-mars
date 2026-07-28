@@ -12,3 +12,15 @@ The console-first shell (`ConsoleShell.vue`, `?console=1`; full design in `docs/
 - A KIND-SPECIFIC section (only serves its own kind, must not mask an unrelated stranded prompt) → add it to `KIND_SURFACES[<kind>]` (e.g. `projectCard` → `.con-hand`/`.con-sheet`, `colony` → `.con-colonies`).
 The root node must have layout (`getClientRects().length > 0`) — a `position: fixed; inset: 0` overlay always qualifies. No leak-detector spec enumerates the list, so a missing entry won't fail a test — it fails at runtime as the stranded guard. Reference: `ConsoleGovernmentSupport` (`.con-govsupport`, added to `SERVING_SURFACES` next to `.con-task-host`).
 
+**THE SECOND GOTCHA — a hand-off to a surface that has NO dedicated selector needs a MIRROR, not a selector.** When the shell hands a live prompt to something that is *always mounted* (the board, the hand carousel), there is no class to register: the always-on root would mask a genuine strand, and its `--live` variant usually also covers free browsing. Those cases get a module-level boolean the shell keeps in sync, checked as an early-return in `runLeakDetection`:
+
+| Mirror | Set by | Why no selector |
+| --- | --- | --- |
+| `setConsoleTaskDeferred` | `consoleState.task.deferred` watcher | the serving `.con-mandatory` card is hidden off the board home |
+| `isConsoleHandPickActive()` | `consoleHandPick` bridge | `.con-hand` also opens freely over an unrelated prompt |
+| `isMandatoryGateHeld()` | `consoleMandatoryGate` | announced-not-opened: the card may be mid-animation |
+| `isAnimationHoldActive()` | `animationHold` registry | notification-only holds render into the always-on dock |
+| `setConsoleTaskSpacePlacement` | `taskSpacePending` watcher | placement mode's `.con-board` is always mounted; `.con-board--live` also covers inspection |
+
+The last one shipped as a **critical bug (2026-07-29)**: the FINAL GREENERY prompt is an `OrOptions` ('Place any final greenery from plants') whose first branch is a nested `SelectSpace`. Picking that branch sets `taskSpacePending`, which unmounts the task host / gov-support / production-loss surfaces (all three carry `taskSpacePending === undefined` in their `v-if`) and hands the answer to board placement — while `waitingFor` stays the `or`, so `taskFor` keeps returning `choice`, **not** the shell-native `space`. Nothing matched, and ~2 s into every final-greenery placement the amber guard covered a perfectly working board. Same shape: the World Government ocean. **A new client-side hand-off that unmounts its task surface while the server prompt stays live MUST add a mirror + a spec row in `tests/client/components/console/consoleLeakDetector.spec.ts`.**
+

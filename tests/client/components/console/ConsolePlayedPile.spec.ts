@@ -73,4 +73,18 @@ describe('ConsolePlayedPile (peek-crop faces)', () => {
     expect(wrapper.find('.pcard__lower').exists()).to.eq(true);
     wrapper.unmount();
   });
+
+  it('nothing live is pinned over the table — no stored-resource chip', () => {
+    // Stored resources are read in «Информация» → «Доп. ресурсы» and on the
+    // card's own face in the fullscreen inspector; the tableau shows cards.
+    const live = cards(PILE) as Array<CardModel & {resources?: number}>;
+    live[0].resources = 3;
+    live[live.length - 1].resources = 5; // the fully open top card too
+    const wrapper = make({cards: live});
+    expect(wrapper.find('.con-played__res').exists()).to.eq(false);
+    // The premium face itself stays the PRINTED one (name-only mode) — its
+    // own live resource capsule is not mounted either.
+    expect(wrapper.find('.pcard__res').exists()).to.eq(false);
+    wrapper.unmount();
+  });
 });

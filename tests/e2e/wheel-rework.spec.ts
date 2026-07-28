@@ -392,9 +392,19 @@ test.describe('quick-wheel rework', () => {
     };
     await stick(1, 0);
     await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
-    await stick(0, 0, 600); // confirmed neutral — must NOT commit
+    await stick(0, 0, 600); // confirmed neutral — must NOT commit, must NOT steal focus
     expect(await page.locator('.con-colonies').count(), 'stick neutral must not execute in focus-confirm').toBe(0);
     await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
+
+    // ── 4b · The stick REACHES THE CENTRE: it walks the d-pad's map, so an
+    //         OPPOSITE deflection returns home to «Карты» (the centre is not
+    //         a sector — an absolute-angle stick could never reach it) ──────
+    await stick(-1, 0);
+    await expect(focusedCenter).toHaveCount(1);
+    await shoot(page, 'fc-02b-stick-home');
+    await stick(1, 0); // back out to «Торговля» for the confirm below
+    await expect(page.locator('.con-quick__slot--right.con-quick__slot--focus')).toHaveCount(1);
+    await stick(0, 0, 400);
 
     // ── 5 · A confirms the CURRENT focus (not the centre): press seats the
     //        tile, release commits → trading opens through the shared

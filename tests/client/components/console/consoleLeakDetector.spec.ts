@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
+import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
 import {setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
@@ -106,6 +106,81 @@ describe('consoleLeakDetector — a DEFERRED task is never stranded', () => {
   it('stopConsoleLeakDetector resets the deferred mirror', () => {
     const view = handSelectView();
     setConsoleTaskDeferred(true);
+    runLeakDetection(view);
+    stopConsoleLeakDetector(); // clears the mirror
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'a reset mirror no longer suppresses').to.not.eq(undefined);
+  });
+});
+
+/*
+ * A task's nested SelectSpace answered on the BOARD. The FINAL GREENERY prompt
+ * is the shape that shipped the bug: an OrOptions ('Place any final greenery
+ * from plants') whose first branch is a SelectSpace. Once the player picks that
+ * branch the shell unmounts the task host (`taskSpacePending !== undefined` in
+ * its v-if) and hands the answer to board placement — but `waitingFor` is still
+ * the OrOptions, so the task stays `choice` (not the shell-native `space`) and
+ * NO serving surface matches. Without the mirror the amber guard covered the
+ * board ~2 s into every final-greenery placement.
+ */
+function finalGreeneryView(): PlayerViewModel {
+  return {
+    waitingFor: {
+      type: 'or',
+      title: 'Place any final greenery from plants',
+      buttonLabel: 'Confirm',
+      options: [
+        {type: 'space', title: 'Select space for greenery tile', spaces: ['05']},
+        {type: 'option', title: 'Don\'t place a greenery'},
+      ],
+    },
+    cardsInHand: [],
+    thisPlayer: {selfReplicatingRobotsCards: []},
+  } as unknown as PlayerViewModel;
+}
+
+describe('consoleLeakDetector — a nested-space placement is never stranded', () => {
+  beforeEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
+  afterEach(() => {
+    stopConsoleLeakDetector();
+    setMandatoryGateHeld(false);
+  });
+
+  it('WOULD strand the final-greenery choice while no surface is mounted (the bug)', () => {
+    const view = finalGreeneryView();
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded?.taskKind, 'fence: the classification that fooled the detector').to.eq('choice');
+  });
+
+  it('stays hidden across consecutive passes while the board serves the branch', () => {
+    const view = finalGreeneryView();
+    setConsoleTaskSpacePlacement(true);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'placing a final greenery must never strand').to.eq(undefined);
+  });
+
+  it('flags again once the placement is over (regression fence)', () => {
+    const view = finalGreeneryView();
+    setConsoleTaskSpacePlacement(true);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'placing → hidden').to.eq(undefined);
+    setConsoleTaskSpacePlacement(false);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'no placement + unserved → stranded').to.not.eq(undefined);
+  });
+
+  it('stopConsoleLeakDetector resets the placement mirror', () => {
+    const view = finalGreeneryView();
+    setConsoleTaskSpacePlacement(true);
     runLeakDetection(view);
     stopConsoleLeakDetector(); // clears the mirror
     runLeakDetection(view);

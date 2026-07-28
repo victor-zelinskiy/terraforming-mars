@@ -4,6 +4,9 @@ import {expect} from 'chai';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/consoleCardActions';
 import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
+import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
+import {CardName} from '@/common/cards/CardName';
 
 // Stub the gamepad glyphs — this spec is about the browse ⇄ focus flow.
 const GlyphStub = {name: 'GamepadGlyph', props: ['control'], template: '<i class="glyph-stub" />'};
@@ -54,6 +57,12 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
   beforeEach(() => {
     consoleCardActionsUi.filter = defaultCardActionsFilter();
     consoleCardActionsUi.confirmOpen = false;
+  });
+  // Module state is bundle-shared under mochapack: a failed repeat-mode test
+  // must never leave the bridge active for the rest of the suite.
+  afterEach(() => {
+    resetConsoleRepeatPick();
+    resetConsoleRepeatPickUi();
   });
 
   it('BROWSE: the inspector anchors on the card THUMBNAIL (a physical zoom slot) with the tableau resource counter, the old graphic duplicate is gone', async () => {
@@ -117,6 +126,37 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     // The browse header is back.
     expect(w.find('.con-cardactions__kicker-step').exists()).to.eq(false);
     w.unmount();
+  });
+
+  it('REPEAT «change» re-open pre-focuses the PRIOR chosen action; the breadcrumb honours the source label override', async () => {
+    // Two action sources, both used this generation and both candidates —
+    // without the prior the cursor would land on the FIRST tile.
+    const view = playerView();
+    view.thisPlayer.tableau = [{name: CARD, resources: 2}, {name: CardName.IRONWORKS}];
+    view.thisPlayer.actionsThisGeneration = [CARD, CardName.IRONWORKS];
+    enterConsoleRepeatPick({
+      title: 'Use a blue card action that has already been used this generation',
+      buttonLabel: 'Take action',
+      candidates: [CardName.REGOLITH_EATERS, CardName.IRONWORKS],
+      disabled: [],
+      // A non-card source (the Hydronetwork) overrides the breadcrumb text.
+      source: {kicker: 'Mars Hydronetwork', card: CardName.DELTA_PROJECT, label: 'Mars Hydronetwork'},
+      prior: {chosenCard: CardName.IRONWORKS, nodeIndex: 0},
+    }, () => { /* resolve unused — this is a render/focus test */ });
+    const w = mount(ConsoleCardActions, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: view, repeat: true},
+      attachTo: document.body,
+    });
+    await settle(w);
+    expect((w.vm as any).focusKey).to.eq(CardName.IRONWORKS + '#0');
+    expect((w.vm as any).focusedTile?.cardName).to.eq(CardName.IRONWORKS);
+    // The source line never leaks the lore card name for a labelled source.
+    expect(w.find('.con-cardactions__kicker-src').text()).to.eq('Mars Hydronetwork');
+    w.unmount();
+    resetConsoleRepeatPick();
+    resetConsoleRepeatPickUi();
   });
 
   it('repeated A never double-opens; A on an unavailable tile shakes instead of focusing', async () => {

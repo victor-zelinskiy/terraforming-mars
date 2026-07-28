@@ -177,7 +177,7 @@
                              :playerView="playerView"
                              :actionAvailable="hydroActionAvailable"
                              :cacheKey="hydroCacheKey"
-                             @pick="openHydroPickSheet"
+                             @pick="openHydroPick"
                              @notice="showNotice($event)"
                              @confirm="submitHydroAdvance($event)"
                              @close="consoleState.section = 'board'" />
@@ -1025,7 +1025,7 @@ import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTa
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
-import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
 import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
@@ -1069,7 +1069,8 @@ import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {consoleRepeatPickState, cancelConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
@@ -1619,7 +1620,11 @@ export default defineComponent({
      *  BEHIND it and its section is NOT auto-opened; a watcher opens the
      *  serving surface the moment this clears (else it'd be a stranded prompt). */
     consoleForegroundBusy(): boolean {
-      return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds;
+      return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds ||
+        // Cards still travelling (deck draw / board lift / the intake into the
+        // dock) — the SAME rule the host family follows, so a hand-select
+        // prompt cannot open over a card in the air either.
+        this.cardArrivalBusy;
     },
     /** The surface-motion shade (`.con-shade--on`): ≥1 migrated band surface
      *  owns the foreground, a committed submit is awaiting its answer, or
@@ -1782,12 +1787,26 @@ export default defineComponent({
      * `rawDrawnRevealPending` deliberately goes false while they run — so
      * nothing was left to hold the task surfaces back. This names them.
      *
+     * INCLUDING THE INTAKE. Waiting for the reveal is only half the wait: the
+     * player answers it by TAKING the card, and the card then physically flies
+     * into the dock. The reveal clears the instant it is answered, so without
+     * this the prompt opened over a card still in the air. If we wait for an
+     * action, we wait for the animation that action starts.
+     *
+     * Read through the REACTIVE flight list, not `isHandDeliveryActive()` — the
+     * latter is a plain counter, so a computed built on it would never
+     * re-evaluate when the flight ends.
+     *
      * Deliberately NOT every animation hold: the hydro draw lands its cards in
-     * a task-host pick, and the research buy runs its intake INSIDE the host —
+     * a task-host pick, and the card-DEAL cinematic plays INSIDE the host —
      * suppressing the host for those would unmount the stage they play on.
+     * (The intake is safe: its proxies live on the shell-level delivery layer,
+     * so nothing it needs dies with the surface that released the cards.)
      */
     cardArrivalBusy(): boolean {
-      return deckDrawHolds() || isBoardCardBonusActive();
+      return deckDrawHolds() ||
+        isBoardCardBonusActive() ||
+        this.handDeliveryState.flights.length > 0;
     },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
@@ -3026,6 +3045,12 @@ export default defineComponent({
       if (this.playedPickActive) {
         return 'Card selection';
       }
+      // ...and the REPEAT-ACTION pick (ProjInsp / Viron / Hydronetwork stage 7):
+      // the ДЕЙСТВИЯ КАРТ repeat surface owns the screen — never the hidden
+      // source composer / the hydro section underneath.
+      if (this.repeatPickActive) {
+        return 'Repeat action';
+      }
       if (this.pendingPlayCard !== undefined) {
         return 'Play project card';
       }
@@ -3598,10 +3623,14 @@ export default defineComponent({
         // honest: enabled flags come from the section's live-model mirrors.
         if (consoleHydroUi.confirmOpen) {
           // The bonus (pos 1/2) is CHOSEN in the confirm modal now — LB/RB
-          // switch it, A confirms the highlighted one, B goes back.
+          // switch it, A confirms the highlighted one, B goes back. A held
+          // stage 7/9 pick advertises X = «Изменить выбор» (re-open the pick).
           const confirmCmds: Array<ConsoleCommand> = [];
           if (consoleHydroUi.bonusChoice) {
             confirmCmds.push({control: 'bumperL', control2: 'bumperR', label: 'Switch bonus'});
+          }
+          if (consoleHydroUi.pickChosen) {
+            confirmCmds.push({control: 'secondary', label: 'Change selection'});
           }
           confirmCmds.push(
             {control: 'confirm', label: 'Confirm'},
@@ -3839,6 +3868,14 @@ export default defineComponent({
       // stop-reset covers unmount, so no immediate sync is needed.
       setConsoleTaskDeferred(deferred);
     },
+    // A task's nested SelectSpace branch answered ON THE BOARD (final greenery,
+    // the WGT ocean): the host / gov-support / production-loss surfaces are all
+    // unmounted for its lifetime while `waitingFor` stays the OrOptions — the
+    // board is the serving surface and the detector has no DOM node to match it
+    // by. Mirror it, or the amber guard covers a working placement (~2 s in).
+    taskSpacePending(pending: {index: number, spacePrompt: PlayerInputModel} | undefined) {
+      setConsoleTaskSpacePlacement(pending !== undefined);
+    },
     // TRADE-FLEET LAUNCH lifecycle: the composer stays mounted (dissolved via
     // `--launching`) through the whole flight; the trade overlay only fully
     // CLOSES once the ship has DOCKED (success) or the flight was recalled
@@ -3866,6 +3903,8 @@ export default defineComponent({
     'hydroMarkerState.active'(active: boolean) {
       if (!active && this.consoleState.section === 'hydro') {
         resetHydroPlan();
+        // The committed advance consumed the stage-7 composition (if any).
+        consoleHydroUi.repeatResult = undefined;
       }
     },
     // A mandatory surface claimed the screen — the journal yields so the
@@ -5197,6 +5236,7 @@ export default defineComponent({
       case 'hydro':
         this.deferShellTask();
         resetHydroPlan();
+        consoleHydroUi.repeatResult = undefined; // a fresh visit plans from scratch
         this.consoleState.section = 'hydro';
         break;
       default:
@@ -6173,13 +6213,55 @@ export default defineComponent({
       this.submitBatch(batch);
     },
     /**
-     * P24: the hydro card pick (reuse-a-blue-action / animal target) is a
-     * CONSOLE SHEET — candidates come from the overlay's own eligibleCards
-     * (the preview truth), the pick writes hydroNetworkState.selectedCard
-     * (the same field the desktop pick-mode bridges write), so the confirm
-     * payload stays byte-identical. Mouse clicks on the overlay's own pick
-     * button route here too.
+     * P24: the hydro stage 7/9 pick. Stage 7 (reuse-a-blue-action) routes to
+     * the ДЕЙСТВИЯ КАРТ surface in REPEAT mode — the SAME premium browser +
+     * composer Viron / Проверка проекта use (full dossier, filters, honest
+     * reasons, pre-selects composed in place); stage 9 (animal target) keeps
+     * the console card sheet. Both write hydroNetworkState.selectedCard (the
+     * same field the desktop pick-mode bridges write), so the confirm payload
+     * stays byte-identical; the stage-7 composition additionally rides the
+     * console-only `consoleHydroUi.repeatResult`.
      */
+    openHydroPick(): void {
+      if (consoleHydroUi.pickKind === 'reuse-action') {
+        this.openHydroRepeatPick();
+        return;
+      }
+      this.openHydroPickSheet();
+    },
+    openHydroRepeatPick(): void {
+      const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+      const candidates = (hydro?.eligibleCards ?? []).map((c) => c.name);
+      if (candidates.length === 0 || this.repeatPickActive) {
+        this.showNotice('Unavailable right now');
+        return;
+      }
+      // A «change» re-open pre-focuses the previous pick; the filter the player
+      // relaxed during THIS operation is kept (fresh open resets it — the
+      // bridge scopes the default to the operation).
+      const previous = consoleHydroUi.repeatResult;
+      const prior = previous !== undefined && previous.chosenCard === hydroNetworkState.selectedCard ?
+        {chosenCard: previous.chosenCard, nodeIndex: previous.nodeIndex} : undefined;
+      enterConsoleRepeatPick({
+        title: 'Use a blue card action that has already been used this generation',
+        buttonLabel: 'Take action',
+        candidates,
+        disabled: [],
+        // The fork presents the Hydronetwork as a systemic module — the
+        // breadcrumb names IT, never the lore «Delta Project» card.
+        source: {kicker: 'Mars Hydronetwork', card: CardName.DELTA_PROJECT, label: 'Mars Hydronetwork'},
+        prior,
+      }, (result) => {
+        // A PLAN write (never a submit): the shared brain keeps the card, the
+        // console layer keeps the composition; the smart primary then resumes —
+        // the confirmation modal opens over the completed plan.
+        hydroNetworkState.selectedCard = result.chosenCard;
+        consoleHydroUi.repeatResult = result;
+        void this.$nextTick(() => {
+          (this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined)?.onPrimary();
+        });
+      });
+    },
     openHydroPickSheet(): void {
       const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
       const cards = hydro?.eligibleCards ?? [];
@@ -6376,22 +6458,14 @@ export default defineComponent({
       armTradeFleet(pending.colonyName, this.thisPlayer.color);
       this.submitBatch(batch);
     },
-    // ── hydro advance (mirrors PlayerHome.submitHydroAdvance) ───────────
-    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean}): void {
+    // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
+    //    COMPOSED repeat appends the ProjInsp/Viron-parity batch tail) ─────
+    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean}): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
       if (path === undefined || isHydroMarkerActive()) {
         return; // guard a double-confirm: the marker glide owns the moment
       }
-      const responses: Array<unknown> = [
-        optionResponseForPath(path),
-        {type: 'deltaProject' as const, amount: payload.spend},
-      ];
-      if (payload.rewardChoice !== undefined) {
-        responses.push({type: 'or' as const, index: payload.rewardChoice, response: {type: 'option' as const}});
-      }
-      if (payload.selectedCard !== undefined) {
-        responses.push({type: 'card' as const, cards: [payload.selectedCard]});
-      }
+      const responses = hydroAdvanceResponses(optionResponseForPath(path), payload);
       // PREMIUM MARKER ADVANCE: ARM the marker glide (client-side, from→to)
       // FIRST — the confirm modal already closed, the hydro SCREEN STAYS OPEN,
       // and the marker physically moves to the new stop — THEN submit. The

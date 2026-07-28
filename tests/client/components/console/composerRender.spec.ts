@@ -104,6 +104,46 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  // ── The repeat slot (Viron-shaped preview: a SelectCard step of used actions) ──
+
+  function vironPreview() {
+    return {
+      card: 'Viron', isCorporation: true, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', repeatAction: true, input: {type: 'card', title: 'Perform an action from a played card again', cards: [], min: 1, max: 1}}],
+      }],
+    };
+  }
+
+  it('the repeat slot demands its pick before confirming (control case)', () => {
+    const w = factory(vironPreview(), 'Viron');
+    expect((w.vm as any).canConfirm).to.eq(false);
+    expect(w.text()).to.contain('Choose an action to repeat');
+    w.unmount();
+  });
+
+  it('a NESTED repeat slot (repeatPickDisabled — this composer already lives INSIDE the repeat pick surface) is a read-only note: confirm live, no cursor stop, no `repeat` in the payload', async () => {
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: PLAYER_VIEW, entry: entryFor('Viron'), preview: vironPreview(), nodeIndex: 0, repeatPickDisabled: true},
+    });
+    // The slot renders the honest post-confirm note, never the pick button —
+    // a second enterConsoleRepeatPick would clobber the singleton bridge.
+    expect(w.text()).to.contain('The action to repeat is chosen after confirming');
+    // Confirm does NOT require the (impossible here) nested pick…
+    expect((w.vm as any).canConfirm).to.eq(true);
+    // …the note is not a cursor stop…
+    expect((w.vm as any).navItems.some((it: any) => it.kind === 'choice' && it.choice.repeatAction === true)).to.eq(false);
+    // …and the confirm payload carries NO repeat (the server asks next).
+    (w.vm as any).submit();
+    const emitted = w.emitted('confirm');
+    expect(emitted).to.have.length(1);
+    expect((emitted![0][0] as any).repeat).to.eq(undefined);
+    w.unmount();
+  });
+
   // ── The ACTION FOCUS stage (the in-frame recompose iteration) ────────────
 
   it('renders as the IN-FRAME stage: hero card slot (FLIP anchor + zoom slot) and NO modal header', () => {

@@ -23,13 +23,14 @@
          :style="{height: (i === cards.length - 1 ? cardH : peekH) + 'px', zIndex: i + 1}"
          :data-played-key="card.name"
          :data-zoom-slot="card.name">
+      <!-- No live overlays ride the table: stored card resources are read in
+           the dedicated «Информация» screen (its «Доп. ресурсы» block) and on
+           the card's own face in the fullscreen inspector. The tableau stays
+           the printed table — cards, nothing pinned on top of them. -->
       <div class="con-played__lift">
         <div class="con-played__face con-played__focusbox" :style="{zoom: String(zoom)}">
           <ConsolePlayedCardLite :name="card.name" :peek="coveredAt(i)" />
         </div>
-        <!-- Live stored-resource counter (microbes / animals / floaters …) —
-             a SLOT chip so a count change never patches the card face. -->
-        <span v-if="(card.resources ?? 0) > 0" class="con-played__res" aria-hidden="true">{{ card.resources }}</span>
       </div>
     </div>
   </div>

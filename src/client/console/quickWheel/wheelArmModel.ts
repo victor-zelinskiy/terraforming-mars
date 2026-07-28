@@ -172,9 +172,16 @@ export function reduceWheel(
       if (arm !== undefined) {
         return none; // navigation frozen while A is held
       }
-      const next: QuickSlot = event.dir;
-      return slots.has(next) && next !== focus ?
-        {state: {focus: next, arm}, effect: {kind: 'none'}} : none;
+      // The stick walks the SAME neighbourhood map as the d-pad (never an
+      // absolute sector): circling still sweeps the arms one by one (a
+      // perpendicular deflection lands on that arm), and — crucially — a
+      // deflection OPPOSITE the current arm returns HOME to the centre.
+      // The centre is not a sector, so an absolute-angle stick could never
+      // reach «Стандартные проекты» / «Карты» at all; and returning focus
+      // home on NEUTRAL is not an option (it would steal the focus while
+      // the player lets the stick go to reach A).
+      const next = stepWheelFocus(focus, event.dir, slots.has);
+      return next === focus ? none : {state: {focus: next, arm}, effect: {kind: 'none'}};
     }
     case 'navUp':
     case 'aimEnd':

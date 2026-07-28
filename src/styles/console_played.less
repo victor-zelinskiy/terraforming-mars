@@ -265,8 +265,12 @@
         box-shadow: 0 .12rem .5rem rgba(0, 0, 0, 0.5), 0 0 .8rem fade(@con-mint, 35%);
     }
 
-    /* Live stored-resource counter — a SLOT chip on the card's top-right
-       corner (over the tag cluster's edge; deliberately small). */
+    /* The stored-resource chip. The TABLEAU no longer wears it (stored
+       resources are read in «Информация» → «Доп. ресурсы» and on the card's
+       own face in the fullscreen inspector) — the class stays because the
+       action surfaces (ConsoleCardActions thumbnail, the action composer's
+       card) render the SAME chip on the card they act on, where the count is
+       part of the decision. Do NOT delete: it is a shared chassis class. */
     &__res {
         position: absolute;
         top: .18rem;
@@ -610,11 +614,6 @@
             0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%),
             0 .5rem 1.1rem rgba(0, 0, 0, 0.62),
             0 0 .9rem fade(@con-cyan, 26%);
-    }
-    &__res {
-        /* The slot chip rides the category slots too (same look). */
-        top: .18rem;
-        right: -.28rem;
     }
     /* HELD: the flights own the cards — the slot keeps layout, paints
        nothing (badges included: a ✓ band over an empty slot while its card

@@ -21,7 +21,7 @@
             <!-- Repeat mode names the SOURCE card (ProjInsp / Viron) in the breadcrumb. -->
             <template v-if="repeat && repeatRequest !== undefined">
               <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-              <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.card) }}</span>
+              <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.label ?? repeatRequest.source.card) }}</span>
             </template>
             <template v-if="composer !== undefined">
               <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
@@ -306,6 +306,7 @@
                                :reveal="revealFlow"
                                :commitLabel="repeat ? 'Select this action' : 'Confirm action'"
                                :publishCommands="!repeat"
+                               :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
                                @cancel="onComposerCancel"
                                @inspect-source="onInspectSource"
@@ -722,6 +723,12 @@ export default defineComponent({
   mounted() {
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
+    }
+    // A «change» re-open lands the cursor ON the previously chosen action —
+    // the player adjusts FROM their pick, never re-hunts it from the top.
+    const prior = this.repeatRequest?.prior;
+    if (this.repeat && prior !== undefined) {
+      this.focusKey = prior.chosenCard + '#' + prior.nodeIndex;
     }
     void this.$nextTick(() => this.scrollFocusedIntoView());
   },

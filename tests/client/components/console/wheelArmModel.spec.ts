@@ -136,6 +136,28 @@ describe('wheelArmModel', () => {
       expect(r.state.focus).to.eq('left');
     });
 
+    it('the stick reaches the CENTRE: an opposite deflection returns home', () => {
+      // The centre is not a sector — the stick walks the d-pad's map, so
+      // «Стандартные проекты» / «Карты» stay reachable without the d-pad.
+      const r = fc([{type: 'aim', dir: 'right'}, {type: 'aim', dir: 'left'}]);
+      expect(r.state.focus).to.eq('center');
+      expect(r.effects).to.be.empty;
+    });
+
+    it('re-deflecting into the SAME arm after neutral keeps the focus (felt edge)', () => {
+      const r = fc([
+        {type: 'aim', dir: 'up'},
+        {type: 'aimEnd'}, // released to neutral — focus survives
+        {type: 'aim', dir: 'up'}, // pointed there again
+      ]);
+      expect(r.state.focus).to.eq('up');
+    });
+
+    it('a neutral return NEVER steals the focus (the player is reaching for A)', () => {
+      const r = fc([{type: 'aim', dir: 'left'}, {type: 'aimEnd'}, {type: 'confirmDown'}, {type: 'confirmUp'}]);
+      expect(r.effects).to.deep.eq(['commit:left']);
+    });
+
     it('circling the stick walks the focus; only A commits', () => {
       const r = fc([
         {type: 'aim', dir: 'right'},

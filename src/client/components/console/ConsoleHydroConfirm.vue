@@ -80,10 +80,20 @@
           </div>
         </div>
 
-        <!-- The pre-picked card (pos 7 reuse-action / pos 9 animals). -->
+        <!-- The pre-picked card (pos 7 reuse-action / pos 9 animals). The
+             stage-7 pick draws the chosen ACTION as the same premium button
+             the composers use; X re-opens the pick (advertised in the bar). -->
         <div v-if="model.mustSelectCard && model.selectedCard !== undefined" class="con-hydroconfirm__card">
           <span class="con-hydroconfirm__card-label">{{ cardLabel }}:</span>
-          <b>{{ $t(model.selectedCard) }}</b>
+          <div v-if="repeatNode !== undefined" class="con-composer__repeatpick con-hydroconfirm__repeatpick" role="button" @click="$emit('change-pick')">
+            <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+              <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+              <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+              <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
+            </div>
+            <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
+          </div>
+          <b v-else>{{ $t(model.selectedCard) }}</b>
           <span class="con-hydroconfirm__tick" aria-hidden="true">✓</span>
         </div>
 
@@ -145,6 +155,10 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
+import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
+import CardRenderData from '@/client/components/card/CardRenderData.vue';
+import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
+import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {HydroModel} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HydroStage, HydroRewardChip} from '@/client/components/hydronetwork/hydroStages';
 import {HydroDeltaLine, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
@@ -157,14 +171,20 @@ import {hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkSt
 /** Confirm-dialog semantics: A = confirm, B = cancel (the advertised verbs). */
 const CONFIRM_DIALOG_OVERRIDES: ConsoleActionOverrides = {confirm: 'confirm', back: 'cancel'};
 
+type GroupNode = ActionGroup['nodes'][number];
+
 export default defineComponent({
   name: 'ConsoleHydroConfirm',
-  components: {GamepadGlyph, HydroReward},
+  components: {GamepadGlyph, HydroReward, CardRenderEffectBoxComponent, CardRenderData},
+  directives: {stripActionPrefix},
   props: {
     model: {type: Object as PropType<HydroModel>, required: true},
     rewardView: {type: Object as PropType<HydroRewardView>, required: true},
+    /** The stage-7 chosen action's render node (the premium button graphic);
+     *  undefined = no composed pick (pos 9 / bare card fallback). */
+    repeatNode: {type: Object as PropType<GroupNode | undefined>, default: undefined},
   },
-  emits: ['confirm', 'cancel'],
+  emits: ['confirm', 'cancel', 'change-pick'],
   computed: {
     stage(): HydroStage | undefined {
       return this.model.targetStage;
@@ -241,6 +261,13 @@ export default defineComponent({
         return;
       case 'cancel':
         this.$emit('cancel');
+        return;
+      case 'inspect':
+        // X — «Изменить выбор»: re-open the pos 7/9 pick with the current
+        // choice pre-focused (advertised in the bar only while a pick exists).
+        if (this.model.needsCardSelect !== undefined && this.model.selectedCard !== undefined) {
+          this.$emit('change-pick');
+        }
         return;
       case 'prevSection':
         this.cycleChoice(-1);

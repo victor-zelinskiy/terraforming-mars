@@ -8,8 +8,9 @@
      - out-of-scope types (CEO …) keep the legacy lite face via
        ConsoleCardFaceLite's own fallback branch.
     Zero live state, zero interactivity — one flat manifest lookup, rendered
-    once; live extras (resource counters) are the SLOT's chips, never the
-    card's (so a count change patches one chip, not a card subtree).
+    once. Nothing live is pinned over it either: stored card resources are
+    read in «Информация» → «Доп. ресурсы» and on the card's own face in the
+    fullscreen inspector, so a resource change never patches the table.
   -->
   <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" :peek="peek" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />

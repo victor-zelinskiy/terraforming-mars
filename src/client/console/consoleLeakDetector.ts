@@ -205,6 +205,33 @@ export function setConsoleTaskDeferred(deferred: boolean): void {
   consoleTaskDeferred = deferred;
 }
 
+/**
+ * Live mirror of the shell's `taskSpacePending` — a task-host CHOICE whose
+ * player-picked branch is a nested `SelectSpace`, now being answered on the
+ * REAL BOARD in placement mode (`onTaskSpacePick` → `onTaskSpacePicked`).
+ *
+ * For that window the shell deliberately unmounts EVERY task surface (the
+ * ConsoleTaskHost, the Government Support panel and the production-loss
+ * surface all carry `taskSpacePending === undefined` in their `v-if`), because
+ * the board IS the surface. But `waitingFor` is still the OrOptions, so
+ * `taskFor` keeps classifying it as `choice` — NOT the shell-native `space`
+ * kind — and no `SERVING_SURFACES` entry matches placement mode (`.con-board`
+ * is always mounted, and `.con-board--live` also covers free inspection, so
+ * neither can be registered without masking a genuine strand). Result before
+ * this mirror: ~2 s into every such placement the amber guard covered a
+ * perfectly working board.
+ *
+ * The case that shipped it: the FINAL GREENERY prompt ('Place any final
+ * greenery from plants' — a `space` option + "Don't place a greenery"), where
+ * the player necessarily spends longer than the debounce hunting for a cell.
+ * Same shape as the World Government ocean. Mirrors the isConsoleHandPickActive()
+ * rationale: a client-side hand-off to another surface is a SERVING beat.
+ */
+let consoleTaskSpacePlacement = false;
+export function setConsoleTaskSpacePlacement(active: boolean): void {
+  consoleTaskSpacePlacement = active;
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -284,6 +311,13 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     clearStranded();
     return;
   }
+  // A task's nested SelectSpace branch being answered ON THE BOARD (the final
+  // greenery, the WGT ocean): the shell unmounts every task surface for the
+  // placement's lifetime — the board serves it. See setConsoleTaskSpacePlacement.
+  if (consoleTaskSpacePlacement) {
+    clearStranded();
+    return;
+  }
   const task: ConsoleTask | undefined = taskFor(view);
   // Only the shell's OWN surfaces need no dedicated host; every task-host
   // kind must actually RENDER `.con-task-host` (checked below) — a host
@@ -343,5 +377,6 @@ export function stopConsoleLeakDetector(): void {
   }
   clearStranded();
   consoleTaskDeferred = false;
+  consoleTaskSpacePlacement = false;
   leakDetectorState.desktopSurfaces = [];
 }

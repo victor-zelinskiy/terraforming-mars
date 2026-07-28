@@ -72,7 +72,6 @@
             <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
               <ConsolePlayedCardLite :name="cards[0].name" />
             </div>
-            <span v-if="(cards[0].resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ cards[0].resources }}</span>
             <span v-if="pickBand(cards[0].name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
             <span v-else-if="pickBand(cards[0].name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(cards[0].name) }}</span>
           </div>
@@ -102,7 +101,6 @@
                   <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
                     <ConsolePlayedCardLite :name="card.name" />
                   </div>
-                  <span v-if="(card.resources ?? 0) > 0" class="con-played__res con-played-cat__res">{{ card.resources }}</span>
                   <span v-if="pickBand(card.name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
                   <span v-else-if="pickBand(card.name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(card.name) }}</span>
                 </div>
