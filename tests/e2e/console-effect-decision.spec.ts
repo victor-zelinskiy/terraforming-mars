@@ -256,4 +256,17 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   const viewport = page.viewportSize();
   expect(panel !== null && viewport !== null && panel.height < viewport.height * 0.75,
     `the panel must hug its content (was ${panel?.height} of ${viewport?.height})`).toBeTruthy();
+
+  // …and it is CENTRED. `.con-modal-band()` only supplies the frame box between
+  // the HUD strip and the command bar — it centres nothing, and a surface that
+  // forgets to do so itself lands pinned to that box's top-left corner (which
+  // is exactly how this shipped the first time).
+  expect(panel).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  const panelCentreX = panel!.x + panel!.width / 2;
+  expect(Math.abs(panelCentreX - viewport!.width / 2),
+    `horizontally centred (centre ${panelCentreX} of ${viewport!.width})`).toBeLessThan(24);
+  // Vertically it is centred in the BAND, so it must sit clear of both edges by
+  // a comparable margin — never flush against the top.
+  expect(panel!.y, 'not pinned to the top of the band').toBeGreaterThan(60);
 });

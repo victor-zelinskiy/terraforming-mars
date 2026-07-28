@@ -18,18 +18,30 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .con-decision {
+    /* THE MODAL BAND is only the FRAME BOX (fixed, exactly between the top HUD
+       strip and the command bar). It does NOT centre anything — every host that
+       reuses it centres its own panel, and forgetting that pins the panel to
+       the band's top-left corner. Same three lines as `.con-task-host`, which
+       this surface stands in for (one of them on screen at a time). */
     .con-modal-band();
-    /* Same band as the task host it stands in for — one of them at a time. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: .3rem 0;
+    box-sizing: border-box;
     z-index: 11480;
     contain: layout style;
 }
 
 .con-decision__panel {
+    position: relative;
     width: min(46rem, 92vw);
     /* Content-sized: the empty half-screen of the old list was the single
        loudest "this is a generic dialog" signal. */
     height: auto;
-    max-height: 86vh;
+    /* 100% of the band's padded box — the vh cap of an earlier draft could
+       overrun the bars on a short viewport (the same fix `.con-task` carries). */
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     gap: .85rem;
