@@ -129,7 +129,90 @@ export type ConsoleActionsModel = {
   availableTiles: number;
   /** Flat focus order over the VISIBLE tiles (group order, node order within). */
   flatKeys: ReadonlyArray<string>;
+  /** The 2-COLUMN visual grid as focus rows (see {@link packActionRows}) —
+   *  the d-pad's spatial map (left/right within a row, up/down across). */
+  rows: ReadonlyArray<ReadonlyArray<string>>;
 };
+
+/**
+ * Pack the visible groups into the browse grid's FOCUS ROWS, mirroring the
+ * CSS layout exactly (2-column grid, auto-flow row):
+ *  - a SINGLE-variant group occupies one cell — consecutive singles pack
+ *    two to a row;
+ *  - a TWO-variant («или») group spans the full row, its pair side by side —
+ *    one row of two keys (the same physical columns as two singles);
+ *  - a 3+-variant group spans the full row per variant (a wide vertical
+ *    run) — one key per row;
+ *  - a span-2 group after a half-filled row CLOSES that row (the grid moves
+ *    on, leaving the hole) — the model mirrors it so d-pad geometry always
+ *    matches what the eye sees.
+ */
+export function packActionRows(
+  groups: ReadonlyArray<ConsoleActionGroup>,
+  columns: 1 | 2 = 2,
+): Array<Array<string>> {
+  const rows: Array<Array<string>> = [];
+  let half: Array<string> | undefined;
+  const flushHalf = () => {
+    if (half !== undefined) {
+      rows.push(half);
+      half = undefined;
+    }
+  };
+  for (const g of groups) {
+    if (g.tiles.length === 1) {
+      if (columns === 1) {
+        // Handheld: one group per row — no abreast packing.
+        rows.push([g.tiles[0].key]);
+      } else if (half === undefined) {
+        half = [g.tiles[0].key];
+      } else {
+        half.push(g.tiles[0].key);
+        flushHalf();
+      }
+    } else if (g.tiles.length === 2) {
+      flushHalf();
+      // The «или» pair stays side by side on EVERY profile (the pair grid
+      // lives INSIDE the group, whose row is full-width either way).
+      rows.push([g.tiles[0].key, g.tiles[1].key]);
+    } else {
+      flushHalf();
+      for (const t of g.tiles) {
+        rows.push([t.key]);
+      }
+    }
+  }
+  flushHalf();
+  return rows;
+}
+
+/** PURE: step the focus through the packed rows (clamped — the edge is felt). */
+export function stepActionRows(
+  rows: ReadonlyArray<ReadonlyArray<string>>,
+  current: string,
+  dir: 'up' | 'down' | 'left' | 'right',
+): string {
+  if (rows.length === 0) {
+    return current;
+  }
+  let r = 0;
+  let c = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const j = rows[i].indexOf(current);
+    if (j !== -1) {
+      r = i;
+      c = j;
+      break;
+    }
+  }
+  if (dir === 'left' || dir === 'right') {
+    c = Math.min(rows[r].length - 1, Math.max(0, c + (dir === 'left' ? -1 : 1)));
+  } else {
+    r = Math.min(rows.length - 1, Math.max(0, r + (dir === 'up' ? -1 : 1)));
+    c = Math.min(c, rows[r].length - 1);
+  }
+  return rows[r][c];
+}
 
 /** The default filter — show everything, hide already-activated (they don't
  *  clutter the actions the player can still take; switch to see them). */
@@ -452,6 +535,9 @@ export function buildConsoleActionsModel(
   cardResources: ReadonlyMap<CardName, {type: CardResource, count: number}>,
   filter: ActionFilterState,
   repeat?: RepeatAvailability,
+  /** The browse grid's column count (handheld collapses to 1) — the packed
+   *  focus rows MUST mirror the CSS profile or the d-pad drifts off-screen. */
+  layoutColumns: 1 | 2 = 2,
 ): ConsoleActionsModel {
   const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
@@ -516,6 +602,7 @@ export function buildConsoleActionsModel(
     totalTiles: allTiles.length,
     availableTiles: allTiles.filter((t) => t.status === 'available').length,
     flatKeys: visibleGroups.flatMap((g) => g.tiles.map((t) => t.key)),
+    rows: packActionRows(visibleGroups, layoutColumns),
   };
 }
 

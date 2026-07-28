@@ -13985,20 +13985,44 @@ html.console-mode {
        "variants → decisions" between the two states. */
     &__body { flex: 1; min-height: 0; display: flex; gap: .9rem; }
     &__list { flex: 1; min-width: 0; }
+    /* TWO GROUPS PER ROW (the std-projects grammar): single-action cards
+       pack two abreast; a multi-variant group SPANS the full row (its «или»
+       pair lands on the same physical columns as two singles, so every tile
+       across the screen shares one width rhythm). Rows stretch — the two
+       groups of a row always stand shoulder to shoulder at one height. */
     &__list-body {
-        display: flex; flex-direction: column; gap: .7rem; padding-right: .4rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-flow: row;
+        align-items: stretch;
+        gap: .7rem .8rem;
+        padding-right: .4rem;
     }
+    &__empty { grid-column: 1 / -1; }
 
     &__group {
-        border-radius: .7rem; padding: .6rem .8rem .7rem;
+        display: flex; flex-direction: column;
+        border-radius: .7rem; padding: .55rem .8rem .6rem;
         background: linear-gradient(160deg, rgba(20, 30, 44, 0.55) 0%, rgba(11, 18, 28, 0.6) 100%);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         &--available { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%); }
         &--rules { box-shadow: inset 0 0 0 .05rem fade(@con-red, 26%); }
         &--activated { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%); opacity: 0.9; }
+        &--wide { grid-column: span 2; }
+        /* The group HOLDING the focused tile lifts a breath over its row —
+           the eye finds the active card, not just the active tile. */
+        &:has(.con-cardactions__tile--focused) {
+            background: linear-gradient(160deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .35rem 1rem rgba(0, 0, 0, 0.35);
+        }
     }
-    &__group-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
-    &__group-name { font-size: 1.05rem; font-weight: 700; letter-spacing: .015rem; flex: 1; min-width: 0; }
+    &__group-head {
+        display: flex; align-items: center; gap: .6rem;
+        margin-bottom: .4rem; padding-bottom: .3rem;
+        /* the machined divider under the card's name plate */
+        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.14);
+    }
+    &__group-name { font-size: 1rem; font-weight: 700; letter-spacing: .02rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__group-res {
         display: inline-flex; align-items: center; gap: .25rem;
         padding: .15rem .5rem; border-radius: 49.95rem; background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
@@ -14015,6 +14039,7 @@ html.console-mode {
 
     &__variants {
         position: relative;
+        flex: 1;
         display: flex; flex-direction: column; gap: .45rem;
 
         /* TWO alternatives sit SIDE BY SIDE (the dominant OrOptions case) —
@@ -14047,6 +14072,7 @@ html.console-mode {
        recede through their CONTENT, never through see-through glass). */
     &__tile {
         position: relative; display: flex; flex-direction: column; gap: .35rem;
+        flex: 1; /* fills the group's row height — rows stay shoulder-even */
         box-sizing: border-box;
         padding: .55rem .7rem .45rem .85rem; border-radius: .6rem;
         background:
@@ -14097,6 +14123,7 @@ html.console-mode {
        that is ALWAYS laid out, so a late line can never resize the tile. */
     &__tile-meta {
         min-height: 1.05rem;
+        margin-top: auto; /* pins to the tile's floor in stretched rows */
         display: flex; flex-direction: column; justify-content: flex-end; gap: .15rem;
     }
     &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; &--lg { gap: .6rem; } }
@@ -15171,6 +15198,11 @@ html.con-profile-handheld .con-cardactions {
     /* Horizontal only — the vertical geometry is the shared modal band. */
     padding: 0.1rem 0.7vw;
     .con-cardactions__frame { padding: .6rem .8rem .5rem; gap: .5rem; }
+    /* The Deck's narrow list keeps ONE group per row (two abreast is a TV
+       affordance); the packed focus rows collapse to the same single file,
+       so d-pad geometry still matches the screen. */
+    .con-cardactions__list-body { grid-template-columns: 1fr; }
+    .con-cardactions__group--wide { grid-column: auto; }
     .con-cardactions__title { font-size: 1.1rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
     .con-cardactions__detail-card { zoom: calc(0.52 * var(--con-ui-scale, 1)); }

@@ -220,7 +220,10 @@
 
           <div v-for="group in model.groups" :key="group.key"
                class="con-cardactions__group"
-               :class="'con-cardactions__group--' + group.status">
+               :class="[
+                 'con-cardactions__group--' + group.status,
+                 {'con-cardactions__group--wide': group.tiles.length >= 2},
+               ]">
             <div class="con-cardactions__group-head">
               <span class="con-cardactions__group-name">{{ $t(group.cardName) }}</span>
               <span v-if="group.cardResource !== undefined" class="con-cardactions__group-res">
@@ -373,6 +376,7 @@ import {
   consoleCardActionsUi,
   cycleAvailability,
   cycleActivation,
+  stepActionRows,
   ConsoleActionsModel,
   ConsoleActionTile,
   ConsoleActionGroup,
@@ -381,6 +385,7 @@ import {
   RepeatAvailability,
 } from '@/client/console/consoleCardActions';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
 import {
   actionFocusEnterHook,
@@ -528,7 +533,11 @@ export default defineComponent({
       };
     },
     model(): ConsoleActionsModel {
-      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability);
+      // The packed focus rows must mirror the CSS grid's live column count
+      // (handheld collapses to one group per row) — reactive via the layout
+      // profile store.
+      const columns = consoleLayoutState.profile === 'handheld' ? 1 : 2;
+      return buildConsoleActionsModel(this.entries, this.previewMap, this.cardResources, this.activeFilter, this.repeatAvailability, columns);
     },
     /** Re-fetch previews when anything availability-relevant changes. */
     previewFingerprint(): string {
@@ -827,14 +836,16 @@ export default defineComponent({
       }
     },
     onNav(dir: NavDirection): void {
-      const keys = this.model.flatKeys;
-      if (keys.length === 0) {
+      // 2D navigation over the PACKED grid rows (the std-projects grammar):
+      // left/right walks a row, up/down crosses rows keeping the nearest
+      // column — the model's rows mirror the CSS grid exactly, so the d-pad
+      // always moves where the eye expects.
+      if (this.model.rows.length === 0) {
         return;
       }
-      const cur = keys.indexOf(this.focusKey);
-      const step = (dir === 'up' || dir === 'left') ? -1 : 1;
-      const next = Math.min(keys.length - 1, Math.max(0, (cur < 0 ? 0 : cur) + step));
-      this.focusKey = keys[next];
+      const current = this.focusKey !== '' && this.model.flatKeys.includes(this.focusKey) ?
+        this.focusKey : this.model.flatKeys[0];
+      this.focusKey = stepActionRows(this.model.rows, current, dir);
       void this.$nextTick(() => this.scrollFocusedIntoView());
     },
     // ACTION FOCUS transition hooks (plain functions — no `this`).

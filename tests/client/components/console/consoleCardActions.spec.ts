@@ -12,6 +12,9 @@ import {
   cycleAvailability,
   cycleActivation,
   defaultCardActionsFilter,
+  packActionRows,
+  stepActionRows,
+  ConsoleActionGroup,
 } from '@/client/console/consoleCardActions';
 
 function effect(direction: 'cost' | 'gain', icon: string, amount: number): ActionEffect {
@@ -313,6 +316,42 @@ describe('consoleCardActions model', () => {
       // «Доступна» (availability) is the selectable set — only Cand.
       const available = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'available', activation: 'all'}, repeat);
       expect(available.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
+    });
+  });
+
+  describe('packActionRows / stepActionRows (the 2-column browse grid)', () => {
+    /** A minimal group fixture — the packer reads only tiles[].key. */
+    const group = (...keys: Array<string>) =>
+      ({tiles: keys.map((key) => ({key}))}) as unknown as ConsoleActionGroup;
+
+    it('packs consecutive singles two abreast; an «или» pair spans its own row', () => {
+      const rows = packActionRows([group('a'), group('b'), group('p1', 'p2'), group('c')]);
+      expect(rows).to.deep.eq([['a', 'b'], ['p1', 'p2'], ['c']]);
+    });
+
+    it('a span-2 group after a half row CLOSES it (the grid hole is mirrored)', () => {
+      const rows = packActionRows([group('a'), group('p1', 'p2'), group('b'), group('c')]);
+      expect(rows).to.deep.eq([['a'], ['p1', 'p2'], ['b', 'c']]);
+    });
+
+    it('a 3+-variant group runs one wide row per variant', () => {
+      const rows = packActionRows([group('t1', 't2', 't3'), group('a')]);
+      expect(rows).to.deep.eq([['t1'], ['t2'], ['t3'], ['a']]);
+    });
+
+    it('one column (handheld): singles stop packing abreast, pairs stay side by side', () => {
+      const rows = packActionRows([group('a'), group('b'), group('p1', 'p2')], 1);
+      expect(rows).to.deep.eq([['a'], ['b'], ['p1', 'p2']]);
+    });
+
+    it('steps left/right within a row, up/down across rows keeping the nearest column', () => {
+      const rows = [['a', 'b'], ['p1', 'p2'], ['c']];
+      expect(stepActionRows(rows, 'a', 'right')).to.eq('b');
+      expect(stepActionRows(rows, 'b', 'down')).to.eq('p2'); // column kept
+      expect(stepActionRows(rows, 'p2', 'down')).to.eq('c'); // clamped to the short row
+      expect(stepActionRows(rows, 'c', 'up')).to.eq('p1');
+      expect(stepActionRows(rows, 'a', 'left')).to.eq('a'); // the edge is felt
+      expect(stepActionRows(rows, 'c', 'down')).to.eq('c');
     });
   });
 });
