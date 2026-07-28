@@ -237,7 +237,18 @@ function getRandomMilestonesAndAwards(gameOptions: GameOptions,
   // random-exclusion group with one already chosen (see MilestoneAwardExclusions), which thins a few
   // shuffles; the larger budget keeps generation robust. The pool is far larger than the requested
   // count, so in practice this still resolves on the first attempt.
-  const maxAttempts = 10;
+  // 2026-07-29: raised to 50 — a stress run (200k modularMA/UNLIMITED draws) found a single-attempt
+  // failure rate near 33%: MilestoneAwardSynergies.ts gives every VBN-board milestone/award a blanket
+  // +5 synergy against EVERY OTHER milestone/award (not just other VBN entries), regardless of the
+  // actual board in play. Once just 2 VBN-tagged names land in the accumulator, that alone burns
+  // ~95 of totalSynergyAllowed's 100 budget, so every remaining candidate — VBN or not — pushes it
+  // over and gets rejected, exhausting the pool before reaching the requested count. At a ~33%
+  // per-attempt failure rate, exhausting 10 straight attempts happens roughly 1 in 200,000 games
+  // (`tests/ma/MilestoneAwardDeduplication.spec.ts`'s "modular MA mode, 1000 draws" hit exactly this
+  // in CI); at 50 attempts (each independently re-shuffled, ~0.1-0.2ms) the odds are negligible
+  // (0.33^50), and the added budget costs nothing when — as in the overwhelming majority of games —
+  // the first attempt already succeeds.
+  const maxAttempts = 50;
   if (attempt > maxAttempts) {
     throw new Error('No limited synergy milestones and awards set was generated after ' + maxAttempts + ' attempts. Please try again.');
   }
