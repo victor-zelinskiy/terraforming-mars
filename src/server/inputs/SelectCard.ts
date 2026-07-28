@@ -79,6 +79,16 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.config.buyMode === true) {
       model.buyMode = true;
     }
+    // The DISCARD marker is serialized HERE, not in `ServerModel.getWaitingFor`.
+    // getWaitingFor only decorates the TOP-LEVEL prompt, and a discard is very
+    // often NESTED — Mars University offers "discard a card to draw a card" as
+    // one branch of an OrOptions. Serialized centrally, that branch reached the
+    // client stripped of its marker, so the console served it as a plain card
+    // pick: no discard skin, no cinematic, the card just vanished while the
+    // draw played. Riding the input's own toModel makes it survive ANY depth.
+    if (this.discardPrompt !== undefined) {
+      model.discardPrompt = this.discardPrompt;
+    }
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {
       model.disabledCards = cardsToModel(player, disabled.map((d) => d.card), {

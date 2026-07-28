@@ -11,6 +11,7 @@ import {Birds} from '../../src/server/cards/base/Birds';
 import {Bushes} from '../../src/server/cards/base/Bushes';
 import {ResearchOutpost} from '../../src/server/cards/base/ResearchOutpost';
 import {CardName} from '../../src/common/cards/CardName';
+import {Server} from '../../src/server/models/ServerModel';
 
 /*
  * THE DISCARD MARKER IS THE CONTRACT. The console serves every "throw cards
@@ -81,5 +82,47 @@ describe('discardPrompt marker', () => {
     // The choice itself stays a CHOICE (the discard is optional) — the marker
     // rides the branch, never the OrOptions.
     expect(options.discardPrompt).is.undefined;
+  });
+
+  /*
+   * THE MARKER MUST SURVIVE SERIALIZATION AT ANY DEPTH.
+   *
+   * `ServerModel.getWaitingFor` decorates only the TOP-LEVEL prompt, so a
+   * marker copied there alone reaches the client for Pluto (top-level) and is
+   * SILENTLY DROPPED for Mars University (nested in an OrOptions) — the console
+   * then served it as a plain card pick and the card vanished with no
+   * cinematic while the draw played. That is why `discardPrompt` rides
+   * `SelectCard.toModel()`, and why this asserts the MODEL, not the input.
+   */
+  it('survives serialization when the discard is NESTED in an OrOptions', () => {
+    const [game, player] = testGame(2);
+    const card = new MarsUniversity();
+    player.playedCards.push(card);
+    player.cardsInHand.push(new Ants(), new Birds());
+
+    card.onCardPlayed(player, new ResearchOutpost());
+    runAllActions(game);
+
+    const model = Server.getWaitingFor(player, player.popWaitingFor());
+    expect(model?.type).eq('or');
+    const options = model?.type === 'or' ? model.options : [];
+    const discard = options.find((o) => o.type === 'card');
+    expect(discard?.discardPrompt, 'the NESTED branch must carry the marker').deep.eq({
+      min: 1,
+      max: 1,
+      source: {kind: 'card', card: CardName.MARS_UNIVERSITY},
+      exchange: {icon: 'cards', amount: 1, perCard: false},
+    });
+  });
+
+  it('survives serialization for a TOP-LEVEL discard (Pluto / a global event)', () => {
+    const [game, player] = testGame(2);
+    player.cardsInHand.push(new Ants(), new Birds());
+
+    game.defer(new DiscardCards(player, 1, 1, undefined, {source: {kind: 'colony'}}));
+    runAllActions(game);
+
+    const model = Server.getWaitingFor(player, player.popWaitingFor());
+    expect(model?.discardPrompt?.source).deep.eq({kind: 'colony'});
   });
 });

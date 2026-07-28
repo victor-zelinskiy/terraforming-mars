@@ -184,7 +184,11 @@ async function injectMarsUniversityDiscard(page: Page): Promise<void> {
  * discarded card is really gone and nothing is pending. Never re-issued to the
  * server (a POST replayed onto /api/player would mutate the real game).
  */
-async function interceptSubmit(page: Page, discarded: () => string | undefined): Promise<void> {
+async function interceptSubmit(
+  page: Page,
+  discarded: () => string | undefined,
+  opts: {withDraw?: boolean} = {},
+): Promise<void> {
   await page.route('**/player/input*', async (route) => {
     const view = lastView;
     if (view === undefined) {
@@ -196,12 +200,31 @@ async function interceptSubmit(page: Page, discarded: () => string | undefined):
     body.cardsInHand = (body.cardsInHand ?? []).filter((c: {name: string}) => c.name !== gone);
     body.waitingFor = undefined;
     body.game.gameAge = (body.game?.gameAge ?? 0) + 1;
+    if (opts.withDraw === true) {
+      // THE REAL MARS UNIVERSITY SHAPE: the very same response that removes the
+      // discarded card also DRAWS one, so the drawn-cards reveal (and the
+      // deck-draw cinematic that owns it) lands on the same commit the discard
+      // scene is holding. Field-reported bug: the draw played and the discard
+      // was skipped entirely.
+      body.cardsInHand = [...body.cardsInHand, {name: 'Ants'}];
+      body.game.deckSize = Math.max(0, (body.game.deckSize ?? 40) - 1);
+      body.cardDrawReveals = [{id: 4242, cards: [{name: 'Ants'}]}];
+    }
     await route.fulfill({status: 200, json: body});
   });
 }
 
-test('a nested discard rides the hand overlay and the card visibly leaves it', async ({page, request}) => {
-  test.setTimeout(180_000);
+/**
+ * The whole flow, shared by both shapes. `withDraw` reproduces the REAL Mars
+ * University response: the same commit that removes the discarded card also
+ * hands the player a new one, so the drawn-cards reveal competes with the
+ * discard cinematic for the screen.
+ */
+async function runDiscardFlow(
+  page: Page,
+  request: APIRequestContext,
+  opts: {withDraw: boolean, tag: string},
+): Promise<void> {
   // Surface a browser-side error as test output — a silent exception in the
   // scene would otherwise look like a timeout.
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
@@ -216,7 +239,7 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
   await page.reload();
   await page.waitForSelector('.con-task-host', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(2000);
-  await shoot(page, '1-choice');
+  await shoot(page, opts.tag + '-1-choice');
 
   // The choice itself stays a CHOICE (the discard is optional — no auto-select).
   await expect(page.locator('.con-task-host')).toContainText(/Марсианский университет/i);
@@ -224,7 +247,7 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
   // 1 · taking the discard branch does NOT open a grid in the modal: the REAL
   //     hand overlay opens in discard mode.
   await key(page, 'Enter', 2600);
-  await shoot(page, '2-hand-discard-mode');
+  await shoot(page, opts.tag + '-2-hand-discard-mode');
   expect(await page.locator('.con-task-host').count(), 'the modal must hand over, not host a grid').toBe(0);
   const hand = page.locator('.con-hand--discard');
   await expect(hand).toHaveCount(1);
@@ -243,7 +266,7 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
 
   const focused = await page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot');
   expect(focused, 'a hand card must be focused').toBeTruthy();
-  await interceptSubmit(page, () => focused ?? undefined);
+  await interceptSubmit(page, () => focused ?? undefined, {withDraw: opts.withDraw});
 
   // 3 · THE CINEMATIC. Each beat is awaited on its own DOM signal (never a
   //     fixed sleep): the card is seized out of the real slot, the hand hands
@@ -262,7 +285,7 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
       slot.querySelector('.con-deal-hold') !== null ? 'held' : 'visible';
   }, focused);
   expect(heldUnderProxy, 'the real card must not be visible under its own proxy').not.toBe('visible');
-  await shoot(page, '3-seized');
+  await shoot(page, opts.tag + '-3-seized');
 
   // HAND-OFF + PILE + LANDING. Asserted back-to-back with NO screenshot in
   // between: the pile withdraws once the count has settled, and a full-page
@@ -271,13 +294,32 @@ test('a nested discard rides the hand overlay and the card visibly leaves it', a
   await expect(page.locator('.con-discard__count'), 'the count ticks on contact')
     .toHaveText('1', {timeout: 15_000});
   expect(await page.locator('.con-discard__back').count(), 'the pile physically thickened').toBe(1);
-  await shoot(page, '4-landed');
+  await shoot(page, opts.tag + '-4-landed');
 
   // 4 · the scene ends clean and the card really left the hand.
   await page.waitForSelector('.con-discard', {state: 'detached', timeout: 20_000});
   await page.waitForTimeout(600);
-  await shoot(page, '6-settled');
+  await shoot(page, opts.tag + '-6-settled');
   expect(await page.locator('.con-discard-proxy').count(), 'no proxy may survive the scene').toBe(0);
   expect(await page.locator('.con-hand--discard').count(), 'the discard mode is over').toBe(0);
-  expect(await handCount(), `the hand must be one card shorter (was ${before})`).toBe(before - 1);
+  if (!opts.withDraw) {
+    expect(await handCount(), `the hand must be one card shorter (was ${before})`).toBe(before - 1);
+  }
+}
+
+test('a nested discard rides the hand overlay and the card visibly leaves it', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await runDiscardFlow(page, request, {withDraw: false, tag: 'plain'});
+});
+
+/**
+ * THE FIELD-REPORTED BUG: Mars University discards AND draws in one response.
+ * The discard cinematic must still play in full — the draw is the NEXT beat,
+ * never a replacement for it.
+ */
+test('a discard that also draws still plays the discard cinematic first', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await runDiscardFlow(page, request, {withDraw: true, tag: 'draw'});
 });

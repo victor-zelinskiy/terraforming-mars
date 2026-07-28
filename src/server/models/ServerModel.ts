@@ -452,13 +452,12 @@ export class Server {
     if (waitingFor.spendHeatPrompt !== undefined) {
       model.spendHeatPrompt = waitingFor.spendHeatPrompt;
     }
-    // "This SelectCard is a DISCARD FROM HAND" marker — the single signal the
-    // console's unified discard flow keys off (surface, copy and animation are
-    // the same whoever demands the discard). Carries the colony-bonus
-    // sequencing when the discard closes a Pluto payout.
-    if (waitingFor.discardPrompt !== undefined) {
-      model.discardPrompt = waitingFor.discardPrompt;
-    }
+    // NOTE: the DISCARD marker (`discardPrompt`) is deliberately NOT decorated
+    // here. This function only touches the TOP-LEVEL prompt, and a discard is
+    // routinely NESTED (Mars University's "discard a card to draw a card" is one
+    // branch of an OrOptions) — a central copy silently dropped it for exactly
+    // those cases. It rides `SelectCard.toModel()` instead, so it survives any
+    // nesting depth. See `src/server/inputs/SelectCard.ts`.
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }
