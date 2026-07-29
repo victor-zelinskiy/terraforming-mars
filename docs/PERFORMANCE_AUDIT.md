@@ -278,3 +278,28 @@ HKLM\SOFTWARE\Microsoft\Windows\Dwm
 1. **Baseline capture** — needs the LG C3 attached (second display detached), the packaged exe running, and an elevated shell. Until then any number is off-target.
 2. **`OverlayMinFPS` / `OverlayTestMode` decision** — deliberately deferred until the baseline says whether MPO is thrashing at all. Requires elevation; a revert must be written down before any write.
 3. **NVIDIA "Background Application Max Frame Rate = Off"** (cause A) — lives only in the NVIDIA Control Panel profile DB (`nvdrsdb0.bin`); not readable or writable from the CLI, `nvidia-smi` does not expose it. Manual GUI step, verified by capture before/after.
+
+### An ambient WebGPU/canvas FX layer was investigated and REJECTED — the premise did not survive counting
+The idea: the console runs ~120 `infinite` CSS animations that pay per frame regardless of player action and keep dirtying pixels under translucent scrims, so consolidate the decorative ones into one GPU-drawn ambient layer (cheap to pause wholesale, kind to `backdrop-filter`). Classifying all of them killed it. Of **115** real `infinite` declarations (4 of the 120 grep hits are prose in comments; 1 is dead code):
+
+| | CHEAP (transform/opacity) | PAINT-HEAVY | total |
+|---|---|---|---|
+| **FUNCTIONAL** (carries meaning) | 69 | 26 | **96** |
+| AMBIENT-ELEMENT | 10 | 2 | 12 |
+| **AMBIENT-FULLBLEED** (the only canvas candidates) | 6 | **1** | **7** |
+
+Only **7** are full-bleed decorative, exactly **one** of those is paint-heavy (`.fsr__scan`, animating `top`), and all 7 live on screens seen once per game (endgame reveal ×2, final scoring ×1, main menu ×1, VP lock ×2). A shader layer would replace six transform-only animations on non-steady-state screens. The expensive ones — 26 of the 29 paint-heavy — are FUNCTIONAL `box-shadow` state cues ("whose turn", "playable", "conversion live", "placement awaiting") which are `box-shadow` *by contract* (`con-perf-lite` §Performance mode) and are bound to individual element geometry, so moving them to canvas would reintroduce per-frame FLIP measurement. **Do not revisit an ambient GPU layer as a perf measure.** (Full classified inventory is reproducible by grepping `infinite` across `src/styles/**` and resolving each keyframe body.)
+
+### SHIPPED — the pause-under-shade rule widened from the zoom inspector to the whole workspace band
+The investigation's real find: the correct instrument already existed twice, and both instances were narrowly scoped. `mandatory_input_modal.less:58-88` (desktop, frozen) and `console_card_deal.less:336-357` (console, **`body.con-zoom-open` only**) pause CSS animations beneath a scrim, the latter explicitly calling itself "the console twin of the desktop rule". Nothing covered the ~20-surface **workspace-band family** — and those stand for as long as the SERVER waits on the player (seconds to minutes) versus ~1 s for a cinematic. A composited animating layer is rasterized **even while occluded** — the boot warm-up depends on precisely that (`boot_loader.less`) — so the dim never saved them.
+
+Added to the existing `.con-root:has(.con-ws) .con-main` block in `console.less` (no new JS, no new state: `:has(.con-ws)` is already the canonical hook and already holds through leave transitions):
+```less
+&, * { animation-play-state: paused !important; }
+.con-res-host, .con-res-host *, .con-ws, .con-ws * { animation-play-state: running !important; }
+```
+**Both exemptions are load-bearing, and the scope was derived from the shell's real tree, not assumed.** `ConsoleShell.vue` puts the **rail (`ConsoleResourcePanel`) INSIDE `.con-main`**, and `:has(.con-ws)` lifts it to z11520 — above the 11460 shade — so it stays fully visible and carries the live `--convertible-plants`/`--convertible-heat` glows; a blanket pause would freeze a cue the player is still looking at. The Information and Action workspaces are likewise absolute children of `.con-main`, so the blanket pause would stop the panel being read. Conversely `ConsoleStatusStrip` (z11706, "whose turn" dot) is a **sibling** of `.con-main`, so it is out of scope automatically. Compiled specificity: paused (0,3,0) < exemptions (0,4,0).
+
+**Honest magnitude — smaller than the animation count suggests.** Most of the 26 paint-heavy functional animations live OUTSIDE `.con-main` (status strip, banners, bars, notifications) and legitimately stay visible above the shade. What this actually stops is the board's selected-cell and arc-marker rings (transform on elements carrying two stacked `drop-shadow`s — expensive to raster at board scale), the board log highlight, and context-panel dots. Real, cheap, precisely scoped — **not** an answer to the Windows pacing problem, and not a substitute for the standing frontier (`UpdateLayoutTree` 8269 ms → overlay virtualization). Known limitation, inherited from the desktop rule: `animation-play-state` does not affect the arc-scale **WAAPI** tracks (`element.animate`); those are one-shot on a global-parameter change, not infinite loops, so they are not a continuous cost.
+
+Not fixed, deliberately: `resources.less:97` declares `animation: convert-icon-pulse …` and no such `@keyframes` exists anywhere in `src/` — a browser ignores it, so it costs nothing, and `PlayerResources.vue:54-55,108-109` always applies `--convert-plants`/`--convert-heat` alongside `--with-convert`, whose keyframes DO exist and supply the pulse. Dead, invisible, and in frozen desktop UI → skipped per `.claude/rules/client-ui.md`.

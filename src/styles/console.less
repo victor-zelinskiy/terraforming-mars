@@ -335,6 +335,37 @@ body.con-zoom-open .con-handdock {
 .con-root:has(.con-ws) {
     .con-main {
         z-index: auto;
+
+        /* PERF: freeze the SHADED scene beneath the docked surface. A
+           composited animating layer is rasterized even while occluded — the
+           boot warm-up relies on exactly that (`boot_loader.less`) — so the
+           dim does NOT save the board's cursor rings, cell highlights and
+           context dots from repainting every frame. And a workspace surface
+           stands for as long as the SERVER waits on the player (seconds to
+           minutes), not the ~1s of a cinematic, so this is the long-duration
+           case. The console twin of `body.con-zoom-open .con-root`
+           (console_card_deal.less), widened from the inspector to the whole
+           workspace family. CSS animations only: GSAP flights, WAAPI marker
+           tracks and opacity TRANSITIONS are unaffected. */
+        &,
+        * {
+            animation-play-state: paused !important;
+        }
+
+        /* Two things inside `.con-main` are NOT under the shade and must keep
+           animating — freezing either would eat a cue the player can still see:
+           · the RAIL — lifted to 11520 right above (it stays visible context
+             and is the landing zone of resource flights), and it carries the
+             live `--convertible-plants` / `--convertible-heat` glows;
+           · the docked surface ITSELF — the Information and Action workspaces
+             are absolute children of `.con-main`, so the blanket pause above
+             would stop the very panel being read. */
+        .con-res-host,
+        .con-res-host *,
+        .con-ws,
+        .con-ws * {
+            animation-play-state: running !important;
+        }
     }
     /* The tucked-behind footer state must survive the dropped trap: at the
        root level the footer would otherwise paint over the section it is
