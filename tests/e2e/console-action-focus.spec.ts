@@ -87,6 +87,9 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
+  // The ACTION WORKSPACE must hold its vertical capacity on the Deck too —
+  // the rail-adjacent geometry + the two-tier header are profile-sensitive.
+  {tag: 'deck', width: 1280, height: 800, query: '&consoleProfile=handheld'},
 ] as const;
 
 for (const profile of PROFILES) {

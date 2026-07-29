@@ -3,6 +3,7 @@ import {mount, VueWrapper} from '@vue/test-utils';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {playedCategoryState, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
+import {consoleCardZoom, closeConsoleCardZoom, consoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
@@ -100,7 +101,9 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   });
 
   it('face-up categories hold their slots while lifted (one physical copy)', async () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    // TWO active cards: a one-card zone takes the smart fullscreen shortcut
+    // (no category episode at all) — the hold contract needs a real grid.
+    const wrapper = make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
     wrapper.vm.openCategory('active');
     playedCategoryState.holdCards = true; // the proxy-paint turn (view stubbed)
     await wrapper.vm.$nextTick();
@@ -223,6 +226,44 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
   });
 
+  // ── SMART OPEN: a one-card zone skips the grid ────────────────────────
+  describe('smart category open (a lone card goes straight to fullscreen)', () => {
+    afterEach(() => closeConsoleCardZoom());
+
+    it('a ONE-card zone opens the fullscreen directly — no category episode', () => {
+      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+      // Corporation holds exactly one card in this tableau.
+      wrapper.vm.openCategory('corporation');
+      expect(playedCategoryState.phase).to.eq('closed'); // the grid never opened
+      expect(consoleCardZoom.card?.name).to.eq(CardName.THARSIS_REPUBLIC);
+      expect(consoleCardZoom.cards).to.have.length(1);
+      // Lifted PHYSICALLY out of its table slot (returns into it on close).
+      expect(consoleCardZoom.origin.kind).to.eq('physical');
+      // …and it carries the provenance plate.
+      expect(consoleZoomProvenance()?.category).to.eq('Corporation');
+      wrapper.unmount();
+    });
+
+    it('a MULTI-card zone still opens the category grid (never the shortcut)', () => {
+      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+      wrapper.vm.openCategory('events'); // two events
+      expect(playedCategoryState.phase).to.eq('opening');
+      expect(consoleCardZoom.card).to.be.undefined;
+      wrapper.unmount();
+    });
+
+    it('the plate follows the browsed card: seat · zone · N of M', () => {
+      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+      // The category view is stubbed here, so exercise the resolver the
+      // overlay hands it (the same one both hosts use).
+      const byName = wrapper.vm.provenanceByName;
+      expect(byName(CardName.ASTEROID)).to.deep.include({seatName: 'Вы', category: 'Events', isBot: false});
+      expect(byName(CardName.ASTEROID)?.ordinal).to.deep.eq({n: 1, total: 2});
+      expect(byName(CardName.BIG_ASTEROID)?.ordinal).to.deep.eq({n: 2, total: 2});
+      wrapper.unmount();
+    });
+  });
+
   // ── the MarsBot seat + the embedded workspace mode ────────────────────
   describe('MarsBot seat + embedded (Information Workspace) mode', () => {
     const AUTOMA = {playedPile: [CardName.TREES, CardName.PREDATORS, CardName.ASTEROID]} as unknown as
@@ -277,7 +318,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
 
     it('a forcedColor switch folds an open category (the seat changed under it)', async () => {
       const wrapper = makeEmbedded('red' as Color);
-      wrapper.vm.openCategory('active');
+      wrapper.vm.openCategory('events'); // multi-card: a real category episode
       expect(playedCategoryState.phase).to.eq('opening');
       await wrapper.setProps({forcedColor: 'green' as Color});
       expect(playedCategoryState.phase).to.eq('closed');

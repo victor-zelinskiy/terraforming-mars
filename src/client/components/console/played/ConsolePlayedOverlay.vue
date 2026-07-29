@@ -161,6 +161,7 @@
     <ConsolePlayedCategoryView v-if="categoryUp"
                                ref="catView"
                                :cards="categoryViewCards"
+                               :provenanceByName="provenanceByName"
                                @settled-closed="onCategorySettled" />
   </div>
 </template>
@@ -191,6 +192,8 @@ import {
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
+import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
+import {playedProvenanceByName, zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
@@ -369,6 +372,15 @@ export default defineComponent({
       // The header count stays honest mid-scene: the landing card joins the
       // total only once it is revealed on the table.
       return this.heroIncoming !== undefined && !this.heroRevealed ? Math.max(0, n - 1) : n;
+    },
+    /**
+     * The BY-NAME provenance lookup of THIS table — the plate every
+     * fullscreen opened from here carries («лежит на столе <место>, зона
+     * <зона>, N из M»). Live: it re-derives with the tableau, so an undo or
+     * a fresh play can never leave a stale plate behind.
+     */
+    provenanceByName(): (name: string | undefined) => ConsoleZoomProvenance | undefined {
+      return playedProvenanceByName(this.viewedPlayer, this.viewedTableau);
     },
     plan(): PlayedPlan {
       const s = conUiScale();
@@ -613,6 +625,19 @@ export default defineComponent({
       }
       const cards = categoryCards(this.zones, key);
       if (cards.length === 0) {
+        return;
+      }
+      // SMART OPEN: a zone holding exactly ONE card has nothing to browse —
+      // the intermediate grid would be a ceremony around a single tile. Go
+      // straight to the fullscreen, lifted PHYSICALLY out of its table slot
+      // (and returned into it on close), carrying the provenance plate.
+      if (cards.length === 1) {
+        this.focusCategory = key;
+        const list = [...cards];
+        openConsoleCardZoom(list, 0, undefined, undefined, {
+          origin: slotZoomOrigin(() => this.$el as HTMLElement, (i) => list[i]?.name ?? ''),
+          provenance: zoomProvenanceOver(this.provenanceByName, list),
+        });
         return;
       }
       this.focusCategory = key;

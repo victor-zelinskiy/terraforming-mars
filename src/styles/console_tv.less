@@ -369,6 +369,14 @@ html.con-profile-tv {
     .con-zoom__btn { font-size: 1.05rem; }
     .con-zoom__cmd { font-size: 0.95rem; }
     .con-zoom__state { font-size: var(--con-t-floor); }
+    /* The provenance plate reads from the couch — seat name and zone lead,
+       the kicker/ordinal stay at the service floor. */
+    .con-zoom__prov { gap: 0.6rem; padding: 0.35rem 1rem 0.35rem 0.85rem; }
+    .con-zoom__prov .con-status__dot { width: 0.75rem; height: 0.75rem; }
+    .con-zoom__prov-name { font-size: 1rem; max-width: 12rem; }
+    .con-zoom__prov-kicker { font-size: var(--con-t-floor); }
+    .con-zoom__prov-cat { font-size: 1rem; }
+    .con-zoom__prov-ord { font-size: 0.9rem; b { font-size: 1.05rem; } }
 
     /* ═══ 9 · TASK HOST (mandatory prompts) ═══════════════════════ */
     .con-task {
@@ -881,19 +889,22 @@ html.con-profile-tv {
         &__outcome { font-size: var(--con-t-body); }
     }
 
-    /* ═══ 19 · ACTION CENTER + COMPOSERS ══════════════════════════ */
+    /* ═══ 19 · ACTION WORKSPACE + COMPOSERS ═══════════════════════ */
     .con-cardactions {
-        &__title { font-size: 1.9rem; }
-        &__kicker { font-size: var(--con-t-caption); }
+        /* One-line header: identity + breadcrumb + card name at couch size. */
+        &__ident-section { font-size: 1.35rem; }
+        &__title { font-size: 1.35rem; }
+        &__kicker-step { font-size: var(--con-t-caption); }
+        &__kicker-src { font-size: var(--con-t-body); }
         &__stat {
-            b { font-size: 1.5rem; }
+            b { font-size: 1.3rem; }
             i { font-size: var(--con-t-floor); }
         }
         &__player { font-size: 1rem; }
         /* Filters — real couch chips, not desktop specks. */
         &__filter-label { font-size: var(--con-t-floor); }
         &__chip {
-            padding: 0.35rem 0.85rem;
+            padding: 0.3rem 0.8rem;
             font-size: var(--con-t-secondary);
             b { font-size: var(--con-t-caption); }
         }
@@ -902,20 +913,20 @@ html.con-profile-tv {
            ui-scale zoom; a TEXT-override action must NOT be zoomed (it read
            as a page-filling, overflowing duplicate) — `:not(:has())` keeps
            the zoom off the prose branch. */
-        &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.5 * var(--con-ui-scale, 1)); }
+        &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
         /* The inspector's card THUMBNAIL — couch-readable, but bounded so the
            dossier column's tail (next-step + the X-history hint) never clips
            below the panel fold. */
-        &__detail-card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
+        &__detail-card { zoom: calc(0.5 * var(--con-ui-scale, 1)); }
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }
-        &__group-name { font-size: 1.3rem; }
+        &__group-name { font-size: 1.15rem; }
         &__group-status { font-size: var(--con-t-floor); }
         &__group-res b { font-size: 1.05rem; }
         &__res-icon { width: 1.4rem; height: 1.4rem; }
         &__or { font-size: var(--con-t-floor); }
-        &__tile { padding: 0.8rem 0.9rem; min-height: var(--con-hit-min); }
+        &__tile { padding: 0.55rem 0.7rem; min-height: var(--con-hit-min); }
         &__tile-reason { font-size: var(--con-t-secondary); }
         &__tile-choices { font-size: var(--con-t-caption); }
         &__varchip {
@@ -923,10 +934,12 @@ html.con-profile-tv {
             em { font-size: var(--con-t-floor); }
         }
         &__varchip-icon { width: 1.5rem; height: 1.5rem; }
-        /* Detail panel — the decision dossier reads at couch body sizes. */
-        &__detail-kicker { font-size: var(--con-t-floor); }
-        &__detail-name { font-size: 1.6rem; }
+        /* Detail panel — the decision dossier reads at couch body sizes.
+           The band widens a step so the couch chips still wrap comfortably. */
+        &__detail { flex-basis: 24rem; }
+        &__detail-name { font-size: 1.45rem; }
         &__detail-variant { font-size: var(--con-t-caption); }
+        /* (the old «КАРТА» kicker row is gone — the name + face carry it) */
         &__verdict-head { font-size: var(--con-t-body); }
         &__verdict-reason { font-size: var(--con-t-secondary); }
         &__detail-label { font-size: var(--con-t-floor); }
@@ -945,7 +958,6 @@ html.con-profile-tv {
         &__empty-body { font-size: var(--con-t-body); }
         &__empty-filters { font-size: var(--con-t-secondary); }
         &__row { min-height: var(--con-hit-min); }
-        &__foot-item { font-size: 1.05rem; }
     }
     .con-composer {
         &__panel { width: min(58rem, 90vw); }

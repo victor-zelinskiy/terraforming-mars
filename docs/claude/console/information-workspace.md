@@ -123,6 +123,72 @@ blocks in exchange (the rail carries them now); the M€→VP conversion note
 moves under the VP block, and the printed-board detail (X) stays the deep
 reference. `ConsoleMarsBotSections` keeps decks / piles / shipping storage.
 
+## The played-cards block + the embedded «Разыграно» (X)
+
+Stage 2 (2026-07-29). The dashboard carries a UNIFIED «Разыгранные карты»
+summary block for EVERY participant: zone counts through the SAME
+`buildPlayedZones` grouping as the table (color-dot legend per family — the
+palette mirrors the table's zone captions), the bot reads its public
+`automa.playedPile` (`botTableauCards`) + the honest provenance note.
+
+**X is the ONE default details verb** for every seat — it opens
+`ConsolePlayedOverlay` EMBEDDED as the workspace detail `'played'`
+(a SHARED detail: it survives LB/RB — rail, header and table switch seats
+as one). The displaced readers moved to the sticks: **L3 = extras (human),
+R3 = the bot's printed board**; keyboard parity via `KeyC`/`KeyV` in
+`CONSOLE_KEY_BUTTON` (the sticks had NO keyboard binding before — a
+desktop-fallback player would have been locked out).
+
+The overlay adaptation (same component, both hosts):
+- `embedded` re-seats it inside the workspace frame (`--embedded`: no fixed
+  band, no own plate; the category view goes `position: absolute` over the
+  TABLE AREA — the workspace header and the rail stay visible around it;
+  the flights keep fixed viewport proxies — rect math is viewport-px in
+  both hosts);
+- `forcedColor` makes the seat CONTROLLED (the workspace's inspected
+  player); a forcedColor switch folds an open category (watcher), and the
+  internal LB/RB cycle is inert — the shell routes the bumpers globally at
+  TABLE level only (inside a category they are dead, matching standalone);
+- `automa` teaches BOTH hosts the bot seat (its tableau is empty — the pile
+  is the truth); the seat name renders через `participantDisplayName`
+  (the raw «MarsBot» leak in the RU UI is fixed), and the bot table carries
+  the provenance line under the head;
+- the embedded shell branch (`detail === 'played'`) forwards nav/A/X/B/
+  scroll to the table; B folds a category first (the overlay's own close
+  event returns to the dashboard); footCommands mirror `consolePlayedUi`.
+
+### Smart open + the fullscreen PROVENANCE plate (stage 2b)
+
+- **A one-card zone skips the grid.** `openCategory` opens the fullscreen
+  DIRECTLY when the zone holds exactly one card — lifted physically out of
+  its table slot (`slotZoomOrigin`) and returned into it on close. A grid
+  around a single tile was ceremony. Multi-card zones are unchanged.
+  ⚠️ Specs that exercise the category episode must use a MULTI-card zone
+  (two existing ones were on `active`/`corporation` and silently took the
+  new shortcut).
+- **Every fullscreen opened from «Разыграно» carries a provenance plate.**
+  `ConsoleZoomProvenance` (in `consoleCardZoom`) + `playedProvenance.ts`
+  (pure: `playedProvenanceByName` over the SAME `buildPlayedZones` grouping
+  the table renders from, `zoomProvenanceOver` maps it into the viewer's
+  index space). The plate leads the viewer bar: seat dot + localized name,
+  the verb («РАЗЫГРАНО» / «ВСКРЫТО» for the Automa — key `Flipped`), the
+  printed zone, and «N / M» inside that zone (omitted when the zone holds
+  one card). The seat's own colour runs through the plate's left edge
+  (`con-zoom-seat-<color>` → `--con-seat-accent`, the shared `@players`
+  loop). It is passed as a RESOLVER, so LB/RB browsing keeps it honest;
+  hosts: the table shortcut and `ConsolePlayedCategoryView`
+  (`provenanceByName` prop).
+
+**Zone-swap beat:** the workspace's content zones (dashboard / played /
+details) swap through an out-in gsap beat (`detailZone*` hooks). The
+DASHBOARD is ONE persistent zone (`key="dash"`, the human/bot variants are
+inner templates) — an LB/RB seat switch patches instantly and can never
+queue zone transitions (rapid presses broke exactly this in the first cut;
+Vue also forbids duplicate keys across v-if branches, hence the wrapper).
+
+Opening the workspace closes a board-home «Разыграно» overlay first — the
+two hosts share the singleton `playedCategoryState` and must never coexist.
+
 ## Command bar
 
 `footCommands` (published via `consolePanelUi`) now carries explicit drop

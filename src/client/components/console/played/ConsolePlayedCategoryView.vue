@@ -170,7 +170,8 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
+import {zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
 import {stepHandGrid, HandGridPlan} from '@/client/components/console/consoleHandGrid';
 import {
   planCategoryView, categoryTargetRect, CategoryViewLayout, FlightRect,
@@ -213,6 +214,13 @@ export default defineComponent({
   props: {
     /** The open category's cards (tableau order — matches state.names). */
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
+    /**
+     * The hosting table's BY-NAME provenance lookup (→ the plate the
+     * fullscreen shows: seat · zone · N of M). Passed down so the viewer
+     * opened from THIS grid reads identically to the table's own
+     * single-card shortcut. Undefined → no plate (defensive).
+     */
+    provenanceByName: {type: Function as PropType<(name: string | undefined) => ConsoleZoomProvenance | undefined>, default: undefined},
   },
   emits: {
     /** The episode fully settled CLOSED — the overlay drops the mount. */
@@ -816,7 +824,14 @@ export default defineComponent({
           void this.$nextTick(() => this.ensureFocusVisible());
         },
       );
-      openConsoleCardZoom(list, index, undefined, undefined, {origin});
+      // The provenance plate rides the browse: the host's by-name lookup is
+      // wrapped into THIS list's index space, so LB/RB across the zone keeps
+      // the plate (and «N из M») honest.
+      const byName = this.provenanceByName;
+      openConsoleCardZoom(list, index, undefined, undefined, {
+        origin,
+        provenance: byName === undefined ? undefined : zoomProvenanceOver(byName, list),
+      });
     },
     ensureFocusVisible(): void {
       if (this.layout.kind !== 'grid' || !this.gridPlan.scrolls) {

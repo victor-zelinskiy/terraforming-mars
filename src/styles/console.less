@@ -1286,6 +1286,29 @@ html.con-profile-handheld .con-terracere {
     z-index: auto;
 }
 
+/* The ACTION WORKSPACE («Действия карт» / repeat pick) is open (or still
+   dismissing — the shell's actwsClosing holds the class through the leave):
+   the trap drops so the workspace child (`.con-cardactions`, z11480) rides
+   the shared `.con-shade` (11460) while the RAIL is lifted BETWEEN them
+   (11470) — the player's resources stay lit next to the actions that spend
+   and feed them (and stand ready as the future resource-flight landing
+   zone). Defined BEFORE `--info` on purpose: when both workspaces are up,
+   the information mode's rail treatment (11561 + accent ring) must win. */
+.con-main--actws {
+    z-index: auto;
+
+    .con-res-host {
+        z-index: 11470;
+    }
+    /* The rail is a PARTICIPANT of the workspace state, not a leftover —
+       the same soft cyan ring language as the workspace frame binds the
+       two across the seam (box-shadow: perf-lite keeps it). */
+    .con-res {
+        box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 40%),
+            0 .4rem 1.6rem rgba(0, 0, 0, 0.5);
+    }
+}
+
 /* The INFORMATION WORKSPACE (Y) is open (or still dismissing): the trap
    drops so the workspace child (`.con-info`, z11560) and the ELEVATED rail
    (z11561) compete at the root level — above every band surface (sheets /
@@ -11142,6 +11165,88 @@ html.console-mode {
         color: #ffe3b0;
     }
 }
+/* ── THE PROVENANCE PLATE (a fullscreen opened from «Разыграно») ─────
+   The hero card alone cannot say WHOSE table it lies on. The plate leads the
+   viewer bar with the seat identity (its own colour running through the dot
+   and the plate's left edge), the verb («РАЗЫГРАНО» / «ВСКРЫТО» for the
+   Automa), the printed zone and the position inside it. Read-only metadata:
+   flat paint + one inset line + the accent edge — never a button look, and
+   perf-lite safe (colour + box-shadow carry the state, no filter). */
+.con-zoom__prov {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .28rem .85rem .28rem .7rem;
+    border-radius: .4rem;
+    background: linear-gradient(90deg, fade(#0b1420, 92%), fade(#0b1420, 72%));
+    box-shadow:
+        inset .16rem 0 0 var(--con-seat-accent, fade(@con-cyan, 70%)),
+        inset 0 0 0 .05rem rgba(130, 165, 200, 0.22);
+    font-family: @con-font;
+    white-space: nowrap;
+
+    .con-status__dot {
+        width: .6rem;
+        height: .6rem;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.5);
+    }
+}
+.con-zoom__prov-seat {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+.con-zoom__prov-name {
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02rem;
+    color: @con-text;
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Hairline separator — the same keyline language as the tag-matrix rule. */
+.con-zoom__prov-sep {
+    width: .05rem;
+    height: .9rem;
+    background: linear-gradient(180deg, transparent, fade(@con-cyan, 35%), transparent);
+}
+.con-zoom__prov-kicker {
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .12rem;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 85%);
+}
+.con-zoom__prov-cat {
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .04rem;
+    color: #dfeaf5;
+}
+.con-zoom__prov-ord {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .12rem;
+    padding-left: .1rem;
+    font-size: .7rem;
+    font-variant-numeric: tabular-nums;
+    color: @con-text-dim;
+
+    b { color: @con-text; font-size: .82rem; font-weight: 700; }
+    span { opacity: .5; }
+}
+/* The Automa seat: the card was FLIPPED off its action deck, not chosen —
+   the kicker carries the distinction in the bot's amber register. */
+.con-zoom__prov--bot .con-zoom__prov-kicker {
+    color: fade(@con-amber, 92%);
+}
+/* Per-seat accent (the plate edge) — the same palette the whole shell uses. */
+each(@players, {
+    @c: ~"player_@{value}";
+    .con-zoom-seat-@{value} { --con-seat-accent: @@c; }
+})
+
 /* The L3 ROLE-SWAP chip (single-card reveal: received ⇄ source) — a compact
    navigation affordance naming the OTHER card. A quiet metadata element, never
    a button-looking control. */
@@ -14220,14 +14325,22 @@ html.console-mode {
 }
 
 .con-cardactions {
-    /* THE MODAL BAND: the whole center lives between the bars — the header
-       used to slide under the top HUD strip (top reserve was a bare 1.6vh). */
-    .con-modal-band();
+    /* THE ACTION WORKSPACE — an absolute child of `.con-main` (the
+       information-workspace seam geometry, `.con-info`'s twin): everything
+       RIGHT of the player rail, between the two bars. The rail stays visible
+       and LIT (.con-main--actws) — the resources this screen spends and
+       feeds remain on-screen context, and the future post-confirm resource
+       flight has its physical landing zone across the seam. The left edge
+       derives from the SAME seam tokens as the rail width — never a
+       per-resolution constant. */
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: calc(var(--con-rail-w, 9.1rem) + var(--con-main-gap, .6rem));
     z-index: 11480;
     display: flex;
     flex-direction: column;
-    gap: .5rem;
-    padding: .2rem 1.8vw;
     font-family: @con-font;
     color: @con-text;
 
@@ -14235,9 +14348,11 @@ html.console-mode {
        (surfaceMotionState) — one continuous darkness across the wheel →
        center → composer → reveal chain, never stacked dims. */
 
-    /* The action-center frame — ONE glass chrome for BOTH presentation
+    /* The action-workspace frame — ONE chrome for BOTH presentation
        states (browse grid / ACTION FOCUS stage): entering focus recomposes
-       the content, the frame itself never moves. */
+       the content, the frame itself never moves. Near-opaque body (it
+       covers the LIVE board + right dashboard — at glass opacity their
+       bright rows ghosted through; same family as .con-info__frame). */
     &__frame {
         position: relative;
         z-index: 1;
@@ -14245,66 +14360,99 @@ html.console-mode {
         min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .7rem;
-        padding: 1rem 1.3rem .8rem;
-        border-radius: .8rem;
-        background: @con-glass;
+        gap: .55rem;
+        padding: .75rem 1.1rem .7rem;
+        border-radius: .7rem;
+        background: rgba(7, 12, 19, 0.96);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
     }
 
-    /* ── Header ── */
-    &__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-    &__kicker {
-        display: inline-flex; align-items: center; gap: .4rem;
-        font-size: .75rem; letter-spacing: .11rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
+    /* ── Header — a TWO-TIER composition (deliberate, profile-stable):
+       tier 1 = the STATUS line (identity/breadcrumb left, counts / variant
+       chip / optional player-context chip right), tier 2 = the CONTROL line
+       (the two filter groups, browse only). The old kicker + big-title
+       stack duplicated the section name over three rows — in focus the
+       filters yield and the whole header collapses to the one breadcrumb
+       line. Visual order via `order` (ident → stats → filters), so the
+       filters wrap onto their own full row instead of stranding the counts. ── */
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .45rem 1.1rem;
+        flex-wrap: wrap;
+        min-height: 2.15rem;
     }
-    &__kicker-mark { color: @con-cyan; }
+    &__ident {
+        order: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+        flex: 0 1 auto;
+    }
+    &__kicker-mark { color: @con-cyan; font-size: 1rem; }
     /* The wheel-flight landing emblem (data-wheel-anchor="card-actions"). */
     &__kicker-emblem {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1.1rem;
-        height: 1.1rem;
+        width: 1.2rem;
+        height: 1.2rem;
         color: @con-cyan;
 
         .bar-btn-icon { width: 100%; height: 100%; }
     }
-    /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
-    &__kicker-sep { color: fade(@con-cyan, 50%); }
-    &__kicker-step { color: @con-text; }
-    /* Repeat mode names the source card (ProjInsp / Viron) in the breadcrumb. */
-    &__kicker-src { color: @con-text; }
-    &__title {
-        margin-top: .2rem;
-        font-size: 1.5rem; font-weight: 800; letter-spacing: .05rem; text-transform: uppercase; line-height: 1.05;
+    /* The section identity — always visible; the breadcrumb root in focus. */
+    &__ident-section {
+        font-size: 1.1rem; font-weight: 800; letter-spacing: .06rem; text-transform: uppercase; line-height: 1.1;
         background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        white-space: nowrap;
     }
-    &__head-stats { display: flex; align-items: center; gap: .7rem; }
+    /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
+    &__kicker-sep { color: fade(@con-cyan, 50%); }
+    &__kicker-step {
+        font-size: .75rem; letter-spacing: .1rem; text-transform: uppercase;
+        color: fade(@con-cyan, 92%); white-space: nowrap;
+    }
+    /* Repeat mode names the source card (ProjInsp / Viron) in the breadcrumb. */
+    &__kicker-src { color: @con-text; font-size: .9rem; font-weight: 700; white-space: nowrap; }
+    /* The composed card's name (focus stage) — the operation's title. */
+    &__title {
+        min-width: 0;
+        font-size: 1.1rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase; line-height: 1.1;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    &__head-stats { order: 2; display: flex; align-items: center; gap: .6rem; margin-left: auto; }
     &__stat {
         display: inline-flex; align-items: baseline; gap: .3rem;
-        padding: .3rem .7rem; border-radius: 49.95rem;
+        padding: .25rem .65rem; border-radius: 49.95rem;
         background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
-        b { font-size: 1.2rem; font-weight: 800; color: @con-text; }
+        b { font-size: 1.05rem; font-weight: 800; color: @con-text; }
         i { font-size: .65rem; font-style: normal; letter-spacing: .03rem; text-transform: uppercase; color: @con-text-dim; }
         &--go { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); b { color: @con-mint; } }
         &--zero { background: rgba(120, 140, 160, 0.1); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.24); b { color: @con-text-dim; } }
     }
+    /* The PLAYER-CONTEXT chip — rendered ONLY when the workspace is opened
+       on behalf of another player (the future Information-Panel entry);
+       the current player's own visit carries no chip. */
     &__player {
         display: inline-flex; align-items: center; gap: .4rem;
-        padding: .3rem .7rem .3rem .5rem; border-radius: 49.95rem;
+        padding: .25rem .65rem .25rem .5rem; border-radius: 49.95rem;
         background: rgba(12, 20, 30, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.28);
         font-size: .85rem; font-weight: 700;
     }
     &__player-dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 .4rem currentColor; }
 
     /* ── Filters — two LABELED groups, each carrying its own trigger chips
-       (the sanctioned exception to the one-bottom-bar rule). ── */
-    &__filters { display: flex; flex-wrap: wrap; gap: .5rem 1.1rem; }
+       (the sanctioned exception to the one-bottom-bar rule). They live in
+       the header line and hide while the focus stage owns the frame. ── */
+    &__filters { order: 3; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .4rem .8rem; min-width: 0; }
     &__fgroup {
-        display: inline-flex; align-items: center; gap: .4rem;
-        padding: .3rem .6rem; border-radius: .6rem;
+        display: inline-flex; align-items: center; gap: .35rem;
+        padding: .25rem .55rem; border-radius: .6rem;
         background: rgba(12, 20, 32, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
     }
@@ -14335,7 +14483,6 @@ html.console-mode {
         inset: 0;
         display: flex;
         flex-direction: column;
-        gap: .7rem;
         min-height: 0;
         /* Stray pointer input dies the moment the stage owns the frame (the
            motion's autoAlpha handles visibility). */
@@ -14348,7 +14495,7 @@ html.console-mode {
        STANDS where the focus hero lands (the enter FLIP is a short settle,
        never a flight across the overlay) and the right side swaps
        "variants → decisions" between the two states. */
-    &__body { flex: 1; min-height: 0; display: flex; gap: .9rem; }
+    &__body { flex: 1; min-height: 0; display: flex; gap: .8rem; padding-top: .2rem; }
     &__list { flex: 1; min-width: 0; }
     /* TWO GROUPS PER ROW (the std-projects grammar): single-action cards
        pack two abreast; a multi-variant group SPANS the full row (its «или»
@@ -14360,14 +14507,14 @@ html.console-mode {
         grid-template-columns: 1fr 1fr;
         grid-auto-flow: row;
         align-items: stretch;
-        gap: .7rem .8rem;
+        gap: .55rem .65rem;
         padding-right: .4rem;
     }
     &__empty { grid-column: 1 / -1; }
 
     &__group {
         display: flex; flex-direction: column;
-        border-radius: .7rem; padding: .55rem .8rem .6rem;
+        border-radius: .7rem; padding: .4rem .6rem .45rem;
         background: linear-gradient(160deg, rgba(20, 30, 44, 0.55) 0%, rgba(11, 18, 28, 0.6) 100%);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         &--available { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%); }
@@ -14382,12 +14529,12 @@ html.console-mode {
         }
     }
     &__group-head {
-        display: flex; align-items: center; gap: .6rem;
-        margin-bottom: .4rem; padding-bottom: .3rem;
+        display: flex; align-items: center; gap: .5rem;
+        margin-bottom: .3rem; padding-bottom: .22rem;
         /* the machined divider under the card's name plate */
         box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.14);
     }
-    &__group-name { font-size: 1rem; font-weight: 700; letter-spacing: .02rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__group-name { font-size: .92rem; font-weight: 700; letter-spacing: .02rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__group-res {
         display: inline-flex; align-items: center; gap: .25rem;
         padding: .15rem .5rem; border-radius: 49.95rem; background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
@@ -14405,7 +14552,7 @@ html.console-mode {
     &__variants {
         position: relative;
         flex: 1;
-        display: flex; flex-direction: column; gap: .45rem;
+        display: flex; flex-direction: column; gap: .4rem;
 
         /* TWO alternatives sit SIDE BY SIDE (the dominant OrOptions case) —
            the «или» JOINT rides their shared edge like a coupling piece;
@@ -14413,7 +14560,7 @@ html.console-mode {
         &--pair {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            column-gap: 1.7rem;
+            column-gap: 1.4rem;
             align-items: stretch;
         }
     }
@@ -14436,10 +14583,10 @@ html.console-mode {
        the left edge, and an ALWAYS-OPAQUE chassis (blocked/activated tiles
        recede through their CONTENT, never through see-through glass). */
     &__tile {
-        position: relative; display: flex; flex-direction: column; gap: .35rem;
+        position: relative; display: flex; flex-direction: column; gap: .3rem;
         flex: 1; /* fills the group's row height — rows stay shoulder-even */
         box-sizing: border-box;
-        padding: .55rem .7rem .45rem .85rem; border-radius: .6rem;
+        padding: .4rem .55rem .35rem .7rem; border-radius: .6rem;
         background:
             linear-gradient(90deg, transparent 14%, rgba(150, 200, 240, 0.2) 50%, transparent 86%) no-repeat top center / 100% .06rem,
             linear-gradient(168deg, rgba(24, 36, 52, 0.92) 0%, rgba(13, 20, 31, 0.95) 55%, rgba(9, 14, 22, 0.97) 100%);
@@ -14487,9 +14634,9 @@ html.console-mode {
     /* The reserved META STRIP — reasons / choice markers fade into space
        that is ALWAYS laid out, so a late line can never resize the tile. */
     &__tile-meta {
-        min-height: 1.05rem;
+        min-height: .95rem;
         margin-top: auto; /* pins to the tile's floor in stretched rows */
-        display: flex; flex-direction: column; justify-content: flex-end; gap: .15rem;
+        display: flex; flex-direction: column; justify-content: flex-end; gap: .12rem;
     }
     &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; &--lg { gap: .6rem; } }
     &__arrow { font-size: 1.1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
@@ -14503,14 +14650,19 @@ html.console-mode {
         margin: 0 !important; min-width: 0;
         /* The formula sits on a RECESSED strip — the icon well idiom at
            tile scale (one optical mount for DSL icon runs and text alike). */
-        padding: .28rem .45rem;
+        padding: .26rem .42rem;
         border-radius: .4rem;
         background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
         box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
-        zoom: calc(1.15 * var(--con-ui-scale, 1));
+        zoom: var(--con-ui-scale, 1);
+        /* The FOCUSED tile's formula leans forward a breath — a transform-only
+           lift (no layout, perf-lite-safe); the cursor's material response. */
+        transform-origin: left center;
+        transition: transform calc(150ms * var(--motion-scale, 1)) ease;
         .card-description { display: none; }
         &:has(> .con-cardactions__graphic-text) { zoom: 1; }
     }
+    &__tile--focused &__graphic { transform: scale(1.05); }
     &__graphic-text {
         display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
         white-space: normal; overflow-wrap: anywhere;
@@ -14569,16 +14721,16 @@ html.console-mode {
        only add churn. Chrome hidden by .con-scrollbars().
        WIDTH is a fixed band (not a flex share): its centred thumbnail must sit
        where the focus stage's hero card column lands — the geometry that keeps
-       the browse → focus FLIP a short settle. */
+       the browse → focus FLIP a short settle. The band pays for the visible
+       rail: the master list keeps its full pre-rework width. */
     &__detail {
-        flex: 0 0 34%; min-width: 0; max-width: 30rem; overflow-y: auto;
-        display: flex; flex-direction: column; gap: .5rem;
-        padding: .7rem .8rem; border-radius: .7rem;
+        flex: 0 0 21.5rem; min-width: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: .45rem;
+        padding: .6rem .7rem; border-radius: .7rem;
         background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
         .con-scrollbars();
     }
-    &__detail-kicker { font-size: .65rem; letter-spacing: .08rem; text-transform: uppercase; color: fade(@con-cyan, 85%); }
-    &__detail-name { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+    &__detail-name { font-size: 1.15rem; font-weight: 800; line-height: 1.1; }
     &__detail-variant { font-size: .75rem; color: @con-text-dim; }
     &__verdict {
         display: flex; align-items: flex-start; gap: .5rem; padding: .5rem .7rem; border-radius: .5rem;
@@ -14608,7 +14760,7 @@ html.console-mode {
         pointer-events: none;
     }
     &__detail-card {
-        zoom: calc(0.66 * var(--con-ui-scale, 1));
+        zoom: calc(0.58 * var(--con-ui-scale, 1));
         > :is(.card-container, .pcard) { margin: 0; }
     }
     /* A TEXT-override action's ONE full prose copy (the graphic duplicate is
@@ -14644,16 +14796,8 @@ html.console-mode {
         background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
     }
 
-    /* ── The ONE bottom command bar ── */
-    &__foot {
-        position: relative; z-index: 3; flex-shrink: 0;
-        display: flex; align-items: center; gap: 1.1rem; padding: .5rem 1rem; border-radius: .5rem;
-        background: @con-glass; box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 -.3rem 1.2rem rgba(0, 0, 0, 0.35);
-    }
-    &__foot-item {
-        display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem; color: @con-text-dim;
-        &--off { opacity: 0.42; }
-    }
+    /* (The old private __foot bar is gone — the command contract lives in
+       the ONE global command bar; nothing here renders a second bar.) */
 
     /* TV enlargement of the shared effect chips — the DOUBLED chip class
        keeps this accent above the runtime-injected scoped 13px (see the
@@ -15517,33 +15661,35 @@ html.con-profile-large .con-composer {
 }
 html.con-profile-large .con-composer--stage .con-composer__panel--stage { width: 100%; }
 
-/* Handheld (Steam Deck) — tighter chrome + smaller type. */
+/* Handheld (Steam Deck) — tighter chrome + smaller type. The workspace
+   geometry itself (right of the rail) rides the seam tokens the profile
+   already overrides on .con-main. */
 html.con-profile-handheld .con-cardactions {
-    /* Horizontal only — the vertical geometry is the shared modal band. */
-    padding: 0.1rem 0.7vw;
-    .con-cardactions__frame { padding: .6rem .8rem .5rem; gap: .5rem; }
+    .con-cardactions__frame { padding: .5rem .7rem .45rem; gap: .45rem; }
+    /* The Deck's control tier must stay ONE row: the LB/RB · LT/RT keycaps
+       already identify the groups — the text labels are couch luxury
+       (same call as .con-status__intel-label). */
+    .con-cardactions__filter-label { display: none; }
     /* The Deck's narrow list keeps ONE group per row (two abreast is a TV
        affordance); the packed focus rows collapse to the same single file,
        so d-pad geometry still matches the screen. */
     .con-cardactions__list-body { grid-template-columns: 1fr; }
     .con-cardactions__group--wide { grid-column: auto; }
-    .con-cardactions__title { font-size: 1.1rem; }
+    .con-cardactions__ident-section { font-size: .95rem; }
+    .con-cardactions__title { font-size: .95rem; }
+    .con-cardactions__detail { flex-basis: 16.5rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
-    .con-cardactions__detail-card { zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+    .con-cardactions__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
     .con-cardactions__group-name { font-size: .85rem; }
     .con-cardactions__stat b { font-size: .9rem; }
-    .con-cardactions__foot { padding: .3rem .7rem; }
-    .con-cardactions__foot-item { font-size: .7rem; }
-    .con-cardactions__confirm-card { padding: .8rem .9rem; }
-    .con-cardactions__confirm-name { font-size: 1.05rem; }
 }
 
 /* Large / 4K — a gentle readability boost only. */
 html.con-profile-large .con-cardactions {
-    .con-cardactions__title { font-size: 1.8rem; }
-    .con-cardactions__detail-name { font-size: 1.5rem; }
-    .con-cardactions__group-name { font-size: 1.2rem; }
-    .con-cardactions__foot-item { font-size: 1.05rem; }
+    .con-cardactions__ident-section { font-size: 1.3rem; }
+    .con-cardactions__title { font-size: 1.3rem; }
+    .con-cardactions__detail-name { font-size: 1.35rem; }
+    .con-cardactions__group-name { font-size: 1.1rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -15837,6 +15983,13 @@ html.con-profile-handheld {
     .con-zoom__cmd { font-size: .65rem; }
     .con-zoom__context { font-size: .675rem; padding: .15rem .65rem; }
     .con-zoom__status { font-size: .65rem; padding: .2rem .7rem; letter-spacing: .06rem; }
+    /* The provenance plate compacts with the Deck bar — the seat name keeps
+       priority, the ordinal stays readable at the service floor. */
+    .con-zoom__prov { gap: .4rem; padding: .2rem .6rem .2rem .5rem; }
+    .con-zoom__prov-name { font-size: .68rem; max-width: 6.5rem; }
+    .con-zoom__prov-kicker { font-size: .52rem; letter-spacing: .08rem; }
+    .con-zoom__prov-cat { font-size: .66rem; }
+    .con-zoom__prov-ord { font-size: .6rem; b { font-size: .7rem; } }
     .con-zoom__swap { font-size: .65rem; padding: .2rem .6rem; gap: .3rem; }
     .con-zoom__swap-label { font-size: .575rem; }
     .con-zoom__count { font-size: .65rem; padding: .2rem .6rem; gap: .3rem; }

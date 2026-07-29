@@ -103,6 +103,7 @@
   "Tags on its flipped cards push the matching tracker — open the board for the printed icons": "Метки вскрытых карт двигают соответствующий трек — печатные значки смотрите на планшете",
   "One flip per turn; an empty action deck means MarsBot passes": "Одно вскрытие за ход; пустая колода действий — бот пасует",
   "Everything MarsBot flipped from its action deck this game": "Всё, что бот вскрыл из колоды действий за партию",
+  "Flipped": "Вскрыто",
   "Discarded cards can return after a reshuffle; destroyed cards never do": "Сброшенные карты могут вернуться после перетасовки; уничтоженные — никогда",
   "Every 5 resources here exchange into a tracker step": "Каждые 5 ресурсов здесь обмениваются на шаг трека",
   "Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out": "Разыгранные бонусные карты лежат здесь и замешиваются обратно, когда колода бонусов закончится",

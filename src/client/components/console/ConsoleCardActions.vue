@@ -6,38 +6,75 @@
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
     <div class="con-cardactions__frame" data-motion-panel>
-      <!-- ── Header: the flow's identity line. Browse names the screen +
-           counts; focus turns it into the operation breadcrumb
-           («Действия карт › Настройка действия» · the card · the variant) —
-           the top area serves the CURRENT stage, never a dead bar. ── -->
+      <!-- ── Header — ONE line: the identity/breadcrumb (left), the two
+           filter groups (center, browse only), the counts / variant chip /
+           optional player-context chip (right). Focus turns the same line
+           into the operation breadcrumb («Действия карт › Настройка
+           действия · the card») — the top area serves the CURRENT stage,
+           never a dead bar. ── -->
       <header class="con-cardactions__head">
-        <div class="con-cardactions__head-main">
-          <div class="con-cardactions__kicker">
-            <span v-if="repeat" class="con-cardactions__kicker-mark" aria-hidden="true">⟳</span>
-            <span v-else class="con-cardactions__kicker-emblem" data-wheel-anchor="card-actions" aria-hidden="true">
-              <BarButtonIcon name="actions" />
-            </span>
-            <span>{{ $t(repeat ? 'Repeat action' : 'Card actions') }}</span>
-            <!-- Repeat mode names the SOURCE card (ProjInsp / Viron) in the breadcrumb. -->
-            <template v-if="repeat && repeatRequest !== undefined">
-              <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-              <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.label ?? repeatRequest.source.card) }}</span>
-            </template>
-            <template v-if="composer !== undefined">
-              <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-              <!-- The breadcrumb STEP crossfades between phases (Настройка /
-                   Подтверждение ⇄ Результат вскрытия) — never a blank beat. -->
-              <transition name="con-cardactions-headswap" mode="out-in">
-                <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
-              </transition>
-            </template>
-          </div>
-          <transition name="con-cardactions-headswap" mode="out-in">
-            <div class="con-cardactions__title" :key="composer !== undefined ? composer.cardName : ''">
-              {{ composer !== undefined ? $t(composer.cardName) : $t(repeat ? 'Choose an action to repeat' : 'Card actions') }}
-            </div>
-          </transition>
+        <div class="con-cardactions__ident">
+          <span v-if="repeat" class="con-cardactions__kicker-mark" aria-hidden="true">⟳</span>
+          <span v-else class="con-cardactions__kicker-emblem" data-wheel-anchor="card-actions" aria-hidden="true">
+            <BarButtonIcon name="actions" />
+          </span>
+          <span class="con-cardactions__ident-section">{{ $t(repeat ? 'Repeat action' : 'Card actions') }}</span>
+          <!-- Repeat mode names the SOURCE (ProjInsp / Viron / Hydro) in the breadcrumb. -->
+          <template v-if="repeat && repeatRequest !== undefined">
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+            <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.label ?? repeatRequest.source.card) }}</span>
+          </template>
+          <template v-if="composer !== undefined">
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+            <!-- The breadcrumb STEP crossfades between phases (Настройка /
+                 Подтверждение ⇄ Результат вскрытия) — never a blank beat. -->
+            <transition name="con-cardactions-headswap" mode="out-in">
+              <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
+            </transition>
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">·</span>
+            <!-- The composed card's name — the operation's title. -->
+            <transition name="con-cardactions-headswap" mode="out-in">
+              <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
+            </transition>
+          </template>
         </div>
+
+        <!-- ── Filters: two labeled groups with their OWN trigger chips
+             (the sanctioned exception to the one-bottom-bar rule). They
+             live in the header line and yield to the focus stage. ── -->
+        <transition name="con-cardactions-headswap">
+          <div v-if="composer === undefined" class="con-cardactions__filters">
+            <div class="con-cardactions__fgroup">
+              <span class="con-cardactions__fgroup-head">
+                <span class="con-cardactions__filter-label">{{ $t('Availability') }}</span>
+                <span class="con-cardactions__fgroup-keys" aria-hidden="true">
+                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                </span>
+              </span>
+              <span v-for="chip in model.availabilityChips" :key="chip.value"
+                    class="con-cardactions__chip"
+                    :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
+                <span>{{ $t(chip.label) }}</span>
+                <b>{{ chip.count }}</b>
+              </span>
+            </div>
+            <div class="con-cardactions__fgroup">
+              <span class="con-cardactions__fgroup-head">
+                <span class="con-cardactions__filter-label">{{ $t('Activation') }}</span>
+                <span class="con-cardactions__fgroup-keys" aria-hidden="true">
+                  <GamepadGlyph control="triggerL" /><GamepadGlyph control="triggerR" />
+                </span>
+              </span>
+              <span v-for="chip in model.activationChips" :key="chip.value"
+                    class="con-cardactions__chip"
+                    :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
+                <span>{{ $t(chip.label) }}</span>
+                <b>{{ chip.count }}</b>
+              </span>
+            </div>
+          </div>
+        </transition>
+
         <div class="con-cardactions__head-stats">
           <template v-if="composer === undefined">
             <span class="con-cardactions__stat">
@@ -50,53 +87,25 @@
           <span v-else-if="focusVariantTotal > 1" class="con-cardactions__stat">
             <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
           </span>
-          <span class="con-cardactions__player" :class="'player_bg_color_' + thisPlayer.color">
+          <!-- The PLAYER-CONTEXT chip — only when the workspace is opened on
+               behalf of ANOTHER player (the future Information-Panel entry);
+               your own visit needs no name tag. -->
+          <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
             <span class="con-cardactions__player-dot" aria-hidden="true"></span>
-            <span>{{ thisPlayer.name }}</span>
+            <span>{{ contextPlayer.name }}</span>
           </span>
         </div>
       </header>
 
-      <!-- ── The stage wrap: the BROWSE layer (filters + grid + inspector)
-           and the ACTION FOCUS stage occupy the same region; entering focus
+      <!-- ── The stage wrap: the BROWSE layer (grid + inspector) and the
+           ACTION FOCUS stage occupy the same region; entering focus
            recomposes the frame in place (the browse DOM is only hidden, so
-           filters / selection / scroll survive by construction). ── -->
+           selection / scroll survive by construction; the filter state
+           lives in the module store, so its header chips re-render
+           unchanged on return). ── -->
       <div class="con-cardactions__stagewrap">
       <div class="con-cardactions__browse" ref="browseEl"
            :class="{'con-cardactions__browse--parked': composer !== undefined}">
-      <!-- ── Filters: two labeled groups with their OWN trigger chips
-           (the sanctioned exception to the one-bottom-bar rule). ─────── -->
-      <div class="con-cardactions__filters">
-        <div class="con-cardactions__fgroup">
-          <span class="con-cardactions__fgroup-head">
-            <span class="con-cardactions__filter-label">{{ $t('Availability') }}</span>
-            <span class="con-cardactions__fgroup-keys" aria-hidden="true">
-              <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
-            </span>
-          </span>
-          <span v-for="chip in model.availabilityChips" :key="chip.value"
-                class="con-cardactions__chip"
-                :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
-            <span>{{ $t(chip.label) }}</span>
-            <b>{{ chip.count }}</b>
-          </span>
-        </div>
-        <div class="con-cardactions__fgroup">
-          <span class="con-cardactions__fgroup-head">
-            <span class="con-cardactions__filter-label">{{ $t('Activation') }}</span>
-            <span class="con-cardactions__fgroup-keys" aria-hidden="true">
-              <GamepadGlyph control="triggerL" /><GamepadGlyph control="triggerR" />
-            </span>
-          </span>
-          <span v-for="chip in model.activationChips" :key="chip.value"
-                class="con-cardactions__chip"
-                :class="{'con-cardactions__chip--active': chip.active, 'con-cardactions__chip--empty': chip.count === 0 && !chip.active}">
-            <span>{{ $t(chip.label) }}</span>
-            <b>{{ chip.count }}</b>
-          </span>
-        </div>
-      </div>
-
       <!-- ── Body: the DOSSIER column (left) + the master list (right).
            The dossier leads on the LEFT on purpose — it is the browse-mode
            twin of the focus stage's hero-card column, so entering ACTION
@@ -106,7 +115,6 @@
       <div class="con-cardactions__body">
         <!-- ── The inspector / dossier (the ONE detail surface) ────────── -->
         <aside class="con-cardactions__detail" v-if="focusedTile !== undefined">
-          <div class="con-cardactions__detail-kicker">{{ $t('Card') }}</div>
           <div class="con-cardactions__detail-name">{{ $t(focusedTile.cardName) }}</div>
           <div v-if="focusedGroup !== undefined && focusedGroup.tiles.length > 1" class="con-cardactions__detail-variant">
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
@@ -459,6 +467,13 @@ export default defineComponent({
      * OWN filter/command stores so a repeat instance can overlay a normal one.
      */
     repeat: {type: Boolean, default: false},
+    /**
+     * The PLAYER CONTEXT the workspace was opened on behalf of — set ONLY by
+     * a foreign entry (the future Information-Panel «actions of the inspected
+     * player» flow). Drives the header's player chip; the current player's
+     * own visit passes nothing and shows no name tag.
+     */
+    contextPlayer: {type: Object as PropType<PlayerViewModel['thisPlayer']>, required: false, default: undefined},
   },
   emits: ['close', 'submit-batch', 'reveal-ack'],
   data() {
@@ -466,6 +481,10 @@ export default defineComponent({
       consoleCardActionsUi,
       /** The focused variant tile key (`cardName#nodeIndex`). */
       focusKey: '',
+      /** The focus cursor's last live position in the flat order — when a
+       *  filter change removes the focused tile, the cursor lands on the
+       *  NEAREST surviving position, never teleports back to the top. */
+      lastFlatIndex: 0,
       /** Whole-game per-card action usage aggregate (for the "this game" panel). */
       stats: [] as ReadonlyArray<EffectOverlayStat>,
       /** The open ACTION COMPOSER context (undefined = the grid owns input). */
@@ -654,6 +673,13 @@ export default defineComponent({
         this.fetchStats();
       },
     },
+    // Track the cursor's live flat position (feeds the nearest-survivor pick).
+    focusKey(key: string) {
+      const i = this.model.flatKeys.indexOf(key);
+      if (i >= 0) {
+        this.lastFlatIndex = i;
+      }
+    },
     // Keep the focus on a valid, present tile (after a filter change / update).
     'model.flatKeys': {
       immediate: true,
@@ -662,11 +688,24 @@ export default defineComponent({
           this.focusKey = '';
           return;
         }
-        if (!keys.includes(this.focusKey)) {
-          // Prefer the first activatable variant, else the first shown.
+        const liveIndex = keys.indexOf(this.focusKey);
+        if (liveIndex >= 0) {
+          // Still present — refresh the position record (its index may have
+          // shifted with the reordered list).
+          this.lastFlatIndex = liveIndex;
+          return;
+        }
+        if (this.focusKey === '') {
+          // Fresh open — lead with the first activatable variant, else the first shown.
           const firstAvail = this.model.groups.flatMap((g) => g.tiles).find((t) => t.status === 'available');
           this.focusKey = firstAvail?.key ?? keys[0];
+          return;
         }
+        // The focused tile vanished (a filter change / an update): land on the
+        // NEAREST surviving position in the new order — the cursor stays where
+        // the player's attention already is instead of resetting to the top.
+        this.focusKey = keys[Math.min(this.lastFlatIndex, keys.length - 1)];
+        void this.$nextTick(() => this.scrollFocusedIntoView());
       },
     },
     // The composer's card left the action set (prompt moved on) → close it.
@@ -1088,8 +1127,12 @@ export default defineComponent({
     scrollFocusedIntoView(): void {
       const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
       const node = Array.isArray(el) ? el[0] : el;
-      // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-      (this.$refs.list as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
+      // Foundation: bounded to the ConsoleScrollArea viewport (never
+      // scrollIntoView). The generous margin keeps a breath of NEXT-row
+      // context visible past the cursor, so fast d-pad runs read as motion
+      // through a list, not a row pinned to the viewport edge.
+      (this.$refs.list as {ensureVisible?: (el: Element | null | undefined, margin?: number) => void} | undefined)
+        ?.ensureVisible?.(node, Math.round(22 * conUiScale()));
     },
   },
 });

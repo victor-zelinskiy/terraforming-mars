@@ -159,6 +159,55 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     resetConsoleRepeatPickUi();
   });
 
+  it('the player-context chip renders ONLY for a foreign entry (contextPlayer) — your own visit has no name tag', async () => {
+    const w = factory();
+    await settle(w);
+    expect(w.find('.con-cardactions__player').exists()).to.eq(false);
+    w.unmount();
+
+    const w2 = mount(ConsoleCardActions, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {playerView: playerView(), contextPlayer: {color: 'red', name: 'Rival'} as any},
+      attachTo: document.body,
+    });
+    await settle(w2);
+    const chip = w2.find('.con-cardactions__player');
+    expect(chip.exists()).to.eq(true);
+    expect(chip.text()).to.contain('Rival');
+    expect(chip.classes()).to.contain('player_bg_color_red');
+    w2.unmount();
+  });
+
+  it('a filter change that removes the focused tile lands the cursor on the NEAREST surviving position, never back at the top', async () => {
+    // Three action sources: two activatable now, one already used this
+    // generation (visible only under «Активация: все»).
+    const view = playerView();
+    view.thisPlayer.tableau = [
+      {name: CARD, resources: 2},
+      {name: CardName.IRONWORKS},
+      {name: CardName.STEELWORKS},
+    ];
+    view.thisPlayer.actionsThisGeneration = [CardName.STEELWORKS];
+    const w = factory();
+    await w.setProps({playerView: view});
+    consoleCardActionsUi.filter.activation = 'all';
+    await settle(w);
+    const vm = w.vm as any;
+    // Regolith Eaters is a two-variant («или») action → 2 tiles + 1 + 1.
+    expect(vm.model.flatKeys.length).to.eq(4);
+    // Focus the LAST tile (the activated one, sorted to the tail).
+    vm.focusKey = CardName.STEELWORKS + '#0';
+    await settle(w);
+    // Hiding activated tiles removes the focused one — the cursor must land
+    // on the nearest surviving position (the tile above), NOT the first.
+    consoleCardActionsUi.filter.activation = 'dormant';
+    await settle(w);
+    expect(vm.model.flatKeys).to.deep.eq([CARD + '#0', CARD + '#1', CardName.IRONWORKS + '#0']);
+    expect(vm.focusKey).to.eq(CardName.IRONWORKS + '#0');
+    w.unmount();
+  });
+
   it('repeated A never double-opens; A on an unavailable tile shakes instead of focusing', async () => {
     const w = factory();
     await settle(w);

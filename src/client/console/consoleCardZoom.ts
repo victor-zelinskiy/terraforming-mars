@@ -180,6 +180,29 @@ export type ConsoleZoomInspect = {
 
 export type ConsoleZoomInspectTab = 'rules' | 'history';
 
+/**
+ * The PLAYED-TABLE provenance (every fullscreen opened from «Разыграно» —
+ * the table's single-card shortcut, the category grid, the embedded
+ * workspace table). It answers the one question the bare hero card cannot:
+ * "whose table is this card ON, and where does it lie there?"
+ *
+ *  seatName  — the LOCALIZED participant label («Бот» for the Automa);
+ *  seatColor — the player colour (the plate's identity dot + accent);
+ *  isBot     — the Automa seat: the card is one it FLIPPED, not chose;
+ *  category  — the printed zone (an i18n key: Corporation / Events / …);
+ *  ordinal   — position inside that zone, 1-based (`{n, total}`; the whole
+ *              chip is omitted when a zone holds one card — "1 / 1" is noise).
+ *
+ * Read-only metadata: the viewer never acts on it.
+ */
+export type ConsoleZoomProvenance = {
+  seatName: string,
+  seatColor: string,
+  isBot: boolean,
+  category: string,
+  ordinal?: {n: number, total: number},
+};
+
 /** Optional extras attached at open time (receive bridge + a caption). */
 export type ConsoleZoomExtra = {
   /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
@@ -236,6 +259,13 @@ export type ConsoleZoomExtra = {
   origin?: ZoomOrigin,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect?: ConsoleZoomInspect,
+  /**
+   * Present ⇔ the fullscreen was opened from the PLAYED TABLE. Static for
+   * the seat, but the CATEGORY/ORDINAL follow the browsed card — pass a
+   * resolver so LB/RB keeps the plate honest (index → the card's own
+   * provenance). A plain object is accepted for a single-card viewer.
+   */
+  provenance?: ConsoleZoomProvenance | ((index: number) => ConsoleZoomProvenance | undefined),
 };
 
 export const consoleCardZoom = reactive({
@@ -273,7 +303,15 @@ export const consoleCardZoom = reactive({
   inspect: undefined as ConsoleZoomInspect | undefined,
   /** The active dossier tab (default ПРАВИЛА — X keeps its familiar meaning). */
   inspectTab: 'rules' as ConsoleZoomInspectTab,
+  /** The PLAYED-TABLE provenance resolver (index → plate), if any. */
+  provenanceAt: undefined as ((index: number) => ConsoleZoomProvenance | undefined) | undefined,
 });
+
+/** The provenance plate for the card currently on screen (undefined = the
+ *  viewer was not opened from the played table). */
+export function consoleZoomProvenance(): ConsoleZoomProvenance | undefined {
+  return consoleCardZoom.provenanceAt?.(consoleCardZoom.index);
+}
 
 /** Open the fullscreen viewer on `cards[index]` (list = what's on screen). */
 export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: number, select?: ConsoleZoomSelect, action?: ConsoleZoomAction, extra?: ConsoleZoomExtra): void {
@@ -297,6 +335,9 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
   consoleCardZoom.inspect = extra?.inspect;
   consoleCardZoom.inspectTab = 'rules'; // every open starts on ПРАВИЛА
+  const provenance = extra?.provenance;
+  consoleCardZoom.provenanceAt = provenance === undefined ? undefined :
+    typeof provenance === 'function' ? provenance : () => provenance;
 }
 
 /** Switch the inspect dossier tab (LB/RB). No-op outside an inspect context. */
@@ -348,4 +389,5 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.origin = {kind: 'none'};
   consoleCardZoom.inspect = undefined;
   consoleCardZoom.inspectTab = 'rules';
+  consoleCardZoom.provenanceAt = undefined;
 }

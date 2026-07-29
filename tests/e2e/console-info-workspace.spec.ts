@@ -238,6 +238,22 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
       await expect(page.locator('.con-info .con-played__provenance')).toHaveCount(0);
       await shoot(page, preset, '03-played-human');
+
+      // ── 4b · SMART OPEN: the корпорация zone holds ONE card → A goes
+      // straight to fullscreen, carrying the PROVENANCE plate. ───────
+      await key(page, 'Enter', 1200);
+      const plate = page.locator('.con-zoom__prov');
+      await expect(plate).toHaveCount(1);
+      // (the kicker is uppercased by CSS — the DOM text stays sentence case)
+      await expect(plate.locator('.con-zoom__prov-kicker')).toHaveText('Разыграно');
+      await expect(plate.locator('.con-zoom__prov-cat')).toHaveText('Корпорация');
+      // A lone card in its zone shows no «N / M» (that would be noise).
+      await expect(plate.locator('.con-zoom__prov-ord')).toHaveCount(0);
+      await shoot(page, preset, '03a-zoom-provenance');
+      await key(page, 'Escape', 1000);
+      await expect(page.locator('.con-zoom__prov')).toHaveCount(0);
+      await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
+
       await key(page, 'Escape', 800);
       await expect(workspace.locator('.con-info__cols')).toHaveCount(1);
       await expect(workspace.locator('.con-info__block--played')).toHaveCount(1);

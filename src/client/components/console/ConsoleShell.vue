@@ -101,7 +101,7 @@
       <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
-                            :boardVisible="consoleState.section === 'board' && !infoModeState.open"
+                            :boardVisible="consoleState.section === 'board' && !infoModeState.open && !actionWorkspaceUp"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma" />
@@ -198,6 +198,44 @@
                              @confirm="submitHydroAdvance($event)"
                              @close="consoleState.section = 'board'" />
       </transition>
+
+      <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
+           blue-card action center as an ABSOLUTE child of .con-main filling
+           everything RIGHT of the player rail (the information-workspace
+           seam geometry: left edge from --con-rail-w / --con-main-gap). The
+           rail stays visible and LIT above the shared shade (`--actws`
+           lifts it) — the player's resources remain the on-screen context
+           of every cost/gain read here, and the natural landing zone of the
+           future post-confirm resource-flight sequence. Rides the shared
+           `.con-shade` (no own backdrop); after-leave releases the `--actws`
+           stacking hold (see conMainClasses / actwsClosing). -->
+      <!-- v-show while a client hand pick is out (SRR link pick): the Action
+           Center + its composer stay mounted so every capture survives (the
+           director recognizes the pick bridge and never animates it). -->
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @after-leave="onActionWorkspaceLeaveSettled"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleCardActions v-if="consoleState.sheet === 'cardActions'"
+                            v-show="!handPickActive && !playedPickActive && !repeatPickActive"
+                            ref="cardActions"
+                            :playerView="playerView"
+                            @submit-batch="onCardActionsSubmitBatch"
+                            @reveal-ack="onCardActionsRevealAck"
+                            @close="onCardActionsClose" />
+      </transition>
+
+      <!-- The "select an action to repeat" surface (ProjectInspection / Viron /
+           Hydronetwork stage 7): the SAME ДЕЙСТВИЯ КАРТ workspace, reused in
+           `repeat` mode (full dossier + filters + all actions with reasons).
+           Mounted OVER the source composer (v-show hidden) while the pick is
+           out; A = «Выбрать», the chosen action is composed here and RESOLVED
+           back to the source via the bridge. -->
+      <ConsoleCardActions v-if="repeatPickActive"
+                          repeat
+                          ref="repeatPick"
+                          :playerView="playerView"
+                          @close="onRepeatPickClose" />
 
       <!-- THE INFORMATION WORKSPACE (Y) — read-only dossier of the inspected
            player, an ABSOLUTE child of .con-main filling everything right of
@@ -339,19 +377,10 @@
                                 :myMegacredits="thisPlayer.megacredits"
                                 :backLabel="stdBackLabel" />
       <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
-      <!-- The console-native BLUE-CARD ACTION CENTER (master-detail + confirm) —
-           replaces the old bottom-sheet list + bare confirm for card actions. -->
-      <!-- v-show while a client hand pick is out (SRR link pick): the Action
-           Center + its composer stay mounted so every capture survives (the
-           director recognizes the pick bridge and never animates it). -->
-      <ConsoleCardActions v-else-if="consoleState.sheet === 'cardActions'"
-                          v-show="!handPickActive && !playedPickActive && !repeatPickActive"
-                          ref="cardActions"
-                          :playerView="playerView"
-                          @submit-batch="onCardActionsSubmitBatch"
-                          @reveal-ack="onCardActionsRevealAck"
-                          @close="onCardActionsClose" />
-      <ConsoleSheet v-else-if="consoleState.sheet !== undefined" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
+      <!-- (The BLUE-CARD ACTION CENTER left this chain — it is the ACTION
+           WORKSPACE now, an absolute child of .con-main right of the player
+           rail; see the mount next to ConsoleInfoMode.) -->
+      <ConsoleSheet v-else-if="consoleState.sheet !== undefined && consoleState.sheet !== 'cardActions'" :title="sheetTitle" :rows="sheetRows" :index="consoleState.sheetIndex" />
     </transition>
 
     <!-- Console confirm panel (pass / risky conversions). Surface-motion:
@@ -605,6 +634,26 @@
           </div>
         </div>
         <div class="con-zoom__bar">
+          <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
+               would otherwise read like any other inspected card. The plate
+               leads the bar and states WHOSE table it lies on, in WHICH
+               printed zone and where in that zone — the seat's own colour
+               runs through the dot and the plate's edge. For the Automa it
+               also says the card was FLIPPED, never chosen. -->
+          <span v-if="zoomProvenance !== undefined"
+                class="con-zoom__prov"
+                :class="['con-zoom-seat-' + zoomProvenance.seatColor, {'con-zoom__prov--bot': zoomProvenance.isBot}]">
+            <span class="con-zoom__prov-seat">
+              <span class="con-status__dot" :class="'player_bg_color_' + zoomProvenance.seatColor" aria-hidden="true"></span>
+              <span class="con-zoom__prov-name">{{ zoomProvenance.seatName }}</span>
+            </span>
+            <span class="con-zoom__prov-sep" aria-hidden="true"></span>
+            <span class="con-zoom__prov-kicker">{{ $t(zoomProvenance.isBot ? 'Flipped' : 'Played') }}</span>
+            <span class="con-zoom__prov-cat">{{ $t(zoomProvenance.category) }}</span>
+            <span v-if="zoomProvenance.ordinal !== undefined" class="con-zoom__prov-ord">
+              <b>{{ zoomProvenance.ordinal.n }}</b><span aria-hidden="true">/</span>{{ zoomProvenance.ordinal.total }}
+            </span>
+          </span>
           <!-- The prominent ROLE status (single-card reveal): «ПОЛУЧЕННАЯ
                КАРТА» / «ИСТОЧНИК ДОБОРА» — the player always tells a received
                card from the draw source at a glance. -->
@@ -860,16 +909,8 @@
                               @cancel="onPlayCardCancel" />
     </transition>
 
-    <!-- The "select an action to repeat" surface (ProjectInspection / Viron):
-         the SAME ДЕЙСТВИЯ КАРТ overlay, reused in `repeat` mode (full dossier +
-         filters + all actions with reasons). Mounted OVER the source composer
-         (v-show hidden above) while the pick is out; A = «Выбрать», the chosen
-         action is composed here and RESOLVED back to the source via the bridge. -->
-    <ConsoleCardActions v-if="repeatPickActive"
-                        repeat
-                        ref="repeatPick"
-                        :playerView="playerView"
-                        @close="onRepeatPickClose" />
+    <!-- (The repeat-pick ДЕЙСТВИЯ КАРТ surface moved INTO .con-main — the
+         action workspace geometry next to the rail; see there.) -->
 
     <!-- The corporation's MANDATORY FIRST ACTION — the dedicated confirm
          modal (the play-composer's mandatory sibling). Presence is DERIVED
@@ -1055,7 +1096,7 @@ import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/C
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
-import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin} from '@/client/console/consoleCardZoom';
+import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
@@ -1370,6 +1411,10 @@ export default defineComponent({
       maInspect: undefined as string | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
+      /** Holds `.con-main--actws` through the Action Workspace's dismiss
+       *  transition (the rail must stay lifted over the fading shade);
+       *  released by the transition's after-leave. */
+      actwsClosing: false,
       offIntent: undefined as (() => void) | undefined,
       /** Release fn of the held 'mandatory-choice' presentation lease. */
       releasePresentationLease: undefined as (() => void) | undefined,
@@ -2950,11 +2995,18 @@ export default defineComponent({
     infoWorkspaceUp(): boolean {
       return this.infoModeState.open || this.infoModeState.closing;
     },
+    /** `--actws` (the ACTION WORKSPACE stacking state) must persist through
+     *  the center's dismiss transition — else the lit rail falls back under
+     *  the still-fading shade for the close beat (see actwsClosing). */
+    actionWorkspaceUp(): boolean {
+      return this.consoleState.sheet === 'cardActions' || this.repeatPickActive || this.actwsClosing;
+    },
     conMainClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
         'con-main--journal': this.journalPanelVisible,
         'con-main--hand': this.consoleState.section === 'hand',
         'con-main--info': this.infoWorkspaceUp,
+        'con-main--actws': this.actionWorkspaceUp,
       };
       // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
       // by the rail ring and the workspace seam. Follows `open` (not the
@@ -3943,6 +3995,17 @@ export default defineComponent({
     zoomStatusLabel(): string | undefined {
       return this.consoleCardZoom.statusLabel;
     },
+    /**
+     * The PLAYED-TABLE provenance plate for the card ON SCREEN (undefined =
+     * the viewer wasn't opened from «Разыграно»). Rides `index`, so browsing
+     * a zone with LB/RB keeps the plate — and «N из M» — honest.
+     */
+    zoomProvenance(): ConsoleZoomProvenance | undefined {
+      // `index` is read explicitly: the resolver is a plain function, so the
+      // computed must depend on the reactive field it is keyed by.
+      const index = this.consoleCardZoom.index;
+      return this.consoleCardZoom.provenanceAt?.(index);
+    },
     /** The L3 role-swap chip verb (single-card reveal), or undefined. */
     zoomSwapLabel(): string | undefined {
       return this.consoleCardZoom.swap?.label;
@@ -4020,6 +4083,16 @@ export default defineComponent({
     },
   },
   watch: {
+    // The ACTION WORKSPACE dismiss: hold `--actws` (the lit rail) through the
+    // center's leave transition; after-leave releases it. A re-open cancels
+    // the hold immediately (the raw signal covers the stacking state again).
+    'consoleState.sheet'(next: string | undefined, prev: string | undefined) {
+      if (prev === 'cardActions' && next !== 'cardActions') {
+        this.actwsClosing = true;
+      } else if (next === 'cardActions') {
+        this.actwsClosing = false;
+      }
+    },
     // NOTIFICATION X-HOLD safety: the tracked card left the screen (TTL ran
     // out despite the pause safeguard, a flow ack, a queue promotion) or a
     // DIFFERENT card took the top slot — an in-flight hold must die with it,
@@ -5156,6 +5229,12 @@ export default defineComponent({
      *  conMainClasses note). */
     onInfoModeLeaveSettled(): void {
       settleInfoModeClose();
+    },
+    /** after-leave of the ACTION WORKSPACE's dismiss transition — release the
+     *  `--actws` stacking hold (the rail returns under the board's normal
+     *  layering once the center has fully left). */
+    onActionWorkspaceLeaveSettled(): void {
+      this.actwsClosing = false;
     },
     /** LB/RB inside the workspace: ONE state flip (rail + panel read the
      *  same inspected color) + the directional switch beat. Rapid presses
