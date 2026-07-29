@@ -9724,6 +9724,18 @@ html.console-mode {
     &__stepper-unit { font-size: 1.1rem; color: @con-text-dim; }
     &__stepper-range { font-size: .9rem; color: @con-text-dim; }
     &__stepper-keys { display: flex; gap: 1.1rem; }
+    /* The dial's live cost → gain formula (a SelectAmount that states its
+       direction): centred under the readout, same chips as the composer hero. */
+    &__stepper-formula {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: .6rem;
+        margin-top: -.4rem;
+        padding-bottom: .5rem;
+    }
+    &__stepper-arrow { color: @con-text-dim; font-size: 1.1rem; }
     &__key {
         display: inline-flex;
         align-items: center;

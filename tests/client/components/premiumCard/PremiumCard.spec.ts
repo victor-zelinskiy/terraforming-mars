@@ -122,6 +122,26 @@ describe('PremiumCard', () => {
     expect(document.body.childNodes.length).to.eq(before);
   });
 
+  /**
+   * The DSL's `megacredits(1, {text: '2x'})` item option lands on `innerText`
+   * (`text` is set only by `.plate()`/`.text()`, which never build an M€ item).
+   * Reading only `text` printed the placeholder amount — Energy Market's «2x M€
+   * per energy» face read a flat «1», i.e. the wrong price on the card itself.
+   */
+  it('a variable M€ face shows its override text, not the placeholder amount', () => {
+    const market = mount(PremiumCard, {props: {name: CardName.ENERGY_MARKET, inert: true}});
+    const insides = market.findAll('.pcard-mi__inside').map((n) => n.text());
+    expect(insides).to.include('2x');
+    expect(insides).to.not.include('1');
+    // the OTHER branch of the same card keeps its real fixed amount
+    expect(insides).to.include('8');
+    // '?' (unknown amount) and '0' (a floor, not "one M€") are the other shapes
+    expect(mount(PremiumCard, {props: {name: CardName.PLAYWRIGHTS, inert: true}})
+      .findAll('.pcard-mi__inside').map((n) => n.text())).to.include('?');
+    expect(mount(PremiumCard, {props: {name: CardName.NIRGAL_ENTERPRISES, inert: true}})
+      .findAll('.pcard-mi__inside').map((n) => n.text())).to.include('0');
+  });
+
   it('lower anchors: VP variant class reserves the panel column', () => {
     const formula = mount(PremiumCard, {props: {card: model(CardName.SEARCH_FOR_LIFE)}});
     expect(formula.classes()).to.include('pcard--vp-formula');

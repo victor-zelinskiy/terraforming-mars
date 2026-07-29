@@ -94,6 +94,36 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /**
+   * The INVERSE dial (Energy Market): the number counts what the player
+   * RECEIVES and the price rides another pool. It used to land in the neutral
+   * «ВЫ ВЫБИРАЕТЕ» cluster — a bare number with no word of the 2 M€ per step —
+   * so the whole activation said nothing about what it costs. With `amountCost`
+   * the hero must be a real БУДЕТ СПИСАНО → ПОЛУЧИТЕ pair, live on the dial.
+   */
+  it('an amountCost dial (Energy Market) shows the live price and the gain, not a bare «your choice»', async () => {
+    const w = factory({
+      card: 'Energy Market', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: 0, title: 'Spend 2X M€ to gain X energy', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'amount', title: 'Select amount of energy to gain', min: 1, max: 5, maxByDefault: false,
+          icon: 'energy', amountCost: {icon: 'megacredits', perUnit: 2}}}],
+      }],
+    }, 'Energy Market');
+    // No neutral "your choice" chip — the dial has a direction now.
+    expect(w.findAll('.con-composer__varchip')).to.have.length(0);
+    const sides = w.findAll('.con-composer__hero-side');
+    expect(sides).to.have.length(2); // spent + received
+    // Seeded at min 1 → −2 M€ (47 → 45) and +1 energy (0 → 1).
+    const chips = w.findAll('.con-composer__hero .action-effect-chip');
+    expect(chips).to.have.length(2);
+    expect(chips[0].text().replace(/\s/g, '')).to.contain('47→45');
+    expect(chips[1].text().replace(/\s/g, '')).to.contain('0→1');
+    // The row states the price too, instead of an "In stock: 0" that says nothing.
+    expect(w.find('.con-composer__row-note').text()).to.contain('2');
+    w.unmount();
+  });
+
   it('a bare confirm-only preview shows the plain confirm line (never a broken empty panel)', () => {
     const w = factory({
       card: 'X', isCorporation: false, kind: 'dynamic',

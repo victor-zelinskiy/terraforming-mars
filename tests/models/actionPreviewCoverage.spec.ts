@@ -6,6 +6,7 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
 import {ActionPreviewBranch} from '../../src/common/models/ActionPreviewModel';
+import {bareAmountDials} from './amountDialGuard';
 import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
 import {actionPreview} from '../../src/server/models/actionPreview';
@@ -58,6 +59,14 @@ function isMuteBranch(b: ActionPreviewBranch): boolean {
     b.reveal === undefined &&
     b.mergeCardSteps === undefined;
 }
+
+/**
+ * Cards whose amount dial genuinely has NO direction to state. Empty on purpose:
+ * an entry means someone decided a dial is truly directionless and had to say so
+ * here. (`isMuteBranch` never caught a bare dial — a bare dial IS a step, and a
+ * branch with a step is not mute; that is how Energy Market slipped through.)
+ */
+const BARE_DIAL_EXEMPT = new Set<CardName>([]);
 
 /**
  * Every in-scope action card must produce a VALID, NON-THROWING preview (the
@@ -156,5 +165,49 @@ describe('action-preview coverage', () => {
       }
     });
     expect(mute, `MUTE branches (would render a bare confirm — add a hook / effects):\n  ${mute.join('\n  ')}`).to.have.length(0);
+  });
+
+  /**
+   * DIAL GUARD: no in-scope action may ask for an amount without saying what
+   * that amount costs or produces. Give the `amountStep`/`amountInput` call the
+   * matching hint — `conversion` (X of FROM becomes X×ratio of TO), `result`
+   * (each unit produces something else) or `cost` (each unit is PAID for out of
+   * another pool) — and every surface renders the live before→after by itself.
+   */
+  it('no in-scope action asks for a BARE amount (the dial always states cost / result)', () => {
+    const bare: Array<string> = [];
+    forEachActionCard((card, module) => {
+      if (BARE_DIAL_EXEMPT.has(card.name)) {
+        return;
+      }
+      const [/* game */, player] = testGame(2);
+      // Resource the player + the card so the amount-bearing branch is reachable
+      // (a branch gated on stock/card resources is otherwise never built).
+      for (const r of [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT]) {
+        player.stock.add(r, 50);
+        player.production.add(r, 8);
+      }
+      player.playedCards.push(card);
+      if (card.resourceType !== undefined) {
+        (card as {resourceCount: number}).resourceCount = 6;
+      }
+      let preview;
+      try {
+        preview = actionPreview(player, card);
+      } catch {
+        return; // the non-throwing guard above owns preview errors
+      }
+      const pre = bareAmountDials({steps: preview.preSteps ?? []});
+      if (pre > 0) {
+        bare.push(`${card.name} [${module}] preSteps: ${pre} bare amount input(s)`);
+      }
+      for (const b of preview.branches) {
+        const count = bareAmountDials(b);
+        if (count > 0) {
+          bare.push(`${card.name} [${module}] branch#${b.index}: ${count} bare amount input(s)`);
+        }
+      }
+    });
+    expect(bare, `BARE amount dials (add conversion / result / cost to the amountStep):\n  ${bare.join('\n  ')}`).to.have.length(0);
   });
 });

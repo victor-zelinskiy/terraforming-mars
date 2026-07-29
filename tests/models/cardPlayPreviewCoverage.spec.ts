@@ -10,6 +10,8 @@ import {testGame} from '../TestGame';
 import {CardResource} from '../../src/common/CardResource';
 import {Tag} from '../../src/common/cards/Tag';
 import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
+import {ActionPreview} from '../../src/common/models/ActionPreviewModel';
+import {bareAmountDials} from './amountDialGuard';
 
 // Only modules whose PROJECT cards are played from hand via the "РАЗЫГРАТЬ КАРТУ"
 // modal. Preludes / corporations use the start-of-game flow, not this modal.
@@ -324,6 +326,39 @@ describe('card-play-preview coverage', () => {
       }
     });
     expect(gaps, `declarative cards silently dropping an addResourcesToAnyCard addition:\n  ${gaps.join('\n  ')}`).to.have.length(0);
+  });
+
+  // GUARD (the play-side twin of actionPreviewCoverage's dial guard): a
+  // `cardPlayPreview` must never ask for an amount without saying what that
+  // amount costs or produces. A bare `SelectAmount` renders as a number and a
+  // range on every surface, so the player dials blind — the same hole Energy
+  // Market's action had. Give the `amountStep` a `conversion` / `result` /
+  // `cost` hint and the before→after draws itself.
+  it('no in-scope card-play preview asks for a BARE amount (the dial always states cost / result)', () => {
+    const [/* game */, player] = testGame(2);
+    const bare: Array<string> = [];
+    let checked = 0;
+    forEachInScopeProjectCard((card, module) => {
+      const hook = (card as {cardPlayPreview?: (p: typeof player) => ActionPreview}).cardPlayPreview;
+      if (typeof hook !== 'function') {
+        return;
+      }
+      let preview: ActionPreview;
+      try {
+        preview = hook.call(card, player);
+      } catch {
+        return; // a hook that needs richer state — the other guards own hook errors
+      }
+      checked++;
+      for (const b of [{steps: preview.preSteps ?? []}, ...preview.branches]) {
+        const count = bareAmountDials(b);
+        if (count > 0) {
+          bare.push(`${card.name} [${module}]: ${count} bare amount input(s)`);
+        }
+      }
+    });
+    expect(bare, `BARE amount dials in a card-play preview (add conversion / result / cost to the amountStep):\n  ${bare.join('\n  ')}`).to.have.length(0);
+    expect(checked, 'in-scope cardPlayPreview hooks inspected').to.be.greaterThan(10);
   });
 
   // GUARD: a `warning` says an effect WON'T happen — it must NAME which one. A card

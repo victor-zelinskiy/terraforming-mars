@@ -1,7 +1,7 @@
 import {Message} from '../../common/logs/Message';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputResponse, isSelectAmountResponse} from '../../common/inputs/InputResponse';
-import {SelectAmountModel, AmountConversionModel, AmountResultModel} from '../../common/models/PlayerInputModel';
+import {SelectAmountModel, AmountConversionModel, AmountCostModel, AmountResultModel} from '../../common/models/PlayerInputModel';
 import {InputError} from './InputError';
 
 export class SelectAmount extends BasePlayerInput<number> {
@@ -19,7 +19,9 @@ export class SelectAmount extends BasePlayerInput<number> {
     // client renders the rich conversion composition + live preview. `result`
     // marks a "spend X → produce X×perUnit of icon" amount (e.g. draw cards) so
     // the client renders the live SPEND → RESULT composition + the practical change.
-    public options?: {icon?: string, unit?: string, conversion?: AmountConversionModel, result?: AmountResultModel},
+    // `cost` is the inverse of `result` — the dial counts what is RECEIVED and
+    // each step is paid for out of another pool ("2X M€ → X energy").
+    public options?: {icon?: string, unit?: string, conversion?: AmountConversionModel, result?: AmountResultModel, cost?: AmountCostModel},
   ) {
     super('amount', title);
     this.buttonLabel = buttonLabel;
@@ -37,6 +39,7 @@ export class SelectAmount extends BasePlayerInput<number> {
       unit: this.options?.unit,
       conversion: this.options?.conversion,
       amountResult: this.options?.result,
+      amountCost: this.options?.cost,
     };
   }
 

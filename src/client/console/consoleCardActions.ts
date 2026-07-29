@@ -351,6 +351,16 @@ export function variablePartsForBranch(branch: ActionPreviewBranch): {
       gain.push({role: 'result', icon: m.conversion.to, min: m.min * ratio, max: m.max * ratio});
       suppressCostIcons.add(m.conversion.from);
       suppressGainIcons.add(m.conversion.to);
+    } else if (m.amountCost !== undefined) {
+      // The INVERSE shape: the dial counts what is RECEIVED and each unit is paid
+      // for out of another pool (Energy Market «2X M€ → X energy»).
+      const perUnit = m.amountCost.perUnit ?? 1;
+      cost.push({role: 'spend', icon: m.amountCost.icon, min: m.min * perUnit, max: m.max * perUnit});
+      gain.push({role: 'result', icon: m.icon, min: m.min, max: m.max, unit: m.unit});
+      suppressCostIcons.add(m.amountCost.icon);
+      if (m.icon !== undefined) {
+        suppressGainIcons.add(m.icon);
+      }
     } else {
       // Direction unknown (no structural hint) — an honest neutral choice chip.
       choice.push({role: 'choice', icon: m.icon, min: m.min, max: m.max, unit: m.unit});

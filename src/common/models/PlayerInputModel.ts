@@ -493,6 +493,27 @@ export type AmountResultModel = {
   label?: string;
 }
 
+/**
+ * OPTIONAL "what each unit COSTS" hint — the mirror image of `AmountResultModel`,
+ * for a dial that counts what the player RECEIVES while the price is a DIFFERENT
+ * pool (Energy Market: "spend 2X M€ to gain X energy" — the dial is the energy,
+ * the price is 2 M€ per step). Without it such a dial is mute: the player picks a
+ * number with no idea what it costs. The client renders it as a live cost chip
+ * with `current → resulting` on the paying pool, exactly like a fixed cost chip.
+ * The server only sends the HINT (which pool, at which rate), never per-step values.
+ *
+ * Use `AmountConversionModel`/`AmountResultModel` instead when the dial counts the
+ * thing being SPENT — those are the common shape; this one is for the inverse.
+ */
+export type AmountCostModel = {
+  /** Icon-key of the resource spent per unit selected (e.g. 'megacredits'). */
+  icon: string;
+  /** How many of `icon` per 1 unit selected (default 1). */
+  perUnit?: number;
+  /** Which player figure the cost is taken from ('stock' default). */
+  scope?: 'stock' | 'production';
+}
+
 export type SelectAmountModel = BaseInputModel & {
   type: 'amount';
   min: number;
@@ -511,6 +532,10 @@ export type SelectAmountModel = BaseInputModel & {
   // SPEND → RESULT composition (e.g. "spend X energy → draw X cards"). Falls
   // back cleanly when absent.
   amountResult?: AmountResultModel;
+  // OPTIONAL per-unit PRICE (see AmountCostModel) — for a dial that counts what
+  // is GAINED and is paid for out of another pool ("2X M€ → X energy"). Falls
+  // back cleanly when absent.
+  amountCost?: AmountCostModel;
 }
 
 export type DeltaProjectInputModel = BaseInputModel & {

@@ -8,7 +8,7 @@ import {Message} from '../../common/logs/Message';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
-import {AmountConversionModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
+import {AmountConversionModel, AmountCostModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
@@ -267,13 +267,26 @@ export function targetStepOrWarning(
   return warningNote(warning, {skipped});
 }
 
-/** A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper. */
+/**
+ * A "choose an amount" step (e.g. spend X floaters) — hosts the modern stepper.
+ *
+ * ALWAYS give the dial a DIRECTION hint, or the surface can only render a bare
+ * number and the player dials blind (the fork rule: maximum information before
+ * submit). Pick the one that matches what the dial COUNTS:
+ *   - `conversion` — it counts the resource SPENT, and X of it becomes X×ratio of
+ *     another (heat production → M€ production).
+ *   - `result`     — it counts the resource SPENT, and each unit PRODUCES
+ *     something else (spend X energy → draw X cards).
+ *   - `cost`       — it counts what is RECEIVED, each unit PAID for out of
+ *     another pool (Energy Market: 2 M€ per energy gained).
+ * Guarded by the "no bare amount dial" case in `actionPreviewCoverage.spec.ts`.
+ */
 export function amountStep(
   title: string | Message,
   label: string,
   min: number,
   max: number,
-  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel},
+  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel, cost?: AmountCostModel},
 ): ActionPreviewStep {
   return {kind: 'input', input: amountInput(title, label, min, max, opts)};
 }
@@ -288,9 +301,10 @@ export function amountInput(
   label: string,
   min: number,
   max: number,
-  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel},
+  opts?: {icon?: string, unit?: string, maxByDefault?: boolean, conversion?: AmountConversionModel, result?: AmountResultModel, cost?: AmountCostModel},
 ): PlayerInputModel {
-  return new SelectAmount(title, label, min, max, opts?.maxByDefault ?? true, {icon: opts?.icon, unit: opts?.unit, conversion: opts?.conversion, result: opts?.result}).toModel();
+  return new SelectAmount(title, label, min, max, opts?.maxByDefault ?? true,
+    {icon: opts?.icon, unit: opts?.unit, conversion: opts?.conversion, result: opts?.result, cost: opts?.cost}).toModel();
 }
 
 /**

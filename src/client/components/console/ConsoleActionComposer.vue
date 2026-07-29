@@ -423,6 +423,9 @@ import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
+import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
@@ -470,7 +473,6 @@ type BranchView = {
   needs: string,
 };
 
-const STANDARD_STOCK: ReadonlyArray<string> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 const CHOICE_KIND_LABEL: Record<string, string> = {
   card: 'Choose a card', player: 'Choose a player', or: 'Choose an option', payment: 'Payment',
 };
@@ -920,7 +922,11 @@ export default defineComponent({
           continue;
         }
         const m = this.amountModel(c);
-        if (m.amountResult === undefined && m.conversion === undefined) {
+        // Only a dial with NO structural direction hint belongs here — one that
+        // states its result / conversion / price is already a cost+gain pair in
+        // the hero, and listing it again as a bare «ваш выбор» would say less
+        // than the chips beside it.
+        if (m.amountResult === undefined && m.conversion === undefined && m.amountCost === undefined) {
           out.push({id: c.id, icon: m.icon});
         }
       }
@@ -1229,15 +1235,16 @@ export default defineComponent({
       };
     },
     playerListItem(model: SelectPlayerModel, color: string, chosen: boolean, disabled: boolean, reason: string | Message | undefined): ListItem {
-      let impact = '';
-      if (model.icon !== undefined && model.amount !== undefined) {
-        const pm = this.playerView.players.find((pl) => pl.color === color) as unknown as Record<string, number> | undefined;
-        const field = model.scope === 'production' ? model.icon + 'Production' : model.icon;
-        const cur = pm?.[field];
-        if (cur !== undefined) {
-          impact = `${cur} → ${Math.max(0, cur - model.amount)}`;
-        }
-      }
+      // SERVER impacts first, then the shared derivation — hand-rolling the
+      // field name here printed NOTHING for M€ / plants production (the model's
+      // fields are singular) and the wrong numbers for a MarsBot target.
+      const impact = targetImpactText(targetImpactRows(color as Color, {
+        impacts: model.targetImpacts,
+        icon: model.icon,
+        amount: model.amount,
+        scope: model.scope,
+        player: this.playerView.players.find((pl) => pl.color === color),
+      }));
       return {
         key: (disabled ? 'd' : '') + color,
         label: this.playerName(color),
@@ -1336,10 +1343,26 @@ export default defineComponent({
       if (c.kind === 'amount') {
         const m = this.amountModel(c);
         const chosen = this.amountFor(c.id);
+        // The INVERSE dial (it counts what is RECEIVED — Energy Market's energy):
+        // the price is `perUnit` of ANOTHER pool, and it is the only statement of
+        // what confirming costs, so it wins over the dial's own icon.
+        if (m.amountCost !== undefined) {
+          const spent = chosen * (m.amountCost.perUnit ?? 1);
+          const pool = this.poolOf(m.amountCost.icon, m.amountCost.scope);
+          return [{
+            direction: 'cost',
+            icon: m.amountCost.icon,
+            amount: spent,
+            current: pool,
+            resulting: pool !== undefined ? pool - spent : undefined,
+            note: m.amountCost.scope === 'production' ? 'production' : undefined,
+          }];
+        }
         const icon = m.icon ?? m.conversion?.from;
         if ((m.amountResult !== undefined || m.conversion !== undefined) && icon !== undefined) {
-          const stock = this.stockOf(icon);
-          return [{direction: 'cost', icon, amount: chosen, current: stock, resulting: stock !== undefined ? stock - chosen : undefined}];
+          const stock = this.poolOf(icon, m.conversion?.fromScope);
+          return [{direction: 'cost', icon, amount: chosen, current: stock, resulting: stock !== undefined ? stock - chosen : undefined,
+            note: m.conversion?.fromScope === 'production' ? 'production' : undefined}];
         }
         return [];
       }
@@ -1350,7 +1373,7 @@ export default defineComponent({
         }
         const floaters = this.floatersFor(c.id);
         const stock = spendHeatStock(plan, floaters);
-        const heat = this.stockOf('heat');
+        const heat = this.poolOf('heat');
         const out: Array<ActionEffect> = [{direction: 'cost', icon: 'heat', amount: stock, current: heat, resulting: heat !== undefined ? heat - stock : undefined}];
         if (floaters > 0) {
           out.push({direction: 'cost', icon: 'floater', amount: floaters});
@@ -1377,6 +1400,11 @@ export default defineComponent({
       if (m.conversion !== undefined) {
         const ratio = m.conversion.ratio ?? 1;
         return [{direction: 'gain', icon: m.conversion.to, amount: chosen * ratio}];
+      }
+      // An inverse dial IS the gain — its own icon, its own value.
+      if (m.amountCost !== undefined && m.icon !== undefined) {
+        const pool = this.poolOf(m.icon);
+        return [{direction: 'gain', icon: m.icon, amount: chosen, current: pool, resulting: pool !== undefined ? pool + chosen : undefined, unit: m.unit}];
       }
       return [];
     },
@@ -1408,17 +1436,40 @@ export default defineComponent({
       if (m.conversion !== undefined) {
         return `→ ${chosen * (m.conversion.ratio ?? 1)}`;
       }
+      // An inverse dial states its PRICE on the row (the hero chip beside it
+      // carries the icon + before→after) — never a bare "In stock" line, which
+      // says nothing about what the dial costs.
+      if (m.amountCost !== undefined) {
+        return `${translateText('Cost')}: ${chosen * (m.amountCost.perUnit ?? 1)}`;
+      }
       return '';
     },
     amountStockLine(c: ComposerChoice): string {
-      const stock = this.stockOf(this.amountIcon(c));
+      const stock = this.poolOf(this.amountIcon(c));
       return stock !== undefined ? `${translateText('In stock')}: ${stock}` : '';
     },
-    stockOf(icon: string | undefined): number | undefined {
-      if (icon === undefined || !STANDARD_STOCK.includes(icon)) {
+    /**
+     * The CURRENT value of the pool an amount chip touches — the viewer's stock or
+     * production for a standard resource, and the SOURCE CARD's own count for a
+     * card resource (floaters/microbes stored here), which is where a "remove X
+     * from this card" dial takes them from. `undefined` = no single pool to show,
+     * and the chip degrades to a bare magnitude.
+     */
+    poolOf(icon: string | undefined, scope?: 'stock' | 'production'): number | undefined {
+      if (icon === undefined) {
         return undefined;
       }
-      return (this.thisPlayer as unknown as Record<string, number>)[icon];
+      const standard = playerResourceValue(this.thisPlayer, icon, scope ?? 'stock');
+      if (standard !== undefined) {
+        return standard;
+      }
+      const onCard = this.preview?.cardResource;
+      // Both sides normalized: a hook may pass the raw `CardResource` value
+      // ('Floater') or the already-normalised icon key ('floater').
+      if (scope !== 'production' && onCard !== undefined && cardResourceKey(String(onCard.type)) === cardResourceKey(icon)) {
+        return onCard.count;
+      }
+      return undefined;
     },
     // ── spend-heat helpers ──────────────────────────────────────────────
     heatStockFor(c: ComposerChoice): number {

@@ -3,6 +3,7 @@ import {EnergyMarket} from '../../../src/server/cards/promo/EnergyMarket';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectAmount} from '../../../src/server/inputs/SelectAmount';
 import {Resource} from '../../../src/common/Resource';
+import {PlayerInputModel, SelectAmountModel} from '../../../src/common/models/PlayerInputModel';
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
@@ -66,5 +67,27 @@ describe('EnergyMarket', () => {
 
     expect(player.production.energy).to.eq(0);
     expect(player.megaCredits).to.eq(8);
+  });
+
+  // The energy dial counts what the player RECEIVES; the 2 M€ per step it charges
+  // is deferred to a follow-up payment, so the dial's own `cost` hint is the ONLY
+  // statement of the price before confirming. Without it the composer showed a
+  // bare «выберите количество энергии» — a number with no price and no before→after.
+  it('the energy dial states its price (2 M€ per step) in the preview AND the live input', () => {
+    player.stock.add(Resource.MEGACREDITS, 8);
+    const step = card.actionPreview(player).branches[0].steps[0];
+    expect(step.kind).eq('input');
+    const model = (step as {input: PlayerInputModel}).input as SelectAmountModel;
+    expect(model.type).eq('amount');
+    expect(model.icon).eq(Resource.ENERGY);
+    expect(model.amountCost).deep.eq({icon: Resource.MEGACREDITS, perUnit: 2});
+    // a spend dial never opens pre-armed at the player's whole pile
+    expect(model.maxByDefault).is.false;
+
+    // the LIVE input carries the same hints, so the native prompt reads identically
+    const live = cast(card.action(player), SelectAmount).toModel();
+    expect(live.icon).eq(model.icon);
+    expect(live.amountCost).deep.eq(model.amountCost);
+    expect(live.maxByDefault).eq(model.maxByDefault);
   });
 });

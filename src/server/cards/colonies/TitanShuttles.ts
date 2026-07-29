@@ -44,6 +44,12 @@ export class TitanShuttles extends Card implements IProjectCard {
     return true;
   }
 
+  /** The dial counts the FLOATERS REMOVED (its icon), each yielding 1 titanium
+   *  (`result`) — labelling the dial 'titanium' named the reward but hid the
+   *  spend, so the floaters left on the card never showed. ONE constant, shared
+   *  by the preview and the live input, so the two can't drift. */
+  private static readonly FLOATER_AMOUNT = {icon: 'floater', result: {icon: 'titanium', perUnit: 1}} as const;
+
   // Branch order MUST match action(): add-to-Jovian first, spend-for-titanium second.
   public actionPreview(player: IPlayer) {
     return actionPreviews.orBranches(this, [
@@ -59,7 +65,8 @@ export class TitanShuttles extends Card implements IProjectCard {
         available: this.resourceCount > 0,
         title: 'Remove X floaters on this card to gain X titanium',
         unavailableReason: actionReason.noResourcesHere(),
-        optionInput: actionPreviews.amountInput('Remove X floaters on this card to gain X titanium', 'Remove floaters', 1, this.resourceCount, {icon: 'titanium'}),
+        optionInput: actionPreviews.amountInput('Remove X floaters on this card to gain X titanium', 'Remove floaters', 1, this.resourceCount,
+          TitanShuttles.FLOATER_AMOUNT),
       },
     ]);
   }
@@ -79,7 +86,7 @@ export class TitanShuttles extends Card implements IProjectCard {
       }),
       new SelectAmount(
         'Remove X floaters on this card to gain X titanium', 'Remove floaters',
-        1, this.resourceCount, true,
+        1, this.resourceCount, true, TitanShuttles.FLOATER_AMOUNT,
       ).andThen((amount) => {
         player.removeResourceFrom(this, amount);
         // stock.add (NOT `player.titanium +=`) so the titanium gain is recorded as a

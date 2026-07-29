@@ -42,6 +42,12 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
     return true;
   }
 
+  /** The dial counts the MICROBES REMOVED (its icon); each is worth 3 M€
+   *  (`result`). Labelling the dial 'megacredits' read as "N M€" when N was the
+   *  microbe count — off by the ×3 the card is entirely about. ONE constant,
+   *  shared by the preview and the live input, so the two can't drift. */
+  private static readonly MICROBE_AMOUNT = {icon: 'microbe', result: {icon: 'megacredits', perUnit: 3}} as const;
+
   // Branch order MUST match action(): add-microbe pushed first, spend-microbes second.
   public actionPreview(_player: IPlayer) {
     return actionPreviews.orBranches(this, [
@@ -56,7 +62,8 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
         available: this.resourceCount > 0,
         title: 'Remove any number of microbes to gain 3 M€ per microbe removed',
         unavailableReason: actionReason.noResourcesHere(),
-        optionInput: actionPreviews.amountInput('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount, {icon: 'megacredits'}),
+        optionInput: actionPreviews.amountInput('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount,
+          SulphurEatingBacteria.MICROBE_AMOUNT),
       },
     ]);
   }
@@ -68,7 +75,8 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
       player.addResourceTo(this, {log: true});
       return undefined;
     });
-    const spendResource = new SelectAmount('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount, true)
+    const spendResource = new SelectAmount('Remove any number of microbes to gain 3 M€ per microbe removed', 'Remove microbes', 1, this.resourceCount, true,
+      SulphurEatingBacteria.MICROBE_AMOUNT)
       .andThen((amount) => this.spendResource(player, amount));
 
     opts.push(addResource);

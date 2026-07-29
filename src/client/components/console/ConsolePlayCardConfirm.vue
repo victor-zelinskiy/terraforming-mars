@@ -296,6 +296,7 @@ import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
@@ -1078,13 +1079,17 @@ export default defineComponent({
       return items;
     },
     playerImpact(model: SelectPlayerModel, color: string): string | undefined {
-      if (model.icon === undefined || model.amount === undefined) {
-        return undefined;
-      }
-      const pm = this.playerView.players.find((p) => p.color === color) as unknown as Record<string, number> | undefined;
-      const field = model.scope === 'production' ? model.icon + 'Production' : model.icon;
-      const cur = pm?.[field];
-      return cur !== undefined ? `${cur} → ${Math.max(0, cur - model.amount)}` : undefined;
+      // SERVER impacts first, then the shared derivation — hand-rolling the
+      // field name here printed NOTHING for M€ / plants production (the model's
+      // fields are singular) and the wrong numbers for a MarsBot target.
+      const text = targetImpactText(targetImpactRows(color as Color, {
+        impacts: model.targetImpacts,
+        icon: model.icon,
+        amount: model.amount,
+        scope: model.scope,
+        player: this.playerView.players.find((p) => p.color === color),
+      }));
+      return text !== '' ? text : undefined;
     },
     /** Candidate rows of a NESTED-input or option (Comet for Venus's SelectPlayer). */
     nestedItems(item: ConsoleOrItem): Array<ListItem> {

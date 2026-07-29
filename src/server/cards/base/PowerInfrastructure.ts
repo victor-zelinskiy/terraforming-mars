@@ -35,19 +35,20 @@ export class PowerInfrastructure extends Card implements IActionCard, IProjectCa
   public actionUnavailableReason() {
     return actionReason.notEnoughEnergy();
   }
+  /** The 1:1 energy → M€ conversion shown live in the stepper (spend X energy →
+   *  gain X M€), so the GAIN is never invisible. ONE constant, shared by the
+   *  preview and the live input, so the two can't drift. */
+  private static readonly ENERGY_AMOUNT = {icon: Resource.ENERGY, result: {icon: 'megacredits', perUnit: 1}} as const;
+
   // Choose X energy to spend (1..energy); gain X M€. The amount is the only
   // choice — the energy→M€ conversion is 1:1, shown via the stepper.
   public actionPreview(player: IPlayer) {
     return actionPreviews.singleBranch(this, player, [
-      // The 1:1 energy → M€ conversion shown live in the stepper (spend X energy
-      // → gain X M€), so the GAIN is never invisible.
-      actionPreviews.amountStep('Select amount of energy to spend', 'Spend energy', 1, player.energy, {
-        icon: Resource.ENERGY, result: {icon: 'megacredits', perUnit: 1},
-      }),
+      actionPreviews.amountStep('Select amount of energy to spend', 'Spend energy', 1, player.energy, PowerInfrastructure.ENERGY_AMOUNT),
     ]);
   }
   public action(player: IPlayer) {
-    return new SelectAmount('Select amount of energy to spend', 'Spend energy', 1, player.energy)
+    return new SelectAmount('Select amount of energy to spend', 'Spend energy', 1, player.energy, true, PowerInfrastructure.ENERGY_AMOUNT)
       .andThen((amount) => {
         player.stock.deduct(Resource.ENERGY, amount);
         player.stock.add(Resource.MEGACREDITS, amount, {log: true});

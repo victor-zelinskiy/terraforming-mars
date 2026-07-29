@@ -40,9 +40,20 @@ export class EnergyMarket extends Card implements IProjectCard {
     return player.canAfford(2) || player.production.energy >= 1;
   }
 
+  /** The dial counts the ENERGY GAINED; each step costs 2 M€ (`cost`), so every
+   *  surface can show the live price + `current → resulting` M€ instead of a bare
+   *  number. Starts at the MINIMUM — a max-by-default dial would pre-arm the
+   *  player's whole M€ pile for a spend they never asked for. */
+  private static readonly ENERGY_AMOUNT = {
+    icon: Resource.ENERGY,
+    maxByDefault: false,
+    cost: {icon: Resource.MEGACREDITS, perUnit: 2},
+  } as const;
+
   private getEnergyOption(player: IPlayer, availableMC: number): SelectAmount {
     return new SelectAmount(
-      'Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2))
+      'Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2),
+      EnergyMarket.ENERGY_AMOUNT.maxByDefault, EnergyMarket.ENERGY_AMOUNT)
       .andThen((amount) => {
         player.game.defer(new SelectPaymentDeferred(player, amount * 2))
           .andThen(() => player.stock.add(Resource.ENERGY, amount, {log: true}));
@@ -67,10 +78,12 @@ export class EnergyMarket extends Card implements IProjectCard {
     const availableMC = player.spendableMegacredits();
     return actionPreviews.orBranches(this, [
       {
-        // The payment for 2X M€ rides the follow-up routing after the amount pick.
+        // The payment for 2X M€ rides the follow-up routing after the amount pick,
+        // so the dial's `cost` hint is the ONLY place the price is stated before
+        // confirming — without it the player picks a number blind.
         available: availableMC >= 2,
         title: 'Spend 2X M€ to gain X energy',
-        steps: [actionPreviews.amountStep('Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2), {icon: 'energy'})],
+        steps: [actionPreviews.amountStep('Select amount of energy to gain', 'Gain energy', 1, Math.floor(availableMC / 2), EnergyMarket.ENERGY_AMOUNT)],
         unavailableReason: actionReason.needMoreMC(player, 2),
       },
       {

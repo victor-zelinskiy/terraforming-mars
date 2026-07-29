@@ -208,8 +208,15 @@ export default defineComponent({
         return '?';
       }
       if (this.isMegacredits || item.amountInside === true) {
-        if (item.text !== undefined && item.text !== '') {
-          return item.text;
+        // The DSL's `{text: 'x'}` item option lands on `innerText`, NOT `text`
+        // (`text` is set only by `.plate()` / `.text()`, which never produce an
+        // M€ item) — reading only `text` printed the placeholder amount `1` over
+        // every variable M€ face («2x» on Energy Market, «?» on Playwrights,
+        // «0» on Nirgal Enterprises). Legacy `CardRenderItemComponent` has always
+        // preferred `innerText` here; mirror it.
+        const override = item.innerText ?? item.text;
+        if (override !== undefined && override !== '') {
+          return override;
         }
         // A REAL negative here (an M€ discount like «−4») keeps its sign —
         // typographic minus for consistency with the cost delta chip.

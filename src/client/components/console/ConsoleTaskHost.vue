@@ -184,6 +184,15 @@
                   <span class="con-task__key"><GamepadGlyph control="triggerR" /><span>{{ $t('MAX') }}</span></span>
                 </div>
               </div>
+              <!-- The dial's DIRECTION, when the model states one (conversion /
+                   result / price): the same live cost → gain chips the composer
+                   shows, so a natively-arriving SelectAmount is never a bare
+                   number the player has to guess the meaning of. -->
+              <div v-if="amountCostChips.length > 0 || amountGainChips.length > 0" class="con-task__stepper-formula">
+                <ActionEffectChip v-for="(eff, k) in amountCostChips" :key="'ac' + k" :effect="eff" />
+                <span v-if="amountCostChips.length > 0 && amountGainChips.length > 0" class="con-task__stepper-arrow" aria-hidden="true">→</span>
+                <ActionEffectChip v-for="(eff, k) in amountGainChips" :key="'ag' + k" :effect="eff" />
+              </div>
             </template>
 
             <!-- ── RESOURCE ───────────────────────────────────────── -->
@@ -360,7 +369,7 @@ import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {PlayerInputModel, OrOptionsModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, OrOptionsModel, SelectAmountModel, SelectOptionModel, OptionMetadata, SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Phase} from '@/common/Phase';
@@ -370,6 +379,7 @@ import {Message} from '@/common/logs/Message';
 import {Tag} from '@/common/cards/Tag';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
@@ -782,6 +792,59 @@ export default defineComponent({
     amountUnit(): string {
       const unit = this.wf?.type === 'amount' ? (this.wf as PlayerInputModel & {type: 'amount', unit?: string}).unit : undefined;
       return unit ?? '';
+    },
+    /** The dial's model, when this task IS a SelectAmount. */
+    amountModel(): SelectAmountModel | undefined {
+      return this.wf?.type === 'amount' ? this.wf as SelectAmountModel : undefined;
+    },
+    /**
+     * What the CURRENT dial value SPENDS — the pool it comes out of, with
+     * `current → resulting`. A `conversion`/`amountResult` dial counts the thing
+     * spent (its own icon); an `amountCost` dial counts the thing GAINED and is
+     * priced per unit out of another pool. No hint → no chip (a bare dial that
+     * genuinely has no direction, e.g. "how many delegates").
+     */
+    amountCostChips(): ReadonlyArray<ActionEffect> {
+      const m = this.amountModel;
+      if (m === undefined) {
+        return [];
+      }
+      if (m.amountCost !== undefined) {
+        const spent = this.value * (m.amountCost.perUnit ?? 1);
+        const pool = playerResourceValue(this.playerView.thisPlayer, m.amountCost.icon, m.amountCost.scope ?? 'stock');
+        return [{direction: 'cost', icon: m.amountCost.icon, amount: spent, current: pool, resulting: pool !== undefined ? pool - spent : undefined,
+          note: m.amountCost.scope === 'production' ? 'production' : undefined}];
+      }
+      const icon = m.icon ?? m.conversion?.from;
+      if ((m.amountResult === undefined && m.conversion === undefined) || icon === undefined) {
+        return [];
+      }
+      const scope = m.conversion?.fromScope ?? 'stock';
+      const pool = playerResourceValue(this.playerView.thisPlayer, icon, scope);
+      return [{direction: 'cost', icon, amount: this.value, current: pool, resulting: pool !== undefined ? pool - this.value : undefined,
+        note: scope === 'production' ? 'production' : undefined}];
+    },
+    /** What the CURRENT dial value PRODUCES — the mirror of `amountCostChips`. */
+    amountGainChips(): ReadonlyArray<ActionEffect> {
+      const m = this.amountModel;
+      if (m === undefined) {
+        return [];
+      }
+      if (m.amountResult !== undefined) {
+        return [{direction: 'gain', icon: m.amountResult.icon, amount: this.value * (m.amountResult.perUnit ?? 1)}];
+      }
+      if (m.conversion !== undefined) {
+        const gained = this.value * (m.conversion.ratio ?? 1);
+        const scope = m.conversion.toScope ?? 'stock';
+        const pool = playerResourceValue(this.playerView.thisPlayer, m.conversion.to, scope);
+        return [{direction: 'gain', icon: m.conversion.to, amount: gained, current: pool, resulting: pool !== undefined ? pool + gained : undefined,
+          note: scope === 'production' ? 'production' : undefined}];
+      }
+      if (m.amountCost !== undefined && m.icon !== undefined) {
+        const pool = playerResourceValue(this.playerView.thisPlayer, m.icon, 'stock');
+        return [{direction: 'gain', icon: m.icon, amount: this.value, current: pool, resulting: pool !== undefined ? pool + this.value : undefined, unit: m.unit}];
+      }
+      return [];
     },
     // ── resource ─────────────────────────────────────────────────────
     resourceUnits(): ReadonlyArray<keyof Units> {
