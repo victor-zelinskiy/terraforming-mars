@@ -82,18 +82,18 @@ test.describe('tv-4k decision screens', () => {
     // The start WIZARD, driven as a fixed choreography (corp → BUY a few
     // projects → summary → pay → begin) so the viewer reaches the action
     // turn WITH a hand (an empty hand → no play-card confirm to capture).
-    // A(Enter) = pick/toggle/pay/begin; RB(KeyE) = «СЛЕД. ШАГ» advances a
+    // A(Enter) = pick/toggle/pay/begin; RT(Period) = «СЛЕД. ШАГ» advances a
     // wizard step (safe here; only dangerous on the board). ArrowRight walks
     // the buy grid so several distinct cards get selected.
     const startUp = async () => await page.locator('.con-start__frame, .con-task-host').count() > 0;
     if (await startUp()) {
       await key(page, 'Enter', 1100);            // step 1: pick the focused corp
-      await key(page, 'KeyE', 1000);             // → step 2 (buy projects)
+      await key(page, 'Period', 1000);             // → step 2 (buy projects)
       for (let k = 0; k < 5; k++) {              // select ~5 distinct cards
         await key(page, 'Enter', 650);
         await key(page, 'ArrowRight', 450);
       }
-      await key(page, 'KeyE', 1000);             // → step 3 (summary)
+      await key(page, 'Period', 1000);             // → step 3 (summary)
       await key(page, 'Enter', 1200);            // pay
     }
     // Pay for the bought cards («A ОПЛАТИТЬ» on the payment overlay — NOT a
@@ -167,12 +167,12 @@ test.describe('tv-4k decision screens', () => {
     const startUp = async () => await page.locator('.con-start__frame, .con-task-host').count() > 0;
     if (await startUp()) {
       await key(page, 'Enter', 1100);
-      await key(page, 'KeyE', 1000);
+      await key(page, 'Period', 1000);
       for (let k = 0; k < 5; k++) {
         await key(page, 'Enter', 650);
         await key(page, 'ArrowRight', 450);
       }
-      await key(page, 'KeyE', 1000);
+      await key(page, 'Period', 1000);
       await key(page, 'Enter', 1200);
     }
     // The colony-removal setup renders the colonies section directly; capture

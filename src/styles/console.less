@@ -4786,9 +4786,11 @@ html.console-mode {
    the moving part. All state cues ride box-shadow / transform / opacity —
    perf-lite (con-perf-lite cuts filter/text-shadow) keeps every one. */
 .con-quick {
-    /* THE MODAL BAND: the command cross centres between the bars (compact —
-       visually unchanged; the band only guarantees it can never touch them). */
-    .con-modal-band();
+    /* THE WORKSPACE BAND: the command cross centres between the bars AND
+       right of the player rail — the wheel is where a turn is CHOSEN, so the
+       resources it spends must stay lit next to it (the cross only shifts by
+       half the rail; its flights are rect-measured and follow). */
+    .con-ws-band();
     z-index: 11500;
     display: flex;
     align-items: center;

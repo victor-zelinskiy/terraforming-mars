@@ -2,7 +2,7 @@
   <!-- data-motion-*: the surface-motion contract (surfaceMotionDirector) —
        the wheel's dim is the shared `.con-shade`; entry/exit/handoff are
        GSAP-choreographed on the panel (no own backdrop, no CSS entry). -->
-  <div class="con-quick" role="dialog" :aria-label="$t(title)" data-motion-surface="quick">
+  <div class="con-quick con-ws" role="dialog" :aria-label="$t(title)" data-motion-surface="quick">
     <div class="con-quick__panel" data-motion-panel>
       <div class="con-quick__kicker">
         <transition :name="swapName" mode="out-in">

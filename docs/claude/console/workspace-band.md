@@ -34,17 +34,19 @@
 `.con-task`/`--wide`, `.con-play`, `.con-trade`, `.con-colinspect`,
 `.con-hydroconfirm`, hydro help), `.con-composer` (play / corp-first;
 `--stage` живёт внутри cardactions), `.con-govsupport`, `.con-decision`,
-`.con-finale`, `.con-prodloss`, `.con-confirm`, `.con-played` (свой fixed:
-left = ws-left, right = pad-x; embedded-вариант маркер НЕ несёт).
+`.con-finale`, `.con-prodloss`, `.con-confirm`, `.con-quick` (командные
+колёса LT/RT — на них ВЫБИРАЕТСЯ ход, значит ресурсы рядом обязаны гореть;
+слот-полёты меряются по живым ректам и следуют за сдвигом), `.con-played`
+(свой fixed: left = ws-left, right = pad-x; embedded-вариант маркер НЕ
+несёт — он живёт внутри Information Workspace).
 
 ## Кто сознательно ВНЕ (полноэкранные)
 
-Колесо `.con-quick` (transient-команда; кольцо геометрически не пересекает
-рельсу), reveal-синематик `.con-reveal`, церемонии, `.con-mandatory`,
-fullscreen-осмотр `.con-zoom`, системное меню/`.con-alert`, стартовая сцена
-(прегейм), endgame. Секции (`.con-hand`, `.con-colonies`, `.con-hydro`,
-board, journal) — уже flex/absolute-дети `.con-main`, рельса видна по
-построению.
+Reveal-синематик `.con-reveal`, церемонии, `.con-mandatory` (announce-гейт),
+fullscreen-осмотр `.con-zoom`, системное меню / `.con-alert`, стартовая сцена
+(прегейм — рельса ещё не наполнена), endgame. Секции (`.con-hand`,
+`.con-colonies`, `.con-hydro`, board, journal, `.con-info`) — уже
+flex/absolute-дети `.con-main`, рельса видна по построению.
 
 ## Гочи
 
