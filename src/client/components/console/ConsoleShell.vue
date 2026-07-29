@@ -98,10 +98,13 @@
            player (ONE source: infoModeState.playerColor) — TR / VP /
            resources / production / tags all re-read there. Read-only: the
            override never touches gameplay state or submissions. -->
+      <!-- (The ДОП.РЕСУРСЫ aux satellite hides under ANY open workspace
+           surface via CSS — `.con-root:has(.con-ws) .con-res-aux` — so the
+           prop only gates the section/info states it always did.) -->
       <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
-                            :boardVisible="consoleState.section === 'board' && !infoModeState.open && !actionWorkspaceUp"
+                            :boardVisible="consoleState.section === 'board' && !infoModeState.open"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma" />
@@ -203,18 +206,18 @@
            blue-card action center as an ABSOLUTE child of .con-main filling
            everything RIGHT of the player rail (the information-workspace
            seam geometry: left edge from --con-rail-w / --con-main-gap). The
-           rail stays visible and LIT above the shared shade (`--actws`
-           lifts it) — the player's resources remain the on-screen context
-           of every cost/gain read here, and the natural landing zone of the
-           future post-confirm resource-flight sequence. Rides the shared
-           `.con-shade` (no own backdrop); after-leave releases the `--actws`
-           stacking hold (see conMainClasses / actwsClosing). -->
+           rail stays visible and LIT above the shared shade (the `con-ws`
+           marker + `.con-root:has(.con-ws)` lift it for as long as the
+           surface lives, leave transitions included) — the player's
+           resources remain the on-screen context of every cost/gain read
+           here, and the natural landing zone of the future post-confirm
+           resource-flight sequence. Rides the shared `.con-shade` (no own
+           backdrop). -->
       <!-- v-show while a client hand pick is out (SRR link pick): the Action
            Center + its composer stay mounted so every capture survives (the
            director recognizes the pick bridge and never animates it). -->
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                  @after-leave="onActionWorkspaceLeaveSettled"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
         <ConsoleCardActions v-if="consoleState.sheet === 'cardActions'"
                             v-show="!handPickActive && !playedPickActive && !repeatPickActive"
@@ -389,7 +392,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-    <div v-if="consoleState.confirm !== undefined" class="con-confirm" role="dialog" data-motion-surface="confirm">
+    <div v-if="consoleState.confirm !== undefined" class="con-confirm con-ws" role="dialog" data-motion-surface="confirm">
       <div class="con-confirm__card" data-motion-panel>
         <!-- The emblem doubles as the wheel flight's landing anchor: a pass /
              max-temp heat commit carries its tile icon INTO this card. -->
@@ -1411,10 +1414,6 @@ export default defineComponent({
       maInspect: undefined as string | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
-      /** Holds `.con-main--actws` through the Action Workspace's dismiss
-       *  transition (the rail must stay lifted over the fading shade);
-       *  released by the transition's after-leave. */
-      actwsClosing: false,
       offIntent: undefined as (() => void) | undefined,
       /** Release fn of the held 'mandatory-choice' presentation lease. */
       releasePresentationLease: undefined as (() => void) | undefined,
@@ -2995,18 +2994,15 @@ export default defineComponent({
     infoWorkspaceUp(): boolean {
       return this.infoModeState.open || this.infoModeState.closing;
     },
-    /** `--actws` (the ACTION WORKSPACE stacking state) must persist through
-     *  the center's dismiss transition — else the lit rail falls back under
-     *  the still-fading shade for the close beat (see actwsClosing). */
-    actionWorkspaceUp(): boolean {
-      return this.consoleState.sheet === 'cardActions' || this.repeatPickActive || this.actwsClosing;
-    },
     conMainClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
         'con-main--journal': this.journalPanelVisible,
         'con-main--hand': this.consoleState.section === 'hand',
         'con-main--info': this.infoWorkspaceUp,
-        'con-main--actws': this.actionWorkspaceUp,
+        // (No workspace entry here: every workspace surface carries the
+        // `con-ws` marker and `.con-root:has(.con-ws)` lifts the rail /
+        // drops the stacking trap for the whole family, holding through
+        // leave transitions automatically.)
       };
       // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
       // by the rail ring and the workspace seam. Follows `open` (not the
@@ -4083,16 +4079,6 @@ export default defineComponent({
     },
   },
   watch: {
-    // The ACTION WORKSPACE dismiss: hold `--actws` (the lit rail) through the
-    // center's leave transition; after-leave releases it. A re-open cancels
-    // the hold immediately (the raw signal covers the stacking state again).
-    'consoleState.sheet'(next: string | undefined, prev: string | undefined) {
-      if (prev === 'cardActions' && next !== 'cardActions') {
-        this.actwsClosing = true;
-      } else if (next === 'cardActions') {
-        this.actwsClosing = false;
-      }
-    },
     // NOTIFICATION X-HOLD safety: the tracked card left the screen (TTL ran
     // out despite the pause safeguard, a flow ack, a queue promotion) or a
     // DIFFERENT card took the top slot — an in-flight hold must die with it,
@@ -5229,12 +5215,6 @@ export default defineComponent({
      *  conMainClasses note). */
     onInfoModeLeaveSettled(): void {
       settleInfoModeClose();
-    },
-    /** after-leave of the ACTION WORKSPACE's dismiss transition — release the
-     *  `--actws` stacking hold (the rail returns under the board's normal
-     *  layering once the center has fully left). */
-    onActionWorkspaceLeaveSettled(): void {
-      this.actwsClosing = false;
     },
     /** LB/RB inside the workspace: ONE state flip (rail + panel read the
      *  same inspected color) + the directional switch beat. Rapid presses

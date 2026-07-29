@@ -1,0 +1,58 @@
+# The WORKSPACE BAND — единый премиум-формат decision-поверхностей
+
+**Контракт (2026-07-29).** Каждая console-native decision-поверхность стоит
+между верхним HUD и нижним command-bar **и справа от всегда видимой рельсы
+игрока** — ресурсы/производство/метки остаются экранным контекстом любого
+решения (и физической посадочной зоной resource-flight анимаций).
+
+## Механика
+
+- **`.con-ws-band()`** (console.less, рядом с `.con-modal-band()`): modal-band
+  + `left: var(--con-ws-left)`. Токен считается один раз на `.con-root`:
+  `--con-ws-left = --con-pad-x + --con-rail-w + --con-main-gap`. Профили
+  переопределяют ТОКЕНЫ на `.con-root` (handheld 0.7vw/7.3rem/.4rem, tv
+  safe-x/9.8rem), никогда — per-surface константы.
+- **Маркер `con-ws`** на корневом элементе поверхности (обязателен вместе с
+  миксином): `.con-root:has(.con-ws)` снимает z-ловушку `.con-main`, поднимает
+  рельсу (`.con-res-host` → z11520 — выше шейда 11460 и всей band-семьи
+  11480–11515, ниже баров 11700+), даёт рельсе cyan-кольцо и прячет
+  aux-сателлит ДОП.РЕСУРСЫ (он красился бы под панелями). Держится ровно
+  столько, сколько поверхность живёт в DOM — leave-переходы включены,
+  никакого JS-флага «closing» не нужно.
+- Поверхность ВНУТРИ `.con-main` (Action Workspace, Information Workspace)
+  достигает той же геометрии absolute-позиционированием по тем же токенам;
+  Information Workspace несёт СВОЮ обработку рельсы (z11561 + акцент
+  инспектируемого игрока) — его правила стоят в файле ПОЗЖЕ generic-ws и
+  выигрывают при совпадении.
+- Ширины панелей внутри band: `min(Xrem, 100%)` — НИКОГДА `Xvw` (vw-кап шире
+  суженной полосы на Deck → переполнение вправо).
+
+## Кто в семье (маркер + ws-band)
+
+`.con-cardactions` (Действия карт + repeat), `.con-stdp`, `.con-ma`,
+`.con-mainspect`, `.con-maconfirm`, `.con-sheet`, `.con-task-host` (шасси:
+`.con-task`/`--wide`, `.con-play`, `.con-trade`, `.con-colinspect`,
+`.con-hydroconfirm`, hydro help), `.con-composer` (play / corp-first;
+`--stage` живёт внутри cardactions), `.con-govsupport`, `.con-decision`,
+`.con-finale`, `.con-prodloss`, `.con-confirm`, `.con-played` (свой fixed:
+left = ws-left, right = pad-x; embedded-вариант маркер НЕ несёт).
+
+## Кто сознательно ВНЕ (полноэкранные)
+
+Колесо `.con-quick` (transient-команда; кольцо геометрически не пересекает
+рельсу), reveal-синематик `.con-reveal`, церемонии, `.con-mandatory`,
+fullscreen-осмотр `.con-zoom`, системное меню/`.con-alert`, стартовая сцена
+(прегейм), endgame. Секции (`.con-hand`, `.con-colonies`, `.con-hydro`,
+board, journal) — уже flex/absolute-дети `.con-main`, рельса видна по
+построению.
+
+## Гочи
+
+- Новая workspace-поверхность = **миксин + маркер, оба**. Маркер без миксина
+  поднимет рельсу под full-width панелью; миксин без маркера оставит рельсу
+  под шейдом.
+- e2e-ассерты центрирования — считать от **центра полосы** (bounding box
+  корня поверхности), не от центра вьюпорта (console-effect-decision.spec —
+  образец).
+- `v-show`-скрытая поверхность продолжает матчить `:has` — это желаемое
+  поведение (pick-мосты держат состояние).

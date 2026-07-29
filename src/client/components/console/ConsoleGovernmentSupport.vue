@@ -1,7 +1,7 @@
 <template>
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director — no own backdrop. -->
-  <div class="con-govsupport" role="dialog" :aria-label="$t('Government Support')" data-motion-surface="gov-support">
+  <div class="con-govsupport con-ws" role="dialog" :aria-label="$t('Government Support')" data-motion-surface="gov-support">
 
     <div class="con-govsupport__panel" data-motion-panel>
       <!-- ── Briefing header ─────────────────────────────────────────── -->

@@ -1,7 +1,7 @@
 <template>
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director — no own backdrop (the host-chassis backdrop div is gone). -->
-  <div class="con-task-host con-trade" role="dialog" :aria-label="$t('Trade')" data-motion-surface="trade-composer"
+  <div class="con-task-host con-trade con-ws" role="dialog" :aria-label="$t('Trade')" data-motion-surface="trade-composer"
        :class="{'con-trade--launching': launching}">
     <div class="con-task con-trade__frame" data-motion-panel>
       <!-- ── Header ────────────────────────────────────────────────── -->

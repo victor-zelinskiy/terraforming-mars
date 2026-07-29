@@ -257,15 +257,22 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   expect(panel !== null && viewport !== null && panel.height < viewport.height * 0.75,
     `the panel must hug its content (was ${panel?.height} of ${viewport?.height})`).toBeTruthy();
 
-  // …and it is CENTRED. `.con-modal-band()` only supplies the frame box between
-  // the HUD strip and the command bar — it centres nothing, and a surface that
-  // forgets to do so itself lands pinned to that box's top-left corner (which
-  // is exactly how this shipped the first time).
+  // …and it is CENTRED — within the WORKSPACE BAND (`.con-ws-band()`: the
+  // frame box between the HUD strip and the command bar, docked RIGHT of the
+  // always-visible player rail). The band supplies only the box — a surface
+  // that forgets to centre itself lands pinned to its top-left corner (which
+  // is exactly how this shipped the first time). The expected centre is the
+  // BAND's centre, measured from the surface root itself, never a viewport
+  // constant.
   expect(panel).not.toBeNull();
   expect(viewport).not.toBeNull();
+  const band = await page.locator('.con-decision').boundingBox();
+  expect(band).not.toBeNull();
   const panelCentreX = panel!.x + panel!.width / 2;
-  expect(Math.abs(panelCentreX - viewport!.width / 2),
-    `horizontally centred (centre ${panelCentreX} of ${viewport!.width})`).toBeLessThan(24);
+  const bandCentreX = band!.x + band!.width / 2;
+  expect(band!.x, 'the band starts right of the player rail').toBeGreaterThan(60);
+  expect(Math.abs(panelCentreX - bandCentreX),
+    `horizontally centred in the workspace band (centre ${panelCentreX} of band centre ${bandCentreX})`).toBeLessThan(24);
   // Vertically it is centred in the BAND, so it must sit clear of both edges by
   // a comparable margin — never flush against the top.
   expect(panel!.y, 'not pinned to the top of the band').toBeGreaterThan(60);

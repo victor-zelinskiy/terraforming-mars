@@ -2,7 +2,10 @@
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (surfaceMotionDirector) — no own backdrop; the frame is the
        animated panel, the composer above is its own motion surface. -->
-  <div ref="rootEl" class="con-cardactions" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
+  <!-- `con-ws` — the workspace-family marker: `.con-root:has(.con-ws)` lifts
+       the player rail above the dims while this surface lives (leave
+       transitions included). -->
+  <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
     <div class="con-cardactions__frame" data-motion-panel>

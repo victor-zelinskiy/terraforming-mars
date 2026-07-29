@@ -12,7 +12,7 @@
     head at the most expensive moment of the match: plants held, what one
     greenery costs THEM (discounts included), and how many that still buys.
   -->
-  <div class="con-finale" role="dialog" :aria-label="$t(HEADLINE)"
+  <div class="con-finale con-ws" role="dialog" :aria-label="$t(HEADLINE)"
        data-motion-surface="final-greenery">
     <div class="con-finale__panel" data-motion-panel>
       <header class="con-finale__head">

@@ -102,7 +102,8 @@ html.con-profile-tv.console-native .gp-glyph {
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
 html.con-profile-tv {
     .con-root {
-        padding: var(--con-safe-y) var(--con-safe-x) calc(var(--con-safe-y) * 0.7);
+        --con-pad-x: var(--con-safe-x);
+        padding: var(--con-safe-y) var(--con-pad-x) calc(var(--con-safe-y) * 0.7);
         gap: 0.45rem;
     }
     /* Floating chrome anchored to the old 1.2vh root inset follows the
@@ -140,8 +141,9 @@ html.con-profile-tv {
         --cr-score-h: 3rem;
     }
     /* 196 logical — a notch wider for the value bump. The SEAM TOKEN (not a
-       bare width): the Information Workspace's left edge derives from it. */
-    .con-main { --con-rail-w: 9.8rem; }
+       bare width): every workspace surface's left edge derives from it
+       (hoisted to .con-root so fixed band overlays read it too). */
+    .con-root { --con-rail-w: 9.8rem; }
     .con-res {
         &__value { font-size: 1.15rem; }
         &__prod { font-size: 0.85rem; }

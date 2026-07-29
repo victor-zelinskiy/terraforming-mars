@@ -23,7 +23,7 @@
        reuses it centres its own panel, and forgetting that pins the panel to
        the band's top-left corner. Same three lines as `.con-task-host`, which
        this surface stands in for (one of them on screen at a time). */
-    .con-modal-band();
+    .con-ws-band();
     display: flex;
     align-items: center;
     justify-content: center;
@@ -35,7 +35,7 @@
 
 .con-decision__panel {
     position: relative;
-    width: min(46rem, 92vw);
+    width: min(46rem, 100%);
     /* Content-sized: the empty half-screen of the old list was the single
        loudest "this is a generic dialog" signal. */
     height: auto;

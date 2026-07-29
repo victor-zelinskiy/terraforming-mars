@@ -4,7 +4,7 @@
        CONFIRM path is untouched: the played-hero scene owns that beat
        (armed → flight → landing), our leave only plays on the eventual
        unmount / cancel. -->
-  <div class="con-composer con-composer--play" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="play-composer">
+  <div class="con-composer con-composer--play con-ws" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="play-composer">
     <div class="con-composer__panel con-composer__panel--play" data-motion-panel>
       <!-- ── Header ────────────────────────────────────────────────── -->
       <div class="con-composer__kicker">

@@ -15,7 +15,10 @@
     View-only: nothing here ever submits. Input is delegated by the shell
     (handleIntent); command-bar hints are mirrored through consolePlayedUi.
   -->
-  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded}">
+  <!-- `con-ws` (standalone host only): the workspace-family marker — the
+       player rail stays lit left of the table. The EMBEDDED re-seat lives
+       inside the Information Workspace, which owns its own rail treatment. -->
+  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded}">
     <div class="con-played__panel">
       <div class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>

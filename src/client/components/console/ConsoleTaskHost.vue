@@ -5,7 +5,7 @@
        around the fresh content (consoleDraftTray.ts owns the flag).
        data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (no own backdrop; the shade's --veil mirrors the table beat). -->
-  <div class="con-task-host" role="dialog" :aria-label="titleText"
+  <div class="con-task-host con-ws" role="dialog" :aria-label="titleText"
        :class="{
          'con-task-host--table-beat': trayTableBeat,
          'con-task-host--liftin': hydroLiftIn,

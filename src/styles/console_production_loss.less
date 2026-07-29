@@ -13,7 +13,7 @@
 /* NO own __backdrop: rides the shared `.con-shade` dim (surface motion). */
 .con-prodloss {
     // THE MODAL BAND (shared contract — console.less): between the bars.
-    .con-modal-band();
+    .con-ws-band();
     z-index: 11480; // same band as the task host it replaces
     display: flex;
     align-items: center;
@@ -21,7 +21,7 @@
 
     &__panel {
         position: relative;
-        width: min(44rem, 92vw);
+        width: min(44rem, 100%);
         max-height: 100%;
         display: flex;
         flex-direction: column;

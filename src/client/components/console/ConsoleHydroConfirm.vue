@@ -1,5 +1,5 @@
 <template>
-  <div class="con-task-host con-hydroconfirm" role="dialog" :aria-label="$t('Reinforce the hydronetwork')">
+  <div class="con-task-host con-hydroconfirm con-ws" role="dialog" :aria-label="$t('Reinforce the hydronetwork')">
     <!-- An INNER layer of the hydro section (child mount — outside the
          surface-motion hooks): carries its OWN dim + entry. -->
     <div class="con-hydroconfirm__backdrop" aria-hidden="true"></div>

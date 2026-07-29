@@ -18,8 +18,11 @@
 
 .con-played {
     position: fixed;
-    left: var(--con-safe-x, 1.1rem);
-    right: var(--con-safe-x, 1.1rem);
+    /* WORKSPACE-FAMILY geometry: the table starts right of the always-visible
+       player rail (the ws seam token) — the rail keeps the resource context
+       while the tableau is browsed; the right edge follows the shell inset. */
+    left: var(--con-ws-left, 11.3rem);
+    right: var(--con-pad-x, 1.1rem);
     /* The MODAL-BAND bottom, floored at the historical 4.3rem dock-plate
        clearance (the table sits a touch higher than the bare bar band). */
     bottom: ~"max(var(--con-band-bottom, 4.3rem), 4.3rem)";

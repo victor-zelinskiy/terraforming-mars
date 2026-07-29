@@ -1,7 +1,7 @@
 <template>
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director — no own backdrop. -->
-  <div class="con-composer con-composer--corpfirst" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="corp-first">
+  <div class="con-composer con-composer--corpfirst con-ws" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="corp-first">
 
     <div class="con-composer__panel con-composer__panel--play con-composer__panel--corpfirst" data-motion-panel>
       <!-- ── Header: the MANDATORY framing leads. ─────────────────────── -->

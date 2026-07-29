@@ -172,7 +172,9 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
       } else if (s.activeStep >= 0 && s.activeStep === s.steps - 1) {
         await key(page, 'Enter', 1600); // summary → launch
       } else {
-        await key(page, 'KeyE', 700); // corp done / projects: buy nothing
+        // Advance the wizard step (RT = «СЛЕД. ШАГ» — the step rail's own
+        // verb; RB cycles nothing here since the start-scene rework).
+        await key(page, 'Period', 700);
       }
       continue;
     }

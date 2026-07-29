@@ -14,7 +14,7 @@
     the whole panel sizes to its content, so a two-choice decision is a compact
     card and not a half-empty screen.
   -->
-  <div class="con-decision" role="dialog" :aria-label="$t(vm.headlineKey)"
+  <div class="con-decision con-ws" role="dialog" :aria-label="$t(vm.headlineKey)"
        data-motion-surface="effect-decision">
     <transition name="con-task-swap" mode="out-in">
       <div class="con-decision__panel" :key="panelKey" data-motion-panel>

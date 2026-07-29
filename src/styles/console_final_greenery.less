@@ -25,7 +25,7 @@
 .con-finale {
     /* The modal band supplies only the FRAME BOX — centring is each host's own
        job (the same three lines as `.con-decision` / `.con-task-host`). */
-    .con-modal-band();
+    .con-ws-band();
     display: flex;
     align-items: center;
     justify-content: center;
@@ -37,7 +37,7 @@
 
 .con-finale__panel {
     position: relative;
-    width: min(38rem, 92vw);
+    width: min(38rem, 100%);
     /* Content-sized, like the decision panel: two choices are a compact card,
        never a half-empty screen. */
     height: auto;

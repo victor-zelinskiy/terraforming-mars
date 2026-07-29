@@ -2,7 +2,7 @@
   <!-- data-motion-*: the director animates the panel (its authored
        rise-from-the-bar-band entry is re-expressed in GSAP); the OWN light
        0.6 dim stays by design (NON_SHADE_OWNERS). -->
-  <div class="con-sheet" role="dialog" :aria-label="$t(title)" data-motion-surface="sheet">
+  <div class="con-sheet con-ws" role="dialog" :aria-label="$t(title)" data-motion-surface="sheet">
     <div class="con-sheet__backdrop" aria-hidden="true"></div>
     <div class="con-sheet__panel" data-motion-panel>
       <div class="con-sheet__head">
