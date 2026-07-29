@@ -1,5 +1,9 @@
 <template>
-  <aside class="con-inspector con-context con-info__scroll" ref="root" :aria-label="$t('Cell details')">
+  <aside class="con-inspector con-context con-info__scroll"
+         ref="root"
+         :class="{'con-inspector--more': moreBelow, 'con-inspector--scrolled': scrolledDown}"
+         :aria-label="$t('Cell details')"
+         @scroll.passive="measureScroll">
     <!-- ── TASK MODE: active placement ─────────────────────────────── -->
     <template v-if="mode === 'placement'">
       <div class="con-context__task-kicker">{{ $t('Tile placement') }}</div>
@@ -35,18 +39,18 @@
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
       </div>
 
-      <!-- P21: the panel commands stay MINIMAL (A + a real cancel only) —
-           the footer owns the shortcut map, the legend owns the globals. -->
-      <div class="con-context__commands">
-        <div class="con-context__cmd" :class="{'con-context__cmd--off': !selectedLegal}">
-          <GamepadGlyph control="confirm" /><span>{{ $t('Place here') }}</span>
-        </div>
-        <div v-if="cancellable" class="con-context__cmd">
+      <!-- P21: the panel commands stay MINIMAL — and the confirm CTA already
+           sits at the TOP of the panel, so repeating it at the bottom only
+           lengthened a panel that now carries several fact blocks. What remains
+           is the one thing the top row cannot show: a real cancel.
+           The "cancelling is not available" note is gone on purpose too — it
+           appeared on EVERY placement to state a non-event, and pressing B
+           answers the question the moment it is actually asked. -->
+      <div v-if="cancellable" class="con-context__commands">
+        <div class="con-context__cmd">
           <GamepadGlyph control="back" /><span>{{ $t('Cancel placement') }}</span>
         </div>
       </div>
-      <!-- P20: the mandatory/cancel state is explained, not implied. -->
-      <div v-if="!cancellable" class="con-context__mandatory-note">{{ $t('This action requires picking a cell. Cancelling is not available.') }}</div>
     </template>
 
     <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
@@ -226,6 +230,15 @@
         </div>
       </section>
     </template>
+
+    <!-- The panel scrolls with the right stick, but a couch player cannot see a
+         3 px scrollbar from three metres — so the OVERFLOW announces itself: a
+         fade at each cut edge (on the panel, see console.less) plus this one
+         line NAMING the control. Last in the flow + sticky, so it rides the
+         bottom edge, and it disappears the moment nothing is left to read. -->
+    <div v-if="moreBelow" class="con-inspector__more" aria-hidden="true">
+      <GamepadGlyph control="stickR" /><span>{{ $t('Scroll') }}</span>
+    </div>
   </aside>
 </template>
 
@@ -277,15 +290,41 @@ const MAX_LEADER_CUBES = 2;
 export default defineComponent({
   name: 'ConsoleContextPanel',
   components: {BoardFactGroups, BoardPlacementPreviewContent, BarButtonIcon, GamepadGlyph},
+  data() {
+    return {
+      /** Content continues below the fold — drives the fade + the stick hint. */
+      moreBelow: false,
+      /** Something is already scrolled past — drives the TOP fade. */
+      scrolledDown: false,
+      resizeObserver: undefined as ResizeObserver | undefined,
+    };
+  },
   watch: {
     /** P21: a new inspected cell resets the panel scroll — the placement
      *  STATUS is always the first thing visible. */
     cellHeader() {
-      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      this.resetScroll();
     },
     selectedLegal() {
-      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      this.resetScroll();
     },
+    /** New facts arrive asynchronously (the preview is fetched per cell), so
+     *  the overflow state has to be re-measured when they land. */
+    preview() {
+      this.$nextTick(() => this.measureScroll());
+    },
+  },
+  mounted() {
+    this.measureScroll();
+    const root = this.$refs.root as HTMLElement | undefined;
+    if (root !== undefined && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.measureScroll());
+      this.resizeObserver.observe(root);
+    }
+  },
+  beforeUnmount() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = undefined;
   },
   props: {
     mode: {type: String as PropType<'placement' | 'cell' | 'track' | 'idle'>, required: true},
@@ -347,6 +386,24 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * Recompute the two overflow affordances. Kept cheap (three reads, no
+     * layout write) and driven by the passive scroll event, a ResizeObserver and
+     * the preview watcher — the three moments the answer can change.
+     */
+    measureScroll(): void {
+      const root = this.$refs.root as HTMLElement | undefined;
+      if (root === undefined || root === null) {
+        return;
+      }
+      const remaining = root.scrollHeight - root.clientHeight - root.scrollTop;
+      this.moreBelow = remaining > 2;
+      this.scrolledDown = root.scrollTop > 2;
+    },
+    resetScroll(): void {
+      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      this.$nextTick(() => this.measureScroll());
+    },
     /** MA owner chip — the Automa seat localizes through the resolver. */
     ownerDisplayName(takenBy: {color: Color, name: string}): string {
       const player = this.players.find((p) => p.color === takenBy.color);

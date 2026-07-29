@@ -50,7 +50,9 @@ export class LandClaim extends Card implements IProjectCard {
       player,
       'Select space for claim',
       player.game.board.getNonReservedLandSpaces(),
-      {placementType: 'land'})
+      // A CLAIM, not a placement: no tile, no placement bonus — only the cell is
+      // reserved for you. Without the marker the preview offered the cell bonus.
+      {placementType: 'land', sourceCard: this.name, placementEffect: 'marker'})
       .andThen((space) => {
         space.player = player;
         LogHelper.logBoardTileAction(player, space, 'land claim');

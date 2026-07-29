@@ -25,4 +25,22 @@ export type PlacementPreviewContext = {
   countsAsCity: boolean;
   countsAsOcean: boolean;
   countsAsGreenery: boolean;
+  /**
+   * Whether a TILE actually lands on the cell. False for a marker-style prompt
+   * (Mars Nomads moving its camp, Land Claim, an Arcadian Communities marker,
+   * a St. Joseph cathedral): the cell is picked but no tile is placed, so
+   * everything that keys off a placed tile — the Ares adjacency bonuses, the
+   * endgame VP, the milestone/award tile counts, and every "when a tile is
+   * placed" card effect — does NOT happen. The tabletop rule for Mars Nomads is
+   * explicit about this ("Mining Guild and Philares cannot take advantage of
+   * it", BGG 3154812), and the live path enforces it; without this flag the
+   * preview could only promise otherwise.
+   */
+  placesTile: boolean;
+  /**
+   * Whether the cell's PLACEMENT BONUSES are granted (printed bonus + the ocean
+   * adjacency M€). Independent of {@link placesTile}: a Mars Nomads move grants
+   * them with no tile, while Land Claim places nothing AND grants nothing.
+   */
+  grantsPlacementBonus: boolean;
 };

@@ -84,8 +84,13 @@ export class MiningGuild extends CorporationCard implements ICorporationCard {
     if (cardOwner.id !== activePlayer.id || cardOwner.game.phase === Phase.SOLAR) {
       return [];
     }
-    // Mars Nomads moves onto a space without placing any tile.
-    if (cardOwner.game.nomadSpace === space.id && space.tile === undefined) {
+    // The card reads "each time you PLACE A TILE" — a prompt that only moves a
+    // marker earns nothing (the Mars Nomads ruling names this corporation
+    // explicitly). The live guard keys off `game.nomadSpace`, which at preview
+    // time still points at the camp's CURRENT cell and would therefore promise
+    // a production step the commit suppresses; the prompt's own declaration is
+    // the honest signal.
+    if (!ctx.placesTile) {
       return [];
     }
     // Overplaced tile (Ares Ocean City and friends). At preview time the new

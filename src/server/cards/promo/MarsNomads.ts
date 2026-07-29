@@ -72,7 +72,9 @@ export class MarsNomads extends Card implements IActionCard {
       player,
       message('Select space for ${0}', (b) => b.card(this)),
       player.game.board.getNonReservedLandSpaces(),
-      {placementType: 'land'})
+      // Seating the camp places no tile AND grants no placement bonus (only the
+      // ACTION that moves it does) — say so, or the preview promises both.
+      {placementType: 'land', sourceCard: this.name, placementEffect: 'marker'})
       .andThen((space) => {
         player.game.nomadSpace = space.id;
         return undefined;
@@ -142,6 +144,12 @@ export class MarsNomads extends Card implements IActionCard {
       spaces,
       {
         placementType: 'land',
+        sourceCard: this.name,
+        // The camp MOVES: the destination's placement bonuses are collected, but
+        // no tile lands. Everything tile-driven — Ares adjacency, endgame VP,
+        // milestone/award tile counts, Mining Guild, Philares — stays silent,
+        // which is exactly the published ruling for this card.
+        placementEffect: 'bonus-only',
         customReasoner: (space) => {
           // Cells with tiles / reserved / other-owned: let generic say so.
           if (space.tile !== undefined) {

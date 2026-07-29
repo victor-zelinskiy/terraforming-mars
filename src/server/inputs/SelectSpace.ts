@@ -1,7 +1,7 @@
 import {Message} from '../../common/logs/Message';
 import {Space} from '../boards/Space';
 import {InputResponse, isCancelResponse, isSelectSpaceResponse} from '../../common/inputs/InputResponse';
-import {SelectSpaceModel} from '../../common/models/PlayerInputModel';
+import {PlacementEffect, SelectSpaceModel} from '../../common/models/PlayerInputModel';
 import {BasePlayerInput} from '../PlayerInput';
 import {InputError} from './InputError';
 import {toID} from '../../common/utils/utils';
@@ -74,6 +74,21 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public sourceCard?: CardName;
 
   /**
+   * What choosing a cell here actually DOES. Defaults to `'tile'` — a normal
+   * placement. The two marker shapes exist because the board has prompts that
+   * pick a cell WITHOUT placing a tile:
+   *   - `'bonus-only'` — Mars Nomads moving its camp: the destination's
+   *     placement bonuses are granted, but no tile lands, so no Ares adjacency,
+   *     no endgame VP, no milestone/award tile count and no "when a tile is
+   *     placed" trigger fires (the tabletop ruling this card documents:
+   *     "Mining Guild and Philares cannot take advantage of it").
+   *   - `'marker'` — Land Claim / Arcadian Communities / a St. Joseph cathedral:
+   *     nothing at all is granted, the cell is merely claimed or marked.
+   * The preview reads it so it can never promise a bonus the commit suppresses.
+   */
+  public placementEffect?: PlacementEffect;
+
+  /**
    * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
    * When the client submits a `CancelResponse` AND this prompt is cancellable,
    * `process` invokes this instead of placing — the pay-on-commit standard
@@ -104,6 +119,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       placementType: this.placementType,
       tileType: this.tileType,
       sourceCard: this.sourceCard,
+      placementEffect: this.placementEffect,
     };
   }
 

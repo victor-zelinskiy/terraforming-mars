@@ -103,7 +103,8 @@
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open"
                             :own="railShowsSelf"
-                            :vpHidden="railVpHidden" />
+                            :vpHidden="railVpHidden"
+                            :automa="railAutoma" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -916,6 +917,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -2927,6 +2929,15 @@ export default defineComponent({
     },
     railShowsSelf(): boolean {
       return this.railPlayer.color === this.thisPlayer.color;
+    },
+    /**
+     * The rail displays the MARSBOT seat (only possible while the workspace
+     * inspects it) — hand it the public Automa state so the rail swaps to
+     * the dedicated bot presentation (real economy + printed tracks).
+     */
+    railAutoma(): MarsBotModel | undefined {
+      return this.infoModeState.open && this.railPlayer.isMarsBot === true ?
+        this.playerView.game.automa : undefined;
     },
     /** The game rule hides opponents' scores → the rail masks the VP cell
      *  while an opponent is inspected (same gate as the panel's vpVisible). */

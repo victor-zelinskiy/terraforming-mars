@@ -146,3 +146,71 @@ describe('ConsoleResourcePanel — inspected-player VP masking', () => {
     expect(w.find('.con-res').attributes()).to.have.property('data-insp-fade');
   });
 });
+
+/**
+ * The DEDICATED MarsBot presentation (Information Workspace inspects the bot
+ * seat, the shell passes `automa`): the human economy/tag zones swap to the
+ * bot's REAL state — the M€ supply (+floaters) with NO production chips, and
+ * the printed TAG TRACKS with progress instead of the tag matrix.
+ */
+describe('ConsoleResourcePanel — the dedicated MarsBot rail', () => {
+  const automa = {
+    difficulty: 'normal',
+    tracks: [
+      {tags: [Tag.BUILDING], position: 2, maxPosition: 18, layout: [], regressed: []},
+      {tags: [Tag.POWER, Tag.JOVIAN], position: 0, maxPosition: 18, layout: [], regressed: []},
+    ],
+    actionDeckSize: 10, bonusDeckSize: 7,
+    bonusDiscard: [], recurringBonusCards: [], destroyedBonusCards: [],
+    playedPile: [], floaters: 3,
+  };
+
+  function mountBot() {
+    return mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {
+        player: fakePlayer({}), gameTags: BASE_GAME_TAGS as Array<Tag>,
+        own: false, automa: automa as never,
+      },
+    });
+  }
+
+  it('economy rows: the real M€ supply + floaters, NO production chips', () => {
+    const w = mountBot();
+    expect(w.find('[data-bot-economy="megacredits"] .con-res__value').text()).to.eq('12');
+    expect(w.find('[data-bot-economy="floaters"] .con-res__value').text()).to.eq('3');
+    expect(w.findAll('.con-res__prod')).to.have.length(0);
+    // The human six-row set is fully replaced, not appended to.
+    expect(w.findAll('.con-res__row')).to.have.length(2);
+  });
+
+  it('the МЕТКИ zone swaps to the tag tracks (matrix absent)', () => {
+    const w = mountBot();
+    expect(w.findAll('.con-tagmx__trackrow')).to.have.length(2);
+    expect(w.findAll('.con-tagmx__grid')).to.have.length(0);
+    expect(w.findAll('.con-tagmx__cell')).to.have.length(0);
+  });
+
+  it('a multi-tag track renders EVERY mapped tag medal in one cluster', () => {
+    const w = mountBot();
+    const rows = w.findAll('.con-tagmx__trackrow');
+    expect(rows[1].findAll('.con-tagmx__medal')).to.have.length(2);
+    expect(rows[0].findAll('.con-tagmx__medal')).to.have.length(1);
+  });
+
+  it('progress reads per-track: fill width + the zero state dim', () => {
+    const w = mountBot();
+    const rows = w.findAll('.con-tagmx__trackrow');
+    expect(rows[0].find('.con-tagmx__trackfill').attributes('style')).to.contain('width: 11%');
+    expect(rows[0].find('.con-tagmx__num').text()).to.eq('2');
+    expect(rows[0].classes()).to.not.include('con-tagmx__trackrow--zero');
+    expect(rows[1].classes()).to.include('con-tagmx__trackrow--zero');
+  });
+
+  it('without `automa` the human presentation is untouched', () => {
+    const w = mountWith({});
+    expect(w.findAll('.con-tagmx__trackrow')).to.have.length(0);
+    expect(w.findAll('.con-res__row')).to.have.length(6);
+    expect(w.findAll('.con-res__prod').length).to.be.greaterThan(0);
+  });
+});

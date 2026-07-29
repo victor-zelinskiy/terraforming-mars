@@ -185,9 +185,18 @@ for (const preset of PRESETS) {
       // The rail now reads the bot's M€ (never the human's testMode pile)…
       const botMc = await railMc(page).textContent();
       expect(botMc, 'rail M€ must switch to the inspected bot').not.toBe(ownMc);
-      // …and the panel swapped to the bot dossier (grid, not columns).
+      // …in the DEDICATED bot presentation: real economy (no production
+      // chips — the Automa has none) + the printed tag tracks with progress
+      // in place of the human tag matrix.
+      await expect(page.locator('.con-res .con-res__prod')).toHaveCount(0);
+      await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(0);
+      const trackRows = await page.locator('.con-res .con-tagmx__trackrow').count();
+      expect(trackRows, 'the rail must list the bot tracks').toBeGreaterThanOrEqual(5);
+      // …and the panel swapped to the bot dossier (grid, not columns) with
+      // its own tracks/economy summaries GONE (the rail carries them now).
       await expect(workspace.locator('.con-info__grid')).toHaveCount(1);
       await expect(workspace.locator('.con-info__cols')).toHaveCount(0);
+      await expect(workspace.locator('.con-bot__track-line')).toHaveCount(0);
       await shoot(page, preset, '02-workspace-bot');
 
       // ── 3 · Rapid LB/RB presses coalesce (2 seats: odd count = other) ─
@@ -220,6 +229,11 @@ for (const preset of PRESETS) {
       await key(page, 'KeyY', 800);
       await expect(page.locator('.con-info')).toHaveCount(0);
       await expect(railMc(page)).toHaveText(ownMc);
+      // The HUMAN presentation is fully back: six resource rows with
+      // production chips, the tag matrix, no bot track rows.
+      await expect(page.locator('.con-res .con-res__prod')).toHaveCount(6);
+      await expect(page.locator('.con-res .con-tagmx__grid')).toHaveCount(1);
+      await expect(page.locator('.con-res .con-tagmx__trackrow')).toHaveCount(0);
       await shoot(page, preset, '04-closed-restored');
 
       // ── 6 · Reduced motion: the mode still switches cleanly ────────

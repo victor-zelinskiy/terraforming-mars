@@ -46,7 +46,29 @@
         </div>
       </div>
 
-      <div class="con-res__rows">
+      <!-- MARSBOT SEAT (Information Workspace inspects the bot): the human
+           economy does not exist for the Automa — the rows swap to its REAL
+           state (M€ supply; floaters once it holds any). No production chips:
+           a +0 column would be a fake readout for this participant. -->
+      <div v-if="botMode" class="con-res__rows">
+        <div v-for="row in botEconomy" :key="row.key"
+             class="con-res__row con-res__row--bot"
+             :class="'con-res__row--' + row.key"
+             :data-bot-economy="row.key">
+          <i class="con-res__icon" :class="row.iconClass" aria-hidden="true"></i>
+          <span class="con-res__stockwrap">
+            <span class="con-res__value">{{ row.value }}</span>
+            <AnimatedMetricValue
+              v-if="epoch !== ''"
+              :value="row.value"
+              :metricKey="row.metricKey"
+              :scopeKey="player.color"
+              :epoch="epoch"
+              variant="resource-stock" />
+          </span>
+        </div>
+      </div>
+      <div v-else class="con-res__rows">
         <!-- data-conversion-* anchors (CTS T6): the App-level energy→heat
              transition overlay measures these rects, so the premium
              end-of-generation animation plays in console mode too. -->
@@ -93,12 +115,48 @@
         </div>
       </div>
 
+      <!-- MARSBOT TRACKS — the Automa's tag progress IS its printed tracks
+           («метки вскрытых карт двигают трек»), so the МЕТКИ zone swaps to
+           one row per track: ALL of the track's mapped tags (POWER+JOVIAN,
+           EARTH+CITY, the bio track…), the position and a progress fill
+           toward that track's OWN max (Venus = 12). Same instrument family
+           as the tag matrix — shared head/medal/number language. -->
+      <section v-if="botMode" class="con-tagmx con-tagmx--bot" :aria-label="$t('MarsBot tracks')">
+        <div class="con-tagmx__head">
+          <span class="con-tagmx__title">{{ $t('MarsBot tracks') }}</span>
+          <span class="con-tagmx__rule" aria-hidden="true"></span>
+        </div>
+        <div class="con-tagmx__tracks">
+          <div v-for="t in botTracks" :key="t.key"
+               class="con-tagmx__trackrow"
+               :class="{'con-tagmx__trackrow--zero': t.position === 0}"
+               :data-bot-track="t.key"
+               :aria-label="trackAria(t)">
+            <span class="con-tagmx__trackmedals" :class="'con-tagmx__trackmedals--n' + t.tags.length">
+              <Tag v-for="tag in t.tags" :key="tag" class="con-tagmx__medal con-tagmx__medal--track" :tag="tag" size="big" type="secondary" />
+            </span>
+            <span class="con-tagmx__trackbar" aria-hidden="true">
+              <span class="con-tagmx__trackfill" :style="{width: t.fillPercent + '%'}"></span>
+            </span>
+            <span class="con-tagmx__numwrap con-tagmx__numwrap--track">
+              <span class="con-tagmx__num">{{ t.position }}</span>
+              <AnimatedMetricValue
+                v-if="epoch !== ''"
+                :value="t.position"
+                :metricKey="t.metricKey"
+                :scopeKey="player.color"
+                :epoch="epoch"
+                variant="tag" />
+            </span>
+          </div>
+        </div>
+      </section>
       <!-- МЕТКИ — the premium tag matrix. The FULL set of tags available in
            THIS game (server game.tags + the events counter, consoleTagMatrix),
            fixed 3-column layout: a tag's cell NEVER moves — a count change
            only flips the number and the zero-state class, so acquiring the
            first tag of a type brightens a cell that was already there. -->
-      <section v-if="tagEntries.length > 0" class="con-tagmx" :aria-label="$t('Tags')">
+      <section v-else-if="tagEntries.length > 0" class="con-tagmx" :aria-label="$t('Tags')">
         <div class="con-tagmx__head">
           <span class="con-tagmx__title">{{ $t('Tags') }}</span>
           <span class="con-tagmx__rule" aria-hidden="true"></span>
@@ -160,10 +218,12 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {CardResource} from '@/common/CardResource';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagEntry} from '@/client/components/console/consoleTagMatrix';
+import {marsBotRailEconomy, marsBotRailTracks, MarsBotRailEconomyRow, MarsBotRailTrack} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
@@ -220,6 +280,14 @@ export default defineComponent({
      * eye-off mask instead of a number. Only meaningful when `own` is false.
      */
     vpHidden: {type: Boolean, default: false},
+    /**
+     * The displayed seat is the MARSBOT and this is its public Automa state
+     * (playerView.game.automa) — the rail swaps to the DEDICATED bot
+     * presentation (marsBotRailModel): real economy rows instead of the six
+     * human resources, the printed TRACKS instead of the tag matrix.
+     * Undefined = human presentation (every non-inspecting frame).
+     */
+    automa: {type: Object as PropType<MarsBotModel>, default: undefined},
   },
   computed: {
     /**
@@ -287,6 +355,16 @@ export default defineComponent({
       // setup reveal the counts stage with the corp bonus (empty at baseline →
       // the corporation's tags appear when it's applied), like the resources.
       return consoleTagEntries(this.gameTags, this.effectivePlayer.tags);
+    },
+    /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
+    botMode(): boolean {
+      return this.automa !== undefined;
+    },
+    botEconomy(): Array<MarsBotRailEconomyRow> {
+      return this.automa !== undefined ? marsBotRailEconomy(this.player, this.automa) : [];
+    },
+    botTracks(): Array<MarsBotRailTrack> {
+      return this.automa !== undefined ? marsBotRailTracks(this.automa) : [];
     },
     /**
      * Card-accumulated resources, in first-appearance order — the SAME
@@ -365,6 +443,11 @@ export default defineComponent({
     },
     extraIconClass(resource: CardResource): string {
       return cardResourceCSS[resource];
+    },
+    /** Couch-reader aria for a bot track: every mapped tag + position/max. */
+    trackAria(track: MarsBotRailTrack): string {
+      const tags = track.tags.map((tag) => this.$t(tag)).join(' + ');
+      return `${tags}: ${track.position}/${track.maxPosition}`;
     },
     /** The transfer framework's landing anchor (normalized icon key). */
     auxAnchorKey(resource: CardResource): string {

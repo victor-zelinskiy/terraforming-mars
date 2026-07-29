@@ -69,4 +69,50 @@ describe('ConsoleContextPanel', () => {
     expect(wrapper.findComponent(BoardPlacementPreviewContent).exists()).to.be.false;
     expect(wrapper.findComponent(BoardFactGroups).exists()).to.be.true;
   });
+
+  /**
+   * The panel grew several fact blocks, so everything that did NOT carry its own
+   * weight had to go: the confirm CTA already sits at the top, and a permanent
+   * "cancelling is not available" note stated a non-event on every placement.
+   */
+  describe('the panel earns its height', () => {
+    it('does not repeat the confirm CTA at the bottom', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
+      expect(wrapper.findAll('.con-inspector__placement')).to.have.lengthOf(1);
+      expect(wrapper.findAll('.con-context__cmd')).to.have.lengthOf(0);
+    });
+
+    it('shows the bottom command row ONLY for a real cancel', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true, cancellable: true});
+      expect(wrapper.findAll('.con-context__cmd')).to.have.lengthOf(1);
+    });
+
+    it('never renders a note about cancelling being unavailable', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true, cancellable: false});
+      expect(wrapper.find('.con-context__mandatory-note').exists()).to.be.false;
+    });
+  });
+
+  /**
+   * The panel scrolls with the right stick. On a TV the 3 px rail is invisible,
+   * so the overflow has to announce itself — otherwise the player cannot tell
+   * whether anything is below the fold.
+   */
+  describe('scroll affordance', () => {
+    it('stays silent while everything fits', () => {
+      const wrapper = mountPanel({preview, info});
+      expect(wrapper.find('.con-inspector__more').exists()).to.be.false;
+      expect(wrapper.classes()).to.not.include('con-inspector--more');
+    });
+
+    it('names the control and fades the cut edge once content overflows', async () => {
+      const wrapper = mountPanel({preview, info});
+      // JSDOM reports every element as zero-height, so drive the measured state
+      // directly — the measurement itself is a three-property DOM read.
+      await wrapper.setData({moreBelow: true, scrolledDown: true});
+      expect(wrapper.find('.con-inspector__more').exists()).to.be.true;
+      expect(wrapper.classes()).to.include('con-inspector--more');
+      expect(wrapper.classes()).to.include('con-inspector--scrolled');
+    });
+  });
 });

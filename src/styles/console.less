@@ -1538,6 +1538,78 @@ each(@players, {
             text-shadow: none;
         }
     }
+
+    /* ── MARSBOT variant — the printed TAG TRACKS (Information Workspace
+       inspects the bot seat). One row per track: every mapped tag medal
+       (multi-tag tracks overlap into one cluster), a progress fill toward
+       the track's OWN max, the position count. Same instrument language as
+       the matrix (shared head/medal/number); progress is opacity/colour/
+       width — perf-lite safe, no filter carrying state. */
+    &__tracks {
+        display: flex;
+        flex-direction: column;
+        gap: var(--ct-track-gap, .3rem);
+    }
+    &__trackrow {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .15rem .25rem .15rem .15rem;
+        border-radius: .35rem;
+        background: rgba(10, 18, 28, 0.35);
+        box-shadow: inset 0 .05rem .2rem rgba(0, 0, 0, 0.35);
+    }
+    /* The medal cluster reserves a FIXED lane (3 overlapped medals at the
+       widest — the bio track), so every row's bar starts at the same x and
+       the column reads as one gauge stack. */
+    &__trackmedals {
+        flex: 0 0 auto;
+        width: calc(var(--ct-track-icon, 1.35rem) * 2.05);
+        display: inline-flex;
+        align-items: center;
+
+        .con-tagmx__medal.tag-count {
+            width: var(--ct-track-icon, 1.35rem);
+            height: var(--ct-track-icon, 1.35rem);
+            flex-shrink: 0;
+        }
+        .con-tagmx__medal.tag-count + .con-tagmx__medal.tag-count {
+            margin-left: calc(var(--ct-track-icon, 1.35rem) * -0.52);
+        }
+    }
+    &__trackbar {
+        flex: 1 1 auto;
+        min-width: 0;
+        height: .3rem;
+        border-radius: 49.95rem;
+        background: rgba(8, 14, 22, 0.85);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        overflow: hidden;
+    }
+    &__trackfill {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, fade(@con-cyan, 55%), @con-mint);
+        box-shadow: 0 0 .3rem fade(@con-mint, 35%);
+        transition: width calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    &__numwrap--track {
+        margin-top: 0;
+        flex: 0 0 auto;
+        min-width: 1.1rem;
+    }
+    &__trackrow--zero {
+        .con-tagmx__medal.tag-count {
+            opacity: .48;
+            filter: saturate(0.4) contrast(0.94);
+        }
+        .con-tagmx__num {
+            color: fade(@con-text, 42%);
+            font-weight: 600;
+            text-shadow: none;
+        }
+    }
 }
 
 /* ── Score header — TR + VP (the rail's status cap) ──────────────────
@@ -1702,6 +1774,69 @@ each(@players, {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .6rem 1.8rem rgba(0, 0, 0, 0.45);
     overflow-y: auto;
     scrollbar-width: thin;
+    /* The overflow affordances are anchored to the PANEL, not the scrolled
+       content, so they stay pinned to the cut edges while the content moves. */
+    position: relative;
+
+    /* Fades at whichever edge is actually cutting content. A 3 px custom
+       scrollbar is invisible from a couch; a soft cut edge reads instantly as
+       "there is more". Pure gradients — perf mode strips `filter`, not these. */
+    /* `.con-context` is a flex COLUMN, so these pseudo-elements are flex items:
+       the negative margin cancels BOTH their own height and the column `gap`,
+       leaving the layout byte-identical when no edge is cut. */
+    &::before,
+    &::after {
+        content: '';
+        position: sticky;
+        display: block;
+        align-self: stretch;
+        height: 1.6rem;
+        margin-left: -.9rem;   /* bleed over the panel padding */
+        margin-right: -.9rem;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+        z-index: 2;
+    }
+    &::before {
+        top: 0;
+        margin-bottom: calc(-1.6rem - .5rem);
+        background: linear-gradient(to bottom, fade(@con-glass, 96%), fade(@con-glass, 0%));
+    }
+    &::after {
+        bottom: 0;
+        margin-top: calc(-1.6rem - .5rem);
+        background: linear-gradient(to top, fade(@con-glass, 96%), fade(@con-glass, 0%));
+    }
+    &--scrolled::before { opacity: 1; }
+    &--more::after { opacity: 1; }
+
+    /* The one line that NAMES the control. Last in the flow + sticky, so it
+       rides the bottom edge above the fade; rendered only while something is
+       still unread, so it never lingers once the player reaches the end. */
+    &__more {
+        position: sticky;
+        bottom: 0;
+        align-self: flex-end;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin-top: calc(-1.6rem - .5rem);
+        padding: .15rem .5rem;
+        border-radius: 999px;
+        background: fade(@con-glass, 94%);
+        /* Functional cue → box-shadow, which performance mode keeps. */
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        color: @con-text-dim;
+        font-size: .72rem;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 3;
+
+        .gp-glyph { min-width: 1.3rem; }
+    }
 
     &__kicker {
         font-size: .85rem;
@@ -15573,11 +15708,15 @@ html.con-profile-handheld {
         --ct-icon: 1.4rem;
         --ct-num: .78rem;
         --ct-gap-y: .25rem;
+        /* MarsBot track rows compact with the Deck rail. */
+        --ct-track-icon: 1.05rem;
+        --ct-track-gap: .2rem;
         padding-top: .4rem;
 
         &__head { margin-bottom: .35rem; }
         &__title { font-size: .55rem; letter-spacing: .08rem; }
         &__cell { padding: .15rem 0 .1rem; }
+        &__trackbar { height: .25rem; }
     }
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
     .con-score {

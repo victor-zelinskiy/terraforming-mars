@@ -1,36 +1,12 @@
 <template>
   <!-- ── Dashboard blocks (the bot participant's overview) ─────────────── -->
   <template v-if="mode === 'dashboard'">
-    <!-- The bot's M€ number itself lives on the LEFT RAIL now (the
-         Information Workspace overrides the rail to the inspected seat) —
-         this block keeps only what the rail cannot say: the floater stock
-         and WHY the production chips read +0 for this participant. -->
-    <section class="con-info__block">
-      <h3 class="con-info__block-title">{{ $t('Economy') }}</h3>
-      <div v-if="automa.floaters > 0" class="con-info__res-grid">
-        <div class="con-info__res">
-          <i class="con-info__res-icon card-resource card-resource-floater" aria-hidden="true"></i>
-          <span class="con-info__res-value">{{ automa.floaters }}</span>
-        </div>
-      </div>
-      <div class="con-info__note">{{ $t('MarsBot has no production — its economy is the M€ supply') }}</div>
-      <div class="con-info__note">{{ $t('Leftover M€ converts to VP at game end') }}</div>
-    </section>
-
-    <section class="con-info__block">
-      <h3 class="con-info__block-title">{{ $t('MarsBot tracks') }}
-        <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
-      </h3>
-      <div class="con-info__stat-lines">
-        <div v-for="(t, i) in automa.tracks" :key="i" class="con-info__stat-line con-bot__track-line">
-          <span class="con-bot__track-tags"><Tag v-if="tagOf(t)" :tag="tagOf(t)!" size="med" type="secondary" /></span>
-          <span class="con-bot__track-bar" aria-hidden="true"><span class="con-bot__track-fill" :style="{width: fillPercent(t)}"></span></span>
-          <b>{{ t.position }}<span class="con-bot__track-max">/{{ t.maxPosition }}</span></b>
-        </div>
-      </div>
-      <div class="con-info__note">{{ $t('Tags on its flipped cards push the matching tracker — open the board for the printed icons') }}</div>
-    </section>
-
+    <!-- The bot's ECONOMY (M€ supply, floaters) and its TAG TRACKS live on
+         the LEFT RAIL now — the Information Workspace overrides the rail to
+         the inspected seat and it renders the dedicated bot presentation
+         (marsBotRailModel). This dashboard keeps only the detail the rail
+         cannot carry: decks, piles, storage — plus the printed-board guide
+         behind X (the botBoard detail). -->
     <section class="con-info__block">
       <h3 class="con-info__block-title">{{ $t('Decks') }}</h3>
       <div class="con-info__stat-lines">
@@ -138,19 +114,16 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {MarsBotModel, MarsBotTrackModel} from '@/common/models/MarsBotModel';
-import {Tag as CardTag} from '@/common/cards/Tag';
-import {trackTag} from '@/client/components/marsbot/marsBotView';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {GuideSection, MarsBotGuideContext, marsBotGuide} from '@/client/components/marsbot/marsBotGuide';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import Tag from '@/client/components/Tag.vue';
 import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotSections',
-  components: {MarsBotTracks, BonusCardFace, GamepadGlyph, Tag, Card},
+  components: {MarsBotTracks, BonusCardFace, GamepadGlyph, Card},
   props: {
     mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botPlayed' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},
@@ -170,17 +143,6 @@ export default defineComponent({
     },
     guide(): ReadonlyArray<GuideSection> {
       return marsBotGuide(this.automa.difficulty, this.ctx);
-    },
-  },
-  methods: {
-    tagOf(track: MarsBotTrackModel): CardTag | undefined {
-      return trackTag(track);
-    },
-    fillPercent(track: MarsBotTrackModel): string {
-      if (track.maxPosition <= 0) {
-        return '0%';
-      }
-      return `${Math.round((track.position / track.maxPosition) * 100)}%`;
     },
   },
 });

@@ -16,6 +16,7 @@ import {SolarFarm} from '../../src/server/cards/ares/SolarFarm';
 import {MiningRights} from '../../src/server/cards/base/MiningRights';
 import {ArcticAlgae} from '../../src/server/cards/base/ArcticAlgae';
 import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepublic';
+import {MiningGuild} from '../../src/server/cards/corporation/MiningGuild';
 
 /**
  * The CARD-AWARE half of the placement preview: what the card driving the
@@ -54,6 +55,19 @@ describe('placement preview: card-driven facts', () => {
     return space.bonus.filter((b) => b === bonus).length;
   }
 
+  /**
+   * Facts a given CARD produced. Keyed on the fact id, not on `source`: the
+   * engine strips the attribution tag from the card that is doing the placing
+   * (the prompt title already names it), so `source` is deliberately absent
+   * exactly where these tests look.
+   */
+  function factsFrom(preview: BoardPlacementPreview, card: CardName): ReadonlyArray<BoardFact> {
+    // `includes`, not `startsWith`: a TRIGGER fact is namespaced by its owner's
+    // colour (`blue-card-Mining Guild-…`) so two players holding the same card
+    // cannot collide.
+    return allFacts(preview).filter((f) => f.id.includes(`card-${card}`));
+  }
+
   describe('Solar Farm — energy production per plant bonus on the chosen area', () => {
     it('threads its card name onto the placement prompt', () => {
       const card = new SolarFarm();
@@ -71,7 +85,7 @@ describe('placement preview: card-driven facts', () => {
       const preview = boardCellPreview(player, space, 'land',
         {tileType: TileType.SOLAR_FARM, sourceCard: CardName.SOLAR_FARM});
 
-      const fact = allFacts(preview).find((f) => f.source?.id === CardName.SOLAR_FARM && f.delta?.production === true);
+      const fact = factsFrom(preview, CardName.SOLAR_FARM).find((f) => f.delta?.production === true);
       expect(fact, 'an energy production fact from Solar Farm').to.not.be.undefined;
       expect(fact!.delta!.icon).to.eq('energy');
       expect(fact!.delta!.amount).to.eq(plants);
@@ -86,7 +100,7 @@ describe('placement preview: card-driven facts', () => {
       const preview = boardCellPreview(player, space, 'land',
         {tileType: TileType.SOLAR_FARM, sourceCard: CardName.SOLAR_FARM});
 
-      const fact = allFacts(preview).find((f) => f.source?.id === CardName.SOLAR_FARM);
+      const fact = factsFrom(preview, CardName.SOLAR_FARM)[0];
       expect(fact, 'an explicit "no production here" note').to.not.be.undefined;
       expect(fact!.delta, 'never a +0 chip').to.be.undefined;
     });
@@ -113,7 +127,7 @@ describe('placement preview: card-driven facts', () => {
       const preview = boardCellPreview(aresPlayer, space, 'land',
         {tileType: TileType.SOLAR_FARM, sourceCard: CardName.SOLAR_FARM});
 
-      const fact = preview.ruleFacts.find((f) => f.source?.id === CardName.SOLAR_FARM && f.delta?.icon === 'energy');
+      const fact = preview.ruleFacts.find((f) => f.id.startsWith('place-adj-') && f.delta?.icon === 'energy');
       expect(fact, 'the 2-energy adjacency bonus this tile will hand out').to.not.be.undefined;
       expect(fact!.delta!.amount).to.eq(2);
     });
@@ -132,7 +146,7 @@ describe('placement preview: card-driven facts', () => {
         s.bonus.includes(SpaceBonus.STEEL) && !s.bonus.includes(SpaceBonus.TITANIUM));
       const preview = boardCellPreview(player, space, 'land', {sourceCard: CardName.MINING_RIGHTS});
 
-      const facts = allFacts(preview).filter((f) => f.source?.id === CardName.MINING_RIGHTS);
+      const facts = factsFrom(preview, CardName.MINING_RIGHTS);
       expect(facts).has.length(1);
       expect(facts[0].delta!.icon).to.eq('steel');
       expect(facts[0].delta!.production).is.true;
@@ -145,7 +159,7 @@ describe('placement preview: card-driven facts', () => {
         return; // this map prints no dual-bonus cell
       }
       const preview = boardCellPreview(player, space, 'land', {sourceCard: CardName.MINING_RIGHTS});
-      const facts = allFacts(preview).filter((f) => f.source?.id === CardName.MINING_RIGHTS);
+      const facts = factsFrom(preview, CardName.MINING_RIGHTS);
       const icons = facts.filter((f) => f.delta !== undefined).map((f) => f.delta!.icon);
       expect(icons).to.have.members(['steel', 'titanium']);
       // The player must know a follow-up will ask — never a surprise modal.
@@ -242,6 +256,98 @@ describe('placement preview: card-driven facts', () => {
       expect(space.tile).to.be.undefined;
       expect(space.player).to.be.undefined;
       expect(JSON.stringify(game.board.serialize())).to.eq(before);
+    });
+  });
+
+  /**
+   * A prompt that picks a cell WITHOUT placing a tile. The tabletop ruling Mars
+   * Nomads carries in its own source ("Mining Guild and Philares cannot take
+   * advantage of it") is what the commit enforces; the preview used to promise
+   * the opposite because the live guard reads `game.nomadSpace`, which at
+   * preview time still points at the camp's CURRENT cell.
+   */
+  describe('marker placements promise only what actually happens', () => {
+    function steelSpace(): Space {
+      return emptyLandWith(game, (s) => s.bonus.includes(SpaceBonus.STEEL));
+    }
+
+    it('Mars Nomads moving its camp grants the cell bonus but NO Mining Guild production', () => {
+      player.playedCards.push(new MiningGuild());
+      const space = steelSpace();
+
+      const tilePreview = boardCellPreview(player, space, 'land', {tileType: TileType.CITY});
+      expect(factsFrom(tilePreview, CardName.MINING_GUILD).some((f) => f.delta?.production === true),
+        'a real tile DOES earn the steel production').is.true;
+
+      const nomadPreview = boardCellPreview(player, space, 'land',
+        {sourceCard: CardName.MARS_NOMADS, placementEffect: 'bonus-only'});
+      expect(factsFrom(nomadPreview, CardName.MINING_GUILD).some((f) => f.delta !== undefined),
+        'moving the camp earns nothing').is.false;
+      // …but the destination's printed bonus IS collected, so it must still show.
+      expect(nomadPreview.immediateFacts.some((f) => f.id.startsWith('printed-'))).is.true;
+    });
+
+    it('a camp move claims no endgame VP, milestone or award', () => {
+      const space = game.board.getAvailableSpacesForGreenery(player)[0];
+      const preview = boardCellPreview(player, space, 'greenery',
+        {tileType: TileType.GREENERY, sourceCard: CardName.MARS_NOMADS, placementEffect: 'bonus-only'});
+
+      expect(preview.futureScoringFacts, 'no tile → no scoring').to.be.empty;
+      expect(preview.progressFacts ?? [], 'no tile → no milestone/award count').to.be.empty;
+      expect(preview.immediateFacts.some((f) => f.id === 'effect-oxygen'),
+        'no tile → the greenery track is untouched').is.false;
+    });
+
+    it('a camp move earns no Ares adjacency (adjacency bonuses are not placement bonuses)', () => {
+      const [aresGame, aresPlayer] = testGame(2, {aresExtension: true});
+      const source = aresGame.board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+      source.tile = {tileType: TileType.SOLAR_FARM};
+      source.adjacency = {bonus: [SpaceBonus.ENERGY, SpaceBonus.ENERGY]};
+      const next = aresGame.board.getAdjacentSpaces(source)
+        .find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined)!;
+
+      const asTile = boardCellPreview(aresPlayer, next, 'land', {tileType: TileType.CITY});
+      expect(asTile.immediateFacts.some((f) => f.id.startsWith('ares-adj-')), 'a tile earns it').is.true;
+
+      const asCamp = boardCellPreview(aresPlayer, next, 'land',
+        {sourceCard: CardName.MARS_NOMADS, placementEffect: 'bonus-only'});
+      expect(asCamp.immediateFacts.some((f) => f.id.startsWith('ares-adj-')), 'a camp move does not').is.false;
+    });
+
+    it('Land Claim reserves a cell and grants nothing at all', () => {
+      const space = emptyLandWith(game, (s) => s.bonus.length > 0);
+      const preview = boardCellPreview(player, space, 'land',
+        {sourceCard: CardName.LAND_CLAIM, placementEffect: 'marker'});
+
+      expect(preview.immediateFacts.some((f) => f.id.startsWith('printed-')),
+        'a claim collects no cell bonus').is.false;
+      expect(preview.progressFacts ?? []).to.be.empty;
+    });
+  });
+
+  describe('the panel does not repeat itself', () => {
+    it('drops the card tag on the card that is already named by the prompt', () => {
+      const space = emptyLandWith(game, (s) => countBonus(s, SpaceBonus.PLANT) > 0);
+      const preview = boardCellPreview(player, space, 'land',
+        {tileType: TileType.SOLAR_FARM, sourceCard: CardName.SOLAR_FARM});
+      expect(factsFrom(preview, CardName.SOLAR_FARM).every((f) => f.source === undefined)).is.true;
+    });
+
+    it('keeps the card tag on ANOTHER player\'s trigger, where it earns its space', () => {
+      player2.playedCards.push(new ArcticAlgae());
+      const ocean = game.board.spaces.find((s) => s.spaceType === SpaceType.OCEAN && s.tile === undefined)!;
+      const preview = boardCellPreview(player, ocean, 'ocean',
+        {tileType: TileType.OCEAN, sourceCard: CardName.ARTIFICIAL_LAKE});
+      expect(preview.recipientFacts.some((f) => f.source?.id === CardName.ARCTIC_ALGAE)).is.true;
+    });
+
+    it('milestone progress carries the badge, not a restatement of its own block title', () => {
+      const space = game.board.getAvailableSpacesForGreenery(player)[0];
+      const preview = boardCellPreview(player, space, 'greenery', {tileType: TileType.GREENERY});
+      const gardener = (preview.progressFacts ?? []).find((f) => f.id === 'milestone-Gardener')!;
+      expect(gardener.description, 'no "Milestone progress" line under a "Milestones" heading').to.be.undefined;
+      expect(gardener.source, 'no "Milestone" tag either').to.be.undefined;
+      expect(gardener.progress).to.not.be.undefined;
     });
   });
 

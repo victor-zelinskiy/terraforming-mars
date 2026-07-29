@@ -79,24 +79,47 @@ city", Great Dam "adjacent to an ocean", Urbanized Area "2+ adjacent cities", Mi
 to your tile", the `filterForEnergy` energy-coverage filter) are already surfaced by the per-cell
 illegality reasons (`computeIllegalReasons` + `customReasoner`), not by the preview.
 
-## E. Frontier (known, not fixed)
+## E. Placements that pick a cell WITHOUT placing a tile
 
-1. **Mars Nomads + Mining Guild.** Previewing a nomad MOVE onto a steel/titanium area promises
-   Mining Guild's +1 steel production, which the commit suppresses: the live path sets
-   `game.nomadSpace` to the destination *before* the trigger fan-out and the preview cannot know
-   that. The nomad space is excluded from every legal placement, so this can only misfire on a
-   hovered ILLEGAL cell.
-2. **Multi-tile cards** (`ocean: {count: 2}` — Great Aquifer, Ice Asteroid, Lake Marineris, Giant
+The board has three shapes of "choose a cell" prompt, and only one of them places a tile. The
+prompt now declares which (`SelectSpace.placementEffect`, default `'tile'`), so the preview stops
+inferring it:
+
+| Shape | Cards | Cell bonus granted? | Tile placed? |
+| --- | --- | --- | --- |
+| `'tile'` | everything else | yes | yes |
+| `'bonus-only'` | **Mars Nomads** — the camp MOVES | yes | **no** |
+| `'marker'` | **Land Claim**, **Arcadian Communities** marker, Mars Nomads' initial seating | **no** | no |
+
+**The Mars Nomads case is a tabletop rule, not an implementation detail.** The card's own source
+records the ruling (BGG 3154812): *"Mining Guild and Philares cannot take advantage of it"* and
+*"adjacency bonuses are not placement bonuses"* — because moving the camp is not placing a tile.
+The engine already enforced it (`Game.addTile` is never called; `grantPlacementBonuses` gates Ares
+adjacency and the Arcadian M€ on `space.tile !== undefined`; Mining Guild guards on
+`game.nomadSpace`), but the PREVIEW could not see it: at preview time `game.nomadSpace` still
+points at the camp's *current* cell, so the guard did not fire and the panel promised a steel
+production step the commit would suppress.
+
+Fixing it by teaching the preview about Mars Nomads would have hard-coded one card into a
+corporation. Instead Mining Guild now states the rule it actually has — *"each time you place a
+TILE"* → `if (!ctx.placesTile) return []` — and the prompt says whether a tile lands. That closes
+the same hole for everything downstream: a camp move now previews the destination's placement
+bonus and nothing else (no Ares adjacency, no endgame VP, no milestone/award count, no tile
+trigger), and Land Claim / an Arcadian marker preview nothing at all instead of offering the cell
+bonus they never grant.
+
+## F. Frontier (known, not fixed)
+
+1. **Multi-tile cards** (`ocean: {count: 2}` — Great Aquifer, Ice Asteroid, Lake Marineris, Giant
    Ice Asteroid) preview each placement independently; the panel does not say "this is the first of
    two". The prompt title already does.
-3. **Placements that place no tile** — Land Claim, Arcadian Communities' marker, Mars Nomads,
-   St. Joseph's cathedral, Desperate Measures — have no `tileType`, so the tile-driven facts
-   (including milestone progress) are correctly silent, but nothing card-specific is shown for them
-   either.
-4. **Herbivores' VP.** Its `victoryPoints: {resourcesHere, per: 2}` means one animal is worth half a
+2. **St. Joseph's cathedral / Desperate Measures** open a `SelectSpace` with no `placementType`, so
+   the client never requests a preview for them at all. Section E's marker declaration would apply
+   the moment either grows one.
+3. **Herbivores' VP.** Its `victoryPoints: {resourcesHere, per: 2}` means one animal is worth half a
    VP; stating a 0-or-1 delta would require re-implementing the `per: 2` rule locally, so the
    animal gain is previewed and the VP is not.
-5. **Off-Mars fixed-space cities** (Ganymede Colony, Phobos Space Haven, Stanford Torus, Maxwell
+4. **Off-Mars fixed-space cities** (Ganymede Colony, Phobos Space Haven, Stanford Torus, Maxwell
    Base, Dawn City, Luna Metropolis, Stratopolis) never open a `SelectSpace` at all — `Executor`
    calls `addCity` directly — so there is no preview surface to improve. Their "no Mars placement
    bonus, no Tharsis production" consequence is only visible after the fact.

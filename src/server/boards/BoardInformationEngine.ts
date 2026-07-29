@@ -8,6 +8,7 @@ import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
 import {CardName, baseCardName} from '../../common/cards/CardName';
 import {PlacementType} from './PlacementType';
 import {PlacementPreviewContext} from './PlacementPreviewContext';
+import {PlacementEffect} from '../../common/models/PlayerInputModel';
 import {AresHandler} from '../ares/AresHandler';
 import {ICard} from '../cards/ICard';
 import {newCard} from '../createCard';
@@ -118,7 +119,11 @@ export function boardCellPreview(
   player: IPlayer,
   space: Space,
   kind: BoardPlacementKind,
-  options?: {cleared?: boolean, tileType?: TileType, sourceCard?: CardName}): BoardPlacementPreview {
+  options?: {
+    cleared?: boolean,
+    tileType?: TileType,
+    sourceCard?: CardName,
+    placementEffect?: PlacementEffect}): BoardPlacementPreview {
   const board = player.game.board;
   const cleared = options?.cleared === true;
   const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind);
@@ -126,28 +131,36 @@ export function boardCellPreview(
   // A cleared cell's tile is removed first → treat as an empty cell (grant the
   // bonus), NOT a covering placement (which suppresses it).
   const covering = Board.hasRealTile(space) && !cleared;
-  const ctx = previewContext(kind, options?.tileType, cleared, covering);
+  const ctx = previewContext(kind, options?.tileType, cleared, covering, options?.placementEffect);
 
   const facts: Array<BoardFact> = [];
   facts.push(...placementCostFacts(player, space, ctx.tileType));
-  facts.push(...printedBonusFacts(space, covering));
+  if (ctx.grantsPlacementBonus) {
+    facts.push(...printedBonusFacts(space, covering));
+  }
   facts.push(...placementEffectFacts(player, ctx));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
   if (onMarsGrid(board, space)) {
-    const ocean = oceanAdjacencyFact(player, space);
+    const ocean = ctx.grantsPlacementBonus ? oceanAdjacencyFact(player, space) : undefined;
     if (ocean !== undefined) {
       facts.push(ocean);
     }
     facts.push(...placementScoringFacts(player, space, ctx));
   }
-  facts.push(...aresAdjacencyFacts(player, space));
+  // Ares adjacency is earned by a TILE, not by a placement bonus — `Game
+  // .grantPlacementBonuses` gates it on `space.tile !== undefined`, and the
+  // Mars Nomads ruling says the same ("adjacency bonuses are not placement
+  // bonuses"). A marker move earns none.
+  if (ctx.placesTile) {
+    facts.push(...aresAdjacencyFacts(player, space));
+  }
   // What the CARD that owns this placement does about THIS cell, and what every
   // player's tile-placement triggers pay out — the two things the cell alone
   // can never say. Both are co-located, read-only card hooks.
   facts.push(...sourceCardFacts(player, space, options?.sourceCard, ctx));
   facts.push(...tileTriggerFacts(player, space, ctx));
-  facts.push(...arcadianCommunityFact(player, space, covering));
+  facts.push(...arcadianCommunityFact(player, space, covering, ctx));
   facts.push(...milestoneAwardFacts(player, space, ctx));
   const deflection = deflectionPlacementFact(player, space);
   if (deflection !== undefined) {
@@ -158,7 +171,7 @@ export function boardCellPreview(
   // reserved / restricted notes that no longer apply.
   facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared}));
 
-  const preview = classifyPlacementFacts(facts, player, space.id, kind, legal);
+  const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, space.id, kind, legal);
   if (!legal) {
     preview.illegalReason = board.illegalReasonFor(player, kind as PlacementType, space);
   }
@@ -771,8 +784,10 @@ function previewContext(
   kind: BoardPlacementKind,
   tileType: TileType | undefined,
   cleared: boolean,
-  covering: boolean): PlacementPreviewContext {
-  const tile = placedTileType(kind, tileType);
+  covering: boolean,
+  placementEffect: PlacementEffect = 'tile'): PlacementPreviewContext {
+  const placesTile = placementEffect === 'tile';
+  const tile = placesTile ? placedTileType(kind, tileType) : undefined;
   return {
     kind,
     tileType: tile,
@@ -781,6 +796,8 @@ function previewContext(
     countsAsCity: tile !== undefined && CITY_TILES.has(tile),
     countsAsOcean: tile !== undefined && OCEAN_TILES.has(tile),
     countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
+    placesTile,
+    grantsPlacementBonus: placementEffect !== 'marker',
   };
 }
 
@@ -915,8 +932,10 @@ function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
  * space-dependent, which makes it exactly the kind of thing the cell preview owes
  * the player.
  */
-function arcadianCommunityFact(player: IPlayer, space: Space, covering: boolean): Array<BoardFact> {
-  if (covering || space.player?.id !== player.id || !player.tableau.has(CardName.ARCADIAN_COMMUNITIES)) {
+function arcadianCommunityFact(player: IPlayer, space: Space, covering: boolean, ctx: PlacementPreviewContext): Array<BoardFact> {
+  // `Game.grantPlacementBonuses` gates the M€ on `space.tile !== undefined`, so
+  // a marker move onto your own reserved area collects nothing.
+  if (!ctx.placesTile || covering || space.player?.id !== player.id || !player.tableau.has(CardName.ARCADIAN_COMMUNITIES)) {
     return [];
   }
   const current = player.stock.megacredits;
@@ -982,9 +1001,11 @@ function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPrevie
       severity: claimable ? 'premium' : 'info',
       recipient: {kind: 'current-player'},
       title: milestone.name,
-      description: claimable ? 'This placement completes the milestone' : 'Milestone progress',
+      // Only the CLAIMABLE case earns a line — "Milestone progress" under a
+      // block already titled "Milestones and awards" is pure repetition, and the
+      // `from → to / target` badge already states the progress.
+      description: claimable ? 'This placement completes the milestone' : undefined,
       progress: {from, to, target: threshold},
-      source: {type: 'global-rule', label: 'Milestone'},
     });
   });
   game.awards.forEach((award, i) => {
@@ -1000,9 +1021,7 @@ function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPrevie
       severity: 'info',
       recipient: {kind: 'current-player'},
       title: award.name,
-      description: 'Award progress',
       progress: {from, to},
-      source: {type: 'global-rule', label: 'Award'},
     });
   });
   return out;
@@ -1476,6 +1495,23 @@ function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | 
 // ---------------------------------------------------------------------------
 // Fact classification → BoardPlacementPreview groups
 // ---------------------------------------------------------------------------
+
+/**
+ * Drop the card-attribution tag when it only repeats the prompt. The panel's
+ * title already reads "Select space for the «Solar Farm» tile", so tagging that
+ * card's own facts with "Solar Farm" printed the same name three times on one
+ * screen. The tag stays where it EARNS its space: another player's trigger, a
+ * corporation, a card that is not the one being placed.
+ */
+function stripRedundantSource(facts: ReadonlyArray<BoardFact>, sourceCard: CardName | undefined): ReadonlyArray<BoardFact> {
+  if (sourceCard === undefined) {
+    return facts;
+  }
+  return facts.map((fact) =>
+    (fact.source?.type === 'card' && fact.source.id === sourceCard) ?
+      {...fact, source: undefined} :
+      fact);
+}
 
 function classifyPlacementFacts(
   facts: ReadonlyArray<BoardFact>,

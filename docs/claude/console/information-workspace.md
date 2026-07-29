@@ -100,6 +100,29 @@ returns to neutral with the atomic context flip); fallbacks are cyan.
 - Reduced motion: the director's generic fade covers open/dismiss; the switch
   helpers snap (clear props, no travel).
 
+## The MarsBot rail (dedicated presentation)
+
+Inspecting the BOT seat swaps the rail's two zones to the Automa's REAL state
+(`marsBotRailModel.ts` — pure, unit-tested; the shell passes `automa` only
+while the workspace shows the bot):
+
+- the six human resource rows → the bot ECONOMY: the M€ supply (the bot
+  seat's real `megacredits`) and the floater stock once it holds any — **no
+  production chips**: a `+0` column would be a fake readout for a
+  participant that has no production;
+- the МЕТКИ matrix → the printed TAG TRACKS (`.con-tagmx--bot`): one row per
+  track with **every** mapped tag medal (POWER+JOVIAN, EARTH+CITY, the bio
+  track — never just the first tag), the position count and a progress fill
+  toward that track's OWN max (Venus = 12, not 18). Positions clamp
+  defensively; zero rows ride the matrix's dim language; the fill is
+  width/opacity only (perf-lite safe). Delta chips ride the same
+  AnimatedMetricValue families (`megacredits.stock`, `bottrack.<key>`).
+
+The workspace bot dashboard drops its «Экономика» and «Треки бота» summary
+blocks in exchange (the rail carries them now); the M€→VP conversion note
+moves under the VP block, and the printed-board detail (X) stays the deep
+reference. `ConsoleMarsBotSections` keeps decks / piles / shipping storage.
+
 ## Command bar
 
 `footCommands` (published via `consolePanelUi`) now carries explicit drop

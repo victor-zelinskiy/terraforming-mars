@@ -39,7 +39,9 @@
       <!-- ── DASHBOARD (MarsBot participant) ─────────────────────────── -->
       <div v-if="infoModeState.detail === undefined && viewedIsBot && botAutoma !== undefined" class="con-info__scroll con-info__grid" data-insp-slide>
         <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" :ctx="botCardContext" />
-        <!-- VP — the SAME block as a human participant (shared model + rule). -->
+        <!-- VP — the SAME block as a human participant (shared model + rule).
+             The M€→VP conversion note lives here (its economy home moved to
+             the rail, which carries numbers, not prose). -->
         <section class="con-info__block">
           <h3 class="con-info__block-title">{{ $t('Victory Points') }}
             <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
@@ -53,6 +55,7 @@
             </div>
           </template>
           <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
+          <div class="con-info__note">{{ $t('Leftover M€ converts to VP at game end') }}</div>
         </section>
       </div>
 

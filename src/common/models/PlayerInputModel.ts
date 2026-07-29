@@ -460,7 +460,25 @@ export type SelectSpaceModel = BaseInputModel & {
    * generic cell explainer cannot see. Absent → generic cell facts only.
    */
   sourceCard?: CardName;
+  /** See {@link PlacementEffect} — absent means the default `'tile'`. */
+  placementEffect?: PlacementEffect;
 }
+
+/**
+ * What picking a cell on a `SelectSpace` prompt actually DOES:
+ *   - `'tile'` (default) — a tile is placed and everything that keys off a
+ *     placed tile happens.
+ *   - `'bonus-only'` — the cell's placement bonuses are granted but NO tile
+ *     lands (Mars Nomads moving its camp). No Ares adjacency, no endgame VP, no
+ *     milestone/award tile count, and no "when a tile is placed" card effect —
+ *     the card's own tabletop ruling spells this out ("Mining Guild and Philares
+ *     cannot take advantage of it").
+ *   - `'marker'` — nothing is granted at all; the cell is claimed or marked
+ *     (Land Claim, an Arcadian Communities marker, a St. Joseph cathedral).
+ * The placement preview reads it so it can never promise what the commit
+ * suppresses.
+ */
+export type PlacementEffect = 'tile' | 'bonus-only' | 'marker';
 
 /**
  * OPTIONAL conversion context for a SelectAmount whose semantics are "spend X

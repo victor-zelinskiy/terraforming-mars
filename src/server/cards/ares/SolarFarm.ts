@@ -96,8 +96,9 @@ export class SolarFarm extends Card implements IProjectCard {
         'No plant bonus on this area — no energy production',
         {description: 'This card raises energy production by 1 per plant bonus on the chosen area.'})];
     }
+    // No description: the title already says WHY the number is what it is, and
+    // the chip says what it becomes. A second line would only restate both.
     return [placementPreviews.productionChange(player, this, Resource.ENERGY, energy,
-      'Energy production from the area\'s plant bonuses',
-      {description: '+1 step per plant bonus printed on the chosen area.'})];
+      'Energy production from the area\'s plant bonuses')];
   }
 }

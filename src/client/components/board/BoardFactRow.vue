@@ -95,6 +95,11 @@ export default defineComponent({
     // A small contextual tag for non-immediate timings (the chip colour already
     // conveys cost vs gain for immediate facts).
     timingTag(): string | undefined {
+      // A progress row lives in its own "Milestones and awards" block and shows a
+      // `from → to` badge; a "Later" tag beside it says nothing new.
+      if (this.fact.progress !== undefined) {
+        return undefined;
+      }
       switch (this.fact.timing) {
       case 'endgame': return 'At game end';
       case 'future': return 'Later';

@@ -74,6 +74,10 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
     };
     return createMarsSelectSpace(player, 'Select space for claim', spaces, {
       placementType: 'land',
+      sourceCard: this.name,
+      // A community MARKER — no tile and no placement bonus; the 3 M€ arrives
+      // later, when a real tile is built on the marked area.
+      placementEffect: 'marker',
       customReasoner,
     })
       .andThen((space: Space) => {

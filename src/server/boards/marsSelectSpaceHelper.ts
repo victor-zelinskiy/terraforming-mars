@@ -5,7 +5,7 @@ import {SelectSpace} from '../inputs/SelectSpace';
 import {PlacementType} from './PlacementType';
 import {TileType} from '../../common/TileType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
-import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {PlacementContext, PlacementEffect} from '../../common/models/PlayerInputModel';
 import {CardName} from '../../common/cards/CardName';
 import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
@@ -73,6 +73,13 @@ export function createMarsSelectSpace(
      */
     sourceCard?: CardName,
     /**
+     * What picking a cell DOES — defaults to `'tile'`. A prompt that only moves
+     * a marker must say so (`'bonus-only'` for Mars Nomads, `'marker'` for Land
+     * Claim / Arcadian Communities / St. Joseph), else the preview promises the
+     * tile-driven effects the commit will not produce.
+     */
+    placementEffect?: PlacementEffect,
+    /**
      * Whether this placement can be cancelled before it commits (drives the
      * PlacementBanner's cancel UI). DEFAULTS to a COMMITTED marker: by the time a
      * placement reached through this helper is shown, the action that triggered it
@@ -94,6 +101,7 @@ export function createMarsSelectSpace(
   selectSpace.placementType = options?.placementType;
   selectSpace.tileType = options?.tileType;
   selectSpace.sourceCard = options?.sourceCard;
+  selectSpace.placementEffect = options?.placementEffect;
   // The default committed marker also NAMES the card when we know it — the
   // console task summary already reads `placementContext.source.card` and had
   // nothing to read for card placements until now.
