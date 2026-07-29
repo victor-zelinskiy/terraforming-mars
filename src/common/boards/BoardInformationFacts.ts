@@ -119,6 +119,13 @@ export type BoardFact = {
   source?: BoardFactSource;
   delta?: BoardFactDelta;
   vp?: {from: number, to: number};
+  /**
+   * A COUNT this placement advances (milestone / award standing), rendered as a
+   * `from → to` badge with the claim threshold when there is one. Distinct from
+   * `delta` because there is no resource pool and no icon — inventing one
+   * (`card-resource-milestone`) would render a missing sprite.
+   */
+  progress?: {from: number, to: number, target?: number};
   sortOrder?: number;
   visibleIn?: ReadonlyArray<'hover' | 'placement-preview' | 'confirm-modal' | 'journal'>;
 };
@@ -193,6 +200,13 @@ export type BoardPlacementPreview = {
   warningFacts: ReadonlyArray<BoardFact>;
   futureScoringFacts: ReadonlyArray<BoardFact>;
   ruleFacts: ReadonlyArray<BoardFact>;
+  /**
+   * Standing-progress facts (milestones + awards this placement advances). Kept
+   * OUT of `futureScoringFacts`: a milestone is claimed during the game, not
+   * scored at game end, and mixing the two made "At game end" lie. Optional so an
+   * older cached payload still renders.
+   */
+  progressFacts?: ReadonlyArray<BoardFact>;
   cancellable?: boolean;
   cancelReason?: string | Message;
 };

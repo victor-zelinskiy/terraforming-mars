@@ -139,9 +139,10 @@ html.con-profile-tv {
         --cr-rgap: 0.45rem;
         --cr-score-h: 3rem;
     }
+    /* 196 logical — a notch wider for the value bump. The SEAM TOKEN (not a
+       bare width): the Information Workspace's left edge derives from it. */
+    .con-main { --con-rail-w: 9.8rem; }
     .con-res {
-        width: 9.8rem; /* 196 logical — a notch wider for the value bump */
-
         &__value { font-size: 1.15rem; }
         &__prod { font-size: 0.85rem; }
     }
@@ -1032,12 +1033,31 @@ html.con-profile-tv {
         .mbr-edge { zoom: var(--con-ui-scale, 1); }
     }
 
-    /* ═══ 20 · INFORMATION MODE (LT) ══════════════════════════════ */
+    /* ═══ 20 · INFORMATION WORKSPACE (Y) ══════════════════════════
+       Couch pass: identity + block typography step up to the 10-foot
+       tokens; the three detail columns cap a notch wider so the freed
+       workspace width breathes instead of stretching rows. */
     .con-info {
-        &__title { font-size: 1.6rem; }
-        &__stat-line { font-size: var(--con-t-body); }
-        &__stat-value { font-size: 1.4rem; }
-        &__section-title { font-size: 1.15rem; }
+        &__frame { padding: 1rem 1.4rem 0.8rem 1.6rem; }
+        &__name { font-size: 1.7rem; }
+        &__corp { font-size: 1.15rem; }
+        &__chip { font-size: 0.9rem; }
+        &__block-title { font-size: 0.95rem; }
+        &__stat-line {
+            font-size: var(--con-t-body);
+            b { font-size: 1.3rem; }
+        }
+        &__cols { gap: 1rem; }
+        &__col { max-width: 27rem; }
+        &__grid { grid-template-columns: repeat(3, minmax(0, 27rem)); }
+        &__note { font-size: var(--con-t-caption); }
+        &__empty { font-size: var(--con-t-secondary); }
+        &__extra-count { font-size: 1.4rem; }
+        &__exicon { width: 2rem; height: 2rem; }
+        &__detail-title { font-size: 1.5rem; }
+        &__acrow { font-size: var(--con-t-body); }
+        &__vpscale-title { font-size: var(--con-t-body); b { font-size: 1.35rem; } }
+        &__vpseg { font-size: var(--con-t-secondary); }
     }
 
     /* ═══ 21 · FOCUS — visible from the couch ═════════════════════

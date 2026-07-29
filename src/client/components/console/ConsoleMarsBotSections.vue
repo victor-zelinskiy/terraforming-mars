@@ -1,14 +1,14 @@
 <template>
   <!-- ── Dashboard blocks (the bot participant's overview) ─────────────── -->
   <template v-if="mode === 'dashboard'">
-    <section class="con-info__block con-info__block--resources">
+    <!-- The bot's M€ number itself lives on the LEFT RAIL now (the
+         Information Workspace overrides the rail to the inspected seat) —
+         this block keeps only what the rail cannot say: the floater stock
+         and WHY the production chips read +0 for this participant. -->
+    <section class="con-info__block">
       <h3 class="con-info__block-title">{{ $t('Economy') }}</h3>
-      <div class="con-info__res-grid">
+      <div v-if="automa.floaters > 0" class="con-info__res-grid">
         <div class="con-info__res">
-          <i class="con-info__res-icon resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-          <span class="con-info__res-value">{{ bot.megacredits }}</span>
-        </div>
-        <div v-if="automa.floaters > 0" class="con-info__res">
           <i class="con-info__res-icon card-resource card-resource-floater" aria-hidden="true"></i>
           <span class="con-info__res-value">{{ automa.floaters }}</span>
         </div>

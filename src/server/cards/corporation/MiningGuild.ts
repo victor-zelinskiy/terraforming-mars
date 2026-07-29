@@ -12,6 +12,9 @@ import {BoardType} from '../../boards/BoardType';
 import {digit} from '../Options';
 import {AresHandler} from '../../ares/AresHandler';
 import {ICorporationCard} from './ICorporationCard';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class MiningGuild extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -65,5 +68,45 @@ export class MiningGuild extends CorporationCard implements ICorporationCard {
     if (grant) {
       cardOwner.game.defer(new GainProduction(cardOwner, Resource.STEEL));
     }
+  }
+
+  /**
+   * The read-only mirror of `onTilePlaced` — the SAME early returns and the SAME
+   * grant condition (reusing `AresHandler.anyAdjacentSpaceGivesBonus` rather than
+   * re-deriving adjacency). The `BoardType` guard has no mirror: the placement
+   * preview is always the Mars board.
+   *
+   * The bonus is entirely space-dependent, which makes it exactly what the cell
+   * preview owes the player — so an area that grants nothing SAYS so instead of
+   * showing an empty block.
+   */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (cardOwner.id !== activePlayer.id || cardOwner.game.phase === Phase.SOLAR) {
+      return [];
+    }
+    // Mars Nomads moves onto a space without placing any tile.
+    if (cardOwner.game.nomadSpace === space.id && space.tile === undefined) {
+      return [];
+    }
+    // Overplaced tile (Ares Ocean City and friends). At preview time the new
+    // tile's `covers` doesn't exist yet, so read the context flag.
+    if (ctx.covering) {
+      return [];
+    }
+    const board = cardOwner.game.board;
+    const grant = space.bonus.some((bonus) => bonus === SpaceBonus.STEEL || bonus === SpaceBonus.TITANIUM) ||
+      AresHandler.anyAdjacentSpaceGivesBonus(board, space, SpaceBonus.STEEL) ||
+      AresHandler.anyAdjacentSpaceGivesBonus(board, space, SpaceBonus.TITANIUM);
+    const recipient = placementPreviews.recipientOf(activePlayer, cardOwner);
+    if (!grant) {
+      return [placementPreviews.noEffectHere(this,
+        'No steel or titanium bonus here — no steel production',
+        {
+          description: 'This corporation raises steel production only for a tile placed on an area with a steel or titanium placement bonus.',
+          recipient,
+        })];
+    }
+    return [placementPreviews.productionChange(cardOwner, this, Resource.STEEL, 1,
+      'Steel or titanium bonus on this area', {recipient})];
   }
 }

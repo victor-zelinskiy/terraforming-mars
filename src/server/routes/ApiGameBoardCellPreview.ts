@@ -8,11 +8,18 @@ import {Color, PLAYER_COLORS} from '../../common/Color';
 import {boardCellInfo, boardCellPreview} from '../boards/BoardInformationEngine';
 import {BoardPlacementKind} from '../../common/boards/BoardInformationFacts';
 import {TileType} from '../../common/TileType';
+import {CardName} from '../../common/cards/CardName';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
   'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland',
 ];
+
+const CARD_NAMES: ReadonlySet<string> = new Set(Object.values(CardName));
+
+function isCardName(value: string): value is CardName {
+  return CARD_NAMES.has(value);
+}
 
 /**
  * Bounded read-only bridge for the premium BoardInformation layer. Returns the
@@ -85,7 +92,13 @@ export class ApiGameBoardCellPreview extends Handler {
       const tileNum = tileParam === null ? NaN : Number(tileParam);
       const tileType = Number.isInteger(tileNum) && TileType[tileNum] !== undefined ?
         tileNum as TileType : undefined;
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType}));
+      // `card=<CardName>` → the card driving the placement (from
+      // `SelectSpaceModel.sourceCard`), so its co-located `placementPreview` hook
+      // can explain what IT does about this cell. Validated against the real card
+      // registry — an unknown name simply yields no card facts, never a throw.
+      const cardParam = ctx.url.searchParams.get('card');
+      const sourceCard = cardParam !== null && isCardName(cardParam) ? cardParam : undefined;
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

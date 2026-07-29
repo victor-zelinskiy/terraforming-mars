@@ -17,6 +17,9 @@ import {skip} from '../../inputs/optionMetadata';
 import {cardEffect} from '../../inputs/choiceContext';
 import {Size} from '../../../common/cards/render/Size';
 import {Priority} from '../../deferredActions/Priority';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class NeptunianPowerConsultants extends Card implements IProjectCard {
   constructor() {
@@ -75,5 +78,40 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
         game.log('${0} cannot afford to use the ${1} effect', (b) => b.player(cardOwner).card(this));
       }
     }
+  }
+
+  /**
+   * Read-only mirror of `onTilePlaced`. Two conditions, in the live order: a
+   * PLAIN ocean (a composite tile laid over an ocean does not re-trigger), then
+   * the owner's ability to pay 5 M€ with steel allowed — reusing `canAfford`, so
+   * the preview can never disagree with the prompt the commit will raise. When
+   * the owner cannot pay, the live path only logs, so nothing is claimed here.
+   *
+   * The prompt is OPTIONAL, so it is announced as an upcoming choice AND its two
+   * gains are shown — the player decides knowing the price and the payout.
+   */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!placementPreviews.placesUncoveredOcean(ctx)) {
+      return [];
+    }
+    if (!cardOwner.canAfford({cost: 5, steel: true})) {
+      return [];
+    }
+    const recipient = placementPreviews.recipientOf(activePlayer, cardOwner);
+    return [
+      placementPreviews.upcomingChoice(this, 'Ocean placed anywhere — offers an optional 5 M€ effect', {
+        id: `card-${this.name}-ocean-choice`,
+        description: 'You may spend 5 M€ (steel may be used) to take the effect below, or decline.',
+        recipient,
+      }),
+      placementPreviews.productionChange(cardOwner, this, Resource.ENERGY, 1, 'Energy production if the 5 M€ is paid', {
+        id: `card-${this.name}-ocean-energy-prod`,
+        recipient,
+      }),
+      placementPreviews.cardResourceGain(this, CardResource.HYDROELECTRIC_RESOURCE, 1, 'Hydroelectric resource if the 5 M€ is paid', {
+        id: `card-${this.name}-ocean-hydroelectric`,
+        recipient,
+      }),
+    ];
   }
 }

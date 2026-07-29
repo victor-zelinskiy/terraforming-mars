@@ -9,6 +9,7 @@ import {PlacementIllegalSpace} from '../../common/inputs/PlacementIllegalReason'
 import {SpaceId} from '../../common/Types';
 import {PlacementType} from '../boards/PlacementType';
 import {TileType} from '../../common/TileType';
+import {CardName} from '../../common/cards/CardName';
 
 export class SelectSpace extends BasePlayerInput<Space> {
   /**
@@ -59,6 +60,20 @@ export class SelectSpace extends BasePlayerInput<Space> {
   public tileType?: TileType;
 
   /**
+   * The card this placement belongs to, when there is one. It is the KEY that
+   * lets the placement preview ask the card what it will do on the cell the
+   * player is hovering — a card's own space-dependent consequence (Solar Farm's
+   * energy production per plant bonus, Mining Area's steel-or-titanium
+   * production) is invisible to the generic board explainer, which only knows
+   * the cell and the tile.
+   *
+   * Set by `createMarsSelectSpace({sourceCard})`; `PlaceTile` threads it from
+   * `tile.card` automatically, so a card that already records itself on the tile
+   * needs no change. Absent → the preview shows only the generic cell facts.
+   */
+  public sourceCard?: CardName;
+
+  /**
    * Optional cancel handler for a CANCELLABLE placement (see `placementContext`).
    * When the client submits a `CancelResponse` AND this prompt is cancellable,
    * `process` invokes this instead of placing — the pay-on-commit standard
@@ -88,6 +103,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
       hiddenTiles: this.hiddenTiles,
       placementType: this.placementType,
       tileType: this.tileType,
+      sourceCard: this.sourceCard,
     };
   }
 

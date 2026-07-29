@@ -5,6 +5,14 @@
       <board-fact-row v-for="fact in preview.costFacts" :key="fact.id" :fact="fact" />
     </div>
 
+    <!-- Risk sits directly under Cost, ABOVE the reward blocks: a forced production
+         loss or an unaffordable price must never end up below the fold of a panel
+         that now carries several more sections than it used to. -->
+    <div v-if="preview.warningFacts.length > 0" class="board-preview__section board-preview__section--risk">
+      <div class="board-preview__heading" v-i18n>Risk</div>
+      <board-fact-row v-for="fact in preview.warningFacts" :key="fact.id" :fact="fact" />
+    </div>
+
     <div v-if="preview.immediateFacts.length > 0" class="board-preview__section board-preview__section--gain">
       <div class="board-preview__heading" v-i18n>You receive</div>
       <board-fact-row v-for="fact in preview.immediateFacts" :key="fact.id" :fact="fact" />
@@ -15,14 +23,14 @@
       <board-fact-groups :facts="preview.recipientFacts" :viewerColor="viewerColor" :players="players" />
     </div>
 
+    <div v-if="progressFacts.length > 0" class="board-preview__section board-preview__section--progress">
+      <div class="board-preview__heading" v-i18n>Milestones and awards</div>
+      <board-fact-row v-for="fact in progressFacts" :key="fact.id" :fact="fact" />
+    </div>
+
     <div v-if="preview.futureScoringFacts.length > 0" class="board-preview__section board-preview__section--endgame">
       <div class="board-preview__heading" v-i18n>At game end</div>
       <board-fact-row v-for="fact in preview.futureScoringFacts" :key="fact.id" :fact="fact" />
-    </div>
-
-    <div v-if="preview.warningFacts.length > 0" class="board-preview__section board-preview__section--risk">
-      <div class="board-preview__heading" v-i18n>Risk</div>
-      <board-fact-row v-for="fact in preview.warningFacts" :key="fact.id" :fact="fact" />
     </div>
 
     <div v-if="preview.ruleFacts.length > 0" class="board-preview__section board-preview__section--rule">
@@ -36,7 +44,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
@@ -66,11 +74,16 @@ export default defineComponent({
     },
   },
   computed: {
+    /** Absent on a payload from an older server build — treat as empty. */
+    progressFacts(): ReadonlyArray<BoardFact> {
+      return this.preview.progressFacts ?? [];
+    },
     isEmpty(): boolean {
       const p = this.preview;
       return p.costFacts.length === 0 && p.immediateFacts.length === 0 &&
         p.recipientFacts.length === 0 && p.futureScoringFacts.length === 0 &&
-        p.warningFacts.length === 0 && p.ruleFacts.length === 0;
+        p.warningFacts.length === 0 && p.ruleFacts.length === 0 &&
+        this.progressFacts.length === 0;
     },
   },
 });
@@ -99,6 +112,7 @@ export default defineComponent({
 .board-preview__section--cost .board-preview__heading { color: rgba(255, 206, 146, 0.78); }
 .board-preview__section--gain .board-preview__heading { color: rgba(143, 240, 196, 0.8); }
 .board-preview__section--others .board-preview__heading { color: rgba(255, 206, 146, 0.85); }
+.board-preview__section--progress .board-preview__heading { color: rgba(186, 178, 255, 0.85); }
 .board-preview__section--endgame .board-preview__heading { color: rgba(255, 220, 138, 0.82); }
 .board-preview__section--risk .board-preview__heading { color: rgba(255, 159, 150, 0.85); }
 .board-preview__empty {

@@ -37,6 +37,7 @@ describe('BoardInformationEngine', () => {
     return [
       ...preview.costFacts, ...preview.immediateFacts, ...preview.recipientFacts,
       ...preview.warningFacts, ...preview.futureScoringFacts, ...preview.ruleFacts,
+      ...(preview.progressFacts ?? []),
     ];
   }
 

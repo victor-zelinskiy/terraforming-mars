@@ -13,7 +13,10 @@ import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {skip} from '../../inputs/optionMetadata';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {Space} from '../../boards/Space';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 export class Flooding extends Card implements IProjectCard {
   constructor() {
@@ -50,25 +53,69 @@ export class Flooding extends Card implements IProjectCard {
     });
   }
 
+  /**
+   * The owners of the adjacent tiles this ocean could take 4 M€ from — the SINGLE
+   * derivation shared by `bespokePlay` and the read-only `placementPreview`, so
+   * the panel can never name a different set than the follow-up prompt offers.
+   */
+  private adjacentOpponents(player: IPlayer, space: Space): ReadonlyArray<IPlayer> {
+    const adjacentPlayers: Set<IPlayer> = new Set();
+    player.game.board.getAdjacentSpaces(space).forEach((adjacent) => {
+      if (adjacent.player !== undefined && adjacent.player !== player && adjacent.tile !== undefined) {
+        adjacentPlayers.add(adjacent.player);
+      }
+    });
+    return Array.from(adjacentPlayers);
+  }
+
+  /**
+   * The card's whole point-of-decision: WHERE the ocean goes decides WHO can be
+   * hit for 4 M€. Without this the placement panel showed a plain ocean and the
+   * attack surfaced only as a prompt after the tile was already down.
+   */
+  public placementPreview(player: IPlayer, space: Space): ReadonlyArray<BoardFact> {
+    // Solo has no opponent to remove M€ from — `bespokePlay` skips the follow-up
+    // entirely, so there is nothing to promise here.
+    if (player.game.isSoloMode()) {
+      return [];
+    }
+    const targets = this.adjacentOpponents(player, space);
+    if (targets.length === 0) {
+      return [placementPreviews.noEffectHere(this, 'No opponent tile is adjacent',
+        {description: 'No adjacent tile belongs to another player, so no M€ can be removed.'})];
+    }
+    const facts: Array<BoardFact> = targets.map((target) => placementPreviews.gain(
+      this,
+      {icon: 'megacredits', amount: 4, direction: 'cost'},
+      'May lose 4 M€',
+      {
+        id: `card-${this.name}-attack-${target.color}`,
+        description: 'After placing, you may remove 4 M€ from the owner of one adjacent tile.',
+        recipient: {kind: 'player', color: target.color},
+        severity: 'warning',
+      }));
+    if (targets.length > 1) {
+      facts.unshift(placementPreviews.upcomingChoice(this,
+        'You choose which adjacent player loses 4 M€',
+        {id: `card-${this.name}-attack-choice`}));
+    }
+    return facts;
+  }
+
   public override bespokePlay(player: IPlayer) {
     const game = player.game;
     if (player.game.isSoloMode()) {
-      game.defer(new PlaceOceanTile(player));
+      game.defer(new PlaceOceanTile(player, {sourceCard: this.name}));
       return undefined;
     }
 
-    game.defer(new PlaceOceanTile(player)).andThen((space) => {
+    game.defer(new PlaceOceanTile(player, {sourceCard: this.name})).andThen((space) => {
       if (!space) {
         return;
       }
-      const adjacentPlayers: Set<IPlayer> = new Set();
-      game.board.getAdjacentSpaces(space).forEach((space) => {
-        if (space.player && space.player !== player && space.tile) {
-          adjacentPlayers.add(space.player);
-        }
-      });
+      const adjacentPlayers = this.adjacentOpponents(player, space);
 
-      if (adjacentPlayers.size > 0) {
+      if (adjacentPlayers.length > 0) {
         return new OrOptions(
           new SelectPlayer(
             Array.from(adjacentPlayers),

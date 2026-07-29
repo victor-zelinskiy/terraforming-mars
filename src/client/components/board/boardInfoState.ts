@@ -9,6 +9,7 @@ import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {BoardCellInfo, BoardPlacementKind, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {CardName} from '@/common/cards/CardName';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
@@ -79,11 +80,11 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   }
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}`;
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number): string | undefined {
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -103,6 +104,11 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   // The concrete tile being placed → a composite over-ocean tile's city VP.
   if (tileType !== undefined) {
     params.set('tile', String(tileType));
+  }
+  // The card driving the placement → its own space-dependent consequences
+  // (Solar Farm's energy production per plant bonus on THIS cell, …).
+  if (sourceCard !== undefined) {
+    params.set('card', sourceCard);
   }
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
@@ -165,13 +171,18 @@ export function clearBoardCellHover(spaceId: SpaceId): void {
  * Cached per (color, space, kind). Returns undefined under JSDOM / before
  * configuration; the caller falls back to no preview.
  */
-export function fetchBoardCellPreview(spaceId: SpaceId, kind: BoardPlacementKind, cleared = false, tileType?: number): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared, tileType);
+export function fetchBoardCellPreview(
+  spaceId: SpaceId,
+  kind: BoardPlacementKind,
+  cleared = false,
+  tileType?: number,
+  sourceCard?: CardName): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared, tileType);
+  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }

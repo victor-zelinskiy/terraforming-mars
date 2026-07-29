@@ -12,7 +12,10 @@ import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
 import {Size} from '../../../common/cards/render/Size';
 import {Tag} from '../../../common/cards/Tag';
 import {Phase} from '../../../common/Phase';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 // TODO(kberg): PolderTech is not yet compatible with Ares or Red City.
 export class PolderTechDutch extends CorporationCard implements ICorporationCard {
@@ -51,6 +54,7 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
     });
 
     player.game.defer(new PlaceOceanTile(player, {
+      sourceCard: this.name,
       spaces: oceanSpacesNextToGreenerySpaces,
       customReasoner: (space) => {
         // Ocean-placeable cell that isn't next to a land cell where the paired
@@ -73,6 +77,11 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
         player.defer(
           createMarsSelectSpace(player, 'Select space for greenery tile', validGreenerySpaces, {
             placementType: 'land', // ignores greenery adjacency-to-yours rule
+            // `placementType` is the ELIGIBILITY kind here, so without the tile
+            // the preview could not tell it is a greenery — and stayed mute about
+            // the oxygen/TR bump, its VP, and this corp's own +1 plant.
+            tileType: TileType.GREENERY,
+            sourceCard: this.name,
             customReasoner: (cell) => {
               // Land cell, empty, correct owner but not adjacent to the
               // just-placed ocean — that's the unique reason for this step.
@@ -120,5 +129,33 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
     if (space.tile?.tileType === TileType.GREENERY) {
       cardOwner.stock.add(Resource.PLANTS, 1, {log: true, from: {card: this}});
     }
+  }
+
+  /**
+   * Read-only mirror of `onTilePlaced`. Both early returns are mirrored as-is:
+   * only the OWNER's own placement pays, and never during World Government
+   * terraforming (the active player places the ocean, but it is not "their"
+   * placement).
+   *
+   * The live code keys on the EXACT `space.tile.tileType`, not on what the tile
+   * counts as — an Ocean City / Wetlands "counts as" an ocean but is not
+   * `TileType.OCEAN`, so it pays nothing. Mirrored with `ctx.tileType`, never
+   * with `ctx.countsAsOcean` / `ctx.countsAsGreenery`.
+   */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (cardOwner !== activePlayer) {
+      return [];
+    }
+    if (cardOwner.game.phase === Phase.SOLAR) {
+      return [];
+    }
+    const recipient = placementPreviews.recipientOf(activePlayer, cardOwner);
+    if (ctx.tileType === TileType.OCEAN) {
+      return [placementPreviews.stockChange(cardOwner, this, Resource.ENERGY, 1, 'You place an ocean tile', {recipient})];
+    }
+    if (ctx.tileType === TileType.GREENERY) {
+      return [placementPreviews.stockChange(cardOwner, this, Resource.PLANTS, 1, 'You place a greenery tile', {recipient})];
+    }
+    return [];
   }
 }

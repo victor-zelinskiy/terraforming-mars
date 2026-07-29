@@ -234,6 +234,27 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     return;
   }
 
+  // THE INFORMATION WORKSPACE (Y): the frame UNFOLDS from the left rail's
+  // seam — the workspace reads as the rail's own detail surface extending
+  // rightward, never a modal landing on top of the game. The OWN dim (the
+  // workspace opens over arbitrary band surfaces) fades in with it instead
+  // of popping, and the content composes left→right (contentCascade).
+  if (id === 'info-mode') {
+    const backdrop = el.querySelector<HTMLElement>('.con-info__backdrop');
+    guarded(el, OPEN_MS + 360, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      if (backdrop !== null) {
+        tl.fromTo(backdrop, {opacity: 0}, {opacity: 1, duration: s(200), ease: 'power1.out', clearProps: 'opacity'}, 0);
+      }
+      tl.fromTo(panel,
+        {autoAlpha: 0, x: -20 * conUiScale(), scale: 0.992, transformOrigin: '0% 38%'},
+        {autoAlpha: 1, x: 0, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(20));
+      contentCascade(id, el, tl, s(60));
+      return tl;
+    });
+    return;
+  }
+
   switch (kind) {
   case 'phase':
     enterPhase(el, panel, departure as SurfaceDeparture, done);
@@ -340,6 +361,25 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
  */
 function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline, at: number): void {
   const u = conUiScale();
+  if (id === 'info-mode') {
+    // The dossier composes FROM the rail seam: identity header first, then
+    // the detail columns spread left→right (the bot dashboard's grid blocks
+    // ride the same cue). Selector misses are silent no-ops (detail screens
+    // re-open with their own layout).
+    const head = el.querySelector<HTMLElement>('.con-info__head');
+    const cols = [...el.querySelectorAll<HTMLElement>('.con-info__col, .con-info__grid > .con-info__block')].slice(0, 8);
+    if (head !== null) {
+      tl.fromTo(head,
+        {y: -6 * u, opacity: 0},
+        {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', clearProps: 'transform,opacity'}, at);
+    }
+    if (cols.length > 0) {
+      tl.fromTo(cols,
+        {x: -12 * u, opacity: 0},
+        {x: 0, opacity: 1, duration: s(180), ease: 'power2.out', stagger: 0.035, clearProps: 'transform,opacity'}, at + s(30));
+    }
+    return;
+  }
   if (id === 'std-projects') {
     const rows = [...el.querySelectorAll<HTMLElement>('.con-stdp__card')].slice(0, 10);
     if (rows.length > 0) {
@@ -565,6 +605,28 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
           }
         }
         tl.to(panel, {autoAlpha: 0, scale: 0.975, transformOrigin: '50% 58%', duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(15));
+      }
+      return tl;
+    });
+    return;
+  }
+  // THE INFORMATION WORKSPACE dismiss: the frame returns INTO the rail seam
+  // (the reverse of its unfold) and its OWN dim fades with it — the board
+  // underneath re-emerges gradually, never in a backdrop pop.
+  if (id === 'info-mode') {
+    const backdrop = el.querySelector<HTMLElement>('.con-info__backdrop');
+    guarded(el, DISMISS_MS + 100, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      tl.to(panels, {
+        autoAlpha: 0,
+        x: -14 * conUiScale(),
+        scale: 0.994,
+        transformOrigin: '0% 40%',
+        duration: s(DISMISS_MS + 20),
+        ease: 'power2.in',
+      }, 0);
+      if (backdrop !== null) {
+        tl.to(backdrop, {opacity: 0, duration: s(DISMISS_MS + 60), ease: 'power1.in'}, 0);
       }
       return tl;
     });

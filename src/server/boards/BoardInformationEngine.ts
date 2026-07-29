@@ -7,7 +7,12 @@ import {CITY_TILES, OCEAN_TILES, GREENERY_TILES, HAZARD_TILES, TileType, tileTyp
 import {HAZARD_STEPS, hazardSeverity} from '../../common/AresTileType';
 import {CardName, baseCardName} from '../../common/cards/CardName';
 import {PlacementType} from './PlacementType';
+import {PlacementPreviewContext} from './PlacementPreviewContext';
 import {AresHandler} from '../ares/AresHandler';
+import {ICard} from '../cards/ICard';
+import {newCard} from '../createCard';
+import {Phase} from '../../common/Phase';
+import {Resource} from '../../common/Resource';
 import * as constants from '../../common/constants';
 import {
   BoardCellInfo,
@@ -113,7 +118,7 @@ export function boardCellPreview(
   player: IPlayer,
   space: Space,
   kind: BoardPlacementKind,
-  options?: {cleared?: boolean, tileType?: TileType}): BoardPlacementPreview {
+  options?: {cleared?: boolean, tileType?: TileType, sourceCard?: CardName}): BoardPlacementPreview {
   const board = player.game.board;
   const cleared = options?.cleared === true;
   const legalSpaces = cleared ? [] : legalSpacesForKind(player, kind);
@@ -121,11 +126,12 @@ export function boardCellPreview(
   // A cleared cell's tile is removed first → treat as an empty cell (grant the
   // bonus), NOT a covering placement (which suppresses it).
   const covering = Board.hasRealTile(space) && !cleared;
+  const ctx = previewContext(kind, options?.tileType, cleared, covering);
 
   const facts: Array<BoardFact> = [];
-  facts.push(...placementCostFacts(player, space, placedTileType(kind, options?.tileType)));
+  facts.push(...placementCostFacts(player, space, ctx.tileType));
   facts.push(...printedBonusFacts(space, covering));
-  facts.push(...placementEffectFacts(player, kind, options?.tileType));
+  facts.push(...placementEffectFacts(player, ctx));
   // Adjacency-dependent facts (ocean M€ + city-greenery scoring) apply ONLY on
   // the Mars hex grid — an off-grid reserved slot scores 0 for adjacency.
   if (onMarsGrid(board, space)) {
@@ -133,9 +139,16 @@ export function boardCellPreview(
     if (ocean !== undefined) {
       facts.push(ocean);
     }
-    facts.push(...placementScoringFacts(player, space, kind, options?.tileType));
+    facts.push(...placementScoringFacts(player, space, ctx));
   }
   facts.push(...aresAdjacencyFacts(player, space));
+  // What the CARD that owns this placement does about THIS cell, and what every
+  // player's tile-placement triggers pay out — the two things the cell alone
+  // can never say. Both are co-located, read-only card hooks.
+  facts.push(...sourceCardFacts(player, space, options?.sourceCard, ctx));
+  facts.push(...tileTriggerFacts(player, space, ctx));
+  facts.push(...arcadianCommunityFact(player, space, covering));
+  facts.push(...milestoneAwardFacts(player, space, ctx));
   const deflection = deflectionPlacementFact(player, space);
   if (deflection !== undefined) {
     facts.push(deflection);
@@ -484,22 +497,117 @@ function oceanNeighbourRuleFact(player: IPlayer): BoardFact {
  * card owns any effect — so keying off the exact tile (not `kind === 'ocean'`)
  * also stops the old false "ocean +1" on those.
  */
-function placementEffectFacts(player: IPlayer, kind: BoardPlacementKind, tileType: TileType | undefined): Array<BoardFact> {
+function placementEffectFacts(player: IPlayer, ctx: PlacementPreviewContext): Array<BoardFact> {
   const game = player.game;
   const out: Array<BoardFact> = [];
-  const tile = placedTileType(kind, tileType);
-  if (tile === TileType.GREENERY) {
-    if (game.getOxygenLevel() < constants.MAX_OXYGEN_LEVEL) {
-      out.push(gainFact('effect-oxygen', 'placement-effect', 'Raises oxygen', {icon: 'oxygen', amount: 1, direction: 'gain', unit: '%'}));
-      out.push(gainFact('effect-tr-oxygen', 'placement-effect', 'Terraform rating', {icon: 'tr', amount: 1, direction: 'gain'}));
-    }
-  } else if (tile === TileType.OCEAN) {
+  if (ctx.tileType === TileType.GREENERY) {
+    out.push(...oxygenRaiseFacts(player, 'effect'));
+  } else if (ctx.tileType === TileType.OCEAN) {
     if (game.canAddOcean()) {
-      out.push(gainFact('effect-ocean', 'placement-effect', 'Raises the ocean parameter', {icon: 'ocean', amount: 1, direction: 'gain'}));
-      out.push(gainFact('effect-tr-ocean', 'placement-effect', 'Terraform rating', {icon: 'tr', amount: 1, direction: 'gain'}));
+      const current = game.board.getOceanSpaces().length;
+      out.push(gainFact('effect-ocean', 'placement-effect', 'Raises the ocean parameter',
+        {icon: 'ocean', amount: 1, direction: 'gain', current, resulting: current + 1}));
+      out.push(...terraformRatingFact(player, 'effect-tr-ocean', 1));
     }
   }
   return out;
+}
+
+/**
+ * `+N TR` — suppressed during the World Government phase, which raises the
+ * parameter WITHOUT awarding terraform rating (`Game.increaseOxygenLevel` /
+ * `increaseTemperature` gate the whole rating block on `phase !== SOLAR`).
+ * Showing a TR gain that the commit won't grant is exactly the surprise this
+ * preview exists to prevent.
+ */
+function terraformRatingFact(player: IPlayer, id: string, steps: number): Array<BoardFact> {
+  if (player.game.phase === Phase.SOLAR) {
+    return [];
+  }
+  const current = player.terraformRating;
+  return [gainFact(id, 'placement-effect', 'Terraform rating',
+    {icon: 'tr', amount: steps, direction: 'gain', current, resulting: current + steps})];
+}
+
+/**
+ * Raising OXYGEN, plus the CHAIN it can set off. Crossing 8% raises the
+ * temperature for free (`Game.increaseOxygenLevel`), which can itself cross a
+ * heat-production step or the 0 °C free-ocean step. The player is about to place
+ * ONE greenery; without this they discover a second terraforming action (and a
+ * second TR) only after confirming.
+ */
+function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<BoardFact> {
+  const game = player.game;
+  const current = game.getOxygenLevel();
+  if (current >= constants.MAX_OXYGEN_LEVEL) {
+    return [];
+  }
+  const applied = Math.min(steps, constants.MAX_OXYGEN_LEVEL - current);
+  const resulting = current + applied;
+  const out: Array<BoardFact> = [
+    gainFact(`${idPrefix}-oxygen`, 'placement-effect', 'Raises oxygen',
+      {icon: 'oxygen', amount: applied, direction: 'gain', unit: '%', current, resulting}),
+    ...terraformRatingFact(player, `${idPrefix}-tr-oxygen`, applied),
+  ];
+  // The 8% bonus step. NOT gated on the solar phase — `increaseOxygenLevel`
+  // raises the temperature outside its `phase !== SOLAR` block.
+  if (current < constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS &&
+      resulting >= constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS) {
+    out.push(chainNote(`${idPrefix}-oxygen-chain`, 'Oxygen bonus step',
+      'Reaching 8% oxygen also raises the temperature one step.'));
+    out.push(...temperatureRaiseFacts(player, `${idPrefix}-oxygen-bonus`, 1));
+  }
+  return out;
+}
+
+/**
+ * Raising TEMPERATURE, plus its own bonus steps: heat production at −24 °C and
+ * −20 °C, and a FREE ocean placement at 0 °C (`Game.increaseTemperature`).
+ */
+function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<BoardFact> {
+  const game = player.game;
+  const current = game.getTemperature();
+  if (current >= constants.MAX_TEMPERATURE) {
+    return [];
+  }
+  const applied = Math.min(steps, (constants.MAX_TEMPERATURE - current) / 2);
+  const resulting = current + applied * 2;
+  const out: Array<BoardFact> = [
+    gainFact(`${idPrefix}-temperature`, 'placement-effect', 'Raises temperature',
+      {icon: 'temperature', amount: applied * 2, direction: 'gain', unit: '°C', current, resulting}),
+    ...terraformRatingFact(player, `${idPrefix}-tr-temperature`, applied),
+  ];
+  // Heat production steps are inside the `phase !== SOLAR` block upstream.
+  if (game.phase !== Phase.SOLAR) {
+    const crossed = [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2]
+      .filter((threshold) => current < threshold && resulting >= threshold).length;
+    if (crossed > 0) {
+      const heat = player.production.get(Resource.HEAT);
+      out.push({
+        ...gainFact(`${idPrefix}-temperature-heat`, 'placement-effect', 'Temperature bonus step',
+          {icon: 'heat', amount: crossed, direction: 'gain', production: true, current: heat, resulting: heat + crossed}),
+        description: 'Crossing the bonus step raises your heat production.',
+      });
+    }
+  }
+  if (current < constants.TEMPERATURE_FOR_OCEAN_BONUS && resulting >= constants.TEMPERATURE_FOR_OCEAN_BONUS && game.canAddOcean()) {
+    out.push(chainNote(`${idPrefix}-temperature-ocean`, 'Temperature bonus step',
+      'Reaching 0 °C lets you place a free ocean tile.'));
+  }
+  return out;
+}
+
+/** A quiet "and this triggers …" line that introduces a chained bonus step. */
+function chainNote(id: string, title: string, description: string): BoardFact {
+  return {
+    id,
+    category: 'placement-effect',
+    timing: 'immediate',
+    severity: 'premium',
+    recipient: {kind: 'current-player'},
+    title,
+    description,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -521,15 +629,8 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
   // Special-tile own scoring — shown SEPARATELY from (and in addition to) the
   // city-greenery rule above. Capital ALSO counts as a city, so it gets BOTH.
   const tt = space.tile?.tileType;
-  if (tt === TileType.CAPITAL && ownerColor !== undefined) {
-    const oceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
-    out.push(adjacencyVpFact('score-capital', recipientFor(player, ownerColor), oceans,
-      'Capital scores for adjacent oceans', 'Scores +1 VP per adjacent ocean at game end.', 'No adjacent oceans yet.'));
-  }
-  if (tt === TileType.COMMERCIAL_DISTRICT && ownerColor !== undefined) {
-    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace).length;
-    out.push(adjacencyVpFact('score-commercial', recipientFor(player, ownerColor), cities,
-      'Commercial District scores for adjacent cities', 'Scores +1 VP per adjacent city at game end.', 'No adjacent cities yet.'));
+  if (ownerColor !== undefined) {
+    out.push(...specialTileAdjacencyVpFacts(board, space, tt, recipientFor(player, ownerColor), 'score'));
   }
   // Neural Instance (MarsBot's Local Neural Instance): +1 VP per adjacent space
   // NOT occupied by the human — i.e. empty or holding a MarsBot tile — at game
@@ -545,6 +646,42 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
       'No qualifying adjacent spaces yet.'));
   }
   return out;
+}
+
+/**
+ * A special tile's OWN adjacency-based endgame VP — Capital scores per adjacent
+ * OCEAN, Commercial District per adjacent CITY (`victoryPoints: {oceans|cities,
+ * nextToThis}` on those cards). Shared by the hover ("what this tile scores") and
+ * the placement preview ("what it WILL score here"), so the two can never drift:
+ * before this existed, hovering a placed Capital explained its ocean VP but the
+ * preview that decided WHERE to put it said nothing.
+ */
+function specialTileAdjacencyVpFacts(
+  board: Board,
+  space: Space,
+  tileType: TileType | undefined,
+  recipient: BoardFactRecipient,
+  idPrefix: 'score' | 'place'): Array<BoardFact> {
+  const future = idPrefix === 'place';
+  if (tileType === TileType.CAPITAL) {
+    const oceans = board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length;
+    return [adjacencyVpFact(`${idPrefix}-capital`, recipient, oceans,
+      future ? 'Capital will score for adjacent oceans' : 'Capital scores for adjacent oceans',
+      future ?
+        'Scores +1 VP per adjacent ocean at game end (including oceans placed next to it later).' :
+        'Scores +1 VP per adjacent ocean at game end.',
+      'No adjacent oceans yet.')];
+  }
+  if (tileType === TileType.COMMERCIAL_DISTRICT) {
+    const cities = board.getAdjacentSpaces(space).filter(Board.isCitySpace).length;
+    return [adjacencyVpFact(`${idPrefix}-commercial`, recipient, cities,
+      future ? 'Commercial District will score for adjacent cities' : 'Commercial District scores for adjacent cities',
+      future ?
+        'Scores +1 VP per adjacent city at game end (any player\'s, including cities placed next to it later).' :
+        'Scores +1 VP per adjacent city at game end.',
+      'No adjacent cities yet.')];
+  }
+  return [];
 }
 
 /** A generic "+N VP per adjacent X" endgame fact (no +0 badge when the count is 0). */
@@ -586,18 +723,19 @@ function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: 
  * a CITY → scores for adjacent greeneries) OR Ocean Farm / Ocean Sanctuary (do
  * not). New Holland (its own kind) likewise counts as a city.
  */
-function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlacementKind, tileType?: TileType): Array<BoardFact> {
+function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
   const board = player.game.board;
   const out: Array<BoardFact> = [];
   // Scoring follows what the tile COUNTS AS, derived from the real tile identity
   // (the eligibility kind can't tell Ocean City from Ocean Farm, nor a greenery
   // placed on an ocean cell / a city placed on an isolated cell from the plain
-  // kind). `placedTileType` resolves the exact tile; the `*_TILES` sets say what
+  // kind). `previewContext` resolves the exact tile; the `*_TILES` sets say what
   // it counts as. A composite over-ocean tile that counts as a CITY scores for
   // adjacent greeneries exactly like a city.
-  const tile = placedTileType(kind, tileType);
-  const countsAsCity = tile !== undefined && CITY_TILES.has(tile);
-  const countsAsGreenery = tile !== undefined && GREENERY_TILES.has(tile);
+  const {countsAsCity, countsAsGreenery} = ctx;
+  // The tile's OWN adjacency VP (Capital / Commercial District) — the same rule
+  // the hover shows for an already-placed one.
+  out.push(...specialTileAdjacencyVpFacts(board, space, ctx.tileType, {kind: 'current-player'}, 'place'));
   if (countsAsCity) {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace).length;
     out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
@@ -623,6 +761,289 @@ function placementScoringFacts(player: IPlayer, space: Space, kind: BoardPlaceme
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Card-driven facts — the placing card + everyone's placement triggers
+// ---------------------------------------------------------------------------
+
+/** What the previewed placement will actually put down, resolved once. */
+function previewContext(
+  kind: BoardPlacementKind,
+  tileType: TileType | undefined,
+  cleared: boolean,
+  covering: boolean): PlacementPreviewContext {
+  const tile = placedTileType(kind, tileType);
+  return {
+    kind,
+    tileType: tile,
+    cleared,
+    covering,
+    countsAsCity: tile !== undefined && CITY_TILES.has(tile),
+    countsAsOcean: tile !== undefined && OCEAN_TILES.has(tile),
+    countsAsGreenery: tile !== undefined && GREENERY_TILES.has(tile),
+  };
+}
+
+/**
+ * The live card instance, so a hook sees the card's real state. A card being
+ * PLAYED right now is not in the tableau yet (its `SelectSpace` runs inside
+ * `play()`), so fall back to a fresh instance — every hook is a pure function of
+ * (player, space, ctx), so a stateless copy answers identically.
+ *
+ * A STANDARD PROJECT is never in a tableau and lives in its own manifest, which
+ * `newCard` does not search — the game's own (freshly instantiated, read-only)
+ * project list is the way to reach its hook.
+ */
+function resolveCard(player: IPlayer, name: CardName): ICard | undefined {
+  const owned = player.tableau.get(name);
+  if (owned !== undefined) {
+    return owned;
+  }
+  try {
+    return newCard(name);
+  } catch {
+    return player.game.getStandardProjects().find((project) => project.name === name);
+  }
+}
+
+/**
+ * What the card DRIVING this placement does about this particular cell — Solar
+ * Farm's energy production per plant bonus, Mining Area's steel-or-titanium
+ * production. Read-only, co-located in the card (`ICard.placementPreview`).
+ */
+function sourceCardFacts(
+  player: IPlayer,
+  space: Space,
+  sourceCard: CardName | undefined,
+  ctx: PlacementPreviewContext): Array<BoardFact> {
+  if (sourceCard === undefined) {
+    return [];
+  }
+  const card = resolveCard(player, sourceCard);
+  if (card === undefined) {
+    return [];
+  }
+  return [
+    ...placedTileAdjacencyFacts(player, card),
+    ...(card.placementPreview?.(player, space, ctx) ?? []),
+  ];
+}
+
+/**
+ * What the tile ABOUT TO BE PLACED will hand to its future neighbours (Ares) —
+ * derived GENERICALLY from the card's own declaration (`behavior.tile
+ * .adjacencyBonus`, or the `Card.adjacencyBonus` property the bespoke placers
+ * use), never a per-tile table. The mirror of `aresAdjacencySourceFacts`, which
+ * says the same thing about a tile already on the board.
+ *
+ * It matters BEFORE placing: a Nuclear Zone taxes every future neighbour 2 M€
+ * (including your own), and a bonus tile is worth more where you can still build
+ * around it.
+ */
+function placedTileAdjacencyFacts(player: IPlayer, card: ICard): Array<BoardFact> {
+  if (player.game.gameOptions.aresExtension !== true) {
+    return [];
+  }
+  const adjacency = card.behavior?.tile?.adjacencyBonus ?? card.adjacencyBonus;
+  if (adjacency === undefined) {
+    return [];
+  }
+  const out: Array<BoardFact> = [];
+  const concrete = adjacency.bonus.filter((b): b is SpaceBonus => b !== 'callback');
+  for (const [bonus, count] of countBonuses(concrete)) {
+    const d = describeSpaceBonus(bonus, count);
+    if (d.delta === undefined) {
+      continue;
+    }
+    out.push({
+      id: `place-adj-${bonus}`,
+      category: 'ares-adjacency-bonus',
+      timing: 'rule',
+      severity: 'positive',
+      recipient: {kind: 'neutral'},
+      title: 'Your tile will grant an adjacency bonus',
+      description: 'Whoever places a tile next to it gains this — and you gain M€.',
+      delta: d.delta,
+      source: {type: 'card', id: card.name, label: card.name},
+    });
+  }
+  const cost = adjacency.cost ?? 0;
+  if (cost > 0) {
+    out.push({
+      id: 'place-adj-cost',
+      category: 'ares-adjacency-bonus',
+      timing: 'rule',
+      severity: 'warning',
+      recipient: {kind: 'neutral'},
+      title: 'Your tile will impose an adjacency cost',
+      description: 'Anyone placing a tile next to it — including you — pays extra M€.',
+      delta: {icon: 'megacredits', amount: cost, direction: 'cost'},
+      source: {type: 'card', id: card.name, label: card.name},
+    });
+  }
+  return out;
+}
+
+/**
+ * What EVERY player's tile-placement triggers pay out for this placement —
+ * the read-only mirror of the `onTilePlaced` fan-out in `Game.addTile` (same
+ * `tableau` walk, same generation order). This is the block that stops a
+ * placement from quietly enriching an opponent: their Arctic Algae takes 2 plants
+ * off your ocean, their Tharsis Republic takes M€ production off your city.
+ *
+ * Facts addressed to another player are classified into "Other players receive".
+ */
+function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+  const out: Array<BoardFact> = [];
+  for (const owner of player.game.playersInGenerationOrder) {
+    for (const card of owner.tableau) {
+      const facts = card.tilePlacedPreview?.(owner, player, space, ctx);
+      if (facts !== undefined) {
+        // Namespace by owner: two players holding the same card must not collide
+        // on the fact id (the client keys its `v-for` on it).
+        out.push(...facts.map((fact) => ({...fact, id: `${owner.color}-${fact.id}`})));
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Arcadian Communities' +3 M€ for building on an area you reserved with one of
+ * its markers. It is granted by `Game.addTile` itself (not a card hook), keyed on
+ * `space.player === player`, so it belongs to the engine — and it is purely
+ * space-dependent, which makes it exactly the kind of thing the cell preview owes
+ * the player.
+ */
+function arcadianCommunityFact(player: IPlayer, space: Space, covering: boolean): Array<BoardFact> {
+  if (covering || space.player?.id !== player.id || !player.tableau.has(CardName.ARCADIAN_COMMUNITIES)) {
+    return [];
+  }
+  const current = player.stock.megacredits;
+  return [{
+    id: 'arcadian-community',
+    category: 'card-trigger',
+    timing: 'immediate',
+    severity: 'positive',
+    recipient: {kind: 'current-player'},
+    title: 'Your community area',
+    description: 'Building on an area you reserved grants M€.',
+    delta: {icon: 'megacredits', amount: 3, direction: 'gain', current, resulting: current + 3},
+    source: {type: 'card', id: CardName.ARCADIAN_COMMUNITIES, label: CardName.ARCADIAN_COMMUNITIES},
+  }];
+}
+
+// ---------------------------------------------------------------------------
+// Milestone / award progress
+// ---------------------------------------------------------------------------
+
+/**
+ * How this placement moves the player along the game's MILESTONES and AWARDS.
+ *
+ * The scores are read from the REAL `IMilestone.getScore` / `IAward.getScore`
+ * implementations — nothing here re-implements "Mayor counts cities". To ask
+ * them about a board that does not exist yet, {@link withHypotheticalTile}
+ * installs the prospective tile on the space, reads, and restores the exact
+ * fields it touched. That keeps the engine's purity contract (state is identical
+ * before and after — guarded by the purity spec) while keeping the rule single-
+ * sourced, which is the stronger invariant of the two.
+ *
+ * Only a milestone/award whose score actually MOVES is reported, and a milestone
+ * that becomes claimable is called out — a placement that completes Mayor is
+ * information the player wants before, not after.
+ */
+function milestoneAwardFacts(player: IPlayer, space: Space, ctx: PlacementPreviewContext): Array<BoardFact> {
+  const game = player.game;
+  if (ctx.tileType === undefined) {
+    return [];
+  }
+  const out: Array<BoardFact> = [];
+  const milestones = game.milestones.filter((m) => !game.milestoneClaimed(m));
+  const before = {
+    milestones: milestones.map((m) => m.getScore(player)),
+    awards: game.awards.map((a) => a.getScore(player)),
+  };
+  const after = withHypotheticalTile(player, space, ctx, () => ({
+    milestones: milestones.map((m) => m.getScore(player)),
+    awards: game.awards.map((a) => a.getScore(player)),
+  }));
+  milestones.forEach((milestone, i) => {
+    const from = before.milestones[i];
+    const to = after.milestones[i];
+    if (to <= from) {
+      return;
+    }
+    const threshold = milestone.getThreshold?.(game) ?? (milestone as {threshold?: number}).threshold;
+    const claimable = threshold !== undefined && from < threshold && to >= threshold;
+    out.push({
+      id: `milestone-${milestone.name}`,
+      category: 'milestone-progress',
+      timing: 'future',
+      severity: claimable ? 'premium' : 'info',
+      recipient: {kind: 'current-player'},
+      title: milestone.name,
+      description: claimable ? 'This placement completes the milestone' : 'Milestone progress',
+      progress: {from, to, target: threshold},
+      source: {type: 'global-rule', label: 'Milestone'},
+    });
+  });
+  game.awards.forEach((award, i) => {
+    const from = before.awards[i];
+    const to = after.awards[i];
+    if (to <= from) {
+      return;
+    }
+    out.push({
+      id: `award-${award.name}`,
+      category: 'milestone-progress',
+      timing: 'future',
+      severity: 'info',
+      recipient: {kind: 'current-player'},
+      title: award.name,
+      description: 'Award progress',
+      progress: {from, to},
+      source: {type: 'global-rule', label: 'Award'},
+    });
+  });
+  return out;
+}
+
+/**
+ * Run `read` against the board as it WOULD look with the previewed tile in place,
+ * then put the space back exactly as it was.
+ *
+ * This is the one place the engine touches a mutable field, and it is deliberate:
+ * the alternative — hand-computing "which milestones a greenery advances" — would
+ * duplicate every milestone's rule in a file that never merges with them. The
+ * three fields written here are the same three `Game.simpleAddTile` writes, they
+ * are captured before and restored in a `finally`, and NOTHING inside `read` is
+ * allowed to mutate (milestone/award `getScore` are pure counts).
+ */
+function withHypotheticalTile<T>(player: IPlayer, space: Space, ctx: PlacementPreviewContext, read: () => T): T {
+  const tile = ctx.tileType;
+  if (tile === undefined) {
+    return read();
+  }
+  const savedTile = space.tile;
+  const savedPlayer = space.player;
+  try {
+    space.tile = {tileType: tile, covers: ctx.covering ? savedTile : undefined};
+    // Mirrors `Game.simpleAddTile`: an ocean (and the two unowned special tiles)
+    // belongs to nobody, so it must NOT count towards the placer's tile awards.
+    space.player = UNOWNED_TILES.has(tile) ? undefined : player;
+    return read();
+  } finally {
+    space.tile = savedTile;
+    space.player = savedPlayer;
+  }
+}
+
+/** Tile types `Game.simpleAddTile` leaves unowned (`space.player = undefined`). */
+const UNOWNED_TILES: ReadonlySet<TileType> = new Set([
+  TileType.OCEAN,
+  TileType.MARTIAN_NATURE_WONDERS,
+  TileType.REY_SKYWALKER,
+]);
 
 // ---------------------------------------------------------------------------
 // Ares facts (adapted — inert when the module is off)
@@ -1072,11 +1493,16 @@ function classifyPlacementFacts(
     warningFacts: [],
     futureScoringFacts: [],
     ruleFacts: [],
+    progressFacts: [],
   };
   for (const fact of facts) {
     const isOther = (fact.recipient.kind === 'player' || fact.recipient.kind === 'tile-owner') &&
       fact.recipient.color !== player.color;
-    if (fact.timing === 'cost') {
+    // Milestone / award progress is its own block — it is neither an immediate
+    // gain nor endgame scoring, and burying it in either misreads the timing.
+    if (fact.category === 'milestone-progress') {
+      (preview.progressFacts as Array<BoardFact>).push(fact);
+    } else if (fact.timing === 'cost') {
       (preview.costFacts as Array<BoardFact>).push(fact);
     } else if (fact.timing === 'warning' || fact.severity === 'danger') {
       (preview.warningFacts as Array<BoardFact>).push(fact);

@@ -39,6 +39,15 @@ export type ConsoleContextSnapshot = {
 
 export const infoModeState = reactive({
   open: false,
+  /**
+   * The dismiss transition is still playing (open already false). The shell
+   * keeps the WORKSPACE stacking state (`.con-main--info`) alive on
+   * `open || closing` — dropping it at close START would trap the departing
+   * panel's z-index back at the `.con-main` level and let a band surface
+   * (sheet / task host) pop OVER the fading workspace. Cleared by the
+   * shell's after-leave hook (settleInfoModeClose) and by a re-open.
+   */
+  closing: false,
   /** Whose profile is displayed (defaults to the viewer on open). */
   playerColor: undefined as Color | undefined,
   detail: undefined as InfoDetail | undefined,
@@ -86,6 +95,7 @@ export function openInfoMode(viewer: Color, cellFocused: boolean): void {
   infoModeState.snapshot = captureConsoleSnapshot(cellFocused);
   infoModeState.playerColor = viewer;
   infoModeState.detail = undefined;
+  infoModeState.closing = false; // a re-open mid-dismiss reclaims the stage
   infoModeState.open = true;
 }
 
@@ -93,9 +103,15 @@ export function openInfoMode(viewer: Color, cellFocused: boolean): void {
 export function closeInfoMode(): ConsoleContextSnapshot | undefined {
   const snap = infoModeState.snapshot;
   infoModeState.open = false;
+  infoModeState.closing = true;
   infoModeState.detail = undefined;
   infoModeState.snapshot = undefined;
   return snap;
+}
+
+/** The dismiss transition finished — release the workspace stacking state. */
+export function settleInfoModeClose(): void {
+  infoModeState.closing = false;
 }
 
 /** PURE: cycle the viewed player. */

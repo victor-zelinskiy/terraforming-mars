@@ -7,7 +7,7 @@ import {Resource} from '../../../common/Resource';
 import {CardResource} from '../../../common/CardResource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardRenderer} from '../render/CardRenderer';
-import {SurveyCard} from './SurveyCard';
+import {SurveyBonus, SurveyCard} from './SurveyCard';
 import {all} from '../Options';
 
 export class EcologicalSurvey extends SurveyCard {
@@ -36,5 +36,14 @@ export class EcologicalSurvey extends SurveyCard {
     super.maybeRewardStandardResource(cardOwner, space, Resource.PLANTS, SpaceBonus.PLANT);
     super.maybeRewardCardResource(cardOwner, space, CardResource.MICROBE, SpaceBonus.MICROBE);
     super.maybeRewardCardResource(cardOwner, space, CardResource.ANIMAL, SpaceBonus.ANIMAL);
+  }
+
+  /** The same three pairs `checkForBonuses` tests, in the same order. */
+  protected previewBonuses(): ReadonlyArray<SurveyBonus> {
+    return [
+      {kind: 'stock', resource: Resource.PLANTS, bonus: SpaceBonus.PLANT},
+      {kind: 'card', resource: CardResource.MICROBE, bonus: SpaceBonus.MICROBE},
+      {kind: 'card', resource: CardResource.ANIMAL, bonus: SpaceBonus.ANIMAL},
+    ];
   }
 }

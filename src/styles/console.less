@@ -1252,8 +1252,13 @@ html.con-profile-handheld .con-terracere {
     flex: 1;
     min-height: 0;
     display: flex;
+    /* ONE source for the rail↔workspace seam geometry: the rail's width and
+       the Information Workspace's left edge derive from these tokens (the
+       display profiles override THEM — never a per-surface constant). */
+    --con-rail-w: 9.1rem;
+    --con-main-gap: .6rem;
     /* P29c: tighter side chrome — every saved px goes to the board scale. */
-    gap: .6rem;
+    gap: var(--con-main-gap);
     /* The console journal is an ABSOLUTE overlay anchored to this box —
        it may overlap the board, the board never reflows for it. */
     position: relative;
@@ -1281,6 +1286,42 @@ html.con-profile-handheld .con-terracere {
     z-index: auto;
 }
 
+/* The INFORMATION WORKSPACE (Y) is open (or still dismissing): the trap
+   drops so the workspace child (`.con-info`, z11560) and the ELEVATED rail
+   (z11561) compete at the root level — above every band surface (sheets /
+   composers / task host at 11480+) and above the workspace's own full dim,
+   exactly the layering the old fixed modal had. The status strip / footer
+   (11700+) and the fallback/cinematic layers (11720+) stay above both. */
+.con-main--info {
+    z-index: auto;
+
+    .con-res-host {
+        z-index: 11561;
+    }
+    /* The rail is the workspace's SUMMARY half — the inspected player's
+       accent ring binds it to the panel across the seam. Functional state
+       rides box-shadow (perf-lite keeps it); the color recolors through the
+       con-insp-* tokens below with the .con-res transition. */
+    .con-res {
+        box-shadow: inset 0 0 0 .07rem var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
+            0 .4rem 1.6rem rgba(0, 0, 0, 0.5),
+            0 0 1.4rem var(--con-insp-accent-faint, rgba(0, 0, 0, 0));
+    }
+}
+
+/* The inspected player's ACCENT tokens — the shell publishes
+   `con-insp-<color>` on .con-main next to `--info`; both sides of the
+   rail↔workspace seam consume them (the rail ring above, the frame's left
+   edge + header underline in .con-info). */
+each(@players, {
+    @c: ~"player_@{value}";
+    .con-main.con-insp-@{value} {
+        --con-insp-accent: @@c;
+        --con-insp-accent-soft: fade(@@c, 55%);
+        --con-insp-accent-faint: fade(@@c, 18%);
+    }
+})
+
 /* ── Resource + tag panel (left rail — never hide the key numbers) ──
    The rail and its right-hand ДОП.РЕСУРСЫ satellite share ONE set of row
    metrics (`--cr-*` on the host) so each card-resource cell renders at the
@@ -1303,7 +1344,7 @@ html.con-profile-handheld .con-terracere {
 }
 .con-res {
     flex-shrink: 0;
-    width: 9.1rem;
+    width: var(--con-rail-w, 9.1rem); /* seam token — see .con-main */
     align-self: stretch;  /* fill the host (stretched to con-main height) */
     display: flex;
     flex-direction: column;
@@ -1312,6 +1353,9 @@ html.con-profile-handheld .con-terracere {
     border-radius: .6rem;
     background: @con-glass-soft;
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    /* The Information-Workspace accent ring (.con-main--info) recolors per
+       inspected player — a short ride keeps the seam change composed. */
+    transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
     overflow-y: auto;
 
     &__rows {
@@ -7620,35 +7664,51 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── LT INFORMATION MODE ─────────────────────────────────────────── */
+/* ── THE INFORMATION WORKSPACE (Y) ───────────────────────────────────
+   No longer a centered modal: an ABSOLUTE child of `.con-main--info`
+   filling everything RIGHT of the left rail, between the top HUD and the
+   bottom command bar (.con-main IS that box — the flex column places it
+   between the two bars on every display profile). The left edge derives
+   from the SAME seam tokens as the rail width (--con-rail-w /
+   --con-main-gap on .con-main) — never a per-resolution constant. The
+   rail stays visible at z11561 as the mode's SUMMARY half; this surface
+   carries only the DETAIL the rail cannot. */
 .con-info {
-    /* THE MODAL BAND: the frame stretches between the bars — its header used
-       to sit under the top HUD strip and its footer row under the bar. */
-    .con-modal-band();
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: calc(var(--con-rail-w, 9.1rem) + var(--con-main-gap, .6rem));
     z-index: 11560;
     display: flex;
     align-items: stretch;
-    justify-content: center;
-    padding: .2rem 3vw;
 
     &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
+        position: fixed; /* full-viewport dim under the bars + the rail */
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
     &__frame {
         position: relative;
         flex: 1;
-        max-width: 78rem;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         gap: .6rem;
-        padding: .9rem 1.3rem .6rem;
+        padding: .9rem 1.3rem .6rem 1.5rem;
         border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65);
+        /* Denser than @con-glass: the workspace covers LIVE surfaces (the
+           right dashboard, band sheets) — at 0.92 their bright rows ghosted
+           through the pane. Near-opaque body, same glass family. */
+        background: rgba(6, 11, 18, 0.97);
+        /* The left inset bar is the workspace half of the rail↔panel seam —
+           the same inspected-player accent as the rail's ring. */
+        box-shadow: inset .18rem 0 0 var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
+            inset 0 0 0 .05rem fade(@con-cyan, 30%),
+            0 1.2rem 4rem rgba(0, 0, 0, 0.65);
+        transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
         /* Entry moved to the surface-motion director (the own dim stays —
-           Info Mode opens OVER arbitrary surfaces, above the shade). */
+           the workspace opens OVER arbitrary surfaces, above the shade). */
     }
 
     &__head {
@@ -7657,13 +7717,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         justify-content: space-between;
         gap: 1rem;
         padding-bottom: .6rem;
-        border-bottom: .05rem solid fade(@con-cyan, 22%);
+        /* Delicate player-context underline — the accent, not a banner. */
+        border-bottom: .05rem solid var(--con-insp-accent-faint, fade(@con-cyan, 22%));
+        transition: border-color calc(200ms * var(--motion-scale, 1)) ease;
     }
     &__who {
         display: flex;
         align-items: center;
         gap: .6rem;
         .con-status__dot { width: .9rem; height: .9rem; }
+    }
+    /* The identity zone (dot + name + state chips) — the directional
+       LB/RB recompose target (data-insp-slide, inspectSwitchMotion). */
+    &__ident {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
     }
     &__bumper .gp-glyph { min-width: 1.7rem; }
     &__name {
@@ -7683,6 +7753,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--turn { background: fade(@con-mint, 14%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); color: @con-mint; }
         &--passed { background: rgba(120, 140, 160, 0.14); box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.4); color: @con-text-dim; }
     }
+    /* Corp / participant meta only — the TR / VP totals live on the RAIL's
+       score cap now (the workspace never repeats the rail's summary). */
     &__head-meta {
         display: flex;
         align-items: center;
@@ -7690,15 +7762,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-size: 1.05rem;
     }
     &__corp { color: @con-text-dim; }
-    &__tr { font-weight: 700; }
-    &__vp { font-weight: 700; color: @con-mint; }
-    &__close-hint {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: @con-text-dim;
-        font-size: .9rem;
-    }
 
     /* FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the shared
        chrome-less DISPLAY-scroll utility for read-only info surfaces (Info Mode
@@ -7710,20 +7773,40 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-height: 0;
         .con-scrollbars();
     }
+    /* The MarsBot dashboard keeps the block GRID (its section count varies
+       with the expansion context); capped column width so the blocks stay
+       couch-readable instead of stretching across the whole workspace. */
     &__grid {
         flex: 1;
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 24rem));
+        justify-content: start;
         gap: .7rem;
         align-content: start;
+    }
+    /* The human dashboard: three calm COLUMNS of detail blocks (VP story ·
+       availability · card resources). Fixed comfortable widths — leftover
+       workspace width stays as breathing room, never stretched rows. */
+    &__cols {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: .8rem;
+    }
+    &__col {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 24rem;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
     }
     &__block {
         padding: .7rem .9rem;
         border-radius: .5rem;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-
-        &--resources { grid-column: span 2; }
     }
     &__block-title {
         display: flex;
@@ -7765,19 +7848,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-weight: 700;
         min-width: 2.1rem;
     }
-    &__res-legend {
-        margin-top: .5rem;
-        font-size: .75rem;
-        letter-spacing: .03rem;
-        color: @con-text-dim;
-    }
-    &__res-legend-prod { color: #ffd9ab; }
-    &__tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .5rem .6rem;
-        zoom: calc(1.35 * var(--con-ui-scale, 1));
-    }
     &__extras {
         display: flex;
         flex-wrap: wrap;
@@ -7814,6 +7884,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         b { color: @con-text; font-size: 1.1rem; }
     }
+    /* The VP total row — rendered ONLY while the rail masks the own score
+       (the «Приватный счёт» pref); everywhere else the total's home is the
+       rail's score cap. */
+    &__stat-line--total {
+        padding-bottom: .35rem;
+        margin-bottom: .15rem;
+        border-bottom: .05rem solid fade(@con-cyan, 18%);
+
+        b { color: @con-mint; }
+    }
     &__mint { color: @con-mint !important; }
     &__note {
         margin-top: .5rem;
@@ -7839,13 +7919,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-text-dim;
         font-size: .95rem;
     }
-    &__vp-total {
-        font-size: 2.1rem;
-        font-weight: 700;
-        color: @con-mint;
-        margin-bottom: .4rem;
-    }
-
     /* details */
     &__detail {
         flex: 1;
@@ -7980,12 +8053,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         /* Read-only: the reused desktop effect blocks are display-only here. */
         pointer-events: none;
     }
-    &__vp-hero {
-        font-size: 2.6rem;
-        font-weight: 700;
-        color: @con-mint;
-        text-align: center;
-        span { font-size: 1.3rem; color: @con-text-dim; }
+    /* The VP-detail total strip — only while the rail masks the own score
+       (see &__stat-line--total); the breakdown itself is the content. */
+    &__vp-totalrow {
+        font-size: 1.05rem;
+        color: @con-text-dim;
+
+        b { color: @con-mint; font-size: 1.3rem; margin-left: .4rem; }
     }
     &__vpscale {
         padding: .6rem .8rem;
@@ -8014,23 +8088,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         padding: .6rem .8rem;
         border-radius: .5rem;
         background: rgba(14, 22, 33, 0.55);
-    }
-
-    &__foot {
-        display: flex;
-        justify-content: center;
-        gap: 1.3rem;
-        padding-top: .5rem;
-        border-top: .05rem solid fade(@con-cyan, 18%);
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: @con-text-dim;
-        font-size: .9rem;
-
-        &--off { opacity: 0.4; }
     }
 }
 
@@ -15347,7 +15404,9 @@ html.con-profile-handheld {
 
     /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
     .con-root { padding: 0.6vh 0.7vw; gap: .25rem; }
-    .con-main { gap: .4rem; }
+    /* The seam TOKENS (not bare gap/width) — the Information Workspace's
+       left edge derives from them next to the rail; see .con-main. */
+    .con-main { --con-main-gap: .4rem; --con-rail-w: 7.3rem; }
     .con-status {
         gap: .6rem;
         padding: .2rem .6rem;
@@ -15501,9 +15560,8 @@ html.con-profile-handheld {
         --cr-panel-gap: .4rem;
         --cr-score-h: 1.95rem;
     }
+    /* (width rides --con-rail-w — set in the root-chrome block above.) */
     .con-res {
-        width: 7.3rem;
-
         &__row { gap: .35rem; padding: var(--cr-row-py) .35rem; }
         &__value { font-size: .85rem; }
         &__prod { font-size: .6rem; }
@@ -15540,11 +15598,16 @@ html.con-profile-handheld {
     .con-quick__slot-body { padding: .5rem .7rem .45rem; }
     .con-quick__slot-label { font-size: .85rem; }
 
-    /* ── 7 · LT Information Mode ─────────────────────────────────── */
+    /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
-        padding: 1vh 1.4vw;
-
-        &__grid { gap: .5rem; }
+        &__frame { padding: .6rem .8rem .5rem 1rem; gap: .45rem; }
+        &__name { font-size: 1.15rem; }
+        &__head { padding-bottom: .4rem; }
+        &__grid { gap: .5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        /* The Deck's tighter budget: columns share the width evenly (no cap)
+           so three still fit without horizontal scroll. */
+        &__cols { gap: .5rem; }
+        &__col { max-width: none; gap: .5rem; }
         &__block { padding: .5rem .6rem; }
         &__block-title { font-size: .65rem; margin-bottom: .4rem; }
         &__excards { gap: .6rem; }

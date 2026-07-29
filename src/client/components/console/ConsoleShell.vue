@@ -84,11 +84,26 @@
          stacking trap so the hand's status rail (z11711) competes at the ROOT
          level and paints ABOVE the reveal flight stage (11645) + the dock
          furniture — flights dive BEHIND the rail, never over its text. -->
-    <div class="con-main" :class="{'con-main--journal': journalPanelVisible, 'con-main--hand': consoleState.section === 'hand'}">
-      <ConsoleResourcePanel :player="thisPlayer" :epoch="playerView.runId"
+    <!-- `--info`: the INFORMATION WORKSPACE (Y) lives INSIDE .con-main (an
+         absolute child right of the rail) — the z-index:1 trap drops so the
+         workspace (11560) and the elevated rail (11561) compete at the ROOT
+         level, above every band surface and the workspace's own dim. Held
+         through the dismiss transition (infoModeState.closing) or a band
+         surface would pop OVER the fading panel. The `con-insp-*` accent
+         class publishes the inspected player's color tokens to BOTH sides
+         of the rail↔workspace seam. -->
+    <div class="con-main" :class="conMainClasses">
+      <!-- The rail is the Information Workspace's SUMMARY half: while the
+           mode is open its player context is OVERRIDDEN to the inspected
+           player (ONE source: infoModeState.playerColor) — TR / VP /
+           resources / production / tags all re-read there. Read-only: the
+           override never touches gameplay state or submissions. -->
+      <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
-                            :convertPlants="convertPlantsReady" :convertHeat="convertHeatReady"
-                            :boardVisible="consoleState.section === 'board'" />
+                            :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
+                            :boardVisible="consoleState.section === 'board' && !infoModeState.open"
+                            :own="railShowsSelf"
+                            :vpHidden="railVpHidden" />
       <!-- v-show (NOT v-if): the board must stay in the DOM — the headless
            SelectSpace attaches placement handlers to its cells. -->
       <ConsoleBoardSection v-show="consoleState.section === 'board'"
@@ -182,17 +197,21 @@
                              @confirm="submitHydroAdvance($event)"
                              @close="consoleState.section = 'board'" />
       </transition>
-    </div>
 
-    <!-- LT INFORMATION MODE — read-only player dashboard over everything
-         console (fallback surfaces still render above at z12000+).
-         Surface-motion: frame open/dismiss via the director (its own full
-         dim stays — it opens OVER arbitrary surfaces, above the shade). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
-    </transition>
+      <!-- THE INFORMATION WORKSPACE (Y) — read-only dossier of the inspected
+           player, an ABSOLUTE child of .con-main filling everything right of
+           the rail between the two bars (fallback surfaces still render
+           above at z12000+). Surface-motion: the frame materializes from /
+           returns to the rail seam via the director; its own full dim stays
+           (it opens OVER arbitrary band surfaces, above the shade).
+           after-leave releases the `--info` stacking state (see conMainClasses). -->
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @after-leave="onInfoModeLeaveSettled"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
+      </transition>
+    </div>
 
     <!-- Colony trade — the console-native pre-select COMPOSER (payment path +
          M€ mix + track choice + card targets + the live «Итог торговли»);
@@ -896,7 +915,7 @@
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
 import {defineComponent, PropType} from 'vue';
-import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -1114,7 +1133,8 @@ import {
   optionResponseForPath,
   wrapPath,
 } from '@/client/console/turnIntents';
-import {infoModeState, openInfoMode, closeInfoMode, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
+import {infoModeState, openInfoMode, closeInfoMode, settleInfoModeClose, restoreConsoleSnapshot, cyclePlayer, InfoDetail} from '@/client/console/infoModeState';
+import {playInspectedSwitchMotion, playInspectedReturnMotion} from '@/client/console/inspectSwitchMotion';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {boardInfoState, configureBoardInfo, fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
@@ -2292,7 +2312,7 @@ export default defineComponent({
         return '';
       }
       const cleared = (prompt.hiddenTiles ?? []).includes(id as SpaceId) ? 'c' : '';
-      return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}`;
+      return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}|${prompt.sourceCard ?? ''}`;
     },
     placementTitle(): string {
       const t = this.placementSpaceModel?.title;
@@ -2885,6 +2905,53 @@ export default defineComponent({
     infoVpVisible(): boolean {
       const color = infoModeState.playerColor;
       return color === this.thisPlayer.color || this.game.gameOptions.showOtherPlayersVP === true;
+    },
+    /**
+     * The INSPECTED player of the Information Workspace — a VIEW-ONLY
+     * context (never the acting/local player; gameplay code must never read
+     * it). One source: infoModeState.playerColor; a vanished color (player
+     * left / stale state) degrades to the viewer's own seat.
+     */
+    inspectedPlayer(): PublicPlayerModel {
+      const color = this.infoModeState.playerColor;
+      return this.playerView.players.find((p) => p.color === color) ?? this.thisPlayer;
+    },
+    /**
+     * The seat the LEFT RAIL displays: the inspected player while the
+     * Information Workspace is open, the viewer's own seat otherwise. The
+     * flip is ATOMIC with `open` — closing restores the own context in the
+     * same render pass (no flash of the previously inspected player).
+     */
+    railPlayer(): PublicPlayerModel {
+      return this.infoModeState.open ? this.inspectedPlayer : this.thisPlayer;
+    },
+    railShowsSelf(): boolean {
+      return this.railPlayer.color === this.thisPlayer.color;
+    },
+    /** The game rule hides opponents' scores → the rail masks the VP cell
+     *  while an opponent is inspected (same gate as the panel's vpVisible). */
+    railVpHidden(): boolean {
+      return !this.railShowsSelf && this.game.gameOptions.showOtherPlayersVP !== true;
+    },
+    /** `--info` must persist through the CLOSING transition — see the
+     *  template note and infoModeState.closing. */
+    infoWorkspaceUp(): boolean {
+      return this.infoModeState.open || this.infoModeState.closing;
+    },
+    conMainClasses(): Record<string, boolean> {
+      const classes: Record<string, boolean> = {
+        'con-main--journal': this.journalPanelVisible,
+        'con-main--hand': this.consoleState.section === 'hand',
+        'con-main--info': this.infoWorkspaceUp,
+      };
+      // The inspected player's ACCENT tokens (--con-insp-accent*) — consumed
+      // by the rail ring and the workspace seam. Follows `open` (not the
+      // closing tail): the rail returns to its neutral chrome the moment the
+      // context comes home; the fading workspace falls back to cyan.
+      if (this.infoModeState.open) {
+        classes[`con-insp-${this.railPlayer.color}`] = true;
+      }
+      return classes;
     },
     // ── the RT / LT quick selectors (P27 — direct-input command layers) ──
     quickEntries(): Array<QuickEntry> {
@@ -4564,7 +4631,7 @@ export default defineComponent({
       }
       const spaceId = id as SpaceId;
       const cleared = (prompt.hiddenTiles ?? []).includes(spaceId);
-      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType).then((preview) => {
+      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard).then((preview) => {
         if (token === this.cellPreviewToken) {
           this.cellPreview = preview;
         }
@@ -5038,9 +5105,11 @@ export default defineComponent({
       }
       return this.handleSectionIntent(intent);
     },
-    // ── Information Mode (read-only; never submits; Y toggles — P27) ────
+    // ── Information Workspace (read-only; never submits; Y toggles) ─────
     toggleInfoMode(): void {
       if (this.infoModeState.open) {
+        const wasInspectingOther = this.infoModeState.playerColor !== undefined &&
+          this.infoModeState.playerColor !== this.thisPlayer.color;
         const snap = closeInfoMode();
         if (snap !== undefined) {
           // The snapshot's cell-focus flag maps onto INSPECTION MODE (P27).
@@ -5052,24 +5121,49 @@ export default defineComponent({
           this.consoleState.section = 'board';
           this.consoleState.inspecting = false;
         }
+        // The rail atomically returned to the viewer's own seat (railPlayer
+        // follows `open`) — a soft settle dip acknowledges the context
+        // coming home while the workspace departs. Only when it actually
+        // changes seats (closing on the own dossier stays perfectly still).
+        if (wasInspectingOther) {
+          playInspectedReturnMotion();
+        }
         return;
       }
       this.consoleState.quick = undefined;
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
+    },
+    /** after-leave of the workspace's dismiss transition — release the
+     *  `--info` stacking state (kept alive through the fade; see the
+     *  conMainClasses note). */
+    onInfoModeLeaveSettled(): void {
+      settleInfoModeClose();
+    },
+    /** LB/RB inside the workspace: ONE state flip (rail + panel read the
+     *  same inspected color) + the directional switch beat. Rapid presses
+     *  coalesce — the state lands on the final player instantly, the motion
+     *  restarts from live values (inspectSwitchMotion kills the old tween). */
+    cycleInspectedPlayer(step: 1 | -1): void {
+      const colors = this.playerView.players.map((p) => p.color);
+      const before = this.infoModeState.playerColor;
+      this.infoModeState.playerColor = cyclePlayer(colors, before, step);
+      this.reconcileInfoDetail();
+      if (this.infoModeState.playerColor !== before) {
+        playInspectedSwitchMotion(step);
+      }
     },
     handleInfoIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         // d-pad up/down scrolls the visible info surface.
         const scroller = document.querySelector<HTMLElement>('.con-info__scroll');
         if (scroller !== null && (intent.dir === 'up' || intent.dir === 'down')) {
-          scroller.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
+          scroller.scrollBy({top: (intent.dir === 'down' ? 140 : -140) * conUiScale(), behavior: 'smooth'});
         }
         return;
       }
       if (intent.kind !== 'press') {
         return;
       }
-      const colors = this.playerView.players.map((p) => p.color);
       // The MarsBot participant swaps the hotkey details: its printed board /
       // played pile / bonus piles replace the human extras/actions/effects
       // (which don't exist for the Automa). Same buttons, same flow.
@@ -5077,12 +5171,10 @@ export default defineComponent({
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       switch (consoleActionOf(intent)) {
       case 'prevSection':
-        this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, -1);
-        this.reconcileInfoDetail();
+        this.cycleInspectedPlayer(-1);
         break;
       case 'nextSection':
-        this.infoModeState.playerColor = cyclePlayer(colors, this.infoModeState.playerColor, 1);
-        this.reconcileInfoDetail();
+        this.cycleInspectedPlayer(1);
         break;
       case 'inspect':
         this.openInfoDetail(viewedIsBot ? 'botBoard' : 'extras');

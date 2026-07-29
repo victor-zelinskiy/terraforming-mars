@@ -11,7 +11,17 @@ import {CardRenderer} from '../render/CardRenderer';
 import {message} from '../../logs/MessageBuilder';
 import {Units} from '../../../common/Units';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {AdjacencyBonus} from '../../ares/AdjacencyBonus';
+import {Space} from '../../boards/Space';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {Resource} from '../../../common/Resource';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
+
+/** The adjacency bonus this tile hands to future neighbours (2 energy). Declared
+ *  on the card so BOTH the live placement and the read-only preview read the SAME
+ *  value — the preview derives it generically from `Card.adjacencyBonus`. */
+const SOLAR_FARM_ADJACENCY: AdjacencyBonus = {bonus: [SpaceBonus.ENERGY, SpaceBonus.ENERGY]};
 
 export class SolarFarm extends Card implements IProjectCard {
   constructor() {
@@ -20,6 +30,7 @@ export class SolarFarm extends Card implements IProjectCard {
       name: CardName.SOLAR_FARM,
       tags: [Tag.POWER, Tag.BUILDING],
       cost: 12,
+      adjacencyBonus: SOLAR_FARM_ADJACENCY,
 
       metadata: {
         cardNumber: 'A17',
@@ -41,13 +52,18 @@ export class SolarFarm extends Card implements IProjectCard {
     return player.game.board.getAvailableSpacesOnLand(player, canAffordOptions).length > 0;
   }
 
+  /** Energy production granted for a space — one step per PLANT bonus printed on
+   *  it. The single rule source, shared by the live play and the preview. */
+  private energyFor(space: Space): number {
+    return space.bonus.filter((b) => b === SpaceBonus.PLANT).length;
+  }
+
   public productionBox(player: IPlayer) {
     const space = player.game.board.getSpaceByTileCard(this.name);
     if (space === undefined) {
       throw new Error('Solar Farm space not found');
     }
-    const plantsOnSpace = space.bonus.filter((b) => b === SpaceBonus.PLANT).length;
-    return Units.of({energy: plantsOnSpace});
+    return Units.of({energy: this.energyFor(space)});
   }
 
   public override bespokePlay(player: IPlayer) {
@@ -56,7 +72,7 @@ export class SolarFarm extends Card implements IProjectCard {
         tile: {tileType: TileType.SOLAR_FARM, card: this.name},
         on: 'land',
         title: message('Select space for ${0} tile', (b) => b.card(this)),
-        adjacencyBonus: {bonus: [SpaceBonus.ENERGY, SpaceBonus.ENERGY]},
+        adjacencyBonus: SOLAR_FARM_ADJACENCY,
       }).andThen(() => {
         player.production.adjust(this.productionBox(player), {log: true});
       }));
@@ -65,5 +81,23 @@ export class SolarFarm extends Card implements IProjectCard {
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
     return actionPreviews.placementPreview(this, player, {tile: TileType.SOLAR_FARM});
+  }
+
+  /**
+   * The whole point of choosing a space for this card: the energy production is
+   * the number of PLANT bonuses the area prints (0, 1 or 2). Without this the
+   * placement panel showed only "cell bonus +2 plants" and the player learned the
+   * production — the card's actual payload — after committing.
+   */
+  public placementPreview(player: IPlayer, space: Space): ReadonlyArray<BoardFact> {
+    const energy = this.energyFor(space);
+    if (energy === 0) {
+      return [placementPreviews.noEffectHere(this,
+        'No plant bonus on this area — no energy production',
+        {description: 'This card raises energy production by 1 per plant bonus on the chosen area.'})];
+    }
+    return [placementPreviews.productionChange(player, this, Resource.ENERGY, energy,
+      'Energy production from the area\'s plant bonuses',
+      {description: '+1 step per plant bonus printed on the chosen area.'})];
   }
 }

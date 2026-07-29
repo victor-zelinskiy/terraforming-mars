@@ -40,6 +40,9 @@ export class PlaceTile extends DeferredAction<Space> {
       // The concrete tile lets the preview show a composite over-ocean tile's
       // city VP (Ocean City / New Holland) — the placement type alone can't.
       tileType: this.options.tile.tileType,
+      // Every card that records itself on the tile (`tile.card`) gets the
+      // card-aware placement preview for free — no per-card wiring.
+      sourceCard: this.options.tile.card,
       customReasoner: this.options.customReasoner,
     })
       .andThen((space: Space) => {

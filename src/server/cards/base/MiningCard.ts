@@ -15,8 +15,10 @@ import {TileType} from '../../../common/TileType';
 import {SelectResourceTypeDeferred} from '../../deferredActions/SelectResourceTypeDeferred';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 export abstract class MiningCard extends Card implements IProjectCard {
   public bonusResource: Array<Resource> | undefined;
@@ -70,6 +72,43 @@ export abstract class MiningCard extends Card implements IProjectCard {
     });
   }
 
+  /** The bonus resources the chosen area offers — the SAME derivation
+   *  `spaceSelected` uses to build the production choice. */
+  private bonusResourcesFor(space: Space): Array<Resource> {
+    const out: Array<Resource> = [];
+    if (space.bonus.includes(SpaceBonus.STEEL)) {
+      out.push(Resource.STEEL);
+    }
+    if (space.bonus.includes(SpaceBonus.TITANIUM)) {
+      out.push(Resource.TITANIUM);
+    }
+    return out;
+  }
+
+  /**
+   * WHICH production this card raises is decided by the area — that is the whole
+   * choice the player is making. The generic cell preview only shows the one-off
+   * steel/titanium the cell prints; the PERMANENT production step (and, on an
+   * area printing both, the fact that a follow-up asks which one) lives here.
+   */
+  public placementPreview(player: IPlayer, space: Space): ReadonlyArray<BoardFact> {
+    const resources = this.bonusResourcesFor(space);
+    if (resources.length === 0) {
+      // Not reachable through the card's own legal set, but a hovered ILLEGAL
+      // cell reaches the preview too — say why it is worth nothing here.
+      return [placementPreviews.noEffectHere(this, 'No steel or titanium bonus on this area')];
+    }
+    if (resources.length === 1) {
+      return [placementPreviews.productionChange(player, this, resources[0], 1,
+        'Production from the area\'s bonus')];
+    }
+    return [
+      placementPreviews.upcomingChoice(this, 'This area prints both — you choose which production to raise'),
+      placementPreviews.productionChange(player, this, Resource.STEEL, 1, 'If you choose steel'),
+      placementPreviews.productionChange(player, this, Resource.TITANIUM, 1, 'If you choose titanium'),
+    ];
+  }
+
   private getAdjacencyBonus(bonusType: SpaceBonus): AdjacencyBonus | undefined {
     if (this.isAres) {
       return {bonus: [bonusType]};
@@ -106,6 +145,9 @@ export abstract class MiningCard extends Card implements IProjectCard {
     const placeable = new Set(player.game.board.getAvailableSpacesOnLand(player).map((s) => s.id));
     return createMarsSelectSpace(player, this.title, this.getAvailableSpaces(player), {
       placementType: 'land',
+      // The tile is placed bespoke (after the steel/titanium choice), so nothing
+      // else can tell the preview which card is asking.
+      sourceCard: this.name,
       customReasoner: (space) => {
         // 'wrong-bonus-type' ONLY for a genuinely placeable land cell (not
         // reserved / occupied / ocean — those fall through to generic) that

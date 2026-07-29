@@ -11,6 +11,9 @@ import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import {Board} from '../../boards/Board';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class Herbivores extends Card implements IProjectCard {
   constructor() {
@@ -51,5 +54,15 @@ export class Herbivores extends Card implements IProjectCard {
     if (cardOwner.id === activePlayer.id && Board.isGreenerySpace(space)) {
       cardOwner.game.defer(new AddResourcesToCard(cardOwner, CardResource.ANIMAL, {filter: (c) => c.name === this.name}));
     }
+  }
+
+  /** Mirrors `onTilePlaced`: only the OWNER's own greenery feeds the herd. */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (cardOwner.id !== activePlayer.id || !ctx.countsAsGreenery) {
+      return [];
+    }
+    return [placementPreviews.cardResourceGain(this, CardResource.ANIMAL, 1, 'Greenery placed by you', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

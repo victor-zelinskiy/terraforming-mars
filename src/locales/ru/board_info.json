@@ -120,5 +120,78 @@
   "Disables your protection from plant destruction (a tile outside the zone).": "Отключает вашу защиту от уничтожения растений (тайл вне зоны).",
 
   "External area": "Внешняя область",
-  "This tile is outside the normal Mars surface. Normal Mars adjacency does not apply.": "Этот тайл находится вне обычной поверхности Марса. Обычное соседство на Марсе не применяется."
+  "This tile is outside the normal Mars surface. Normal Mars adjacency does not apply.": "Этот тайл находится вне обычной поверхности Марса. Обычное соседство на Марсе не применяется.",
+
+  "Raises temperature": "Повышает температуру",
+  "Oxygen bonus step": "Бонусная отметка кислорода",
+  "Reaching 8% oxygen also raises the temperature one step.": "Достижение 8% кислорода дополнительно повышает температуру на 1 шаг.",
+  "Temperature bonus step": "Бонусная отметка температуры",
+  "Crossing the bonus step raises your heat production.": "Прохождение бонусной отметки повышает ваше производство тепла.",
+  "Reaching 0 °C lets you place a free ocean tile.": "Достижение 0 °C позволяет бесплатно разместить тайл океана.",
+
+  "Capital will score for adjacent oceans": "«Столица» будет приносить ПО за соседние океаны",
+  "Scores +1 VP per adjacent ocean at game end (including oceans placed next to it later).": "+1 ПО за каждый соседний океан в конце игры (включая океаны, размещённые рядом позже).",
+  "Commercial District will score for adjacent cities": "«Торговый район» будет приносить ПО за соседние города",
+  "Scores +1 VP per adjacent city at game end (any player's, including cities placed next to it later).": "+1 ПО за каждый соседний город в конце игры (любого игрока, включая города, размещённые рядом позже).",
+
+  "Milestone progress": "Прогресс вехи",
+  "This placement completes the milestone": "Это размещение выполняет веху",
+  "Award progress": "Прогресс награды",
+
+  "Your tile will grant an adjacency bonus": "Ваш тайл будет давать бонус за соседство",
+  "Whoever places a tile next to it gains this — and you gain M€.": "Тот, кто разместит тайл рядом, получит это, а вы получите M€.",
+  "Your tile will impose an adjacency cost": "Ваш тайл будет требовать доплату за соседство",
+  "Anyone placing a tile next to it — including you — pays extra M€.": "Любой, кто разместит тайл рядом (включая вас), доплатит M€.",
+
+  "Your community area": "Ваша община",
+  "Building on an area you reserved grants M€.": "Строительство на зарезервированной вами клетке даёт M€.",
+
+  "Energy production from the area's plant bonuses": "Производство энергии за бонусы растений клетки",
+  "+1 step per plant bonus printed on the chosen area.": "+1 шаг за каждый бонус растений, напечатанный на выбранной клетке.",
+  "No plant bonus on this area — no energy production": "На этой клетке нет бонуса растений — производство энергии не вырастет",
+  "This card raises energy production by 1 per plant bonus on the chosen area.": "Эта карта повышает производство энергии на 1 за каждый бонус растений на выбранной клетке.",
+
+  "Production from the area's bonus": "Производство за бонус клетки",
+  "Steel or titanium bonus on this area": "Бонус стали или титана на этой клетке",
+  "No steel or titanium bonus on this area": "На этой клетке нет бонуса стали или титана",
+  "This area prints both — you choose which production to raise": "На клетке есть оба бонуса — вы выберете, какое производство повысить",
+  "If you choose steel": "Если выбрать сталь",
+  "If you choose titanium": "Если выбрать титан",
+  "No steel or titanium bonus here — no steel production": "Здесь нет бонуса стали или титана — производство стали не вырастет",
+  "This corporation raises steel production only for a tile placed on an area with a steel or titanium placement bonus.": "Эта корпорация повышает производство стали только за тайл на клетке с бонусом стали или титана.",
+
+  "Ocean placed anywhere": "Океан размещён где угодно",
+  "City placed anywhere": "Город размещён где угодно",
+  "City placed by you": "Город размещён вами",
+  "City placed on Mars": "Город размещён на Марсе",
+  "Greenery placed by you": "Озеленение размещено вами",
+  "You place an ocean tile": "Вы размещаете тайл океана",
+  "You place a greenery tile": "Вы размещаете тайл озеленения",
+
+  "Ocean placed anywhere — offers an optional 5 M€ effect": "Океан размещён где угодно — предложит необязательный эффект за 5 M€",
+  "You may spend 5 M€ (steel may be used) to take the effect below, or decline.": "Можно потратить 5 M€ (можно платить сталью), чтобы получить эффект ниже, либо отказаться.",
+  "Energy production if the 5 M€ is paid": "Производство энергии, если заплатить 5 M€",
+  "Hydroelectric resource if the 5 M€ is paid": "Гидроресурс, если заплатить 5 M€",
+
+  "Gain ${0} standard resources of your choice": "Получите ${0} стандартных ресурсов на ваш выбор",
+  "One per new adjacency between your tile and another player's.": "По одному за каждое новое соседство вашего тайла с тайлом другого игрока.",
+
+  "Extra resource from the placement bonus": "Дополнительный ресурс за бонус размещения",
+  "You gain one additional resource of each type this placement grants you.": "Вы получите по одному дополнительному ресурсу каждого типа, который даёт это размещение.",
+
+  "Energy production decreases": "Производство энергии снижается",
+  "Applied right after the tile is placed.": "Применяется сразу после размещения тайла.",
+  "Placing the city reduces your energy production 1 step.": "Размещение города снижает ваше производство энергии на 1 шаг.",
+  "Energy production paid for this city": "Плата за этот город производством энергии",
+  "M€ production paid for this city": "Плата за этот город производством M€",
+  "Applied right after the tile is placed; this card's own trigger adds 1 M€ production back.": "Применяется сразу после размещения тайла; собственный эффект карты вернёт 1 производство M€.",
+
+  "M€ production from the city project": "Производство M€ за стандартный проект «Город»",
+  "The city standard project also raises your M€ production 1 step.": "Стандартный проект «Город» также повышает ваше производство M€ на 1 шаг.",
+
+  "May lose 4 M€": "Может потерять 4 M€",
+  "After placing, you may remove 4 M€ from the owner of one adjacent tile.": "После размещения вы можете забрать 4 M€ у владельца одного соседнего тайла.",
+  "You choose which adjacent player loses 4 M€": "Вы выберете, кто из соседей потеряет 4 M€",
+  "No opponent tile is adjacent": "Рядом нет тайлов соперников",
+  "No adjacent tile belongs to another player, so no M€ can be removed.": "Ни один соседний тайл не принадлежит другому игроку — забрать M€ не у кого."
 }

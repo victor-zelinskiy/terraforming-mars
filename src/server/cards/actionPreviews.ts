@@ -21,7 +21,7 @@ import {SelectPlayer} from '../inputs/SelectPlayer';
 import {OrOptions} from '../inputs/OrOptions';
 
 /** Icon key for a card resource (lowercase, spaces→hyphens — `iconClassFor`). */
-function cardResourceIcon(resource: CardResource): string {
+export function cardResourceIcon(resource: CardResource): string {
   return String(resource).toLowerCase().replace(/\s+/g, '-');
 }
 

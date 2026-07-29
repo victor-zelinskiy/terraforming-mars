@@ -22,6 +22,8 @@ type Options = {
   // Cancellability (pay-on-commit Aquifer standard project).
   placementContext?: PlacementContext,
   onCancel?: () => void,
+  // The card that asks (so the preview can include its own space-dependent effect).
+  sourceCard?: CardName,
 };
 
 export class PlaceOceanTile extends DeferredAction<Space | undefined> {
@@ -63,6 +65,7 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       // `placementType` carries the eligibility kind, `tileType` the tile, so
       // the preview always reads the ocean parameter + TR bump.
       tileType: TileType.OCEAN,
+      sourceCard: this.options.sourceCard,
       customReasoner: this.options.customReasoner,
       placementContext: this.options.placementContext,
       onCancel: this.options.onCancel,

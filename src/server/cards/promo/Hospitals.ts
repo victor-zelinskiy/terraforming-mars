@@ -15,8 +15,11 @@ import {ICard} from '../ICard';
 import {all} from '../Options';
 import {Size} from '../../../common/cards/render/Size';
 import {ActionPreviewStep} from '../../../common/models/ActionPreviewModel';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 export class Hospitals extends Card implements IProjectCard, IActionCard {
   constructor() {
@@ -59,6 +62,19 @@ export class Hospitals extends Card implements IProjectCard, IActionCard {
     if (Board.isCitySpace(space)) {
       cardowner.addResourceTo(this, {qty: 1, log: true});
     }
+  }
+
+  // Read-only mirror of `onTilePlaced`. The trigger is ANY city, placed by
+  // ANYONE (the live hook ignores `activePlayer`), so an opponent's Hospitals
+  // collects a disease off your city — which is exactly what the placement panel
+  // must say before you commit.
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    return [placementPreviews.cardResourceGain(this, CardResource.DISEASE, 1, 'City placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 
   public actionUnavailableReason() {

@@ -1,32 +1,43 @@
 <template>
-  <!-- data-motion-*: the surface-motion director animates the frame (open /
-       dismiss); the OWN full dim STAYS — Info Mode is a Y-layer above every
-       band surface (z 11560, over the shade), so it must carry its darkness. -->
+  <!-- THE INFORMATION WORKSPACE (Y) — no longer a centered modal: the root is
+       an ABSOLUTE child of `.con-main` filling everything RIGHT of the left
+       resource rail, between the top HUD and the bottom command bar. The rail
+       stays visible as the mode's SUMMARY panel (ConsoleShell overrides its
+       player context to the inspected player) — the two surfaces are ONE
+       synchronized read of one player.
+       data-motion-*: the surface-motion director materializes the frame from
+       the rail seam (open) and returns it there (dismiss); the OWN full dim
+       STAYS — the workspace opens OVER arbitrary band surfaces (z 11560,
+       above the shade; the rail rides at 11561, crisp above the dim). -->
   <div class="con-info" role="dialog" :aria-label="$t('Information')" data-motion-surface="info-mode">
     <div class="con-info__backdrop" aria-hidden="true"></div>
     <div class="con-info__frame" data-motion-panel>
 
-      <!-- ── Header: whose profile + switching hints ─────────────────── -->
+      <!-- ── Header: whose dossier + switching hints. The identity zone is
+           the workspace half of the rail↔panel seam — it carries the name /
+           corp the narrow rail cannot, and recomposes directionally on LB/RB
+           (data-insp-slide, inspectSwitchMotion). TR / VP totals live on the
+           RAIL's score cap now — never repeated here. -->
       <header class="con-info__head">
         <div class="con-info__who">
           <GamepadGlyph control="bumperL" class="con-info__bumper" />
-          <span :class="'con-status__dot player_bg_color_' + viewed.color"></span>
-          <span class="con-info__name">{{ viewedDisplayName }}</span>
-          <span v-if="isSelf" class="con-info__chip con-info__chip--you">{{ $t('You') }}</span>
-          <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
-          <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
+          <span class="con-info__ident" data-insp-slide>
+            <span :class="'con-status__dot player_bg_color_' + viewed.color"></span>
+            <span class="con-info__name">{{ viewedDisplayName }}</span>
+            <span v-if="isSelf" class="con-info__chip con-info__chip--you">{{ $t('You') }}</span>
+            <span v-if="isSelf && myTurn" class="con-info__chip con-info__chip--turn">{{ $t('Your turn') }}</span>
+            <span v-if="isPassed" class="con-info__chip con-info__chip--passed">{{ $t('passed') }}</span>
+          </span>
           <GamepadGlyph control="bumperR" class="con-info__bumper" />
         </div>
-        <div class="con-info__head-meta">
+        <div class="con-info__head-meta" data-insp-slide>
           <span v-if="corpName !== ''" class="con-info__corp">{{ $t(corpName) }}</span>
           <span v-else-if="viewedIsBot" class="con-info__corp con-info__corp--bot">{{ $t('Automa opponent') }} · {{ $t(botDifficultyLabel) }}</span>
-          <span class="con-info__tr">{{ viewed.terraformRating }} {{ $t('TR') }}</span>
-          <span v-if="vpVisible" class="con-info__vp">{{ vpTotal }} {{ $t('VP') }}</span>
         </div>
       </header>
 
       <!-- ── DASHBOARD (MarsBot participant) ─────────────────────────── -->
-      <div v-if="infoModeState.detail === undefined && viewedIsBot && botAutoma !== undefined" class="con-info__scroll con-info__grid">
+      <div v-if="infoModeState.detail === undefined && viewedIsBot && botAutoma !== undefined" class="con-info__scroll con-info__grid" data-insp-slide>
         <ConsoleMarsBotSections mode="dashboard" :bot="viewed" :automa="botAutoma" :ctx="botCardContext" />
         <!-- VP — the SAME block as a human participant (shared model + rule). -->
         <section class="con-info__block">
@@ -34,8 +45,8 @@
             <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
           </h3>
           <template v-if="vpVisible">
-            <div class="con-info__vp-total">{{ vpTotal }}</div>
             <div class="con-info__stat-lines">
+              <div v-if="vpTotalRowVisible" class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b>{{ vpTotal }}</b></div>
               <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
                 <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
               </div>
@@ -45,97 +56,85 @@
         </section>
       </div>
 
-      <!-- ── DASHBOARD ───────────────────────────────────────────────── -->
-      <div v-else-if="infoModeState.detail === undefined" class="con-info__scroll con-info__grid">
-        <!-- Resources & production — the headline block. -->
-        <section class="con-info__block con-info__block--resources">
-          <h3 class="con-info__block-title">{{ $t('Resources') }}</h3>
-          <div class="con-info__res-grid">
-            <div v-for="row in resourceRows" :key="row.key" class="con-info__res">
-              <i class="con-info__res-icon" :class="'resource_icon resource_icon--' + row.key" aria-hidden="true"></i>
-              <span class="con-info__res-value">{{ row.value }}</span>
-              <span class="con-res__prod" :class="{'con-res__prod--negative': row.production < 0}">
-                {{ row.production >= 0 ? '+' + row.production : row.production }}
+      <!-- ── DASHBOARD — the DETAIL the rail cannot carry, in three calm
+           columns. The rail already shows this player's TR / VP total /
+           resources / production / the full tag matrix — repeating any of
+           those here is banned (the two surfaces are one instrument). -->
+      <div v-else-if="infoModeState.detail === undefined" class="con-info__scroll con-info__cols" data-insp-slide>
+        <!-- Col 1 — the score STORY (adjacent to the rail's score cap):
+             where the VP total comes from. The big total itself lives on
+             the rail; the one exception is the own seat under the
+             «Приватный счёт» pref (the rail masks — the row is the only
+             honest place left). -->
+        <div class="con-info__col">
+          <section class="con-info__block con-info__block--vp">
+            <h3 class="con-info__block-title">{{ $t('Victory Points') }}
+              <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
+            </h3>
+            <template v-if="vpVisible">
+              <div class="con-info__stat-lines">
+                <div v-if="vpTotalRowVisible" class="con-info__stat-line con-info__stat-line--total"><span>{{ $t('Total') }}</span><b>{{ vpTotal }}</b></div>
+                <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
+                  <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
+                </div>
+              </div>
+            </template>
+            <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
+          </section>
+        </div>
+
+        <!-- Col 2 — availability: cards / actions / effects counters. -->
+        <div class="con-info__col">
+          <section class="con-info__block">
+            <h3 class="con-info__block-title">{{ $t('Cards') }}</h3>
+            <div class="con-info__stat-lines">
+              <div v-if="isSelf" class="con-info__stat-line"><span>{{ $t('Playable now') }}</span><b class="con-info__mint">{{ cardsPlayable }}</b></div>
+              <div class="con-info__stat-line"><span>{{ $t('In hand') }}</span><b>{{ cardsTotal }}</b></div>
+            </div>
+            <div v-if="!isSelf" class="con-info__note">{{ $t('Hand contents are hidden') }}</div>
+          </section>
+
+          <section class="con-info__block">
+            <h3 class="con-info__block-title">{{ $t('Actions') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
+            </h3>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
+              <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
+            </div>
+          </section>
+
+          <section class="con-info__block">
+            <h3 class="con-info__block-title">{{ $t('Effects') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
+            </h3>
+            <div class="con-info__stat-lines">
+              <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
+              <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Col 3 — resources ON CARDS (the rail's satellite is parked while
+             the workspace is open; the X detail shows the hosting cards). -->
+        <div class="con-info__col">
+          <section class="con-info__block">
+            <h3 class="con-info__block-title">{{ $t('Extra resources') }}
+              <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
+            </h3>
+            <div v-if="extraSummary.length > 0" class="con-info__extras">
+              <span v-for="e in extraSummary" :key="e.key" class="con-info__extra">
+                <i :class="e.iconClass" aria-hidden="true"></i>
+                <span class="con-info__extra-count">{{ e.total }}</span>
               </span>
             </div>
-          </div>
-          <div class="con-info__res-legend">{{ $t('Stock') }} · <span class="con-info__res-legend-prod">{{ $t('Production') }}</span></div>
-        </section>
-
-        <!-- Tags -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Tags') }}</h3>
-          <div v-if="tagEntries.length > 0" class="con-info__tags">
-            <tag-count v-for="t in tagEntries" :key="t.tag" :tag="t.tag" :count="t.count" size="big" type="secondary" />
-          </div>
-          <div v-else class="con-info__empty">{{ $t('No tags played yet') }}</div>
-        </section>
-
-        <!-- Extra card resources — compact summary + X detail. -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Extra resources') }}
-            <span class="con-info__hotkey"><GamepadGlyph control="secondary" /></span>
-          </h3>
-          <div v-if="extraSummary.length > 0" class="con-info__extras">
-            <span v-for="e in extraSummary" :key="e.key" class="con-info__extra">
-              <i :class="e.iconClass" aria-hidden="true"></i>
-              <span class="con-info__extra-count">{{ e.total }}</span>
-            </span>
-          </div>
-          <div v-else class="con-info__empty">{{ $t('No resources on cards') }}</div>
-        </section>
-
-        <!-- Cards availability -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Cards') }}</h3>
-          <div class="con-info__stat-lines">
-            <div v-if="isSelf" class="con-info__stat-line"><span>{{ $t('Playable now') }}</span><b class="con-info__mint">{{ cardsPlayable }}</b></div>
-            <div class="con-info__stat-line"><span>{{ $t('In hand') }}</span><b>{{ cardsTotal }}</b></div>
-          </div>
-          <div v-if="!isSelf" class="con-info__note">{{ $t('Hand contents are hidden') }}</div>
-        </section>
-
-        <!-- Actions availability + Y detail -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Actions') }}
-            <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
-          </h3>
-          <div class="con-info__stat-lines">
-            <div class="con-info__stat-line"><span>{{ $t('Available now') }}</span><b class="con-info__mint">{{ actionsAvailable }}</b></div>
-            <div class="con-info__stat-line"><span>{{ $t('Total') }}</span><b>{{ actionsTotal }}</b></div>
-          </div>
-        </section>
-
-        <!-- Effects + RT detail -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Effects') }}
-            <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
-          </h3>
-          <div class="con-info__stat-lines">
-            <div class="con-info__stat-line"><span>{{ $t('Active') }}</span><b class="con-info__mint">{{ effectsCount }}</b></div>
-            <div v-if="discountCount > 0" class="con-info__stat-line"><span>{{ $t('Discounts') }}</span><b>{{ discountCount }}</b></div>
-          </div>
-        </section>
-
-        <!-- VP + A detail (or the hidden-score panel) -->
-        <section class="con-info__block">
-          <h3 class="con-info__block-title">{{ $t('Victory Points') }}
-            <span v-if="vpVisible" class="con-info__hotkey"><GamepadGlyph control="confirm" /></span>
-          </h3>
-          <template v-if="vpVisible">
-            <div class="con-info__vp-total">{{ vpTotal }}</div>
-            <div class="con-info__stat-lines">
-              <div v-for="s in vpScales" :key="s.key" class="con-info__stat-line">
-                <span>{{ $t(s.label) }}</span><b>{{ s.total }}</b>
-              </div>
-            </div>
-          </template>
-          <div v-else class="con-info__hidden">{{ $t('Score is hidden until the end of the game') }}</div>
-        </section>
+            <div v-else class="con-info__empty">{{ $t('No resources on cards') }}</div>
+          </section>
+        </div>
       </div>
 
       <!-- ── DETAILS ─────────────────────────────────────────────────── -->
-      <div v-else class="con-info__detail">
+      <div v-else class="con-info__detail" data-insp-slide>
         <div class="con-info__detail-head">
           <span class="con-info__detail-title">{{ $t(detailTitle) }}</span>
           <span class="con-info__detail-back"><GamepadGlyph control="back" /><span>{{ $t('To overview') }}</span></span>
@@ -192,10 +191,11 @@
           </div>
         </div>
 
-        <!-- VP detail -->
+        <!-- VP detail — pure breakdown: the TOTAL lives on the rail's score
+             cap (repeated only while the rail masks the own score). -->
         <div v-else-if="infoModeState.detail === 'vp'" class="con-info__scroll con-info__detail-scroll">
           <template v-if="vpVisible">
-            <div class="con-info__vp-hero">{{ vpTotal }} <span>{{ $t('VP') }}</span></div>
+            <div v-if="vpTotalRowVisible" class="con-info__vp-totalrow">{{ $t('Total') }} <b>{{ vpTotal }}</b></div>
             <section v-for="s in vpModel.scales" :key="s.key" class="con-info__vpscale">
               <h4 class="con-info__vpscale-title"><span>{{ $t(s.label) }}</span><b>{{ s.total }}</b></h4>
               <div class="con-info__vpsegs">
@@ -225,13 +225,19 @@
 
 <script lang="ts">
 /**
- * LT INFORMATION MODE (feedback iteration 3 §2-§5) — the console-native
- * read-only player dashboard: "информация не скрыта — LT, посмотрел,
- * вернулся ровно туда же".
+ * THE INFORMATION WORKSPACE (Y) — the console-native read-only player
+ * dashboard: "информация не скрыта — Y, посмотрел, вернулся ровно туда же".
+ *
+ * Since the workspace iteration the LEFT RESOURCE RAIL is this mode's
+ * summary half: ConsoleShell overrides the rail's player context to the
+ * INSPECTED player (infoModeState.playerColor) while the mode is open, so
+ * TR / VP total / resources / production / tags read THERE and are never
+ * repeated in this panel. This component renders only the DETAIL the rail
+ * cannot carry: identity (name/corp), VP breakdown, cards/actions/effects
+ * availability, resources on cards, and the hotkey detail screens.
  *
  * All data comes from PUBLIC models (PublicPlayerModel + the client card
  * manifest) — the same sources the desktop chips/overlays read:
- *  - resources/production/tags: the player model fields;
  *  - extra card resources: tableau CardModel.resources + manifest
  *    resourceType (tableaus are public; opponent HANDS are never touched —
  *    only cardsInHandNbr, which the desktop shows too);
@@ -248,12 +254,12 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {Tag} from '@/common/cards/Tag';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerActionSourceCount, cardHasAction} from '@/client/components/actions/actionExtraction';
 import {playerEffects, playerEffectGroups, EffectGroup} from '@/client/components/effects/effectExtraction';
 import {buildVictoryPointsModel, VictoryPointsModel} from '@/client/components/overview/victoryPointsModel';
+import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {findPerformActionCard, findPlayProjectCardAction} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -262,13 +268,11 @@ import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
-import TagCount from '@/client/components/TagCount.vue';
 import EffectBlock from '@/client/components/effects/EffectBlock.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
-import {consoleTagEntries} from '@/client/components/console/consoleTagMatrix';
 
 const DETAIL_TITLES: Record<string, string> = {
   extras: 'Extra resources',
@@ -282,7 +286,7 @@ const DETAIL_TITLES: Record<string, string> = {
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
-  components: {'tag-count': TagCount, ConsoleMarsBotSections, EffectBlock, GamepadGlyph, Card},
+  components: {ConsoleMarsBotSections, EffectBlock, GamepadGlyph, Card},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
@@ -339,23 +343,6 @@ export default defineComponent({
         }
       }
       return '';
-    },
-    resourceRows(): Array<{key: string, value: number, production: number}> {
-      const p = this.viewed;
-      return [
-        {key: 'megacredits', value: p.megacredits, production: p.megacreditProduction},
-        {key: 'steel', value: p.steel, production: p.steelProduction},
-        {key: 'titanium', value: p.titanium, production: p.titaniumProduction},
-        {key: 'plants', value: p.plants, production: p.plantProduction},
-        {key: 'energy', value: p.energy, production: p.energyProduction},
-        {key: 'heat', value: p.heat, production: p.heatProduction},
-      ];
-    },
-    tagEntries(): Array<{tag: Tag, count: number}> {
-      // Shared availability + order source (consoleTagMatrix). The dashboard
-      // block stays a SUMMARY of what's been played (zeros omitted here — the
-      // always-on left-rail matrix is where the full set lives).
-      return consoleTagEntries(this.playerView.game.tags, this.viewed.tags).filter((e) => e.count > 0);
     },
     /** Extra card resources aggregated by type (public — tableaus only). */
     extraGroups(): Array<{key: string, label: string, iconClass: string, total: number, cards: Array<{card: CardModel, amount: number}>}> {
@@ -428,6 +415,15 @@ export default defineComponent({
     vpTotal(): number {
       return this.viewed.victoryPointsBreakdown.total;
     },
+    /**
+     * The VP TOTAL's home is the rail's score cap — repeating it here is
+     * banned. The ONE exception: the own seat under the «Приватный счёт»
+     * display pref masks the rail cell, so this deliberately-opened mode
+     * is the only honest place left for the number.
+     */
+    vpTotalRowVisible(): boolean {
+      return this.isSelf && shouldMaskOwnPassiveVp(true);
+    },
     vpModel(): VictoryPointsModel {
       const game = this.playerView.game;
       return buildVictoryPointsModel(this.viewed.victoryPointsBreakdown, {
@@ -468,27 +464,31 @@ export default defineComponent({
     /** The live command contract — published to the shell's ONE bottom
      *  command bar through consolePanelUi (the footCommands watch below). */
     footCommands(): Array<ConsoleCommand> {
+      // Drop priorities for the narrow (Deck) bar: the mode's CORE verbs —
+      // Y close (the always-visible exit contract) and LB/RB players (THE
+      // workspace interaction) — outlive the detail hotkey hints, which are
+      // also discoverable on the blocks themselves.
       const cmds: Array<ConsoleCommand> = [
-        {control: 'bumperL', control2: 'bumperR', label: 'Players'},
+        {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
       ];
       if (this.infoModeState.detail === undefined && this.viewedIsBot) {
         cmds.push(
-          {control: 'secondary', label: 'MarsBot board'},
-          {control: 'triggerL', label: 'Played cards'},
-          {control: 'triggerR', label: 'Bonus cards'},
+          {control: 'secondary', label: 'MarsBot board', priority: 2},
+          {control: 'triggerL', label: 'Played cards', priority: 3},
+          {control: 'triggerR', label: 'Bonus cards', priority: 3},
           {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
         );
       } else if (this.infoModeState.detail === undefined) {
         cmds.push(
-          {control: 'secondary', label: 'Extra resources'},
-          {control: 'triggerL', label: 'Actions'},
-          {control: 'triggerR', label: 'Effects'},
+          {control: 'secondary', label: 'Extra resources', priority: 2},
+          {control: 'triggerL', label: 'Actions', priority: 3},
+          {control: 'triggerR', label: 'Effects', priority: 3},
           {control: 'confirm', label: 'VP overview', enabled: this.vpVisible},
         );
       } else {
         cmds.push({control: 'back', label: 'To overview'});
       }
-      cmds.push({control: 'inspect', label: 'Close'});
+      cmds.push({control: 'inspect', label: 'Close', priority: 0});
       return cmds;
     },
   },

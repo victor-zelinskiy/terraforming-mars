@@ -14,6 +14,21 @@ import {PartyHooks} from '../../turmoil/parties/PartyHooks';
 import {PartyName} from '../../../common/turmoil/PartyName';
 import {Board} from '../../boards/Board';
 import {AresHandler} from '../../ares/AresHandler';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
+
+/**
+ * ONE (resource, printed bonus) pair a survey card watches, declared so the
+ * READ-ONLY placement preview can mirror `checkForBonuses` GENERICALLY. `kind`
+ * picks which of the two live grant paths applies: `stock` →
+ * {@link SurveyCard.maybeRewardStandardResource} (which carries the two extra
+ * fallbacks), `card` → {@link SurveyCard.maybeRewardCardResource} (which also
+ * requires the owner to hold a card able to store the resource).
+ */
+export type SurveyBonus =
+  | {kind: 'stock', resource: Resource, bonus: SpaceBonus}
+  | {kind: 'card', resource: CardResource, bonus: SpaceBonus};
 
 /**
  * Abstraction for cards that give rewards based on tile placement.  (e.g. Ecological Survey, Geological Survey.)
@@ -50,6 +65,72 @@ export abstract class SurveyCard extends Card implements IProjectCard {
   }
 
   protected abstract checkForBonuses(cardOwner: IPlayer, space: Space): void;
+
+  /**
+   * The (resource, bonus) pairs `checkForBonuses` tests — declared separately so
+   * the preview can build its facts without running the granting code. Kept
+   * ALONGSIDE `checkForBonuses` (which is untouched): both live in the subclass
+   * file, so a card that gains/loses a pair changes them in the same diff.
+   */
+  protected abstract previewBonuses(): ReadonlyArray<SurveyBonus>;
+
+  /**
+   * READ-ONLY mirror of {@link onTilePlaced} + {@link checkForBonuses}: the extra
+   * resource this survey hands its owner for the tile they are about to place.
+   * The board-type guard has no preview analog — the placement preview only ever
+   * runs against the Mars board.
+   */
+  public tilePlacedPreview(
+    cardOwner: IPlayer,
+    activePlayer: IPlayer,
+    space: Space,
+    ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (cardOwner.game.phase === Phase.SOLAR || cardOwner.id !== activePlayer.id) {
+      return [];
+    }
+    const recipient = placementPreviews.recipientOf(activePlayer, cardOwner);
+    const title = 'Extra resource from the placement bonus';
+    const description = 'You gain one additional resource of each type this placement grants you.';
+    const facts: Array<BoardFact> = [];
+    for (const entry of this.previewBonuses()) {
+      if (!this.previewGrants(cardOwner, space, ctx, entry)) {
+        continue;
+      }
+      const options = {id: `card-${this.name}-${entry.resource}`, recipient, description};
+      facts.push(entry.kind === 'stock' ?
+        placementPreviews.stockChange(cardOwner, this, entry.resource, 1, title, options) :
+        placementPreviews.cardResourceGain(this, entry.resource, 1, title, options));
+    }
+    return facts;
+  }
+
+  /**
+   * The preview mirror of the grant test inside {@link maybeRewardStandardResource}
+   * / {@link maybeRewardCardResource}. `grantsBonusNow` reads `space.tile?.covers`,
+   * which does not exist yet at preview time — `ctx.covering` is the same statement
+   * about the placement that is about to happen.
+   */
+  private previewGrants(cardOwner: IPlayer, space: Space, ctx: PlacementPreviewContext, entry: SurveyBonus): boolean {
+    const board = cardOwner.game.board;
+    const printed = !ctx.covering && space.bonus.includes(entry.bonus);
+    if (entry.kind === 'card') {
+      return cardOwner.playedCards.some((card) => card.resourceType === entry.resource) &&
+        (printed || AresHandler.anyAdjacentSpaceGivesBonus(board, space, entry.bonus));
+    }
+    if (printed || this.anyAdjacentSpaceGivesBonus(board, space, entry.bonus)) {
+      return true;
+    }
+    // The two fallbacks of `maybeRewardStandardResource`, reusing its rule sources.
+    switch (entry.resource) {
+    case Resource.STEEL:
+      return space.spaceType !== SpaceType.COLONY &&
+        PartyHooks.shouldApplyPolicy(cardOwner, PartyName.MARS, 'mp01');
+    case Resource.PLANTS:
+      return placementPreviews.placesUncoveredOcean(ctx) && cardOwner.tableau.has(CardName.ARCTIC_ALGAE);
+    default:
+      return false;
+    }
+  }
 
   private log(cardOwner: IPlayer, resource: Resource | CardResource): void {
     cardOwner.game.log(

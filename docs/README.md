@@ -39,6 +39,7 @@ files here are the deeper dives it points at.
 - [DELAYED_TARGET_AUDIT.md](DELAYED_TARGET_AUDIT.md) — no-auto-select / hidden-target triage.
 - [MULTI_BRANCH_PLAY_AUDIT.md](MULTI_BRANCH_PLAY_AUDIT.md) — multi-branch play-preview coverage.
 - [SPECIAL_TILE_AUDIT.md](SPECIAL_TILE_AUDIT.md) — special/off-Mars tile identity + scoring.
+- [PLACEMENT_PREVIEW_AUDIT.md](PLACEMENT_PREVIEW_AUDIT.md) — what the player must know BEFORE placing a tile: card-driven, trigger-driven and progress gaps.
 - [PENDING_ACTION_CANCEL_AUDIT.md](PENDING_ACTION_CANCEL_AUDIT.md) — pay-on-commit cancellability classification.
 - [CORPORATION_IMPACT_AUDIT.md](CORPORATION_IMPACT_AUDIT.md) — endgame corporation-impact model.
 

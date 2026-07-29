@@ -11,6 +11,9 @@ import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {IActionCard} from '../ICard';
 import {vermin} from '../render/DynamicVictoryPoints';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class Vermin extends ActionCard implements IProjectCard, IActionCard {
   constructor() {
@@ -84,5 +87,18 @@ export class Vermin extends ActionCard implements IProjectCard, IActionCard {
     if (Board.isCitySpace(space)) {
       cardOwner.addResourceTo(this, {qty: 1, log: true});
     }
+  }
+
+  // Read-only mirror of `onTilePlaced`. Same shape as Hospitals: ANY city placed
+  // by ANYONE feeds the card (the live hook ignores `activePlayer`). Worth
+  // showing loudly — every animal here walks the whole table towards the -1 VP
+  // per city endgame penalty.
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    return [placementPreviews.cardResourceGain(this, CardResource.ANIMAL, 1, 'City placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

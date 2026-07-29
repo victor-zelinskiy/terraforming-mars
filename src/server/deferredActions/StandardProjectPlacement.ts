@@ -6,6 +6,7 @@ import {PlacementType} from '../boards/PlacementType';
 import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {cancellablePlacement} from '../inputs/placementContext';
+import {CardName} from '../../common/cards/CardName';
 
 /**
  * A CANCELLABLE, PAY-ON-COMMIT tile placement for the placement-bearing standard
@@ -28,6 +29,12 @@ export class StandardProjectPlacement extends DeferredAction<undefined> {
       title: string | Message,
       spaces: ReadonlyArray<Space>,
       priority?: Priority,
+      // The standard project that asks. Everything this project does beyond the
+      // tile itself happens inside `commit`, i.e. only AFTER the space is picked,
+      // so the cell preview can explain it only through the card's co-located
+      // `placementPreview` hook — which is reachable only when the prompt names
+      // the card.
+      sourceCard?: CardName,
       commit: (space: Space) => void,
     }) {
     super(player, opts.priority ?? Priority.DEFAULT);
@@ -40,6 +47,9 @@ export class StandardProjectPlacement extends DeferredAction<undefined> {
     }
     return createMarsSelectSpace(this.player, this.opts.title, this.opts.spaces, {
       placementType: this.opts.placementType,
+      sourceCard: this.opts.sourceCard,
+      // Explicit — the helper's `sourceCard`-derived default marker must NOT
+      // replace the cancellable standard-project marker.
       placementContext: cancellablePlacement({kind: 'standardProject'}),
       onCancel: () => {
         this.player.pendingPlacementCancelled = true;

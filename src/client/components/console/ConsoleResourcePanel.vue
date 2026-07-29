@@ -1,6 +1,9 @@
 <template>
   <div class="con-res-host">
-    <aside class="con-res" :aria-label="$t('Resources')">
+    <!-- data-insp-fade: the Information-Workspace player switch (LB/RB)
+         answers here with a soft value dip (inspectSwitchMotion) — the rail
+         is the mode's ANCHOR: it recolors + re-reads, it never travels. -->
+    <aside class="con-res" :aria-label="$t('Resources')" data-insp-fade>
       <!-- Score header — TR + VP: the rail's status cap above the resource
            rows (couch-readable at a glance). Shares the rows' width / radius /
            ring family so it reads as the SAME instrument one register up.
@@ -203,6 +206,20 @@ export default defineComponent({
      * hand / colonies / other section content.
      */
     boardVisible: {type: Boolean, default: false},
+    /**
+     * The displayed seat is the VIEWER'S OWN one. False only while the
+     * Information Workspace (Y) inspects an opponent: the rail then shows
+     * the INSPECTED player's data — a read-only context override that never
+     * touches gameplay. Gates the viewer-specific readouts (the own-score
+     * privacy mask, the in-flight resource-transfer holds).
+     */
+    own: {type: Boolean, default: true},
+    /**
+     * The game rule hides this seat's score from the viewer (an opponent
+     * while `showOtherPlayersVP` is off) — the VP cell shows the shared
+     * eye-off mask instead of a number. Only meaningful when `own` is false.
+     */
+    vpHidden: {type: Boolean, default: false},
   },
   computed: {
     /**
@@ -233,14 +250,15 @@ export default defineComponent({
       return this.player.victoryPointsBreakdown.total;
     },
     /**
-     * The own-VP passive-surface mask (the local «Приватный счёт» display
-     * pref). This panel always renders the VIEWER's own seat (ConsoleShell
-     * passes thisPlayer), so `isOwn` is constant-true. The game-level
-     * hidden-VP option (`showOtherPlayersVP === false`) hides only OPPONENTS'
-     * scores and never applies to the own seat — desktop LeftPlayerCard parity.
+     * The VP mask, by seat:
+     *  - the OWN seat masks via the local «Приватный счёт» display pref
+     *    (passive-surface semantics — desktop LeftPlayerCard parity);
+     *  - an INSPECTED opponent (Information Workspace) masks when the game
+     *    rule hides other players' scores (`vpHidden` from the shell).
+     * The footprint never changes — the mask swaps in place of the number.
      */
     vpMasked(): boolean {
-      return shouldMaskOwnPassiveVp(true);
+      return this.own ? shouldMaskOwnPassiveVp(true) : this.vpHidden;
     },
     rows(): Array<ResourceRow> {
       const p = this.effectivePlayer;
@@ -249,7 +267,9 @@ export default defineComponent({
       // the commit doesn't fire its delta chip early — the chip's touchdown
       // releases the hold and the value (+ delta chip) land at the contact.
       // `panelRewardHold.active` is read so the computed tracks releases.
-      const hold = panelRewardHold.active;
+      // The holds belong to the VIEWER's incoming chips — an inspected
+      // opponent's numbers must never be reduced by them.
+      const hold = this.own && panelRewardHold.active;
       const stock = (key: string, v: number) => hold ? Math.max(0, v - heldStock(key)) : v;
       const prod = (key: string, v: number) => hold ? v - heldProduction(key) : v;
       return [
@@ -277,7 +297,7 @@ export default defineComponent({
       const groups = additionalResourceGroups(this.player.tableau);
       // Reward hold (see `rows`): an in-flight card-resource reward is
       // subtracted until its chip lands on the chosen host / this satellite.
-      if (!panelRewardHold.active) {
+      if (!this.own || !panelRewardHold.active) {
         return groups;
       }
       return groups.map((g) => {

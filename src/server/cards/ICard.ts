@@ -25,6 +25,9 @@ import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
 import {UndergroundResourceToken} from '../../common/underworld/UndergroundResourceToken';
+import {BoardFact} from '../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
+import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 
 /*
  * Represents a card which has an action that itself allows a player
@@ -95,6 +98,33 @@ export interface ICard {
    * `src/server/cards/actionPreviews.ts`.
    */
   cardPlayPreview?(player: IPlayer): ActionPreview;
+  /**
+   * Optional READ-ONLY preview of what THIS card does about the cell the player
+   * is currently pointing at, while its own `SelectSpace` is open. The board
+   * explainer knows the cell (printed bonus, ocean adjacency, cost, scoring); it
+   * cannot know that Solar Farm turns the cell's plant bonuses into energy
+   * PRODUCTION, or that Mining Area's production depends on which of steel /
+   * titanium the cell prints. Those are card rules, so they live in the card.
+   *
+   * Reached whenever the prompt carries `sourceCard` (`PlaceTile` threads it from
+   * `tile.card`; the declarative city/greenery/ocean branches pass the card name;
+   * a bespoke `createMarsSelectSpace` passes `sourceCard`). MUST NOT mutate game
+   * state. Builders live in `src/server/cards/placementPreviews.ts`.
+   */
+  placementPreview?(player: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact>;
+  /**
+   * Optional READ-ONLY mirror of {@link onTilePlaced} — what this card gives its
+   * OWNER when `activePlayer` places the previewed tile. It is what stops a
+   * placement from surprising anyone: an opponent's Arctic Algae gains 2 plants
+   * off your ocean, their Tharsis Republic gains M€ production off your city.
+   * The preview walks EVERY player's tableau, so a fact here may be addressed to
+   * an opponent (use `placementPreviews.recipientOf`).
+   *
+   * The tile is NOT on the board yet, so never test `Board.isCitySpace(space)` —
+   * read `ctx.countsAsCity` / `countsAsOcean` / `countsAsGreenery`. MUST NOT
+   * mutate game state.
+   */
+  tilePlacedPreview?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact>;
   play(player: IPlayer): PlayerInput | undefined;
   /**
    * Describes the M€ discount `player` could apply to playing `card`.
@@ -218,6 +248,15 @@ export interface ICard {
   clearWarnings(): void;
 
   readonly behavior?: Behavior,
+
+  /**
+   * The Ares adjacency bonus/cost the tile this card places hands to its future
+   * neighbours, when the card declares it OUTSIDE `behavior.tile` (the bespoke
+   * placers: Ecological Zone, Industrial Center, Great Dam, Solar Farm). The
+   * placement preview reads BOTH sources so "your tile will grant / will tax"
+   * needs no per-tile table. `undefined` for a card that places no tile.
+   */
+  readonly adjacencyBonus?: AdjacencyBonus,
 
   /**
    * The declarative behavior run when this card's repeatable ACTION is used

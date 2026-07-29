@@ -15,8 +15,10 @@ import {MarsBoard} from '../../boards/MarsBoard';
 import {Units} from '../../../common/Units';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 export class UrbanizedArea extends Card implements IProjectCard {
   constructor() {
@@ -89,6 +91,9 @@ export class UrbanizedArea extends Card implements IProjectCard {
     player.game.defer(new PlaceCityTile(player, {
       title: 'Select space next to at least 2 other city tiles',
       spaces,
+      // Names the card to the placement preview, so its `placementPreview` hook
+      // (the −1 energy production applied in the `andThen` below) is reachable.
+      sourceCard: this.name,
       customReasoner: (space) => {
         // A city-placeable cell that simply doesn't have 2 adjacent cities.
         // (A qualifying cell filtered out by energy coverage keeps the generic
@@ -106,5 +111,16 @@ export class UrbanizedArea extends Card implements IProjectCard {
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
     return actionPreviews.placementPreview(this, player, {tile: TileType.CITY, constraint: 'next to at least 2 other cities'});
+  }
+
+  /**
+   * The energy production step is lost in `bespokePlay`'s `andThen` — i.e. AFTER
+   * the space is chosen — so nothing in the cell preview would otherwise mention
+   * it. (The +2 M€ production is declarative and already shown in the play modal.)
+   */
+  public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    return [placementPreviews.productionChange(player, this, Resource.ENERGY, -1,
+      'Energy production decreases',
+      {description: 'Placing the city reduces your energy production 1 step.'})];
   }
 }

@@ -6,6 +6,7 @@ import {PlacementType} from './PlacementType';
 import {TileType} from '../../common/TileType';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {CardName} from '../../common/cards/CardName';
 import {committedPlacement} from '../inputs/placementContext';
 import {toID} from '../../common/utils/utils';
 
@@ -63,6 +64,15 @@ export function createMarsSelectSpace(
      */
     tileType?: TileType,
     /**
+     * The card driving this placement. Threaded to the client so the placement
+     * preview can ask the CARD what it will do on the hovered cell — a
+     * space-dependent consequence (Solar Farm's energy production per plant
+     * bonus, Mining Area's steel-or-titanium production) that the generic cell
+     * explainer cannot derive from the cell + tile alone. Also fills the
+     * `placementContext.source`, so the console task summary can name the card.
+     */
+    sourceCard?: CardName,
+    /**
      * Whether this placement can be cancelled before it commits (drives the
      * PlacementBanner's cancel UI). DEFAULTS to a COMMITTED marker: by the time a
      * placement reached through this helper is shown, the action that triggered it
@@ -83,8 +93,14 @@ export function createMarsSelectSpace(
   const selectSpace = new SelectSpace(title, legalSpaces, illegalSpaces);
   selectSpace.placementType = options?.placementType;
   selectSpace.tileType = options?.tileType;
+  selectSpace.sourceCard = options?.sourceCard;
+  // The default committed marker also NAMES the card when we know it — the
+  // console task summary already reads `placementContext.source.card` and had
+  // nothing to read for card placements until now.
   selectSpace.placementContext = options?.placementContext ??
-    committedPlacement('This placement is part of an action already underway and cannot be cancelled.');
+    committedPlacement(
+      'This placement is part of an action already underway and cannot be cancelled.',
+      options?.sourceCard === undefined ? undefined : {kind: 'card', card: options.sourceCard});
   selectSpace.onCancel = options?.onCancel;
   if (options?.hideExistingTile === true) {
     selectSpace.hiddenTiles = legalSpaces.map(toID);

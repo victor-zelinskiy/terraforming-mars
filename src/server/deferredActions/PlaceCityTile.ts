@@ -7,6 +7,7 @@ import {Message} from '../../common/logs/Message';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {CardName} from '../../common/cards/CardName';
 import {TileType} from '../../common/TileType';
 
 export class PlaceCityTile extends DeferredAction<Space | undefined> {
@@ -23,6 +24,8 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       // cancellable marker + onCancel; cards leave it for the committed default).
       placementContext?: PlacementContext,
       onCancel?: () => void,
+      // The card that asks (so the preview can include its own space-dependent effect).
+      sourceCard?: CardName,
     }) {
     super(player, Priority.DEFAULT);
   }
@@ -42,6 +45,7 @@ export class PlaceCityTile extends DeferredAction<Space | undefined> {
       // Research Outpost / Early Expedition); `tileType` names the tile, so the
       // preview shows the city's own scoring instead of nothing.
       tileType: TileType.CITY,
+      sourceCard: this.options?.sourceCard,
       customReasoner: this.options?.customReasoner,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,

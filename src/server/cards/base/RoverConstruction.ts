@@ -12,6 +12,9 @@ import {Board} from '../../boards/Board';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class RoverConstruction extends Card implements IProjectCard {
   constructor() {
@@ -40,5 +43,15 @@ export class RoverConstruction extends Card implements IProjectCard {
         cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined,
       );
     }
+  }
+
+  /** Mirrors `onTilePlaced`: ANY city, placed by anyone, pays the owner 2 M€. */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    return [placementPreviews.stockChange(cardOwner, this, Resource.MEGACREDITS, 2, 'City placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

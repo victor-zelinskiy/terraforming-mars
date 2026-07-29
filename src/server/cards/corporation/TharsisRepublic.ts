@@ -13,6 +13,9 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
 import {ICorporationCard} from './ICorporationCard';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class TharsisRepublic extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -60,6 +63,28 @@ export class TharsisRepublic extends CorporationCard implements ICorporationCard
       }
     }
     return;
+  }
+
+  /**
+   * Mirrors `onTilePlaced` — two independent effects off the same city, so two
+   * facts with explicit ids (they share the card and the M€ pool and would
+   * otherwise collide on the auto id).
+   */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    const recipient = placementPreviews.recipientOf(activePlayer, cardOwner);
+    const facts: Array<BoardFact> = [];
+    if (cardOwner.id === activePlayer.id) {
+      facts.push(placementPreviews.stockChange(cardOwner, this, Resource.MEGACREDITS, 3,
+        'City placed by you', {id: 'tharsis-cash', recipient}));
+    }
+    if (space.spaceType !== SpaceType.COLONY) {
+      facts.push(placementPreviews.productionChange(cardOwner, this, Resource.MEGACREDITS, 1,
+        'City placed on Mars', {id: 'tharsis-prod', recipient}));
+    }
+    return facts;
   }
 
   public override bespokePlay(player: IPlayer) {

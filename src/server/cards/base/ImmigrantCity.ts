@@ -17,8 +17,11 @@ import {all} from '../Options';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 
 export class ImmigrantCity extends Card implements IProjectCard {
   constructor() {
@@ -81,9 +84,36 @@ export class ImmigrantCity extends Card implements IProjectCard {
     }
   }
 
+  /** Mirrors `onTilePlaced`: ANY city, placed by anyone, pays the owner. */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    return [placementPreviews.productionChange(cardOwner, this, Resource.MEGACREDITS, 1, 'City placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
+  }
+
+  /**
+   * The card's OWN follow-up (`bespokePlay`'s `.andThen`): the tile lands first,
+   * then energy production drops 1 step and M€ production drops 2. Surfaced here
+   * so the placement panel states the real net cost — the trigger above adds
+   * exactly 1 M€ production back for this very city.
+   */
+  public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    return [
+      placementPreviews.productionChange(player, this, Resource.ENERGY, -1,
+        'Energy production paid for this city',
+        {description: 'Applied right after the tile is placed.'}),
+      placementPreviews.productionChange(player, this, Resource.MEGACREDITS, -2,
+        'M€ production paid for this city',
+        {description: 'Applied right after the tile is placed; this card\'s own trigger adds 1 M€ production back.'}),
+    ];
+  }
+
   public override bespokePlay(player: IPlayer) {
     const spaces = MarsBoard.filterForEnergy(player, player.game.board.getAvailableSpacesForCity(player));
-    player.game.defer(new PlaceCityTile(player, {spaces})).andThen(() => {
+    player.game.defer(new PlaceCityTile(player, {spaces, sourceCard: this.name})).andThen(() => {
       player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
       player.game.defer(new LoseProduction(player, Resource.MEGACREDITS, {count: 2}));
     });

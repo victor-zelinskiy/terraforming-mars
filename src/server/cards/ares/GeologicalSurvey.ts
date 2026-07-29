@@ -6,7 +6,7 @@ import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 import {Resource} from '../../../common/Resource';
 import {Tag} from '../../../common/cards/Tag';
 import {CardRenderer} from '../render/CardRenderer';
-import {SurveyCard} from './SurveyCard';
+import {SurveyBonus, SurveyCard} from './SurveyCard';
 import {all, max} from '../Options';
 
 export class GeologicalSurvey extends SurveyCard {
@@ -35,5 +35,14 @@ export class GeologicalSurvey extends SurveyCard {
     super.maybeRewardStandardResource(cardOwner, space, Resource.STEEL, SpaceBonus.STEEL);
     super.maybeRewardStandardResource(cardOwner, space, Resource.TITANIUM, SpaceBonus.TITANIUM);
     super.maybeRewardStandardResource(cardOwner, space, Resource.HEAT, SpaceBonus.HEAT);
+  }
+
+  /** The same three pairs `checkForBonuses` tests, in the same order. */
+  protected previewBonuses(): ReadonlyArray<SurveyBonus> {
+    return [
+      {kind: 'stock', resource: Resource.STEEL, bonus: SpaceBonus.STEEL},
+      {kind: 'stock', resource: Resource.TITANIUM, bonus: SpaceBonus.TITANIUM},
+      {kind: 'stock', resource: Resource.HEAT, bonus: SpaceBonus.HEAT},
+    ];
   }
 }

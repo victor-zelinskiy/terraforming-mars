@@ -11,6 +11,9 @@ import {GainResourcesDeferred} from '../../deferredActions/GainResourcesDeferred
 import {CardRenderer} from '../render/CardRenderer';
 import {all, max} from '../Options';
 import {Board} from '../../boards/Board';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class ArcticAlgae extends Card implements IProjectCard {
   constructor() {
@@ -44,5 +47,14 @@ export class ArcticAlgae extends Card implements IProjectCard {
           (b) => b.player(cardOwner).string(Resource.PLANTS).cardName(this.name))),
         cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined);
     }
+  }
+
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!placementPreviews.placesUncoveredOcean(ctx)) {
+      return [];
+    }
+    return [placementPreviews.stockChange(cardOwner, this, Resource.PLANTS, 2, 'Ocean placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

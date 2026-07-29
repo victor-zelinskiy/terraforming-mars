@@ -70,7 +70,7 @@ describe('ApiGameBoardCellPreview', () => {
     expect(preview.legal).eq(true);
     expect(preview).to.have.keys(
       'space', 'kind', 'legal', 'costFacts', 'immediateFacts', 'recipientFacts',
-      'warningFacts', 'futureScoringFacts', 'ruleFacts');
+      'warningFacts', 'futureScoringFacts', 'ruleFacts', 'progressFacts');
   });
 
   it('a greenery on an ocean-reserved cell reads oxygen via the tile param', async () => {

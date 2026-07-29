@@ -12,6 +12,9 @@ import {Board} from '../../boards/Board';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {all} from '../Options';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
 
 export class Pets extends Card implements IProjectCard {
   constructor() {
@@ -57,5 +60,15 @@ export class Pets extends Card implements IProjectCard {
         cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : undefined,
       );
     }
+  }
+
+  /** Mirrors `onTilePlaced`: ANY city, placed by anyone, adds an animal here. */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, _space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (!ctx.countsAsCity) {
+      return [];
+    }
+    return [placementPreviews.cardResourceGain(this, CardResource.ANIMAL, 1, 'City placed anywhere', {
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

@@ -6,6 +6,8 @@ import {PlaceCityTile} from '../../../deferredActions/PlaceCityTile';
 import {StandardProjectPlacement} from '../../../deferredActions/StandardProjectPlacement';
 import {Resource} from '../../../../common/Resource';
 import {Payment} from '../../../../common/inputs/Payment';
+import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
+import * as placementPreviews from '../../placementPreviews';
 
 export class CityStandardProject extends StandardProjectCard {
   constructor() {
@@ -56,11 +58,23 @@ export class CityStandardProject extends StandardProjectCard {
       placementType: 'city',
       title: 'Select space for city tile',
       spaces,
+      sourceCard: this.name,
       commit: (space) => this.commitInScope(player, () => {
         player.game.addCity(player, space);
         this.commitCost(player, payment);
         player.production.add(Resource.MEGACREDITS, 1);
       }),
     }));
+  }
+
+  /**
+   * The project's M€ production step is applied inside `commit(space)` — i.e.
+   * only once a space is chosen — so the cell preview would otherwise show a bare
+   * city tile and hide half of what 25 M€ actually buys.
+   */
+  public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    return [placementPreviews.productionChange(player, this, Resource.MEGACREDITS, 1,
+      'M€ production from the city project',
+      {description: 'The city standard project also raises your M€ production 1 step.'})];
   }
 }

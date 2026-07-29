@@ -452,6 +452,14 @@ export type SelectSpaceModel = BaseInputModel & {
    * preview falls back to the kind-derived scoring.
    */
   tileType?: import('../TileType').TileType;
+  /**
+   * The card driving this placement, when there is one. The client forwards it to
+   * the board-cell-preview endpoint so the preview can include the CARD's own
+   * space-dependent consequences (Solar Farm's energy production per plant bonus
+   * on the chosen cell, Mining Area's steel-or-titanium production) — effects the
+   * generic cell explainer cannot see. Absent → generic cell facts only.
+   */
+  sourceCard?: CardName;
 }
 
 /**

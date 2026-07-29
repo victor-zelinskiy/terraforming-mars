@@ -557,10 +557,10 @@ export class Executor implements BehaviorExecutor {
 
     if (behavior.ocean !== undefined) {
       if (behavior.ocean.count === 2) {
-        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for first ocean'}));
-        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for second ocean'}));
+        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for first ocean', sourceCard: card.name}));
+        player.game.defer(new PlaceOceanTile(player, {title: 'Select space for second ocean', sourceCard: card.name}));
       } else {
-        player.game.defer(new PlaceOceanTile(player, {on: behavior.ocean.on}));
+        player.game.defer(new PlaceOceanTile(player, {on: behavior.ocean.on, sourceCard: card.name}));
       }
     }
     if (behavior.city !== undefined) {
@@ -571,11 +571,11 @@ export class Executor implements BehaviorExecutor {
           space.tile.card = card.name;
         }
       } else {
-        player.game.defer(new PlaceCityTile(player, {on: behavior.city.on}));
+        player.game.defer(new PlaceCityTile(player, {on: behavior.city.on, sourceCard: card.name}));
       }
     }
     if (behavior.greenery !== undefined) {
-      player.game.defer(new PlaceGreeneryTile(player, behavior.greenery.on));
+      player.game.defer(new PlaceGreeneryTile(player, behavior.greenery.on, {sourceCard: card.name}));
     }
     if (behavior.tile !== undefined) {
       const tile = behavior.tile;

@@ -5,14 +5,16 @@ import {PlacementType} from '../boards/PlacementType';
 import {Space} from '../boards/Space';
 import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
+import {CardName} from '../../common/cards/CardName';
 import {TileType} from '../../common/TileType';
 
 export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   constructor(
     player: IPlayer,
     private on: PlacementType = 'greenery',
-    // Cancellability (pay-on-commit Greenery standard project).
-    private options?: {placementContext?: PlacementContext, onCancel?: () => void},
+    // Cancellability (pay-on-commit Greenery standard project) + the card that
+    // asks (so the preview can include the card's own space-dependent effect).
+    private options?: {placementContext?: PlacementContext, onCancel?: () => void, sourceCard?: CardName},
   ) {
     super(player, Priority.DEFAULT);
   }
@@ -35,6 +37,7 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
       // effect (oxygen, its VP + adjacency, subject to hazard adjacency) — never
       // the ocean track it does NOT touch.
       tileType: TileType.GREENERY,
+      sourceCard: this.options?.sourceCard,
       placementContext: this.options?.placementContext,
       onCancel: this.options?.onCancel,
     })

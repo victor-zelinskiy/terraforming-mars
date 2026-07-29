@@ -11,6 +11,22 @@ import {all} from '../Options';
 import {SelectResources} from '../../inputs/SelectResources';
 import {message} from '../../logs/MessageBuilder';
 import {ICorporationCard} from '../corporation/ICorporationCard';
+import {TileType} from '../../../common/TileType';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
+import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
+import * as placementPreviews from '../placementPreviews';
+
+/**
+ * The tile types `Game.simpleAddTile` leaves UNOWNED (`space.player = undefined`).
+ * The live `onTilePlaced` reads `space.player` to decide whether a tile was
+ * placed at all; at preview time the tile is not on the board yet, so the
+ * preview mirrors the rule that WOULD set that field.
+ */
+const UNOWNED_TILE_TYPES: ReadonlySet<TileType> = new Set([
+  TileType.OCEAN,
+  TileType.MARTIAN_NATURE_WONDERS,
+  TileType.REY_SKYWALKER,
+]);
 
 export class Philares extends CorporationCard implements ICorporationCard {
   constructor() {
@@ -72,5 +88,46 @@ export class Philares extends CorporationCard implements ICorporationCard {
       cardOwner.id !== activePlayer.id ? Priority.OPPONENT_TRIGGER : Priority.GAIN_RESOURCE_OR_PRODUCTION,
       );
     }
+  }
+
+  /**
+   * Read-only mirror of `onTilePlaced` — the one hook whose payout is entirely a
+   * function of WHICH cell is picked, so the placement panel is the only place a
+   * player can see it before committing.
+   *
+   * Two conditions, mirroring the live order:
+   *  - the placed tile must be OWNED. The live check is `space.player === undefined`,
+   *    which the placement has not written yet, so mirror `Game.simpleAddTile`'s
+   *    ownership rule instead ({@link UNOWNED_TILE_TYPES} stay unowned; everything
+   *    else becomes the ACTIVE player's tile).
+   *  - at least one adjacent cell holds a qualifying owned tile: another player's
+   *    when the card owner is placing, the card OWNER's when someone else is.
+   *
+   * The `boardType !== BoardType.MARS` early return needs no mirror: the board
+   * explainer only ever previews the Mars board.
+   */
+  public tilePlacedPreview(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, ctx: PlacementPreviewContext): ReadonlyArray<BoardFact> {
+    if (ctx.tileType === undefined || UNOWNED_TILE_TYPES.has(ctx.tileType)) {
+      return [];
+    }
+    const adjacentSpaces = cardOwner.game.board.getAdjacentSpaces(space);
+    const adjacentSpacesWithPlayerTiles = adjacentSpaces.filter((adjacent) => adjacent.tile !== undefined && adjacent.player !== undefined);
+
+    const eligibleTiles = (cardOwner.id === activePlayer.id) ?
+      adjacentSpacesWithPlayerTiles.filter((adjacent) => adjacent.player?.id !== cardOwner.id) :
+      adjacentSpacesWithPlayerTiles.filter((adjacent) => adjacent.player?.id === cardOwner.id);
+
+    const count = eligibleTiles.length;
+    if (count === 0) {
+      return [];
+    }
+    // No delta chip: the reward is N resources of the player's CHOICE, so there
+    // is no single pool and no honest icon — the count rides the title instead.
+    return [placementPreviews.upcomingChoice(this, 'Gain ${0} standard resources of your choice', {
+      description: 'One per new adjacency between your tile and another player\'s.',
+      params: [String(count)],
+      severity: 'positive',
+      recipient: placementPreviews.recipientOf(activePlayer, cardOwner),
+    })];
   }
 }

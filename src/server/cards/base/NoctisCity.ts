@@ -11,7 +11,9 @@ import {LoseProduction} from '../../deferredActions/LoseProduction';
 import {Resource} from '../../../common/Resource';
 import {MarsBoard} from '../../boards/MarsBoard';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
+import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import * as actionPreviews from '../actionPreviews';
+import * as placementPreviews from '../placementPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import * as reason from '../actionReasons';
 
@@ -92,6 +94,9 @@ export class NoctisCity extends Card implements IProjectCard {
         new PlaceCityTile(player, {
           title: message('Select space for ${0}', (b) => b.card(this)),
           spaces,
+          // Names the card to the placement preview, so its `placementPreview`
+          // hook (the −1 energy production below) is reachable.
+          sourceCard: this.name,
         }),
       ).andThen(() => {
         player.game.defer(new LoseProduction(player, Resource.ENERGY, {count: 1}));
@@ -108,5 +113,16 @@ export class NoctisCity extends Card implements IProjectCard {
     return actionPreviews.playPreview(this, player, [
       actionPreviews.productionChange(player, Resource.ENERGY, -1),
     ]);
+  }
+
+  /**
+   * BOTH `bespokePlay` branches cost 1 energy production, and on the branch that
+   * asks for a space it is applied only in the `andThen` — so the cell preview
+   * would otherwise show the placement without its price.
+   */
+  public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    return [placementPreviews.productionChange(player, this, Resource.ENERGY, -1,
+      'Energy production decreases',
+      {description: 'Placing the city reduces your energy production 1 step.'})];
   }
 }
