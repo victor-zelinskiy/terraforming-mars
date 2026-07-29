@@ -246,6 +246,10 @@
             <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
 
             <div class="con-cardactions__tile-head">
+              <!-- A CONTINUATION variant that did NOT land beside its sibling
+                   (the joint can only ride a shared edge) says «или» in words —
+                   the alternative relation is never left to the badge alone. -->
+              <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
               <span class="con-cardactions__tile-name">{{ $t(tile.cardName) }}</span>
               <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ tile.nodeIndex + 1 }}/{{ tile.variantTotal }}</span>
               <span v-if="tile.cardResource !== undefined" class="con-cardactions__tile-res">

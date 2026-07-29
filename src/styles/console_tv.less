@@ -903,14 +903,23 @@ html.con-profile-tv {
             i { font-size: var(--con-t-floor); }
         }
         &__player { font-size: 1rem; }
-        /* Filters — real couch chips, not desktop specks. */
-        &__filter-label { font-size: var(--con-t-floor); }
+        /* Filters — couch-readable but COMPACT: the whole header must stay on
+           ONE line next to the section name and the counts (a taller wrapped
+           block ate the list's first row). The keycaps carry the group
+           identity, so the labels stay at the type floor. */
+        /* At couch sizes the two group LABELS cost ~250px more than the band
+           has — and the LB/RB · LT/RT keycaps plus the chip values already
+           identify both groups (the Deck makes the same call). Dropping them
+           is what keeps the whole header on ONE line. */
+        &__filter-label { display: none; }
         &__chip {
-            padding: 0.3rem 0.8rem;
-            font-size: var(--con-t-secondary);
-            b { font-size: var(--con-t-caption); }
+            padding: 0.15rem 0.5rem;
+            font-size: var(--con-t-floor);
+            b { font-size: var(--con-t-floor); }
         }
-        &__fgroup-keys .gp-glyph { transform: none; }
+        &__fgroup { padding: 0.1rem 0.35rem; gap: 0.2rem; }
+        &__filters { gap: 0.25rem 0.5rem; }
+        &__fgroup-keys .gp-glyph { transform: scale(0.85); }
         /* The action GRAPHIC: ICON content (px card-render) rides the
            ui-scale zoom; a TEXT-override action must NOT be zoomed (it read
            as a page-filling, overflowing duplicate) — `:not(:has())` keeps

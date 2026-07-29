@@ -14588,6 +14588,16 @@ html.console-mode {
         font-size: .78rem; font-weight: 700; letter-spacing: .01rem;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    /* The word «или» on a continuation variant whose sibling sits in another
+       row (no shared edge for the joint) — the alternative relation stays
+       explicit wherever the flat grid puts the pair. */
+    &__tile-or {
+        flex-shrink: 0;
+        font-size: .55rem; letter-spacing: .1rem; text-transform: uppercase;
+        padding: .05rem .3rem; border-radius: .25rem;
+        color: fade(@con-cyan, 85%); background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
+    }
     /* The «N/M» badge — the only marker a card with alternatives needs once
        the tiles carry their own name. */
     &__tile-variant {
@@ -15648,7 +15658,29 @@ html.con-profile-handheld .con-cardactions {
     .con-cardactions__detail-name { font-size: 1rem; }
     .con-cardactions__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
     .con-cardactions__tile-name { font-size: .75rem; }
-    .con-cardactions__stat b { font-size: .9rem; }
+    /* The Deck's header must hold identity + filters + counts on ONE line
+       (196 + 771 + 252 > 1080 with the default chip metrics) — the counts
+       lose their padding and a step of type, never their numbers. */
+    .con-cardactions__stat {
+        padding: .1rem .35rem;
+        b { font-size: .8rem; }
+        i { font-size: .5rem; }
+    }
+    .con-cardactions__head { gap: .25rem .45rem; }
+    .con-cardactions__head-stats { gap: .3rem; }
+    /* The Deck's band is genuinely too narrow for all three blocks on one
+       line (196 + 679 + 208 > 1080 logical px). Rather than let the flex
+       decide WHICH block drops, the profile makes the choice deliberate:
+       identity + counts hold the status line, the filter strip becomes a
+       full-width control tier under it. */
+    .con-cardactions__filters { order: 4; flex-basis: 100%; gap: .25rem .4rem; }
+    .con-cardactions__fgroup { padding: .1rem .3rem; gap: .2rem; }
+    .con-cardactions__chip {
+        padding: .1rem .35rem;
+        font-size: .62rem;
+        b { font-size: .62rem; }
+    }
+    .con-cardactions__fgroup-keys .gp-glyph { transform: scale(0.66); }
 }
 
 /* Large / 4K — a gentle readability boost only. */
