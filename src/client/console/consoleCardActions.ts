@@ -100,6 +100,25 @@ export type ConsoleActionTile = {
   choiceKinds: ReadonlyArray<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>;
   /** Why this variant can't be used right now (undefined when available). */
   reason: ConsoleActionReason | undefined;
+  /** How many variants the SOURCE card has (1 = a single-action card) — the
+   *  flat grid's tiles are self-describing, so the «N/M» badge lives here. */
+  variantTotal: number;
+  /** The source card's stored resource (microbes / animals / floaters). */
+  cardResource: {type: CardResource, count: number} | undefined;
+  isCorporation: boolean;
+};
+
+/**
+ * A tile as the FLAT 2-column grid lays it out: the browse list packs ACTION
+ * BUTTONS two abreast regardless of which card they belong to (a row may hold
+ * the last variant of one card and the first of the next). Grouping reads
+ * from the tile itself — the card's name + the «N/M» badge — plus the «или»
+ * JOINT drawn between two siblings that happen to land side by side.
+ */
+export type ConsoleActionFlatTile = ConsoleActionTile & {
+  /** The tile to the LEFT in the same row is the SAME card's sibling variant
+   *  → the «или» joint rides their shared edge. */
+  joinLeft: boolean;
 };
 
 /** One action SOURCE (card / corporation) and its variant tiles. */
@@ -107,8 +126,13 @@ export type ConsoleActionGroup = {
   key: string;
   cardName: CardName;
   isCorporation: boolean;
-  /** Card-level status (the best of its variants — drives the group badge + sort). */
+  /** Card-level status (the best of its variants — drives the group badge). */
   status: ActionStatus;
+  /** The SERVER-side card status (`entry.state.status`) — the SORT key.
+   *  Deliberately NOT the preview-refined `status`: previews arrive
+   *  asynchronously, and sorting by a value that changes on arrival made the
+   *  whole grid re-order under the player's cursor a beat after opening. */
+  sortStatus: ActionStatus;
   /** Activated this generation (for the repeat-mode activation filter). */
   usedThisGen: boolean;
   /** The stored resource on the source card (microbes/animals/floaters), if any. */
@@ -121,6 +145,9 @@ export type ConsoleFilterChip<T> = {value: T, label: string, count: number, acti
 export type ConsoleActionsModel = {
   /** The filtered + status-sorted groups (available first, then blocked, then activated). */
   groups: ReadonlyArray<ConsoleActionGroup>;
+  /** The FLAT grid order the browse list renders (groups flattened, sibling
+   *  variants adjacent) — the layout unit is the action button. */
+  tiles: ReadonlyArray<ConsoleActionFlatTile>;
   availabilityChips: ReadonlyArray<ConsoleFilterChip<AvailabilityFilter>>;
   activationChips: ReadonlyArray<ConsoleFilterChip<ActivationFilter>>;
   /** Total variants across every source (the header count — BY VARIANT). */
@@ -135,54 +162,25 @@ export type ConsoleActionsModel = {
 };
 
 /**
- * Pack the visible groups into the browse grid's FOCUS ROWS, mirroring the
- * CSS layout exactly (2-column grid, auto-flow row):
- *  - a SINGLE-variant group occupies one cell — consecutive singles pack
- *    two to a row;
- *  - a TWO-variant («или») group spans the full row, its pair side by side —
- *    one row of two keys (the same physical columns as two singles);
- *  - a 3+-variant group spans the full row per variant (a wide vertical
- *    run) — one key per row;
- *  - a span-2 group after a half-filled row CLOSES that row (the grid moves
- *    on, leaving the hole) — the model mirrors it so d-pad geometry always
- *    matches what the eye sees.
+ * Pack the visible tiles into the browse grid's FOCUS ROWS, mirroring the CSS
+ * layout exactly — a FLAT `columns`-wide grid over the tile order.
+ *
+ * The unit of layout is the ACTION BUTTON, never the source card: two tiles
+ * stand abreast whether or not they belong to the same card (a row may hold
+ * the last variant of one card and the first of the next). Grouping is carried
+ * by the tiles themselves — the card name + the «N/M» badge — plus the «или»
+ * joint drawn between two siblings that land side by side. That keeps the grid
+ * dense and its geometry trivially predictable for the d-pad.
  */
 export function packActionRows(
   groups: ReadonlyArray<ConsoleActionGroup>,
   columns: 1 | 2 = 2,
 ): Array<Array<string>> {
+  const keys = groups.flatMap((g) => g.tiles.map((t) => t.key));
   const rows: Array<Array<string>> = [];
-  let half: Array<string> | undefined;
-  const flushHalf = () => {
-    if (half !== undefined) {
-      rows.push(half);
-      half = undefined;
-    }
-  };
-  for (const g of groups) {
-    if (g.tiles.length === 1) {
-      if (columns === 1) {
-        // Handheld: one group per row — no abreast packing.
-        rows.push([g.tiles[0].key]);
-      } else if (half === undefined) {
-        half = [g.tiles[0].key];
-      } else {
-        half.push(g.tiles[0].key);
-        flushHalf();
-      }
-    } else if (g.tiles.length === 2) {
-      flushHalf();
-      // The «или» pair stays side by side on EVERY profile (the pair grid
-      // lives INSIDE the group, whose row is full-width either way).
-      rows.push([g.tiles[0].key, g.tiles[1].key]);
-    } else {
-      flushHalf();
-      for (const t of g.tiles) {
-        rows.push([t.key]);
-      }
-    }
+  for (let i = 0; i < keys.length; i += columns) {
+    rows.push(keys.slice(i, i + columns));
   }
-  flushHalf();
   return rows;
 }
 
@@ -416,6 +414,7 @@ function branchChoiceKinds(
 function buildTiles(
   entry: ActionEntry,
   preview: ActionPreview | undefined,
+  cardResource: {type: CardResource, count: number} | undefined,
   repeat?: RepeatAvailability,
 ): Array<ConsoleActionTile> {
   const group = entry.group;
@@ -501,6 +500,10 @@ function buildTiles(
       hasChoices: (preview?.preSteps ?? []).length > 0 || branchNeedsChoices(branch),
       choiceKinds: branchChoiceKinds(branch, preview),
       reason,
+      // Self-describing tile data (the flat grid has no group chrome to carry it).
+      variantTotal: group.nodes.length,
+      cardResource,
+      isCorporation: entry.isCorporation,
     };
   });
 }
@@ -552,7 +555,8 @@ export function buildConsoleActionsModel(
   const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
   const groups: Array<ConsoleActionGroup> = entries.map((entry) => {
-    const tiles = buildTiles(entry, previews.get(entry.cardName), repeat);
+    const cardResource = cardResources.get(entry.cardName);
+    const tiles = buildTiles(entry, previews.get(entry.cardName), cardResource, repeat);
     const status = tiles.reduce<ActionStatus>(
       (best, t) => (STATUS_RANK[t.status] < STATUS_RANK[best] ? t.status : best),
       tiles[0]?.status ?? entry.state.status,
@@ -562,16 +566,23 @@ export function buildConsoleActionsModel(
       cardName: entry.cardName,
       isCorporation: entry.isCorporation,
       status,
+      // The SORT band comes from the server-side card status only (repeat mode:
+      // the candidate set, equally synchronous) — never from the preview-refined
+      // per-variant status, whose late arrival would re-order the live grid.
+      sortStatus: repeat !== undefined ?
+        (repeat.candidates.has(entry.cardName) ? 'available' : 'rules') :
+        entry.state.status,
       usedThisGen: tiles[0]?.usedThisGen ?? false,
-      cardResource: cardResources.get(entry.cardName),
+      cardResource,
       tiles,
     };
   });
-  // Stable sort by card-level status (available → blocked → activated); the
-  // corp-first tableau order the entries arrive in is preserved within a band.
+  // Stable sort by the SERVER card status (available → blocked → activated);
+  // the corp-first tableau order the entries arrive in is preserved within a
+  // band, and the order NEVER changes when previews land.
   const sorted = groups
     .map((g, i) => ({g, i}))
-    .sort((a, b) => (STATUS_RANK[a.g.status] - STATUS_RANK[b.g.status]) || (a.i - b.i))
+    .sort((a, b) => (STATUS_RANK[a.g.sortStatus] - STATUS_RANK[b.g.sortStatus]) || (a.i - b.i))
     .map((x) => x.g);
 
   const allTiles = sorted.flatMap((g) => g.tiles);
@@ -605,13 +616,23 @@ export function buildConsoleActionsModel(
     }
   }
 
+  // The FLAT grid order + the «или» joints: a tile joins the one to its LEFT
+  // when they are sibling variants of the same card AND share a row (column
+  // > 0 in the `layoutColumns`-wide grid).
+  const flat = visibleGroups.flatMap((g) => g.tiles);
+  const tiles: Array<ConsoleActionFlatTile> = flat.map((t, i) => ({
+    ...t,
+    joinLeft: i % layoutColumns !== 0 && flat[i - 1]?.cardName === t.cardName,
+  }));
+
   return {
     groups: visibleGroups,
+    tiles,
     availabilityChips,
     activationChips,
     totalTiles: allTiles.length,
     availableTiles: allTiles.filter((t) => t.status === 'available').length,
-    flatKeys: visibleGroups.flatMap((g) => g.tiles.map((t) => t.key)),
+    flatKeys: tiles.map((t) => t.key),
     rows: packActionRows(visibleGroups, layoutColumns),
   };
 }

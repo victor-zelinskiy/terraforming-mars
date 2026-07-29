@@ -923,12 +923,14 @@ html.con-profile-tv {
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }
-        &__group-name { font-size: 1.15rem; }
-        &__group-status { font-size: var(--con-t-floor); }
-        &__group-res b { font-size: 1.05rem; }
-        &__res-icon { width: 1.4rem; height: 1.4rem; }
+        /* The flat grid's self-describing tile: name + «N/M» + verdict. */
+        &__tile-name { font-size: 1rem; }
+        &__tile-variant { font-size: var(--con-t-floor); }
+        &__tile-status { font-size: var(--con-t-floor); }
+        &__tile-res b { font-size: 1rem; }
+        &__res-icon { width: 1.25rem; height: 1.25rem; }
         &__or { font-size: var(--con-t-floor); }
-        &__tile { padding: 0.55rem 0.7rem; min-height: var(--con-hit-min); }
+        &__tile { padding: 0.4rem 0.55rem; min-height: var(--con-hit-min); }
         &__tile-reason { font-size: var(--con-t-secondary); }
         &__tile-choices { font-size: var(--con-t-caption); }
         &__varchip {

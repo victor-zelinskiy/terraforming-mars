@@ -79,10 +79,13 @@ async function walkIntoGame(page: Page): Promise<void> {
   const activeStep = page.locator('.con-start__step--active');
 
   for (let i = 0; i < 8 && await summary.count() === 0; i++) {
-    await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
+    // The reworked start scene renders no `.con-cards__verdictbar` (that
+    // chassis belongs to the hand / task host) — the STEP RAIL is the honest
+    // readiness signal here. RT(Period) = «СЛЕД. ШАГ»; A picks the corp.
+    await page.waitForSelector('.con-start__step--active', {timeout: 25_000});
     await page.waitForTimeout(400);
     const before = (await activeStep.innerText()).toLowerCase();
-    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'KeyE', 1200);
+    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'Period', 1200);
     for (let w = 0; w < 20 && await summary.count() === 0 &&
          (await activeStep.innerText()).toLowerCase() === before; w++) {
       await page.waitForTimeout(250);

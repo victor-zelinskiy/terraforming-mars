@@ -175,10 +175,17 @@ html.console-native {
    set for the whole open flight + dialog lifetime), the non-fullscreen
    console surfaces PARK: they keep state and layout slots (visibility,
    not display — flight directors may still measure their rects) but
-   never show through the stage veil. Closes the "played tableau / hand
-   dock / draft tray / journal leaking behind a fullscreen card" defect. */
-body.con-zoom-open .con-played,
-body.con-zoom-open .con-played-events,
+   never show through the stage veil. Closes the "hand dock / draft tray /
+   journal leaking behind a fullscreen card" defect.
+
+   ⚠️ «РАЗЫГРАНО» is deliberately NOT parked. The fullscreen opened from
+   the table CLOSES BACK INTO ITS SLOT (the physical return flight), and
+   parking made the card land in a void: the class drops only in
+   `onCardZoomClosed`, i.e. AFTER the flight, so the table popped in a
+   frame late. The stage veil (`.con-zoom-veil`, z 11890, dim-strong)
+   already covers the whole table — it reads as a darkened silhouette
+   underneath, and its `--lifted` fade-out reveals the table gradually
+   UNDER the returning card. One dim, one continuous scene. */
 body.con-zoom-open .con-drafttray,
 body.con-zoom-open .con-journal,
 body.con-zoom-open .con-handdock {
@@ -14351,26 +14358,23 @@ html.console-mode {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
     }
 
-    /* ── Header — a TWO-TIER composition (deliberate, profile-stable):
-       tier 1 = the STATUS line (identity/breadcrumb left, counts / variant
-       chip / optional player-context chip right), tier 2 = the CONTROL line
-       (the two filter groups, browse only). The old kicker + big-title
-       stack duplicated the section name over three rows — in focus the
-       filters yield and the whole header collapses to the one breadcrumb
-       line. Visual order via `order` (ident → stats → filters), so the
-       filters wrap onto their own full row instead of stranding the counts. ── */
+    /* ── Header — ONE line whenever the width allows: [identity] [filters]
+       [counts]. The filters sit BETWEEN the section name and the count chips
+       (the natural free space); they only drop to a second line when the
+       band is genuinely too narrow (flex-wrap, no media query). In focus the
+       filters yield entirely and the line becomes the breadcrumb. ── */
     &__head {
         display: flex;
         align-items: center;
-        gap: .45rem 1.1rem;
+        gap: .35rem .9rem;
         flex-wrap: wrap;
-        min-height: 2.15rem;
+        min-height: 2rem;
     }
     &__ident {
         order: 1;
         display: inline-flex;
         align-items: center;
-        gap: .45rem;
+        gap: .4rem;
         min-width: 0;
         flex: 0 1 auto;
     }
@@ -14409,13 +14413,14 @@ html.console-mode {
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    &__head-stats { order: 2; display: flex; align-items: center; gap: .6rem; margin-left: auto; }
+    /* The counts close the line (order 3 — the filters take the middle). */
+    &__head-stats { order: 3; display: flex; align-items: center; gap: .45rem; margin-left: auto; }
     &__stat {
-        display: inline-flex; align-items: baseline; gap: .3rem;
-        padding: .25rem .65rem; border-radius: 49.95rem;
+        display: inline-flex; align-items: baseline; gap: .25rem;
+        padding: .15rem .5rem; border-radius: 49.95rem;
         background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
-        b { font-size: 1.05rem; font-weight: 800; color: @con-text; }
-        i { font-size: .65rem; font-style: normal; letter-spacing: .03rem; text-transform: uppercase; color: @con-text-dim; }
+        b { font-size: .95rem; font-weight: 800; color: @con-text; }
+        i { font-size: .6rem; font-style: normal; letter-spacing: .03rem; text-transform: uppercase; color: @con-text-dim; }
         &--go { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); b { color: @con-mint; } }
         &--zero { background: rgba(120, 140, 160, 0.1); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.24); b { color: @con-text-dim; } }
     }
@@ -14433,27 +14438,30 @@ html.console-mode {
     /* ── Filters — two LABELED groups, each carrying its own trigger chips
        (the sanctioned exception to the one-bottom-bar rule). They live in
        the header line and hide while the focus stage owns the frame. ── */
-    &__filters { order: 3; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .4rem .8rem; min-width: 0; }
+    /* The filters take the MIDDLE of the header line (order 2, between the
+       identity and the counts) and only wrap to their own row when the band
+       cannot hold all three blocks. */
+    &__filters { order: 2; display: flex; flex-wrap: wrap; gap: .3rem .6rem; min-width: 0; }
     &__fgroup {
-        display: inline-flex; align-items: center; gap: .35rem;
-        padding: .25rem .55rem; border-radius: .6rem;
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .15rem .4rem; border-radius: .5rem;
         background: rgba(12, 20, 32, 0.55);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
     }
-    &__fgroup-head { display: inline-flex; align-items: center; gap: .35rem; margin-right: .2rem; }
+    &__fgroup-head { display: inline-flex; align-items: center; gap: .25rem; margin-right: .1rem; }
     &__fgroup-keys {
-        display: inline-flex; align-items: center; gap: .15rem;
+        display: inline-flex; align-items: center; gap: .1rem;
         /* The glyph chips read as quiet keycaps, never as big buttons. */
         opacity: 0.85;
-        .gp-glyph { transform: scale(0.82); }
+        .gp-glyph { transform: scale(0.74); }
     }
-    &__filter-label { font-size: .65rem; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
+    &__filter-label { font-size: .58rem; letter-spacing: .06rem; text-transform: uppercase; color: @con-text-dim; }
     &__chip {
-        display: inline-flex; align-items: center; gap: .35rem;
-        padding: .25rem .65rem; border-radius: 49.95rem;
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .12rem .45rem; border-radius: 49.95rem;
         background: rgba(16, 26, 38, 0.7); box-shadow: inset 0 0 0 .05rem rgba(130, 160, 190, 0.2);
-        font-size: .8rem; color: @con-text-dim;
-        b { font-size: .75rem; font-weight: 800; color: @con-text; }
+        font-size: .7rem; color: @con-text-dim;
+        b { font-size: .68rem; font-weight: 800; color: @con-text; }
         &--active { background: fade(@con-cyan, 16%); box-shadow: inset 0 0 0 .075rem @con-cyan; color: @con-text; b { color: @con-cyan; } }
         &--empty { opacity: 0.4; }
     }
@@ -14481,85 +14489,39 @@ html.console-mode {
        "variants → decisions" between the two states. */
     &__body { flex: 1; min-height: 0; display: flex; gap: .8rem; padding-top: .2rem; }
     &__list { flex: 1; min-width: 0; }
-    /* TWO GROUPS PER ROW (the std-projects grammar): single-action cards
-       pack two abreast; a multi-variant group SPANS the full row (its «или»
-       pair lands on the same physical columns as two singles, so every tile
-       across the screen shares one width rhythm). Rows stretch — the two
-       groups of a row always stand shoulder to shoulder at one height. */
+    /* TWO ACTION BUTTONS PER ROW — a FLAT grid whose unit is the button, not
+       the source card: a row may hold the last variant of one card and the
+       first of the next. Grouping reads from the tiles themselves (name +
+       «N/M» badge) and from the «или» joint between siblings that land side
+       by side. Dropping the per-card box is what made the list dense: its
+       header cost a whole row per card, and a 2-variant card used to eat a
+       full-width row on its own. */
     &__list-body {
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-auto-flow: row;
         align-items: stretch;
-        gap: .55rem .65rem;
+        gap: .45rem .9rem; /* the column gap hosts the «или» joint */
         padding-right: .4rem;
     }
     &__empty { grid-column: 1 / -1; }
 
-    &__group {
-        display: flex; flex-direction: column;
-        border-radius: .7rem; padding: .4rem .6rem .45rem;
-        background: linear-gradient(160deg, rgba(20, 30, 44, 0.55) 0%, rgba(11, 18, 28, 0.6) 100%);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        &--available { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 30%); }
-        &--rules { box-shadow: inset 0 0 0 .05rem fade(@con-red, 26%); }
-        &--activated { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%); opacity: 0.9; }
-        &--wide { grid-column: span 2; }
-        /* The group HOLDING the focused tile lifts a breath over its row —
-           the eye finds the active card, not just the active tile. */
-        &:has(.con-cardactions__tile--focused) {
-            background: linear-gradient(160deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .35rem 1rem rgba(0, 0, 0, 0.35);
-        }
-    }
-    &__group-head {
-        display: flex; align-items: center; gap: .5rem;
-        margin-bottom: .3rem; padding-bottom: .22rem;
-        /* the machined divider under the card's name plate */
-        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.14);
-    }
-    &__group-name { font-size: .92rem; font-weight: 700; letter-spacing: .02rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__group-res {
-        display: inline-flex; align-items: center; gap: .25rem;
-        padding: .15rem .5rem; border-radius: 49.95rem; background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
-        b { font-size: .9rem; font-weight: 800; }
-    }
-    &__res-icon { display: inline-block; width: 1.1rem; height: 1.1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
-    &__group-status {
-        font-size: .65rem; letter-spacing: .05rem; text-transform: uppercase; padding: .15rem .5rem; border-radius: .3rem;
-        &--available { color: @con-mint; background: fade(@con-mint, 12%); }
-        &--rules { color: #ffb0a6; background: fade(@con-red, 12%); }
-        &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
-        &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
-    }
+    &__res-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
 
-    &__variants {
-        position: relative;
-        flex: 1;
-        display: flex; flex-direction: column; gap: .4rem;
-
-        /* TWO alternatives sit SIDE BY SIDE (the dominant OrOptions case) —
-           the «или» JOINT rides their shared edge like a coupling piece;
-           3+ variants keep the vertical run with inline dividers. */
-        &--pair {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            column-gap: 1.4rem;
-            align-items: stretch;
-        }
-    }
     &__or {
         align-self: center;
-        font-size: .65rem; letter-spacing: .15rem; text-transform: uppercase; color: fade(@con-cyan, 78%);
-        padding: .08rem .6rem; border-radius: 49.95rem;
+        font-size: .6rem; letter-spacing: .12rem; text-transform: uppercase; color: fade(@con-cyan, 78%);
+        padding: .05rem .5rem; border-radius: 49.95rem;
         background: rgba(12, 22, 34, 0.96);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .2rem .5rem rgba(0, 0, 0, 0.4);
 
+        /* The JOINT sits in the grid's column gap, on the tile's LEFT edge —
+           the coupling piece between two sibling variants sharing a row. */
         &--joint {
             position: absolute;
-            left: 50%; top: 50%;
+            left: 0; top: 50%;
             transform: translate(-50%, -50%);
-            z-index: 1;
+            z-index: 2;
         }
     }
     /* The variant tile — the same machined material language as the
@@ -14567,10 +14529,10 @@ html.console-mode {
        the left edge, and an ALWAYS-OPAQUE chassis (blocked/activated tiles
        recede through their CONTENT, never through see-through glass). */
     &__tile {
-        position: relative; display: flex; flex-direction: column; gap: .3rem;
-        flex: 1; /* fills the group's row height — rows stay shoulder-even */
+        position: relative; display: flex; flex-direction: column; gap: .22rem;
+        min-width: 0; /* a long card name must ellipsis, never widen the column */
         box-sizing: border-box;
-        padding: .4rem .55rem .35rem .7rem; border-radius: .6rem;
+        padding: .3rem .5rem .3rem .6rem; border-radius: .55rem;
         background:
             linear-gradient(90deg, transparent 14%, rgba(150, 200, 240, 0.2) 50%, transparent 86%) no-repeat top center / 100% .06rem,
             linear-gradient(168deg, rgba(24, 36, 52, 0.92) 0%, rgba(13, 20, 31, 0.95) 55%, rgba(9, 14, 22, 0.97) 100%);
@@ -14582,7 +14544,7 @@ html.console-mode {
         &::before {
             content: '';
             position: absolute;
-            left: 0; top: .45rem; bottom: .45rem;
+            left: 0; top: .35rem; bottom: .35rem;
             width: .16rem;
             border-radius: 0 .16rem .16rem 0;
             background: fade(@con-mint, 75%);
@@ -14615,12 +14577,47 @@ html.console-mode {
         }
         &--shake { animation: con-cardact-shake calc(320ms * var(--motion-scale, 1)) ease; }
     }
+    /* The tile's own IDENTITY LINE — the flat grid has no group box, so each
+       button names its source card, its variant («N/M») and its verdict. One
+       line, ellipsised: the name never wraps the tile taller. */
+    &__tile-head {
+        display: flex; align-items: center; gap: .35rem; min-width: 0;
+    }
+    &__tile-name {
+        flex: 1; min-width: 0;
+        font-size: .78rem; font-weight: 700; letter-spacing: .01rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* The «N/M» badge — the only marker a card with alternatives needs once
+       the tiles carry their own name. */
+    &__tile-variant {
+        flex-shrink: 0;
+        font-size: .6rem; font-weight: 800; letter-spacing: .04rem;
+        padding: .02rem .3rem; border-radius: .25rem;
+        color: fade(@con-cyan, 92%); background: fade(@con-cyan, 12%);
+        font-variant-numeric: tabular-nums;
+    }
+    &__tile-res {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; gap: .2rem;
+        padding: .05rem .35rem; border-radius: 49.95rem;
+        background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
+        b { font-size: .75rem; font-weight: 800; }
+    }
+    &__tile-status {
+        flex-shrink: 0;
+        font-size: .55rem; letter-spacing: .04rem; text-transform: uppercase; padding: .08rem .35rem; border-radius: .25rem;
+        &--available { color: @con-mint; background: fade(@con-mint, 12%); }
+        &--rules { color: #ffb0a6; background: fade(@con-red, 12%); }
+        &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
+        &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
+    }
     /* The reserved META STRIP — reasons / choice markers fade into space
        that is ALWAYS laid out, so a late line can never resize the tile. */
     &__tile-meta {
-        min-height: .95rem;
+        min-height: .9rem;
         margin-top: auto; /* pins to the tile's floor in stretched rows */
-        display: flex; flex-direction: column; justify-content: flex-end; gap: .12rem;
+        display: flex; flex-direction: column; justify-content: flex-end; gap: .1rem;
     }
     &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; &--lg { gap: .6rem; } }
     &__arrow { font-size: 1.1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
@@ -14634,19 +14631,17 @@ html.console-mode {
         margin: 0 !important; min-width: 0;
         /* The formula sits on a RECESSED strip — the icon well idiom at
            tile scale (one optical mount for DSL icon runs and text alike). */
-        padding: .26rem .42rem;
+        padding: .22rem .38rem;
         border-radius: .4rem;
         background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
         box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
+        /* NO focus zoom / scale here: the action graphic is a SCHEMA, not a
+           card — a cursor that resizes it made the grid breathe under the
+           d-pad. The focus ring + rail carry the state. */
         zoom: var(--con-ui-scale, 1);
-        /* The FOCUSED tile's formula leans forward a breath — a transform-only
-           lift (no layout, perf-lite-safe); the cursor's material response. */
-        transform-origin: left center;
-        transition: transform calc(150ms * var(--motion-scale, 1)) ease;
         .card-description { display: none; }
         &:has(> .con-cardactions__graphic-text) { zoom: 1; }
     }
-    &__tile--focused &__graphic { transform: scale(1.05); }
     &__graphic-text {
         display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
         white-space: normal; overflow-wrap: anywhere;
@@ -14758,17 +14753,6 @@ html.console-mode {
         display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: fade(@con-cyan, 92%);
         padding: .4rem .6rem; border-radius: .4rem; background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
     }
-    /* The per-game USAGE HISTORY moved to the fullscreen dossier (X → ИСТОРИЯ):
-       a calm, low-contrast pointer sits where the stats block used to — the
-       decision surface stays clean, the deep data is one deliberate press
-       away. `margin-top: auto` pins it to the panel bottom so removing the
-       ledger left no gap. */
-    &__detail-history-hint {
-        margin-top: auto; padding-top: .5rem;
-        display: inline-flex; align-items: center; gap: .4rem;
-        font-size: .75rem; color: @con-text-dim;
-    }
-
     /* ── Empty state ── */
     &__empty { margin: auto; text-align: center; max-width: 23rem; padding: 1.5rem; }
     &__empty-mark { font-size: 2.3rem; color: fade(@con-cyan, 55%); }
@@ -15654,17 +15638,16 @@ html.con-profile-handheld .con-cardactions {
        already identify the groups — the text labels are couch luxury
        (same call as .con-status__intel-label). */
     .con-cardactions__filter-label { display: none; }
-    /* The Deck's narrow list keeps ONE group per row (two abreast is a TV
-       affordance); the packed focus rows collapse to the same single file,
-       so d-pad geometry still matches the screen. */
+    /* The Deck's narrow list keeps ONE action button per row (two abreast is
+       a TV affordance); the packed focus rows collapse to the same single
+       file, so d-pad geometry still matches the screen. */
     .con-cardactions__list-body { grid-template-columns: 1fr; }
-    .con-cardactions__group--wide { grid-column: auto; }
     .con-cardactions__ident-section { font-size: .95rem; }
     .con-cardactions__title { font-size: .95rem; }
     .con-cardactions__detail { flex-basis: 16.5rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
     .con-cardactions__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
-    .con-cardactions__group-name { font-size: .85rem; }
+    .con-cardactions__tile-name { font-size: .75rem; }
     .con-cardactions__stat b { font-size: .9rem; }
 }
 
@@ -15673,7 +15656,7 @@ html.con-profile-large .con-cardactions {
     .con-cardactions__ident-section { font-size: 1.3rem; }
     .con-cardactions__title { font-size: 1.3rem; }
     .con-cardactions__detail-name { font-size: 1.35rem; }
-    .con-cardactions__group-name { font-size: 1.1rem; }
+    .con-cardactions__tile-name { font-size: .95rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

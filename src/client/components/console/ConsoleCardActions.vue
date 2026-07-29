@@ -211,87 +211,76 @@
             <span>{{ nextStepText }}</span>
           </div>
 
-          <!-- The per-game USAGE HISTORY moved to the fullscreen dossier
-               (X → «Осмотреть» → СТАТИСТИКА) — the browser stays a decision
-               surface. A calm hint points there so the data is never "lost". -->
-          <div class="con-cardactions__detail-history-hint">
-            <GamepadGlyph control="secondary" />
-            <span>{{ $t('Inspect for this game\'s history') }}</span>
-          </div>
+          <!-- (No X hint here: the command bar already publishes «Осмотреть»
+               — a second copy inside the panel was pure duplication.) -->
         </aside>
 
         <ConsoleScrollArea class="con-cardactions__list" content-class="con-cardactions__list-body" ref="list">
           <!-- Empty states — never a blank screen; names the hiding filter. -->
-          <div v-if="model.groups.length === 0" class="con-cardactions__empty">
+          <div v-if="model.tiles.length === 0" class="con-cardactions__empty">
             <span class="con-cardactions__empty-mark" aria-hidden="true">◇</span>
             <div class="con-cardactions__empty-title">{{ $t(emptyState.title) }}</div>
             <div class="con-cardactions__empty-body">{{ $t(emptyState.body) }}</div>
             <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
           </div>
 
-          <div v-for="group in model.groups" :key="group.key"
-               class="con-cardactions__group"
+          <!-- ── The FLAT grid: two ACTION BUTTONS per row, whatever card
+               they belong to. Every tile is self-describing (card name +
+               «N/M» variant badge + status + stored resource), so a row may
+               mix two cards without losing the grouping; sibling variants
+               that land side by side get the «или» JOINT on their shared
+               edge. Dropping the per-card group box is what made the list
+               dense — the chrome cost a header row per card. ─────────── -->
+          <div v-for="tile in model.tiles" :key="tile.key"
+               class="con-cardactions__tile"
                :class="[
-                 'con-cardactions__group--' + group.status,
-                 {'con-cardactions__group--wide': group.tiles.length >= 2},
-               ]">
-            <div class="con-cardactions__group-head">
-              <span class="con-cardactions__group-name">{{ $t(group.cardName) }}</span>
-              <span v-if="group.cardResource !== undefined" class="con-cardactions__group-res">
-                <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
-                <b>{{ group.cardResource.count }}</b>
+                 'con-cardactions__tile--' + tile.status,
+                 {
+                   'con-cardactions__tile--focused': focusKey === tile.key,
+                   'con-cardactions__tile--shake': shakeKey === tile.key,
+                   'con-cardactions__tile--joined': tile.joinLeft,
+                 },
+               ]"
+               :ref="focusKey === tile.key ? 'focused' : undefined">
+            <!-- The «или» joint rides the shared edge with the sibling to the left. -->
+            <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
+
+            <div class="con-cardactions__tile-head">
+              <span class="con-cardactions__tile-name">{{ $t(tile.cardName) }}</span>
+              <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ tile.nodeIndex + 1 }}/{{ tile.variantTotal }}</span>
+              <span v-if="tile.cardResource !== undefined" class="con-cardactions__tile-res">
+                <i class="con-cardactions__res-icon" :class="resIconClass(tile.cardResource.type)" aria-hidden="true"></i>
+                <b>{{ tile.cardResource.count }}</b>
               </span>
-              <span class="con-cardactions__group-status" :class="'con-cardactions__group-status--' + group.status">
-                {{ $t(statusLabel(group.status)) }}
+              <span class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
+                {{ $t(statusLabel(tile.status)) }}
               </span>
             </div>
 
-            <!-- TWO alternative variants sit SIDE BY SIDE with the «или»
-                 joint on their shared edge (the dominant OrOptions case);
-                 3+ variants keep the vertical run with inline dividers. -->
-            <div class="con-cardactions__variants"
-                 :class="{'con-cardactions__variants--pair': group.tiles.length === 2}">
-              <div v-if="group.tiles.length === 2" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
-              <template v-for="(tile, ti) in group.tiles" :key="tile.key">
-                <div v-if="ti > 0 && group.tiles.length !== 2" class="con-cardactions__or" aria-hidden="true">{{ $t('or') }}</div>
-                <div class="con-cardactions__tile"
-                     :class="[
-                       'con-cardactions__tile--' + tile.status,
-                       {
-                         'con-cardactions__tile--focused': focusKey === tile.key,
-                         'con-cardactions__tile--shake': shakeKey === tile.key,
-                       },
-                     ]"
-                     :ref="focusKey === tile.key ? 'focused' : undefined">
-                  <!-- The tile ALWAYS shows the card's OWN action graphic
-                       (icons straight from the manifest — instant, no fetch,
-                       so it never flickers). The COMPLETE cost → reward
-                       formula chips live only in the right-panel summary. -->
-                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                    <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-                    <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                    <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-                  </div>
+            <!-- The tile ALWAYS shows the card's OWN action graphic (icons
+                 straight from the manifest — instant, no fetch, so it never
+                 flickers). The COMPLETE cost → reward formula chips live only
+                 in the left dossier. -->
+            <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+              <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
+              <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+              <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+            </div>
 
-                  <!-- The META STRIP is ALWAYS laid out at a fixed minimum
-                       height — a late-arriving reason / choice line fades
-                       into RESERVED space and can never change the tile's
-                       geometry (the "tiles grow and jump" hardening; the
-                       store pre-warm makes late arrival rare to begin with). -->
-                  <div class="con-cardactions__tile-meta">
-                    <!-- Non-amount pre-submit choices (a card / player / payment
-                         pick happens in the composer) — named, never a mute "X". -->
-                    <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                      <span aria-hidden="true">◈</span>
-                      <span>{{ choiceKindsLabel(tile) }}</span>
-                    </div>
-                    <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
-                      <span aria-hidden="true">✕</span>
-                      <span>{{ tileReason(tile) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </template>
+            <!-- The META STRIP is ALWAYS laid out at a fixed minimum height —
+                 a late-arriving reason / choice line fades into RESERVED
+                 space and can never change the tile's geometry. -->
+            <div class="con-cardactions__tile-meta">
+              <!-- Non-amount pre-submit choices (a card / player / payment
+                   pick happens in the composer) — named, never a mute "X". -->
+              <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                <span aria-hidden="true">◈</span>
+                <span>{{ choiceKindsLabel(tile) }}</span>
+              </div>
+              <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                <span aria-hidden="true">✕</span>
+                <span>{{ tileReason(tile) }}</span>
+              </div>
             </div>
           </div>
         </ConsoleScrollArea>
@@ -570,14 +559,7 @@ export default defineComponent({
       return `${cards}#${[...this.availableNames].sort().join(',')}`;
     },
     focusedTile(): ConsoleActionTile | undefined {
-      for (const g of this.model.groups) {
-        for (const t of g.tiles) {
-          if (t.key === this.focusKey) {
-            return t;
-          }
-        }
-      }
-      return this.model.groups[0]?.tiles[0];
+      return this.model.tiles.find((t) => t.key === this.focusKey) ?? this.model.tiles[0];
     },
     focusedGroup(): ConsoleActionGroup | undefined {
       const tile = this.focusedTile;
@@ -592,7 +574,7 @@ export default defineComponent({
         return [];
       }
       const run = browseCommandRun({
-        empty: this.model.groups.length === 0,
+        empty: this.model.tiles.length === 0,
         focusedAvailable: this.focusedTile?.status === 'available',
       });
       if (!this.repeat) {
@@ -700,7 +682,7 @@ export default defineComponent({
         }
         if (this.focusKey === '') {
           // Fresh open — lead with the first activatable variant, else the first shown.
-          const firstAvail = this.model.groups.flatMap((g) => g.tiles).find((t) => t.status === 'available');
+          const firstAvail = this.model.tiles.find((t) => t.status === 'available');
           this.focusKey = firstAvail?.key ?? keys[0];
           return;
         }
@@ -1128,14 +1110,25 @@ export default defineComponent({
       (this.$refs.list as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
     },
     scrollFocusedIntoView(): void {
+      const list = this.$refs.list as {
+        ensureVisible?: (el: Element | null | undefined, margin?: number) => void,
+        scrollToStart?: () => void,
+      } | undefined;
+      // The FIRST row belongs to the top of the list: `ensureVisible` only
+      // guarantees the row is inside the viewport, so walking back up left the
+      // grid a few px short of 0 with the top tile selected (the header gap
+      // read as "stuck"). Returning to row 0 returns the SCROLL to 0.
+      if (this.model.rows[0]?.includes(this.focusKey) === true) {
+        list?.scrollToStart?.();
+        return;
+      }
       const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
       const node = Array.isArray(el) ? el[0] : el;
       // Foundation: bounded to the ConsoleScrollArea viewport (never
       // scrollIntoView). The generous margin keeps a breath of NEXT-row
       // context visible past the cursor, so fast d-pad runs read as motion
       // through a list, not a row pinned to the viewport edge.
-      (this.$refs.list as {ensureVisible?: (el: Element | null | undefined, margin?: number) => void} | undefined)
-        ?.ensureVisible?.(node, Math.round(22 * conUiScale()));
+      list?.ensureVisible?.(node, Math.round(22 * conUiScale()));
     },
   },
 });

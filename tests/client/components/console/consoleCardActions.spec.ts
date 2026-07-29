@@ -319,29 +319,31 @@ describe('consoleCardActions model', () => {
     });
   });
 
-  describe('packActionRows / stepActionRows (the 2-column browse grid)', () => {
+  describe('packActionRows / stepActionRows (the FLAT 2-column browse grid)', () => {
     /** A minimal group fixture — the packer reads only tiles[].key. */
     const group = (...keys: Array<string>) =>
       ({tiles: keys.map((key) => ({key}))}) as unknown as ConsoleActionGroup;
 
-    it('packs consecutive singles two abreast; an «или» pair spans its own row', () => {
+    it('packs the FLAT tile order two abreast — a row may mix two cards', () => {
       const rows = packActionRows([group('a'), group('b'), group('p1', 'p2'), group('c')]);
       expect(rows).to.deep.eq([['a', 'b'], ['p1', 'p2'], ['c']]);
     });
 
-    it('a span-2 group after a half row CLOSES it (the grid hole is mirrored)', () => {
+    it('a sibling PAIR is not privileged: it packs like any other pair of buttons', () => {
+      // 'a' + the pair's first tile share a row; the pair's second tile pairs
+      // with the NEXT card's button — exactly what the CSS grid draws.
       const rows = packActionRows([group('a'), group('p1', 'p2'), group('b'), group('c')]);
-      expect(rows).to.deep.eq([['a'], ['p1', 'p2'], ['b', 'c']]);
+      expect(rows).to.deep.eq([['a', 'p1'], ['p2', 'b'], ['c']]);
     });
 
-    it('a 3+-variant group runs one wide row per variant', () => {
+    it('a 3+-variant card flows through the same two columns', () => {
       const rows = packActionRows([group('t1', 't2', 't3'), group('a')]);
-      expect(rows).to.deep.eq([['t1'], ['t2'], ['t3'], ['a']]);
+      expect(rows).to.deep.eq([['t1', 't2'], ['t3', 'a']]);
     });
 
-    it('one column (handheld): singles stop packing abreast, pairs stay side by side', () => {
+    it('one column (handheld): one action button per row', () => {
       const rows = packActionRows([group('a'), group('b'), group('p1', 'p2')], 1);
-      expect(rows).to.deep.eq([['a'], ['b'], ['p1', 'p2']]);
+      expect(rows).to.deep.eq([['a'], ['b'], ['p1'], ['p2']]);
     });
 
     it('steps left/right within a row, up/down across rows keeping the nearest column', () => {
@@ -352,6 +354,45 @@ describe('consoleCardActions model', () => {
       expect(stepActionRows(rows, 'c', 'up')).to.eq('p1');
       expect(stepActionRows(rows, 'a', 'left')).to.eq('a'); // the edge is felt
       expect(stepActionRows(rows, 'c', 'down')).to.eq('c');
+    });
+  });
+
+  describe('the flat grid model', () => {
+    it('marks the «или» JOINT only for a sibling that shares its row', () => {
+      // Two single-action cards, then a two-variant card: the flat order is
+      // [A, B, C1, C2] → rows [A,B] and [C1,C2]; only C2 joins left.
+      const entries = [
+        entry('A', 'available', ['use']),
+        entry('B', 'available', ['use']),
+        entry('C', 'available', ['first', 'second']),
+      ];
+      const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'});
+      expect(model.tiles.map((t) => t.key)).to.deep.eq(['A#0', 'B#0', 'C#0', 'C#1']);
+      expect(model.tiles.map((t) => t.joinLeft)).to.deep.eq([false, false, false, true]);
+      // Every tile is SELF-DESCRIBING (no group box carries this any more).
+      expect(model.tiles.map((t) => t.variantTotal)).to.deep.eq([1, 1, 2, 2]);
+    });
+
+    it('sorts by the SERVER card status, so a late preview never re-orders the live grid', () => {
+      const entries = [
+        entry('Blocked', 'rules', ['use'], {reasons: [{type: 'rule', message: 'No steel'}]}),
+        entry('Fine', 'available', ['first', 'second']),
+      ];
+      const order = () => buildConsoleActionsModel(
+        entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'}).tiles.map((t) => t.key);
+      const before = order();
+      // The preview lands and BLOCKS the second variant of the available card:
+      // the tile's own status refines, but the grid order must not move.
+      const previews = new Map<CardName, ActionPreview>([
+        ['Fine' as CardName, preview('Fine', [
+          {index: 0, title: '', available: true, renderKeys: [], effects: [], steps: []},
+          {index: 1, title: '', available: false, unavailableReason: 'No microbes', renderKeys: [], effects: [], steps: []},
+        ])],
+      ]);
+      const after = buildConsoleActionsModel(
+        entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'}).tiles;
+      expect(after.map((t) => t.key)).to.deep.eq(before);
+      expect(after.find((t) => t.key === 'Fine#1')?.status).to.eq('rules');
     });
   });
 });

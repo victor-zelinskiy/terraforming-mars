@@ -129,7 +129,30 @@ async function walkWizard(page: Page, preludes: Array<string>): Promise<void> {
       }
       picked = await pickCard(page, name) || picked;
     }
-    await key(page, picked || guard % 2 === 1 ? 'Period' : 'Enter', 1100);
+    if (picked) {
+      await key(page, 'Period', 1100); // the named picks are in — next step
+      continue;
+    }
+    // STATE-AWARE advance: a blind A/RT alternation buys projects (spawning a
+    // payment task) and can stall on the summary. Read the active step: the
+    // FIRST step needs a pick (corp), the LAST one launches, the rest skip.
+    const stage = await page.evaluate(() => {
+      const steps = [...document.querySelectorAll('.con-start__step')];
+      return {
+        active: steps.findIndex((s) => s.classList.contains('con-start__step--active')),
+        steps: steps.length,
+      };
+    });
+    if (stage.steps === 0) {
+      await key(page, 'Enter', 1100); // a sequence beat (play corp / prelude)
+    } else if (stage.active === 0) {
+      await key(page, 'Enter', 1000);
+      await key(page, 'Period', 1000);
+    } else if (stage.active === stage.steps - 1) {
+      await key(page, 'Enter', 1400); // summary → launch
+    } else {
+      await key(page, 'Period', 1000);
+    }
   }
 }
 
