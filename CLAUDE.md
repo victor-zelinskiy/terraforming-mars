@@ -40,6 +40,7 @@ When a change trades these off against closeness to upstream, code volume or edg
 9. **English text IS the i18n key.** Grep the exact key across all of `src/locales/<lang>/*.json` before adding one — the build **throws** on a duplicate. Never rewrite the RU translation of a key you didn't introduce; coin a new, more specific English key instead. Canonical: TR → **РТ**, VP → **ПО**, tag → **метка**.
 10. **Don't refactor the legacy radio input stack** (`WaitingFor.vue` / `OrOptions.vue` / `SelectOption.vue`) — it must keep working until a stylesheet flip hides it.
 11. **Guard tests are the worklist.** Coverage specs enumerate the in-scope card set and fail with the exact list of cards needing attention. Widening expansion scope starts by widening their `SCOPE` sets — see `docs/claude/expansion-adaptation-checklist.md`.
+12. **A controller button has a NAME only inside `glyphSets.ts`.** Everything else speaks semantics (`confirm` / `triggerL` / …) and renders through **`GamepadGlyph.vue`**; copy that must name a button interpolates the label (`translateTextWithParams` + `activeGlyphSet()`); a badge painted on DOM we don't own reads `content: var(--gp-label-<control>)` from the **glyph CSS bridge** (`glyphCssBridge.ts`). A literal `LT` / `RB` / `Y` — in markup, in a **translation value**, or in `content:` — freezes that one spot to Xbox and lies to every PlayStation/Steam player. Guard: `tests/gamepad/glyphLiteralGuard.spec.ts`.
 
 ---
 

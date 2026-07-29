@@ -23,6 +23,16 @@ A new console surface that renders its OWN root class is invisible to `consoleLe
 ## Input — semantic, never raw
 Physical input → `GamepadIntent` → `ConsoleAction` (`consoleActionModel.ts`). The ONE keyboard map lives there; the global `consoleKeyBridge` feeds the same dispatch. **Never add a component-local `keydown` listener or a new physical binding at a call site** — new screens use `useConsoleInput({onAction, onNav, overrides})`. `useGamepad`/`useMagicKeys` from VueUse are deliberately not used.
 
+## Controller glyphs — never a literal button name
+The player picks a glyph set (Options → «Контроллер»: Auto / Xbox / PlayStation / Steam) and an A↔B layout; `activeGlyphSet()` resolves both. Three sanctioned ways to show a button, in order of preference:
+1. **`<GamepadGlyph control="triggerL"/>`** — the badge. Default for all markup.
+2. **Interpolate the label** when the string is plain text with no glyph slot: `translateTextWithParams('Press ${0} …', [activeGlyphSet().stickL.label])`, and keep the English key parameterized.
+3. **`content: var(--gp-label-<control>)`** (+ `var(--gp-tone-<control>)`) — ONLY for a badge on DOM we don't own (the `simple-keyboard` virtual keys). Published onto `<html>` by `glyphCssBridge.ts`, republished by `GamepadLayer`.
+
+A literal `LT` / `RB` / `L3` / `Y` is a bug — including inside a **RU translation value**, where the English key looks clean («колесе LT/RT» shipped that way). Comments may name buttons freely. `tests/gamepad/glyphLiteralGuard.spec.ts` fails on any non-comment literal in `console/**`, `gamepad/**`, `console*.less` and `console.json`.
+
+**Auto-detect cannot see through Steam Input** — it virtualizes every pad as an Xbox 360 controller, so `detectGlyphSet` returns `xbox` and the player must pick Steam/PlayStation manually. When a glyph "looks wrong", check Options → «Контроллер» (Auto shows what it resolved to) BEFORE hunting for a hardcode.
+
 ## Overflow — a native scrollbar is a BUG
 Every console-native SCREEN root calls `useConsoleNativeSurface()`. Overflowing content lives ONLY inside `ConsoleScrollArea.vue` — never a hand-rolled `overflow-y: auto`. Animations use `.con-motion-clip` (outer clip) + `.con-motion-layer` (inner transform/opacity). `transition: all` and animating width/height/top/left are banned. Treat every dev `[console-overflow]` warn as a bug.
 
@@ -48,6 +58,18 @@ Orchestrated by `src/client/console/surfaceMotion/` behind `<transition :css="fa
 
 ## Mandatory prompt gating
 An INTERRUPTIVE mandatory DECISION is ANNOUNCED, not auto-opened: surface stays closed, `ConsoleMandatoryAnnounce` names it, **B opens it** (`consoleMandatoryGate.ts`). Scope: `corpFirstAction` + forced `handSelect` always; host sub-prompts only when the viewer's status is an off-turn forced reaction. The viewer's own turn is never gated. **Never gate a cinematic ENDPOINT** (a drawn-cards reveal is the continuation of a draw animation — gating splits one cinematic). New interruptive kind → add it to the gate's scope set + a fixture row.
+
+A DEFERRED (minimized) task is reachable **only from the board home** — its `.con-mandatory` card renders nowhere else, and `handleSectionBack`'s restore branch sits AFTER the section-close branches on purpose. Putting it first (it once was, as a "global fallback") makes B inside the hand/colonies/hydro yank the prompt back instead of closing that screen, so B stops meaning "one calm step back" the moment anything is deferred.
+
+## Prompt admission — one response, one demand
+ONE server response routinely carries a finished EFFECT and the NEXT prompt (the executor draws synchronously and only DEFERS a tile — Experimental Forest answers with the drawn-cards reveal AND `SelectSpace`). Every surface family derived from `waitingFor` asks `this.admits('<family>')` (`consolePromptAdmission.ts`) — **never hand-roll a gate expression**; four hand-copied ones had already drifted and the fifth (board placement) was never written, which is how the reveal and the live board arrived together. `PromptSurface` is exhaustive over the policy record, so a new family fails the compile until it declares what it waits for; a new signal goes into `ConsoleShell.admissionSignals`, the single collection point. **A draw's prompt ends only when the LAST card lands in the dock** (search → reveal → take → intake flight), not when the modal closes. Board placement has no `v-if` (the board is always mounted) — the verdict IS the suppression, mirrored to the legacy `WaitingFor` via `setConsolePlacementHeld` so the hex highlight holds with it. Client-side pickers (convert-plants, a task's nested space) are deliberately NOT gated — holding them strands the prompt. Full contract: `docs/claude/console/prompt-admission.md`.
+
+A surface that hands a pick to an ALWAYS-MOUNTED host (the board) and unmounts must also hold itself down across the SUBMIT round-trip — `waitingFor` still names the old prompt until the server answers, so it re-mounts and blinks over the cinematic the commit just started (`finalGreeneryCommitting` is the reference; release a tick after the response, when the hero has the foreground).
+
+## Payment — ONE panel, two densities
+Every payment prompt (card play, blue action, standalone `SelectPayment`, colony trade) renders `ConsolePaymentPanel` over `buildPaymentView` (`paymentPlan.ts`) — the SINGLE source of every payment number. `mode="compact"` is the in-composer summary, `mode="expanded"` is the LT editor: **same rows, same order, same values, same geometry**. Never fork the markup for a new payment context — pass `titleKey` / `hintMode` instead.
+
+**Layout-shift contract (load-bearing):** the M€ row is always rendered even at 0 spent; rows reserve `--con-pay-row-h` (sized for the expanded two-line cell); numeric columns have fixed widths; `.con-paystatus` is unconditional and reserves `--con-pay-status-h`. **`.con-pay--expanded` may change PAINT ONLY** — no padding/gap/height, or the LT switch starts moving the CTA. Full contract: `docs/claude/console/payment-panel.md`.
 
 ## Prompt copy
 `consoleTaskSummary.ts` is the ONE source of pending-decision copy (deferred chip / command bar / task host kicker). It is pure and key-based; the SERVER title wins over a per-kind key unless boilerplate. **Never hardcode a pending label at a call site.** The union is exhaustive with a `never` guard — a new `TaskKind` fails the compile until it gets copy + a fixture row.

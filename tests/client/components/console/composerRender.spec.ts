@@ -410,6 +410,120 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /**
+   * PAYMENT inside a blue-card action — the SAME panel, the SAME two densities
+   * the card-play flow uses. The reason this lives in a MOUNT spec: the pure
+   * model can prove the rows, only a render can prove that expanding the block
+   * does not unmount the CTA dock or replace the screen.
+   */
+  describe('payment (St. Joseph-style paid action)', () => {
+    const PAYER: any = {
+      ...PLAYER_VIEW,
+      thisPlayer: {...PLAYER_VIEW.thisPlayer, megacredits: 20, steel: 4, steelValue: 2, titaniumValue: 3},
+    };
+    const PAY_PREVIEW = {
+      card: 'Paid Action', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'payment', title: 'Pay', amount: 8, paymentOptions: {steel: true}}}],
+      }],
+    };
+    function payComposer() {
+      return mount(ConsoleActionComposer, {
+        ...globalConfig,
+        global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+        props: {playerView: PAYER, entry: entryFor('Paid Action'), preview: PAY_PREVIEW, nodeIndex: 0},
+      });
+    }
+
+    it('renders the shared payment panel COMPACT, with the alt source and the auto M€ row', () => {
+      const w = payComposer();
+      expect(w.find('.con-pay--compact').exists()).to.eq(true);
+      expect(w.findAll('.con-payrow').map((r) => r.attributes('data-pay-unit'))).to.deep.eq(['steel', 'megacredits']);
+      // Seeded with the desktop-optimal default: 4 steel @2 = 8 → exact, 0 M€.
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('4');
+      expect(w.find('[data-pay-unit="megacredits"] .con-payrow__used').text()).to.eq('0');
+      expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+      w.unmount();
+    });
+
+    it('the bumpers dial the single alt source without a cursor, and M€ re-balances', async () => {
+      const w = payComposer();
+      (w.vm as any).handleIntent({kind: 'press', button: 'bumperL'});
+      await w.vm.$nextTick();
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
+      expect(w.find('[data-pay-unit="megacredits"] .con-payrow__used').text()).to.eq('2');
+      expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+      w.unmount();
+    });
+
+    it('the trigger EXPANDS the block in place — the CTA dock never unmounts, the mix is kept', async () => {
+      const w = payComposer();
+      (w.vm as any).handleIntent({kind: 'press', button: 'bumperL'});
+      const before = w.findAll('.con-payrow').map((r) => r.attributes('data-pay-unit'));
+      expect(w.find('.con-composer__ctadock').exists()).to.eq(true);
+
+      (w.vm as any).handleIntent({kind: 'press', button: 'triggerL'});
+      await w.vm.$nextTick();
+      expect(w.find('.con-pay--expanded').exists()).to.eq(true);
+      // Same rows, same order, same values — a density change, not a new screen.
+      expect(w.findAll('.con-payrow').map((r) => r.attributes('data-pay-unit'))).to.deep.eq(before);
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
+      // The cursor opens on the source the compact summary was driving.
+      expect(w.find('.con-payrow--focused').attributes('data-pay-unit')).to.eq('steel');
+      // The dock survives — this is what keeps the confirm from jumping.
+      expect(w.find('.con-composer__ctadock').exists()).to.eq(true);
+
+      // ...and the same trigger folds it back, keeping the chosen mix.
+      (w.vm as any).handleIntent({kind: 'press', button: 'triggerL'});
+      await w.vm.$nextTick();
+      expect(w.find('.con-pay--compact').exists()).to.eq(true);
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
+      w.unmount();
+    });
+
+    /**
+     * THE regression this rework exists for: an appearing overpay used to
+     * resize the payment block and shove the confirm around. The row set and
+     * the verdict element are now unconditional, so the block's box is stable.
+     */
+    it('an appearing OVERPAY adds no box — the row set and the verdict element are unchanged', async () => {
+      // Cost 7 with steel @2: the default trims to 3 steel + 1 M€ (exact);
+      // dialing steel up to 4 spends 8 → an unavoidable rate-remainder overpay.
+      const w = mount(ConsoleActionComposer, {
+        ...globalConfig,
+        global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+        props: {
+          playerView: PAYER,
+          entry: entryFor('Paid Action'),
+          preview: {
+            ...PAY_PREVIEW,
+            branches: [{
+              ...PAY_PREVIEW.branches[0],
+              steps: [{kind: 'input', input: {type: 'payment', title: 'Pay', amount: 7, paymentOptions: {steel: true}}}],
+            }],
+          },
+          nodeIndex: 0,
+        },
+      });
+      const shape = () => ({
+        rows: w.findAll('.con-payrow').length,
+        cells: w.findAll('.con-payrow__cell').length,
+        status: w.findAll('.con-paystatus').length,
+      });
+      const before = shape();
+      expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+
+      (w.vm as any).handleIntent({kind: 'press', button: 'bumperR'});
+      await w.vm.$nextTick();
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('4');
+      expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--overpay');
+      expect(w.find('.con-paystatus__delta').text()).to.eq('+1');
+      expect(shape()).to.deep.eq(before);
+      w.unmount();
+    });
+  });
+
   it('shows the live stored resource on the source card (decision-relevant pool)', () => {
     const view = {
       ...PLAYER_VIEW,

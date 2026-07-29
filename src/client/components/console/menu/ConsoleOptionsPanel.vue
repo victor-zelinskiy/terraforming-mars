@@ -88,6 +88,7 @@ import {
   GLYPHSET_LABELS,
   cycleGlyphSetOverride,
   glyphSetState,
+  layoutSwapLabels,
   resolveGlyphSetId,
 } from '@/client/gamepad/glyphSets';
 import {BUTTON_LAYOUT_LABELS, buttonLayoutState, cycleButtonLayout} from '@/client/gamepad/buttonLayout';
@@ -103,7 +104,7 @@ import {
 } from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 // English i18n keys ('Standard' / 'Auto' already exist in console.json — reused).
 const MOTION_SPEED_LABELS: Record<MotionSpeedPreset, string> = {
@@ -180,8 +181,10 @@ export default defineComponent({
           id: 'buttons',
           label: 'Button layout',
           sub: 'Which face button confirms',
-          glyph: '🅰',
-          value: translateText(BUTTON_LAYOUT_LABELS[this.buttonLayoutState.layout]),
+          // A platform-NEUTRAL swap mark: the row icon used to be «🅰», an Xbox
+          // letter frozen into the one row that renames those very buttons.
+          glyph: '⇄',
+          value: this.buttonsValue,
         },
         {
           // The LT/RT wheel's control STYLE — a first-class choice, not a
@@ -240,6 +243,17 @@ export default defineComponent({
         });
       }
       return rows;
+    },
+    buttonsValue(): string {
+      // The swap value NAMES two physical face buttons, so it follows the glyph
+      // set: «Обмен A / B» on Xbox/Steam, «Обмен ✕ / ◯» on PlayStation. Reads
+      // buttonLayoutState + (through layoutSwapLabels) glyphSetState, so the
+      // row re-renders on either change.
+      const layout = this.buttonLayoutState.layout;
+      const labels = layoutSwapLabels(layout);
+      return labels.length === 0 ?
+        translateText(BUTTON_LAYOUT_LABELS[layout]) :
+        translateTextWithParams(BUTTON_LAYOUT_LABELS[layout], [...labels]);
     },
     controllerValue(): string {
       // Reads glyphSetState (override + detected) so the row reacts to both a

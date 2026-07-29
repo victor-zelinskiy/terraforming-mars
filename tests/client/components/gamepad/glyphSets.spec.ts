@@ -6,10 +6,12 @@ import {
   currentGlyphSetChoice,
   cycleGlyphSetOverride,
   detectGlyphSet,
+  layoutSwapLabels,
   resolveGlyphSetId,
   setGlyphSetOverride,
   updateDetectedGlyphSet,
 } from '@/client/gamepad/glyphSets';
+import {setButtonLayout} from '@/client/gamepad/buttonLayout';
 
 describe('glyphSets', () => {
   beforeEach(() => {
@@ -70,6 +72,34 @@ describe('glyphSets', () => {
       expect(currentGlyphSetChoice()).to.eq('auto');
       const seen = GLYPHSET_CHOICES.map(() => cycleGlyphSetOverride());
       expect(seen).to.deep.eq(['xbox', 'playstation', 'steam', 'auto']);
+    });
+  });
+
+  // The «Раскладка кнопок» Options value names two PHYSICAL buttons, so it has
+  // to follow the glyph set — it used to hardcode «Swap A / B».
+  describe('layoutSwapLabels', () => {
+    afterEach(() => setButtonLayout('standard'));
+
+    it('is empty for the identity layout', () => {
+      expect(layoutSwapLabels('standard')).to.deep.eq([]);
+    });
+
+    it('names the swapped pair in the ACTIVE set vocabulary', () => {
+      setGlyphSetOverride('xbox');
+      expect(layoutSwapLabels('swap-ab')).to.deep.eq(['A', 'B']);
+      setGlyphSetOverride('playstation');
+      expect(layoutSwapLabels('swap-ab')).to.deep.eq(['✕', '◯']);
+      setGlyphSetOverride('steam');
+      expect(layoutSwapLabels('swap-ab')).to.deep.eq(['A', 'B']);
+    });
+
+    it('reads the BASE set — the label names buttons, not the roles it swaps', () => {
+      setGlyphSetOverride('xbox');
+      setButtonLayout('swap-ab');
+      // activeGlyphSet() is swapped here (confirm renders B); the SETTING must
+      // still read «A / B», not «B / A».
+      expect(activeGlyphSet().confirm.label).to.eq('B');
+      expect(layoutSwapLabels('swap-ab')).to.deep.eq(['A', 'B']);
     });
   });
 

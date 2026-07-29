@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE PAYMENT — ONE panel, TWO densities
+   (ConsolePaymentPanel / ConsolePaymentSourceRow / ConsolePaymentStatus over
+   the pure `buildPaymentView`).
+
+   The whole point of this file is that «быстрая оплата» and «подробная
+   настройка оплаты» are not two designs — they are one block at two
+   densities. So EVERY visual decision below is shared, and only three things
+   change with `--compact` / `--expanded`:
+
+     · the micro captions above each number (hidden compact, shown expanded);
+     · the cursor / focus ring (expanded only — compact payment is never a
+       focus stop, LB/RB and LT reach it without a cursor);
+     · which rows wear the LB/RB dial pills.
+
+   ── THE LAYOUT-SHIFT CONTRACT (load-bearing, do not "simplify") ──
+   The panel's height must be CONSTANT for a given prompt, whatever the mix,
+   so the composer's CTA never slides while the player dials LB/RB:
+
+     1. the M€ row is ALWAYS rendered (buildPaymentView appends it even at 0
+        spent) — a lane that appears with the mix was the original bug;
+     2. every row reserves `--con-pay-row-h`, sized for the TALLER (expanded,
+        two-line) cell — so the compact→expanded caption reveal costs 0 px;
+     3. the numeric columns have FIXED widths, so 9 → 10 → 100 cannot nudge a
+        neighbour (tabular-nums alone only fixes digit width, not digit count);
+     4. `.con-paystatus` is unconditional and reserves `--con-pay-status-h`,
+        sized for two wrapped lines — an appearing «Переплата» costs 0 px in
+        any locale.
+
+   Authored in rem (1rem = 20px logical). The couch / handheld profiles retune
+   ONLY the tokens at the top — never the structure.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.con-pay {
+    /* ── Geometry tokens — the ONE place a profile retunes the panel. ── */
+    --con-pay-row-h: 2.9rem;
+    --con-pay-status-h: 2.5rem;
+    --con-pay-icon: 1.5rem;
+    --con-pay-name-fs: .85rem;
+    --con-pay-num-fs: 1.05rem;
+    --con-pay-cap-fs: .55rem;
+    --con-pay-sub-fs: .72rem;
+    /* Fixed numeric columns — see contract §3. Each is sized for 3 digits AND
+       for its EXPANDED caption (which is the wider of the two), so neither a
+       growing number nor a longer translation can reflow a neighbour. */
+    --con-pay-w-used: 4rem;
+    --con-pay-w-stock: 5.8rem;
+    --con-pay-w-worth: 4rem;
+    --con-pay-w-tail: 6.4rem;
+
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .55rem .7rem .5rem;
+    border-radius: .6rem;
+    background: linear-gradient(165deg, rgba(16, 26, 38, 0.72) 0%, rgba(11, 18, 28, 0.62) 100%);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    /* Functional state via box-shadow only — survives con-perf-lite. */
+    transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+                background calc(160ms * var(--motion-scale, 1)) ease;
+
+    /* EXPANDED = the same block, promoted. A cyan rim says «this is what you
+       are editing now» — and NOTHING that occupies space changes: no padding,
+       no gap, no row height. The density switch is a PAINT change, so the
+       composer's CTA sits at the identical pixel before and after (asserted in
+       tests/e2e/console-payment-panel.spec.ts). Never add a box metric here. */
+    &--expanded {
+        background: linear-gradient(165deg, rgba(20, 34, 50, 0.8) 0%, rgba(12, 20, 30, 0.7) 100%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 46%), 0 0 1.2rem fade(@con-cyan, 14%);
+    }
+    /* Cannot be confirmed — a calm red rim on the block, not a scream. */
+    &--blocked {
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 52%);
+    }
+    &--expanded&--blocked {
+        box-shadow: inset 0 0 0 .1rem fade(@con-red, 62%), 0 0 1.2rem fade(@con-red, 12%);
+    }
+
+    /* ── Head: title · price · the mode-switch hint ── */
+    &__head {
+        display: flex;
+        align-items: baseline;
+        gap: .55rem;
+        min-height: 1.4rem;
+    }
+    &__title {
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+    }
+    /* The price is the anchor of the whole block — it reads first. */
+    &__price {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .25rem;
+    }
+    &__price-label {
+        font-size: .62rem;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__price-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+    }
+    &__price-icon {
+        align-self: center;
+        width: 1rem;
+        height: 1rem;
+        display: block;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    /* The mode switch belongs TO the block (right rail of its own head) — it is
+       a secondary action of the payment, never a stray global command. */
+    &__hint {
+        margin-left: auto;
+        align-self: center;
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .66rem;
+        color: fade(@con-cyan, 88%);
+    }
+
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+    }
+}
+
+/* ── One payment SOURCE row ───────────────────────────────────────────────
+   A fixed grid: icon · name · used · before→after · contribution · tail.
+   The identical track list in both densities is what makes the LT switch feel
+   like the block opening, not a new screen. */
+.con-payrow {
+    position: relative;
+    display: grid;
+    grid-template-columns:
+        var(--con-pay-icon)
+        minmax(3rem, 1fr)
+        var(--con-pay-w-used)
+        var(--con-pay-w-stock)
+        var(--con-pay-w-worth)
+        var(--con-pay-w-tail);
+    align-items: center;
+    column-gap: .5rem;
+    min-height: var(--con-pay-row-h);
+    padding: .2rem .55rem;
+    border-radius: .45rem;
+    background: rgba(10, 17, 26, 0.5);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.12);
+    transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease,
+                background calc(140ms * var(--motion-scale, 1)) ease;
+
+    /* A source that contributes nothing right now: readable, but visibly not
+       part of the current mix. Dimmed by COLOUR (never `opacity`/`filter`) so
+       con-perf-lite keeps the cue and the row stays opaque over the board. */
+    &--idle {
+        background: rgba(10, 17, 26, 0.34);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.08);
+        .con-payrow__name,
+        .con-payrow__used,
+        .con-payrow__before,
+        .con-payrow__after,
+        .con-payrow__worth-num { color: rgba(196, 216, 236, 0.5); }
+        .con-payrow__icon { opacity: .72; }
+    }
+    /* Spending happens here — a quiet mint edge marks the live sources. */
+    &--live {
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 26%);
+    }
+    /* The self-balancing M€ lane — amber-keyed, so «this one moves by itself»
+       is a colour the player learns once and recognises everywhere. */
+    &--auto {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 26%);
+    }
+    &--auto&--idle {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 14%);
+    }
+    /* The cursor (expanded only). box-shadow + colour, never filter. */
+    &--focused {
+        background: rgba(22, 38, 56, 0.78);
+        box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 26%);
+    }
+
+    &__icon {
+        width: var(--con-pay-icon);
+        height: var(--con-pay-icon);
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    &__ident {
+        display: flex;
+        align-items: baseline;
+        gap: .35rem;
+        min-width: 0;
+    }
+    &__name {
+        font-size: var(--con-pay-name-fs);
+        font-weight: 700;
+        color: @con-text;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* «×3» — the payment VALUE of one unit. A quiet pill, so it never competes
+       with the numbers it explains. */
+    &__rate {
+        flex: 0 0 auto;
+        padding: .05rem .3rem;
+        border-radius: 49.95rem;
+        font-size: .62rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: #cfe6ff;
+        background: rgba(18, 34, 50, 0.75);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+    }
+    &__reserved {
+        flex: 0 0 auto;
+        font-size: .58rem;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+        color: fade(@con-amber, 88%);
+    }
+
+    /* Every numeric cell is a two-line stack whose caption is revealed by the
+       expanded density — the row reserves BOTH lines in both densities, so
+       switching costs exactly 0 px of height (contract §2). */
+    &__cell {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        gap: .05rem;
+        min-width: 0;
+    }
+    &__cap {
+        display: none;
+        font-size: var(--con-pay-cap-fs);
+        line-height: 1.15;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: rgba(196, 216, 236, 0.55);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    &__used {
+        font-size: var(--con-pay-num-fs);
+        font-weight: 800;
+        line-height: 1.15;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+    }
+    &--live &__used { color: #8ff0c4; }
+    &--auto&--live &__used { color: #ffd79a; }
+
+    &__stock {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .2rem;
+        font-size: var(--con-pay-sub-fs);
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    &__before { color: rgba(196, 216, 236, 0.66); }
+    &__arrow { color: fade(@con-cyan, 80%); font-weight: 700; }
+    &__after { font-weight: 800; color: @con-text; }
+
+    &__worth {
+        display: inline-flex;
+        align-items: center;
+        gap: .18rem;
+        font-size: var(--con-pay-sub-fs);
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+        color: rgba(196, 216, 236, 0.78);
+        white-space: nowrap;
+    }
+    &--live &__worth-num { color: #ffce92; font-weight: 800; }
+    &__worth-icon {
+        width: .78rem;
+        height: .78rem;
+        display: inline-block;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    /* FIXED-width tail: the «авто» badge and the LB/RB pills swap inside it
+       without ever moving the numeric columns. */
+    &__tail {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-width: 0;
+    }
+    &__auto {
+        padding: .1rem .4rem;
+        border-radius: 49.95rem;
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: #ffd79a;
+        background: fade(@con-amber, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 46%);
+    }
+    &__pills {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+    }
+    &__pill {
+        .con-dial-pill();
+        /* At the limit: the pill goes GREY-flat (colour + shadow), never
+           `filter` — con-perf-lite strips filters and the "dead direction"
+           cue would vanish with it. */
+        &--off {
+            color: rgba(180, 200, 220, 0.42);
+            background: rgba(14, 22, 32, 0.6);
+            box-shadow: inset 0 0 0 .05rem rgba(140, 165, 190, 0.2);
+            .gp-glyph { opacity: .5; }
+        }
+    }
+
+    /* One-shot pulse when the bumpers move this row. */
+    &__flash {
+        position: absolute;
+        inset: 0;
+        border-radius: .45rem;
+        pointer-events: none;
+        animation: con-pay-flash calc(360ms * var(--motion-scale, 1)) ease-out 1;
+    }
+}
+
+/* EXPANDED density: the captions appear IN THE SPACE THE ROW ALREADY
+   RESERVED (`--con-pay-row-h` is sized for the two-line cell in BOTH
+   densities), so revealing them costs exactly 0 px. Nothing else changes. */
+.con-pay--expanded .con-payrow__cap { display: block; }
+/* The caption reveal is the ONLY motion of the LT switch — short, physical,
+   opacity + transform only (never height/width). */
+.con-pay--expanded .con-payrow__cap {
+    animation: con-pay-cap-in calc(180ms * var(--motion-scale, 1)) ease-out 1;
+}
+
+/* ── The verdict — unconditional, reserved height (contract §4) ─────────── */
+.con-paystatus {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    min-height: var(--con-pay-status-h);
+    padding: .25rem .6rem;
+    border-radius: .45rem;
+    font-size: .75rem;
+    background: rgba(10, 17, 26, 0.5);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+    transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+                color calc(160ms * var(--motion-scale, 1)) ease;
+
+    &__glyph {
+        flex: 0 0 auto;
+        width: .95rem;
+        text-align: center;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+    /* «Оплачено 6 / 5» — the ledger, tabular so it cannot jitter. */
+    &__ledger {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .25rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    &__cap {
+        font-size: .6rem;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__paid { font-size: .95rem; font-weight: 800; color: @con-text; }
+    &__sep { color: rgba(196, 216, 236, 0.45); }
+    &__cost { font-size: .8rem; font-weight: 700; color: rgba(196, 216, 236, 0.72); }
+    &__icon,
+    &__delta-icon {
+        align-self: center;
+        width: .8rem;
+        height: .8rem;
+        display: inline-block;
+        background-size: contain !important;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    /* The verdict phrase — the one sentence that answers «всё ли в порядке». */
+    &__verdict {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .25rem;
+        font-weight: 800;
+        letter-spacing: .02rem;
+    }
+    &__verdict-text {
+        font-size: .68rem;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+    }
+    &__delta { font-size: .85rem; font-variant-numeric: tabular-nums; }
+
+    /* States. Exact/free/auto are CALM — a covered payment must not shout. */
+    &--exact,
+    &--free,
+    &--auto {
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 34%);
+        .con-paystatus__glyph,
+        .con-paystatus__verdict { color: @con-mint; }
+    }
+    /* Overpay is a controlled WARNING, never an error: the mix is legal, it
+       just wastes value. Orange — distinct from both mint and red. */
+    &--overpay {
+        background: fade(@con-orange, 9%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-orange, 52%);
+        .con-paystatus__glyph,
+        .con-paystatus__verdict { color: #ffbe8a; }
+        .con-paystatus__delta { color: @con-orange; }
+    }
+    /* Cannot be confirmed — the strong, blocking semantic. */
+    &--short,
+    &--impossible {
+        background: fade(@con-red, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 58%);
+        .con-paystatus__glyph,
+        .con-paystatus__verdict { color: #ff9f96; }
+        .con-paystatus__delta { color: #ff9f96; }
+    }
+
+    /* The expanded verdict reads a notch louder — type only, inside the
+       height its `--con-pay-status-h` already reserves. */
+    &--expanded {
+        .con-paystatus__paid { font-size: 1.05rem; }
+        .con-paystatus__verdict-text { font-size: .72rem; }
+    }
+}
+
+@keyframes con-pay-cap-in {
+    from { opacity: 0; transform: translateY(.18rem); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-pay,
+    .con-payrow,
+    .con-paystatus { transition: none; }
+    .con-payrow__flash,
+    .con-pay--expanded .con-payrow__cap { animation: none; }
+}
+
+/* ── Couch (4K TV): the payment must read from the sofa. Only the TOKENS and
+   a couple of type sizes move — the structure is untouched. ─────────────── */
+html.con-profile-tv .con-pay {
+    --con-pay-row-h: 3.5rem;
+    --con-pay-status-h: 3rem;
+    --con-pay-icon: 1.8rem;
+    --con-pay-name-fs: 1.05rem;
+    --con-pay-num-fs: 1.4rem;
+    --con-pay-cap-fs: .68rem;
+    --con-pay-sub-fs: .9rem;
+    --con-pay-w-used: 5rem;
+    --con-pay-w-stock: 7.2rem;
+    --con-pay-w-worth: 5rem;
+    --con-pay-w-tail: 7.6rem;
+
+    .con-pay__title { font-size: .85rem; }
+    .con-pay__price-label { font-size: .78rem; }
+    .con-pay__price-value { font-size: 1.5rem; }
+    .con-pay__price-icon { width: 1.25rem; height: 1.25rem; }
+    .con-pay__hint { font-size: .82rem; }
+    .con-payrow__rate { font-size: .75rem; }
+    .con-payrow__auto { font-size: .7rem; }
+    .con-payrow__worth-icon { width: .95rem; height: .95rem; }
+    .con-paystatus { font-size: .92rem; }
+    .con-paystatus__cap { font-size: .74rem; }
+    .con-paystatus__paid { font-size: 1.25rem; }
+    .con-paystatus__cost { font-size: 1rem; }
+    .con-paystatus__verdict-text { font-size: .84rem; }
+    .con-paystatus__delta { font-size: 1.1rem; }
+    .con-paystatus__glyph { font-size: 1rem; width: 1.2rem; }
+    .con-paystatus__icon,
+    .con-paystatus__delta-icon { width: .95rem; height: .95rem; }
+}
+html.con-profile-tv .con-paystatus--expanded .con-paystatus__paid { font-size: 1.4rem; }
+
+/* ── Handheld (Steam Deck): tighter, but NOTHING key is dropped — used /
+   remaining / covered / overpay all stay on screen (adaptivity rule). The
+   contribution column is the one that yields its caption first. ─────────── */
+html.con-profile-handheld .con-pay {
+    --con-pay-row-h: 2.6rem;
+    --con-pay-status-h: 2.3rem;
+    --con-pay-icon: 1.25rem;
+    --con-pay-name-fs: .72rem;
+    --con-pay-num-fs: .9rem;
+    --con-pay-cap-fs: .5rem;
+    --con-pay-sub-fs: .64rem;
+    --con-pay-w-used: 3.4rem;
+    --con-pay-w-stock: 4.9rem;
+    --con-pay-w-worth: 3.4rem;
+    --con-pay-w-tail: 5.4rem;
+
+    padding: .45rem .55rem .4rem;
+    .con-pay__title { font-size: .62rem; }
+    .con-pay__price-value { font-size: .95rem; }
+    .con-pay__hint { font-size: .58rem; }
+    .con-payrow { column-gap: .35rem; padding: .15rem .4rem; }
+    .con-payrow__rate { font-size: .55rem; }
+    .con-payrow__auto { font-size: .52rem; }
+    .con-payrow__pill { font-size: .6rem; }
+    .con-paystatus { font-size: .66rem; padding: .2rem .45rem; }
+    .con-paystatus__paid { font-size: .82rem; }
+    .con-paystatus__verdict-text { font-size: .6rem; }
+    .con-paystatus__delta { font-size: .74rem; }
+}

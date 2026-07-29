@@ -43,6 +43,13 @@ export type ConsoleCommand = {
   /** Something is claimable behind this command — the glyph+label glow. */
   highlight?: boolean,
   /**
+   * IRREVERSIBLE press (the finale's armed «завершить партию»). Paints the
+   * glyph + label red instead of the mint `highlight` treatment — mint reads
+   * "claimable, go ahead", which is the one thing a destructive confirm must
+   * not say. Wins over `highlight` when both are set.
+   */
+  tone?: 'danger',
+  /**
    * TV fit model: when the run overflows the bay zones, WHOLE commands drop
    * instead of labels truncating. Higher drops first; omitted → derived
    * from the control class (defaultDropPriority). A/B never drop.

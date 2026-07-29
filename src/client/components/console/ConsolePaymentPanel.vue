@@ -1,73 +1,110 @@
 <template>
-  <!-- PAYMENT — an INFO panel (resource chips + было → стало), NOT a button.
-       ONE unified layout, shared by the play-card composer AND the blue-card
-       action composer (одна премиум-раскладка): the SINGLE-alt case gets inline
-       LB/RB pills on its chip; M€ is badged «авто»; LT opens the full editor
-       when configurable. The panel only RENDERS the pure `PlayPaymentView`
-       (buildPaymentView) — the host owns LB/RB/LT input, so it can never drift
-       from the play flow. -->
-  <div class="con-composer__pay" :class="{'con-composer__pay--quick': view.quickAdjustEligible}">
-    <div class="con-composer__pay-head">
-      <span class="con-composer__pay-title">{{ $t('Payment') }}</span>
-      <span class="con-composer__pay-cost">{{ $t('Cost') }}: <b>{{ cost }}</b></span>
-      <span v-if="view.configurable" class="con-composer__pay-lt">
-        <GamepadGlyph control="triggerL" /><span>{{ $t('Configure payment') }}</span>
+  <!-- THE console-native payment surface — ONE component, TWO densities.
+       `compact` is the summary that lives inside a composer next to the CTA;
+       `expanded` is the same block opened up by LT for manual editing. Same
+       rows, same order, same icons, same numbers, same verdict, same reserved
+       geometry — the ONLY differences are the micro captions, the cursor and
+       which rows can be dialed. That is what makes LT read as "this block
+       unfolding" rather than a jump into a separate technical form.
+
+       Purely presentational: the host owns every input (LB/RB quick-adjust,
+       LT/B mode switch, ←→ and RT inside the editor). This component NEVER
+       mutates and NEVER emits — so no payment surface can drift from the
+       pure `buildPaymentView` rules. -->
+  <div class="con-pay"
+       :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable, 'con-pay--blocked': !view.status.ok}]"
+       role="group"
+       :aria-label="panelLabel">
+    <div class="con-pay__head">
+      <span class="con-pay__title">{{ $t(titleKey) }}</span>
+
+      <!-- The PRICE leads the block — everything below explains how it is met. -->
+      <span class="con-pay__price">
+        <span class="con-pay__price-label">{{ $t('Cost') }}</span>
+        <b class="con-pay__price-value">{{ view.cost }}</b>
+        <i class="resource_icon resource_icon--megacredits con-pay__price-icon" aria-hidden="true"></i>
+      </span>
+
+      <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
+           free-floating command): LT opens the editor, B folds it back. -->
+      <span v-if="hint !== undefined" class="con-pay__hint">
+        <GamepadGlyph :control="hint.control" /><span>{{ $t(hint.label) }}</span>
       </span>
     </div>
-    <div class="con-composer__pay-rows">
-      <div v-for="(chip, k) in view.chips" :key="k"
-           class="con-composer__pay-row" :class="{'con-composer__pay-row--adjustable': chip.isAdjustable}">
-        <ActionEffectChip :effect="chip.effect" />
-        <span v-if="chip.isAutoBalanced" class="con-composer__pay-badge">{{ $t('auto') }}</span>
-        <span v-if="chip.isAdjustable" class="con-composer__pay-pills">
-          <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canDecrease}"><GamepadGlyph control="bumperL" /><span>−1</span></span>
-          <span class="con-composer__pay-pill" :class="{'con-composer__pay-pill--off': !chip.canIncrease}"><GamepadGlyph control="bumperR" /><span>+1</span></span>
-        </span>
-        <span v-if="chip.isAdjustable" :key="'flash' + flashNonce" class="con-composer__pay-flash" aria-hidden="true"></span>
-      </div>
-      <span v-if="view.chips.length === 0" class="con-composer__pay-free">{{ cost === 0 ? $t('Free') : (cost + ' M€') }}</span>
+
+    <div class="con-pay__rows">
+      <ConsolePaymentSourceRow v-for="row in view.rows" :key="row.unit"
+                               :row="row"
+                               :mode="mode"
+                               :focused="mode === 'expanded' && row.unit === focusUnit"
+                               :flash-nonce="flashNonce" />
     </div>
-    <div v-if="!view.paymentValid" class="con-composer__pay-short">
-      <span aria-hidden="true">⚠</span> {{ $t('Not enough resources') }}<template v-if="view.deficit > 0">:
-        <i class="resource_icon resource_icon--megacredits con-composer__pay-short-icon" aria-hidden="true"></i> {{ view.deficit }}</template>
-    </div>
-    <!-- Overpay: a resource mix spends N M€ of value ABOVE the cost (unavoidable
-         rate remainder). Flagged in orange so the wasted value is never silent. -->
-    <div v-else-if="view.overpay > 0" class="con-composer__pay-over">
-      <span class="con-composer__pay-over-glyph" aria-hidden="true">⚠</span>
-      <span class="con-composer__pay-over-label">{{ $t('Overpaying') }}</span>
-      <span class="con-composer__pay-over-amt">+{{ view.overpay }}</span>
-      <i class="resource_icon resource_icon--megacredits con-composer__pay-over-icon" aria-hidden="true"></i>
-    </div>
+
+    <ConsolePaymentStatus :status="view.status" :mode="mode" />
   </div>
 </template>
 
 <script lang="ts">
 /**
- * ConsolePaymentPanel — the ONE premium payment INFO panel for console-native
- * composers. Purely presentational: it renders a `PlayPaymentView` (icon chips
- * with «было → стало», the «авто» M€ lane, inline LB/RB quick-adjust pills, and
- * the LT «Configure payment» hint) in the SHARED `.con-composer__pay*` visual
- * language (styles live under `.con-composer` in console.less, so this panel
- * only ever mounts inside a `.con-composer` root). The host composer owns all
- * input (LB/RB quick-adjust, LT → the detailed lane editor); this component
- * NEVER mutates or emits — one premium payment language for both flows.
+ * ConsolePaymentPanel — the ONE premium payment panel for every console-native
+ * payment prompt: playing a project card, activating a blue-card action, the
+ * standalone `SelectPayment` task and the colony trade. Each host feeds it the
+ * pure `PaymentView` from `buildPaymentView` and picks a density:
+ *
+ *   compact  — the summary inside a composer (LB/RB drive the single alt lane,
+ *              LT opens the editor);
+ *   expanded — the same block with the micro captions spelled out, a cursor,
+ *              and every lane dialable by hand.
+ *
+ * `titleKey` / `hintMode` let a host relabel the block for its context (a card
+ * play vs a blue action vs a standalone prompt) WITHOUT forking the rows, the
+ * verdict or the geometry.
  */
 import {defineComponent, PropType} from 'vue';
-import {PlayPaymentView} from '@/client/console/paymentPlan';
+import {PaymentView} from '@/client/console/paymentPlan';
+import {GlyphControl} from '@/client/gamepad/glyphSets';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ConsolePaymentSourceRow from '@/client/components/console/ConsolePaymentSourceRow.vue';
+import ConsolePaymentStatus from '@/client/components/console/ConsolePaymentStatus.vue';
+import {translateText} from '@/client/directives/i18n';
+
+type PanelHint = {control: GlyphControl, label: string};
 
 export default defineComponent({
   name: 'ConsolePaymentPanel',
-  components: {GamepadGlyph, ActionEffectChip},
+  components: {GamepadGlyph, ConsolePaymentSourceRow, ConsolePaymentStatus},
   props: {
-    /** The pure payment view-model (chips + quick-adjust eligibility). */
-    view: {type: Object as PropType<PlayPaymentView>, required: true},
-    /** The M€ cost being paid (shown as «Стоимость: N»). */
-    cost: {type: Number, required: true},
-    /** Bumped by the host on each quick-adjust to re-key the one-shot pulse. */
+    /** The pure payment view-model — rows + verdict + editability. */
+    view: {type: Object as PropType<PaymentView>, required: true},
+    /** Density: the composer summary, or the LT editor. */
+    mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
+    /** Expanded only — the unit the cursor sits on (LB/RB drive it). */
+    focusUnit: {type: String, default: undefined},
+    /** Bumped by the host on each adjust to re-key the one-shot pulse. */
     flashNonce: {type: Number, default: 0},
+    /** The block heading — a host may name its own context. */
+    titleKey: {type: String, default: 'Payment'},
+    /**
+     * `auto` renders the LT/B mode-switch hint inside the head (a composer,
+     * where payment is one block among several); `none` suppresses it for a
+     * host whose whole screen IS the payment (the standalone task), where the
+     * bottom command bar already carries the controls.
+     */
+    hintMode: {type: String as PropType<'auto' | 'none'>, default: 'auto'},
+  },
+  computed: {
+    hint(): PanelHint | undefined {
+      if (this.hintMode === 'none') {
+        return undefined;
+      }
+      if (this.mode === 'expanded') {
+        return {control: 'back', label: 'Back to quick payment'};
+      }
+      return this.view.configurable ? {control: 'triggerL', label: 'Configure payment'} : undefined;
+    },
+    panelLabel(): string {
+      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${this.view.cost} M€`;
+    },
   },
 });
 </script>

@@ -964,8 +964,6 @@ html.con-profile-tv {
         &__row-value { font-size: var(--con-t-secondary); }
         &__stepper-value { font-size: 1.8rem; }
         &__stepper-icon { width: 1.8rem; height: 1.8rem; }
-        &__lane-icon { width: 1.6rem; height: 1.6rem; }
-        &__lane-name { font-size: var(--con-t-secondary); }
         &__warn-text,
         &__next { font-size: var(--con-t-secondary); }
         &__foot-item { font-size: 1.05rem; }
@@ -990,10 +988,8 @@ html.con-profile-tv {
         &__rescat-tag { width: 1.5rem; height: 1.5rem; }
         &__variant-title { font-size: var(--con-t-body); }
         &--play &__playcard { zoom: calc(0.86 * var(--con-ui-scale, 1)); }
-        /* Payment reads as a clear price line. */
-        &__pay-title { font-size: var(--con-t-secondary); }
-        &__pay-cost { font-size: var(--con-t-secondary); b { font-size: 1.3rem; } }
-        &__pay-total { font-size: var(--con-t-body); }
+        /* (Payment type sizes live with the shared panel — console_payment.less
+           retunes its own tokens under `html.con-profile-tv`.) */
         &__playhead { font-size: var(--con-t-body); }
         &__paycost b { font-size: 1.4rem; }
     }

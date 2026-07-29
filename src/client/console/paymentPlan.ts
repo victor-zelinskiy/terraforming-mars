@@ -21,7 +21,6 @@
 
 import {DEFAULT_PAYMENT_VALUES, Payment, PaymentOptions} from '@/common/inputs/Payment';
 import {SpendableResource} from '@/common/inputs/Spendable';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {Units} from '@/common/Units';
 import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
@@ -262,45 +261,101 @@ export function initialCounts(
   return counts;
 }
 
-// ── Premium payment VIEW-MODEL (unified chips + inline quick-adjust) ──────────
+// ── Premium payment PRESENTATION model (ONE model, two densities) ────────────
 //
-// The SINGLE source of truth for the console-native premium payment PANEL —
-// shared by BOTH the play-card composer (ConsolePlayCardConfirm) and the
-// blue-card action composer (ConsoleActionComposer), so the two flows speak the
-// exact same premium language (icon chips with «было → стало», an «авто» M€
-// lane, inline LB/RB quick-adjust for the single-alt case, LT for the detailed
-// editor). It lives HERE (not in either composer) precisely so neither owns it
-// and they can't diverge — the component only renders it, every rule is below.
+// The SINGLE source of truth for EVERY console-native payment surface — the
+// play-card composer, the blue-card action composer, the standalone
+// `SelectPayment` task and the colony-trade confirm. Every one of them renders
+// `ConsolePaymentPanel` over the `PaymentView` built here, in one of two
+// DENSITIES (`compact` summary inside a composer / `expanded` editor behind LT).
+// Both densities read the SAME rows, in the SAME order, with the SAME numbers —
+// the difference is how much of each row is spelled out and whether a row can be
+// dialed by hand. Nothing downstream re-derives payment math: if a number is
+// shown anywhere, it comes from a field below.
 
-const STANDARD_PAY_UNITS: ReadonlySet<string> =
-  new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
+/** The i18n key naming a payment unit — shared by every payment surface (the
+ *  per-component `laneLabel` copies this table used to drift). */
+const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
+  megacredits: 'Megacredits', steel: 'Steel', titanium: 'Titanium',
+  plants: 'Plants', energy: 'Energy', heat: 'Heat',
+  microbes: 'Microbes', floaters: 'Floaters', seeds: 'Seeds',
+  auroraiData: 'Data', graphene: 'Graphene', kuiperAsteroids: 'Asteroids', spireScience: 'Science',
+  lunaArchivesScience: 'Science', corruption: 'Corruption',
+};
 
-/** One payment chip = an `ActionEffect` (icon + spent + было → стало) + the
- *  quick-adjust metadata the UI needs, all derived from the payment logic. */
-export type PaymentResourceChip = {
-  /** The visual — the SAME chip the result uses (rendered by ActionEffectChip). */
-  effect: ActionEffect;
-  /** The M€ lane — auto-balances to the remainder (badge «авто»). */
-  isAutoBalanced: boolean;
-  /** The single quick-adjust alt resource — LB/RB pills live on this chip. */
-  isAdjustable: boolean;
-  /** LB is live (the alt resource can go down AND M€ still covers the remainder). */
+export function paymentUnitLabel(unit: string): string {
+  return PAY_UNIT_LABELS[unit] ?? unit;
+}
+
+/**
+ * ONE payment SOURCE row — everything both densities need about a single way of
+ * paying, so the compact summary and the expanded editor can never disagree
+ * about a resource. `available → remaining` is the stock story, `used` is the
+ * spend, `contribution` is what that spend is WORTH against the price.
+ */
+export type PaymentSourceRow = {
+  unit: SpendableResource;
+  /** i18n key for the resource name (English text IS the key here). */
+  labelKey: string;
+  /** M€ bought by ONE unit (1 for M€, `steelValue` for steel, …). */
+  rate: number;
+  /** Owned before this payment (already net of a subtracted card reserve). */
+  available: number;
+  /** Units this mix spends. */
+  used: number;
+  /** `available - used` — what the player keeps. */
+  remaining: number;
+  /** `used * rate` — this source's share of the price, in M€. */
+  contribution: number;
+  /** The M€ lane: it always balances to the uncovered remainder, never dialed. */
+  auto: boolean;
+  /** The player may dial this row by hand (in the EXPANDED editor). */
+  editable: boolean;
+  /** The card itself needs these units (desktop `reserved` flag — display only). */
+  reserved: boolean;
+  min: number;
+  /** The anti-overpay cap — never more of one unit than covers the whole price. */
+  max: number;
   canDecrease: boolean;
-  /** RB is live (the alt resource can go up within its cap). */
   canIncrease: boolean;
+  /** This row owns LB/RB on the COMPACT screen (the single-alt quick-adjust). */
+  quickAdjust: boolean;
 };
 
 /**
- * The whole payment as a view-model so the UI never re-derives the rules: the
- * chip list, whether a detailed editor exists (`configurable` → LT), and
- * whether the simple inline LB/RB quick-adjust applies (`quickAdjustEligible`:
- * EXACTLY one non-M€ lane, with M€ auto-covering the remainder). All amounts /
- * caps / coverage come from the lane math above.
+ * The payment VERDICT — one element, one geometry, both densities. `short` and
+ * `impossible` block the confirm; `overpay` is a warning, never an error.
  */
-export type PlayPaymentView = {
-  totalCost: number;
-  chips: ReadonlyArray<PaymentResourceChip>;
-  /** Any non-M€ lane → the detailed payment editor (LT) is available. */
+export type PaymentStatusKind = 'free' | 'auto' | 'exact' | 'overpay' | 'short' | 'impossible';
+
+export type PaymentStatus = {
+  kind: PaymentStatusKind;
+  /** The price being paid. */
+  cost: number;
+  /** M€-equivalent actually committed by the current mix. */
+  paid: number;
+  /** Overpay (kind `overpay`) or shortfall (kind `short`); 0 otherwise. */
+  delta: number;
+  /** i18n key of the verdict phrase. */
+  labelKey: string;
+  /** The mix covers the price (the confirm may proceed). */
+  ok: boolean;
+};
+
+/**
+ * The whole payment as a view-model so no UI re-derives the rules: the source
+ * rows, the verdict, whether a detailed editor exists (`configurable` → LT), and
+ * whether the simple inline LB/RB quick-adjust applies (`quickAdjustEligible`:
+ * EXACTLY one non-M€ lane, with M€ auto-covering the remainder).
+ */
+export type PaymentView = {
+  cost: number;
+  /** Alt lanes in payment order, then the auto M€ lane — ALWAYS last, ALWAYS
+   *  present (even at 0 spent), so the row count is fixed for a given prompt and
+   *  a changing mix can never resize the panel. */
+  rows: ReadonlyArray<PaymentSourceRow>;
+  status: PaymentStatus;
+  /** Any non-M€ lane → the expanded payment editor (LT) is available. */
   configurable: boolean;
   /** Exactly one non-M€ lane → inline LB/RB quick-adjust on the MAIN screen. */
   quickAdjustEligible: boolean;
@@ -313,12 +368,27 @@ export type PlayPaymentView = {
   overpay: number;
 };
 
-export function payChipEffect(unit: string, spent: number, stock: Partial<Record<string, number>>): ActionEffect {
-  const cur = STANDARD_PAY_UNITS.has(unit) ? stock[unit] : undefined;
-  if (cur !== undefined) {
-    return {direction: 'cost', icon: unit, amount: spent, current: cur, resulting: Math.max(0, cur - spent)};
+function statusOf(args: {
+  cost: number, paid: number, valid: boolean, deficit: number, overpay: number, laneCount: number,
+}): PaymentStatus {
+  const {cost, paid, valid, deficit, overpay, laneCount} = args;
+  if (!valid) {
+    return deficit > 0 ?
+      {kind: 'short', cost, paid, delta: deficit, labelKey: 'Not enough', ok: false} :
+      // Covered by value but a lane exceeds what is owned — an impossible mix.
+      {kind: 'impossible', cost, paid, delta: 0, labelKey: 'Not enough resources', ok: false};
   }
-  return {direction: 'cost', icon: unit, amount: spent};
+  if (cost === 0) {
+    return {kind: 'free', cost, paid, delta: 0, labelKey: 'Free', ok: true};
+  }
+  if (overpay > 0) {
+    return {kind: 'overpay', cost, paid, delta: overpay, labelKey: 'Overpay', ok: true};
+  }
+  // No alternative source exists at all — the price is simply debited in M€.
+  if (laneCount === 0) {
+    return {kind: 'auto', cost, paid, delta: 0, labelKey: 'Paid automatically', ok: true};
+  }
+  return {kind: 'exact', cost, paid, delta: 0, labelKey: 'Exact payment', ok: true};
 }
 
 export function buildPaymentView(args: {
@@ -326,10 +396,8 @@ export function buildPaymentView(args: {
   lanes: ReadonlyArray<PaymentLane>,
   counts: Partial<Record<SpendableResource, number>>,
   mcAvailable: number,
-  /** Current stock per unit (megacredits/steel/titanium/plants/energy/heat). */
-  stock: Partial<Record<string, number>>,
-}): PlayPaymentView {
-  const {cost, lanes, counts, mcAvailable, stock} = args;
+}): PaymentView {
+  const {cost, lanes, counts, mcAvailable} = args;
   const mcSpent = autoMegacredits(cost, lanes, counts, mcAvailable);
   const paymentValid = paymentCovers(cost, lanes, counts, mcAvailable);
   const configurable = lanes.length > 0;
@@ -337,48 +405,73 @@ export function buildPaymentView(args: {
   const quickAdjustEligible = lanes.length === 1;
   const quickLane = quickAdjustEligible ? lanes[0] : undefined;
 
-  const mcChip: PaymentResourceChip = {
-    effect: payChipEffect('megacredits', mcSpent, stock),
-    isAutoBalanced: true, isAdjustable: false, canDecrease: false, canIncrease: false,
-  };
-  const laneChip = (lane: PaymentLane): PaymentResourceChip => {
-    const n = counts[lane.unit] ?? 0;
-    const adjustable = quickLane !== undefined && lane.unit === quickLane.unit;
+  const rows: Array<PaymentSourceRow> = lanes.map((lane): PaymentSourceRow => {
+    const used = counts[lane.unit] ?? 0;
     const cap = laneCap(cost, lane);
     return {
-      effect: payChipEffect(lane.unit, n, stock),
-      isAutoBalanced: false,
-      isAdjustable: adjustable,
+      unit: lane.unit,
+      labelKey: paymentUnitLabel(lane.unit),
+      rate: lane.rate,
+      available: lane.available,
+      used,
+      remaining: Math.max(0, lane.available - used),
+      contribution: used * lane.rate,
+      auto: false,
+      editable: true,
+      reserved: lane.reserved,
+      min: 0,
+      max: cap,
       // Up = more alt (less M€), bounded by the anti-overpay cap.
-      canIncrease: adjustable && n < cap,
-      // Down = less alt, all the way to 0 — PARITY with the detailed lanes editor
-      // (adjustLane), which clamps at 0 and freely lets the player dial DOWN into an
-      // underpayment; the resulting shortfall is surfaced (deficit / «Not enough
-      // resources») and blocks the CONFIRM, never the button. Quick-adjust must not
-      // be stricter than the LT editor — an M€-coverage guard here made LB dead the
-      // moment the mix reached the exact cost, which read as broken.
-      canDecrease: adjustable && n > 0,
+      canIncrease: used < cap,
+      // Down = less alt, all the way to 0: the player may freely dial INTO a
+      // shortfall; the verdict says so and blocks the CONFIRM, never the button.
+      canDecrease: used > 0,
+      quickAdjust: quickLane !== undefined && lane.unit === quickLane.unit,
     };
-  };
+  });
 
-  // Layout: quick-adjust → the adjustable alt FIRST (LB/RB read on top), then M€.
-  // Else → M€ first (when spent), then each spent lane. A 0-spend non-adjustable
-  // lane is noise and omitted; the adjustable lane is ALWAYS shown (its pills live there).
-  let chips: Array<PaymentResourceChip>;
-  if (quickAdjustEligible) {
-    chips = mcSpent > 0 ? [laneChip(lanes[0]), mcChip] : [laneChip(lanes[0])];
-  } else if (lanes.length === 0) {
-    chips = [mcChip];
-  } else {
-    chips = mcSpent > 0 ? [mcChip] : [];
-    for (const lane of lanes) {
-      if ((counts[lane.unit] ?? 0) > 0) {
-        chips.push(laneChip(lane));
-      }
-    }
-  }
+  // M€ is ALWAYS the last row and ALWAYS rendered — a lane that appears and
+  // disappears with the mix was the old source of the modal's height jump.
+  rows.push({
+    unit: 'megacredits',
+    labelKey: paymentUnitLabel('megacredits'),
+    rate: 1,
+    available: mcAvailable,
+    used: mcSpent,
+    remaining: Math.max(0, mcAvailable - mcSpent),
+    contribution: mcSpent,
+    auto: true,
+    editable: false,
+    reserved: false,
+    min: mcSpent,
+    max: mcSpent,
+    canIncrease: false,
+    canDecrease: false,
+    quickAdjust: false,
+  });
 
-  const deficit = Math.max(0, cost - paymentTotal(cost, lanes, counts, mcAvailable));
+  const paid = paymentTotal(cost, lanes, counts, mcAvailable);
+  const deficit = Math.max(0, cost - paid);
   const overpay = paymentOverpay(cost, lanes, counts, mcAvailable);
-  return {totalCost: cost, chips, configurable, quickAdjustEligible, quickAdjustUnit: quickLane?.unit, paymentValid, deficit, overpay};
+  return {
+    cost,
+    rows,
+    status: statusOf({cost, paid, valid: paymentValid, deficit, overpay, laneCount: lanes.length}),
+    configurable,
+    quickAdjustEligible,
+    quickAdjustUnit: quickLane?.unit,
+    paymentValid,
+    deficit,
+    overpay,
+  };
+}
+
+/** The row LB/RB act on in the compact summary (the single-alt quick lane). */
+export function quickAdjustRow(view: PaymentView): PaymentSourceRow | undefined {
+  return view.quickAdjustEligible ? view.rows.find((r) => r.quickAdjust) : undefined;
+}
+
+/** The EDITABLE rows, in panel order — the expanded editor's focus ring. */
+export function editableRows(view: PaymentView): ReadonlyArray<PaymentSourceRow> {
+  return view.rows.filter((r) => r.editable);
 }

@@ -21,7 +21,7 @@
 
 import {reactive} from 'vue';
 import {SemanticButton} from '@/client/gamepad/gamepadPollModel';
-import {buttonLayoutState, layoutSwapPair} from '@/client/gamepad/buttonLayout';
+import {ButtonLayout, buttonLayoutState, layoutSwapPair} from '@/client/gamepad/buttonLayout';
 
 /** Everything a hint can reference: semantic buttons + composite controls.
  * The four directional d-pad glyphs (P27) let the quick selectors hint a
@@ -233,6 +233,23 @@ export function activeGlyphSet(): Record<GlyphControl, GlyphSpec> {
     return base;
   }
   return {...base, [pair[0]]: base[pair[1]], [pair[1]]: base[pair[0]]};
+}
+
+/**
+ * The face-button labels a layout swaps, named in the ACTIVE set's vocabulary
+ * (`['A', 'B']` on Xbox/Steam, `['✕', '◯']` on PlayStation); empty for the
+ * identity layout. Reads the BASE set on purpose — the setting describes the
+ * PHYSICAL buttons being exchanged, so it must not read the already-swapped
+ * `activeGlyphSet()` (that would render the same two letters in swapped order
+ * and say nothing). Fills `BUTTON_LAYOUT_LABELS['swap-ab']`.
+ */
+export function layoutSwapLabels(layout: ButtonLayout): ReadonlyArray<string> {
+  const pair = layoutSwapPair(layout);
+  if (pair === undefined) {
+    return [];
+  }
+  const base = GLYPH_SETS[resolveGlyphSetId()];
+  return [base[pair[0]].label, base[pair[1]].label];
 }
 
 /** The user's current choice (for the Options picker). */

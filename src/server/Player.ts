@@ -1731,6 +1731,15 @@ export class Player implements IPlayer {
           return undefined;
         }),
       );
+      // THIS IS NOT AN ORDINARY CHOICE. The second branch does not decline an
+      // effect — it ENDS THIS PLAYER'S GAME, irreversibly, at the very moment
+      // their leftover plants are still worth victory points. The marker routes
+      // it to the console's finale screen, where that branch is destructive and
+      // two-step instead of a calm row in a list. `spaces` is the one fact the
+      // client cannot derive (plants and their cost ride the player model).
+      action.markFinalGreeneryPrompt({
+        spaces: this.game.board.getAvailableSpacesForGreenery(this).length,
+      });
       this.setWaitingForSafely(action);
       return;
     }

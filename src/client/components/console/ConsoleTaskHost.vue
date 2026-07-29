@@ -61,15 +61,9 @@
             <span class="con-task__drafted-count">{{ draftedCards.length }}</span>
             <span v-if="canInspectDrafted" class="con-task__drafted-hint"><GamepadGlyph control="triggerR" /><span>{{ $t('Inspect') }}</span></span>
           </div>
-          <!-- Payment: the cost chip + live coverage readout. -->
-          <div v-if="activeTask.kind === 'payment'" class="con-task__pickline">
-            <span class="con-task__paycost">
-              {{ $t('Cost') }}: <b>{{ paymentCost }}</b> <i class="resource_icon resource_icon--megacredits con-task__opt-res" aria-hidden="true"></i>
-            </span>
-            <span class="con-task__pickcount" :class="{'con-task__pickcount--ready': paymentReady}">
-              {{ $t('Total') }}: <b>{{ payTotal }}</b> / {{ paymentCost }}
-            </span>
-          </div>
+          <!-- (The payment price + live coverage are NOT repeated here: the
+               shared payment panel below owns both, so there is exactly one
+               place in the UI stating what this costs and what is covered.) -->
         </header>
 
         <div class="con-task__main">
@@ -287,34 +281,18 @@
               </div>
             </template>
 
-            <!-- ── PAYMENT (T3: native lanes; M€ auto-balances) ────── -->
-            <template v-else-if="activeTask.kind === 'payment'">
-              <div v-for="(lane, i) in payLanes" :key="lane.unit"
-                   class="con-task__lane"
-                   :class="{'con-task__lane--focused': focusIdx === i, 'con-task__lane--active': payCount(lane.unit) > 0}">
-                <span class="con-task__lane-id">
-                  <i class="con-task__opt-icon" :class="'resource_icon resource_icon--' + lane.unit" aria-hidden="true"></i>
-                </span>
-                <span class="con-task__lane-rate" aria-hidden="true">×{{ lane.rate }}</span>
-                <span class="con-task__lane-value">{{ payCount(lane.unit) }}</span>
-                <span class="con-task__lane-max">/ {{ lane.available }}</span>
-                <span v-if="lane.reserved" class="con-task__lane-reserved">{{ $t('reserved') }}</span>
-                <span v-if="focusIdx === i" class="con-task__lane-keys" aria-hidden="true">
-                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
-                </span>
-              </div>
-              <!-- The AUTO M€ lane — always the exact remainder (derived). -->
-              <div class="con-task__lane con-task__lane--auto" :class="{'con-task__lane--active': payAutoMc > 0}">
-                <span class="con-task__lane-id">
-                  <i class="con-task__opt-icon resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-                </span>
-                <span class="con-task__lane-value">{{ payAutoMc }}</span>
-                <span class="con-task__lane-max">/ {{ megacreditsOnHand }}</span>
-                <span class="con-task__lane-auto-tag">{{ $t('auto') }}</span>
-              </div>
-              <div v-if="!paymentReady" class="con-task__pay-short">
-                ⚠ {{ $t('Not enough resources to cover the cost') }}
-              </div>
+            <!-- ── PAYMENT (T3) — the SHARED payment panel, in its EXPANDED
+                 density: this whole screen IS the payment, so the editor is
+                 the resting state. Identical rows / verdict / geometry to the
+                 payment block inside the card-play and blue-action composers,
+                 so a player who learned one has learned all three. The command
+                 bar already carries the controls → no in-panel hint. ────── -->
+            <template v-else-if="activeTask.kind === 'payment' && paymentView !== undefined">
+              <ConsolePaymentPanel :view="paymentView"
+                                   mode="expanded"
+                                   hint-mode="none"
+                                   :focus-unit="payFocusUnit"
+                                   :flash-nonce="payFlashNonce" />
             </template>
 
             <!-- ── DISTRIBUTE ─────────────────────────────────────── -->
@@ -417,8 +395,8 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {
-  autoMegacredits, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
-  paymentFromCounts, PaymentLane, paymentLanes, paymentTotal,
+  buildPaymentView, editableRows, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
+  paymentFromCounts, PaymentLane, paymentLanes, paymentTotal, PaymentView,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
@@ -434,6 +412,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {hydroDrawState, isHydroDrawActive, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {isHandCardSelection} from '@/client/console/consoleHandPick';
 
@@ -499,7 +478,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -523,6 +502,8 @@ export default defineComponent({
       picks: [] as Array<CardName>,
       /** T3 payment: the dialed-in non-M€ lane counts (M€ auto-derives). */
       payCounts: {} as Partial<Record<SpendableResource, number>>,
+      /** Re-keyed on each adjust so the dialed row's one-shot pulse replays. */
+      payFlashNonce: 0,
       /** T9: the OPEN nested option (one-level wizard) — B returns to the list. */
       nested: undefined as {index: number, input: PlayerInputModel} | undefined,
       /** Blocks a duplicate submit between the emit and the next server response
@@ -979,8 +960,26 @@ export default defineComponent({
       }
       return paymentLanes(model, this.playerView.thisPlayer);
     },
-    payAutoMc(): number {
-      return autoMegacredits(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
+    /** The SHARED payment presentation model — the same one the card-play and
+     *  blue-action composers render, so this standalone prompt speaks the
+     *  identical language (rows, order, verdict, geometry). */
+    paymentView(): PaymentView | undefined {
+      const model = this.paymentModel;
+      if (model === undefined) {
+        return undefined;
+      }
+      return buildPaymentView({
+        cost: model.amount,
+        lanes: this.payLanes,
+        counts: this.payCounts,
+        mcAvailable: this.megacreditsOnHand,
+      });
+    },
+    /** The unit the cursor sits on — the lane list and the panel's editable
+     *  rows are the SAME sequence, so `focusIdx` indexes both. */
+    payFocusUnit(): string | undefined {
+      const v = this.paymentView;
+      return v === undefined ? undefined : editableRows(v)[this.focusIdx]?.unit;
     },
     payTotal(): number {
       return paymentTotal(this.paymentCost, this.payLanes, this.payCounts, this.megacreditsOnHand);
@@ -1546,7 +1545,7 @@ export default defineComponent({
         }
         return;
       }
-      const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused');
+      const focused = body?.querySelector('.con-task__option--focused, .con-task__tile--focused, .con-task__lane--focused, .con-payrow--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
@@ -1888,7 +1887,11 @@ export default defineComponent({
         }
         const current = this.payCounts[lane.unit] ?? 0;
         const next = Math.min(laneCap(this.paymentCost, lane), Math.max(0, current + step));
+        if (next === current) {
+          return;
+        }
         this.payCounts = {...this.payCounts, [lane.unit]: next};
+        this.payFlashNonce += 1;
       }
     },
     maxOut(): void {
@@ -1912,6 +1915,7 @@ export default defineComponent({
           return;
         }
         this.payCounts = {...this.payCounts, [lane.unit]: laneCap(this.paymentCost, lane)};
+        this.payFlashNonce += 1;
       }
     },
     // Foundation: SEMANTIC actions — LB/RB(prev/nextSection) adjust,

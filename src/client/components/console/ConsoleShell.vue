@@ -380,7 +380,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+      <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                        ref="taskHost"
                        :playerView="playerView"
                        :task="hostTask"
@@ -407,6 +407,22 @@
                              @submit="onTaskSubmit"
                              @defer="onTaskDefer"
                              @hand-pick="onTaskHandPick" />
+    </transition>
+
+    <!-- FINAL GREENERY — the endgame conversion beat. Deliberately NOT the
+         decision screen above: there the quiet bottom card is a harmless
+         decline, here it ENDS THE PLAYER'S GAME. Same submit / defer /
+         space-pick contract as the host it replaces. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleFinalGreenery v-if="finalGreeneryActive && finalGreeneryVm !== undefined && finalGreeneryPrompt !== undefined"
+                            ref="finalGreenery"
+                            :vm="finalGreeneryVm"
+                            :prompt="finalGreeneryPrompt"
+                            @submit="onTaskSubmit"
+                            @defer="onTaskDefer"
+                            @space-pick="onFinalGreenerySpacePick" />
     </transition>
 
     <!-- Government Support (World Government Terraforming) — the dedicated
@@ -949,6 +965,8 @@ import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernm
 import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDecision.vue';
 import {buildEffectDecision, EffectDecisionSource, EffectDecisionViewModel} from '@/client/console/effectDecision/effectDecisionModel';
 import {resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
+import ConsoleFinalGreenery from '@/client/components/console/ConsoleFinalGreenery.vue';
+import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryViewModel} from '@/client/console/finalGreenery/finalGreeneryModel';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
@@ -1056,7 +1074,7 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
+import {GlyphControl, activeGlyphSet} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
@@ -1113,6 +1131,13 @@ import {
   resetMandatoryGate,
   setMandatoryGateHeld,
 } from '@/client/console/consoleMandatoryGate';
+import {
+  AdmissionSignals,
+  PromptSurface,
+  isPromptAdmitted,
+  setConsolePlacementHeld,
+  resetPromptAdmission,
+} from '@/client/console/consolePromptAdmission';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -1163,6 +1188,7 @@ export default defineComponent({
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
     ConsoleEffectDecision,
+    ConsoleFinalGreenery,
     ConsoleProductionLoss,
     ConsoleStartScene,
     ConsoleRevealOverlay,
@@ -1301,6 +1327,13 @@ export default defineComponent({
       cellPreviewToken: 0,
       /** A task's nested space-type option being picked on the board. */
       taskSpacePending: undefined as {index: number, spacePrompt: PlayerInputModel} | undefined,
+      /** The board pick out right now came from the FINALE's placement branch. */
+      finalGreeneryPickPending: false,
+      /** …and the board COMMITTED it. `waitingFor` still holds the finale
+       *  prompt for the whole round-trip (the server has not answered yet), so
+       *  without this the screen re-mounts the instant the pick is released and
+       *  BLINKS over the greenery's landing animation. */
+      finalGreeneryCommitting: false,
       /** Prompt identity — a change resets the task defer state. */
       lastTaskKey: '',
       /** The reveal-result the player already acknowledged (until the server clears). */
@@ -1765,6 +1798,30 @@ export default defineComponent({
         !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
         !this.handPickActive;
     },
+    /**
+     * THE FINALE. The endgame "turn your plants into greeneries" loop, on its
+     * own screen — see finalGreeneryModel.ts for why it is not just another
+     * optional decision (one of its two branches ends the player's game).
+     * Marker-gated like every other adapter: unmarked → the host keeps it.
+     */
+    finalGreeneryVm(): FinalGreeneryViewModel | undefined {
+      if (this.hostTask?.kind !== 'choice') {
+        return undefined;
+      }
+      return buildFinalGreenery(this.playerView.waitingFor, this.playerView.thisPlayer);
+    },
+    /** The live prompt behind the finale — the placement branch is handed to
+     *  the board with it. Narrowed here so the surface's prop stays required. */
+    finalGreeneryPrompt(): PlayerInputModel | undefined {
+      return this.finalGreeneryVm === undefined ? undefined : this.playerView.waitingFor;
+    },
+    finalGreeneryActive(): boolean {
+      return this.finalGreeneryVm !== undefined &&
+        !this.finalGreeneryCommitting &&
+        !this.govSupportActive && !this.productionLossActive &&
+        !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
+        !this.handPickActive;
+    },
     /** Every card the viewer holds (incl. Self-Replicating-Robots hosts) — the
      *  ownership test that decides whether a nested pick is a HAND pick. */
     viewerHandNames(): ReadonlySet<string> {
@@ -1808,20 +1865,41 @@ export default defineComponent({
         isBoardCardBonusActive() ||
         this.handDeliveryState.flights.length > 0;
     },
+    /**
+     * THE ONE snapshot every prompt-surface family is admitted against
+     * (consolePromptAdmission.ts owns the policy, the shell owns the signals).
+     * Collected in one place so a NEW signal reaches every family at once —
+     * the four hand-copied gate expressions this replaced had already drifted
+     * apart, and the fifth family (board placement) had never been given one.
+     */
+    admissionSignals(): AdmissionSignals {
+      return {
+        revealOpen: this.consoleRevealMode !== undefined,
+        revealPending: this.rawDrawnRevealPending,
+        playedHero: this.playedHeroHolds,
+        tileHero: this.tilePlacementHolds,
+        // Deliberately WITHOUT the board card-bonus scene — it is armed by a
+        // placement's own confirm, so it is a separate signal (see below).
+        cardArrival: deckDrawHolds() || this.handDeliveryState.flights.length > 0,
+        boardBonus: isBoardCardBonusActive(),
+        cardDiscard: this.cardDiscardTransaction.active,
+        presentation: this.presentationHeld,
+        announceGate: this.taskGateHeld,
+        anyAnimation: isAnimationHoldActive(),
+      };
+    },
     /** The task-host task (undefined = not served natively → fallback/other surfaces). */
     activeConsoleTask(): ConsoleTask | undefined {
       // A reveal overlay owns the foreground — the task host (and, cascading
       // off it, the gov-support panel) does not serve under it (see startTask).
       // Also held while a drawn reveal is pending, and while THIS interruptive
       // host prompt is still GATED (announced, not yet opened — consoleMandatoryGate).
-      if (this.presentationHeld || this.playedHeroHolds || this.tilePlacementHolds ||
-          // ANY live discard transaction, not just the animating phases: the
-          // window between the answer and the server's reply is exactly when
-          // the host would otherwise re-mount its branch list over the cards
-          // the player just chose (the pick surface has already released it).
-          this.cardDiscardTransaction.active ||
-          this.cardArrivalBusy ||
-          this.consoleRevealMode !== undefined || this.rawDrawnRevealPending || this.taskGateHeld) {
+      // NOTE the 'host' policy includes `card-discard` as ANY live discard
+      // transaction, not just its animating phases: the window between the
+      // answer and the server's reply is exactly when the host would otherwise
+      // re-mount its branch list over the cards the player just chose (the pick
+      // surface has already released it).
+      if (!this.admits('host')) {
         return undefined;
       }
       return taskServedByHost(this.playerView);
@@ -1878,8 +1956,7 @@ export default defineComponent({
       // Pluto discard waits for the WHOLE reveal beat: announce → open → take →
       // clear), and while THIS interruptive task is still GATED (announced, not
       // yet opened via B — consoleMandatoryGate).
-      if (this.presentationHeld || this.playedHeroHolds || this.consoleRevealMode !== undefined ||
-          this.rawDrawnRevealPending || this.taskGateHeld) {
+      if (!this.admits('section')) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -1899,7 +1976,7 @@ export default defineComponent({
       // the user reported). Safe from a self-deadlock: the confirm animates
       // nothing of its own, so nothing it hosts keeps the hold alive; the hold
       // is reactive, so the modal appears the instant the last flight lands.
-      if (task.kind === 'corpFirstAction' && isAnimationHoldActive()) {
+      if (task.kind === 'corpFirstAction' && !this.admits('standaloneModal')) {
         return undefined;
       }
       return task;
@@ -1913,7 +1990,7 @@ export default defineComponent({
       // the start scene must NOT mount / grab focus under the reveal. It
       // re-activates the instant the reveal closes (the consoleForegroundBusy
       // watcher opens the serving surface then).
-      if (this.presentationHeld || this.consoleRevealMode !== undefined || this.rawDrawnRevealPending) {
+      if (!this.admits('scene')) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -2148,9 +2225,36 @@ export default defineComponent({
       const p = this.taskSpacePending?.spacePrompt;
       return p !== undefined && p.type === 'space' ? p : undefined;
     },
-    /** Server-driven placement (SelectSpace) or a client-side board picker. */
+    /**
+     * The server's top-level `SelectSpace` is being HELD behind a cinematic
+     * (consolePromptAdmission). The board is ALWAYS mounted, so placement has no
+     * `v-if` to suppress — this verdict is what stands in for one.
+     *
+     * The case that shipped it: Experimental Forest draws 2 plant cards AND
+     * places a greenery. The executor draws synchronously and only DEFERS the
+     * placement, so ONE response carries the drawn-cards reveal and the
+     * SelectSpace together — the reveal assembled over a board that had already
+     * gone live, force-switched the section and closed every layer underneath.
+     * The draw is a cinematic with a defined END (its last card landing in the
+     * dock); nothing may be asked of the player before it.
+     *
+     * Mirrored out for the legacy `WaitingFor` (see setConsolePlacementHeld):
+     * it paints the hex highlight, which would otherwise stay lit under the modal.
+     */
+    placementHeld(): boolean {
+      return this.playerView.waitingFor?.type === 'space' && !this.admits('placement');
+    },
+    /**
+     * Server-driven placement (SelectSpace) or a client-side board picker.
+     *
+     * Only the SERVER branch is admission-gated. The two client-side pickers are
+     * hand-offs the player just initiated from a surface that UNMOUNTS itself for
+     * the pick (convert-plants, a task's nested space branch) — holding those
+     * would leave the prompt with no surface at all, which is the strand the
+     * `setConsoleTaskSpacePlacement` mirror exists to prevent.
+     */
     placementActive(): boolean {
-      return this.playerView.waitingFor?.type === 'space' ||
+      return (this.playerView.waitingFor?.type === 'space' && !this.placementHeld) ||
         this.convertPlantsPending !== undefined ||
         this.taskSpacePending !== undefined;
     },
@@ -3030,6 +3134,9 @@ export default defineComponent({
       if (this.effectDecisionActive) {
         return this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision';
       }
+      if (this.finalGreeneryActive) {
+        return FINAL_GREENERY_EYEBROW;
+      }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
         // "ДРАФТ"), not a generic "awaiting" — the host's own header carries
@@ -3276,6 +3383,9 @@ export default defineComponent({
       }
       if (this.effectDecisionActive) {
         return [...(panelCommands('effectDecision') ?? [])];
+      }
+      if (this.finalGreeneryActive) {
+        return [...(panelCommands('finalGreenery') ?? [])];
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The task host publishes its live contract (browse / pick / lanes /
@@ -4059,6 +4169,18 @@ export default defineComponent({
         setMandatoryGateHeld(held);
       },
     },
+    // Mirror the PLACEMENT verdict into the module so the legacy WaitingFor —
+    // which mounts the legacy SelectSpace (its `mounted()` paints the
+    // `.board-space--available` hex highlight) and teleports the PlacementBanner
+    // to <body>, both keyed off `waitingFor` alone — holds them for exactly the
+    // same window. Without it the hexes light up under the reveal modal while
+    // every other placement affordance is correctly held.
+    placementHeld: {
+      immediate: true,
+      handler(held: boolean): void {
+        setConsolePlacementHeld(held);
+      },
+    },
     // P13: the fullscreen viewer is a native <dialog> - open it on the
     // undefined->defined transition only (navigation keeps it open).
     // The open CHOREOGRAPHY (consoleZoomMotion): the landing geometry is
@@ -4245,6 +4367,15 @@ export default defineComponent({
     playerView: {
       immediate: true,
       handler(newView: PlayerViewModel, oldView: PlayerViewModel | undefined) {
+        // The finale's placement round-trip is over. Released a TICK late on
+        // purpose: the placement hero is armed by this very response, and the
+        // one frame between "the answer landed" and "the hero holds the
+        // foreground" is exactly the frame the screen used to blink in.
+        if (this.finalGreeneryCommitting) {
+          void this.$nextTick(() => {
+            this.finalGreeneryCommitting = false;
+          });
+        }
         // SURFACE MOTION — resolve the awaiting handoff (the composer held
         // the stage through the submit round-trip). PRE-FLUSH on purpose:
         // the DOM is still the OLD tree, so the departing composer can be
@@ -4340,6 +4471,7 @@ export default defineComponent({
           this.lastTaskKey = key;
           this.consoleState.task.deferred = false;
           this.taskSpacePending = undefined;
+          this.finalGreeneryPickPending = false;
           // A client payment built for a prompt that moved on is stale.
           this.pendingClientPayment = undefined;
           // Same for the native play confirm (its playAction path moved on).
@@ -4380,6 +4512,13 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * May this prompt-surface family come alive right now? THE single admission
+     * question — every family asks it, none re-derives it (consolePromptAdmission).
+     */
+    admits(surface: PromptSurface): boolean {
+      return isPromptAdmitted(surface, this.admissionSignals);
+    },
     /**
      * The command run of a composer's TABLEAU pick — ONE definition for the
      * two places it applies (hoisted above the composers, and the ordinary
@@ -4810,6 +4949,13 @@ export default defineComponent({
       // claim the pad).
       if (this.effectDecisionActive) {
         const panel = this.$refs.effectDecision as InstanceType<typeof ConsoleEffectDecision> | undefined;
+        panel?.handleIntent(intent);
+        return true;
+      }
+      // The FINALE screen owns input on the same terms (its A is the arming
+      // one — that lives in the panel, not here).
+      if (this.finalGreeneryActive) {
+        const panel = this.$refs.finalGreenery as InstanceType<typeof ConsoleFinalGreenery> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -5553,7 +5699,10 @@ export default defineComponent({
         // P27: the cells are NOT part of the normal command loop — the
         // board navigates only in INSPECTION mode or during a placement.
         if (!this.placementActive && !this.consoleState.inspecting) {
-          this.showNotice('Press L3 to inspect the board');
+          // The button NAME comes from the active glyph set — the notice is
+          // plain text (no glyph slot), so it interpolates the label rather
+          // than hardcoding «L3», which is only correct by coincidence today.
+          this.showNotice(translateTextWithParams('Press ${0} to inspect the board', [activeGlyphSet().stickL.label]));
           return;
         }
         board?.move(dir);
@@ -5706,13 +5855,6 @@ export default defineComponent({
         cancelConsoleHandPick();
         return;
       }
-      // A DEFERRED task comes back first — B toggles task ↔ board-inspect (the
-      // prompt card's A does the same; B stays a global fallback / other-section
-      // return, since the card only shows on the board home).
-      if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
-        this.restoreDeferredTask();
-        return;
-      }
       if (this.consoleState.sale.active) {
         this.consoleState.sale.active = false;
         this.consoleState.sale.selected = [];
@@ -5746,6 +5888,20 @@ export default defineComponent({
         } else {
           this.showNotice('This placement is mandatory — pick a cell on the map');
         }
+        return;
+      }
+      // A DEFERRED task comes back — B toggles task ↔ board-inspect, the same
+      // thing the prompt card's A does.
+      //
+      // DELIBERATELY LAST of the "go somewhere" branches. It used to run FIRST,
+      // as a global fallback, which made B inside another section (the hand,
+      // colonies, hydro) yank the minimized prompt back instead of closing the
+      // screen the player was looking at — B stopped meaning "one calm step
+      // back" the moment anything was deferred. The task is reachable exactly
+      // where its card is: from the BOARD HOME. Inspection modes stay BELOW it,
+      // because "minimize to look at the board" is what deferring is for.
+      if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
+        this.restoreDeferredTask();
         return;
       }
       // P27: inspection modes — B is one calm step back to the board home.
@@ -6540,6 +6696,7 @@ export default defineComponent({
       if (this.taskSpacePending !== undefined) {
         // A task's nested board pick: nothing committed — return to the task.
         this.taskSpacePending = undefined;
+        this.finalGreeneryPickPending = false;
         return;
       }
       if (this.convertPlantsPending !== undefined) {
@@ -6745,12 +6902,25 @@ export default defineComponent({
         this.submit(orWrappedResponse(payload.index, cardsResponse(cards)));
       });
     },
+    /**
+     * The FINALE's placement branch. Same board hand-off as every other nested
+     * `SelectSpace`, plus a marker: this screen must stay down for the WHOLE
+     * commit (see `finalGreeneryCommitting`), not just while the pick is out.
+     */
+    onFinalGreenerySpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
+      this.finalGreeneryPickPending = true;
+      this.onTaskSpacePick(payload);
+    },
     onTaskSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
       const pending = this.taskSpacePending;
       this.taskSpacePending = undefined;
       if (pending === undefined) {
         return;
       }
+      // Committed: hold the finale down until the answer lands (and the
+      // placement hero has taken the foreground).
+      this.finalGreeneryCommitting = this.finalGreeneryPickPending;
+      this.finalGreeneryPickPending = false;
       this.consoleState.task.deferred = false;
       this.armBoardBonusIfCardCell(spaceResponse.spaceId);
       this.submit(orWrappedResponse(pending.index, spaceResponse));
@@ -7720,6 +7890,7 @@ export default defineComponent({
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
+    resetPromptAdmission(); // shell gone → the placement can never stay held (desktop reads the mirror too)
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell

@@ -157,10 +157,15 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     return run;
   }
   case 'sub-payment':
+    // The EXPANDED payment editor — the same block, opened. d-pad walks the
+    // sources; the way back is offered on BOTH the trigger that expanded it and
+    // B, so the density switch is a toggle the player can never get stuck in.
     return [
+      {control: 'dpad', label: 'Navigate'},
       {control: 'bumperL', control2: 'bumperR', label: '−1 / +1'},
       {control: 'triggerR', label: 'MAX'},
       {control: 'confirm', label: 'Done', enabled: ctx.covers},
+      {control: 'triggerL', label: 'Back to quick payment'},
       {control: 'back', label: 'Back'},
     ];
   default: {

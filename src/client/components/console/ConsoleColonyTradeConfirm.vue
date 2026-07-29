@@ -20,27 +20,15 @@
       </header>
 
       <div class="con-task__main con-trade__main">
-        <!-- ── SUB: the M€ payment lanes (heat / alt resources). ─────── -->
+        <!-- ── SUB: the trade fee — the SHARED payment panel in its EXPANDED
+             density. Same rows / verdict / geometry as every other payment in
+             the game; the command bar carries the controls. ─────────────── -->
         <template v-if="sub === 'lanes' && paymentView !== undefined">
-          <div class="con-trade__sub-title">{{ $t('Payment') }}</div>
-          <div v-for="(lane, i) in paymentView.lanes" :key="lane.unit"
-               class="con-composer__lane"
-               :class="{'con-composer__lane--focused': subIdx === i}"
-               :ref="subIdx === i ? 'focusedEl' : undefined">
-            <i class="con-composer__lane-icon" :class="iconClass(lane.unit)" aria-hidden="true"></i>
-            <span class="con-composer__lane-name">{{ $t(laneLabel(lane.unit)) }}</span>
-            <span v-if="lane.rate > 1" class="con-composer__lane-rate">×{{ lane.rate }}</span>
-            <span class="con-composer__lane-value"><b>{{ paymentCounts[lane.unit] ?? 0 }}</b><i>/ {{ lane.available }}</i></span>
-          </div>
-          <div class="con-composer__lane con-composer__lane--auto">
-            <i class="con-composer__lane-icon" :class="iconClass('megacredits')" aria-hidden="true"></i>
-            <span class="con-composer__lane-name">{{ $t('Megacredits') }}</span>
-            <span class="con-composer__lane-value"><b>{{ paymentView.mc }}</b><i>{{ $t('auto') }}</i></span>
-          </div>
-          <div class="con-composer__paytotal" :class="{'con-composer__paytotal--ok': paymentView.covers}">
-            {{ $t('Total') }}: {{ paymentView.total }} / {{ paymentView.cost }} M€
-          </div>
-        </template>
+          <ConsolePaymentPanel :view="paymentView"
+                               mode="expanded"
+                               hint-mode="none"
+                               :focus-unit="payFocusUnit"
+                               :flash-nonce="payFlashNonce" /></template>
 
         <!-- ── SUB: track advance choice (IncreaseColonyTrack). ──────── -->
         <template v-else-if="sub === 'track' && trackStep !== undefined">
@@ -248,13 +236,13 @@ import {consoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {
   paymentLanes,
   megacreditsAvailable,
-  paymentCovers,
-  paymentTotal,
   paymentFromCounts,
   initialCounts,
-  autoMegacredits,
   laneCap,
+  buildPaymentView,
+  editableRows,
   PaymentLane,
+  PaymentView,
 } from '@/client/console/paymentPlan';
 import {
   TradeStep,
@@ -268,6 +256,7 @@ import {
 } from '@/client/components/colonies/colonyTradePlan';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 
 function textOf(v: string | Message | undefined): string {
@@ -289,24 +278,9 @@ type Sub = undefined | 'lanes' | 'track' | 'targets';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
 
-const LANE_LABEL: Partial<Record<SpendableResource, string>> = {
-  heat: 'Heat',
-  steel: 'Steel',
-  titanium: 'Titanium',
-  plants: 'Plants',
-  microbes: 'Microbes',
-  floaters: 'Floaters',
-  seeds: 'Seeds',
-  auroraiData: 'Data',
-  graphene: 'Graphene',
-  kuiperAsteroids: 'Asteroids',
-  spireScience: 'Science',
-  lunaArchivesScience: 'Science',
-};
-
 export default defineComponent({
   name: 'ConsoleColonyTradeConfirm',
-  components: {BenefitGlyph, ConsoleScrollArea},
+  components: {BenefitGlyph, ConsoleScrollArea, ConsolePaymentPanel},
   props: {
     colony: {type: Object as PropType<ColonyModel | undefined>, default: undefined},
     colonyName: {type: String as PropType<ColonyName>, required: true},
@@ -332,6 +306,8 @@ export default defineComponent({
       captures: {} as Record<string, unknown>,
       /** The M€ lanes mix (auto-seeded with the optimal default). */
       paymentCounts: {} as Partial<Record<SpendableResource, number>>,
+      /** Re-keyed on each adjust so the dialed row's one-shot pulse replays. */
+      payFlashNonce: 0,
       /** The trade-launch controller — drives the dissolve while the fleet flies. */
       tradeFleetState,
     };
@@ -485,36 +461,50 @@ export default defineComponent({
       const step = this.steps.find((s) => s.kind === 'payment');
       return step?.kind === 'payment' ? step : undefined;
     },
-    paymentView(): {lanes: Array<PaymentLane>, mc: number, total: number, cost: number, covers: boolean} | undefined {
+    payLanes(): ReadonlyArray<PaymentLane> {
+      const step = this.paymentStep;
+      const player = this.thisPlayer;
+      return step === undefined || player === undefined ? [] : paymentLanes(step.model, player);
+    },
+    /** The SHARED payment presentation model — the identical rows / verdict /
+     *  geometry the card-play, blue-action and standalone payment prompts use. */
+    paymentView(): PaymentView | undefined {
       const step = this.paymentStep;
       const player = this.thisPlayer;
       if (step === undefined || player === undefined) {
         return undefined;
       }
-      const lanes = paymentLanes(step.model, player);
-      const mcAvailable = megacreditsAvailable(player);
-      return {
-        lanes,
-        mc: autoMegacredits(step.model.amount, lanes, this.paymentCounts, mcAvailable),
-        total: paymentTotal(step.model.amount, lanes, this.paymentCounts, mcAvailable),
+      return buildPaymentView({
         cost: step.model.amount,
-        covers: paymentCovers(step.model.amount, lanes, this.paymentCounts, mcAvailable),
-      };
+        lanes: this.payLanes,
+        counts: this.paymentCounts,
+        mcAvailable: megacreditsAvailable(player),
+      });
     },
+    /** The lane list and the panel's editable rows are the SAME sequence, so
+     *  the sub cursor indexes both. */
+    payFocusUnit(): string | undefined {
+      const v = this.paymentView;
+      return v === undefined || this.sub !== 'lanes' ? undefined : editableRows(v)[this.subIdx]?.unit;
+    },
+    /** The one-line «2 Сталь + 3 M€» recap on the collapsed row. */
     paymentSummary(): string {
       const view = this.paymentView;
       if (view === undefined) {
         return '';
       }
       const parts: Array<string> = [];
-      for (const lane of view.lanes) {
-        const count = this.paymentCounts[lane.unit] ?? 0;
-        if (count > 0) {
-          parts.push(`${count} ${translateText(this.laneLabel(lane.unit))}`);
+      for (const row of view.rows) {
+        if (row.auto) {
+          continue;
+        }
+        if (row.used > 0) {
+          parts.push(`${row.used} ${translateText(row.labelKey)}`);
         }
       }
-      if (view.mc > 0 || parts.length === 0) {
-        parts.push(`${view.mc} M€`);
+      const mc = view.rows.find((r) => r.auto)?.used ?? 0;
+      if (mc > 0 || parts.length === 0) {
+        parts.push(`${mc} M€`);
       }
       return parts.join(' + ');
     },
@@ -671,7 +661,7 @@ export default defineComponent({
       return rows;
     },
     canConfirm(): boolean {
-      if (this.paymentView !== undefined && !this.paymentView.covers) {
+      if (this.paymentView !== undefined && !this.paymentView.status.ok) {
         return false;
       }
       return this.steps.every((step, i) => {
@@ -694,7 +684,7 @@ export default defineComponent({
         return false;
       }
       if (row.kind === 'payment') {
-        return (this.paymentView?.lanes.length ?? 0) > 0;
+        return this.payLanes.length > 0;
       }
       return true;
     },
@@ -729,9 +719,6 @@ export default defineComponent({
     },
     iconClass(unit: string): string {
       return iconClassFor(unit);
-    },
-    laneLabel(unit: SpendableResource): string {
-      return LANE_LABEL[unit] ?? unit;
     },
     chipIconClass(chip: TradeOutcomeChip): string {
       return chip.icon !== undefined ? iconClassFor(chip.icon) : '';
@@ -815,17 +802,26 @@ export default defineComponent({
         return;
       }
       if (dir === 'up' || dir === 'down') {
-        this.subIdx = Math.min(view.lanes.length - 1, Math.max(0, this.subIdx + (dir === 'down' ? 1 : -1)));
+        this.subIdx = Math.min(this.payLanes.length - 1, Math.max(0, this.subIdx + (dir === 'down' ? 1 : -1)));
         return;
       }
-      const lane = view.lanes[this.subIdx];
-      if (lane === undefined) {
+      this.adjustPayLane(this.subIdx, dir === 'right' ? 1 : -1);
+    },
+    /** Dial ONE payment source of the trade fee (shared clamp + pulse). */
+    adjustPayLane(idx: number, step: number, toMax = false): void {
+      const view = this.paymentView;
+      const lane = this.payLanes[idx];
+      if (view === undefined || lane === undefined) {
         return;
       }
-      const delta = dir === 'right' ? 1 : -1;
       const cap = laneCap(view.cost, lane);
-      const next = Math.min(cap, Math.max(0, (this.paymentCounts[lane.unit] ?? 0) + delta));
+      const before = this.paymentCounts[lane.unit] ?? 0;
+      const next = toMax ? cap : Math.min(cap, Math.max(0, before + step));
+      if (next === before) {
+        return;
+      }
       this.paymentCounts = {...this.paymentCounts, [lane.unit]: next};
+      this.payFlashNonce += 1;
     },
     subListLength(): number {
       if (this.sub === 'track') {
@@ -850,13 +846,9 @@ export default defineComponent({
         }
         return;
       case 'nextTab':
-        // RT in the lanes = MAX the focused lane (mirrors the action composer).
+        // RT in the lanes = MAX the focused source (mirrors the composers).
         if (this.sub === 'lanes') {
-          const view = this.paymentView;
-          const lane = view?.lanes[this.subIdx];
-          if (view !== undefined && lane !== undefined) {
-            this.paymentCounts = {...this.paymentCounts, [lane.unit]: laneCap(view.cost, lane)};
-          }
+          this.adjustPayLane(this.subIdx, 0, true);
         }
         return;
       case 'back':
@@ -872,7 +864,7 @@ export default defineComponent({
     },
     onConfirmPress(): void {
       if (this.sub === 'lanes') {
-        if (this.paymentView?.covers === true) {
+        if (this.paymentView?.status.ok === true) {
           this.sub = undefined;
         }
         return;
@@ -933,7 +925,7 @@ export default defineComponent({
         return this.captures[row.key] === undefined;
       }
       if (row.kind === 'payment') {
-        return this.paymentView !== undefined && !this.paymentView.covers;
+        return this.paymentView !== undefined && !this.paymentView.status.ok;
       }
       return false;
     },
@@ -954,7 +946,7 @@ export default defineComponent({
           const view = this.paymentView;
           const player = this.thisPlayer;
           if (view !== undefined && player !== undefined) {
-            capturesByIndex[i] = paymentFromCounts(view.cost, view.lanes, this.paymentCounts, megacreditsAvailable(player));
+            capturesByIndex[i] = paymentFromCounts(view.cost, this.payLanes, this.paymentCounts, megacreditsAvailable(player));
           }
         } else if (this.captures[key] !== undefined) {
           capturesByIndex[i] = this.captures[key];

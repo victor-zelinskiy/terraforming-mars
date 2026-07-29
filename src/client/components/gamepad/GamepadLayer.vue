@@ -85,7 +85,8 @@ import {gamepadCoreState, installGamepadCore, onGamepadIntent, uninstallGamepadC
 import {clearGamepadFocus, focusState, gamepadFocusTick, handleGamepadIntent} from '@/client/gamepad/focusEngine';
 import {InputMode, inputModeState, onInputModeChange} from '@/client/gamepad/inputModeState';
 import {gamepadDebug} from '@/client/gamepad/gamepadSettings';
-import {GlyphControl} from '@/client/gamepad/glyphSets';
+import {GlyphControl, resolveGlyphSetId} from '@/client/gamepad/glyphSets';
+import {applyGlyphCssVars} from '@/client/gamepad/glyphCssBridge';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadFocusRing from '@/client/components/gamepad/GamepadFocusRing.vue';
 import GamepadHintBar from '@/client/components/gamepad/GamepadHintBar.vue';
@@ -194,6 +195,11 @@ export default defineComponent({
     legendRows(): ReadonlyArray<LegendRow> {
       return this.consoleModeState.enabled ? CONSOLE_LEGEND_ROWS : LEGEND_ROWS;
     },
+    /** Identity of the ACTIVE glyph presentation — set + A/B layout, the two
+     * inputs of `activeGlyphSet()`. Drives the CSS bridge republish below. */
+    glyphCssKey(): string {
+      return `${resolveGlyphSetId()}:${this.buttonLayoutState.layout}`;
+    },
   },
   watch: {
     'inputModeState.padsConnected'(now: number, before: number) {
@@ -255,6 +261,17 @@ export default defineComponent({
           html.classList.remove(`con-profile-${p}`);
         }
         html.classList.add(`con-profile-${now}`);
+      },
+    },
+    // GLYPH CSS BRIDGE — mirror the active glyph set onto <html> as
+    // --gp-label-* / --gp-tone-* custom properties. Owned here for the same
+    // reason as the classes above (the layer spans every lifecycle screen), so
+    // a badge a Vue component can't reach (the virtual keyboard's simple-keyboard
+    // keys) still follows the player's controller. See glyphCssBridge.ts.
+    'glyphCssKey': {
+      immediate: true,
+      handler() {
+        applyGlyphCssVars();
       },
     },
   },

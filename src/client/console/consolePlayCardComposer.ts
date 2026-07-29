@@ -37,12 +37,13 @@ import type {ComposerChoice, RepeatComposed} from '@/client/console/consoleActio
 import {repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 
-// The premium payment VIEW-MODEL now lives in the SHARED `paymentPlan` module so
-// BOTH the play-card and the blue-card action composer speak one payment language
-// (neither owns it → no drift). Re-exported here for the play composer + its spec,
-// which import it from this module by history.
-export {payChipEffect, buildPaymentView} from '@/client/console/paymentPlan';
-export type {PaymentResourceChip, PlayPaymentView} from '@/client/console/paymentPlan';
+// The premium payment PRESENTATION model lives in the SHARED `paymentPlan`
+// module so EVERY payment surface (card play, blue action, standalone
+// SelectPayment task, colony trade) speaks one payment language — neither
+// composer owns it, so they cannot drift. Re-exported here for the play
+// composer + its spec, which import it from this module by history.
+export {buildPaymentView, editableRows, quickAdjustRow, paymentUnitLabel} from '@/client/console/paymentPlan';
+export type {PaymentSourceRow, PaymentStatus, PaymentStatusKind, PaymentView} from '@/client/console/paymentPlan';
 
 export type PlayCardBatchArgs = {
   /**
@@ -318,11 +319,15 @@ export type PlayFootContext = {
  */
 export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   if (ctx.sub === 'payment') {
+    // The EXPANDED payment editor — the same block, opened. The way back is
+    // offered on BOTH the trigger that opened it and B, so the density switch
+    // is a toggle the player can never get stuck inside.
     return [
       {control: 'dpad', label: 'Navigate'},
       {control: 'bumperL', control2: 'bumperR', label: '−1 / +1'},
       {control: 'triggerR', label: 'MAX'},
       {control: 'confirm', label: 'Done', enabled: ctx.paymentReady},
+      {control: 'triggerL', label: 'Back to quick payment'},
       {control: 'back', label: 'Back'},
     ];
   }

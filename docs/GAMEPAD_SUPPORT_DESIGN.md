@@ -360,6 +360,22 @@ attention.
 - Ring badge (§5.8) shows A (+ Y when the focused element is a card).
 - Discoverability: **Menu** opens a full mapping legend overlay (own scope,
   B closes).
+- `glyphCssBridge.ts`: the CSS escape hatch. Mirrors the ACTIVE set onto
+  `<html>` as `--gp-label-<control>` (a `content:`-ready string) and
+  `--gp-tone-<control>`, republished by `GamepadLayer` on every set / layout
+  change. For badges painted on DOM a Vue component can't mount into — today
+  only the `simple-keyboard` virtual keys (`.cm-vk__key--done/--lang::before`).
+  Everything else uses `GamepadGlyph`; copy that must name a button
+  interpolates `activeGlyphSet()[control].label` through
+  `translateTextWithParams`. `tests/gamepad/glyphLiteralGuard.spec.ts` fails the
+  build on a literal button name anywhere in the console/gamepad trees, their
+  stylesheets, or `console.json` — including a Russian translation VALUE, which
+  is where «колесе LT/RT» and «Обмен A / B» hid from every English-side grep.
+- **Detection limit (by design):** under Steam Input every pad is virtualized as
+  an Xbox 360 controller, so `Gamepad.id` cannot reveal a Steam Deck / DualSense
+  and `detectGlyphSet` correctly falls back to `xbox`. `Auto` therefore shows
+  Xbox glyphs for a Steam-Input player until they pick a set manually; the
+  Options row renders «Авто (Xbox)» so the resolved set is visible.
 
 ## 7. Haptics (premium feedback, phase 5)
 

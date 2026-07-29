@@ -87,6 +87,9 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // The EFFECT DECISION screen — it stands in for the task host on a marked
   // optional decision, so it is that prompt's serving surface.
   '.con-decision',
+  // The FINAL GREENERY finale screen — the endgame conversion beat, which
+  // stands in for the host on that one (marked) prompt.
+  '.con-finale',
   // The CARD-DISCARD scene: the discard answer closes the hand section while
   // the condemned cards are still flying to the pile, so a follow-up prompt
   // committed at the landing has no surface for that window — the discard

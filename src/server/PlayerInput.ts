@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DiscardPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DiscardPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -33,6 +33,9 @@ export interface PlayerInput {
     // DiscardPromptMeta) — the ONE signal the console's unified discard flow
     // keys off, whoever demands the discard. Serialized in getWaitingFor.
     discardPrompt?: DiscardPromptMeta;
+    // Explicit "this is the FINAL GREENERY beat" marker (see
+    // FinalGreeneryPromptMeta) — one branch places, the other ENDS the game.
+    finalGreeneryPrompt?: FinalGreeneryPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -86,6 +89,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
   public discardPrompt: DiscardPromptMeta | undefined;
+  public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -175,6 +179,14 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link DiscardPromptMeta} and `inputs/discardPrompt.ts` for factories. */
   public markDiscardPrompt(meta: DiscardPromptMeta): this {
     this.discardPrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as the FINAL GREENERY beat (chainable): one branch places
+   *  a greenery, the other ENDS the player's game. The client must never have
+   *  to tell those apart by reading their titles. */
+  public markFinalGreeneryPrompt(meta: FinalGreeneryPromptMeta): this {
+    this.finalGreeneryPrompt = meta;
     return this;
   }
 }

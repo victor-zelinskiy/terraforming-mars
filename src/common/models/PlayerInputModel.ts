@@ -203,6 +203,26 @@ export type DiscardPromptMeta = {
   colonyBonus?: ColonyBonusDiscardMeta;
 }
 
+/**
+ * EXPLICIT marker for the FINAL GREENERY prompt — the endgame beat where a
+ * player turns leftover plants into greeneries, one at a time, until they stop.
+ *
+ * It looks like an ordinary two-branch choice and is anything but: the second
+ * branch does NOT decline an effect, it ENDS THAT PLAYER'S GAME
+ * (`playerIsDoneWithGame`). Rendering it as a calm "do nothing" row — which is
+ * what a generic option list does — invites an irreversible misclick at the
+ * most expensive moment of the match. The console routes it to its own finale
+ * screen instead, where that branch is destructive, explained and two-step.
+ *
+ * Carries ONLY what the client cannot derive: the board's remaining legal
+ * spaces. Plants and `plantsNeededForGreenery` already ride the public player
+ * model, so they are read there (never duplicated into metadata).
+ */
+export type FinalGreeneryPromptMeta = {
+  /** Legal spaces left for a greenery — a board rule the client cannot know. */
+  spaces: number;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -217,6 +237,7 @@ export type BaseInputModel = {
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
   discardPrompt?: DiscardPromptMeta;
+  finalGreeneryPrompt?: FinalGreeneryPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

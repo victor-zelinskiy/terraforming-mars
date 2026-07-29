@@ -6,7 +6,7 @@
         <span v-for="(cmd, i) in cmdsLeft"
               :key="'l' + i"
               class="con-cmdbar__cmd"
-              :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
+              :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true, 'con-cmdbar__cmd--danger': cmd.tone === 'danger'}">
           <template v-if="cmd.spread === true && cmd.control2 !== undefined">
             <GamepadGlyph :control="cmd.control" />
             <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>
@@ -31,7 +31,7 @@
       <span v-for="(cmd, i) in cmdsRight"
             :key="i"
             class="con-cmdbar__cmd"
-            :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true}">
+            :class="{'con-cmdbar__cmd--disabled': cmd.enabled === false, 'con-cmdbar__cmd--hot': cmd.highlight === true, 'con-cmdbar__cmd--danger': cmd.tone === 'danger'}">
         <template v-if="cmd.spread === true && cmd.control2 !== undefined">
           <GamepadGlyph :control="cmd.control" />
           <span class="con-cmdbar__spread-arrow" aria-hidden="true">◀</span>

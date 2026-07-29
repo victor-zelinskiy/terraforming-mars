@@ -33,10 +33,16 @@ export type ButtonLayout = 'standard' | 'swap-ab';
 /** Cycle order for the Options row: Standard → Swap A/B → Standard. */
 export const BUTTON_LAYOUT_CHOICES: ReadonlyArray<ButtonLayout> = ['standard', 'swap-ab'];
 
-/** English i18n keys for the Options value (translated at render). */
+/**
+ * English i18n keys for the Options value (translated at render). The swap
+ * label NAMES the two physical face buttons, so it is PARAMETERIZED — the
+ * letters come from the active glyph set via `layoutSwapLabels()` («Обмен A / B»
+ * on Xbox, «Обмен ✕ / ◯» on PlayStation). It used to hardcode «Swap A / B»,
+ * which lied to every non-Xbox player about the very setting they were reading.
+ */
 export const BUTTON_LAYOUT_LABELS: Readonly<Record<ButtonLayout, string>> = {
   'standard': 'Standard',
-  'swap-ab': 'Swap A / B',
+  'swap-ab': 'Swap ${0} / ${1}',
 };
 
 /**

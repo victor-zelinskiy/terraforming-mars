@@ -141,38 +141,9 @@
           </div>
         </template>
 
-        <!-- SUB-STATE: payment lanes. -->
-        <template v-else-if="sub !== undefined && sub.kind === 'payment' && paymentView !== undefined">
-          <div class="con-composer__sub-title">{{ subTitle }}</div>
-          <div v-for="(lane, i) in paymentView.lanes" :key="lane.unit"
-               class="con-composer__lane"
-               :class="{'con-composer__lane--focused': sub.index === i}"
-               :ref="sub.index === i ? 'focusedEl' : undefined">
-            <i class="con-composer__lane-icon" :class="iconClass(lane.unit)" aria-hidden="true"></i>
-            <span class="con-composer__lane-name">{{ $t(laneLabel(lane.unit)) }}</span>
-            <span class="con-composer__lane-rate" v-if="lane.rate > 1">×{{ lane.rate }}</span>
-            <span class="con-composer__lane-value"><b>{{ paymentView.counts[lane.unit] ?? 0 }}</b><i>/ {{ lane.available }}</i></span>
-          </div>
-          <div class="con-composer__lane con-composer__lane--auto">
-            <i class="con-composer__lane-icon" :class="iconClass('megacredits')" aria-hidden="true"></i>
-            <span class="con-composer__lane-name">{{ $t('Megacredits') }}</span>
-            <span class="con-composer__lane-value"><b>{{ paymentView.mc }}</b><i>{{ $t('auto') }}</i></span>
-          </div>
-          <div class="con-composer__paytotal"
-               :class="{
-                 'con-composer__paytotal--ok': paymentView.covers && paymentView.overpay === 0,
-                 'con-composer__paytotal--over': paymentView.overpay > 0,
-               }">
-            <span class="con-composer__paytotal-main">{{ $t('Total') }}: {{ paymentView.total }} / {{ paymentView.cost }} M€</span>
-            <span v-if="paymentView.overpay > 0" class="con-composer__payover">
-              <span class="con-composer__payover-label">{{ $t('Overpaying') }}</span>
-              <span class="con-composer__payover-amt">+{{ paymentView.overpay }}</span>
-              <i class="resource_icon resource_icon--megacredits con-composer__payover-icon" aria-hidden="true"></i>
-            </span>
-          </div>
-        </template>
-
-        <!-- MAIN: preSteps + branch OPTION CARDS + the selected branch's inputs. -->
+        <!-- MAIN (and the EXPANDED payment editor, which is this SAME screen
+             with the payment block promoted — see the ConsolePaymentPanel
+             mount below; the rows, the CTA and the source card never move). -->
         <template v-else>
           <template v-for="item in items" :key="item.id">
             <!-- A branch OPTION CARD (premium chips, like the desktop radiogroup). -->
@@ -315,15 +286,17 @@
             <span aria-hidden="true">›</span><span>{{ n }}</span>
           </div>
 
-          <!-- PAYMENT — the SHARED premium panel (icons + было → стало, «авто» M€,
-               inline LB/RB quick-adjust, LT the detailed editor). A persistent INFO
-               panel, NOT a focus row: edited by the dedicated LT + LB/RB so it never
-               competes with the decision rows / the CTA. One premium payment
-               language with the play-card composer. Usually 0 or 1. -->
+          <!-- PAYMENT — the ONE shared panel, identical to the play-card flow.
+               A persistent INFO block, NOT a focus row: the dedicated trigger +
+               LB/RB reach it so it never competes with the decision rows / the
+               CTA. The SAME panel becomes the EXPANDED editor in place (cursor
+               inside, every source dialable) — never a separate screen. Usually
+               0 or 1 panel. -->
           <ConsolePaymentPanel v-for="pc in paymentChoices" :key="'pay' + pc.id"
                                :view="paymentPanelView(pc)"
-                               :cost="paymentCostOf(pc)"
-                               :flash-nonce="payFlashNonce" />
+                               :mode="payModeFor(pc)"
+                               :focus-unit="payFocusUnitFor(pc)"
+                               :flash-nonce="payFlashFor(pc)" />
 
         </template>
       </ConsoleScrollArea>
@@ -336,16 +309,19 @@
            the composer HOLDS the stage (awaiting the server's answer) — the
            CTA relabels to the in-flight state so the held beat reads as
            processing, never as an ignored press. -->
-      <div v-if="sub === undefined" class="con-composer__ctadock">
+      <!-- The dock STAYS mounted while the payment editor is open (it just
+           relabels to «Готово») — unmounting it there would move the whole
+           column, which is exactly the jump this rework removes. -->
+      <div v-if="sub === undefined || sub.kind === 'payment'" class="con-composer__ctadock">
         <!-- The honest readiness line: names the FIRST missing decision. -->
-        <div v-if="ctaHint !== ''" class="con-composer__cta-hint">
+        <div v-if="ctaDockHint !== ''" class="con-composer__cta-hint">
           <span aria-hidden="true">◈</span>
-          <span>{{ ctaHint }}</span>
+          <span>{{ ctaDockHint }}</span>
         </div>
         <div class="con-composer__cta"
              :class="{
-               'con-composer__cta--off': !canConfirm && !submitting,
-               'con-composer__cta--ready': canConfirm && !submitting,
+               'con-composer__cta--off': !ctaDockReady && !submitting,
+               'con-composer__cta--ready': ctaDockReady && !submitting,
                'con-composer__cta--focused': ctaFocused && !submitting,
                'con-composer__cta--waiting': submitting,
              }"
@@ -353,7 +329,7 @@
              @click="submit">
           <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
           <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
-          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : commitLabel) }}</span>
+          <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : ctaDockLabel) }}</span>
         </div>
       </div>
 
@@ -435,7 +411,7 @@ import {
   InlineDial,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
-import {paymentLanes, megacreditsAvailable, paymentCovers, paymentTotal, paymentFromCounts, initialCounts, laneCap, PaymentLane, buildPaymentView, PlayPaymentView} from '@/client/console/paymentPlan';
+import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, laneCap, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -557,9 +533,9 @@ export default defineComponent({
       amounts: {} as Record<string, number>,
       floaters: {} as Record<string, number>,
       payCounts: {} as Record<string, Partial<Record<SpendableResource, number>>>,
-      /** Re-keyed on each inline quick-adjust so the payment chip's one-shot
-       *  pulse replays (mirror of the play composer's payFlashNonce). */
-      payFlashNonce: 0,
+      /** Re-keyed PER PAYMENT CHOICE on each adjust so the dialed row's one-shot
+       *  pulse replays — a single shared counter flashed every mounted panel. */
+      payFlash: {} as Record<string, number>,
       picks: {} as Record<string, string>,
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
@@ -863,7 +839,7 @@ export default defineComponent({
       }
       if (this.sub !== undefined) {
         if (this.sub.kind === 'payment') {
-          return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.covers === true});
+          return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.status.ok === true});
         }
         return focusCommandRun({state: 'sub-list', cardList: this.subChoice?.input.type === 'card'});
       }
@@ -907,8 +883,8 @@ export default defineComponent({
       if (c.kind === 'amount' || c.kind === 'spendHeat') {
         return {kind: c.kind};
       }
-      const chip = this.paymentPanelView(c).chips.find((x) => x.isAdjustable);
-      return {kind: 'payment', canDecrease: chip?.canDecrease === true, canIncrease: chip?.canIncrease === true};
+      const row = quickAdjustRow(this.paymentPanelView(c));
+      return {kind: 'payment', canDecrease: row?.canDecrease === true, canIncrease: row?.canIncrease === true};
     },
     heroCost(): ReadonlyArray<ActionEffect> {
       const branch = this.selectedBranch;
@@ -1030,9 +1006,20 @@ export default defineComponent({
       }
       return [];
     },
-    paymentView(): {lanes: ReadonlyArray<PaymentLane>, counts: Partial<Record<SpendableResource, number>>, mc: number, total: number, cost: number, covers: boolean, overpay: number} | undefined {
+    /** The payment view of the choice whose EDITOR is open (the SAME model the
+     *  panel renders — there is no second, ad-hoc editor model any more). */
+    paymentView(): PaymentView | undefined {
       const c = this.subChoice;
-      return c === undefined || c.kind !== 'payment' ? undefined : this.paymentStateFor(c);
+      return c === undefined || c.kind !== 'payment' ? undefined : this.paymentPanelView(c);
+    },
+    /** The editor is open — the main screen stays mounted underneath it. */
+    payExpanded(): boolean {
+      return this.sub?.kind === 'payment';
+    },
+    /** The hand-editable rows of the open editor (its focus ring). */
+    payEditableRows(): ReadonlyArray<PaymentSourceRow> {
+      const v = this.paymentView;
+      return v === undefined ? [] : editableRows(v);
     },
     focusedItem(): Item | undefined {
       return this.navItems[this.focusIdx];
@@ -1043,6 +1030,24 @@ export default defineComponent({
     },
     ctaFocused(): boolean {
       return this.sub === undefined && this.focusIdx >= this.ctaIndex;
+    },
+    /**
+     * The dock while the payment EDITOR is open: the same strip in the same
+     * place, now confirming the PAYMENT («Готово») instead of the action — so
+     * the expanded state always shows the way back into the main flow and the
+     * dock never unmounts (which would move the column).
+     */
+    ctaDockLabel(): string {
+      if (!this.payExpanded) {
+        return this.commitLabel;
+      }
+      return this.paymentView?.status.ok === true ? 'Done' : 'Not enough resources';
+    },
+    ctaDockReady(): boolean {
+      return this.payExpanded ? this.paymentView?.status.ok === true : this.canConfirm;
+    },
+    ctaDockHint(): string {
+      return this.payExpanded ? '' : this.ctaHint;
     },
   },
   watch: {
@@ -1436,61 +1441,72 @@ export default defineComponent({
       this.captureFor(c, spendHeatResponse(plan, next));
     },
     // ── payment helpers ─────────────────────────────────────────────────
-    /** The premium payment VIEW-MODEL for the inline panel (icons + было → стало
-     *  + quick-adjust eligibility) — the SAME `buildPaymentView` the play composer
-     *  uses, so both flows render one payment language. */
-    paymentPanelView(c: ComposerChoice): PlayPaymentView {
+    /** The payment PRESENTATION model for a payment choice — the SAME
+     *  `buildPaymentView` the play composer and the standalone payment task
+     *  use, so every payment surface in the game renders one language. */
+    paymentPanelView(c: ComposerChoice): PaymentView {
       const model = c.input as SelectPaymentModel;
-      const lanes = paymentLanes(model, this.thisPlayer);
-      const counts = this.payCounts[c.id] ?? {};
-      const mcAvail = megacreditsAvailable(this.thisPlayer);
-      const p = this.thisPlayer as unknown as Record<string, number>;
       return buildPaymentView({
-        cost: model.amount, lanes, counts, mcAvailable: mcAvail,
-        stock: {megacredits: p.megacredits, steel: p.steel, titanium: p.titanium, plants: p.plants, energy: p.energy, heat: p.heat},
+        cost: model.amount,
+        lanes: paymentLanes(model, this.thisPlayer),
+        counts: this.payCounts[c.id] ?? {},
+        mcAvailable: megacreditsAvailable(this.thisPlayer),
       });
     },
     paymentCostOf(c: ComposerChoice): number {
       return (c.input as SelectPaymentModel).amount;
     },
-    /** Inline LB/RB quick-adjust of the SINGLE alt lane (M€ auto-fills the rest),
-     *  mirroring the play composer's main-screen quick-adjust. The detailed
-     *  multi-lane editor stays behind LT (`openPaymentEditor`). */
+    /** Density for THIS choice's panel: only the choice whose editor is open
+     *  expands — a second payment panel stays a compact summary. */
+    payModeFor(c: ComposerChoice): 'compact' | 'expanded' {
+      return this.sub?.kind === 'payment' && this.sub.choiceId === c.id ? 'expanded' : 'compact';
+    },
+    /** The unit the editor's cursor sits on (undefined outside the editor). */
+    payFocusUnitFor(c: ComposerChoice): string | undefined {
+      const sub = this.sub;
+      if (sub?.kind !== 'payment' || sub.choiceId !== c.id) {
+        return undefined;
+      }
+      return editableRows(this.paymentPanelView(c))[sub.index]?.unit;
+    },
+    /** The pulse nonce is PER CHOICE — a shared counter made every mounted
+     *  panel flash when only one of them was dialed. */
+    payFlashFor(c: ComposerChoice): number {
+      return this.payFlash[c.id] ?? 0;
+    },
+    /** Quick-adjust of the SINGLE alt source on the main screen (M€ auto-fills
+     *  the rest) — delegates to the ONE mutation both densities share. */
     adjustQuickPayment(c: ComposerChoice, step: number): void {
-      const model = c.input as SelectPaymentModel;
-      const lanes = paymentLanes(model, this.thisPlayer);
-      if (lanes.length !== 1) {
+      const row = quickAdjustRow(this.paymentPanelView(c));
+      if (row === undefined) {
         return;
       }
-      const before = (this.payCounts[c.id] ?? {})[lanes[0].unit] ?? 0;
+      if ((step > 0 && !row.canIncrease) || (step < 0 && !row.canDecrease)) {
+        return;
+      }
       this.adjustPayment(c, 0, step);
-      const after = (this.payCounts[c.id] ?? {})[lanes[0].unit] ?? 0;
-      if (before !== after) {
-        this.payFlashNonce++;
-      }
     },
-    /** LT — open the detailed lane editor (only when a non-M€ mix exists; a
-     *  pure-AUTO M€ payment has nothing to configure). */
+    /** EXPAND the payment block in place (only when a non-M€ mix exists; a
+     *  pure-AUTO M€ payment has nothing to configure). The cursor opens on the
+     *  source the compact summary was already driving. */
     openPaymentEditor(c: ComposerChoice): void {
-      if (paymentLanes(c.input as SelectPaymentModel, this.thisPlayer).length > 0) {
-        this.sub = {kind: 'payment', choiceId: c.id, index: 0};
+      const view = this.paymentPanelView(c);
+      if (!view.configurable) {
+        return;
       }
+      const quick = quickAdjustRow(view);
+      const idx = quick !== undefined ? editableRows(view).findIndex((r) => r.unit === quick.unit) : 0;
+      this.sub = {kind: 'payment', choiceId: c.id, index: Math.max(0, idx)};
     },
-    paymentStateFor(c: ComposerChoice) {
-      const model = c.input as SelectPaymentModel;
-      const lanes = paymentLanes(model, this.thisPlayer);
-      const counts = this.payCounts[c.id] ?? {};
-      const mcAvail = megacreditsAvailable(this.thisPlayer);
-      const payment = paymentFromCounts(model.amount, lanes, counts, mcAvail);
-      const total = paymentTotal(model.amount, lanes, counts, mcAvail);
-      return {lanes, counts, mc: payment.megacredits, total, cost: model.amount, covers: paymentCovers(model.amount, lanes, counts, mcAvail), overpay: Math.max(0, total - model.amount)};
+    /** Fold the editor back into the compact summary, keeping the chosen mix. */
+    closePaymentEditor(): void {
+      this.sub = undefined;
     },
-    paymentCaptureOf(c: ComposerChoice): unknown {
-      if (c.scope === 'option') {
-        return this.capturedOption;
-      }
-      return c.scope === 'pre' ? this.capturedPre[c.index] : this.captured[c.index];
-    },
+    /**
+     * Dial ONE payment source — the single mutation both densities go through.
+     * The capture follows coverage: an uncovered mix un-captures the choice, so
+     * the CTA blocks and says why (never a silently invalid submit).
+     */
     adjustPayment(c: ComposerChoice, laneIdx: number, step: number, toMax = false): void {
       const model = c.input as SelectPaymentModel;
       const lanes = paymentLanes(model, this.thisPlayer);
@@ -1500,19 +1516,17 @@ export default defineComponent({
       }
       const counts = {...(this.payCounts[c.id] ?? {})};
       const cap = laneCap(model.amount, lane);
-      counts[lane.unit] = toMax ? cap : Math.min(cap, Math.max(0, (counts[lane.unit] ?? 0) + step));
+      const before = counts[lane.unit] ?? 0;
+      const next = toMax ? cap : Math.min(cap, Math.max(0, before + step));
+      if (next === before) {
+        return;
+      }
+      counts[lane.unit] = next;
       this.payCounts[c.id] = counts;
+      this.payFlash[c.id] = (this.payFlash[c.id] ?? 0) + 1;
       const mcAvail = megacreditsAvailable(this.thisPlayer);
       this.captureFor(c, paymentCovers(model.amount, lanes, counts, mcAvail) ?
         {type: 'payment', payment: paymentFromCounts(model.amount, lanes, counts, mcAvail)} : undefined);
-    },
-    laneLabel(unit: string): string {
-      const labels: Record<string, string> = {
-        megacredits: 'Megacredits', steel: 'Steel', titanium: 'Titanium', plants: 'Plants', energy: 'Energy',
-        heat: 'Heat', microbes: 'Microbes', floaters: 'Floaters', seeds: 'Seeds', auroraiData: 'Data',
-        graphene: 'Graphene', kuiperAsteroids: 'Asteroids', spireScience: 'Science',
-      };
-      return labels[unit] ?? unit;
     },
     // ── pick rows ───────────────────────────────────────────────────────
     chosenLabel(c: ComposerChoice): string {
@@ -1603,7 +1617,7 @@ export default defineComponent({
     },
     onNav(dir: NavDirection): void {
       if (this.sub !== undefined) {
-        const len = this.sub.kind === 'payment' ? (this.paymentView?.lanes.length ?? 0) : this.listItems.length;
+        const len = this.sub.kind === 'payment' ? this.payEditableRows.length : this.listItems.length;
         if (dir === 'up' || dir === 'down') {
           this.sub.index = Math.min(len - 1, Math.max(0, this.sub.index + (dir === 'up' ? -1 : 1)));
           this.scrollFocused();
@@ -1864,8 +1878,10 @@ export default defineComponent({
       switch (action) {
       case 'primary':
         if (sub.kind === 'payment') {
-          if (this.paymentView?.covers === true) {
-            this.sub = undefined;
+          // «Готово» — fold the editor back; the mix is KEPT (payCounts is the
+          // single source of truth shared by both densities).
+          if (this.paymentView?.status.ok === true) {
+            this.closePaymentEditor();
           }
           return;
         }
@@ -1878,6 +1894,13 @@ export default defineComponent({
         return;
       case 'back':
         this.sub = undefined;
+        return;
+      case 'prevTab':
+        // The trigger that expanded the block folds it back — a toggle, so the
+        // density switch can never trap the player.
+        if (sub.kind === 'payment') {
+          this.closePaymentEditor();
+        }
         return;
       case 'prevSection':
       case 'nextSection':
@@ -2063,6 +2086,14 @@ export default defineComponent({
         // always visible, and feeding an outside node to the scroll math
         // would walk the viewport to a bogus offset.
         if (this.ctaFocused) {
+          return;
+        }
+        // The payment editor's cursor lives INSIDE the shared panel (a child
+        // component), so it is located by its rendered focus class instead of a
+        // template ref — the panel stays purely presentational.
+        if (this.payExpanded) {
+          const row = (this.$el as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
+          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
           return;
         }
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;

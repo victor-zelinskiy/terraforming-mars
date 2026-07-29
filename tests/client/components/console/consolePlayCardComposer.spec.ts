@@ -5,7 +5,7 @@ import {
 } from '@/client/console/consolePlayCardComposer';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
-import {PaymentLane} from '@/client/console/paymentPlan';
+import {PaymentLane, PaymentView, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 
 const DIAL_CONTROLS = ['bumperL', 'bumperR', 'triggerR'];
@@ -180,8 +180,18 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     const hints = playComposerFootHints(ctx({sub: 'payment'}));
     expect(hasDialControl(hints)).to.be.true;
     expect(labels(hints)).to.include('MAX');
-    // LT is not offered inside the sub (already in it).
-    expect(controls(hints)).to.not.include('triggerL');
+  });
+
+  /**
+   * The density switch is a TOGGLE: the same trigger that expanded the payment
+   * block folds it back (alongside B), so the editor can never trap the player
+   * — and its verb names the destination, not a generic «назад».
+   */
+  it('the payment SUB offers the way BACK to the compact summary on the same trigger', () => {
+    const hints = playComposerFootHints(ctx({sub: 'payment'}));
+    expect(controls(hints)).to.include('triggerL');
+    expect(hints.find((h) => h.control === 'triggerL')?.label).to.equal('Back to quick payment');
+    expect(labels(hints)).to.include('Back');
   });
 
   it('a focused amount stepper gets LB/RB and MAX', () => {
@@ -278,73 +288,123 @@ describe('consolePlayCardComposer.computePrimaryAction', () => {
 });
 
 describe('consolePlayCardComposer.buildPaymentView', () => {
-  const stock = {megacredits: 65, steel: 5, titanium: 4, plants: 0, energy: 0, heat: 0};
   const steelLane: PaymentLane = {unit: 'steel', rate: 2, available: 5, reserved: false};
   const titaniumLane: PaymentLane = {unit: 'titanium', rate: 3, available: 4, reserved: false};
+  const rowOf = (v: PaymentView, unit: string) => v.rows.find((r) => r.unit === unit);
 
-  it('pure M€ → NOT quick-adjustable, NOT configurable, one auto M€ chip', () => {
-    const v = buildPaymentView({cost: 11, lanes: [], counts: {}, mcAvailable: 65, stock});
+  it('pure M€ → one AUTO row, never quick-adjustable, never configurable', () => {
+    const v = buildPaymentView({cost: 11, lanes: [], counts: {}, mcAvailable: 65});
     expect(v.quickAdjustEligible).to.be.false;
     expect(v.configurable).to.be.false;
-    expect(v.chips).to.have.length(1);
-    expect(v.chips[0]).to.deep.include({isAutoBalanced: true, isAdjustable: false});
-    expect(v.chips[0].effect).to.deep.include({icon: 'megacredits', amount: 11, current: 65, resulting: 54});
+    expect(v.rows).to.have.length(1);
+    expect(v.rows[0]).to.deep.include({
+      unit: 'megacredits', auto: true, editable: false,
+      used: 11, available: 65, remaining: 54, contribution: 11, rate: 1,
+    });
+    // No alternative source exists at all — the price is simply debited.
+    expect(v.status.kind).to.equal('auto');
   });
 
-  it('ONE alt lane (steel) → quick-adjustable; alt chip FIRST with LB/RB metadata, then auto M€', () => {
+  it('ONE alt lane → quick-adjustable; the alt leads, the auto M€ row is ALWAYS last', () => {
     // cost 11, 5 steel @ rate 2 = 10, +1 M€.
-    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65, stock});
+    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65});
     expect(v.quickAdjustEligible).to.be.true;
     expect(v.quickAdjustUnit).to.equal('steel');
     expect(v.configurable).to.be.true;
-    expect(v.chips.map((c) => c.effect.icon)).to.deep.equal(['steel', 'megacredits']);
-    const steelChip = v.chips[0];
-    expect(steelChip).to.deep.include({isAdjustable: true});
-    expect(steelChip.effect).to.deep.include({amount: 5, current: 5, resulting: 0});
-    expect(steelChip.canIncrease).to.be.false; // already at max steel (5, cap = ceil(11/2)=6 but only 5 owned)
-    expect(steelChip.canDecrease).to.be.true; // M€ (65) easily covers a bigger remainder
-    expect(v.chips[1]).to.deep.include({isAutoBalanced: true});
+    expect(v.rows.map((r) => r.unit)).to.deep.equal(['steel', 'megacredits']);
+    expect(rowOf(v, 'steel')).to.deep.include({
+      labelKey: 'Steel', rate: 2, available: 5, used: 5, remaining: 0, contribution: 10,
+      auto: false, editable: true, quickAdjust: true, min: 0,
+    });
+    // Already at max steel (5 owned; cap = ceil(11/2) = 6).
+    expect(rowOf(v, 'steel')?.canIncrease).to.be.false;
+    expect(rowOf(v, 'steel')?.canDecrease).to.be.true;
+    expect(rowOf(v, 'megacredits')).to.deep.include({used: 1, contribution: 1, auto: true, editable: false});
+    expect(v.status.kind).to.equal('exact');
   });
 
-  it('quick-adjust canDecrease stays TRUE even when dropping the alt underpays (parity with the LT editor)', () => {
-    // cost 11, 5 steel used, only 0 M€ on hand → dropping steel underpays. LB must
-    // stay LIVE (the detailed lanes editor lets the player dial into underpayment);
-    // the shortfall is flagged (deficit) and blocks the confirm, never the button.
-    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0, stock: {steel: 5}});
-    expect(v.chips[0].canDecrease).to.be.true;
-    expect(v.paymentValid).to.be.false; // 5*2=10 < 11, no M€ to top up
+  /**
+   * THE layout-shift contract: the row set is fixed for a given prompt, so
+   * dialing can never add or remove a row (and therefore never resize the
+   * panel / move the CTA). The M€ row stays even at 0 spent.
+   */
+  it('the M€ row is present even when the alt covers the whole cost (stable row set)', () => {
+    const covered = buildPaymentView({cost: 10, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65});
+    const partial = buildPaymentView({cost: 10, lanes: [steelLane], counts: {steel: 1}, mcAvailable: 65});
+    expect(covered.rows.map((r) => r.unit)).to.deep.equal(['steel', 'megacredits']);
+    expect(partial.rows.map((r) => r.unit)).to.deep.equal(['steel', 'megacredits']);
+    expect(rowOf(covered, 'megacredits')).to.deep.include({used: 0, remaining: 65, contribution: 0, auto: true});
+  });
+
+  it('an UNUSED lane still gets a row (same order, both densities)', () => {
+    const v = buildPaymentView({cost: 21, lanes: [steelLane, titaniumLane], counts: {titanium: 4}, mcAvailable: 30});
+    expect(v.rows.map((r) => r.unit)).to.deep.equal(['steel', 'titanium', 'megacredits']);
+    expect(rowOf(v, 'steel')).to.deep.include({used: 0, remaining: 5, contribution: 0, editable: true});
+  });
+
+  it('quick-adjust canDecrease stays TRUE even when dropping the alt underpays (parity with the editor)', () => {
+    // cost 11, 5 steel used, 0 M€ on hand → dropping steel underpays. Down must
+    // stay LIVE; the shortfall is flagged and blocks the confirm, never the button.
+    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0});
+    expect(rowOf(v, 'steel')?.canDecrease).to.be.true;
+    expect(v.paymentValid).to.be.false;
     expect(v.deficit).to.equal(1);
+    expect(v.status).to.deep.include({kind: 'short', labelKey: 'Not enough', delta: 1, ok: false, paid: 10, cost: 11});
   });
 
-  it('TWO alt lanes → NOT quick-adjustable (complex): M€ first, then each spent lane, no adjust metadata', () => {
-    const v = buildPaymentView({cost: 21, lanes: [steelLane, titaniumLane], counts: {steel: 2, titanium: 1}, mcAvailable: 30, stock: {megacredits: 30, steel: 3, titanium: 2}});
+  it('TWO alt lanes → NOT quick-adjustable (the editor owns them), no row claims the bumpers', () => {
+    const v = buildPaymentView({cost: 21, lanes: [steelLane, titaniumLane], counts: {steel: 2, titanium: 1}, mcAvailable: 30});
     expect(v.quickAdjustEligible).to.be.false;
     expect(v.configurable).to.be.true;
-    expect(v.chips.every((c) => !c.isAdjustable)).to.be.true;
-    expect(v.chips.map((c) => c.effect.icon)).to.deep.equal(['megacredits', 'steel', 'titanium']);
+    expect(v.rows.every((r) => !r.quickAdjust)).to.be.true;
+    // Both alt lanes stay hand-editable — that IS the expanded editor.
+    expect(editableRows(v).map((r) => r.unit)).to.deep.equal(['steel', 'titanium']);
+    expect(quickAdjustRow(v)).to.be.undefined;
   });
 
-  it('overpay: a rate-remainder mix reports the M€-value spent above the cost', () => {
+  it('overpay: a rate-remainder mix is a WARNING verdict, never a blocker', () => {
     // cost 11, 6 steel @2 = 12 → overpay 1 (valid, no deficit).
-    const v = buildPaymentView({cost: 11, lanes: [{unit: 'steel', rate: 2, available: 6, reserved: false}], counts: {steel: 6}, mcAvailable: 65, stock: {...stock, steel: 6}});
+    const v = buildPaymentView({cost: 11, lanes: [{unit: 'steel', rate: 2, available: 6, reserved: false}], counts: {steel: 6}, mcAvailable: 65});
     expect(v.paymentValid).to.be.true;
     expect(v.overpay).to.equal(1);
     expect(v.deficit).to.equal(0);
+    expect(v.status).to.deep.include({kind: 'overpay', labelKey: 'Overpay', delta: 1, ok: true, paid: 12, cost: 11});
   });
 
   it('overpay is 0 for an exact mix, and never coexists with a deficit', () => {
-    const exact = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65, stock});
+    const exact = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 65});
     expect(exact.overpay).to.equal(0); // 10 + 1 auto M€
-    const short = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0, stock: {steel: 5}});
+    expect(exact.status.kind).to.equal('exact');
+    const short = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 5}, mcAvailable: 0});
     expect(short.overpay).to.equal(0);
     expect(short.deficit).to.equal(1);
   });
 
-  it('a special (non-standard) alt resource shows a signed amount, no before → after', () => {
+  it('a free prompt reads FREE, not «exact» — and still renders the M€ row', () => {
+    const v = buildPaymentView({cost: 0, lanes: [], counts: {}, mcAvailable: 12});
+    expect(v.status).to.deep.include({kind: 'free', labelKey: 'Free', delta: 0, ok: true, paid: 0});
+    expect(v.rows.map((r) => r.unit)).to.deep.equal(['megacredits']);
+  });
+
+  it('a mix that exceeds what is OWNED is impossible, not merely short', () => {
+    // 9 steel dialed but only 5 owned: value covers the cost, the mix cannot exist.
+    const v = buildPaymentView({cost: 11, lanes: [steelLane], counts: {steel: 9}, mcAvailable: 65});
+    expect(v.paymentValid).to.be.false;
+    expect(v.deficit).to.equal(0);
+    expect(v.status).to.deep.include({kind: 'impossible', ok: false});
+  });
+
+  it('a special (non-standard) alt resource carries the same row shape + a label key', () => {
     const microbeLane: PaymentLane = {unit: 'microbes', rate: 1, available: 3, reserved: false};
-    const v = buildPaymentView({cost: 3, lanes: [microbeLane], counts: {microbes: 3}, mcAvailable: 10, stock: {megacredits: 10}});
-    expect(v.chips[0].effect).to.deep.equal({direction: 'cost', icon: 'microbes', amount: 3});
-    expect(v.chips[0].effect.current).to.be.undefined;
+    const v = buildPaymentView({cost: 3, lanes: [microbeLane], counts: {microbes: 3}, mcAvailable: 10});
+    expect(rowOf(v, 'microbes')).to.deep.include({
+      labelKey: 'Microbes', rate: 1, available: 3, used: 3, remaining: 0, contribution: 3,
+    });
+  });
+
+  it('the reserved (card-owned) flag rides through to the row', () => {
+    const v = buildPaymentView({cost: 4, lanes: [{unit: 'steel', rate: 2, available: 2, reserved: true}], counts: {steel: 2}, mcAvailable: 0});
+    expect(rowOf(v, 'steel')?.reserved).to.be.true;
   });
 });
 

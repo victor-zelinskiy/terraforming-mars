@@ -15,7 +15,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild || holdingForConsolePlacement">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -225,6 +225,7 @@ import {
 } from '@/client/console/colonyBuild/consoleColonyBuild';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
@@ -1659,6 +1660,22 @@ export default defineComponent({
         return undefined;
       }
       return wf;
+    },
+    /*
+     * CONSOLE PROMPT ADMISSION: the console holds a server placement behind a
+     * running cinematic (a drawn-cards reveal, a hero scene, cards still flying
+     * into the dock — see consolePromptAdmission.ts). This branch is what makes
+     * that hold real for the two placement affordances THIS file owns: the
+     * legacy SelectSpace, whose `mounted()` paints `.board-space--available`
+     * onto the hexes, and the PlacementBanner it teleports to <body>. Blanking
+     * the render unmounts both — the same mechanism as the holds above, and the
+     * highlight re-paints when the console re-admits the placement.
+     *
+     * DESKTOP-SAFE: the mirror is written only by ConsoleShell, so outside
+     * console mode it stays false and this is a constant no-op.
+     */
+    holdingForConsolePlacement(): boolean {
+      return this.topLevelSpaceInput !== undefined && isConsolePlacementHeld();
     },
   },
 });

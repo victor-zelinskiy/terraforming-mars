@@ -7113,6 +7113,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
                 color: @con-mint;
             }
         }
+        /* IRREVERSIBLE: this press cannot be taken back (the armed «завершить
+           партию» of the finale). Declared AFTER --hot so it wins when a
+           command is both — mint reads "claimable / go ahead", which is the
+           one thing a destructive confirm must never say. box-shadow + colour
+           only, so con-perf-lite keeps the warning. */
+        &--danger {
+            .gp-glyph {
+                box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 85%), 0 0 .6rem fade(@sem-danger, 40%);
+            }
+            .con-cmdbar__label {
+                color: #ffb0a6;
+            }
+        }
     }
     &__label {
         font-size: 1.05rem;
@@ -9814,46 +9827,9 @@ html.console-mode {
     &__lane-max { font-size: .9rem; color: @con-text-dim; }
     &__lane-keys { margin-left: auto; display: inline-flex; gap: .3rem; }
 
-    /* ── Payment lanes (T3) ─────────────────────────────────────────── */
-    &__lane-rate {
-        font-size: .85rem;
-        font-weight: 700;
-        color: fade(@con-cyan, 85%);
-        padding: .1rem .4rem;
-        border-radius: 49.95rem;
-        background: fade(@con-cyan, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 35%);
-    }
-    &__lane-reserved {
-        font-size: .75rem;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        color: @con-amber;
-        padding: .1rem .4rem;
-        border-radius: 49.95rem;
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
-    }
-    &__lane--auto {
-        background: rgba(14, 22, 33, 0.35);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.1);
-    }
-    &__lane-auto-tag {
-        margin-left: auto;
-        font-size: .75rem;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__pay-short {
-        margin-top: .3rem;
-        padding: .4rem .6rem;
-        border-radius: .4rem;
-        background: fade(@con-amber, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-        color: #ffe3b0;
-        font-size: .9rem;
-        text-align: center;
-    }
+    /* (T3 payment no longer draws its own lanes here — the standalone payment
+       task mounts the shared `.con-pay` panel, console_payment.less. The
+       `__lane*` rows above stay: the DISTRIBUTE task still uses them.) */
 
     /* ── Header pick/pay readouts (T2/T3) ──────────────────────────── */
     &__pickline {
@@ -14706,41 +14682,11 @@ html.console-mode {
     &__opt-reason { font-size: .7rem; color: #ffb0a6; }
     &__opt-check { margin-left: auto; font-size: .9rem; font-weight: 800; color: @con-mint; }
 
-    /* Payment lanes (reuses the pure paymentPlan math). */
-    &__lane {
-        display: flex; align-items: center; gap: .5rem;
-        padding: .5rem .8rem; border-radius: .55rem;
-        background: rgba(14, 22, 34, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
-        &--auto { opacity: 0.85; }
-    }
-    &__lane-icon { width: 1.3rem; height: 1.3rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
-    &__lane-name { font-size: .85rem; font-weight: 700; flex: 1; }
-    &__lane-rate { font-size: .7rem; color: @con-text-dim; }
-    &__lane-value {
-        display: inline-flex; align-items: baseline; gap: .25rem; font-variant-numeric: tabular-nums;
-        b { font-size: 1.1rem; font-weight: 800; }
-        i { font-style: normal; font-size: .7rem; color: @con-text-dim; }
-    }
-    &__paytotal {
-        align-self: flex-end;
-        display: inline-flex; align-items: center; gap: .5rem;
-        font-size: .85rem; font-weight: 700; padding: .3rem .7rem; border-radius: 49.95rem;
-        background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 40%); color: #ffe6b0;
-        &-main { font-variant-numeric: tabular-nums; }
-        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); color: @con-mint; }
-        /* Overpay: a mix spends MORE M€-value than the cost (unavoidable rate
-           remainder). Distinct ORANGE so it never reads as the neutral amber
-           «still dialing» or the mint «exact» state. */
-        &--over {
-            background: fade(@con-orange, 14%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-orange, 58%), 0 0 .8rem fade(@con-orange, 16%);
-            color: #ffcda3;
-        }
-    }
-    /* The «+N M€» overpay badge inside the total pill (and reused by the play
-       composer's inline payment panel). */
+    /* (The per-composer payment LANE rows + the floating «Всего» pill are gone:
+       every payment surface now renders the shared `.con-pay` panel
+       (console_payment.less), whose verdict row replaces the pill.) */
+    /* The «+N M€» overpay badge — still worn by the action-composer's
+       collapsed payment recap row (`--inline`). */
     &__payover {
         display: inline-flex; align-items: center; gap: .25rem;
         padding: .1rem .5rem .1rem .5rem; border-radius: 49.95rem;
@@ -14900,65 +14846,20 @@ html.console-mode {
         color: fade(@con-amber, 74%);
     }
 
-    /* ── Payment — an INFO panel (resource chips + было → стало), NOT a button. ── */
-    &__pay {
-        display: flex; flex-direction: column; gap: .4rem;
-        margin-top: .2rem; padding: .55rem .75rem; border-radius: .55rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        /* One adjustable alternative can render either alt + auto-M€ or alt +
-           overpay/shortfall feedback. Reserve the two-chip footprint so that
-           LB/RB changes do not recenter the whole modal. The chip icon token
-           keeps the reservation correct for base, TV, and handheld profiles. */
-        &--quick {
-            min-height: calc(var(--con-chip-icon, 1.3rem) + var(--con-chip-icon, 1.3rem) + 4.5rem);
-        }
-    }
-    &__pay-head { display: flex; align-items: center; gap: .6rem; }
-    &__pay-title { font-size: .75rem; letter-spacing: .06rem; text-transform: uppercase; color: fade(@con-cyan, 90%); }
-    &__pay-cost {
-        font-size: .75rem; color: @con-text-dim;
-        b { font-size: .85rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-    }
-    &__pay-lt {
-        margin-left: auto; display: inline-flex; align-items: center; gap: .3rem;
-        font-size: .7rem; color: fade(@con-cyan, 88%);
-    }
-    /* One chip PER ROW so the LB/RB pills read on the alt resource + M€ «авто»
-       sits under it — the unified auto / quick-adjust / complex layout. */
-    &__pay-rows { display: flex; flex-direction: column; gap: .3rem; }
-    &__pay-row {
-        position: relative; display: flex; align-items: center; gap: .5rem;
-        /* Payment chips ride the system chip size (tokens). */
-    }
-    &__pay-badge {
-        font-size: .6rem; letter-spacing: .03rem; text-transform: uppercase;
-        padding: .1rem .45rem; border-radius: 49.95rem;
-        background: rgba(10, 18, 28, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.2); color: @con-text-dim;
-    }
-    &__pay-pills { display: inline-flex; align-items: center; gap: .3rem; margin-left: .2rem; }
-    &__pay-pill {
-        .con-dial-pill();
-        &--off { opacity: 0.32; filter: saturate(0.4); }
-    }
-    /* One-shot pulse on the adjustable chip when LB/RB fires (re-keyed nonce). */
-    &__pay-flash {
-        position: absolute; inset: -.15rem -.3rem; border-radius: .6rem; pointer-events: none;
-        animation: con-pay-flash calc(360ms * var(--motion-scale, 1)) ease-out 1;
-    }
-    &__pay-free { font-size: .85rem; font-weight: 700; color: @con-text; }
-    &__pay-short {
-        display: flex; align-items: center; gap: .3rem; font-size: .75rem; color: #ffb0a6;
-        .con-composer__pay-short-icon { width: .9rem; height: .9rem; display: inline-block; vertical-align: middle; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
-    }
-    /* Overpay note in the inline (non-editor) payment panel — orange, so the
-       wasted M€-value of a rate-remainder mix is called out, not silent. */
-    &__pay-over {
-        display: flex; align-items: center; gap: .35rem; font-size: .75rem; font-weight: 700; color: #ffcda3;
-        &-glyph { color: @con-orange; }
-        &-label { font-size: .625rem; font-weight: 800; letter-spacing: .035rem; text-transform: uppercase; color: #ffbe8a; }
-        &-amt { font-size: .8rem; font-weight: 800; color: @con-orange; font-variant-numeric: tabular-nums; }
-        &-icon { width: .9rem; height: .9rem; display: inline-block; vertical-align: middle; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    /* (The old inline `__pay*` chip panel is gone — the play composer now
+       mounts the shared `.con-pay` panel, which carries BOTH densities. Only
+       the block's placement inside the column is styled here.) */
+    .con-pay { margin-top: .2rem; }
+
+    /* RESULT HERO while the payment editor is open: it steps BACK rather than
+       unmounting — same box, same height, lower contrast — so expanding the
+       payment cannot move the CTA. Colour-only (no `filter`): con-perf-lite
+       must not change what the player can read. */
+    &__resulthero--muted {
+        background: linear-gradient(160deg, rgba(18, 32, 28, 0.26) 0%, rgba(11, 20, 28, 0.3) 100%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 12%);
+        color: rgba(196, 216, 236, 0.45);
+        .con-composer__sub-title--result { color: fade(@con-mint, 42%); }
     }
 
     /* The explicit «Разыграть» CTA — a FOCUSABLE row with the Ⓐ glyph. A plays
@@ -15306,7 +15207,6 @@ html.console-mode {
     100% { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 0%), 0 0 .8rem fade(@con-cyan, 0%); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-composer__pay-flash { animation: none; }
 }
 
 /* Handheld (Steam Deck) — tighter composer chrome. */
@@ -15321,7 +15221,6 @@ html.con-profile-handheld .con-composer {
     .con-composer__opt-name { font-size: .75rem; }
     .con-composer__variant-title { font-size: .8rem; }
     .con-composer__cta-label { font-size: .85rem; }
-    .con-composer__pay-pill,
     .con-composer__dial-pill { font-size: .65rem; }
     .con-composer__foot-item { font-size: .65rem; }
 }

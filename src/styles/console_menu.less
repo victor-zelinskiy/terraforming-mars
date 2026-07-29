@@ -1722,10 +1722,15 @@
             box-shadow: inset 0 0 0 .1rem fade(@cm-gold, 95%), 0 0 1.1rem fade(@cm-gold, 42%);
         }
     }
-    /* The gamepad-hotkey glyph baked ONTO the key (mirrors GamepadGlyph): the
-       CONFIRM (Y / inspect) badge on Done, the LANGUAGE (RT) badge on {lang}. */
+    /* The gamepad-hotkey glyph baked ONTO the key: the CONFIRM (`inspect`)
+       badge on Done, the LANGUAGE (`triggerR`) badge on {lang}. simple-keyboard
+       owns this DOM, so GamepadGlyph can't mount here — the label and tone come
+       from the GLYPH CSS BRIDGE instead (glyphCssBridge.ts publishes the ACTIVE
+       set as --gp-label-* / --gp-tone-*), so these two badges follow the
+       player's controller exactly like every rendered glyph. The literal
+       fallbacks are the Xbox set, for the bridge-less desktop shell. */
     .cm-vk__key--done::before {
-        content: 'Y';
+        content: var(--gp-label-inspect, 'Y');
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1733,8 +1738,8 @@
         height: 1.1rem;
         border-radius: 50%;
         background: rgba(8, 14, 22, 0.92);
-        box-shadow: inset 0 0 0 .05rem #e6c34a, 0 .1rem .3rem rgba(0, 0, 0, 0.45);
-        color: #e6c34a;
+        box-shadow: inset 0 0 0 .05rem var(--gp-tone-inspect, #e6c34a), 0 .1rem .3rem rgba(0, 0, 0, 0.45);
+        color: var(--gp-tone-inspect, #e6c34a);
         font-size: .6rem;
         letter-spacing: 0;
     }
@@ -1742,7 +1747,7 @@
         flex-grow: 1.8;
         gap: .4rem;
         &::before {
-            content: 'RT';
+            content: var(--gp-label-triggerR, 'RT');
             display: inline-flex;
             align-items: center;
             justify-content: center;

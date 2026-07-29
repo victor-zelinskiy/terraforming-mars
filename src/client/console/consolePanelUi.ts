@@ -15,7 +15,7 @@
 import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 
-type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'cardActions' | 'actionComposer' | 'effectDecision';
+type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'cardActions' | 'actionComposer' | 'effectDecision' | 'finalGreenery';
 
 export const consolePanelUi = reactive({
   owner: undefined as PanelOwner | undefined,

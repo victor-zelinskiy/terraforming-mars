@@ -452,6 +452,11 @@ export class Server {
     if (waitingFor.spendHeatPrompt !== undefined) {
       model.spendHeatPrompt = waitingFor.spendHeatPrompt;
     }
+    // The FINAL GREENERY beat — routes to the console's finale screen, where
+    // the "stop" branch is destructive and two-step instead of a calm row.
+    if (waitingFor.finalGreeneryPrompt !== undefined) {
+      model.finalGreeneryPrompt = waitingFor.finalGreeneryPrompt;
+    }
     // NOTE: the DISCARD marker (`discardPrompt`) is deliberately NOT decorated
     // here. This function only touches the TOP-LEVEL prompt, and a discard is
     // routinely NESTED (Mars University's "discard a card to draw a card" is one

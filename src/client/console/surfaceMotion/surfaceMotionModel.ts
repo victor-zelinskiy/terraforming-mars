@@ -50,6 +50,7 @@ export type SurfaceMotionId =
   | 'colony-inspect'
   | 'ma-inspect'
   | 'effect-decision'
+  | 'final-greenery'
   | 'gov-support'
   | 'production-loss'
   | 'info-mode'
