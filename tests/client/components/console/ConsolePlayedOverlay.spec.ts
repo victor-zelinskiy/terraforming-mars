@@ -222,4 +222,88 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       wrapper.unmount();
     });
   });
+
+  // ── the MarsBot seat + the embedded workspace mode ────────────────────
+  describe('MarsBot seat + embedded (Information Workspace) mode', () => {
+    const AUTOMA = {playedPile: [CardName.TREES, CardName.PREDATORS, CardName.ASTEROID]} as unknown as
+      import('@/common/models/MarsBotModel').MarsBotModel;
+
+    function botSeat(): PublicPlayerModel {
+      return {color: 'green' as Color, name: 'MarsBot', isMarsBot: true, tableau: []} as unknown as PublicPlayerModel;
+    }
+
+    function makeEmbedded(forcedColor: Color) {
+      return mount(ConsolePlayedOverlay, {
+        props: {
+          players: [player('red' as Color, 'Вы', RED_TABLEAU), botSeat()],
+          thisPlayerColor: 'red' as Color,
+          automa: AUTOMA, embedded: true, forcedColor,
+        },
+        global: {
+          mocks: {$t: (s: string) => s},
+          stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true},
+        },
+      });
+    }
+
+    it('the bot seat reads its PUBLIC played pile (its tableau is empty)', () => {
+      const wrapper = makeEmbedded('green' as Color);
+      // TREES → automated, PREDATORS → active, ASTEROID → the events pile.
+      expect(wrapper.find('.con-played__family--automated').exists()).to.be.true;
+      expect(wrapper.find('.con-played__family--active').exists()).to.be.true;
+      expect(wrapper.find('.con-played__events-count').text()).to.eq('1');
+      expect(wrapper.find('.con-played__total b').text()).to.eq('3');
+      wrapper.unmount();
+    });
+
+    it('the bot seat carries the honest provenance line; a human seat does not', async () => {
+      const wrapper = makeEmbedded('green' as Color);
+      expect(wrapper.find('.con-played__provenance').exists()).to.be.true;
+      await wrapper.setProps({forcedColor: 'red' as Color});
+      expect(wrapper.find('.con-played__provenance').exists()).to.be.false;
+      wrapper.unmount();
+    });
+
+    it('embedded: the seat is CONTROLLED (forcedColor) — internal cycling is inert', async () => {
+      const wrapper = makeEmbedded('green' as Color);
+      wrapper.vm.cycleViewedPlayer(1);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.vm.viewedPlayer.isMarsBot).to.be.true;
+      // The workspace header owns the identity — the head's seat chip yields.
+      expect(wrapper.find('.con-played__seat').exists()).to.be.false;
+      expect(wrapper.find('.con-played').classes()).to.include('con-played--embedded');
+      wrapper.unmount();
+    });
+
+    it('a forcedColor switch folds an open category (the seat changed under it)', async () => {
+      const wrapper = makeEmbedded('red' as Color);
+      wrapper.vm.openCategory('active');
+      expect(playedCategoryState.phase).to.eq('opening');
+      await wrapper.setProps({forcedColor: 'green' as Color});
+      expect(playedCategoryState.phase).to.eq('closed');
+      wrapper.unmount();
+    });
+
+    it('standalone (board home): the bot seat cycles in and shows the SAME premium table', async () => {
+      const wrapper = mount(ConsolePlayedOverlay, {
+        props: {
+          players: [player('red' as Color, 'Вы', RED_TABLEAU), botSeat()],
+          thisPlayerColor: 'red' as Color,
+          automa: AUTOMA,
+        },
+        global: {
+          mocks: {$t: (s: string) => s},
+          stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true},
+        },
+      });
+      wrapper.vm.cycleViewedPlayer(1);
+      await wrapper.vm.$nextTick();
+      // The seat chip renders through the LOCALIZED display-name resolver
+      // (participantDisplayName — «Бот» in the RU UI, never a raw fallback).
+      expect(wrapper.find('.con-played__seat-name').exists()).to.be.true;
+      expect(wrapper.find('.con-played__total b').text()).to.eq('3');
+      expect(wrapper.find('.con-played__provenance').exists()).to.be.true;
+      wrapper.unmount();
+    });
+  });
 });

@@ -7983,6 +7983,39 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-weight: 700;
         min-width: 2.1rem;
     }
+    /* The EMBEDDED «Разыграно» host — the played detail fills the frame's
+       content area; the table component re-seats inside it (--embedded). */
+    &__playedhost {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+    }
+    /* Played-summary rows: the zone label with its family COLOR DOT — the
+       same palette as the table's zone captions, so the block reads as a
+       legend of the X detail. */
+    &__pcat {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
+    }
+    &__pcat-dot {
+        flex-shrink: 0;
+        width: .55rem;
+        height: .55rem;
+        border-radius: .15rem;
+        background: fade(@con-cyan, 70%);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+
+        &--corporation { background: #d8c896; }
+        &--prelude { background: #e8b8d8; }
+        &--ceo { background: #c8b8e8; }
+        &--active { background: #8fd0f0; }
+        &--automated { background: #a8dca0; }
+        &--events { background: #f0b890; }
+    }
     &__extras {
         display: flex;
         flex-wrap: wrap;

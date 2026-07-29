@@ -15,19 +15,27 @@
     View-only: nothing here ever submits. Input is delegated by the shell
     (handleIntent); command-bar hints are mirrored through consolePlayedUi.
   -->
-  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp}">
+  <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded}">
     <div class="con-played__panel">
       <div class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>
-        <span class="con-played__seat" :class="{'con-played__seat--cycle': players.length > 1}">
+        <!-- EMBEDDED (the Information Workspace detail): the workspace header
+             already IS the seat identity — the table head keeps only the
+             title / count (+ the bot provenance note below). -->
+        <span v-if="!embedded" class="con-played__seat" :class="{'con-played__seat--cycle': players.length > 1}">
           <span class="con-status__dot" :class="'player_bg_color_' + viewedPlayer.color" aria-hidden="true"></span>
-          <span class="con-played__seat-name">{{ viewedPlayer.name }}</span>
+          <span class="con-played__seat-name">{{ viewedDisplayName }}</span>
         </span>
         <span class="con-played__total">
           <span class="con-played__total-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
           <b>{{ totalCount }}</b>
         </span>
       </div>
+
+      <!-- The Automa's table is EVERYTHING it flipped from its action deck —
+           an honest provenance line, one calm sentence under the head
+           (visible prose, never a hover-only hint). -->
+      <div v-if="viewedIsBot" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
 
       <ConsoleScrollArea ref="scroll" class="con-played__scroll" content-class="con-played__content">
         <!-- Truly empty tableau — a calm compact state, never a bare panel. -->
@@ -161,7 +169,10 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {botTableauCards} from '@/client/components/marsbot/marsBotView';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
@@ -210,6 +221,22 @@ export default defineComponent({
     heroRevealed: {type: Boolean, default: false},
     /** The transaction owns the moment (input inert, frame gated). */
     heroActive: {type: Boolean, default: false},
+    /**
+     * The public Automa state — lets the table show the BOT seat's cards
+     * (its played pile; the bot has no real tableau on its player model).
+     * Passed by both hosts; the overlay resolves per viewed seat.
+     */
+    automa: {type: Object as PropType<MarsBotModel>, default: undefined},
+    /**
+     * EMBEDDED mode — the table is the Information Workspace's «Разыграно»
+     * detail: static inside the workspace frame (no fixed band chrome), the
+     * viewed seat is CONTROLLED by `forcedColor` (the workspace's inspected
+     * player — LB/RB switches it globally, never here), B is routed by the
+     * shell (category-local back only).
+     */
+    embedded: {type: Boolean, default: false},
+    /** The controlled viewed seat (embedded mode only). */
+    forcedColor: {type: String as PropType<Color>, default: undefined},
   },
   emits: {
     'close': () => true,
@@ -230,13 +257,35 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The seat on the table: controlled by the workspace when embedded. */
+    effectiveViewColor(): Color {
+      return this.embedded && this.forcedColor !== undefined ? this.forcedColor : this.viewColor;
+    },
     viewedPlayer(): PublicPlayerModel {
-      return this.players.find((p) => p.color === this.viewColor) ??
+      return this.players.find((p) => p.color === this.effectiveViewColor) ??
         this.players.find((p) => p.color === this.thisPlayerColor) ??
         this.players[0];
     },
+    viewedIsBot(): boolean {
+      return this.viewedPlayer?.isMarsBot === true;
+    },
+    /** The localized seat label — never a raw `MarsBot` for the bot seat. */
+    viewedDisplayName(): string {
+      return participantDisplayName(this.viewedPlayer);
+    },
+    /**
+     * The cards on the table: a human's real tableau; the BOT seat reads its
+     * public played pile (everything it flipped — same premium table, same
+     * zone grouping; provenance is named by the head note).
+     */
+    viewedTableau(): ReadonlyArray<CardModel> {
+      if (this.viewedIsBot && this.automa !== undefined) {
+        return botTableauCards(this.automa);
+      }
+      return this.viewedPlayer?.tableau ?? [];
+    },
     zones(): PlayedZones {
-      const tableau = this.viewedPlayer?.tableau ?? [];
+      const tableau = this.viewedTableau;
       const incoming = this.heroIncoming;
       // Synthetic +1: BEFORE the commit the incoming card is appended so the
       // layout is already final (spec: the table never re-arranges around
@@ -358,6 +407,16 @@ export default defineComponent({
     'catState.pick'(pick: unknown) {
       if (pick !== undefined) {
         this.viewColor = this.thisPlayerColor;
+      }
+    },
+    /** EMBEDDED seat switch (the workspace's LB/RB changed the inspected
+     *  player): any open category belongs to the previous seat — fold it
+     *  instantly, exactly like the internal cycle does. */
+    'forcedColor'(next: Color | undefined, prev: Color | undefined) {
+      if (this.embedded && next !== prev) {
+        resetCategoryDirector();
+        resetPlayedCategoryView();
+        this.focusCategory = ''; // the categories watcher reseeds
       }
     },
     // Command-bar mirrors (the bar never pokes refs).
@@ -624,7 +683,9 @@ export default defineComponent({
     },
     // ── viewed player (LB/RB) ───────────────────────────────────────────
     cycleViewedPlayer(step: 1 | -1): void {
-      if (this.players.length < 2) {
+      // Embedded: the workspace owns the seat (LB/RB switch the inspected
+      // player globally, before the intent ever reaches this table).
+      if (this.embedded || this.players.length < 2) {
         return;
       }
       const idx = Math.max(0, this.players.findIndex((p) => p.color === this.viewColor));

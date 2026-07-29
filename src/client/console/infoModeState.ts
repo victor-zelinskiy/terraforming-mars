@@ -19,10 +19,12 @@ import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {consoleState, ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
 
-// The bot-specific details replace the human ones while the viewed
-// participant is MarsBot: its printed board (tracks), the played pile and
-// the open bonus piles — the human extras/actions/effects don't exist for it.
-export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp' | 'botBoard' | 'botPlayed' | 'botBonus';
+// 'played' and 'vp' are SHARED details (they survive an LB/RB seat switch —
+// the embedded «Разыграно» table simply re-reads the inspected seat). The
+// bot-specific details replace the human ones while the viewed participant
+// is MarsBot: its printed board (tracks) and the open bonus piles — the
+// human extras/actions/effects don't exist for it.
+export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp' | 'played' | 'botBoard' | 'botBonus';
 
 /** What LT-open captures and LT-close restores. */
 export type ConsoleContextSnapshot = {

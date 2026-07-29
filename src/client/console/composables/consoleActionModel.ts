@@ -119,6 +119,11 @@ export const CONSOLE_KEY_BUTTON: Readonly<Record<string, SemanticButton>> = {
   KeyX: 'secondary',
   KeyY: 'inspect',
   KeyR: 'view',
+  // The stick PRESSES (board inspection / scale ring; the Information
+  // Workspace's per-seat readers) — keyboard parity so a desktop-fallback
+  // player is never locked out of an L3/R3-only surface.
+  KeyC: 'stickL',
+  KeyV: 'stickR',
 };
 
 /**

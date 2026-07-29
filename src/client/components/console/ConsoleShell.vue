@@ -210,7 +210,7 @@
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @after-leave="onInfoModeLeaveSettled"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleInfoMode v-if="infoModeState.open" :playerView="playerView" :myTurn="myTurn" />
+        <ConsoleInfoMode v-if="infoModeState.open" ref="infoMode" :playerView="playerView" :myTurn="myTurn" />
       </transition>
     </div>
 
@@ -261,6 +261,7 @@
                             ref="playedOverlay"
                             :players="playerView.players"
                             :thisPlayerColor="thisPlayer.color"
+                            :automa="playerView.game.automa"
                             :heroIncoming="playedHeroIncoming"
                             :heroRevealed="playedHeroState.revealed"
                             :heroActive="playedHeroHolds"
@@ -5142,6 +5143,12 @@ export default defineComponent({
         return;
       }
       this.consoleState.quick = undefined;
+      // The board-home «Разыграно» table yields — the workspace has its own
+      // embedded played detail (X), so a stale overlay must not linger under
+      // the dim (the two would share the singleton category state).
+      if (this.playedOpen) {
+        this.closePlayedOverlay();
+      }
       openInfoMode(this.thisPlayer.color, this.consoleState.inspecting);
     },
     /** after-leave of the workspace's dismiss transition — release the
@@ -5164,6 +5171,28 @@ export default defineComponent({
       }
     },
     handleInfoIntent(intent: GamepadIntent): void {
+      // THE EMBEDDED «РАЗЫГРАНО» DETAIL (X): the table owns the pad — nav,
+      // A (open category), X (inspect), B (fold a category first; at table
+      // level the overlay's close event returns to the dashboard). LB/RB
+      // stay the GLOBAL seat switch at TABLE level only (matching the
+      // standalone grammar — inside a category view the bumpers are inert);
+      // Y keeps the global close.
+      if (this.infoModeState.detail === 'played') {
+        if (intent.kind === 'press') {
+          const action = consoleActionOf(intent);
+          if (action === 'fullscreen') {
+            this.toggleInfoMode();
+            return;
+          }
+          const catEngaged = consolePlayedUi.categoryOpen || consolePlayedUi.categoryBusy;
+          if (!catEngaged && (action === 'prevSection' || action === 'nextSection')) {
+            this.cycleInspectedPlayer(action === 'prevSection' ? -1 : 1);
+            return;
+          }
+        }
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handlePlayedIntent(intent);
+        return;
+      }
       if (intent.kind === 'nav') {
         // d-pad up/down scrolls the visible info surface.
         const scroller = document.querySelector<HTMLElement>('.con-info__scroll');
@@ -5175,9 +5204,9 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      // The MarsBot participant swaps the hotkey details: its printed board /
-      // played pile / bonus piles replace the human extras/actions/effects
-      // (which don't exist for the Automa). Same buttons, same flow.
+      // X = the played table for EVERY participant; the seat-specific extra
+      // readers live on the sticks (L3 human extras / R3 the bot's printed
+      // board) and the triggers (LT actions / RT effects | bonus piles).
       const viewedIsBot = this.playerView.players
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
       switch (consoleActionOf(intent)) {
@@ -5188,11 +5217,12 @@ export default defineComponent({
         this.cycleInspectedPlayer(1);
         break;
       case 'inspect':
-        this.openInfoDetail(viewedIsBot ? 'botBoard' : 'extras');
+        this.openInfoDetail('played');
         break;
       case 'prevTab':
-        // P27: the actions detail moved from Y to LT (Y toggles Info Mode).
-        this.openInfoDetail(viewedIsBot ? 'botPlayed' : 'actions');
+        if (!viewedIsBot) {
+          this.openInfoDetail('actions');
+        }
         break;
       case 'fullscreen':
         this.toggleInfoMode(); // Y closes — the same key that opened it
@@ -5217,6 +5247,13 @@ export default defineComponent({
         }
         break;
       default:
+        // The stick presses stay RAW (no semantic action) — the workspace's
+        // per-seat extra readers.
+        if (intent.button === 'stickL' && !viewedIsBot) {
+          this.openInfoDetail('extras');
+        } else if (intent.button === 'stickR' && viewedIsBot) {
+          this.openInfoDetail('botBoard');
+        }
         break;
       }
     },
@@ -5225,15 +5262,16 @@ export default defineComponent({
     },
     // Cycling between a human and the MarsBot participant: a detail that
     // exists only for the OTHER participant type falls back to the dashboard
-    // ('vp' is shared and survives the switch).
+    // ('vp' and 'played' are SHARED and survive the switch — the embedded
+    // table simply re-reads the new inspected seat).
     reconcileInfoDetail(): void {
       const detail = this.infoModeState.detail;
-      if (detail === undefined || detail === 'vp') {
+      if (detail === undefined || detail === 'vp' || detail === 'played') {
         return;
       }
       const isBot = this.playerView.players
         .find((p) => p.color === this.infoModeState.playerColor)?.isMarsBot === true;
-      const botOnly = detail === 'botBoard' || detail === 'botPlayed' || detail === 'botBonus';
+      const botOnly = detail === 'botBoard' || detail === 'botBonus';
       if (botOnly !== isBot) {
         this.infoModeState.detail = undefined;
       }
@@ -7422,6 +7460,13 @@ export default defineComponent({
       if (this.handScrollActive) {
         const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
         hand?.stickScroll(dy);
+        return;
+      }
+      // The EMBEDDED «Разыграно» table (Information Workspace X detail) owns
+      // the right stick while it is the workspace's content.
+      if (this.infoModeState.open && this.infoModeState.detail === 'played') {
+        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+          ?.handlePlayedIntent({kind: 'scroll', dx: 0, dy});
         return;
       }
       // The corp first-action modal's briefing column scrolls first.

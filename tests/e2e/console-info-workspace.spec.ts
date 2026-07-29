@@ -197,7 +197,20 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-info__grid')).toHaveCount(1);
       await expect(workspace.locator('.con-info__cols')).toHaveCount(0);
       await expect(workspace.locator('.con-bot__track-line')).toHaveCount(0);
+      // The UNIFIED played-summary block renders for the bot too.
+      await expect(workspace.locator('.con-info__block--played')).toHaveCount(1);
       await shoot(page, preset, '02-workspace-bot');
+
+      // ── 2b · X on the bot seat: the SAME premium embedded table ────
+      await key(page, 'KeyX', 900);
+      const embeddedBot = page.locator('.con-info .con-played--embedded');
+      await expect(embeddedBot).toHaveCount(1);
+      // The honest provenance line (everything the bot flipped).
+      await expect(embeddedBot.locator('.con-played__provenance')).toBeVisible();
+      await shoot(page, preset, '02b-bot-played');
+      await key(page, 'Escape', 800);
+      await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(0);
+      await expect(workspace.locator('.con-info__grid')).toHaveCount(1);
 
       // ── 3 · Rapid LB/RB presses coalesce (2 seats: odd count = other) ─
       for (const code of ['KeyE', 'KeyQ', 'KeyE', 'KeyQ', 'KeyQ']) {
@@ -215,13 +228,23 @@ for (const preset of PRESETS) {
         expect(settled).toBe(ownMc);
       }
 
-      // ── 4 · A detail screen keeps the workspace grammar (A → VP, B back) ─
+      // ── 4 · Detail screens keep the workspace grammar ──────────────
       if (await workspace.locator('.con-info__grid').count() > 0) {
-        await key(page, 'KeyQ', 700); // land on the human seat (VP visible)
+        await key(page, 'KeyQ', 700); // land on the human seat
       }
+      // X → the embedded «Разыграно» for the human seat (real tableau, no
+      // provenance line), B returns to the dashboard with its summary block.
+      await key(page, 'KeyX', 900);
+      await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
+      await expect(page.locator('.con-info .con-played__provenance')).toHaveCount(0);
+      await shoot(page, preset, '03-played-human');
+      await key(page, 'Escape', 800);
+      await expect(workspace.locator('.con-info__cols')).toHaveCount(1);
+      await expect(workspace.locator('.con-info__block--played')).toHaveCount(1);
+      // A → the VP breakdown detail, B back.
       await key(page, 'Enter', 700);
       await expect(workspace.locator('.con-info__detail')).toHaveCount(1);
-      await shoot(page, preset, '03-vp-detail');
+      await shoot(page, preset, '03b-vp-detail');
       await key(page, 'Escape', 700);
       await expect(workspace.locator('.con-info__cols')).toHaveCount(1);
 
@@ -236,7 +259,18 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-res .con-tagmx__trackrow')).toHaveCount(0);
       await shoot(page, preset, '04-closed-restored');
 
-      // ── 6 · Reduced motion: the mode still switches cleanly ────────
+      // ── 6 · The board-home «Разыграно» (X): the SAME table serves the
+      // bot seat with the LOCALIZED name («Бот», never a raw MarsBot). ──
+      await key(page, 'KeyX', 1000);
+      await expect(page.locator('.con-played')).toHaveCount(1);
+      await key(page, 'KeyE', 800); // cycle to the bot seat
+      await expect(page.locator('.con-played__seat-name')).toHaveText('Бот');
+      await expect(page.locator('.con-played__provenance')).toBeVisible();
+      await shoot(page, preset, '05-standalone-bot');
+      await key(page, 'Escape', 800);
+      await expect(page.locator('.con-played')).toHaveCount(0);
+
+      // ── 7 · Reduced motion: the mode still switches cleanly ────────
       if (preset.id === 'standard-1080') {
         await page.emulateMedia({reducedMotion: 'reduce'});
         await key(page, 'KeyY', 700);

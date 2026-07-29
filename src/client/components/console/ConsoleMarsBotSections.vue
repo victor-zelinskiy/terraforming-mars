@@ -16,16 +16,9 @@
       <div class="con-info__note">{{ $t('One flip per turn; an empty action deck means MarsBot passes') }}</div>
     </section>
 
-    <section class="con-info__block">
-      <h3 class="con-info__block-title">{{ $t('Played cards') }}
-        <span class="con-info__hotkey"><GamepadGlyph control="triggerL" /></span>
-      </h3>
-      <div class="con-info__stat-lines">
-        <div class="con-info__stat-line"><span>{{ $t('Project cards') }}</span><b class="con-info__mint">{{ automa.playedPile.length }}</b></div>
-      </div>
-      <div class="con-info__note">{{ $t('Everything MarsBot flipped from its action deck this game') }}</div>
-    </section>
-
+    <!-- (The «Разыгранные карты» summary is the UNIFIED block in
+         ConsoleInfoMode now — same block for humans and the bot, X opens
+         the same premium table over the bot's played pile.) -->
     <section class="con-info__block">
       <h3 class="con-info__block-title">{{ $t('Bonus cards') }}
         <span class="con-info__hotkey"><GamepadGlyph control="triggerR" /></span>
@@ -65,15 +58,9 @@
     </div>
   </div>
 
-  <!-- ── Detail: the played project pile (real card renders) ───────────── -->
-  <div v-else-if="mode === 'botPlayed'" class="con-info__scroll con-info__detail-scroll">
-    <div v-if="automa.playedPile.length === 0" class="con-info__empty con-info__empty--big">{{ $t('No cards played yet') }}</div>
-    <div v-else class="con-info__excards">
-      <div v-for="(name, i) in automa.playedPile" :key="name + '#' + i" class="con-info__excard">
-        <Card :card="{name}" :key="name" lightweight />
-      </div>
-    </div>
-  </div>
+  <!-- (The played pile detail moved to the UNIFIED embedded «Разыграно»
+       table — the workspace's X detail renders it through the same premium
+       overlay as a human tableau.) -->
 
   <!-- ── Detail: the open bonus piles ───────────────────────────────────── -->
   <div v-else-if="mode === 'botBonus'" class="con-info__scroll con-info__detail-scroll">
@@ -119,13 +106,12 @@ import {GuideSection, MarsBotGuideContext, marsBotGuide} from '@/client/componen
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import Card from '@/client/components/card/CardFace.vue';
 
 export default defineComponent({
   name: 'ConsoleMarsBotSections',
-  components: {MarsBotTracks, BonusCardFace, GamepadGlyph, Card},
+  components: {MarsBotTracks, BonusCardFace, GamepadGlyph},
   props: {
-    mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botPlayed' | 'botBonus'>, required: true},
+    mode: {type: String as PropType<'dashboard' | 'botBoard' | 'botBonus'>, required: true},
     bot: {type: Object as PropType<PublicPlayerModel>, required: true},
     automa: {type: Object as PropType<MarsBotModel>, required: true},
     /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
