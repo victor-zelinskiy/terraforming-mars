@@ -84,7 +84,7 @@ export class GreatDamPromo extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile next to an ocean.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.GREAT_DAM, constraint: 'next to an ocean'});
   }
 
   private getAvailableSpaces(player: IPlayer, canAffordOptions?: CanAffordOptions): Array<Space> {

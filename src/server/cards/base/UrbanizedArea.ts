@@ -6,6 +6,7 @@ import {CanAffordOptions, IPlayer} from '../../IPlayer';
 import {Space} from '../../boards/Space';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {Board} from '../../boards/Board';
 import {CardRenderer} from '../render/CardRenderer';
 import {LoseProduction} from '../../deferredActions/LoseProduction';
@@ -104,6 +105,6 @@ export class UrbanizedArea extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the city tile on the board.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY, constraint: 'next to at least 2 other cities'});
   }
 }

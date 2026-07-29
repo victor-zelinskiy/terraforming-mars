@@ -64,6 +64,6 @@ export class SolarFarm extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile on the board.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.SOLAR_FARM});
   }
 }

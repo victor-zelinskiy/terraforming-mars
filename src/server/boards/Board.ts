@@ -2,7 +2,7 @@ import {Space} from './Space';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {PlayerId, SpaceId} from '../../common/Types';
 import {SpaceType} from '../../common/boards/SpaceType';
-import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, HAZARD_TILES, OCEAN_TILES, TileType} from '../../common/TileType';
+import {BASE_OCEAN_TILES, CITY_TILES, GREENERY_TILES, HAZARD_TILES, OCEAN_TILES, isSpecialTile} from '../../common/TileType';
 import {SerializedBoard, SerializedSpace} from './SerializedBoard';
 import {CardName} from '../../common/cards/CardName';
 import {AresHandler} from '../ares/AresHandler';
@@ -415,25 +415,9 @@ export abstract class Board {
   }
 }
 
-export function isSpecialTile(tileType: TileType | undefined): boolean {
-  switch (tileType) {
-  case TileType.GREENERY:
-  case TileType.OCEAN:
-  case TileType.CITY:
-  case TileType.MOON_HABITAT:
-  case TileType.MOON_MINE:
-  case TileType.MOON_ROAD:
-  case TileType.EROSION_MILD: // Hazard tiles are "special" but they don't count for the typical intent of what a special tile represents.
-  case TileType.EROSION_SEVERE:
-  case TileType.DUST_STORM_MILD:
-  case TileType.DUST_STORM_SEVERE:
-  case TileType.REY_SKYWALKER:
-  case undefined:
-    return false;
-  default:
-    return true;
-  }
-}
+// The classifier itself moved to `common/TileType` (the client needs it too);
+// re-exported here so every existing `from '../boards/Board'` importer is unchanged.
+export {isSpecialTile};
 
 export function isSpecialTileSpace(space: Space): boolean {
   return isSpecialTile(space.tile?.tileType);

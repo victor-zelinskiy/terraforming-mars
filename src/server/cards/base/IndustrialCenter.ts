@@ -82,6 +82,6 @@ export class IndustrialCenter extends ActionCard implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the tile next to a city.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.INDUSTRIAL_CENTER, constraint: 'next to a city'});
   }
 }

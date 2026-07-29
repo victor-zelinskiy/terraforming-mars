@@ -22,10 +22,22 @@ Identify what prompt the card produces, then attach the matching metadata:
 | `OrOptions` of `SelectOption`s, each removing/stealing from a chosen player | `.withMetadata(...)` on every option **+ explicit verb `buttonLabel`** (NOT default `'Confirm'`) **+ `.withMetadata(skip())` on the do-nothing option** | `removeResourceFromPlayer(target, resource, amount, current)` / `stealResourceFromPlayer(...)` | RemoveAnyPlants, Sabotage, HiredRaiders |
 | `SelectPlayer` where the effect is constant across candidates | 4th arg `options: {icon, amount, scope}` (`scope: 'production'` for production decrease, `'stock'` for stock removal) | `SelectPlayer(players, title, buttonLabel, {icon, amount, scope})` | DecreaseAnyProduction, Flooding, CometForVenus, LawSuit |
 | `OrOptions` raising a global parameter | `.withMetadata(globalParameter(icon, steps, current, resulting, unit))` (`icon` ∈ `temperature`/`venus`/`oxygen`/`ocean`; `unit` `'°C'`/`'%'`) | `globalParameter(...)` | Atmoscoop |
-| `SelectAmount` spending/converting N of a resource | 6th arg `options: {icon, unit?}` | `new SelectAmount(title, label, min, max, maxByDefault, {icon})` | Insulation |
+| `SelectAmount` spending/converting N of a resource | 6th arg `options: {icon, unit?}` **+ a DIRECTION hint (see below) — a dial without one is a bug** | `new SelectAmount(title, label, min, max, maxByDefault, {icon, conversion\|result\|cost})` | Insulation |
 | `SelectOption` adding/removing a **card** resource | `.withMetadata(addResourceToCard(cardResource))` / `removeResourceFromCard(cardResource)` | `addResourceToCard(...)` / `removeResourceFromCard(...)` | OlympusConference |
 | `SelectOption` gaining a standard resource | `.withMetadata(gainResource(resource, amount))` | `gainResource(...)` | (factory ready, wire as needed) |
 | Any "do nothing / skip / cancel" `SelectOption` | `.withMetadata(skip())` | `skip()` | every skip option above |
+
+**A `SelectAmount` must state its DIRECTION — never a bare dial.** A model carrying only `icon` renders as a number and a range on every surface, so the player dials blind (Energy Market shipped that way: «выберите количество энергии» with no word of the 2 M€ per step it charges, and no `было → стало`). Pick the hint that matches what the dial COUNTS:
+
+| The dial counts… | Hint | Renders |
+| --- | --- | --- |
+| the resource SPENT, X of it becoming X×ratio of another | `conversion: {from, to, ratio?, fromScope?, toScope?}` | `[from] → [to]` + live before→after on BOTH sides |
+| the resource SPENT, each unit PRODUCING something else | `result: {icon, perUnit?, label?}` | spend → result composition (`spend X energy → draw X cards`) |
+| what is RECEIVED, each unit PAID for out of another pool | `cost: {icon, perUnit?, scope?}` | a live cost chip on the paying pool + the gain chip |
+
+`cost` (`AmountCostModel`) is the inverse shape — reach for it when the price is a *different* pool than the dial (Energy Market's 2 M€ per energy gained). **Mirror the hint on BOTH the preview (`actionPreviews.amountStep` / `amountInput`) and the LIVE `SelectAmount`** — keep them in ONE `private static readonly` const on the card so they cannot drift. The dial's `icon` is what the number MEANS: labelling a "remove X microbes" dial `megacredits` made it read as "N M€" when the card pays 3× that.
+
+Guarded by `tests/models/actionPreviewCoverage.spec.ts` + `cardPlayPreviewCoverage.spec.ts` (`no in-scope … asks for a BARE amount`, shared predicate in `tests/models/amountDialGuard.ts`) — they fail with the exact card list. Note the older `isMuteBranch` guard does NOT catch this: a bare dial *is* a step, and a branch with a step isn't mute.
 
 **Always also surface UNAVAILABLE targets (don't let the server silently drop them):**
 - `OrOptions` attack/steal: build the excluded opponents and `.setDisabledOptions([disabledPlayerTarget(target, icon, reason), …])` on the `OrOptions`.

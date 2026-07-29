@@ -6,6 +6,7 @@ import {SelectPlayer} from '../../inputs/SelectPlayer';
 import {OrOptions} from '../../inputs/OrOptions';
 import {SelectOption} from '../../inputs/SelectOption';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
@@ -40,8 +41,12 @@ export class Flooding extends Card implements IProjectCard {
   // The ocean placement (and the placement-dependent M€ removal that follows) is
   // bespoke — surface a note so the play modal isn't mute about the board step.
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    // The tile is a plain OCEAN — the card's own name is not the tile's. The
+    // adjacent-opponent attack is a SEPARATE follow-up, not a placement rule,
+    // so it keeps its own note instead of bloating the placement line.
     return actionPreviews.placementPreview(this, player, {
-      text: 'After confirming, place the ocean tile (an adjacent opponent may lose 4 M€).',
+      tile: TileType.OCEAN,
+      steps: player.game.isSoloMode() ? [] : [actionPreviews.noteStep('generic', 'An adjacent opponent may lose 4 M€')],
     });
   }
 

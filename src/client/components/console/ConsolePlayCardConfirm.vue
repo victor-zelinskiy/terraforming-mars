@@ -131,9 +131,15 @@
                 </span>
               </div>
 
-              <!-- Honest post-confirm follow-up (board placement / notes). -->
-              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next">
-                <span aria-hidden="true">›</span><span>{{ n }}</span>
+              <!-- Honest post-confirm follow-up (board placement / notes). ONE
+                   fixed-height line each: tile icon, the «ДАЛЕЕ» context label,
+                   then the sentence. Only the muted constraint tail may clip. -->
+              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next" :aria-label="n.full">
+                <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+                <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
+                <span class="con-composer__next-label">{{ $t('Next') }}</span>
+                <span class="con-composer__next-text">{{ n.text }}</span>
+                <span v-if="n.constraint !== ''" class="con-composer__next-tail">{{ n.constraint }}</span>
               </div>
 
               <!-- DECISIONS: the pre-collected step + tabbed-target rows. -->
@@ -319,6 +325,9 @@ import {
 } from '@/client/console/paymentPlan';
 import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
+import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {tileIconStyle} from '@/client/console/consoleTileIcon';
 
 /**
  * The NAVIGABLE pre-select rows — variants + collectable step picks ONLY. Payment
@@ -679,22 +688,22 @@ export default defineComponent({
       }
       return out;
     },
-    followUpNotes(): Array<string> {
+    followUpNotes(): Array<NextStepRow> {
       const b = this.selectedBranch;
       if (b === undefined) {
         return [];
       }
-      const out: Array<string> = [];
+      const out: Array<NextStepRow> = [];
       if (b.reveal !== undefined) {
-        out.push(translateText('Next: reveal a card'));
+        out.push(noteRow(translateText('Reveal a card')));
       }
       for (const s of b.steps) {
         if (s.kind === 'boardPlacement') {
-          // A colony build is a SelectColony (off-Mars), NOT a board-space pick —
-          // the placementType tells them apart.
-          out.push(translateText(s.placementType === 'colony' ? 'Choose where to build a colony' : 'Choose a location on the board'));
+          // WHICH tile — named, and «особый тайл» first when it is one. The
+          // wording lives in `consolePlacementNextStep`, never here.
+          out.push(placementRow(s, consoleTranslate, textOf));
         } else if (s.kind === 'note' && s.noteKind !== 'warning') {
-          out.push(s.text !== undefined ? textOf(s.text) : translateText('Choose a target'));
+          out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
         }
         // `tabbedTargets` is now PRE-COLLECTED inline (a decision row) — no note.
       }
@@ -705,7 +714,7 @@ export default defineComponent({
           continue;
         }
         const t = textOf(c.input.title);
-        out.push(t !== '' ? t : translateText('Choose a target'));
+        out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
       }
       return out;
     },
@@ -976,6 +985,8 @@ export default defineComponent({
       default: return '›';
       }
     },
+    /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
+    tileIconStyle,
     vpDetail(sec: PlayResultSection): string {
       if (sec.variable === true) {
         return translateText('depends on conditions');

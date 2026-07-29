@@ -59,6 +59,6 @@ export class LandClaim extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, choose a space to reserve.'});
+    return actionPreviews.placementPreview(this, player, {text: 'Choose a space to reserve'});
   }
 }

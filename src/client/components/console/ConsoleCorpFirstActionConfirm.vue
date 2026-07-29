@@ -51,9 +51,14 @@
                 </span>
               </div>
 
-              <!-- Honest post-confirm follow-ups (a board placement, a pick…). -->
-              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next">
-                <span aria-hidden="true">›</span><span>{{ n }}</span>
+              <!-- Honest post-confirm follow-ups (a board placement, a pick…).
+                   Same fixed-height «ДАЛЕЕ» row as the play composer. -->
+              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next" :aria-label="n.full">
+                <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+                <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
+                <span class="con-composer__next-label">{{ $t('Next') }}</span>
+                <span class="con-composer__next-text">{{ n.text }}</span>
+                <span v-if="n.constraint !== ''" class="con-composer__next-tail">{{ n.constraint }}</span>
               </div>
 
               <!-- The single Ⓐ CTA — the action is mandatory, so it is always
@@ -111,6 +116,9 @@ import {skippedEffectViews} from '@/client/components/actions/skippedEffectView'
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {startFlowCorpPrompt, corpActionOptionIndexFor} from '@/client/components/startGameFlow/startGameFlowState';
 
 function textOf(v: string | Message | undefined): string {
@@ -189,22 +197,24 @@ export default defineComponent({
         effect: w.effect,
       }));
     },
-    followUpNotes(): Array<string> {
+    followUpNotes(): Array<NextStepRow> {
       const b = this.branch;
       if (b === undefined) {
         return [];
       }
-      const out: Array<string> = [];
+      const out: Array<NextStepRow> = [];
       for (const s of b.steps) {
         if (s.kind === 'boardPlacement') {
-          out.push(translateText(s.placementType === 'colony' ? 'Choose where to build a colony' : 'Choose a location on the board'));
+          // Same presenter as the play composer — Tharsis Republic's free city
+          // must read «разместите тайл города», not a mute "pick a location".
+          out.push(placementRow(s, consoleTranslate, textOf));
         } else if (s.kind === 'note' && s.noteKind !== 'warning') {
-          out.push(s.text !== undefined ? textOf(s.text) : translateText('Choose a target'));
+          out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
         } else if (s.kind === 'input') {
           // Defensive: the first-action submit pre-collects nothing, so an
           // interactive step reads as an honest "you will choose next" line.
           const t = textOf(s.input.title);
-          out.push(t !== '' ? t : translateText('Choose a target'));
+          out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
         }
       }
       return out;
@@ -232,6 +242,8 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
+    tileIconStyle,
     fetchPreview(name: CardName): void {
       const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
         '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(name);

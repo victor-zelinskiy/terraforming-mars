@@ -5,6 +5,7 @@ import {CardResource} from '../../common/CardResource';
 import {CardType} from '../../common/cards/CardType';
 import {Resource} from '../../common/Resource';
 import {Message} from '../../common/logs/Message';
+import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
@@ -163,9 +164,17 @@ export function spendHeatStep(player: IPlayer, amount: number): ActionPreviewSte
  * board placement is inherently interactive and can't be pre-chosen in the
  * modal — the leftover `SelectSpace` hands off to `PlacementBanner` after the
  * batch submit). `placementType` is informational (e.g. `'ocean'`, `'city'`).
+ *
+ * ALWAYS pass `opts.tileType` when a tile really is placed: it is what lets the
+ * preview NAME the tile («особый тайл «Солнечная электростанция»») instead of a
+ * mute "place a tile". `placementType` cannot stand in for it — it is a terrain
+ * filter, so every special tile on land collapses to `'land'`.
  */
-export function boardPlacementStep(placementType: string): ActionPreviewStep {
-  return {kind: 'boardPlacement', placementType};
+export function boardPlacementStep(
+  placementType: string,
+  opts: {tileType?: TileType, count?: number, constraint?: string | Message} = {},
+): ActionPreviewStep {
+  return {kind: 'boardPlacement', placementType, tileType: opts.tileType, count: opts.count, constraint: opts.constraint};
 }
 
 /**
@@ -540,17 +549,50 @@ export function playPreview(
  * placement, but a bespoke `SelectSpace`/`SelectColony` produces no `behavior.tile`
  * so it needs this hook). Mirrors the declarative placement note on both surfaces.
  * `opts.steps` (e.g. an attack picker that ALSO fires) come before the note.
+ *
+ * **Pass `opts.tile` (the `TileType`) whenever a tile is actually placed** — that
+ * is what makes the preview NAME it. `opts.constraint` carries a short extra
+ * restriction ("next to a city") the tile name alone doesn't imply. `opts.text`
+ * stays for the few board steps that place NO tile (Land Claim reserves a space,
+ * Mars Nomads moves a marker, Kaguya Tech converts a greenery) — prose is the
+ * honest answer there, and it must not be used to smuggle in a tile name.
  */
 export function placementPreview(
   card: ICard,
   player: IPlayer,
-  opts: {kind?: 'board' | 'colony', text?: string | Message, effects?: ReadonlyArray<ActionEffect>, steps?: ReadonlyArray<ActionPreviewStep | undefined>} = {},
+  opts: {
+    kind?: 'board' | 'colony',
+    tile?: TileType,
+    count?: number,
+    constraint?: string | Message,
+    text?: string | Message,
+    effects?: ReadonlyArray<ActionEffect>,
+    steps?: ReadonlyArray<ActionPreviewStep | undefined>,
+  } = {},
 ): ActionPreview {
   const kind = opts.kind ?? 'board';
-  const note = opts.text ?? (kind === 'colony' ?
-    'After confirming, choose where to build the colony.' :
-    'After confirming, choose where to place the tile on the board.');
-  return playPreview(card, player, opts.effects ?? [], [...(opts.steps ?? []), noteStep(kind, note)]);
+  // PROSE is reserved for a board step that places NO tile (reserve a space,
+  // move a marker, convert an existing tile) — everything else goes through the
+  // structured placement step so one presenter owns the wording.
+  const last = opts.text !== undefined ?
+    noteStep(kind, opts.text) :
+    boardPlacementStep(kind === 'colony' ? 'colony' : placementTypeOf(opts.tile), {
+      tileType: opts.tile,
+      count: opts.count,
+      constraint: opts.constraint,
+    });
+  return playPreview(card, player, opts.effects ?? [], [...(opts.steps ?? []), last]);
+}
+
+/** The legacy informational `placementType` for a tile — kept in sync with what
+ *  the declarative walker emits so both surfaces read the same vocabulary. */
+function placementTypeOf(tile: TileType | undefined): string {
+  switch (tile) {
+  case TileType.OCEAN: return 'ocean';
+  case TileType.CITY: return 'city';
+  case TileType.GREENERY: return 'greenery';
+  default: return 'land';
+  }
 }
 
 /**

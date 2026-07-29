@@ -5,6 +5,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {SelectPaymentDeferred} from '../../deferredActions/SelectPaymentDeferred';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {CardRenderer} from '../render/CardRenderer';
@@ -49,7 +50,7 @@ export class AquiferPumping extends Card implements IActionCard, IProjectCard {
   // is an after-submit SelectSpace shown as a board-placement note.
   public actionPreview(player: IPlayer) {
     const pay = actionPreviews.paymentStep(player, OCEAN_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
-    const place = actionPreviews.boardPlacementStep('ocean');
+    const place = actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN});
     if (pay !== undefined) {
       return actionPreviews.singleBranch(this, player, [pay, place]);
     }

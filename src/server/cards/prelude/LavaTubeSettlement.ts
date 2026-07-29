@@ -4,6 +4,7 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {IPlayer} from '../../IPlayer';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {CardRenderer} from '../render/CardRenderer';
 import {Space} from '../../boards/Space';
@@ -92,6 +93,6 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the city on a volcanic area.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY, constraint: 'on a volcanic area'});
   }
 }

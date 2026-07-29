@@ -6,6 +6,7 @@ import {CardType} from '../../common/cards/CardType';
 import {CardResource} from '../../common/CardResource';
 import {Resource} from '../../common/Resource';
 import {Units} from '../../common/Units';
+import {TileType} from '../../common/TileType';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '../../common/models/ActionPreviewModel';
@@ -477,20 +478,25 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // Board / colony placement → inherently interactive; collected AFTER submit
   // (PlacementBanner for tiles, ColoniesOverlay for a colony). The modal shows an
   // honest note. Emitted last, matching the executor defer order.
+  // `tileType` mirrors what `Executor` actually places (`Executor.execute`
+  // reads BOTH `tile.type` and `tile.on`) — it is what lets the preview NAME the
+  // tile. `placementType` is only the terrain filter and cannot substitute:
+  // every special tile on land collapses to `'land'`.
   if (behavior.colonies?.buildColony !== undefined) {
+    // A colony is built off-Mars — no tile, so no tile identity to name.
     steps.push({kind: 'boardPlacement', placementType: 'colony'});
   }
   if (behavior.ocean !== undefined) {
-    steps.push({kind: 'boardPlacement', placementType: 'ocean'});
+    steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: behavior.ocean.count});
   }
   if (behavior.city !== undefined && behavior.city.space === undefined) {
-    steps.push({kind: 'boardPlacement', placementType: behavior.city.on ?? 'city'});
+    steps.push({kind: 'boardPlacement', placementType: behavior.city.on ?? 'city', tileType: TileType.CITY});
   }
   if (behavior.greenery !== undefined) {
-    steps.push({kind: 'boardPlacement', placementType: behavior.greenery.on ?? 'greenery'});
+    steps.push({kind: 'boardPlacement', placementType: behavior.greenery.on ?? 'greenery', tileType: TileType.GREENERY});
   }
   if (behavior.tile !== undefined) {
-    steps.push({kind: 'boardPlacement', placementType: behavior.tile.on});
+    steps.push({kind: 'boardPlacement', placementType: behavior.tile.on, tileType: behavior.tile.type});
   }
 
   return steps;

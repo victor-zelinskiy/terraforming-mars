@@ -57,6 +57,6 @@ export class DesperateMeasures extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, choose a hazard tile.'});
+    return actionPreviews.placementPreview(this, player, {text: 'Choose a hazard tile'});
   }
 }

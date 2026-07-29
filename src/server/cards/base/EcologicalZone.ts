@@ -103,6 +103,8 @@ export class EcologicalZone extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the greenery tile on the board.'});
+    // The tile is the ECOLOGICAL_ZONE special tile placed NEXT TO a greenery —
+    // it is not itself a greenery (it raises no oxygen and never counts as one).
+    return actionPreviews.placementPreview(this, player, {tile: TileType.ECOLOGICAL_ZONE, constraint: 'next to a greenery'});
   }
 }

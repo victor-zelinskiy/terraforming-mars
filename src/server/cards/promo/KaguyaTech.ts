@@ -115,6 +115,6 @@ export class KaguyaTech extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, choose a greenery to convert into a city.'});
+    return actionPreviews.placementPreview(this, player, {text: 'Choose a greenery to convert into a city'});
   }
 }

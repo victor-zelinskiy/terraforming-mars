@@ -14732,10 +14732,46 @@ html.console-mode {
         }
         &-text { line-height: 1.35; color: #f4d3a6; }
     }
+    /* «ДАЛЕЕ» — the one-line "what you do after confirming" row.
+       HEIGHT IS FIXED (`--con-next-h`) and identical for every variant: a bare
+       prose note, a named special tile with an icon, a row with a constraint
+       tail. Nothing here may make the row grow — that is what stops the modal
+       from resizing as the player moves between cards (and what keeps the
+       Steam Deck layout stable). The tile icon and the label are `flex: none`
+       and shorter than the row, so only the TEXT drives the line box. */
     &__next {
+        --con-next-h: 1.9rem;
         display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: fade(@con-cyan, 92%);
-        padding: .4rem .6rem; border-radius: .4rem;
+        min-height: var(--con-next-h); padding: 0 .6rem; border-radius: .4rem;
         background: fade(@con-cyan, 8%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
+        /* One line, always. `min-width: 0` on the children lets the tail clip
+           instead of pushing the row wider (no horizontal overflow). */
+        white-space: nowrap; overflow: hidden;
+    }
+    &__next-glyph { flex: none; opacity: .75; }
+    &__next-tile {
+        flex: none; width: 1.1rem; height: 1.1rem;
+        /* symbol layer first (CSS paints layer 1 on top), inset like the card face */
+        background-size: 62% auto, contain; background-repeat: no-repeat; background-position: center;
+    }
+    /* The context label: small, quiet, never competing with the sentence. */
+    &__next-label {
+        flex: none; font-size: .62rem; font-weight: 800; letter-spacing: .12em;
+        text-transform: uppercase; color: fade(@con-cyan, 62%);
+        &::after { content: ':'; }
+    }
+    /* The sentence — the row's real content. It shrinks LAST (the tail's shrink
+       factor is three orders of magnitude larger), so a real tile name is never
+       the thing that gives way; the ellipsis here is a pathological-input
+       backstop, not the normal case. */
+    &__next-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* The muted placement constraint — the FIRST thing to yield when the row is
+       tight, down to nothing if need be. The full value stays on the row's
+       `aria-label`, so clipping it never loses information for a screen reader. */
+    &__next-tail {
+        flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+        color: fade(@con-cyan, 58%);
+        &::before { content: '— '; }
     }
 
     /* The composer's OWN single bottom bar (covers the action center's). */

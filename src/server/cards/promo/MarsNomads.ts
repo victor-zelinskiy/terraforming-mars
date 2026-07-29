@@ -80,7 +80,7 @@ export class MarsNomads extends Card implements IActionCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the nomads on a land space.'});
+    return actionPreviews.placementPreview(this, player, {text: 'Place the nomads on a land space'});
   }
 
   private canAffordPlacementBonus(player: IPlayer, space: Space): boolean {

@@ -1,5 +1,6 @@
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import {IActionCard} from '../ICard';
@@ -74,7 +75,7 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
   // is an after-submit SelectSpace shown as a board-placement note.
   public actionPreview(player: IPlayer) {
     const pay = actionPreviews.paymentStep(player, ACTION_COST, {canUseSteel: true, title: TITLES.payForCardAction(this.name)});
-    const place = actionPreviews.boardPlacementStep('city');
+    const place = actionPreviews.boardPlacementStep('city', {tileType: TileType.CITY});
     if (pay !== undefined) {
       return actionPreviews.singleBranch(this, player, [pay, place]);
     }

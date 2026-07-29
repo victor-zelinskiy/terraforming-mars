@@ -168,9 +168,12 @@ test.describe('console corp first-action modal', () => {
     expect(ask.trim()).not.toBe('');
     expect(ask).toContain('тайл города');
 
-    // The honest post-confirm follow-up note (a board placement comes next).
+    // The honest post-confirm follow-up note — and it NAMES the tile: Tharsis
+    // Republic's free city is «разместите тайл города», not a mute "pick a spot".
     const notes = await page.locator('.con-composer--corpfirst .con-composer__next').allInnerTexts();
-    expect(notes.join(' ')).toContain('Выберите клетку');
+    expect(notes.join(' ')).toContain('тайл города');
+    // The row carries the tile pictogram, so the shared «ДАЛЕЕ» presenter really ran.
+    expect(await page.locator('.con-composer--corpfirst .con-composer__next-tile').count()).toBeGreaterThan(0);
 
     // The corporation card renders as the modal's artifact (premium face).
     expect(await page.locator('.con-composer--corpfirst .con-composer__playcard :is(.card-container, .pcard)').count()).toBeGreaterThan(0);

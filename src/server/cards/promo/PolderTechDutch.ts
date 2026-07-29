@@ -100,8 +100,8 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
   // declarative placement corps (Tharsis / Philares).
   public firstActionPreview() {
     return actionPreviews.firstActionBranch(this, [], [
-      actionPreviews.boardPlacementStep('ocean'),
-      actionPreviews.boardPlacementStep('greenery'),
+      actionPreviews.boardPlacementStep('ocean', {tileType: TileType.OCEAN}),
+      actionPreviews.boardPlacementStep('greenery', {tileType: TileType.GREENERY}),
     ]);
   }
 

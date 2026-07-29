@@ -7,6 +7,7 @@ import {Space} from '../../boards/Space';
 import {PlaceCityTile} from '../../deferredActions/PlaceCityTile';
 import {Resource} from '../../../common/Resource';
 import {CardName} from '../../../common/cards/CardName';
+import {TileType} from '../../../common/TileType';
 import {Priority} from '../../deferredActions/Priority';
 import {GainProduction} from '../../deferredActions/GainProduction';
 import {LoseProduction} from '../../deferredActions/LoseProduction';
@@ -90,6 +91,6 @@ export class ImmigrantCity extends Card implements IProjectCard {
   }
 
   public cardPlayPreview(player: IPlayer): ActionPreview {
-    return actionPreviews.placementPreview(this, player, {text: 'After confirming, place the city tile on the board.'});
+    return actionPreviews.placementPreview(this, player, {tile: TileType.CITY});
   }
 }

@@ -281,9 +281,14 @@
             </span>
           </div>
 
-          <!-- Honest "after confirming" (board placement / reveal / notes). -->
-          <div v-for="(n, i) in afterNotes" :key="'n' + i" class="con-composer__next">
-            <span aria-hidden="true">›</span><span>{{ n }}</span>
+          <!-- Honest "after confirming" (board placement / reveal / notes).
+               Same fixed-height «ДАЛЕЕ» row as the play composer. -->
+          <div v-for="(n, i) in afterNotes" :key="'n' + i" class="con-composer__next" :aria-label="n.full">
+            <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+            <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
+            <span class="con-composer__next-label">{{ $t('Next') }}</span>
+            <span class="con-composer__next-text">{{ n.text }}</span>
+            <span v-if="n.constraint !== ''" class="con-composer__next-tail">{{ n.constraint }}</span>
           </div>
 
           <!-- PAYMENT — the ONE shared panel, identical to the play-card flow.
@@ -422,6 +427,9 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
+import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
@@ -947,20 +955,22 @@ export default defineComponent({
         icon: w.effect === undefined && w.icon !== '' ? iconClassFor(w.icon) : '',
       }));
     },
-    afterNotes(): Array<string> {
+    afterNotes(): Array<NextStepRow> {
       const branch = this.selectedBranch;
       if (branch === undefined) {
         return [];
       }
-      const out: Array<string> = [];
+      const out: Array<NextStepRow> = [];
       if (branch.reveal !== undefined) {
-        out.push(translateText('Next: reveal a card'));
+        out.push(noteRow(translateText('Reveal a card')));
       }
       for (const step of branch.steps) {
         if (step.kind === 'boardPlacement') {
-          out.push(translateText('Next: place on the board'));
+          // NAMES the tile (Aquifer Pumping → «разместите тайл океана»), through
+          // the same presenter the play composer uses.
+          out.push(placementRow(step, consoleTranslate, textOf));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
-          out.push(step.text !== undefined ? textOf(step.text) : translateText('Next: an additional choice'));
+          out.push(noteRow(step.text !== undefined ? textOf(step.text) : translateText('An additional choice')));
         }
         // A `warning` is NOT an "after confirming" step (nothing happens) — it has
         // its own block above (`skippedWarnings`), which names the lost effect.
@@ -1145,6 +1155,8 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
+    tileIconStyle,
     iconClass(icon: string | undefined): string {
       return icon !== undefined ? iconClassFor(icon) : '';
     },

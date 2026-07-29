@@ -965,7 +965,10 @@ html.con-profile-tv {
         &__stepper-value { font-size: 1.8rem; }
         &__stepper-icon { width: 1.8rem; height: 1.8rem; }
         &__warn-text,
-        &__next { font-size: var(--con-t-secondary); }
+        &__next { font-size: var(--con-t-secondary); --con-next-h: 2.3rem; }
+        /* The label scales with the row but stays a quiet secondary mark. */
+        &__next-label { font-size: calc(var(--con-t-secondary) * .74); }
+        &__next-tile { width: 1.35rem; height: 1.35rem; }
         &__foot-item { font-size: 1.05rem; }
         &__cta { min-height: var(--con-hit-min); }
         &__cta-label { font-size: 1.15rem; }

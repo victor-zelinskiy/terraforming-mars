@@ -17,7 +17,9 @@
       <span class="action-next__label" v-i18n>{{ variant === 'next' ? 'Next' : 'After confirming' }}</span>
       <div v-for="(note, i) in notes" :key="i" class="action-next__item">
         <span class="action-next__glyph" aria-hidden="true">◎</span>
-        <span class="action-next__text" v-i18n>{{ noteText(note) }}</span>
+        <!-- Pre-translated in JS (a named tile interpolates its name), so NO
+             `v-i18n` here — it would re-translate an already-Russian string. -->
+        <span class="action-next__text">{{ noteText(note) }}</span>
       </div>
     </div>
   </div>
@@ -29,6 +31,9 @@ import {Message} from '@/common/logs/Message';
 import {ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import SkippedEffectWarning from '@/client/components/actions/SkippedEffectWarning.vue';
 import {isSkippedWarning} from '@/client/components/actions/skippedEffectView';
+import {BoardPlacementStep, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {translateMessage, translateText} from '@/client/directives/i18n';
 
 type NoteStep = {kind: string, placementType?: string, noteKind?: string, text?: string | Message, resource?: string};
 
@@ -61,12 +66,15 @@ export default defineComponent({
   },
   methods: {
     text(m: string | Message): string {
-      return typeof m === 'string' ? m : m.message;
+      return typeof m === 'string' ? translateText(m) : translateMessage(m);
     },
-    // Canned copy per step kind + variant. A `note` with an explicit `text`
-    // (card-specific, e.g. "After confirming, choose an adjacent space…") overrides
-    // the canned copy for BOTH variants. Returns an English i18n key — the `v-i18n`
-    // on the host span translates it.
+    /**
+     * The finished line for one step. A tile PLACEMENT goes through the shared
+     * `consolePlacementNextStep` presenter, so both shells name the same tile
+     * («особый тайл «Солнечная электростанция»») from the same TileType — the
+     * copy table is not duplicated here. A `note` keeps its canned per-variant
+     * wording (it is a step that places no tile).
+     */
     noteText(step: NoteStep): string {
       const after = this.variant === 'after-confirm';
       if (step.kind === 'note') {
@@ -74,17 +82,13 @@ export default defineComponent({
           return this.text(step.text);
         }
         switch (step.noteKind) {
-        case 'colony': return after ? 'After confirming, choose a colony.' : 'Next: choose a colony.';
-        case 'board': return after ? 'After confirming, choose a location on the board.' : 'Next: choose a location on the board.';
-        default: return after ? 'After confirming, you will make one more choice.' : 'Next: one more choice.';
+        case 'colony': return translateText(after ? 'After confirming, choose a colony.' : 'Next: choose a colony.');
+        case 'board': return translateText(after ? 'After confirming, choose a location on the board.' : 'Next: choose a location on the board.');
+        default: return translateText(after ? 'After confirming, you will make one more choice.' : 'Next: one more choice.');
         }
       }
-      switch (step.placementType) {
-      case 'ocean': return after ? 'After confirming, choose where to place the ocean tile on the board.' : 'Next: choose where to place the ocean tile.';
-      case 'city': return after ? 'After confirming, choose where to place the city tile on the board.' : 'Next: choose where to place the city tile.';
-      case 'greenery': return after ? 'After confirming, choose where to place the greenery tile on the board.' : 'Next: choose where to place the greenery tile.';
-      default: return after ? 'You will place a tile on the board after confirming.' : 'Next: place a tile on the board.';
-      }
+      const row = placementRow(step as BoardPlacementStep, consoleTranslate, (m) => this.text(m));
+      return row.full;
     },
   },
 });

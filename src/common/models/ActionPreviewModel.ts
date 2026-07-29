@@ -3,6 +3,7 @@ import {CardResource} from '../CardResource';
 import {Tag} from '../cards/Tag';
 import {Color} from '../Color';
 import {Message} from '../logs/Message';
+import {TileType} from '../TileType';
 import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
 
@@ -258,7 +259,31 @@ export type ActionPreviewStep =
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source
    *  AndOptions model (carrying its `spendHeatPrompt` marker). Used as a preStep. */
   | {kind: 'spendHeat', input: PlayerInputModel}
-  | {kind: 'boardPlacement', placementType: string}
+  | {
+    kind: 'boardPlacement',
+    placementType: string,
+    /**
+     * The tile that will actually be placed — the IDENTITY the preview line
+     * names («разместите особый тайл «Солнечная электростанция»»). It is the
+     * TILE's own type, NOT the played card: a card and its tile are frequently
+     * different things (Flooding places an OCEAN, Lava Tube Settlement places a
+     * plain CITY), and `placementType` alone can't tell them apart — it is a
+     * `PlacementType` terrain filter (`'land'`, `'volcanic'`, …) shared by
+     * unrelated tiles. The client resolves the NAME from `tileTypeToString` and
+     * "is it special" from `isSpecialTile`, both keyed by this field.
+     * Absent for a colony build (off-Mars, no tile) and for the handful of
+     * bespoke board steps that place no tile at all (Land Claim reserves a
+     * space, Mars Nomads moves a marker).
+     */
+    tileType?: TileType,
+    /** How many IDENTICAL tiles this one step places (Lake Marineris: 2 oceans).
+     *  Absent or 1 → singular copy. Different tiles are separate steps. */
+    count?: number,
+    /** A SHORT extra placement restriction the board itself can't convey up
+     *  front ("next to a city", "on a steel or titanium bonus area") — rendered
+     *  as a muted tail after the tile name, never as a second line. */
+    constraint?: string | Message,
+  }
   /** A `warning` note flags an effect that WILL BE SKIPPED for lack of a valid
    *  target (e.g. "add an animal" with no animal card) — shown as an orange block
    *  so the player is never surprised by a silently-lost effect. */

@@ -166,7 +166,9 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
                 <SkippedEffectWarning v-if="isSkippedWarning(step)" :step="step" />
                 <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
-                  <span class="play-confirm__step-text" v-i18n>{{ placementHint(step) }}</span>
+                  <!-- Pre-translated in JS (a named tile interpolates its name),
+                       so NO `v-i18n` — it would re-translate a Russian string. -->
+                  <span class="play-confirm__step-text">{{ placementHint(step) }}</span>
                 </div>
                 <!-- A TWO-TAB removal choice (Virus): animals OR plants, each tab
                      listing its valid targets with a current→resulting impact. -->
@@ -432,6 +434,8 @@ import {PLAYED_PICK_OVERLAY_THRESHOLD} from '@/client/components/playedCards/pla
 import RepeatActionPicker from '@/client/components/actions/RepeatActionPicker.vue';
 import {cardPickSurface, CardPickSurface} from '@/client/components/cardPickRouting';
 import {translateText, translateMessage, translateCardName} from '@/client/directives/i18n';
+import {BoardPlacementStep, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
 import ModalInputHost from '@/client/components/modalInputs/ModalInputHost.vue';
@@ -921,19 +925,26 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * The finished "what happens next" line. A tile PLACEMENT is described by
+     * the shared `consolePlacementNextStep` presenter — the same TileType-keyed
+     * name and «особый тайл» ordering the console shows, so the two shells can
+     * never disagree about what is being placed.
+     */
     placementHint(step: {kind: string, placementType?: string, text?: string | Message}): string {
       // A note with explicit text (the warning, or a card-specific note) overrides
       // the canned placement copy.
       if (step.text !== undefined) {
-        return this.text(step.text);
+        return this.translated(step.text);
       }
-      switch (step.placementType) {
-      case 'ocean': return 'After confirming, choose where to place the ocean tile on the board.';
-      case 'city': return 'After confirming, choose where to place the city tile on the board.';
-      case 'greenery': return 'After confirming, choose where to place the greenery tile on the board.';
-      case 'colony': return 'After confirming, choose a colony to build on.';
-      default: return 'You will place a tile on the board after confirming.';
+      if (step.kind === 'boardPlacement') {
+        return placementRow(step as BoardPlacementStep, consoleTranslate, (m) => this.translated(m)).full;
       }
+      return translateText('After confirming, choose a location on the board.');
+    },
+    /** Translate a key or a `Message` (the raw `text()` helper does neither). */
+    translated(m: string | Message): string {
+      return typeof m === 'string' ? translateText(m) : translateMessage(m);
     },
     // Routes a `warning` step to the shared SkippedEffectWarning block (which
     // effect is lost / how much / why).

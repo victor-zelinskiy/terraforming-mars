@@ -59,8 +59,14 @@ export abstract class MiningCard extends Card implements IProjectCard {
   // it here so the play modal isn't mute about the board interaction that follows
   // confirming (the matching steel/titanium production is chosen after placement).
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    // The card's OWN tile identity (Mining Area / Mining Rights). In an Ares game
+    // the placed `TileType` additionally encodes which bonus the chosen space had
+    // (`MINING_STEEL_BONUS`/`MINING_TITANIUM_BONUS`), but that is only known AFTER
+    // the space is picked — naming either one here would be a guess, and both are
+    // the same tile to the player.
     return actionPreviews.placementPreview(this, player, {
-      text: 'After confirming, place the tile on a steel or titanium bonus area.',
+      tile: this.name === CardName.MINING_RIGHTS ? TileType.MINING_RIGHTS : TileType.MINING_AREA,
+      constraint: 'on a steel or titanium bonus area',
     });
   }
 

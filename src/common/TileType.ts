@@ -114,6 +114,35 @@ export const tileTypeToString: Record<TileType, string> = {
   [TileType.NEURAL_INSTANCE]: 'Neural Instance',
 } as const;
 
+/**
+ * The ONE definition of "a SPECIAL tile" — an ordinary greenery/ocean/city, a
+ * plain Moon tile, a hazard and Rey Skywalker are NOT special; everything else
+ * is. It lives here (next to the enum it switches on) rather than in
+ * `server/boards/Board` so the CLIENT can classify a tile too — the console
+ * play preview must say «особый тайл» before a tile's name, and duplicating
+ * this list in the UI is exactly how the two would drift apart.
+ * `server/boards/Board` re-exports it, so every existing importer is unchanged.
+ */
+export function isSpecialTile(tileType: TileType | undefined): boolean {
+  switch (tileType) {
+  case TileType.GREENERY:
+  case TileType.OCEAN:
+  case TileType.CITY:
+  case TileType.MOON_HABITAT:
+  case TileType.MOON_MINE:
+  case TileType.MOON_ROAD:
+  case TileType.EROSION_MILD: // Hazard tiles are "special" but they don't count for the typical intent of what a special tile represents.
+  case TileType.EROSION_SEVERE:
+  case TileType.DUST_STORM_MILD:
+  case TileType.DUST_STORM_SEVERE:
+  case TileType.REY_SKYWALKER:
+  case undefined:
+    return false;
+  default:
+    return true;
+  }
+}
+
 export const HAZARD_TILES = new Set([TileType.DUST_STORM_MILD, TileType.DUST_STORM_SEVERE, TileType.EROSION_MILD, TileType.EROSION_SEVERE]);
 export const OCEAN_UPGRADE_TILES = new Set([TileType.OCEAN_CITY, TileType.OCEAN_FARM, TileType.OCEAN_SANCTUARY, TileType.NEW_HOLLAND]);
 export const CITY_TILES = new Set([TileType.CITY, TileType.CAPITAL, TileType.OCEAN_CITY, TileType.RED_CITY, TileType.NEW_HOLLAND]);
