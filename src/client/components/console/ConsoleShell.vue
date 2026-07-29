@@ -92,7 +92,7 @@
          surface would pop OVER the fading panel. The `con-insp-*` accent
          class publishes the inspected player's color tokens to BOTH sides
          of the rail↔workspace seam. -->
-    <div class="con-main" :class="conMainClasses">
+    <div class="con-main" :class="conMainClasses" ref="conMainEl">
       <!-- The rail is the Information Workspace's SUMMARY half: while the
            mode is open its player context is OVERRIDDEN to the inspected
            player (ONE source: infoModeState.playerColor) — TR / VP /
@@ -960,7 +960,7 @@
  * P0: everything ends in WaitingFor.onsave()/onsaveBatch() with payloads
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, PropType, ref} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Color} from '@/common/Color';
@@ -1158,6 +1158,7 @@ import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
+import {useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -1308,6 +1309,12 @@ export default defineComponent({
     // (html.console-native + body scroll lock); anything that overflows must
     // live inside a ConsoleScrollArea, never scroll the page.
     useConsoleNativeSurface();
+    // The workspace band's ONE geometry: the fixed band surfaces read the
+    // LIVE main-column box instead of approximating it from tokens, so every
+    // workspace opens in a pixel-identical frame.
+    const conMainEl = ref<HTMLElement>();
+    useWorkspaceBandGeometry(conMainEl);
+    return {conMainEl};
   },
   data() {
     return {

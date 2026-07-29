@@ -224,67 +224,96 @@
             <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
           </div>
 
-          <!-- ── The FLAT grid: two ACTION BUTTONS per row, whatever card
-               they belong to. Every tile is self-describing (card name +
-               «N/M» variant badge + status + stored resource), so a row may
-               mix two cards without losing the grouping; sibling variants
-               that land side by side get the «или» JOINT on their shared
-               edge. Dropping the per-card group box is what made the list
-               dense — the chrome cost a header row per card. ─────────── -->
-          <div v-for="tile in model.tiles" :key="tile.key"
-               class="con-cardactions__tile"
+          <!-- ── The grid: the CARD is the group and is never split. A
+               single-action card takes one of the two columns; a card with
+               ALTERNATIVES owns the full row, its buttons side by side with
+               the «или» joint on their shared edge. Inside a group the
+               ACTION BUTTONS lead (the focus lives on a button, and every
+               per-action chip — the «N/M» variant, the verdict, the reason —
+               rides it) and the CARD PLATE closes it underneath: the name and
+               what belongs to the card as a whole (its stored resource, its
+               accrued VP). ──────────────────────────────────────────────── -->
+          <div v-for="group in model.groups" :key="group.key"
+               class="con-cardactions__group"
                :class="[
-                 'con-cardactions__tile--' + tile.status,
+                 'con-cardactions__group--' + group.status,
                  {
-                   'con-cardactions__tile--focused': focusKey === tile.key,
-                   'con-cardactions__tile--shake': shakeKey === tile.key,
-                   'con-cardactions__tile--joined': tile.joinLeft,
+                   'con-cardactions__group--wide': group.tiles.length > 1,
+                   'con-cardactions__group--live': groupHasFocus(group),
                  },
-               ]"
-               :ref="focusKey === tile.key ? 'focused' : undefined">
-            <!-- The «или» joint rides the shared edge with the sibling to the left. -->
-            <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
+               ]">
+            <div class="con-cardactions__acts"
+                 :class="{'con-cardactions__acts--pair': group.tiles.length > 1}">
+              <div v-for="tile in group.tiles" :key="tile.key"
+                   class="con-cardactions__tile"
+                   :class="[
+                     'con-cardactions__tile--' + tile.status,
+                     {
+                       'con-cardactions__tile--focused': focusKey === tile.key,
+                       'con-cardactions__tile--shake': shakeKey === tile.key,
+                     },
+                   ]"
+                   :ref="focusKey === tile.key ? 'focused' : undefined">
+                <!-- The «или» joint rides the shared edge with the sibling
+                     button to the left (same card, same row). -->
+                <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
 
-            <div class="con-cardactions__tile-head">
-              <!-- A CONTINUATION variant that did NOT land beside its sibling
-                   (the joint can only ride a shared edge) says «или» in words —
-                   the alternative relation is never left to the badge alone. -->
-              <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
-              <span class="con-cardactions__tile-name">{{ $t(tile.cardName) }}</span>
-              <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ tile.nodeIndex + 1 }}/{{ tile.variantTotal }}</span>
-              <span v-if="tile.cardResource !== undefined" class="con-cardactions__tile-res">
-                <i class="con-cardactions__res-icon" :class="resIconClass(tile.cardResource.type)" aria-hidden="true"></i>
-                <b>{{ tile.cardResource.count }}</b>
-              </span>
-              <span class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
-                {{ $t(statusLabel(tile.status)) }}
-              </span>
+                <!-- Per-ACTION chips only: which alternative this is + its
+                     own verdict. The card's own chips live on the plate. -->
+                <div v-if="tile.variantTotal > 1 || tile.status !== 'available'" class="con-cardactions__tile-head">
+                  <!-- One column (the Deck) stacks a card's buttons, so the
+                       joint has no shared edge to ride — the alternative says
+                       «или» in words instead. Never both. -->
+                  <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
+                  <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ tile.nodeIndex + 1 }}/{{ tile.variantTotal }}</span>
+                  <span class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
+                    {{ $t(statusLabel(tile.status)) }}
+                  </span>
+                </div>
+
+                <!-- The button ALWAYS shows the card's OWN action graphic
+                     (icons straight from the manifest — instant, no fetch, so
+                     it never flickers). The COMPLETE cost → reward formula
+                     chips live only in the left dossier. -->
+                <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                  <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
+                  <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+                  <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                </div>
+
+                <!-- The META STRIP is ALWAYS laid out at a fixed minimum
+                     height — a late-arriving reason / choice line fades into
+                     RESERVED space and can never change the geometry. -->
+                <div class="con-cardactions__tile-meta">
+                  <!-- Non-amount pre-submit choices (a card / player / payment
+                       pick happens in the composer) — named, never a mute "X". -->
+                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                    <span aria-hidden="true">◈</span>
+                    <span>{{ choiceKindsLabel(tile) }}</span>
+                  </div>
+                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                    <span aria-hidden="true">✕</span>
+                    <span>{{ tileReason(tile) }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- The tile ALWAYS shows the card's OWN action graphic (icons
-                 straight from the manifest — instant, no fetch, so it never
-                 flickers). The COMPLETE cost → reward formula chips live only
-                 in the left dossier. -->
-            <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-              <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-              <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-              <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-            </div>
-
-            <!-- The META STRIP is ALWAYS laid out at a fixed minimum height —
-                 a late-arriving reason / choice line fades into RESERVED
-                 space and can never change the tile's geometry. -->
-            <div class="con-cardactions__tile-meta">
-              <!-- Non-amount pre-submit choices (a card / player / payment
-                   pick happens in the composer) — named, never a mute "X". -->
-              <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                <span aria-hidden="true">◈</span>
-                <span>{{ choiceKindsLabel(tile) }}</span>
-              </div>
-              <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
-                <span aria-hidden="true">✕</span>
-                <span>{{ tileReason(tile) }}</span>
-              </div>
+            <!-- The CARD PLATE — the group's identity foundation: the name
+                 and everything the whole card owns. The VP chip is the
+                 resource scorer's honest live read («2 ПО · +1 за 3»), from
+                 the SHARED accumulator, never a second formula. -->
+            <div class="con-cardactions__plate">
+              <span class="con-cardactions__plate-name">{{ $t(group.cardName) }}</span>
+              <span v-if="group.cardResource !== undefined" class="con-cardactions__plate-chip">
+                <i class="con-cardactions__res-icon" :class="resIconClass(group.cardResource.type)" aria-hidden="true"></i>
+                <b>{{ group.cardResource.count }}</b>
+              </span>
+              <span v-if="group.vp !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--vp">
+                <b>{{ group.vp.points }}</b>
+                <span class="con-cardactions__plate-vp-unit">{{ $t('VP') }}</span>
+                <em v-if="group.vp.toNext > 0">+1 · {{ group.vp.toNext }}</em>
+              </span>
             </div>
           </div>
         </ConsoleScrollArea>
@@ -798,6 +827,10 @@ export default defineComponent({
     rangeText(vc: ConsoleVariableChip): string {
       const unit = vc.unit ?? '';
       return vc.min === vc.max ? `${vc.min}${unit}` : `${vc.min}–${vc.max}${unit}`;
+    },
+    /** The focused action belongs to THIS card — the group lifts as a whole. */
+    groupHasFocus(group: ConsoleActionGroup): boolean {
+      return group.tiles.some((t) => t.key === this.focusKey);
     },
     choiceKindsLabel(tile: ConsoleActionTile): string {
       return tile.choiceKinds.map((k) => translateText(CHOICE_KIND_LABEL[k])).join(' · ');

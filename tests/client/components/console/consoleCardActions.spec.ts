@@ -13,6 +13,7 @@ import {
   cycleActivation,
   defaultCardActionsFilter,
   packActionRows,
+  arrangeGroupsForGrid,
   stepActionRows,
   ConsoleActionGroup,
 } from '@/client/console/consoleCardActions';
@@ -319,31 +320,51 @@ describe('consoleCardActions model', () => {
     });
   });
 
-  describe('packActionRows / stepActionRows (the FLAT 2-column browse grid)', () => {
+  describe('packActionRows / stepActionRows (the 2-column browse grid)', () => {
     /** A minimal group fixture — the packer reads only tiles[].key. */
     const group = (...keys: Array<string>) =>
       ({tiles: keys.map((key) => ({key}))}) as unknown as ConsoleActionGroup;
 
-    it('packs the FLAT tile order two abreast — a row may mix two cards', () => {
+    it('packs consecutive SINGLE-action cards two abreast', () => {
       const rows = packActionRows([group('a'), group('b'), group('p1', 'p2'), group('c')]);
       expect(rows).to.deep.eq([['a', 'b'], ['p1', 'p2'], ['c']]);
     });
 
-    it('a sibling PAIR is not privileged: it packs like any other pair of buttons', () => {
-      // 'a' + the pair's first tile share a row; the pair's second tile pairs
-      // with the NEXT card's button — exactly what the CSS grid draws.
+    it('a card is NEVER split: its «или» pair owns a full row, closing a half row', () => {
       const rows = packActionRows([group('a'), group('p1', 'p2'), group('b'), group('c')]);
-      expect(rows).to.deep.eq([['a', 'p1'], ['p2', 'b'], ['c']]);
+      expect(rows).to.deep.eq([['a'], ['p1', 'p2'], ['b', 'c']]);
     });
 
-    it('a 3+-variant card flows through the same two columns', () => {
+    it('a 3+-variant card keeps its buttons together, two per row', () => {
       const rows = packActionRows([group('t1', 't2', 't3'), group('a')]);
-      expect(rows).to.deep.eq([['t1', 't2'], ['t3', 'a']]);
+      expect(rows).to.deep.eq([['t1', 't2'], ['t3'], ['a']]);
     });
 
     it('one column (handheld): one action button per row', () => {
       const rows = packActionRows([group('a'), group('b'), group('p1', 'p2')], 1);
       expect(rows).to.deep.eq([['a'], ['b'], ['p1'], ['p2']]);
+    });
+
+    it('arranges the grid so a wide card never strands a half row', () => {
+      // [single, wide, single, single] would leave a hole after the first
+      // single; the arranger pulls the nearest single of the SAME band in.
+      const g = (keys: Array<string>, sortStatus: ActionStatus = 'available') =>
+        ({tiles: keys.map((key) => ({key})), sortStatus}) as unknown as ConsoleActionGroup;
+      const arranged = arrangeGroupsForGrid([g(['a']), g(['p1', 'p2']), g(['b']), g(['c'])]);
+      expect(arranged.map((x) => x.tiles.map((t: any) => t.key).join('+')))
+        .to.deep.eq(['a', 'b', 'p1+p2', 'c']);
+      expect(packActionRows(arranged)).to.deep.eq([['a', 'b'], ['p1', 'p2'], ['c']]);
+    });
+
+    it('never pulls a filler ACROSS a status band (availability grouping wins)', () => {
+      const g = (keys: Array<string>, sortStatus: ActionStatus) =>
+        ({tiles: keys.map((key) => ({key})), sortStatus}) as unknown as ConsoleActionGroup;
+      const arranged = arrangeGroupsForGrid([
+        g(['a'], 'available'), g(['p1', 'p2'], 'available'), g(['x'], 'rules'),
+      ]);
+      // The only single left belongs to the BLOCKED band — the hole stays.
+      expect(arranged.map((x) => x.tiles.map((t: any) => t.key).join('+')))
+        .to.deep.eq(['a', 'p1+p2', 'x']);
     });
 
     it('steps left/right within a row, up/down across rows keeping the nearest column', () => {
@@ -357,10 +378,10 @@ describe('consoleCardActions model', () => {
     });
   });
 
-  describe('the flat grid model', () => {
-    it('marks the «или» JOINT only for a sibling that shares its row', () => {
-      // Two single-action cards, then a two-variant card: the flat order is
-      // [A, B, C1, C2] → rows [A,B] and [C1,C2]; only C2 joins left.
+  describe('the grid model', () => {
+    it('marks the «или» JOINT on the card’s SECOND button (the shared edge)', () => {
+      // Two single-action cards, then a two-variant card: the focus order is
+      // [A, B, C1, C2]; inside card C the second button joins left.
       const entries = [
         entry('A', 'available', ['use']),
         entry('B', 'available', ['use']),

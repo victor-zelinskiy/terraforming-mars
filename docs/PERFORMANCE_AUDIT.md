@@ -246,3 +246,35 @@ Guarded by `tests/electron/perf.spec.ts` (12 passing: GPU=low→`force_low_power
 6. `TM_ELECTRON_UNCAP_FPS=1` — high-refresh pointer/scroll smoothness.
 
 Once the winning combo is known on-device, promote it to a Windows default (guarded, look-preserving) — that is the follow-up after the user's A/B run.
+
+---
+
+## Iteration 4 — the measurement harness, and two corrections to Iteration 3's premises (2026-07-30)
+
+Iteration 3's matrix was written from code + community reports, never run on-device. Inspecting the target box first turned up two things that invalidate parts of it, so **the matrix order is now inverted: measure, THEN touch the registry.**
+
+**Correction 1 — `OverlayTestMode=5` was ALREADY SET on the target box, before any of this work.**
+```
+HKLM\SOFTWARE\Microsoft\Windows\Dwm
+  OverlayTestMode = 5   (DWORD)   <- present, origin unknown (earlier flicker troubleshooting)
+  OverlayMinFPS   = <not set>
+```
+`OverlayTestMode=5` is the community "disable MPO entirely" hack. Matrix step 2 (`OverlayMinFPS=0`) assumed a clean machine with MPO *active and thrashing* — that premise was false here. Worse: `OverlayTestMode=5` is widely reported to **stop working reliably on 24H2 and newer**, with `OverlayMinFPS=0` circulated as its companion. So the box may have been sitting in the worst state available — the hack applied and believed effective, MPO still live and thrashing. That is consistent with the reported symptom (strong Windows laptop juddering while a weak Steam Deck does not). **Do not apply either knob before a baseline capture; the registry state must be read and recorded first.** Sources: [XaHertz](https://www.xahertz.com/blog/disable-mpo/), [SmoothFPS](https://smoothfps.com/solutions/mpo), [guru3D](https://forums.guru3d.com/threads/disabling-mpo-multiplane-overlay-in-2025.455222/), [Neowin](https://www.neowin.net/news/microsoft-amd-nvidia-are-all-sleeping-on-windows-11-mpo-display-issues/).
+
+**Correction 2 — the target box is Win11 build 26200 (25H2), not 24H2**, and it has **two displays attached** (primary 2560×1440 external; internal 3200×2000 Samsung SDC4178 panel at 200% scale, 120 Hz). The LG C3 42" OLED — the actual north-star surface — was **not attached** during this inspection. Multi-monitor and windowed state both independently block independent flip, so any capture taken in that configuration cannot be read as a verdict on MPO. **Every capture must record its display configuration or it is not interpretable.**
+
+### SHIPPED — the present-path measurement harness
+`analyze-trace.cjs` answers "where does the frame go inside Blink". Neither it nor DevTools can see what DWM does with our swap chain, which is precisely where causes B and C/D live. Two new scripts close that gap, using Intel PresentMon 2.5.1 (CLI, `PresentMon-<ver>-x64.exe`, Intel-signed, from [GameTechDev/PresentMon](https://github.com/GameTechDev/PresentMon/releases)):
+
+- **`scripts/capture-presentmon.ps1`** — one self-describing run. Writes `capture.csv` **plus `env.txt`** recording the DWM registry values, display count/bounds/primary, GPUs + driver versions, OS build, target exe path + file version, and a free-text note. `env.txt` exists because of Correction 1: a PresentMon CSV without its machine state is what produced a wrong premise in the first place. Requires an elevated shell (ETW) and the game already running; refuses to run otherwise rather than recording nothing. Flags used: `--v1_metrics` (PresentMode strings + `msBetweenDisplayChange`) and **`--track_hybrid_present`** (flags cross-adapter copies — a direct instrument for cause C/D, which Iteration 3 could only reason about).
+- **`scripts/analyze-presentmon.cjs`** — CSV → verdict, per swap chain (Electron presents more than one; mode transitions are counted **per chain** so interleaved chains cannot manufacture thrash that never happened). Every column is resolved by fuzzy match and the resolution is printed — a missing column is reported, never silently treated as zero. Emits three verdicts:
+  - **VERDICT(B)** — PresentMode distribution + transition count. Transitions > 0 = MPO flip-model thrash is real *here*. A single stable mode that never reaches independent flip is explicitly reported as ambiguous (MPO disabled vs. a config that cannot use it), pointing back at `env.txt`.
+  - **VERDICT(C/D)** — hybrid-present share, i.e. how many frames are copied between adapters.
+  - **VERDICT(pacing)** — displayed-frame intervals bucketed onto **multiples of the refresh period** (`--hz`). Frames spread across more than one multiple is the documented judder signature (variable frame work on a fixed cadence) as opposed to "too slow" — the distinction that decides whether cutting per-frame work can help at all.
+
+  Self-tested against a synthetic CSV exercising all four verdict branches (thrash / stable, cross-adapter / clean, bimodal / locked).
+
+### Still blocked on the user, not on code
+1. **Baseline capture** — needs the LG C3 attached (second display detached), the packaged exe running, and an elevated shell. Until then any number is off-target.
+2. **`OverlayMinFPS` / `OverlayTestMode` decision** — deliberately deferred until the baseline says whether MPO is thrashing at all. Requires elevation; a revert must be written down before any write.
+3. **NVIDIA "Background Application Max Frame Rate = Off"** (cause A) — lives only in the NVIDIA Control Panel profile DB (`nvdrsdb0.bin`); not readable or writable from the CLI, `nvidia-smi` does not expose it. Manual GUI step, verified by capture before/after.

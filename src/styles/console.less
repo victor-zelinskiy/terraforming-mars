@@ -298,7 +298,31 @@ body.con-zoom-open .con-handdock {
    the command wheels, fullscreen inspect, or the system menu. */
 .con-ws-band() {
     .con-modal-band();
+    /* The LIVE main-column band (published by useWorkspaceBandGeometry) wins
+       over the token approximation: a fixed surface and an in-`.con-main` one
+       must open in the SAME box to the pixel, or switching between two
+       workspaces nudges the frame. The tokens stay as the pre-mount fallback. */
+    top: var(--con-ws-top, var(--con-band-top, 4.5rem));
+    bottom: var(--con-ws-bottom, var(--con-band-bottom, 4.5rem));
     left: var(--con-ws-left, 11.3rem);
+    /* The RIGHT edge is the shell's own inset — the same one `.con-main`
+       (and therefore the Information Workspace) ends at. `.con-modal-band()`
+       runs to the raw viewport edge, which left the fixed surfaces ~31px
+       wider than the in-main ones: the family read as two geometries. */
+    right: var(--con-pad-x, 1.6vw);
+}
+
+/* The workspace SCREEN's frame: it FILLS the band exactly like the
+   Information Workspace's frame does, so every screen in the family starts at
+   the same left inset (the rail seam) and ends at the same right edge (the
+   bars'). Screens that used to centre a fixed-width card drifted away from
+   that seam — the eye read them as different surfaces. Small CONFIRMATIONS
+   (pass / MA claim / a task card) deliberately keep their centred-card shape:
+   they are dialogs inside the band, not screens. */
+.con-ws-fill() {
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
 }
 
 /* Any workspace surface is up (or still dismissing): drop .con-main's
@@ -5494,7 +5518,10 @@ html.console-mode {
     display: flex;
     align-items: stretch;
     justify-content: center;
-    padding: .3rem 1.1rem;
+    /* NO padding: the band IS the geometry. Any inset here (it used to be
+       `.3rem 1.1rem`) makes this screen's frame smaller than every other
+       workspace's — the family must share one box to the pixel. */
+    padding: 0;
 
     &__backdrop {
         position: fixed; /* full-viewport dim under the bars */
@@ -5504,7 +5531,7 @@ html.console-mode {
     }
     &__panel {
         position: relative;
-        width: min(78rem, 100%);
+        .con-ws-fill();
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -6059,7 +6086,7 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .7rem;
-        width: min(53rem, 100%);
+        .con-ws-fill();
         max-height: 100%;
         padding: .9rem 1.1rem .7rem;
         border-radius: .7rem;
@@ -14489,22 +14516,91 @@ html.console-mode {
        "variants → decisions" between the two states. */
     &__body { flex: 1; min-height: 0; display: flex; gap: .8rem; padding-top: .2rem; }
     &__list { flex: 1; min-width: 0; }
-    /* TWO ACTION BUTTONS PER ROW — a FLAT grid whose unit is the button, not
-       the source card: a row may hold the last variant of one card and the
-       first of the next. Grouping reads from the tiles themselves (name +
-       «N/M» badge) and from the «или» joint between siblings that land side
-       by side. Dropping the per-card box is what made the list dense: its
-       header cost a whole row per card, and a 2-variant card used to eat a
-       full-width row on its own. */
+    /* TWO ACTION BUTTONS PER ROW, grouped BY CARD: a single-action card takes
+       one column, a card with alternatives owns the full row (its buttons
+       land on the SAME physical columns as two singles, so every button
+       across the screen shares one width rhythm). A card is never split
+       across rows — the group box IS the grouping and its plate names the
+       card underneath the buttons. */
     &__list-body {
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-auto-flow: row;
         align-items: stretch;
-        gap: .45rem .9rem; /* the column gap hosts the «или» joint */
+        gap: .5rem .7rem;
         padding-right: .4rem;
     }
     &__empty { grid-column: 1 / -1; }
+
+    /* ── The CARD GROUP: action buttons on top, the card plate underneath ── */
+    &__group {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-radius: .6rem;
+        padding: .28rem .28rem .1rem;
+        background: linear-gradient(170deg, rgba(18, 27, 40, 0.5) 0%, rgba(10, 16, 25, 0.55) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        /* A card with alternatives spans BOTH columns. */
+        &--wide { grid-column: span 2; }
+        /* The card HOLDING the cursor lifts as a whole — the eye finds the
+           card first, the button second (box-shadow: perf-lite keeps it). */
+        &--live {
+            background: linear-gradient(170deg, rgba(23, 36, 53, 0.62) 0%, rgba(13, 21, 33, 0.66) 100%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%), 0 .3rem .9rem rgba(0, 0, 0, 0.32);
+        }
+        &--activated { opacity: 0.92; }
+    }
+    /* The action row: one button, or the «или» pair on two equal columns. */
+    &__acts {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        &--pair {
+            grid-template-columns: 1fr 1fr;
+            column-gap: 1.1rem; /* the gap hosts the «или» joint */
+        }
+    }
+    /* The card PLATE — the group's foundation line: the name plus what the
+       CARD owns (stored resource, accrued VP), never per-action data. */
+    &__plate {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        margin-top: .22rem;
+        padding: .16rem .35rem .1rem;
+    }
+    /* The name and the card's chips read as ONE left cluster — on a wide
+       (two-button) card a right-pinned chip drifted a whole row away from the
+       name it belongs to. */
+    &__plate-name {
+        flex: 0 1 auto; min-width: 0; max-width: 100%;
+        font-size: .78rem; font-weight: 700; letter-spacing: .01rem; color: fade(@con-text, 92%);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    &__plate::after { content: ''; flex: 1; }
+    &__plate-chip {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; gap: .2rem;
+        padding: .04rem .35rem; border-radius: 49.95rem;
+        background: rgba(10, 18, 28, 0.72); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.24);
+        b { font-size: .75rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        /* The VP chip: the live score of what is stored here plus the calm
+           «+1 · N» distance to the next point (the premium progress read). */
+        &--vp {
+            background: fade(@con-ma-gold, 12%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 42%);
+            b { color: @con-ma-gold; }
+            em {
+                font-style: normal; font-size: .55rem; letter-spacing: .02rem;
+                color: fade(@con-ma-gold, 78%); font-variant-numeric: tabular-nums;
+            }
+        }
+    }
+    &__plate-vp-unit { font-size: .55rem; letter-spacing: .04rem; text-transform: uppercase; color: fade(@con-ma-gold, 85%); }
 
     &__res-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
 
@@ -14581,16 +14677,12 @@ html.console-mode {
        button names its source card, its variant («N/M») and its verdict. One
        line, ellipsised: the name never wraps the tile taller. */
     &__tile-head {
-        display: flex; align-items: center; gap: .35rem; min-width: 0;
+        display: flex; align-items: center; justify-content: flex-end; gap: .3rem; min-width: 0;
     }
-    &__tile-name {
-        flex: 1; min-width: 0;
-        font-size: .78rem; font-weight: 700; letter-spacing: .01rem;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    /* The word «или» on a continuation variant whose sibling sits in another
-       row (no shared edge for the joint) — the alternative relation stays
-       explicit wherever the flat grid puts the pair. */
+    /* (The card NAME lives on the group's plate — the button carries only
+       per-action data.) */
+    /* The word «или» on a stacked alternative (one-column profiles have no
+       shared edge for the joint) — the relation is never left implicit. */
     &__tile-or {
         flex-shrink: 0;
         font-size: .55rem; letter-spacing: .1rem; text-transform: uppercase;
@@ -15657,7 +15749,7 @@ html.con-profile-handheld .con-cardactions {
     .con-cardactions__detail { flex-basis: 16.5rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
     .con-cardactions__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
-    .con-cardactions__tile-name { font-size: .75rem; }
+    .con-cardactions__plate-name { font-size: .72rem; }
     /* The Deck's header must hold identity + filters + counts on ONE line
        (196 + 771 + 252 > 1080 with the default chip metrics) — the counts
        lose their padding and a step of type, never their numbers. */
@@ -15688,7 +15780,7 @@ html.con-profile-large .con-cardactions {
     .con-cardactions__ident-section { font-size: 1.3rem; }
     .con-cardactions__title { font-size: 1.3rem; }
     .con-cardactions__detail-name { font-size: 1.35rem; }
-    .con-cardactions__tile-name { font-size: .95rem; }
+    .con-cardactions__plate-name { font-size: .95rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -16163,7 +16255,9 @@ html.con-profile-handheld {
        tighter chrome, a smaller (still hero) art stage, 2-line rules; the
        grid keeps every standard item on screen with NO scrollbar. */
     .con-ma {
-        padding: 2.6rem .6rem .5rem;
+        /* The band IS the geometry (see .con-ws-fill) — no per-profile inset,
+           or this screen's frame stops matching every other workspace's. */
+        padding: 0;
 
         &__panel { gap: .5rem; padding: .6rem .8rem .4rem; border-radius: .6rem; }
         &__head { gap: .6rem; }
@@ -16392,7 +16486,7 @@ html.con-profile-large {
     }
     /* P26 · MA strategic panel — a gentle 4K readability boost only. */
     .con-ma {
-        &__panel { width: min(89rem, 100%); }
+        /* (width comes from .con-ws-fill — the band is the frame) */
         &__name { font-size: 1.2rem; }
         &__desc { font-size: .85rem; }
         &__metric-value { font-size: 1.7rem; }

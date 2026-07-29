@@ -932,11 +932,14 @@ html.con-profile-tv {
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }
-        /* The flat grid's self-describing tile: name + «N/M» + verdict. */
-        &__tile-name { font-size: 1rem; }
+        /* Per-ACTION chips on the button, card identity on the plate. */
         &__tile-variant { font-size: var(--con-t-floor); }
         &__tile-status { font-size: var(--con-t-floor); }
-        &__tile-res b { font-size: 1rem; }
+        &__tile-or { font-size: var(--con-t-floor); }
+        &__plate-name { font-size: 1rem; }
+        &__plate-chip b { font-size: 1rem; }
+        &__plate-vp-unit,
+        &__plate-chip em { font-size: var(--con-t-floor); }
         &__res-icon { width: 1.25rem; height: 1.25rem; }
         &__or { font-size: var(--con-t-floor); }
         &__tile { padding: 0.4rem 0.55rem; min-height: var(--con-hit-min); }

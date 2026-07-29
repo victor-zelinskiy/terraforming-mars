@@ -39,6 +39,7 @@ import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} fr
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {branchPositionForNode, branchPositionsForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
+import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 
 type GroupNode = ActionGroup['nodes'][number];
 
@@ -137,7 +138,18 @@ export type ConsoleActionGroup = {
   usedThisGen: boolean;
   /** The stored resource on the source card (microbes/animals/floaters), if any. */
   cardResource: {type: CardResource, count: number} | undefined;
-  tiles: ReadonlyArray<ConsoleActionTile>;
+  /**
+   * The card's RESOURCE-SCORED victory points, when its VP rule counts what is
+   * stored on it (`resourcesHere` — Regolith Eaters, Nitrite Reducing
+   * Bacteria, …). Read-only, from the SHARED scorer the additional-resources
+   * panel uses (`accumulatedVp`) — never a second formula: `points` is what
+   * the card is worth right now, `toNext` how many more resources buy the next
+   * point. `undefined` for a card that merely stores a resource.
+   */
+  vp: {points: number, toNext: number} | undefined;
+  /** The card's action buttons IN GRID ORDER (`joinLeft` marks the one that
+   *  shares a row with the sibling to its left — where the «или» joint goes). */
+  tiles: ReadonlyArray<ConsoleActionFlatTile>;
 };
 
 export type ConsoleFilterChip<T> = {value: T, label: string, count: number, active: boolean};
@@ -163,25 +175,96 @@ export type ConsoleActionsModel = {
 
 /**
  * Pack the visible tiles into the browse grid's FOCUS ROWS, mirroring the CSS
- * layout exactly — a FLAT `columns`-wide grid over the tile order.
+ * layout exactly.
  *
- * The unit of layout is the ACTION BUTTON, never the source card: two tiles
- * stand abreast whether or not they belong to the same card (a row may hold
- * the last variant of one card and the first of the next). Grouping is carried
- * by the tiles themselves — the card name + the «N/M» badge — plus the «или»
- * joint drawn between two siblings that land side by side. That keeps the grid
- * dense and its geometry trivially predictable for the d-pad.
+ * The CARD is the grouping unit and is never split: a single-action card takes
+ * one of the two columns (consecutive singles pack abreast), a card with
+ * ALTERNATIVES takes the whole row — its buttons stand side by side with the
+ * «или» joint on their shared edge, on the SAME physical columns as two
+ * singles, so every action button across the screen shares one width rhythm.
+ * A card that needs the full row after a half-filled one CLOSES that row (the
+ * grid moves on, leaving the hole) — the model mirrors that exactly, so d-pad
+ * geometry always matches what the eye sees.
  */
 export function packActionRows(
   groups: ReadonlyArray<ConsoleActionGroup>,
   columns: 1 | 2 = 2,
 ): Array<Array<string>> {
-  const keys = groups.flatMap((g) => g.tiles.map((t) => t.key));
   const rows: Array<Array<string>> = [];
-  for (let i = 0; i < keys.length; i += columns) {
-    rows.push(keys.slice(i, i + columns));
+  let half: Array<string> | undefined;
+  const flushHalf = () => {
+    if (half !== undefined) {
+      rows.push(half);
+      half = undefined;
+    }
+  };
+  for (const g of groups) {
+    if (g.tiles.length === 1 && columns === 2) {
+      if (half === undefined) {
+        half = [g.tiles[0].key];
+      } else {
+        half.push(g.tiles[0].key);
+        flushHalf();
+      }
+      continue;
+    }
+    flushHalf();
+    if (columns === 1) {
+      // Handheld: one action button per row — the card zone still groups them
+      // visually, but nothing stands abreast.
+      for (const t of g.tiles) {
+        rows.push([t.key]);
+      }
+      continue;
+    }
+    // A card with alternatives owns the full row: its buttons pack two abreast
+    // (the dominant «или» pair fills it exactly; a 3+-variant card wraps onto
+    // as many full rows as it needs).
+    for (let i = 0; i < g.tiles.length; i += columns) {
+      rows.push(g.tiles.slice(i, i + columns).map((t) => t.key));
+    }
   }
+  flushHalf();
   return rows;
+}
+
+/**
+ * PURE: order the groups so the 2-column grid leaves no HOLES.
+ *
+ * A card with alternatives needs a full row, so meeting one while a row is
+ * half-filled used to strand that half empty. This pulls the NEAREST
+ * single-action card forward into the hole — a minimal, local reorder that
+ * never crosses a status band (the availability grouping the player reads
+ * first stays intact) and never splits a card. One column (handheld) has no
+ * holes to fill, so the order passes through untouched.
+ */
+export function arrangeGroupsForGrid<T extends {tiles: ReadonlyArray<unknown>, sortStatus: ActionStatus}>(
+  groups: ReadonlyArray<T>,
+  columns: 1 | 2 = 2,
+): Array<T> {
+  if (columns === 1) {
+    return [...groups];
+  }
+  const rest = [...groups];
+  const out: Array<T> = [];
+  let holeOpen = false; // the current row has one free column
+  while (rest.length > 0) {
+    const next = rest[0];
+    if (holeOpen && next.tiles.length > 1) {
+      // A wide card would close the row — pull the nearest single of the SAME
+      // band into the hole instead (if there is one).
+      const filler = rest.findIndex((g) => g.tiles.length === 1 && g.sortStatus === next.sortStatus);
+      if (filler > 0) {
+        out.push(...rest.splice(filler, 1));
+        holeOpen = false;
+        continue;
+      }
+    }
+    rest.shift();
+    out.push(next);
+    holeOpen = next.tiles.length === 1 ? !holeOpen : false;
+  }
+  return out;
 }
 
 /** PURE: step the focus through the packed rows (clamped — the edge is felt). */
@@ -410,6 +493,24 @@ function branchChoiceKinds(
   return [...kinds];
 }
 
+/**
+ * The card's resource-scored VP right now + the distance to the next point.
+ * Pure display math over the SHARED scorer (`resourceScoring`/`accumulatedVp`
+ * — the same one the ДОП.РЕСУРСЫ panel uses); undefined when the card's VP
+ * rule doesn't count what is stored on it.
+ */
+function resourceVp(cardName: CardName, amount: number): {points: number, toNext: number} | undefined {
+  const scoring = resourceScoring(cardName);
+  if (scoring === undefined) {
+    return undefined;
+  }
+  const points = accumulatedVp(cardName, amount);
+  // Resources needed for point (points + 1): the smallest n with
+  // floor(n * each / per) > points.
+  const needed = Math.ceil(((points + 1) * scoring.per) / scoring.each);
+  return {points, toNext: Math.max(0, needed - amount)};
+}
+
 /** Build a source group's variant tiles, refining each by its preview branch. */
 function buildTiles(
   entry: ActionEntry,
@@ -554,7 +655,8 @@ export function buildConsoleActionsModel(
 ): ConsoleActionsModel {
   const repeatMode = repeat !== undefined;
   // Build every group + its variant tiles (unfiltered), then status-sort.
-  const groups: Array<ConsoleActionGroup> = entries.map((entry) => {
+  type GroupDraft = Omit<ConsoleActionGroup, 'tiles'> & {tiles: ReadonlyArray<ConsoleActionTile>};
+  const groups: Array<GroupDraft> = entries.map((entry) => {
     const cardResource = cardResources.get(entry.cardName);
     const tiles = buildTiles(entry, previews.get(entry.cardName), cardResource, repeat);
     const status = tiles.reduce<ActionStatus>(
@@ -574,6 +676,7 @@ export function buildConsoleActionsModel(
         entry.state.status,
       usedThisGen: tiles[0]?.usedThisGen ?? false,
       cardResource,
+      vp: resourceVp(entry.cardName, cardResource?.count ?? 0),
       tiles,
     };
   });
@@ -607,23 +710,24 @@ export function buildConsoleActionsModel(
   // variant survives (a card whose sole surviving variant is the blocked one
   // still shows — the player can read WHY; a card with no surviving variant
   // is hidden).
-  const visibleGroups: Array<ConsoleActionGroup> = [];
+  const packed: Array<ConsoleActionGroup> = [];
   for (const g of sorted) {
-    const tiles = g.tiles.filter((t) =>
+    const kept = g.tiles.filter((t) =>
       passAvailability(t.status, filter.availability) && passActivation(t, filter.activation, repeatMode));
-    if (tiles.length > 0) {
-      visibleGroups.push({...g, tiles});
+    if (kept.length > 0) {
+      // The «или» JOINT rides the shared edge of two of the CARD's buttons in
+      // the same row — i.e. a non-zero column inside the group's own grid.
+      // One-column profiles stack them, so no tile ever joins there.
+      packed.push({...g, tiles: kept.map((t, i) => ({...t, joinLeft: layoutColumns === 2 && i % 2 === 1}))});
     }
   }
 
-  // The FLAT grid order + the «или» joints: a tile joins the one to its LEFT
-  // when they are sibling variants of the same card AND share a row (column
-  // > 0 in the `layoutColumns`-wide grid).
-  const flat = visibleGroups.flatMap((g) => g.tiles);
-  const tiles: Array<ConsoleActionFlatTile> = flat.map((t, i) => ({
-    ...t,
-    joinLeft: i % layoutColumns !== 0 && flat[i - 1]?.cardName === t.cardName,
-  }));
+  // Fill the grid's holes (a wide card meeting a half-filled row) with the
+  // nearest single of the same band — the ONE order both the DOM and the
+  // packed focus rows use.
+  const visibleGroups = arrangeGroupsForGrid(packed, layoutColumns);
+  // The flat focus order — the same tile objects the groups render.
+  const tiles: ReadonlyArray<ConsoleActionFlatTile> = visibleGroups.flatMap((g) => g.tiles);
 
   return {
     groups: visibleGroups,

@@ -112,6 +112,16 @@ function panelOf(el: Element): HTMLElement | undefined {
   return panel ?? (el instanceof HTMLElement ? el : undefined);
 }
 
+/**
+ * The WORKSPACE FAMILY marker (`con-ws`, docs/claude/console/workspace-band.md):
+ * a decision surface docked right of the player rail, sharing ONE frame box
+ * with every other workspace. Their entrances must not travel — see the
+ * materialize branch in `enterSurface`.
+ */
+function isWorkspaceSurface(el: Element): boolean {
+  return el.classList.contains('con-ws');
+}
+
 /** EVERY panel under the root — a departing action center carries its open
  *  composer with it (the composer's own transition never fires when the
  *  parent unmounts), so the leave must move BOTH panels as one. */
@@ -224,15 +234,49 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
     return;
   }
 
-  // The generic bottom sheet keeps its authored character: it RISES from the
-  // bar band (the retired `con-sheet-up` CSS re-expressed here so the GSAP
-  // runtime owns the property, never fighting a CSS animation).
-  if (id === 'sheet' && kind === 'open') {
-    guarded(el, 230, done, (finish) => gsap.fromTo(panel,
-      {autoAlpha: 0, y: 26 * conUiScale()},
-      {autoAlpha: 1, y: 0, duration: s(220), ease: 'expo.out', clearProps: 'transform,opacity,visibility', onComplete: finish}));
+  // ── THE WORKSPACE FAMILY MATERIALIZES IN PLACE ───────────────────────────
+  // A workspace surface (the `con-ws` marker: everything docked right of the
+  // player rail between the two bars) is a FRAME the player learns the
+  // position of — every one of them shares the same box. So its entrance may
+  // never TRAVEL: a directional push (the wheel handoff's impulse, the
+  // default rise) made the frame land a few px off its final geometry and
+  // snap, which reads as a layout jump rather than motion. The whole family
+  // therefore composes with opacity + a hair of scale ONLY, from its own
+  // centre — the position is right on the first painted frame.
+  // Two deliberate exemptions: a PHASE swap (one surface becoming the next —
+  // its FLIP is the whole point) and the command WHEEL, whose cross assembles
+  // from its own hub without the frame ever moving.
+  if (isWorkspaceSurface(el) && kind !== 'phase' && id !== 'quick') {
+    guarded(el, OPEN_MS + 320, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      tl.fromTo(panel,
+        {autoAlpha: 0, scale: 0.988, transformOrigin: '50% 50%'},
+        {autoAlpha: 1, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
+      // The surface's own dim (the info workspace opens over arbitrary band
+      // surfaces and carries one) fades with the frame, never after it.
+      const backdrop = el.querySelector<HTMLElement>('.con-info__backdrop, .con-sheet__backdrop');
+      if (backdrop !== null) {
+        tl.fromTo(backdrop, {opacity: 0}, {opacity: 1, duration: s(200), ease: 'power1.out', clearProps: 'opacity'}, 0);
+      }
+      contentCascade(id, el, tl, s(40));
+      // The wheel's pressed symbol ECHOES on the destination (a local
+      // materialize — nothing travels), the one handoff cue kept here.
+      const echo = kind === 'wheel-handoff' ? takeWheelEcho() : undefined;
+      const echoEl = echo !== undefined ?
+        el.querySelector<HTMLElement>(`[data-wheel-anchor="${echo}"]`) : null;
+      if (echoEl !== null) {
+        tl.fromTo(echoEl,
+          {autoAlpha: 0, scale: 0.8},
+          {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
+      }
+      return tl;
+    });
     return;
   }
+
+  // (The generic bottom sheet's authored rise-from-the-bar is retired: the
+  // sheet is a WORKSPACE surface now and shares the family's materialize —
+  // one entrance language for every screen docked beside the rail.)
 
   // THE INFORMATION WORKSPACE (Y): the frame UNFOLDS from the left rail's
   // seam — the workspace reads as the rail's own detail surface extending
