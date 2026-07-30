@@ -325,6 +325,43 @@ body.con-zoom-open .con-handdock {
     align-self: stretch;
 }
 
+/* THE STAGE PLATE — the ONE quiet plane a workspace stage stands on (the
+   blue-action configuration surface, its outcome zone, and any future
+   in-workspace stage). A single material for every stage of a flow is what
+   makes «the same plate, one stage deeper» literally true on screen: the
+   unfold opens THIS plane out of the previous one's rect, and nothing about
+   its dress says «a different panel arrived». Alloy fall-off, a hairline
+   ring, a machined top seam — one step calmer than a slot, never a second
+   loud frame around content that carries its own chrome. */
+.con-stage-plate() {
+    border-radius: .7rem;
+    background:
+        linear-gradient(90deg, transparent 8%, rgba(150, 200, 240, 0.16) 50%, transparent 92%) no-repeat top center / 100% .06rem,
+        linear-gradient(168deg, rgba(20, 31, 46, 0.62) 0%, rgba(11, 18, 28, 0.66) 60%, rgba(8, 13, 21, 0.7) 100%);
+    box-shadow:
+        inset 0 .06rem 0 rgba(210, 235, 255, 0.045),
+        inset 0 0 0 .05rem rgba(120, 150, 180, 0.18),
+        0 .5rem 1.4rem rgba(0, 0, 0, 0.38);
+}
+
+/* The plate's SOURCE TETHER — the quiet accent segment on the card-facing
+   edge, centred on the shared axis with the hero card. One visual sentence
+   («this plane continues that card's action») reused by every stage of the
+   flow, so the tether's persistence across setup → result is itself the
+   continuity cue. */
+.con-stage-tether() {
+    content: '';
+    position: absolute;
+    left: -.05rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: .14rem;
+    height: min(5.4rem, 60%);
+    border-radius: .1rem;
+    background: linear-gradient(180deg, transparent 0%, fade(@con-cyan, 55%) 32%, fade(@con-cyan, 55%) 68%, transparent 100%);
+    pointer-events: none;
+}
+
 /* Any workspace surface is up (or still dismissing): drop .con-main's
    stacking trap and lift the rail ABOVE the whole workspace family
    (11460 shade / 11480–11515 surfaces < 11520 rail < 11700 bars) — the
@@ -9860,16 +9897,30 @@ html.console-mode {
             box-shadow: none;
         }
         /* The head loses its own identity block (the kicker went UP into the
-           workspace breadcrumb): what is left is the server's INSTRUCTION, so
-           it reads as a line of the current stage, not as a screen title
-           competing with «ДЕЙСТВИЯ КАРТ › ПОКУПКА · <карта>» above it. */
-        .con-task__head { padding-top: 0; }
+           workspace breadcrumb): what is left is the STAGE INSTRUCTION —
+           «Купить открытую карту?» — the one sentence naming the decision.
+           Primary-instruction voice: clearly above the supporting copy,
+           clearly below the workspace's own header line; centred over the
+           result it instructs about. */
+        .con-task__head { padding-top: 0; text-align: center; }
+        .con-task__pickline { justify-content: center; }
         .con-task__title--embedded {
-            font-size: .95rem;
-            font-weight: 600;
-            letter-spacing: .01em;
-            color: @con-text-dim;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: .02em;
+            color: fade(@con-text, 96%);
         }
+        /* The line under the result card is STATUS, not a second command bar:
+           the glass box and the glyph chips belong to the standalone host —
+           here the bottom bar owns every verb, and this line carries what the
+           bar cannot (the focused card's name + its economics). */
+        .con-cards__verdictbar {
+            min-height: 2.2rem;
+            background: none;
+            box-shadow: none;
+        }
+        .con-cards__verdict-inner { justify-content: center; }
+        .con-cards__verdict-name { font-size: .95rem; }
     }
 
     /* NO __backdrop rule: the host AND every chassis reuser (colony-trade
@@ -11063,6 +11114,16 @@ html.con-scale-focus-venus .arc-scale--venus {
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.35);
         color: @con-text-dim;
+    }
+    /* The EMBEDDED status line's economics chip («Цена карты: 3 М€») — plain
+       information, deliberately the calmest voice on the line (the picked /
+       blocked states keep their stronger colours). */
+    &__verdict--price {
+        background: rgba(12, 20, 30, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.32);
+        color: fade(@con-text, 92%);
+        b { font-weight: 800; font-variant-numeric: tabular-nums; }
+        .con-task__buysum-mc { margin-left: .1rem; }
     }
     &__verdict--go {
         background: fade(@con-mint, 14%);
@@ -14617,26 +14678,39 @@ html.console-mode {
 
         .bar-btn-icon { width: 100%; height: 100%; }
     }
-    /* The section identity — always visible; the breadcrumb root in focus. */
+    /* ── HEADER TYPOGRAPHY ROLES — three distinct voices on ONE line, one
+       shared baseline, zero restyling between stages:
+       · PARENT («ДЕЙСТВИЯ КАРТ») — the stable frame of reference. Same box,
+         same weight, same colour in browse AND in flow: it must behave
+         exactly like the source card — never re-styled, never re-animated.
+         Its voice is deliberately one step calmer (weight + solid colour) so
+         it frames without competing.
+       · SUBJECT (the card name) — the flow's anchor and its brightest,
+         heaviest word: full-white gradient + the top weight. Hierarchy is
+         weight-first, so it survives desaturation and TV picture modes.
+       · STAGE — a compact accent marker: smaller, tracked caps in the system
+         accent (cyan pre-commit → amber past the commit boundary).
+       The separators recede to hairline guides — they are punctuation, not
+       content. ── */
     &__ident-section {
-        font-size: 1.1rem; font-weight: 800; letter-spacing: .06rem; text-transform: uppercase; line-height: 1.1;
-        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
-        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        font-size: 1.1rem; font-weight: 700; letter-spacing: .06rem; text-transform: uppercase; line-height: 1.1;
+        color: fade(#cfe4f7, 80%);
         white-space: nowrap;
     }
-    /* The focus-stage breadcrumb («Действия карт › Настройка действия»). */
-    &__kicker-sep { color: fade(@con-cyan, 50%); }
+    /* The focus-stage breadcrumb («Действия карт › <карта> › Настройка»). */
+    &__kicker-sep { color: fade(@con-cyan, 36%); font-size: .95rem; }
     &__kicker-step {
-        font-size: .75rem; letter-spacing: .1rem; text-transform: uppercase;
+        font-size: .8rem; font-weight: 700; letter-spacing: .12rem; text-transform: uppercase;
         color: fade(@con-cyan, 92%); white-space: nowrap;
     }
     /* Repeat mode names the source card (ProjInsp / Viron) in the breadcrumb. */
     &__kicker-src { color: @con-text; font-size: .9rem; font-weight: 700; white-space: nowrap; }
-    /* The composed card's name (focus stage) — the operation's title. */
+    /* The composed card's name (focus stage) — the operation's title and the
+       line's PRIMARY voice. */
     &__title {
         min-width: 0;
         font-size: 1.1rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase; line-height: 1.1;
-        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        background: linear-gradient(180deg, #ffffff 0%, #e6f3ff 100%);
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
@@ -14684,8 +14758,22 @@ html.console-mode {
             pointer-events: none;
         }
     }
+    /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the
+       card name first, then the stage, then the variant chip — the header
+       reads as the same line unfolding a deeper context, never as a new
+       header arriving. Mount-time (the tail mounts with the composer), so
+       it composes with the layer crossfade and never replays on a stage
+       change (those swap through the keyed crossfade inside the cells).
+       Children 1-2 = sep + card name, 3-4 = sep + stage, 5 = variant chip. */
+    &__aux-layer--focus > * {
+        animation: con-crumb-rise calc(190ms * var(--motion-scale, 1)) ease backwards;
+    }
+    &__aux-layer--focus > :nth-child(3),
+    &__aux-layer--focus > :nth-child(4) { animation-delay: calc(80ms * var(--motion-scale, 1)); }
+    &__aux-layer--focus > :nth-child(5) { animation-delay: calc(150ms * var(--motion-scale, 1)); }
     @media (prefers-reduced-motion: reduce) {
         &__aux-layer { transition: none; }
+        &__aux-layer--focus > * { animation: none; }
     }
     /* The counts close the browse layer; the filters take the middle. */
     &__head-stats { order: 3; display: flex; align-items: center; gap: .45rem; margin-left: auto; }
@@ -15411,6 +15499,11 @@ html.console-mode {
 .con-cardactions-headswap-enter-from { opacity: 0; transform: translateY(.18rem); }
 .con-cardactions-headswap-leave-to { opacity: 0; transform: translateY(-.14rem); }
 
+/* The breadcrumb tail's mount-time rise (same travel family as headswap). */
+@keyframes con-crumb-rise {
+    from { opacity: 0; transform: translateY(.16rem); }
+}
+
 /* The focus stage's hero-face micro-swap (a Viron repeat re-points the card
    without a remount — the slot stays, only the face crossfades). */
 .con-actfocus-card-enter-active,
@@ -15996,6 +16089,29 @@ html.console-mode {
         width: 1.25rem; height: 1.25rem;
         background-size: contain !important; background-repeat: no-repeat; background-position: center;
     }
+    /* POST-COMMIT ROLE CAPTION — the hero card's quiet «ИСТОЧНИК» line. It
+       appears once the action is committed (the decision moved to the result
+       column) and carries the L3 glyph the command bar also advertises: the
+       source stays readable and one press away without ever being dimmed.
+       Caption-tier type; a mount-time rise, delayed a beat so it follows the
+       stage rather than competing with it. */
+    .con-composer__cardrole {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin-top: -.2rem;
+        font-size: .68rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 90%);
+        animation: con-crumb-rise calc(220ms * var(--motion-scale, 1)) ease backwards calc(140ms * var(--motion-scale, 1));
+        /* Caption-tier glyph (the established keycap-scale idiom). */
+        .gp-glyph { transform: scale(.78); transform-origin: right center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .con-composer__cardrole { animation: none; }
+    }
 
     /* ── THE CONFIGURATION SURFACE — what the pressed action slot UNFOLDS
        into (workspaceDescend: the panel is clipped down to the slot's rect
@@ -16012,18 +16128,38 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        max-width: 100%;
+        /* HUG the hero: the plate caps at a reading width and sits against
+           the card-facing edge of the column instead of stretching to the
+           band's far side — the card and its working plane read as ONE
+           composed scene, and the spare width stays air, not panel. */
+        max-width: min(50rem, 100%);
         padding: .55rem .7rem .6rem;
-        border-radius: .7rem;
-        background:
-            linear-gradient(90deg, transparent 8%, rgba(150, 200, 240, 0.16) 50%, transparent 92%) no-repeat top center / 100% .06rem,
-            linear-gradient(168deg, rgba(20, 31, 46, 0.62) 0%, rgba(11, 18, 28, 0.66) 60%, rgba(8, 13, 21, 0.7) 100%);
-        box-shadow:
-            inset 0 .06rem 0 rgba(210, 235, 255, 0.045),
-            inset 0 0 0 .05rem rgba(120, 150, 180, 0.18),
-            0 .5rem 1.4rem rgba(0, 0, 0, 0.38);
+        .con-stage-plate();
+        /* The tether opens WITH the plate (the unfold clips pseudos too), so
+           the card ↔ plane link is part of the same phrase, not an arrival. */
+        &::before { .con-stage-tether(); }
         /* The scroll + CTA keep their own rhythm inside the plane. */
         .con-composer__scroll { min-height: 0; }
+        /* THE CONSEQUENCE LINE — inside the plate it sheds its own box (a
+           box in a box read as a second card floating in the panel) and
+           lays out as ONE reading line: label · chips → label · chips. The
+           plate is the plane; the chips are the chrome; a second frame
+           between them was pure noise. */
+        .con-composer__hero {
+            padding: .15rem 0 0;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+            align-items: center;
+            column-gap: .9rem;
+            row-gap: .45rem;
+        }
+        .con-composer__hero-side {
+            flex-direction: row;
+            align-items: center;
+            gap: .55rem;
+        }
+        .con-composer__hero-label { white-space: nowrap; }
     }
 
     /* THE RULE BLOCK — the surface's semantic lead: what this action does,
@@ -16033,7 +16169,9 @@ html.console-mode {
        eye down to the formula. */
     .con-composer__rules {
         flex-shrink: 0;
-        max-width: min(44rem, 100%);
+        /* The SEAM spans the whole plate (a hairline stopping mid-plate read
+           as a second, phantom edge); only the TEXT keeps the reading cap. */
+        max-width: 100%;
         padding-bottom: .5rem;
         margin-bottom: .55rem;
         box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.14);
@@ -16060,6 +16198,7 @@ html.console-mode {
     }
     .con-composer__rule-text {
         margin: 0;
+        max-width: min(44rem, 100%);
         font-size: .95rem;
         line-height: 1.4;
         color: fade(@con-text, 96%);
@@ -16072,13 +16211,17 @@ html.console-mode {
     }
 
     /* The CTA DOCK — pinned under the decision scroll (flex sibling), so the
-       operation's exit is ALWAYS on screen, never behind a scrollbar. */
+       operation's exit is ALWAYS on screen, never behind a scrollbar. A
+       machined hairline seam above it closes the plate's reading ladder:
+       rule → consequence → commit. */
     .con-composer__ctadock {
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
         gap: .3rem;
-        padding-top: .45rem;
+        margin-top: .5rem;
+        padding-top: .5rem;
+        box-shadow: 0 -.05rem 0 rgba(120, 150, 185, 0.14);
     }
     /* The honest disabled-CTA reason (names the first missing decision). */
     .con-composer__cta-hint {
@@ -16097,6 +16240,7 @@ html.console-mode {
        proxy → card swap is pixel-true) and the status line under it
        («Вскрываем карту» → the ✓/✕ verdict). ── */
     .con-composer__revealzone {
+        position: relative;
         flex: 0 1 auto;
         min-height: 0;
         display: flex;
@@ -16104,6 +16248,21 @@ html.console-mode {
         align-items: center;
         justify-content: center;
         gap: .9rem;
+        /* THE SAME PLATE the configuration surface stood on — the outcome is
+           the next stage of the same plane, and wearing the same material
+           (plus the same source tether on the card-facing edge) is what makes
+           the unfold read as one surface advancing rather than a new panel
+           arriving. Docked to the CARD-FACING edge like the setup plate was:
+           the result stands beside its source, and the spare band width stays
+           air on the far side — never a gap opening between cause and effect.
+           The deck-check zone HUGS its slot; the draw/pick zone stretches
+           (below). */
+        .con-stage-plate();
+        padding: .7rem .8rem .75rem;
+        align-self: flex-start;
+        min-width: min(30rem, 100%);
+        max-width: 100%;
+        &::before { .con-stage-tether(); }
     }
     /* ── THE DRAW PHASE («Действия карт › Добор карт») — the same column,
        now hosting the EMBEDDED reveal. It STRETCHES (unlike the deck-check
@@ -16116,6 +16275,7 @@ html.console-mode {
     .con-composer__revealzone--draw {
         flex: 1;
         align-self: stretch;
+        min-width: 0;
     }
     /* THE EXECUTION BEAT's landing slot: the same box the revealed card will
        occupy, so the proxy touches down pixel-true and the real surface takes

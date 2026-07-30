@@ -3620,10 +3620,6 @@ export default defineComponent({
             closer: this.revealDiscardCloser,
             hasCardSource: ev?.source?.type === 'card',
             hasDiscards: ev?.sequence?.some((step) => !step.matched) === true,
-            // Embedded: the source card is the workspace's standing hero, so
-            // the L3 «Источник» entry would spend a bar slot reaching a card
-            // that is already on screen.
-            embedded: this.revealEmbedTarget !== undefined,
           }));
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'secondary', label: 'Inspect'});
@@ -7245,6 +7241,19 @@ export default defineComponent({
         if (task?.kind === 'projectCard' && task.mode === 'standardProject') {
           this.openShellTaskSurface(task);
         }
+        return;
+      }
+      // An EMBEDDED task's «Свернуть» folds the WHOLE workspace that hosts it —
+      // the atomic collapse (sheet closed + composer contract reset), never a
+      // bare deferred flag. The task host is the B-owner during an embedded
+      // pick (input routes to it before the workspace), so without this route
+      // the flag rises while `sheet === 'cardActions'` stays set: the exact
+      // iteration-16 half-collapse — the «вернуться» card never appears
+      // (mandatoryAnnounceVisible needs sheet === undefined), input keeps
+      // routing into the invisible workspace, and the bar keeps advertising a
+      // stage that no longer serves.
+      if (this.taskEmbedTarget !== undefined) {
+        this.onCardActionsCollapse();
         return;
       }
       this.consoleState.task.deferred = true;

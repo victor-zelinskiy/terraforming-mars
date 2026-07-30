@@ -40,7 +40,11 @@
           <!-- Card browser: the live pick counter (multi only) + BUY economics.
                The buy price is per-card RESEARCH cost (base 3 M€), never the
                card's printed cost — see buyCostPerCard. -->
-          <div v-if="activeTask.kind === 'cardSelect' && (!singlePick || isBuyMode)" class="con-task__pickline">
+          <!-- EMBEDDED single card: the counters fold away — «Выбрано 0/1»
+               and a running total are mass-selector instruments, and for one
+               revealed card the economics live on the card's own status line
+               below (price / balance after). Multi-card keeps them all. -->
+          <div v-if="activeTask.kind === 'cardSelect' && (!singlePick || isBuyMode) && !embeddedSingleBuy" class="con-task__pickline">
             <span v-if="!singlePick" class="con-task__pickcount" :class="{'con-task__pickcount--ready': cardPicksValid}">
               {{ $t('Selected') }}: <b>{{ picks.length }}</b><template v-if="cardMax > 0"> / {{ cardMax }}</template>
             </span>
@@ -276,24 +280,48 @@
                       <span aria-hidden="true">✕</span>
                       <span>{{ focusedCardEntry.reason !== '' ? focusedCardEntry.reason : $t('Unavailable right now') }}</span>
                     </span>
-                    <span v-else-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
-                      <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                    </span>
-                    <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
-                      <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
-                    </span>
-                    <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
-                      <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
-                    </span>
-                    <span v-else class="con-cards__verdict con-cards__verdict--blocked">
-                      <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
-                    </span>
-                    <span class="con-cards__verdict con-cards__verdict--zoom">
-                      <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
-                    </span>
-                    <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
-                      <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
-                    </span>
+                    <!-- EMBEDDED (inside a workspace): this line is STATUS, not a
+                         second command bar — the bottom bar is the one source of
+                         gamepad verbs, and repeating A/X/RT here made two footers
+                         compete. What earns its place beside the card is what the
+                         bar cannot say: the card's own economics. -->
+                    <template v-else-if="embedded">
+                      <template v-if="embeddedSingleBuy">
+                        <span class="con-cards__verdict con-cards__verdict--price">
+                          <span>{{ $t('Card price') }}: <b>{{ buyCostPerCard }}</b></span>
+                          <i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i>
+                        </span>
+                        <span v-if="isPicked(focusedCardEntry.card.name) && cardBuyAffordable" class="con-cards__verdict con-cards__verdict--picked">
+                          <span>{{ $t('After purchase') }}: <b>{{ megacreditsAfterPurchase }}</b></span>
+                          <i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i>
+                        </span>
+                      </template>
+                      <!-- A blocked STATE is information, not a command — it stays. -->
+                      <span v-else-if="!singlePick && !isPicked(focusedCardEntry.card.name) && !canPickFocusedCard"
+                            class="con-cards__verdict con-cards__verdict--blocked">
+                        <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span v-if="singlePick" class="con-cards__verdict con-cards__verdict--ok">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                      </span>
+                      <span v-else-if="isPicked(focusedCardEntry.card.name)" class="con-cards__verdict con-cards__verdict--picked">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Deselect') }}</span>
+                      </span>
+                      <span v-else-if="canPickFocusedCard" class="con-cards__verdict con-cards__verdict--ok">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Select') }}</span>
+                      </span>
+                      <span v-else class="con-cards__verdict con-cards__verdict--blocked">
+                        <span aria-hidden="true">✕</span><span>{{ $t('Deselect another card first') }}</span>
+                      </span>
+                      <span class="con-cards__verdict con-cards__verdict--zoom">
+                        <GamepadGlyph control="secondary" /><span>{{ $t('Inspect') }}</span>
+                      </span>
+                      <span v-if="!singlePick && confirmReady" class="con-cards__verdict con-cards__verdict--go">
+                        <GamepadGlyph control="triggerR" /><span>{{ $t(cardConfirmLabel) }}</span>
+                      </span>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -393,7 +421,7 @@ import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
-import {setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
+import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -621,6 +649,12 @@ export default defineComponent({
       // Other kinds AND every nested step keep the descriptive server title.
       if (this.nested === undefined && this.activeTask.kind === 'cardSelect') {
         if (this.isBuyMode) {
+          // EMBEDDED single card: the mass-selector title misnames the moment.
+          // ONE card was just revealed by the player's own action, and the
+          // decision is buy-or-decline — not «select cards» out of a set.
+          if (this.embeddedSingleBuy) {
+            return translateText('Buy the revealed card?');
+          }
           return translateText('Select cards to purchase');
         }
         // Only the single-keep draft gets the "1 card" title; a multi-keep
@@ -667,6 +701,32 @@ export default defineComponent({
     sourceCardName(): CardName | undefined {
       const source = this.parentWf?.choiceContext?.source;
       return source !== undefined && 'card' in source ? (source.card as CardName | undefined) : undefined;
+    },
+    /**
+     * The workspace claim's SOURCE card — the action whose activation produced
+     * this pick. Present only while EMBEDDED (the claim is exactly what
+     * re-homed this host into the workspace), and it is what L3 inspects —
+     * the console-wide «X = the current object, L3 = its source» grammar.
+     * A prompt carries no source attribution of its own (see
+     * workspaceClaimsPick), so the claim is the one honest place to read it.
+     */
+    workspaceSourceCard(): CardName | undefined {
+      if (!this.embedded) {
+        return undefined;
+      }
+      const name = workspaceOutcomeState.sourceCard;
+      return name !== '' ? (name as CardName) : undefined;
+    },
+    /**
+     * ONE revealed card offered for purchase inside the workspace — the
+     * presentation adapts: the title asks the actual question, the top
+     * pickline folds away, and the card's own status line carries the
+     * economics (price / balance after). The multi-card composition is the
+     * same component with the counters back on.
+     */
+    embeddedSingleBuy(): boolean {
+      return this.embedded && this.activeTask.kind === 'cardSelect' &&
+        this.isBuyMode && this.cardEntries.length === 1;
     },
     warningTexts(): Array<string> {
       const warnings = (this.wf as {warnings?: ReadonlyArray<string>} | undefined)?.warnings ?? [];
@@ -1159,9 +1219,14 @@ export default defineComponent({
           // PICK phase (draft / single target): A commits the focused card in
           // one press — no toggle-then-confirm, no re-pick. RT (otherwise free)
           // opens the drafted-cards viewer in a single-keep draft.
-          const pickHints: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
+          const pickHints: Array<ConsoleCommand> = [
             nav, {control: 'confirm', label: 'Select'}, inspect,
           ];
+          if (this.workspaceSourceCard !== undefined) {
+            // Discoverable nowhere else → survives the Deck bar's fit drops
+            // longer than the self-evident stick/dpad hints (default 3).
+            pickHints.push({control: 'stickL', label: 'Source', priority: 1});
+          }
           if (this.canInspectDrafted) {
             pickHints.push({control: 'triggerR', label: 'Drafted'});
           }
@@ -1169,13 +1234,24 @@ export default defineComponent({
           return pickHints;
         }
         // BUY / multi phase: A toggles the pick, RT commits the whole set.
-        return [
+        // Embedded: L3 re-opens the SOURCE card fullscreen (X belongs to the
+        // revealed result here — the same X/L3 split every reveal stage uses).
+        const buyHints: Array<ConsoleCommand> = [
           nav,
           {control: 'confirm', label: 'Select / Deselect'},
           inspect,
-          {control: 'triggerR', label: this.cardConfirmLabel, enabled: this.confirmReady},
-          defer,
         ];
+        if (this.workspaceSourceCard !== undefined) {
+          // Discoverable nowhere else → outlives the self-evident hints in
+          // the Deck bar's fit drops (stick default is 3 = first to go).
+          buyHints.push({control: 'stickL', label: 'Source', priority: 1});
+        }
+        // The stage's COMMIT verb: with the embedded status line carrying no
+        // glyph chips anymore, the bar is the ONE place RT is discoverable —
+        // it must be the last droppable standing.
+        buyHints.push({control: 'triggerR', label: this.cardConfirmLabel, enabled: this.confirmReady, priority: 0});
+        buyHints.push(defer);
+        return buyHints;
       }
       default:
         return selectThenConfirm;
@@ -1379,6 +1455,13 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
+      // L3 = the workspace SOURCE, fullscreen (embedded only — the claim is
+      // what knows which card's action produced this pick). The stage under
+      // the viewer is never unmounted: selection, cost and focus all survive.
+      if (intent.kind === 'press' && intent.button === 'stickL' && this.workspaceSourceCard !== undefined) {
+        this.zoomWorkspaceSource();
+        return;
+      }
       const action = consoleActionOf(intent);
       if (action !== undefined) {
         this.onPress(action);
@@ -1572,6 +1655,29 @@ export default defineComponent({
             const host = this.$refs.sourceCard as HTMLElement | null | undefined;
             return host?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
           },
+        },
+      });
+    },
+    /**
+     * L3 (embedded): fullscreen the workspace SOURCE — the card whose action
+     * produced this pick. Read-only (no select/action bridge), lifting
+     * physically out of the workspace's standing hero slot and returning into
+     * it on close; the pick stage itself is never unmounted, so the selection,
+     * the cost math and the focused card all survive the round trip.
+     */
+    zoomWorkspaceSource(): void {
+      const name = this.workspaceSourceCard;
+      if (name === undefined) {
+        return;
+      }
+      const card = this.playerView.thisPlayer.tableau.find((c) => c.name === name) ?? {name};
+      openConsoleCardZoom([card as CardModel], 0, undefined, undefined, {
+        contextLabel: 'Card actions',
+        statusLabel: 'Source',
+        origin: {
+          kind: 'physical',
+          resolve: () => document.querySelector<HTMLElement>(
+            `[data-motion-surface="action-composer"] [data-zoom-slot="${CSS.escape(String(name))}"]`),
         },
       });
     },

@@ -16,10 +16,10 @@ The **desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN** (2026-07-15)
 
 ## ⭐ A WORKSPACE IS ONE FLOW — not a set of screens
 
-**The reference is «Действия карт»: список действий → `› НАСТРОЙКА ДЕЙСТВИЯ` → `› ПОКУПКА / ДОБОР КАРТ` → возврат.** Every stage the player reaches from inside a workspace must satisfy ALL FOUR, or it is not done:
+**The reference is «Действия карт»: список действий → `› <карта> › НАСТРОЙКА` → `› <карта> › ПОКУПКА / ДОБОР КАРТ` → возврат.** Every stage the player reaches from inside a workspace must satisfy ALL FOUR, or it is not done:
 
 1. **EMBEDDED, not a new surface.** The stage renders INSIDE the workspace (claim + `<Teleport>` of the SAME instance — never a second copy). A standalone band is only for what the player did NOT open: a board event, another player's turn, a result with no natural parent.
-2. **The breadcrumb is CONTINUOUS.** One line, one place: `ДЕЙСТВИЯ КАРТ › <ЭТАП> · <Имя карты>`. The workspace name and the card name NEVER disappear or restart — only the middle step advances. **An embedded surface must not title itself**: it hands its stage name UP (`setWorkspaceOutcomePhase`) instead of drawing its own kicker. A surface that announces itself inside someone else's frame reads as a modal that arrived.
+2. **The breadcrumb is CONTINUOUS.** One line, one place: `ДЕЙСТВИЯ КАРТ › <Имя карты> › <ЭТАП>` (stable context BEFORE the mutable stage — the tail is the only thing that advances). The workspace name and the card name NEVER disappear or restart. **An embedded surface must not title itself**: it hands its stage name UP (`setWorkspaceOutcomePhase`) instead of drawing its own kicker. A surface that announces itself inside someone else's frame reads as a modal that arrived.
 3. **The transition is the SAME PHRASE, one level deeper.** COMMIT → RELEASE (the old content lets go ON THE SPOT) → UNFOLD (the new zone opens from the rect the old one occupied) → REVEAL (its content surfaces from inside). A `v-if` swap is a BLINK and is never acceptable. Frame, band, rail and the carried card do not move — one surface advances, a screen does not replace another.
 4. **Back is one logical level**, and the carried object (the card) survives it.
 
@@ -29,7 +29,10 @@ The **desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN** (2026-07-15)
 - **Collapse ≠ close.** The workspace hides (`v-show`) and keeps its state: same revealed card, same picks, no replayed cinematic, no second trip to the server. It rides the existing deferred-prompt flag, so «свернуть» stays ONE concept.
 
 ### The HEADER grammar (`consoleWorkspaceHeader.ts`)
-**Stable context BEFORE mutable stage:** `ДЕЙСТВИЯ КАРТ › СОЮЗ ИЗОБРЕТАТЕЛЕЙ › ПОКУПКА`. The crumb only ever *gains a tail*; root and subject are the same vnodes all flow long, so **only the stage segment animates** (crossfade in a shared grid cell — `mode="out-in"` empties the slot and blinks). Putting the stage in the middle re-flows the line every phase and reads as arriving somewhere else.
+**Stable context BEFORE mutable stage:** `ДЕЙСТВИЯ КАРТ › СОЮЗ ИЗОБРЕТАТЕЛЕЙ › ПОКУПКА`. The crumb only ever *gains a tail*; root and subject are the same vnodes all flow long, so **only the stage segment animates** (crossfade in a shared grid cell — `mode="out-in"` empties the slot and blinks). Putting the stage in the middle re-flows the line every phase and reads as arriving somewhere else. **Hierarchy is typographic, never positional:** the parent title keeps ONE style in browse and in flow (calm weight/solid colour — it behaves like the source card: never re-styled, never re-scaled, never re-animated); the CARD NAME is the line's brightest, heaviest voice; the stage is a compact tracked-caps accent (cyan pre-commit → amber past the commit boundary) that must survive desaturation by weight, not colour alone. Stage names are one word where possible («НАСТРОЙКА», not «НАСТРОЙКА ДЕЙСТВИЯ» — never echo the root's noun).
+
+### Source inspection grammar (console-wide)
+**X inspects the CURRENT object; L3 inspects the SOURCE that produced it.** Pre-commit the source IS the current object (X = source, no L3). Past the commit X belongs to the result, so every post-commit stage — deck-check verdict, drawn batch, embedded purchase — offers `L3 Источник` (the workspace claim's `sourceCard` is what knows it); the hero card wears a quiet «ИСТОЧНИК» caption with the L3 glyph. The fullscreen viewer opens over the stage without unmounting it — selection, cost and focus survive.
 
 ### Physical causality
 A card **always leaves from its real on-screen source** — an action that took the top card deals from `.con-deckstack__pile`, never from a synthetic dealer. A result **outlives the surface that produced it**: it detaches into an app-level layer, the workspace collapses, and only then does it fly to the *measured* destination (hand dock / discard). Every animation answers: where did this come from, why is it moving, where is it going.

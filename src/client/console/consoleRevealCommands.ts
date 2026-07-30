@@ -33,13 +33,6 @@ export type DrawnRevealCommandCtx = {
   hasCardSource: boolean;
   /** The conditional search discarded at least one card → R3 opens the pile. */
   hasDiscards: boolean;
-  /**
-   * EMBEDDED hosts drop L3. The source card is the workspace's standing hero —
-   * already on screen, one X away — so advertising a second way to reach it
-   * spends a scarce bar slot on a no-op. (X still inspects the focused card in
-   * both hosts; only this redundant entry differs.)
-   */
-  embedded?: boolean;
 };
 
 /**
@@ -52,8 +45,16 @@ export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<Console
   const closerReady = ctx.closer?.ready === true;
   cmds.push({control: 'confirm', label: closerReady ? (ctx.closer?.label ?? 'Take card') : 'Take card'});
   cmds.push({control: 'secondary', label: 'Inspect'});
-  if (ctx.hasCardSource && ctx.embedded !== true) {
-    cmds.push({control: 'stickL', label: 'Source'});
+  if (ctx.hasCardSource) {
+    // L3 = the SOURCE, in BOTH hosts. The embedded workspace does keep the
+    // source hero standing beside the result — but past the commit X belongs
+    // to the RESULT, so without this entry the source would have no inspect
+    // verb at all. One console-wide grammar: X = the current object, L3 = the
+    // source that produced it.
+    // priority 1 (not the stick default 3): unlike the global stick hints,
+    // this verb is discoverable NOWHERE else — the narrow Deck bar must shed
+    // the self-evident hints before it ever sheds this one.
+    cmds.push({control: 'stickL', label: 'Source', priority: 1});
   }
   if (ctx.hasDiscards) {
     cmds.push({control: 'stickR', label: 'Discarded pile'});

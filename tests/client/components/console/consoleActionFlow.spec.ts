@@ -26,7 +26,10 @@ describe('consoleActionFlow', () => {
 
   describe('focusKicker', () => {
     it('names the stage by its PHASE — a CTA does not make the setup screen a separate «confirmation» step', () => {
-      expect(focusKicker('setup')).to.eq('Action setup');
+      // «Настройка», not «Настройка действия»: the crumb already fixes the
+      // «ДЕЙСТВИЯ КАРТ › <карта> ›» context, so repeating «действия» made the
+      // one mutable word read as a third heading.
+      expect(focusKicker('setup')).to.eq('Setup');
       expect(focusKicker('reveal')).to.eq('Reveal result');
     });
   });

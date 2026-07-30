@@ -223,6 +223,52 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   };
 }
 
+/**
+ * THE SETTLE — the landed proxy moves onto the REAL card's rect, then hands
+ * over.
+ *
+ * The beat lands on its own slot, but the surface that takes the zone
+ * afterwards lays the card out in its own geometry (a pick row is not the
+ * beat's centred slot). Swapping straight from one to the other is a visible
+ * JUMP at the very end of an otherwise physical arrival — the card teleports
+ * the moment it finishes travelling.
+ *
+ * So the proxy travels the last, short leg itself and only then dissolves.
+ * `onDone` always fires (missing target / reduced motion → immediately), so a
+ * caller can rely on it to release the proxy.
+ */
+export function settleRevealProxyOnto(args: {
+  proxy: HTMLElement,
+  target: HTMLElement | null | undefined,
+  onDone: () => void,
+}): void {
+  const {proxy, target, onDone} = args;
+  let done = false;
+  const finish = () => {
+    if (!done) {
+      done = true;
+      onDone();
+    }
+  };
+  const rect = target?.getBoundingClientRect();
+  if (typeof window === 'undefined' || rect === undefined || rect.width < 10 ||
+      consoleReducedMotionActive()) {
+    finish();
+    return;
+  }
+  const scaleTo = Math.max(0.05, rect.width / CARD_NATURAL_W);
+  gsap.to(proxy, {
+    x: rect.left,
+    y: rect.top,
+    scale: scaleTo,
+    duration: s(260),
+    ease: 'power3.inOut',
+    onComplete: finish,
+  });
+  // Never strand the proxy if the tween is dropped (backgrounded tab).
+  window.setTimeout(finish, motionMs(260) + 400);
+}
+
 // ── The GAIN beat (condition met) ───────────────────────────────────────────
 
 /** The short pause after the verdict before the reward starts moving. */

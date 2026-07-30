@@ -101,7 +101,11 @@ export function focusKicker(phase: FocusPhase): string {
   switch (phase) {
   case 'reveal': return 'Reveal result';
   case 'draw': return 'Card draw';
-  default: return 'Action setup';
+  // «Настройка», not «Настройка действия»: the stage marker follows the fixed
+  // «ДЕЙСТВИЯ КАРТ › <карта> ›» context, so repeating «действия» made the one
+  // mutable word read as a third heading (and echoed the root). Off-workspace
+  // references (the hand pick's context chip) keep the fuller 'Action setup'.
+  default: return 'Setup';
   }
 }
 

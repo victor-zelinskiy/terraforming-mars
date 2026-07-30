@@ -45,6 +45,16 @@
           <b>{{ displayedStoredCount }}</b>
           <span>{{ $t('on this card') }}</span>
         </div>
+        <!-- POST-COMMIT: the hero becomes CONTEXT. The quiet role caption names
+             it («ИСТОЧНИК») and carries the L3 affordance the command bar also
+             advertises — the decision now belongs to the result on the right,
+             but the source stays one press away, never dimmed, never gone.
+             (Pre-commit the card IS the protagonist; captioning it then would
+             be noise.) -->
+        <div v-if="outcome !== undefined" class="con-composer__cardrole" aria-hidden="true">
+          <GamepadGlyph control="stickL" class="con-composer__cardrole-glyph" />
+          <span>{{ $t('Source') }}</span>
+        </div>
       </div>
       <div class="con-composer__actright">
 
@@ -503,6 +513,7 @@ import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState, wsBeatLog} from '@/client/console/consoleWorkspaceOutcome';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -522,7 +533,7 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
+import {runActionRevealFlight, runRevealGainFlight, settleRevealProxyOnto, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
@@ -952,6 +963,27 @@ export default defineComponent({
     beatFaceName(): string {
       return this.beatFace;
     },
+    /**
+     * THE CARD THAT WAS ACTUALLY DRAWN — read off the arriving artifact, never
+     * off `entry.cardName` (that is the ACTING card, and painting it here made
+     * the deck hand the player a second copy of «Союз изобретателей» in flight,
+     * with the real face only appearing after landing).
+     *
+     * Two shapes, because two artifacts can answer a draw:
+     *  · a card PICK (buy / keep-some) — the prompt's candidates ARE the cards
+     *    the deck turned over;
+     *  · a drawn BATCH — the reveal event carries them.
+     * Empty until the answer lands, which is exactly when the face is allowed
+     * to exist (the proxy flies face-down until then).
+     */
+    beatRevealedName(): string {
+      const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>} | undefined;
+      const fromPrompt = wf?.cards?.[0]?.name;
+      if (fromPrompt !== undefined && fromPrompt !== '') {
+        return fromPrompt;
+      }
+      return currentRevealEvent()?.cards[0]?.name ?? '';
+    },
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
     outcomeStageOn(): boolean {
       return this.outcome !== undefined;
@@ -1303,9 +1335,9 @@ export default defineComponent({
     },
     /** The answer landed — the card may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
-      wsBeatLog('composer: answerIn watcher', {arrived, hasHandle: this.beatHandle !== undefined});
+      wsBeatLog('composer: answerIn watcher', {arrived, hasHandle: this.beatHandle !== undefined, face: this.beatRevealedName});
       if (arrived) {
-        this.beatFace = this.entry.cardName;
+        this.beatFace = this.beatRevealedName;
         this.beatHandle?.notifyPayload();
       }
     },
@@ -2474,20 +2506,39 @@ export default defineComponent({
         // A server that already answered (the common local case) releases the
         // turn immediately — the flip then plays right after touchdown.
         if (workspaceOutcomeState.answerIn) {
-          wsBeatLog('composer: answer ALREADY in — notifying immediately');
-          this.beatFace = this.entry.cardName;
+          wsBeatLog('composer: answer ALREADY in — notifying immediately', {face: this.beatRevealedName});
+          this.beatFace = this.beatRevealedName;
           this.beatHandle.notifyPayload();
         }
       });
     },
+    /**
+     * The beat is leaving because the real surface has taken the zone. The
+     * landed proxy does NOT blink out: it travels the last short leg onto the
+     * real card's rect and only then dissolves, so the arrival ends where the
+     * card actually lives instead of teleporting there.
+     */
     abortBeatFlight(): void {
       // Never leave the HUD counter frozen on a beat that ended early.
       releaseDeckDisplay();
       this.beatHandle?.kill();
       this.beatHandle = undefined;
-      this.beatFlightOn = false;
-      this.beatLanded = false;
-      this.beatFace = '';
+      const proxy = this.$refs.revealProxy as HTMLElement | undefined;
+      const clear = () => {
+        this.beatFlightOn = false;
+        this.beatLanded = false;
+        this.beatFace = '';
+      };
+      if (proxy === undefined || !this.beatFlightOn) {
+        clear();
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      // The re-homed surface's own card, wherever it laid it out.
+      const target = root?.querySelector<HTMLElement>(
+        '[data-outcome-zone] :is(.card-container, .pcard)');
+      wsBeatLog('composer: settle onto real card', {hasTarget: target !== null && target !== undefined});
+      settleRevealProxyOnto({proxy, target, onDone: clear});
     },
     /** OK on the shown outcome: the parent marks the reveal seen and returns
      *  the flow to the (refreshed) browse grid. */

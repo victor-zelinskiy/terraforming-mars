@@ -11,15 +11,22 @@ describe('drawnRevealCommandRun — ONE contract for both hosts', () => {
     expect(labels(run)).to.deep.eq(['confirm:Take card', 'secondary:Inspect', 'back:Take all cards']);
   });
 
-  it('a CARD source adds L3 in the standalone host and drops it when EMBEDDED (the source is already on screen)', () => {
-    const standalone = drawnRevealCommandRun({hasCardSource: true, hasDiscards: false});
-    expect(labels(standalone)).to.contain('stickL:Source');
+  /**
+   * L3 = the SOURCE, in BOTH hosts — one console-wide grammar: X inspects the
+   * CURRENT object, L3 the source that produced it. Embedded, the source hero
+   * does stand beside the result, but past the commit X belongs to the RESULT,
+   * so dropping L3 there would leave the source with no inspect verb at all.
+   */
+  it('a CARD source always offers L3 — the two hosts never differ in what a button means', () => {
+    const run = drawnRevealCommandRun({hasCardSource: true, hasDiscards: false});
+    expect(labels(run)).to.deep.eq([
+      'confirm:Take card', 'secondary:Inspect', 'stickL:Source', 'back:Take all cards',
+    ]);
+  });
 
-    const embedded = drawnRevealCommandRun({hasCardSource: true, hasDiscards: false, embedded: true});
-    expect(labels(embedded)).to.not.contain('stickL:Source');
-    // Everything else is IDENTICAL — the two hosts differ by one redundant
-    // entry, never by what A or B mean.
-    expect(labels(embedded)).to.deep.eq(['confirm:Take card', 'secondary:Inspect', 'back:Take all cards']);
+  it('no card source → no L3 (nothing to point at)', () => {
+    const run = drawnRevealCommandRun({hasCardSource: false, hasDiscards: false});
+    expect(labels(run)).to.not.contain('stickL:Source');
   });
 
   it('a conditional search offers the discard pile on R3', () => {

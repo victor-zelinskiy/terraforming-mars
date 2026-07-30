@@ -119,10 +119,10 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     // trip through the composer, nothing async to land later. (It used to be
     // derived from `hasDecisions`, which depends on the ASYNC action preview:
     // the title visibly swapped one or two frames into the entry.)
-    expect(vm.focusKickerKey).to.eq('Action setup');
+    expect(vm.focusKickerKey).to.eq('Setup');
     await settle(w);
-    expect(vm.focusKickerKey).to.eq('Action setup');
-    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Action setup');
+    expect(vm.focusKickerKey).to.eq('Setup');
+    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Setup');
     // The OUTCOME phases — the only things that rename the stage, and each
     // names itself: a deck-check is a «результат вскрытия», a draw is not.
     vm.outcomeFlow = {kind: 'deck-check'};
