@@ -501,7 +501,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState, wsBeatLog} from '@/client/console/consoleWorkspaceOutcome';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -1293,6 +1293,7 @@ export default defineComponent({
      * releases the turn-over, and that is driven by `answerIn` below.
      */
     outcomePendingBeat(on: boolean) {
+      wsBeatLog('composer: outcomePendingBeat', {on, outcomeKind: this.outcome?.kind});
       if (on) {
         void this.$nextTick(() => this.beginBeatFlight());
       } else {
@@ -1301,6 +1302,7 @@ export default defineComponent({
     },
     /** The answer landed — the card may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
+      wsBeatLog('composer: answerIn watcher', {arrived, hasHandle: this.beatHandle !== undefined});
       if (arrived) {
         this.beatFace = this.entry.cardName;
         this.beatHandle?.notifyPayload();
@@ -2404,13 +2406,25 @@ export default defineComponent({
      */
     beginBeatFlight(): void {
       if (this.beatFlightOn) {
+        wsBeatLog('composer: beginBeatFlight SKIPPED — already flying');
         return;
       }
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const slot = this.$refs.beatSlot as HTMLElement | undefined;
+      const slotRect = slot?.getBoundingClientRect();
+      const deckEl = typeof document === 'undefined' ? null : document.querySelector('.con-deckstack__pile');
+      wsBeatLog('composer: beginBeatFlight', {
+        hasRoot: root !== undefined,
+        hasSlot: slot !== undefined,
+        slotW: slotRect?.width, slotH: slotRect?.height,
+        deckFound: deckEl !== null,
+        deckW: deckEl?.getBoundingClientRect().width,
+        answerIn: workspaceOutcomeState.answerIn,
+      });
       if (root === undefined || slot === undefined) {
         // No stage to fly on (JSDOM / torn-down layout): never withhold the
         // outcome behind an animation that cannot run.
+        wsBeatLog('composer: NO STAGE — beat skipped');
         markWorkspaceOutcomeBeatDone();
         return;
       }
@@ -2420,17 +2434,23 @@ export default defineComponent({
         const proxy = this.$refs.revealProxy as HTMLElement | undefined;
         const flip = this.$refs.revealFlip as HTMLElement | undefined;
         if (proxy === undefined || flip === undefined) {
+          wsBeatLog('composer: NO PROXY — beat cannot fly', {
+            hasProxy: proxy !== undefined, hasFlip: flip !== undefined,
+          });
           markWorkspaceOutcomeBeatDone();
           return;
         }
+        wsBeatLog('composer: flight launched');
         this.beatHandle = runActionRevealFlight({
           proxy, flip, slot,
           // Mid-flip: the face is first visible. The card is no longer "being
           // drawn" — it has been drawn, and the real surface may take over.
           onFaceShown: () => {
+            wsBeatLog('composer: onFaceShown');
             this.beatLanded = true;
           },
           onSettled: () => {
+            wsBeatLog('composer: onSettled');
             this.beatFlightOn = false;
             this.beatHandle = undefined;
             markWorkspaceOutcomeBeatDone();
@@ -2439,6 +2459,7 @@ export default defineComponent({
         // A server that already answered (the common local case) releases the
         // turn immediately — the flip then plays right after touchdown.
         if (workspaceOutcomeState.answerIn) {
+          wsBeatLog('composer: answer ALREADY in — notifying immediately');
           this.beatFace = this.entry.cardName;
           this.beatHandle.notifyPayload();
         }
