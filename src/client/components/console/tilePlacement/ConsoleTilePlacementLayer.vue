@@ -17,7 +17,19 @@
        placed tile and hands each to its resource chip on the shared
        ConsoleResourceTransferLayer.
   -->
-  <div v-if="tilePlacementState.active || remotePlacementState.active" class="con-tileplace" aria-hidden="true">
+  <!--
+    `con-flight-to-board` — the DESTINATION marker. This flight lands on a
+    live board hex (`.board-space[data_space_id]`), which a workspace surface
+    covers with the shared shade. So while one is docked, this layer recedes
+    BENEATH the shade (`.con-root:has(.con-ws)` in console.less) instead of
+    flying bright over the panel the player is reading — another player's
+    city used to do exactly that. Declare the marker ONLY if the flight truly
+    ends on the board: a layer that lands on the rail, the «Разыграно» table,
+    the footer dock, a reveal modal or its own tray must NOT carry it, or its
+    arrival sinks under the shade while its target stays lit. Omitting it is
+    the safe default.
+  -->
+  <div v-if="tilePlacementState.active || remotePlacementState.active" class="con-tileplace con-flight-to-board" aria-hidden="true">
     <template v-if="tilePlacementState.active">
       <div ref="shadow" class="con-tileplace__shadow"></div>
       <div v-if="artClass !== ''" ref="tile" class="con-tileplace__tile">

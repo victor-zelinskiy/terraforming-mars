@@ -424,38 +424,39 @@ body.con-zoom-open .con-handdock {
        nothing is lost, because the tile is committed either way and
        `remoteRevealHold` still reveals the real one on landing.
 
-       WHICH layers demote is not a taste call — it is the existing
-       `AnimationHoldScope` split (`animationHold.ts`). A 'blocking' hold
-       means the scene owns the foreground from OUTSIDE the mandatory
-       surfaces, so when the player owns it instead, the scene yields. The
-       'notification-only' family is deliberately EXCLUDED: those cinematics
-       run INSIDE the surface that released them and must paint over it —
-       `.con-deal-layer` / `.con-handdelivery-layer` ("its proxies land in the
-       always-on-top footer dock"), `.con-deckdraw`, `.con-hydrodraw-layer`,
-       `.con-bonusfly-layer`. Demoting one of those would bury a cinematic
-       under the very stage hosting it. `.con-handreveal-layer` stays up for
-       the same reason (it belongs to the hand screen).
+       WHICH layers demote is decided by ONE question: WHERE DOES THE FLIGHT
+       LAND? The shade covers the board and nothing else — the rail (11520),
+       the bars (11700) and the dock stay lit above it. So:
 
-       Relative order inside the family is preserved, just shifted below the
-       shade, so two overlapping beats still stack as they always did. */
-    .con-fleet-layer,
-    .con-hydromarker-layer {
-        z-index: 11440;
-    }
-    .con-discard {
-        z-index: 11442;
-    }
-    .con-tileplace,
-    .con-colonybuild {
+       · lands on the BOARD → demote. Its destination is dimmed anyway, so
+         flying bright over the panel buys nothing and costs the foreground.
+       · lands on a surface that STAYS VISIBLE (the rail, the «Разыграно»
+         table, the footer dock, a panel) → LEAVE IT UP. The flight must
+         reach its target, and the target is something the player can see.
+
+       Getting this wrong breaks the arrival: an earlier cut of this rule
+       demoted by `AnimationHoldScope` instead, which answers "does this
+       block prompts", NOT "where does it land" — and resource chips stopped
+       reaching the left rail while a played card slid UNDER the «Разыграно»
+       panel. Scope is the wrong axis. Destination is the axis.
+
+       The marker is declared BY THE LAYER (`con-flight-to-board` on its own
+       root), never by a list of layer names here — a central table rots the
+       moment someone adds a sixteenth layer, and its failure mode would be
+       silent. This way the default is SAFE: a layer that says nothing keeps
+       flying on top (the old, merely-cosmetic behaviour) instead of having
+       its arrival buried.
+
+       Today exactly ONE layer qualifies. Of the fifteen console flights, the
+       rest land on the rail (`.con-transfer`), the «Разыграно» table
+       (`.con-played-hero`), the footer dock (`.con-handdelivery-layer`), a
+       reveal modal (`.con-deckdraw`, `.con-bonusfly-layer`,
+       `.con-coltrade-layer`), the task host (`.con-hydrodraw-layer`,
+       `.con-deal-layer`), the hand grid (`.con-handreveal-layer`) or their
+       own tray (`.con-discard`, `.con-sale-hero`) — every one of those
+       targets stays lit, so demoting them broke the arrival outright. */
+    .con-flight-to-board {
         z-index: 11444;
-    }
-    .con-played-hero,
-    .con-sale-hero,
-    .con-coltrade-layer {
-        z-index: 11446;
-    }
-    .con-transfer {
-        z-index: 11448;
     }
 }
 

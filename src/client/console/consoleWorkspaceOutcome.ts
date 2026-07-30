@@ -93,7 +93,41 @@ export const workspaceOutcomeState = reactive({
    * someone else's frame is exactly how a stage starts reading as a modal.
    */
   phaseKey: '' as string,
+  /**
+   * The EXECUTION BEAT has been on screen long enough to be read.
+   *
+   * A fast local server answers in well under a frame budget, so «ДОБОР КАРТ»
+   * and the deck's own reaction flashed past before the player could register
+   * that the stage had even changed — the operation lost its middle and read
+   * as a jump from confirm to a purchase screen. This is not a spinner and not
+   * a fake delay: the beat is the moment the action is physically happening,
+   * and it is given the time to be a beat.
+   *
+   * Reactive because the hold that consumes it is a render-time predicate.
+   */
+  dwellDone: false,
 });
+
+/**
+ * How long the execution beat is guaranteed to hold the stage. Long enough to
+ * read a two-word stage name and see the deck let go of a card; short enough
+ * that a slow server, not this, is what the player waits on.
+ */
+const MIN_DWELL_MS = 800;
+
+let dwellTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearDwell(): void {
+  if (dwellTimer !== undefined) {
+    clearTimeout(dwellTimer);
+    dwellTimer = undefined;
+  }
+}
+
+/** Is the execution beat still owed its minimum time on screen? */
+export function workspaceOutcomeDwellPending(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.dwellDone;
+}
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {
@@ -157,6 +191,19 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.sourceCard = sourceCard;
   workspaceOutcomeState.kinds = [...kinds];
   workspaceOutcomeState.stage = 'awaiting';
+  // The execution beat starts owing its minimum time from the confirm — not
+  // from when the answer happens to land, or a fast server would shorten the
+  // very beat that explains what the action is doing.
+  workspaceOutcomeState.dwellDone = false;
+  clearDwell();
+  if (typeof setTimeout === 'function') {
+    dwellTimer = setTimeout(() => {
+      dwellTimer = undefined;
+      workspaceOutcomeState.dwellDone = true;
+    }, MIN_DWELL_MS);
+  } else {
+    workspaceOutcomeState.dwellDone = true;
+  }
   armSafety();
 }
 
@@ -180,6 +227,8 @@ export function markWorkspaceOutcomePresenting(): void {
 /** Drop the claim (the stage folded, the outcome was acknowledged, unmount). */
 export function releaseWorkspaceOutcome(): void {
   clearSafety();
+  clearDwell();
+  workspaceOutcomeState.dwellDone = false;
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.kinds = [];

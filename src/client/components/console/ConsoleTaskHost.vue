@@ -420,6 +420,7 @@ import {
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
+import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
@@ -1965,20 +1966,36 @@ export default defineComponent({
         runDraftPickBeat({picks: sources, commit});
         return;
       }
-      applyDiscardExit(rejects);
       if (sources.length === 0) {
-        // NOTHING BOUGHT. Embedded, the refusal is still a physical outcome:
-        // the card was turned over by THIS action and has to be seen going
-        // away, not blink out with the frame. The reject tumble above is
-        // already running on the app-level exit layer, so it outlives the
-        // collapse; releasing the surface now lets the two overlap instead of
-        // the card vanishing and the board appearing as separate events.
+        // NOTHING BOUGHT. Embedded, the refusal is a physical OUTCOME, not an
+        // absence: this card was turned over by the action the player just
+        // performed, so it has to be seen going to the discard — the same
+        // premium language a hand discard speaks, through the same director
+        // (`discardOpenCards`), so future polish lands in one place.
+        //
+        // Deliberately NOT awaited: the refusal is already decided and the
+        // game must not wait behind a flight. The proxies stand over the real
+        // cards before the collapse, and the layer that carries them is
+        // app-level, so they outlive this surface.
+        if (this.embedded) {
+          const refused = (this.cardEntries ?? [])
+            .map((e) => ({name: e.card.name, el: this.exitSlotFor(e.card.name) ?? undefined}))
+            .filter((s) => s.el !== undefined);
+          if (refused.length > 0) {
+            void discardOpenCards(refused);
+            this.$emit('result-detached');
+            commit();
+            return;
+          }
+        }
+        applyDiscardExit(rejects);
         if (this.embedded) {
           this.$emit('result-detached');
         }
         commit();
         return;
       }
+      applyDiscardExit(rejects);
       // THE PURCHASE HANDOFF. `onStaged` is the director's designed seam: it
       // fires the frame the proxies physically stand over the real cards, so
       // the host may drop its surface with nothing left to lose. Collapsing
@@ -2241,6 +2258,21 @@ export default defineComponent({
         return; // guard rapid double-presses — no duplicate action (req §8)
       }
       this.submitting = true;
+      // THE ONE FUNNEL every committed decision passes through — so the
+      // workspace release lives HERE, not in a cinematic branch.
+      //
+      // It used to ride `onStaged` inside `confirmCardSetWithExit`, which is
+      // only reached when the exit cinematic actually runs: the early returns
+      // at its top (`singlePick`, `!confirmReady`) hand straight to
+      // `onConfirm`, and a refusal takes a different arm than a purchase. That
+      // is exactly the "closes every other time" the player saw — two paths,
+      // one of which never announced itself. Emitting from the funnel makes it
+      // path-independent; `onStaged` still fires too, and releasing twice is a
+      // no-op, so the OVERLAP (collapse under the lifted card) is preserved
+      // where the cinematic exists and simply absent where it never ran.
+      if (this.embedded) {
+        this.$emit('result-detached');
+      }
       if (this.nested !== undefined) {
         this.$emit('submit', orWrappedResponse(this.nested.index, response));
         return;

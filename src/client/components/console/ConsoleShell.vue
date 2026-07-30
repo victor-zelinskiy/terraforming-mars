@@ -1150,7 +1150,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeDwellPending, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -2207,9 +2207,18 @@ export default defineComponent({
       return workspaceClaimsPick() &&
         (this.hostTask?.kind === 'cardSelect' || this.hostTask?.kind === 'payment');
     },
-    /** Claimed, but the workspace's zone is not in the DOM yet → hold. */
+    /**
+     * Claimed, but not ready to show yet → hold (render nowhere, never a
+     * wrong surface). Two reasons:
+     *  · the workspace's zone is not in the DOM yet;
+     *  · the EXECUTION BEAT still owes its minimum time. A local server can
+     *    answer faster than the stage can be read, and the flow would jump
+     *    from confirm straight to a purchase screen — the player never sees
+     *    the action physically happen. The beat is held, not faked.
+     */
     taskHeldForWorkspace(): boolean {
-      return this.taskBelongsToWorkspace && workspaceOutcomeState.embedSlot === '';
+      return this.taskBelongsToWorkspace &&
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeDwellPending());
     },
     taskEmbedTarget(): string | undefined {
       if (!workspaceClaimsPick()) {
@@ -2243,7 +2252,7 @@ export default defineComponent({
     revealHeldForWorkspace(): boolean {
       return this.rawDrawnRevealPending &&
         workspaceClaimsDrawReveal(currentRevealEvent()?.source) &&
-        workspaceOutcomeState.embedSlot === '';
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeDwellPending());
     },
     consoleRevealMode(): ConsoleRevealMode | undefined {
       if (this.revealHeldForWorkspace) {
