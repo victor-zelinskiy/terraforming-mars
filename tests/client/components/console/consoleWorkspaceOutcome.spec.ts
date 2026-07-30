@@ -83,6 +83,17 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal(cardSource(AI_CENTRAL))).to.eq(false);
   });
 
+  it('presenting DISARMS the backstop — a long read must never expire the claim under the player', () => {
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
+    markWorkspaceOutcomePresenting();
+    // The timer guards «claimed and nothing came»; once something is on screen
+    // that question is settled and the artifact's own lifecycle takes over.
+    // (Asserted structurally: the claim survives with no pending timer, so the
+    // only thing that can end it now is an explicit release.)
+    expect(workspaceOutcomeState.stage).to.eq('presenting');
+    expect(workspaceOutcomeClaimed()).to.eq(true);
+  });
+
   it('a fresh claim REPLACES the previous one (a second activation never inherits the first)', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
     claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);

@@ -142,13 +142,20 @@ export function claimWorkspaceOutcome(
   armSafety();
 }
 
-/** The claimed artifact is now ON SCREEN inside the workspace. */
+/**
+ * The claimed artifact is now ON SCREEN inside the workspace.
+ *
+ * This DISARMS the backstop rather than re-arming it. The timer guards exactly
+ * one failure — «claimed, and nothing ever came» — and that question is settled
+ * the moment something is on screen. Leaving it armed (or restarting it here)
+ * would put a wall clock on the player: read a revealed card for twenty
+ * seconds and the claim would drop underneath them, folding the workspace
+ * mid-decision. From here the artifact's own lifecycle ends the claim.
+ */
 export function markWorkspaceOutcomePresenting(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.stage = 'presenting';
-    // The flow is alive and visible — the abandonment backstop is re-armed
-    // from here, so a long read of a revealed card can never expire it.
-    armSafety();
+    clearSafety();
   }
 }
 
