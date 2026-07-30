@@ -73,11 +73,27 @@ export function actionFlowStage(signals: {
 // ── Focus-stage header ───────────────────────────────────────────────────────
 
 /**
- * The focus stage's kicker (i18n key): an action with decisions reads as a
- * SETUP («Настройка действия»), a decision-less one as a plain CONFIRMATION.
+ * The PHASE the focus stage is presenting. This — and nothing else — names
+ * the stage.
+ *  - `setup`  — the action is being prepared (amounts, targets, payment) and
+ *               launched from its own CTA. A CTA does NOT make the screen a
+ *               separate «confirmation» step: setup and commit happen on one
+ *               surface, so it keeps one honest name for its whole life.
+ *  - `reveal` — the post-commit deck-check outcome is on stage.
  */
-export function focusKicker(hasDecisions: boolean): string {
-  return hasDecisions ? 'Action setup' : 'Confirmation';
+export type FocusPhase = 'setup' | 'reveal';
+
+/**
+ * The focus stage's kicker (i18n key), derived ONLY from the phase.
+ *
+ * It used to be derived from "does this action have decisions?" — a value
+ * that depends on the ASYNC action preview, so the title changed one or two
+ * frames into the entering animation («Настройка действия» → «Подтверждение»).
+ * The phase is known before the transition episode starts and cannot change
+ * during it, which makes that jump structurally impossible.
+ */
+export function focusKicker(phase: FocusPhase): string {
+  return phase === 'reveal' ? 'Reveal result' : 'Action setup';
 }
 
 // ── Command-bar contracts (pure builders — the bar can never lie) ───────────

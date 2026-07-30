@@ -25,9 +25,9 @@ describe('consoleActionFlow', () => {
   });
 
   describe('focusKicker', () => {
-    it('decisions → setup, a bare confirm → confirmation', () => {
-      expect(focusKicker(true)).to.eq('Action setup');
-      expect(focusKicker(false)).to.eq('Confirmation');
+    it('names the stage by its PHASE — a CTA does not make the setup screen a separate «confirmation» step', () => {
+      expect(focusKicker('setup')).to.eq('Action setup');
+      expect(focusKicker('reveal')).to.eq('Reveal result');
     });
   });
 

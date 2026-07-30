@@ -108,22 +108,67 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     w.unmount();
   });
 
-  it('the stage headline is PRESEEDED synchronously at A — a bare-confirm action never flashes the stale «Настройка действия» frame', async () => {
+  it('the stage headline is the PHASE, fixed before the episode starts — it cannot change under the entering animation', async () => {
     const w = factory();
     await settle(w);
-    // The store's reset default is 'setup' — exactly the stale value the
-    // header used to render for one frame before the mounted composer
-    // published its truth (the visible kicker jump).
     resetConsoleActionComposerUi();
-    expect(consoleActionComposerUi.mode).to.eq('setup');
-    (w.vm as any).activateFocused();
-    // SYNCHRONOUS assert — no nextTick: the preseed must land before Vue
-    // renders the stage header even once.
-    expect(consoleActionComposerUi.mode).to.eq('confirm');
+    const vm = w.vm as any;
+    (vm as any).activateFocused();
+    // SYNCHRONOUS: the value is already final — no nextTick, no store round
+    // trip through the composer, nothing async to land later. (It used to be
+    // derived from `hasDecisions`, which depends on the ASYNC action preview:
+    // the title visibly swapped one or two frames into the entry.)
+    expect(vm.focusKickerKey).to.eq('Action setup');
     await settle(w);
-    // The mounted composer agrees — no later swap back.
-    expect(consoleActionComposerUi.mode).to.eq('confirm');
-    expect(w.find('.con-cardactions__kicker-step').exists()).to.eq(true);
+    expect(vm.focusKickerKey).to.eq('Action setup');
+    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Action setup');
+    // The reveal phase — the ONE thing that renames the stage.
+    vm.revealFlow = {};
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Reveal result');
+    w.unmount();
+  });
+
+  it('the workspace SHELL survives the entry: the header keeps its filters mounted, and the flow state is explicit', async () => {
+    const w = factory();
+    await settle(w);
+    expect((w.vm as any).flowState).to.eq('browse');
+    // Both header layers exist in browse…
+    expect(w.find('.con-cardactions__aux-layer--browse').exists()).to.eq(true);
+    expect(w.find('.con-cardactions__filters').exists()).to.eq(true);
+    (w.vm as any).activateFocused();
+    await settle(w);
+    // …and the filters are STILL mounted in the focus stage — they fade
+    // inside a fixed zone, they are never removed (a v-if here reflowed the
+    // header, which moved the whole stage region mid-transition).
+    expect(w.find('.con-cardactions__filters').exists()).to.eq(true);
+    expect(w.find('.con-cardactions__aux-layer--browse').classes()).to.contain('con-cardactions__aux-layer--out');
+    expect(w.find('.con-cardactions__aux-layer--focus').classes()).to.not.contain('con-cardactions__aux-layer--out');
+    // The stage carries the UNFOLD surface, and no action-graphic carry.
+    expect(w.find('[data-unfold-surface]').exists()).to.eq(true);
+    expect(w.find('[data-action-strip]').exists()).to.eq(false);
+    w.unmount();
+  });
+
+  it('A is refused while the surface is still FOLDING back — no second stage over a leaving one', async () => {
+    const w = factory();
+    await settle(w);
+    const vm = w.vm as any;
+    vm.activateFocused();
+    await settle(w);
+    expect(vm.composer).to.not.eq(undefined);
+    vm.handleIntent({kind: 'press', button: 'back'});
+    await settle(w);
+    // The draft is gone but the panel is still folding: A must not re-enter.
+    vm.flowState = 'returning';
+    vm.activateFocused();
+    await settle(w);
+    expect(vm.composer).to.eq(undefined);
+    // Once the phrase finishes, A works again.
+    vm.flowState = 'browse';
+    vm.activateFocused();
+    await settle(w);
+    expect(vm.composer).to.not.eq(undefined);
     w.unmount();
   });
 

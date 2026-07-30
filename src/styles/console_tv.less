@@ -1042,7 +1042,8 @@ html.con-profile-tv {
     .con-composer--stage {
         /* The carried action strip lands at the SAME visual size the browse
            slot drew it (zoom parity keeps the FLIP a pure move). */
-        .con-composer__actstrip-well:not(:has(> .con-composer__actstrip-text)) { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
+        /* The configuration surface breathes a little wider at couch size. */
+        .con-composer__surface { padding: 0.75rem 0.95rem 0.8rem; }
         .con-composer__panel--stage { width: 100%; max-height: none; }
         .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
         .con-composer__cardmeta {

@@ -1088,6 +1088,7 @@ import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {focusKicker} from '@/client/console/consoleActionFlow';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -3336,12 +3337,9 @@ export default defineComponent({
       }
       if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open) {
         // The ACTION FOCUS stage inside the Action Center: the bar names the
-        // STAGE (setup / bare confirm / the in-frame reveal phase), never the
-        // grid underneath.
-        if (consoleActionComposerUi.revealClaim !== '') {
-          return 'Reveal result';
-        }
-        return consoleActionComposerUi.mode === 'setup' ? 'Action setup' : 'Confirmation';
+        // STAGE by its PHASE (the SAME source as the frame header — the bar
+        // and the breadcrumb can never disagree), never the grid underneath.
+        return focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
       }
       if (this.consoleState.sheet !== undefined) {
         return this.sheetTitle;

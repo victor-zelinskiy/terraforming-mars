@@ -5,25 +5,34 @@
  *
  * A workspace never navigates sideways into its own depths. When the player
  * commits to an object (an action slot, a colony tile, a candidate card), the
- * transition must read as a camera step INTO the press point, with the
- * semantic objects physically carried into the deeper stage:
+ * transition must read as the PRESSED SURFACE opening into its own deeper
+ * state — never as a widget flying into an unrelated modal:
  *
  *   1. COMMIT PULSE — the chosen object acknowledges the press where it
  *      stands (a one-shot ring flare, CSS class `--descend` on the host);
- *   2. DEPTH RECEDE — the parent layer scales down a breath and dissolves
- *      with its transform-origin AT the press point (never an x/y slide:
- *      lateral motion is section navigation, depth is commitment);
- *   3. OBJECT CARRY — the chosen object(s) FLIP from their browse rects into
- *      their homes on the deeper stage (the card face → the hero, the action
- *      graphic → the stage's action strip);
- *   4. RETURN — B reverses the same phrase: the stage yields, the layer
- *      scales back from the SAME origin, the objects FLIP home.
+ *   2. CONTENT RELEASE — the object's own content (its graphic, its labels)
+ *      lets go IN PLACE: it dissolves where it stands, it never travels;
+ *   3. SURFACE UNFOLD — the deeper stage's surface OPENS from the pressed
+ *      object's rect (a clip-path expansion, so nothing is distorted and the
+ *      lit edge IS the button's frame growing into the panel), while the
+ *      parent layer recedes into the same press point;
+ *   4. OBJECT CARRY — only genuinely SEMANTIC objects are carried across (the
+ *      source card face → the stage hero). UI content is released, not flown:
+ *      a carried widget reads as a transplant, a carried subject reads as
+ *      continuity;
+ *   5. CONTEXT REVEAL — the deeper stage's controls surface from INSIDE the
+ *      opened surface (a short stagger), never sliding in from elsewhere;
+ *   6. RETURN — B reverses the same phrase: the controls let go, the surface
+ *      FOLDS back into the object's rect, the carried objects FLIP home, the
+ *      layer breathes back from the SAME origin.
  *
  * This module owns the PRIMITIVES (named one-shot origin/rect registry, the
- * zoom-compensated FLIP math, the guarded episode runner, the recede/return
- * tweens); a flow's own choreography module (consoleActionFocusMotion) owns
- * the phrase. Everything is transform/opacity only (perf-lite safe), timed
- * through `motionMs`, and safe to interrupt (`guarded` never drops `done`).
+ * zoom-compensated FLIP + clip math, the guarded episode runner, the
+ * recede/return/unfold/fold tweens); a flow's own choreography module
+ * (consoleActionFocusMotion) owns the phrase. Everything is
+ * transform/opacity/clip (perf-lite safe — no `filter`, no layout property),
+ * timed through `motionMs`, and safe to interrupt (`guarded` never drops
+ * `done`).
  */
 
 import {gsap} from 'gsap';
@@ -208,6 +217,177 @@ export function descendReturn(
 /** Restore a layer to the RECEDED end state (an interrupted return). */
 export function descendParkLayer(layer: HTMLElement): void {
   gsap.set(layer, {autoAlpha: 0, scale: RECEDE_SCALE, transformOrigin: recedeOrigins.get(layer) ?? '50% 50%'});
+}
+
+// ── SURFACE UNFOLD — the pressed object's surface opening into the stage ────
+//
+// The deeper stage's own panel is CLIPPED down to the pressed object's rect
+// and then opened to full size. Nothing is scaled, so no radius/ring/text is
+// distorted, and the panel's lit inset edge travels exactly along the opening
+// boundary — the button's frame IS what becomes the panel's frame. The
+// clip lives on ONE element for one short beat (no `filter`, no layout
+// property: perf-lite safe).
+
+/** Read an element's resting corner radius in its own (pre-zoom) px space. */
+function radiusOf(el: HTMLElement): number {
+  const raw = parseFloat(getComputedStyle(el).borderTopLeftRadius);
+  return isFinite(raw) ? raw : 0;
+}
+
+/**
+ * The `clip-path` inset that crops `surface` down to the viewport rect
+ * `from`, expressed in the surface's OWN coordinate space (CSS `zoom:`
+ * contexts compensated) and rounded like the pressed object.
+ */
+export function descendSurfaceInset(
+  surface: HTMLElement,
+  from: {left: number, top: number, width: number, height: number},
+  fromRadiusPx?: number,
+): string | undefined {
+  const to = surface.getBoundingClientRect();
+  if (to.width < 10 || to.height < 10) {
+    return undefined;
+  }
+  const effZoom = surface.offsetWidth > 0 ? to.width / surface.offsetWidth : 1;
+  const px = (v: number) => Math.max(0, Math.round(v / effZoom));
+  const top = px(from.top - to.top);
+  const left = px(from.left - to.left);
+  const right = px(to.right - (from.left + from.width));
+  const bottom = px(to.bottom - (from.top + from.height));
+  const radius = Math.round(fromRadiusPx ?? radiusOf(surface));
+  return `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+}
+
+/** The surface's resting clip (full box, own radius) — the unfold's end. */
+function restingInset(surface: HTMLElement): string {
+  return `inset(0px 0px 0px 0px round ${Math.round(radiusOf(surface))}px)`;
+}
+
+/**
+ * The deeper surface UNFOLDS from the pressed object's rect. Returns false
+ * when the geometry is unusable (the caller falls back to a plain reveal).
+ */
+export function descendUnfold(
+  tl: gsap.core.Timeline,
+  surface: HTMLElement,
+  from: {left: number, top: number, width: number, height: number} | undefined,
+  durationS: number,
+  at: number | string = 0,
+  fromRadiusPx?: number,
+): boolean {
+  const start = from === undefined ? undefined : descendSurfaceInset(surface, from, fromRadiusPx);
+  if (start === undefined) {
+    return false;
+  }
+  tl.fromTo(surface,
+    {clipPath: start, webkitClipPath: start},
+    {
+      clipPath: restingInset(surface), webkitClipPath: restingInset(surface),
+      duration: durationS, ease: 'power3.inOut',
+      clearProps: 'clipPath,webkitClipPath', overwrite: 'auto',
+    },
+    at);
+  return true;
+}
+
+/** The reverse: the surface FOLDS back into the object's rect and lets go. */
+export function descendFold(
+  tl: gsap.core.Timeline,
+  surface: HTMLElement,
+  to: {left: number, top: number, width: number, height: number} | undefined,
+  durationS: number,
+  at: number | string = 0,
+  toRadiusPx?: number,
+): boolean {
+  const end = to === undefined ? undefined : descendSurfaceInset(surface, to, toRadiusPx);
+  if (end === undefined) {
+    return false;
+  }
+  // A `to` (not `fromTo`) so an INTERRUPTED unfold folds back from wherever
+  // it got to — B during the opening reads as one continuous move. A surface
+  // at rest carries no clip at all, so seed the resting inset first, else
+  // there is nothing to interpolate from.
+  const current = getComputedStyle(surface).clipPath;
+  if (current === '' || current === 'none') {
+    const rest = restingInset(surface);
+    gsap.set(surface, {clipPath: rest, webkitClipPath: rest});
+  }
+  tl.to(surface,
+    {clipPath: end, webkitClipPath: end, duration: durationS, ease: 'power3.in', overwrite: 'auto'},
+    at);
+  return true;
+}
+
+/**
+ * CONTENT RELEASE — the pressed object's own content lets go WHERE IT STANDS
+ * (a breath of scale-in + dissolve). The opposite of a carry: this content
+ * belongs to the browse layer and has no business on the deeper stage.
+ */
+export function descendRelease(
+  tl: gsap.core.Timeline,
+  els: ReadonlyArray<HTMLElement>,
+  durationS: number,
+  at: number | string = 0,
+): void {
+  const live = els.filter((el) => el !== null && el !== undefined);
+  if (live.length === 0) {
+    return;
+  }
+  tl.to(live, {
+    autoAlpha: 0, scale: 0.965, transformOrigin: '50% 50%',
+    duration: durationS, ease: 'power2.in', overwrite: 'auto',
+  }, at);
+}
+
+/**
+ * CONTEXT REVEAL — the deeper stage's controls surface from INSIDE the opened
+ * surface: a short lift + fade with a stagger, never a slide from off-panel.
+ */
+export function descendCascade(
+  tl: gsap.core.Timeline,
+  els: ReadonlyArray<HTMLElement>,
+  durationS: number,
+  at: number | string = 0,
+  staggerS = 0.035,
+): void {
+  const live = els.filter((el) => el !== null && el !== undefined);
+  if (live.length === 0) {
+    return;
+  }
+  tl.fromTo(live,
+    {autoAlpha: 0, y: descendPx(9)},
+    {
+      autoAlpha: 1, y: 0, duration: durationS, ease: 'expo.out', stagger: staggerS,
+      clearProps: 'transform,opacity,visibility', overwrite: 'auto',
+    },
+    at);
+}
+
+/** The reverse of the cascade: the controls let go together, in place. */
+export function descendCascadeOut(
+  tl: gsap.core.Timeline,
+  els: ReadonlyArray<HTMLElement>,
+  durationS: number,
+  at: number | string = 0,
+): void {
+  const live = els.filter((el) => el !== null && el !== undefined);
+  if (live.length === 0) {
+    return;
+  }
+  tl.to(live, {autoAlpha: 0, duration: durationS, ease: 'power1.in', overwrite: 'auto'}, at);
+}
+
+/** A live viewport rect, or undefined when the element is not laid out. */
+export function descendRectOf(el: Element | null | undefined): {left: number, top: number, width: number, height: number} | undefined {
+  const rect = el?.getBoundingClientRect?.();
+  return rect === undefined || rect.width < 10 || rect.height < 10 ?
+    undefined :
+    {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
+}
+
+/** The pressed object's corner radius (the unfold's starting roundness). */
+export function descendRadiusOf(el: HTMLElement | null | undefined): number | undefined {
+  return el === null || el === undefined ? undefined : radiusOf(el);
 }
 
 /** px scaled by the console UI scale (the shared px-space convention). */

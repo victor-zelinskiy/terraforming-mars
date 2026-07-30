@@ -3,23 +3,34 @@
  * Action Browser (ConsoleCardActions.vue), spoken in the WORKSPACE DESCEND
  * grammar (surfaceMotion/workspaceDescend.ts).
  *
- * Entering the ACTION FOCUS stage is NOT a modal popping over the grid — the
- * player steps DEEPER into the same workspace at the point of commitment:
+ * Entering the ACTION FOCUS stage is NOT a modal popping over the grid, and
+ * NOT a set of widgets flying to new homes. The player pressed a physical
+ * action slot, and THAT SURFACE opens into its own configuration state:
  *
- *  · the chosen slot fires its COMMIT PULSE where it stands (CSS `--descend`);
- *  · the browse layer RECEDES INTO the press point (scale + dissolve — depth,
- *    never a sideways slide);
- *  · the SEMANTIC OBJECTS are carried, not replaced: the inspector's card
- *    thumbnail FLIPs into the stage's hero card, and the chosen slot's ACTION
- *    GRAPHIC FLIPs into the stage's action strip — the exact formula the
- *    player pressed lands in the deeper layer;
- *  · B reverses the same phrase: the stage yields, the objects FLIP home,
- *    the browse layer breathes back from the same origin.
+ *  · COMMIT — the chosen slot answers the press where it stands (CSS
+ *    `--descend` ring flare);
+ *  · RELEASE — the slot's own content (graphic, way-finder, diagnostics)
+ *    dissolves IN PLACE. It belongs to the browse layer; carrying it into the
+ *    stage would duplicate what the hero card and the cost/result blocks
+ *    already say;
+ *  · UNFOLD — the stage's configuration SURFACE is clipped down to the slot's
+ *    rect and opens from it, while the browse layer recedes into the same
+ *    press point. Nothing scales, so no ring or text is distorted: the lit
+ *    edge of the button literally grows into the panel's edge;
+ *  · CARRY — the ONE genuinely semantic object travels: the inspector's card
+ *    thumbnail FLIPs into the stage's hero card (the subject of the action,
+ *    not a widget);
+ *  · REVEAL — the controls (formula, decisions, CTA) surface from INSIDE the
+ *    opened panel with a short stagger;
+ *  · B reverses the same phrase: the controls let go, the panel FOLDS back
+ *    into the slot's rect, the card FLIPs home, the browse layer breathes
+ *    back from the same origin.
  *
- * Follows the surfaceMotionDirector idioms verbatim: transform/opacity-only,
- * guarded episodes (`done()` can never be dropped), durations through
- * `motionMs`, FLIP deltas compensated for CSS-`zoom` contexts, reduced
- * motion = short functional fades with unchanged semantics.
+ * Follows the surfaceMotionDirector idioms verbatim: transform/opacity/clip
+ * only (no `filter`, no layout property — perf-lite safe), guarded episodes
+ * (`done()` can never be dropped), durations through `motionMs`, FLIP deltas
+ * compensated for CSS-`zoom` contexts, reduced motion = short functional
+ * fades with unchanged semantics.
  *
  * The stage element keeps `data-motion-surface="action-composer"` for the
  * AWAITING handoff (the departure capture + the phase FLIP into the reveal /
@@ -42,29 +53,42 @@ import {
   descendRecede,
   descendReturn,
   descendParkLayer,
+  descendUnfold,
+  descendFold,
+  descendRelease,
+  descendCascade,
+  descendCascadeOut,
+  descendRectOf,
+  descendRadiusOf,
   descendPx,
   resetWorkspaceDescend,
 } from '@/client/console/surfaceMotion/workspaceDescend';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
+/** The slot's own content letting go where it stands. */
+const RELEASE_MS = 120;
 /** The browse layer receding into the press point. */
-const BROWSE_OUT_MS = 150;
+const BROWSE_OUT_MS = 170;
 /** The browse layer breathing back on B. */
-const BROWSE_IN_MS = 170;
-/** The decision column's rise (the stage assembling around the card). */
-const STAGE_IN_MS = 200;
-/** The stage letting go on B. */
-const STAGE_OUT_MS = 110;
-/** The card FLIP (thumbnail ⇄ hero) — the longest beat; the eye follows it. */
+const BROWSE_IN_MS = 180;
+/** The configuration surface opening from the slot's rect. */
+const UNFOLD_MS = 280;
+/** …and folding back into it. */
+const FOLD_MS = 200;
+/** The controls surfacing from inside the opened panel. */
+const CASCADE_MS = 175;
+const CASCADE_OUT_MS = 90;
+/** The card FLIP (thumbnail ⇄ hero) — the carried subject; the eye follows it. */
 const CARD_FLIP_MS = 300;
-const CARD_FLIP_BACK_MS = 260;
-/** The action graphic's carry (slot ⇄ the stage's action strip). */
-const GRAPHIC_FLIP_MS = 260;
+const CARD_FLIP_BACK_MS = 250;
+/** The unfold's start offset — the commit + release read first. */
+const UNFOLD_AT_MS = 70;
 
-// ── the armed thumbnail origin (the card-face carry) ────────────────────────
+// ── the armed origins ───────────────────────────────────────────────────────
 
 const THUMB_KEY = 'action-thumb';
+const SLOT_KEY = 'action-slot';
 
 /** Called by the browser right before mounting the focus stage: remember the
  *  inspector thumbnail's viewport rect so the enter hook can FLIP from it. */
@@ -72,8 +96,17 @@ export function armActionFocusOrigin(rect: {left: number, top: number, width: nu
   armDescendRect(THUMB_KEY, rect);
 }
 
+/**
+ * The rect (and roundness) the configuration surface unfolded FROM — kept for
+ * the fold on the way back. Measured in the browse layer's RESTING space (the
+ * layer is receded while the stage is up, and it is back at rest exactly when
+ * the fold lands), so the panel collapses into the slot the player pressed.
+ */
+let unfoldedFrom: {rect: {left: number, top: number, width: number, height: number}, radius: number | undefined} | undefined;
+
 /** Game-switch / unmount boundary. */
 export function resetActionFocusMotion(): void {
+  unfoldedFrom = undefined;
   resetWorkspaceDescend();
 }
 
@@ -95,18 +128,27 @@ function heroCardOf(el: Element): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-action-focus-card]');
 }
 
-function stageColumnOf(el: Element): HTMLElement | null {
-  return el.querySelector<HTMLElement>('.con-composer__actright');
+/** The stage's CONFIGURATION SURFACE — the unfold's subject. */
+function surfaceOf(el: Element): HTMLElement | null {
+  return el.querySelector<HTMLElement>('[data-unfold-surface]');
 }
 
-/** The stage's ACTION STRIP — the deeper home of the pressed formula. */
-function actionStripOf(el: Element): HTMLElement | null {
-  return el.querySelector<HTMLElement>('[data-action-strip]');
+/** The controls that surface from inside the opened panel. */
+function cascadeItemsOf(el: Element): Array<HTMLElement> {
+  return Array.from(el.querySelectorAll<HTMLElement>('[data-unfold-item]'));
 }
 
-/** The FOCUSED slot's graphic in the browse grid (the carry's home). */
-function slotGraphicOf(el: Element): HTMLElement | null {
-  return rootOf(el)?.querySelector<HTMLElement>('.con-cardactions__tile--focused .con-cardactions__graphic') ?? null;
+/** The pressed slot in the browse grid (the unfold's origin). */
+function slotOf(el: Element): HTMLElement | null {
+  return rootOf(el)?.querySelector<HTMLElement>('.con-cardactions__tile--focused') ?? null;
+}
+
+/** The pressed slot's OWN content — released in place, never carried. */
+function slotContentOf(el: Element): Array<HTMLElement> {
+  const slot = slotOf(el);
+  return slot === null ?
+    [] :
+    Array.from(slot.querySelectorAll<HTMLElement>('.con-cardactions__tile-head, .con-cardactions__canvas, .con-cardactions__tile-meta'));
 }
 
 /** The pick bridges hide the WHOLE center via v-show; a focus unmount during
@@ -120,7 +162,7 @@ function s(ms: number): number {
   return motionMs(ms) / 1000;
 }
 
-// ── the enter hook (browse → focus: the DESCENT) ────────────────────────────
+// ── the enter hook (browse → focus: the SURFACE UNFOLD) ─────────────────────
 
 export function actionFocusEnterHook(el: Element, done: () => void): void {
   if (typeof window === 'undefined' || hiddenByBridge(el)) {
@@ -131,8 +173,17 @@ export function actionFocusEnterHook(el: Element, done: () => void): void {
   const browse = browseOf(el);
   const thumb = thumbOf(el);
   const heroCard = heroCardOf(el);
-  const column = stageColumnOf(el);
-  const strip = actionStripOf(el);
+  const surface = surfaceOf(el);
+  const items = cascadeItemsOf(el);
+  const content = slotContentOf(el);
+
+  // The slot's rect: armed at the press (the press-time truth), with the live
+  // slot as the fallback — the header keeps a FIXED height across the two
+  // states, so the browse layer is laid out identically either way.
+  const slot = slotOf(el);
+  const slotRect = takeDescendRect(SLOT_KEY) ?? descendRectOf(slot);
+  const slotRadius = descendRadiusOf(slot);
+  unfoldedFrom = slotRect === undefined ? undefined : {rect: slotRect, radius: slotRadius};
 
   if (consoleReducedMotionActive()) {
     guardedDescend(el, 160, done, (finish) => {
@@ -146,20 +197,30 @@ export function actionFocusEnterHook(el: Element, done: () => void): void {
 
   const pressPoint = takeDescendOrigin('action-browse');
   const thumbRect = takeDescendRect(THUMB_KEY);
-  const graphicRect = takeDescendRect('action-graphic');
-  guardedDescend(el, CARD_FLIP_MS + 120, done, (finish) => {
+  guardedDescend(el, UNFOLD_AT_MS + CARD_FLIP_MS + 140, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    // 1. The browse layer RECEDES INTO the press point — the commit pulse on
-    //    the chosen slot plays inside this dissolve (CSS `--descend`). The
-    //    thumbnail goes dark INSTANTLY: the flying hero card IS that card now
-    //    (one physical object, never a double image).
+    // 1. RELEASE — the pressed slot's own content dissolves where it stands
+    //    (the commit pulse plays under it through the CSS `--descend` class).
+    descendRelease(tl, content, s(RELEASE_MS), 0);
+    // 2. The browse layer RECEDES INTO the press point. The thumbnail goes
+    //    dark INSTANTLY: the flying hero card IS that card now (one physical
+    //    object, never a double image).
     if (thumb !== null) {
       gsap.set(thumb, {opacity: 0});
     }
     if (browse !== null) {
-      descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), 0);
+      descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(40));
     }
-    // 2. The hero card FLIPs from the thumbnail's rect into its stage home.
+    // 3. UNFOLD — the configuration surface opens FROM the slot's rect. The
+    //    card FLIP shares the same window and easing family, so the two read
+    //    as ONE phrase, not two competing animations.
+    const unfolded = surface !== null &&
+      descendUnfold(tl, surface, slotRect, s(UNFOLD_MS), s(UNFOLD_AT_MS), slotRadius);
+    if (surface !== null && !unfolded) {
+      tl.fromTo(surface,
+        {autoAlpha: 0, y: descendPx(10)},
+        {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(UNFOLD_AT_MS));
+    }
     if (heroCard !== null) {
       const from = thumbRect !== undefined ? descendFlipFrom(heroCard, thumbRect) : undefined;
       if (from !== undefined) {
@@ -169,29 +230,12 @@ export function actionFocusEnterHook(el: Element, done: () => void): void {
       } else {
         tl.fromTo(heroCard,
           {autoAlpha: 0, scale: 0.97, transformOrigin: '50% 50%'},
-          {autoAlpha: 1, scale: 1, duration: s(STAGE_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, 0);
+          {autoAlpha: 1, scale: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, 0);
       }
     }
-    // 3. The pressed ACTION GRAPHIC is CARRIED into the stage's strip — the
-    //    exact object of the commitment lands in the deeper layer.
-    if (strip !== null) {
-      const from = graphicRect !== undefined ? descendFlipFrom(strip, graphicRect) : undefined;
-      if (from !== undefined) {
-        tl.fromTo(strip,
-          {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
-          {x: 0, y: 0, scale: 1, duration: s(GRAPHIC_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, s(20));
-      } else {
-        tl.fromTo(strip,
-          {autoAlpha: 0, y: descendPx(8)},
-          {autoAlpha: 1, y: 0, duration: s(STAGE_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, s(30));
-      }
-    }
-    // 4. The decision column rises as the stage assembles around the objects.
-    if (column !== null) {
-      tl.fromTo(column,
-        {autoAlpha: 0, y: descendPx(12)},
-        {autoAlpha: 1, y: 0, duration: s(STAGE_IN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, s(40));
-    }
+    // 4. CONTEXT REVEAL — the controls surface from INSIDE the opening panel
+    //    (deliberately overlapping the unfold: they emerge behind its edge).
+    descendCascade(tl, items, s(CASCADE_MS), s(UNFOLD_AT_MS + 100));
     return tl;
   });
 }
@@ -203,13 +247,24 @@ export function actionFocusEnterHook(el: Element, done: () => void): void {
 export function actionFocusLeaveHook(el: Element, done: () => void): void {
   if (typeof window === 'undefined' || hiddenByBridge(el)) {
     killDescendEpisode(el);
+    unfoldedFrom = undefined;
     done();
     return;
   }
   const browse = browseOf(el);
   const thumb = thumbOf(el);
   const heroCard = heroCardOf(el);
-  const strip = actionStripOf(el);
+  const surface = surfaceOf(el);
+  const items = cascadeItemsOf(el);
+  const content = slotContentOf(el);
+  const home = unfoldedFrom;
+  unfoldedFrom = undefined;
+
+  // The slot's content comes back with the layer (it was released, not moved)
+  // — restoring it now is invisible: the browse layer is still receded.
+  if (content.length > 0) {
+    gsap.set(content, {clearProps: 'transform,opacity,visibility'});
+  }
 
   if (consoleReducedMotionActive()) {
     guardedDescend(el, 140, done, (finish) => {
@@ -224,21 +279,26 @@ export function actionFocusLeaveHook(el: Element, done: () => void): void {
     return;
   }
 
-  // Capture the carried objects' live rects BEFORE anything moves — their
-  // browse homes FLIP back from them.
+  // The carried card's live rect BEFORE anything moves — the thumbnail FLIPs
+  // home from it.
   const heroRect = heroCard?.getBoundingClientRect();
-  const stripRect = strip?.getBoundingClientRect();
-  guardedDescend(el, CARD_FLIP_BACK_MS + 120, done, (finish) => {
+  guardedDescend(el, CARD_FLIP_BACK_MS + 140, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    // The single physical objects: the stage copies go dark the moment their
-    // browse twins start flying home.
+    // 1. The controls let go in place.
+    descendCascadeOut(tl, items, s(CASCADE_OUT_MS), 0);
+    // The single physical object: the stage's card goes dark the moment its
+    // browse twin starts flying home.
     if (heroCard !== null) {
       gsap.set(heroCard, {opacity: 0});
     }
-    tl.to(el, {autoAlpha: 0, y: descendPx(8), duration: s(STAGE_OUT_MS), ease: 'power2.in'}, 0);
-    // The browse layer BREATHES BACK from the same press point it receded into.
+    // 2. FOLD — the panel collapses back into the slot it opened from.
+    const folded = surface !== null &&
+      descendFold(tl, surface, home?.rect, s(FOLD_MS), s(50), home?.radius);
+    tl.to(el, {autoAlpha: 0, duration: s(folded ? 90 : 110), ease: 'power2.in'}, s(folded ? FOLD_MS - 20 : 0));
+    // 3. The browse layer BREATHES BACK from the same press point it receded
+    //    into, and the card FLIPs home into the inspector.
     if (browse !== null) {
-      descendReturn(tl, browse, s(BROWSE_IN_MS), s(30));
+      descendReturn(tl, browse, s(BROWSE_IN_MS), s(40));
     }
     if (thumb !== null) {
       gsap.set(thumb, {clearProps: 'opacity'});
@@ -249,16 +309,6 @@ export function actionFocusLeaveHook(el: Element, done: () => void): void {
             {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
             {x: 0, y: 0, scale: 1, duration: s(CARD_FLIP_BACK_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, s(20));
         }
-      }
-    }
-    // The action graphic flies home into its slot.
-    const slotGraphic = slotGraphicOf(el);
-    if (slotGraphic !== null && stripRect !== undefined && stripRect.width >= 10) {
-      const from = descendFlipFrom(slotGraphic, stripRect);
-      if (from !== undefined) {
-        tl.fromTo(slotGraphic,
-          {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
-          {x: 0, y: 0, scale: 1, duration: s(GRAPHIC_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, s(30));
       }
     }
     return tl;
@@ -273,11 +323,15 @@ export function actionFocusEnterCancelledHook(el: Element): void {
 
 export function actionFocusLeaveCancelledHook(el: Element): void {
   killDescendEpisode(el);
-  // A cancelled leave means the stage STAYS — re-park the browse layer and
-  // the thumbnail (the enter hook's end state).
+  // A cancelled leave means the stage STAYS — re-park the browse layer, the
+  // released slot content and the thumbnail (the enter hook's end state).
   const browse = browseOf(el);
   if (browse !== null) {
     descendParkLayer(browse);
+  }
+  const content = slotContentOf(el);
+  if (content.length > 0) {
+    gsap.set(content, {autoAlpha: 0});
   }
   const thumb = thumbOf(el);
   if (thumb !== null) {
@@ -286,5 +340,9 @@ export function actionFocusLeaveCancelledHook(el: Element): void {
   const heroCard = heroCardOf(el);
   if (heroCard !== null) {
     gsap.set(heroCard, {clearProps: 'opacity'});
+  }
+  const surface = surfaceOf(el);
+  if (surface !== null) {
+    gsap.set(surface, {clearProps: 'clipPath,webkitClipPath'});
   }
 }

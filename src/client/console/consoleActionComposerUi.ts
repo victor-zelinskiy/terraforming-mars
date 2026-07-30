@@ -20,10 +20,11 @@ export const consoleActionComposerUi = reactive({
   open: false,
   /** The stage's live contract, ready for the command bar. */
   commands: [] as ReadonlyArray<ConsoleCommand>,
-  /** The stage's headline mode — decisions to make («Настройка действия») vs
-   *  a bare confirm («Подтверждение»). The frame header + the command-bar
-   *  context read it, so the chrome always names the stage honestly. */
-  mode: 'setup' as 'setup' | 'confirm',
+  /* (No headline `mode` here any more: the stage's name follows its PHASE —
+     `focusKicker` in consoleActionFlow, read by BOTH the frame header and the
+     command bar. The old mode was published by the composer from
+     `hasDecisions`, which depends on the async preview, so the title changed
+     under the entering animation.) */
   /**
    * The action card whose deck-check REVEAL the focus stage presents
    * IN-FRAME ('' = none). Set at confirm time for a branch that carries a
@@ -40,10 +41,6 @@ export function setConsoleActionComposerCommands(commands: ReadonlyArray<Console
   consoleActionComposerUi.commands = commands;
 }
 
-export function setConsoleActionComposerMode(mode: 'setup' | 'confirm'): void {
-  consoleActionComposerUi.mode = mode;
-}
-
 export function setConsoleActionRevealClaim(cardName: string): void {
   consoleActionComposerUi.revealClaim = cardName;
 }
@@ -55,6 +52,5 @@ export function resetConsoleActionRevealClaim(): void {
 export function resetConsoleActionComposerUi(): void {
   consoleActionComposerUi.open = false;
   consoleActionComposerUi.commands = [];
-  consoleActionComposerUi.mode = 'setup';
   consoleActionComposerUi.revealClaim = '';
 }

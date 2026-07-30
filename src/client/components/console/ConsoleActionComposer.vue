@@ -8,7 +8,7 @@
        action center owns the shared `.con-shade`); the panel is the captured
        unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
        into the reveal result's «Источник» slot on the phase handoff. -->
-  <div ref="rootEl" class="con-composer con-composer--stage" role="region" :aria-label="$t(hasDecisions ? 'Action setup' : 'Confirmation')" data-motion-surface="action-composer">
+  <div ref="rootEl" class="con-composer con-composer--stage" role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
            arrives from the browser's inspector thumbnail, X inspects it
@@ -48,20 +48,11 @@
       </div>
       <div class="con-composer__actright">
 
-      <!-- ── THE ACTION STRIP — the pressed formula, CARRIED into this layer.
-           The exact graphic the player committed to in the browser FLIPs into
-           this slot (workspaceDescend: the object travels, the screens don't
-           swap) and stays through every phase — setup, confirm, even the
-           reveal — as the standing answer to «какое действие я выполняю».
-           Same recessed-well chassis as the browse slot, so the FLIP is a
-           pure move, not a restyle. -->
-      <div v-if="stripNode !== undefined" class="con-composer__actstrip" data-action-strip aria-hidden="true">
-        <div class="con-composer__actstrip-well card-container" v-i18n v-strip-action-prefix>
-          <CardRenderEffectBoxComponent v-if="stripNode.actionNode !== undefined" :effectData="stripNode.actionNode" />
-          <CardRenderData v-else-if="stripNode.renderRoot !== undefined" :renderData="stripNode.renderRoot" />
-          <span v-else class="con-composer__actstrip-text">{{ stripNode.text }}</span>
-        </div>
-      </div>
+      <!-- (No carried action graphic here: the pressed slot's schema stays in
+           the browser where it serves comparison. This layer already says the
+           same thing better — the source card, «Будет списано / Вы получите»
+           and the live amount controls. What IS carried is the card; what
+           unfolds is the pressed slot's own SURFACE, below.) -->
 
       <!-- ── THE REVEAL PHASE («Действия карт › Результат вскрытия») ──────
            A confirmed deck-check action stays IN THIS STAGE: the decision
@@ -101,10 +92,19 @@
       </template>
       <template v-else>
 
+      <!-- ── THE CONFIGURATION SURFACE — the deeper state of the pressed
+           action slot. It is not a new modal that arrived: the slot's own
+           surface UNFOLDS into it (workspaceDescend: the panel is clipped
+           down to the button's rect and opens from there), and B folds it
+           back. Everything the operation needs — the live formula, the
+           decisions, the CTA — lives INSIDE it, and surfaces from inside it
+           (`data-unfold-item`). The hero card stands beside it, carried. -->
+      <div class="con-composer__surface" data-unfold-surface>
+
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
            multi-branch option cards below carry their own chips. ─────── -->
-      <div v-if="showHero" class="con-composer__hero">
+      <div v-if="showHero" class="con-composer__hero" data-unfold-item>
         <div v-if="heroCost.length > 0" class="con-composer__hero-side">
           <div class="con-composer__hero-label">{{ $t('Will be spent') }}</div>
           <div class="con-composer__hero-chips">
@@ -129,10 +129,10 @@
           </div>
         </div>
       </div>
-      <div v-else-if="!hasDecisions" class="con-composer__hero con-composer__hero--plain">{{ $t('Confirm to perform this action.') }}</div>
+      <div v-else-if="!hasDecisions" class="con-composer__hero con-composer__hero--plain" data-unfold-item>{{ $t('Confirm to perform this action.') }}</div>
 
       <!-- ── The decision surface ─────────────────────────────────────── -->
-      <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
+      <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll" data-unfold-item>
         <!-- SUB-STATE: a premium pick list (card / player / or). -->
         <template v-if="sub !== undefined && sub.kind === 'list'">
           <div class="con-composer__sub-title">{{ subTitle }}</div>
@@ -332,7 +332,7 @@
       <!-- The dock STAYS mounted while the payment editor is open (it just
            relabels to «Готово») — unmounting it there would move the whole
            column, which is exactly the jump this rework removes. -->
-      <div v-if="sub === undefined || sub.kind === 'payment'" class="con-composer__ctadock">
+      <div v-if="sub === undefined || sub.kind === 'payment'" class="con-composer__ctadock" data-unfold-item>
         <!-- The honest readiness line: names the FIRST missing decision. -->
         <div v-if="ctaDockHint !== ''" class="con-composer__cta-hint">
           <span aria-hidden="true">◈</span>
@@ -353,6 +353,7 @@
         </div>
       </div>
 
+      </div><!-- /__surface -->
       </template><!-- /decision column (non-reveal) -->
 
       </div><!-- /__actright -->
@@ -405,7 +406,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {setConsoleActionComposerCommands, setConsoleActionComposerMode, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusCommandRun, FocusRowKind} from '@/client/console/consoleActionFlow';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
@@ -729,19 +730,6 @@ export default defineComponent({
      *  filled by the repeat pick surface, not captured like a normal step. */
     repeatChoice(): ComposerChoice | undefined {
       return this.branchChoiceList.find((c) => c.repeatAction === true);
-    },
-    /**
-     * The ACTION STRIP's render node — the printed graphic of the variant the
-     * player pressed (the workspaceDescend carry's landing content). A
-     * combined draft (nodeIndex < 0, the Viron whole-card handoff) has no ONE
-     * pressed formula → no strip.
-     */
-    stripNode(): GroupNode | undefined {
-      if (this.nodeIndex < 0) {
-        return undefined;
-      }
-      const node = this.entry.group.nodes[this.nodeIndex];
-      return node !== undefined ? stripNodeOr(node) : undefined;
     },
     /** The chosen action's render node — the graphic drawn in the filled slot. */
     repeatNode(): GroupNode | undefined {
@@ -1160,16 +1148,11 @@ export default defineComponent({
         this.$emit('commands', cmds);
       },
     },
-    // The frame header (ConsoleCardActions) names the stage from this mode:
-    // decisions → «Настройка действия», a bare confirm → «Подтверждение».
-    hasDecisions: {
-      immediate: true,
-      handler(has: boolean) {
-        if (this.publishCommands) {
-          setConsoleActionComposerMode(has ? 'setup' : 'confirm');
-        }
-      },
-    },
+    // (The frame header no longer asks this component what to call itself:
+    // the stage's name follows its PHASE — «Настройка действия» while the
+    // action is being prepared, «Результат вскрытия» in the reveal phase.
+    // Deriving it from `hasDecisions` made the title depend on the ASYNC
+    // preview, so it changed under the entering animation.)
   },
   beforeUnmount() {
     this.abortRevealFlight();

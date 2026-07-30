@@ -5,16 +5,22 @@
   <!-- `con-ws` — the workspace-family marker: `.con-root:has(.con-ws)` lifts
        the player rail above the dims while this surface lives (leave
        transitions included). -->
-  <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')" data-motion-surface="card-actions">
+  <!-- `data-flow` — the EXPLICIT transition state (browse · entering ·
+       configure · returning). The chrome and the guards read this, never an
+       animation's side effects. -->
+  <div ref="rootEl" class="con-cardactions con-ws" role="dialog" :aria-label="$t('Card actions')"
+       :data-flow="flowState" data-motion-surface="card-actions">
     <!-- The action center frame — ONE chrome for both presentation states:
          the browse grid AND the in-frame ACTION FOCUS stage. -->
     <div class="con-cardactions__frame" data-motion-panel>
-      <!-- ── Header — ONE line: the identity/breadcrumb (left), the two
-           filter groups (center, browse only), the counts / variant chip /
-           optional player-context chip (right). Focus turns the same line
-           into the operation breadcrumb («Действия карт › Настройка
-           действия · the card») — the top area serves the CURRENT stage,
-           never a dead bar. ── -->
+      <!-- ── Header — the workspace's PERSISTENT chrome. It is never rebuilt
+           between the two stages: the identity line stays in the DOM and
+           GROWS the breadcrumb, and everything that differs (filters + counts
+           vs the variant chip) lives as two layers of ONE fixed-height zone
+           that crossfade in place. Nothing is v-if'd out of the flow, so the
+           header can neither blink nor change height under the entering
+           animation — the stage below always assembles in the geometry the
+           browse layer was measured in. ── -->
       <header class="con-cardactions__head">
         <div class="con-cardactions__ident">
           <span v-if="repeat" class="con-cardactions__kicker-mark" aria-hidden="true">⟳</span>
@@ -27,26 +33,22 @@
             <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
             <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.label ?? repeatRequest.source.card) }}</span>
           </template>
-          <template v-if="composer !== undefined">
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-            <!-- The breadcrumb STEP crossfades between phases (Настройка /
-                 Подтверждение ⇄ Результат вскрытия) — never a blank beat. -->
-            <transition name="con-cardactions-headswap" mode="out-in">
-              <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
-            </transition>
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">·</span>
-            <!-- The composed card's name — the operation's title. -->
-            <transition name="con-cardactions-headswap" mode="out-in">
-              <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
-            </transition>
-          </template>
         </div>
 
+        <!-- ── The AUX ZONE — one region, two stacked layers. Only the BROWSE
+             layer (filters + counts) is in the FLOW: it alone decides the
+             zone's width and height, so both are identical in both stages.
+             The FOCUS layer (the breadcrumb tail + the variant chip) lies
+             over it — which is why the breadcrumb can grow long without ever
+             pushing the header taller. They crossfade; neither is removed. ── -->
+        <div class="con-cardactions__aux">
+        <div class="con-cardactions__aux-layer con-cardactions__aux-layer--browse"
+             :class="{'con-cardactions__aux-layer--out': composer !== undefined}"
+             :aria-hidden="composer !== undefined ? 'true' : undefined">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
-        <transition name="con-cardactions-headswap">
-          <div v-if="composer === undefined" class="con-cardactions__filters">
+          <div class="con-cardactions__filters">
             <div class="con-cardactions__fgroup">
               <span class="con-cardactions__fgroup-head">
                 <span class="con-cardactions__filter-label">{{ $t('Availability') }}</span>
@@ -76,28 +78,51 @@
               </span>
             </div>
           </div>
-        </transition>
 
-        <div class="con-cardactions__head-stats">
-          <template v-if="composer === undefined">
+          <div class="con-cardactions__head-stats">
             <span class="con-cardactions__stat">
               <b>{{ model.totalTiles }}</b><i>{{ $t('total') }}</i>
             </span>
             <span class="con-cardactions__stat con-cardactions__stat--go" :class="{'con-cardactions__stat--zero': model.availableTiles === 0}">
               <b>{{ model.availableTiles }}</b><i>{{ $t(repeat ? 'can select' : 'can perform') }}</i>
             </span>
+          </div>
+        </div><!-- /aux-layer--browse -->
+
+        <div class="con-cardactions__aux-layer con-cardactions__aux-layer--focus"
+             :class="{'con-cardactions__aux-layer--out': composer === undefined}"
+             :aria-hidden="composer === undefined ? 'true' : undefined">
+          <!-- The breadcrumb TAIL — it continues the identity line visually
+               (the zone starts right after it) while living in an overlay, so
+               a long card name can never reflow the header. -->
+          <template v-if="composer !== undefined">
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+            <!-- The STEP crossfades between phases (Настройка действия ⇄
+                 Результат вскрытия) — never a blank beat, and never a value
+                 that changes on its own mid-entry. -->
+            <transition name="con-cardactions-headswap" mode="out-in">
+              <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
+            </transition>
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">·</span>
+            <!-- The composed card's name — the operation's title. -->
+            <transition name="con-cardactions-headswap" mode="out-in">
+              <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
+            </transition>
           </template>
-          <span v-else-if="focusVariantTotal > 1" class="con-cardactions__stat">
+          <span v-if="composer !== undefined && focusVariantTotal > 1" class="con-cardactions__stat con-cardactions__stat--variant">
             <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
           </span>
-          <!-- The PLAYER-CONTEXT chip — only when the workspace is opened on
-               behalf of ANOTHER player (the future Information-Panel entry);
-               your own visit needs no name tag. -->
-          <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
-            <span class="con-cardactions__player-dot" aria-hidden="true"></span>
-            <span>{{ contextPlayer.name }}</span>
-          </span>
         </div>
+        </div><!-- /aux -->
+
+        <!-- The PLAYER-CONTEXT chip — only when the workspace is opened on
+             behalf of ANOTHER player (the future Information-Panel entry);
+             your own visit needs no name tag. It belongs to the WORKSPACE,
+             not to a stage, so it stays in the flow across both. -->
+        <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
+          <span class="con-cardactions__player-dot" aria-hidden="true"></span>
+          <span>{{ contextPlayer.name }}</span>
+        </span>
       </header>
 
       <!-- ── The stage wrap: the BROWSE layer (grid + inspector) and the
@@ -336,8 +361,8 @@
            confirm it HOLDS (awaiting handoff) and its eventual unmount rides
            the surface-motion phase swap into the reveal / task host. -->
       <transition :css="false" appear
-                  @enter="actionFocusEnterHook" @leave="actionFocusLeaveHook"
-                  @enter-cancelled="actionFocusEnterCancelledHook" @leave-cancelled="actionFocusLeaveCancelledHook">
+                  @enter="onFocusEnter" @leave="onFocusLeave"
+                  @enter-cancelled="onFocusEnterCancelled" @leave-cancelled="onFocusLeaveCancelled">
         <ConsoleActionComposer v-if="composer !== undefined && composerEntry !== undefined"
                                ref="composerRef"
                                :playerView="playerView"
@@ -429,7 +454,6 @@ import {
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
-import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
 import {armDescendOrigin, armDescendRect} from '@/client/console/surfaceMotion/workspaceDescend';
 import {
   actionFocusEnterHook,
@@ -439,7 +463,7 @@ import {
   armActionFocusOrigin,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
-import {consoleActionComposerUi, setConsoleActionComposerMode, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -532,6 +556,18 @@ export default defineComponent({
       /** The slot the player just DESCENDED into (the commit pulse rides it
        *  while the browse layer recedes; cleared on return). */
       descendKey: '',
+      /**
+       * The EXPLICIT transition state of the workspace (the state machine the
+       * whole shell agrees on):
+       *   browse    — the grid owns the screen;
+       *   entering  — the commit landed, the surface is unfolding;
+       *   configure — the configuration surface is open and settled;
+       *   returning — the surface is folding back into its slot.
+       * It is authoritative: the chrome reads it, `activateFocused` guards on
+       * it, and e2e reads it off `data-flow`. Nothing infers a transition
+       * from an animation's side effects.
+       */
+      flowState: 'browse' as 'browse' | 'entering' | 'configure' | 'returning',
       shakeTimer: undefined as number | undefined,
     };
   },
@@ -630,14 +666,15 @@ export default defineComponent({
       return run.map((c) => c.control === 'confirm' ? {...c, label: 'Select'} :
         c.control === 'back' ? {...c, label: 'Cancel'} : c);
     },
-    /** The focus-stage breadcrumb step («Настройка действия» / «Подтверждение»
-     *  → «Результат вскрытия» once a deck-check confirm enters its reveal
-     *  phase), published live by the stage itself. */
+    /**
+     * The focus-stage breadcrumb step, named by the stage's PHASE alone
+     * («Настройка действия» → «Результат вскрытия» once a deck-check confirm
+     * enters its reveal phase). The value is fixed before the entering
+     * episode starts and cannot change during it — the same function the
+     * command bar reads, so breadcrumb and bar can never disagree.
+     */
     focusKickerKey(): string {
-      if (this.revealFlow !== undefined) {
-        return 'Reveal result';
-      }
-      return focusKicker(consoleActionComposerUi.mode === 'setup');
+      return focusKicker(this.revealFlow !== undefined ? 'reveal' : 'setup');
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */
@@ -929,16 +966,45 @@ export default defineComponent({
       this.focusKey = stepActionRows(this.model.rows, current, dir);
       void this.$nextTick(() => this.scrollFocusedIntoView());
     },
-    // ACTION FOCUS transition hooks (plain functions — no `this`).
-    actionFocusEnterHook,
-    actionFocusLeaveHook,
-    actionFocusEnterCancelledHook,
-    actionFocusLeaveCancelledHook,
+    // ── ACTION FOCUS transition hooks — the choreography lives in
+    //    consoleActionFocusMotion; these thin wrappers keep `flowState` (the
+    //    EXPLICIT transition state) in lockstep with the episode, so nothing
+    //    downstream has to guess whether a transition is in flight.
+    onFocusEnter(el: Element, done: () => void): void {
+      this.flowState = 'entering';
+      actionFocusEnterHook(el, () => {
+        if (this.flowState === 'entering') {
+          this.flowState = 'configure';
+        }
+        done();
+      });
+    },
+    onFocusLeave(el: Element, done: () => void): void {
+      this.flowState = 'returning';
+      actionFocusLeaveHook(el, () => {
+        if (this.flowState === 'returning') {
+          this.flowState = 'browse';
+        }
+        done();
+      });
+    },
+    onFocusEnterCancelled(el: Element): void {
+      actionFocusEnterCancelledHook(el);
+    },
+    onFocusLeaveCancelled(el: Element): void {
+      actionFocusLeaveCancelledHook(el);
+      // The stage STAYS — the enter hook's end state is the truth again.
+      this.flowState = 'configure';
+    },
     activateFocused(): void {
       // Repeated input hardening: while the stage is up the shell routes A
       // into it — but even a stray call must never re-arm the draft (a
       // re-created draft object would reseed captures mid-preparation).
-      if (this.composer !== undefined) {
+      // `returning` counts as busy: the draft is already gone, but the panel
+      // is still folding back into the slot, and re-entering mid-fold would
+      // mount a SECOND stage over a leaving one (the classic fast-B-then-A
+      // double image). The phrase finishes, then A works again.
+      if (this.composer !== undefined || this.flowState === 'returning') {
         return;
       }
       const tile = this.focusedTile;
@@ -949,31 +1015,25 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
-      // PRESEED the stage's headline mode SYNCHRONOUSLY, before the composer
-      // exists: the header used to render the stale store value («Настройка
-      // действия») for one frame and then swap to the composer's published
-      // truth — the visible kicker jump. The predicate mirrors the composer's
-      // `hasDecisions` at mount: any pre/branch choice (tile.hasChoices) or a
-      // combined node fanning into a branch pick.
-      const preview = this.previewMap.get(tile.cardName);
-      const entry = this.entries.find((e) => e.cardName === tile.cardName);
-      const branchFan = (preview !== undefined && entry !== undefined) ?
-        branchPositionsForNode(entry.group, preview.branches, tile.nodeIndex).length > 1 : false;
-      setConsoleActionComposerMode(tile.hasChoices || branchFan ? 'setup' : 'confirm');
-      // The WORKSPACE DESCEND phrase (workspaceDescend.ts): remember the
-      // press point + the semantic objects' live rects, then let the enter
-      // hook play the descent — the commit pulse on the slot, the browse
-      // layer receding INTO the press point, the card thumbnail FLIPping to
-      // the hero and the action graphic FLIPping into the stage's strip.
+      // The WORKSPACE DESCEND phrase (workspaceDescend.ts) is armed HERE, at
+      // the press, with the press-time truth: the pressed SLOT's rect (the
+      // surface that will unfold into the configuration panel), the press
+      // point (the depth the browse layer recedes into) and the inspector
+      // thumbnail's rect (the ONE carried object — the source card).
       const slot = this.focusedSlotEl();
       const slotRect = slot?.getBoundingClientRect?.();
       if (slotRect !== undefined) {
         armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
       }
-      armDescendRect('action-graphic', slot?.querySelector<HTMLElement>('.con-cardactions__graphic')?.getBoundingClientRect?.());
+      armDescendRect('action-slot', slotRect);
       const thumb = this.$refs.detailCard as HTMLElement | undefined;
       armActionFocusOrigin(thumb?.getBoundingClientRect?.());
       this.descendKey = tile.key;
+      // The transition state is EXPLICIT: the commit reads on the slot while
+      // the stage mounts, the enter hook takes it to `configure` when the
+      // episode completes, B walks it back through `returning`. Nothing
+      // derives "are we mid-transition?" from an animation's side effects.
+      this.flowState = 'entering';
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
     },
     /** The DOM element of the focused action slot (the ref list is keyed). */

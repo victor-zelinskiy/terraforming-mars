@@ -14425,7 +14425,12 @@ html.console-mode {
         display: flex;
         align-items: center;
         gap: .35rem .9rem;
-        flex-wrap: wrap;
+        /* NOWRAP on purpose: the identity and the aux zone always share the
+           first line. A narrow band is absorbed INSIDE the aux zone (its own
+           filter strip wraps to a second tier — the Deck's deliberate
+           two-tier header), never by pushing the whole zone below the
+           identity, which would have cost a third tier. */
+        flex-wrap: nowrap;
         min-height: 2rem;
     }
     &__ident {
@@ -14471,7 +14476,54 @@ html.console-mode {
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    /* The counts close the line (order 3 — the filters take the middle). */
+    /* ── The AUX ZONE — ONE fixed region of the header holding the two
+       stage-specific blocks as stacked LAYERS. The browse layer stays in the
+       flow (it defines the zone's height), the focus layer lies over it; they
+       crossfade and neither is ever removed. That is what makes the header
+       height identical in both stages: the focus stage assembles in exactly
+       the geometry the browse layer was measured in — no reflow under the
+       entering animation, and the filters can never blink. ── */
+    &__aux {
+        order: 2;
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+    }
+    &__aux-layer {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .35rem .9rem;
+        min-width: 0;
+        width: 100%;
+        transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+        /* The FOCUS layer floats over the browse one — the zone's width AND
+           height are the browse layer's, always, so the breadcrumb tail can
+           be as long as it likes without reflowing anything. */
+        &--focus {
+            position: absolute;
+            inset: 0;
+            flex-wrap: nowrap;
+            gap: .4rem;
+            /* The tail reads as the continuation of the identity line: it
+               starts at the zone's left edge (right after the section name)
+               and the variant chip closes the line on the right. */
+            justify-content: flex-start;
+            .con-cardactions__title { flex: 0 1 auto; }
+            .con-cardactions__stat--variant { margin-left: auto; flex-shrink: 0; }
+        }
+        /* The deliberate, controlled disappearance (never a v-if / remount). */
+        &--out {
+            opacity: 0;
+            transform: translateY(-.12rem);
+            pointer-events: none;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__aux-layer { transition: none; }
+    }
+    /* The counts close the browse layer; the filters take the middle. */
     &__head-stats { order: 3; display: flex; align-items: center; gap: .45rem; margin-left: auto; }
     &__stat {
         display: inline-flex; align-items: baseline; gap: .25rem;
@@ -14499,7 +14551,7 @@ html.console-mode {
     /* The filters take the MIDDLE of the header line (order 2, between the
        identity and the counts) and only wrap to their own row when the band
        cannot hold all three blocks. */
-    &__filters { order: 2; display: flex; flex-wrap: wrap; gap: .3rem .6rem; min-width: 0; }
+    &__filters { display: flex; flex-wrap: wrap; gap: .3rem .6rem; min-width: 0; }
     &__fgroup {
         display: inline-flex; align-items: center; gap: .25rem;
         padding: .15rem .4rem; border-radius: .5rem;
@@ -14575,6 +14627,7 @@ html.console-mode {
     --act-meta-h: .95rem;    /* the diagnostics strip (reason / choice note) */
     --act-pad-t: .3rem;      /* the slot's top padding */
     --act-gap: .22rem;       /* the slot's inner zone gap */
+    --act-pair-gap: 1.1rem;  /* the seam channel between two alternatives */
 
     &__group {
         display: flex;
@@ -14594,8 +14647,14 @@ html.console-mode {
         }
         &--activated { opacity: 0.92; }
     }
-    /* The action row: one button, or the «или» pair on two equal columns. */
+    /* The action row: one button, or the «или» pair on two equal columns.
+       A PAIR draws the group's central SEAM in the gap — one line the two
+       alternatives share, with the «или» badge sitting ON it. The line is
+       brightest at the ACTION CANVAS' height and fades out towards the
+       service row and the diagnostics, so the relation reads exactly where
+       the two formulas stand. */
     &__acts {
+        position: relative;
         flex: 1;
         min-width: 0;
         display: grid;
@@ -14603,7 +14662,23 @@ html.console-mode {
         align-items: stretch;
         &--pair {
             grid-template-columns: 1fr 1fr;
-            column-gap: 1.1rem; /* the gap hosts the «или» joint */
+            column-gap: var(--act-pair-gap); /* the seam channel + its badge */
+
+            &::before {
+                content: '';
+                position: absolute;
+                left: 50%;
+                top: .1rem;
+                bottom: .1rem;
+                width: .06rem;
+                transform: translateX(-50%);
+                background: linear-gradient(180deg,
+                    fade(@con-cyan, 4%) 0%,
+                    fade(@con-cyan, 46%) 32%,
+                    fade(@con-cyan, 46%) 68%,
+                    fade(@con-cyan, 4%) 100%);
+                pointer-events: none;
+            }
         }
     }
     /* The card PLATE — the group's IDENTITY HEADER: the name plus what the
@@ -14657,13 +14732,19 @@ html.console-mode {
         background: rgba(12, 22, 34, 0.96);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .2rem .5rem rgba(0, 0, 0, 0.4);
 
-        /* The JOINT sits in the grid's column gap on the tile's LEFT edge,
-           anchored to the ACTION CANVAS' centre (pad + service row + gap +
-           half the canvas — pure token arithmetic), so differing diagnostics
-           below can never drag it off the semantic middle. */
+        /* The BADGE on the seam: it sits in the grid's column gap on the
+           tile's LEFT edge, anchored to the ACTION CANVAS' centre (pad +
+           service row + gap + half the canvas — pure token arithmetic), so
+           differing diagnostics below can never drag it off the semantic
+           middle. It reads as part of the group (it sits ON the shared line),
+           never as a floating label. */
         &--joint {
             position: absolute;
-            left: 0;
+            /* Concentric with the seam LINE, which runs down the middle of
+               the channel — so the badge sits ON the line, never beside it.
+               Both read the same token; a literal here would drift the two
+               apart the moment the channel changes. */
+            left: calc(var(--act-pair-gap) / -2);
             top: calc(var(--act-pad-t) + var(--act-head-h) + var(--act-gap) + var(--act-canvas-h) / 2);
             transform: translate(-50%, -50%);
             z-index: 2;
@@ -15591,30 +15672,33 @@ html.console-mode {
         background-size: contain !important; background-repeat: no-repeat; background-position: center;
     }
 
-    /* THE ACTION STRIP — the pressed formula, carried into this layer by the
-       workspaceDescend FLIP. The SAME recessed-well chassis as the browse
-       slot's graphic (the carry is a pure move, never a restyle); it stands
-       above every phase's content as the constant «это выполняемое действие». */
-    .con-composer__actstrip {
-        flex-shrink: 0;
-        align-self: center;
+    /* ── THE CONFIGURATION SURFACE — what the pressed action slot UNFOLDS
+       into (workspaceDescend: the panel is clipped down to the slot's rect
+       and opened from there; `clip-path` only, so nothing is distorted and
+       the lit inset edge travels along the opening boundary — the button's
+       frame becoming the panel's frame).
+
+       It is deliberately a QUIET plane: the blocks inside it (formula,
+       decisions, CTA) already carry their own chassis, so a loud container
+       would be a third nesting level. Same material family as a slot — alloy
+       fall-off, a hairline ring, a machined top seam — one step calmer. ── */
+    .con-composer__surface {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
         max-width: 100%;
-        margin-bottom: .35rem;
-    }
-    .con-composer__actstrip-well {
-        margin: 0 !important; min-width: 0;
-        padding: .24rem .5rem;
-        border-radius: .4rem;
-        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
-        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.14);
-        zoom: var(--con-ui-scale, 1);
-        .card-description { display: none; }
-        &:has(> .con-composer__actstrip-text) { zoom: 1; }
-    }
-    .con-composer__actstrip-text {
-        display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
-        white-space: normal; overflow-wrap: anywhere;
-        max-width: 26rem;
+        padding: .55rem .7rem .6rem;
+        border-radius: .7rem;
+        background:
+            linear-gradient(90deg, transparent 8%, rgba(150, 200, 240, 0.16) 50%, transparent 92%) no-repeat top center / 100% .06rem,
+            linear-gradient(168deg, rgba(20, 31, 46, 0.62) 0%, rgba(11, 18, 28, 0.66) 60%, rgba(8, 13, 21, 0.7) 100%);
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 235, 255, 0.045),
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.18),
+            0 .5rem 1.4rem rgba(0, 0, 0, 0.38);
+        /* The scroll + CTA keep their own rhythm inside the plane. */
+        .con-composer__scroll { min-height: 0; }
     }
 
     /* The CTA DOCK — pinned under the decision scroll (flex sibling), so the
@@ -15896,8 +15980,14 @@ html.con-profile-handheld .con-cardactions {
        line (196 + 679 + 208 > 1080 logical px). Rather than let the flex
        decide WHICH block drops, the profile makes the choice deliberate:
        identity + counts hold the status line, the filter strip becomes a
-       full-width control tier under it. */
-    .con-cardactions__filters { order: 4; flex-basis: 100%; gap: .25rem .4rem; }
+       full-width control tier under it. The AUX ZONE keeps that two-tier
+       height in BOTH stages (the browse layer is the one in flow), so
+       entering the focus stage still changes nothing about the geometry. */
+    .con-cardactions__filters { order: 2; flex-basis: 100%; gap: .25rem .4rem; }
+    .con-cardactions__aux-layer--browse .con-cardactions__head-stats { order: 1; }
+    /* The focus layer rides the FIRST tier of that two-row zone (it is the
+       one the identity line sits on), never floating in its middle. */
+    .con-cardactions__aux-layer--focus { align-items: flex-start; }
     .con-cardactions__fgroup { padding: .1rem .3rem; gap: .2rem; }
     .con-cardactions__chip {
         padding: .1rem .35rem;
