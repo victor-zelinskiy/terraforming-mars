@@ -39,6 +39,8 @@ export interface PadFrame {
   exportReq?: number;
   /** Monotonic counter — bumped each time the DevTools "Закрыть консоль" button is clicked. */
   closeReq?: number;
+  /** Monotonic counter — bumped each time the DevTools "Копировать консоль" button is clicked. */
+  copyReq?: number;
 }
 
 /** One synthesized input action (the pure step function's output, unit-testable). */
@@ -116,13 +118,16 @@ const BOOTSTRAP = `(() => {
     'fill="#f5f7fa" stroke="#1c2733" stroke-width="1.3"/></svg>';
   document.documentElement.appendChild(cur);
 
-  // Injected DevTools toolbar — the "Экспорт консоли" + "Закрыть консоль" buttons, in a
-  // right-anchored flex bar so they sit side by side no matter the button text width (the
-  // export button relabels itself on a toast). Each is clicked with the pad cursor (a real,
-  // trusted mouse click), so its onclick fires like a mouse would, and bumps a counter the
-  // main loop watches: export → write the file + __tmExportDone flashes the result; close →
-  // main calls closeDevTools() (the page can't reliably close its own DevTools window).
+  // Injected DevTools toolbar — the "Экспорт консоли" + "Копировать консоль" + "Закрыть
+  // консоль" buttons, in a right-anchored flex bar so they sit side by side no matter the
+  // button text width (export/copy relabel themselves on a toast). Each is clicked with the
+  // pad cursor (a real, trusted mouse click), so its onclick fires like a mouse would, and
+  // bumps a counter the main loop watches: export → write the file + __tmExportDone flashes
+  // the result; copy → write the SAME rich dump to the clipboard + __tmCopyDone flashes the
+  // result; close → main calls closeDevTools() (the page can't reliably close its own
+  // DevTools window).
   window.__tmExportReq = 0;
+  window.__tmCopyReq = 0;
   window.__tmCloseReq = 0;
   const bar = document.createElement('div');
   bar.style.cssText = 'position:fixed;top:40px;right:12px;z-index:2147483646;' +
@@ -139,9 +144,12 @@ const BOOTSTRAP = `(() => {
   };
   const closeBtn = mkBtn('\\u2715 Закрыть консоль', '#c04747');
   closeBtn.onclick = () => { window.__tmCloseReq = (window.__tmCloseReq | 0) + 1; };
+  const copyBtn = mkBtn('\\u{1f4cb} Копировать консоль', '#5b3d8f');
+  copyBtn.onclick = () => { window.__tmCopyReq = (window.__tmCopyReq | 0) + 1; };
   const btn = mkBtn('\\u2b07 Экспорт консоли', '#3d566e');
   btn.onclick = () => { window.__tmExportReq = (window.__tmExportReq | 0) + 1; };
   bar.appendChild(closeBtn);
+  bar.appendChild(copyBtn);
   bar.appendChild(btn);
   document.documentElement.appendChild(bar);
   let toastTimer = 0;
@@ -152,6 +160,16 @@ const BOOTSTRAP = `(() => {
     toastTimer = setTimeout(() => {
       btn.textContent = '\\u2b07 Экспорт консоли';
       btn.style.borderColor = '#3d566e';
+    }, 4000);
+  };
+  let copyToastTimer = 0;
+  window.__tmCopyDone = (ok, msg) => {
+    copyBtn.textContent = ok ? '\\u2705 ' + (msg || 'Скопировано') : '\\u26a0 ' + (msg || 'Ошибка');
+    copyBtn.style.borderColor = ok ? '#3ba55d' : '#c04747';
+    clearTimeout(copyToastTimer);
+    copyToastTimer = setTimeout(() => {
+      copyBtn.textContent = '\\u{1f4cb} Копировать консоль';
+      copyBtn.style.borderColor = '#5b3d8f';
     }, 4000);
   };
 
@@ -167,7 +185,7 @@ const BOOTSTRAP = `(() => {
       } catch (e) { /* gamepad API unavailable */ }
       cur.style.display = p ? 'block' : 'none';
       cur.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-      const base = {w: innerWidth, h: innerHeight, exportReq: window.__tmExportReq | 0, closeReq: window.__tmCloseReq | 0};
+      const base = {w: innerWidth, h: innerHeight, exportReq: window.__tmExportReq | 0, closeReq: window.__tmCloseReq | 0, copyReq: window.__tmCopyReq | 0};
       if (!p) return Object.assign({ok: false}, base);
       return Object.assign({
         ok: true,
@@ -204,10 +222,20 @@ export interface DevtoolsExportResult {
   error?: string;
 }
 
+/** Result of the DevTools "Копировать консоль" action, echoed back onto the button. */
+export interface DevtoolsCopyResult {
+  ok: boolean;
+  length?: number;
+  error?: string;
+}
+
 export interface DevtoolsPadCursorOptions {
   /** Called when the injected "Экспорт консоли" button is clicked; resolves with the outcome
    *  so the button can flash the saved path / an error. */
   onExport?: () => Promise<DevtoolsExportResult>;
+  /** Called when the injected "Копировать консоль" button is clicked; resolves with the
+   *  outcome so the button can flash the line count / an error. */
+  onCopy?: () => Promise<DevtoolsCopyResult>;
 }
 
 /**
@@ -220,12 +248,18 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
   let inFlight = false;
   let lastExportReq = 0;
   let lastCloseReq = 0;
+  let lastCopyReq = 0;
   let exporting = false;
+  let copying = false;
   let state: PadCursorState = {x: 80, y: 80, aHeld: false, xHeld: false};
 
   // Basename only — the DevTools toast shows a short label, not the full path.
   const shortPath = (p: string | undefined): string =>
     p === undefined ? 'Сохранено' : (p.split(/[\\/]/).pop() ?? p);
+
+  // The copy button has no path to show — echo the line count instead.
+  const copyLabel = (length: number | undefined): string =>
+    length === undefined ? 'Скопировано' : `Скопировано, ${length} стр.`;
 
   const stop = (): void => {
     if (timer !== undefined) {
@@ -250,6 +284,7 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
     state = {x: 80, y: 80, aHeld: false, xHeld: false};
     lastExportReq = 0;
     lastCloseReq = 0;
+    lastCopyReq = 0;
     void dtc.executeJavaScript(BOOTSTRAP).catch(() => {/* frontend not ready — the tick retries */});
     timer = setInterval(() => {
       if (inFlight || dtc.isDestroyed()) {
@@ -289,6 +324,25 @@ export function installDevtoolsPadCursor(win: BrowserWindow, options: DevtoolsPa
               });
           } else if (req > lastExportReq) {
             lastExportReq = req; // no handler wired — swallow so it can't re-fire
+          }
+          // Copy-button edge: same shape as export, but writes to the clipboard instead of a
+          // file. `copying` guards against a re-trigger while the write is in flight.
+          const copyReq = Number(frame.copyReq ?? 0);
+          if (copyReq > lastCopyReq && options.onCopy !== undefined && !copying) {
+            lastCopyReq = copyReq;
+            copying = true;
+            void options.onCopy()
+              .then((res) => {
+                const label = res.ok ? copyLabel(res.length) : (res.error ?? 'Ошибка');
+                return dtc.isDestroyed() ? undefined : dtc.executeJavaScript(
+                  `window.__tmCopyDone && __tmCopyDone(${res.ok ? 'true' : 'false'}, ${JSON.stringify(label)})`);
+              })
+              .catch(() => {/* frontend gone */})
+              .finally(() => {
+                copying = false;
+              });
+          } else if (copyReq > lastCopyReq) {
+            lastCopyReq = copyReq; // no handler wired — swallow so it can't re-fire
           }
           // Close-button edge: shut the DevTools window from the main process (the injected
           // page can't reliably close its own DevTools). devtools-closed then fires → stop().

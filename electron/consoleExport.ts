@@ -1,7 +1,8 @@
 // Export the renderer console to a text file (the "⬇ Экспорт консоли" button in the F12
-// DevTools overlay). Steam Machine / Deck have no easy copy-out of the console, so this dumps
-// everything the renderer logged to a file NEXT TO the game log, named with the game, date and
-// time.
+// DevTools overlay) OR straight to the system clipboard (the "📋 Копировать консоль" button,
+// same overlay — for a quick paste with no file to dig up). Steam Machine / Deck have no easy
+// copy-out of the console, so this dumps everything the renderer logged, named with the game,
+// date and time when it goes to a file.
 //
 // OBJECTS ARE EXPANDED. The `console-message` event only carries Chromium's flattened text, where
 // an object argument is the useless `[object Object]`. So instead the capture runs IN the renderer
@@ -17,6 +18,7 @@
 //   terraforming-mars-steam.log lives) / app logs path — first that resolves.
 
 import type {App, BrowserWindow} from 'electron';
+import {clipboard} from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -138,6 +140,8 @@ export function formatConsoleEntry(e: ConsoleEntry): string {
 export interface ConsoleExporter {
   /** Read the current game name from the renderer + write the dump. Resolves with the outcome. */
   export(): Promise<{ok: boolean, path?: string, error?: string}>;
+  /** Same dump as `export()` (objects expanded), written to the system clipboard instead of a file. */
+  copyToClipboard(): Promise<{ok: boolean, length?: number, error?: string}>;
 }
 
 /** Where to write the export — mirror the wrapper's log location, with sane fallbacks. */
@@ -323,14 +327,19 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
     return header + entries.map(formatConsoleEntry).join('\n') + '\n';
   };
 
+  // Shared by export() and copyToClipboard(): drain up to this instant and settle on which
+  // buffer (rich vs. fallback) is the source of truth.
+  const gather = async (): Promise<{gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean}> => {
+    await drain();
+    const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE, true));
+    const rich = richLog.length > 0;
+    return {gameName, when: new Date(), entries: rich ? richLog : fallback, rich};
+  };
+
   return {
     async export() {
       try {
-        await drain(); // capture everything logged up to this instant
-        const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE, true));
-        const rich = richLog.length > 0;
-        const entries = rich ? richLog : fallback;
-        const when = new Date();
+        const {gameName, when, entries, rich} = await gather();
         const dir = resolveExportDir(app);
         const file = path.join(dir, buildExportFilename(gameName, when));
         await fs.promises.mkdir(dir, {recursive: true});
@@ -342,6 +351,20 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
         const error = err instanceof Error ? err.message : String(err);
         // eslint-disable-next-line no-console
         console.error('[console-export] failed —', error);
+        return {ok: false, error};
+      }
+    },
+    async copyToClipboard() {
+      try {
+        const {gameName, when, entries, rich} = await gather();
+        clipboard.writeText(dump(gameName, when, entries, rich));
+        // eslint-disable-next-line no-console
+        console.log(`[console-export] copied ${entries.length} lines (${rich ? 'rich' : 'fallback'}) to the clipboard`);
+        return {ok: true, length: entries.length};
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        // eslint-disable-next-line no-console
+        console.error('[console-export] copy failed —', error);
         return {ok: false, error};
       }
     },

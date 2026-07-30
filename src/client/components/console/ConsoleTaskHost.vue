@@ -1412,6 +1412,17 @@ export default defineComponent({
         shouldRunDealOnce(dealKey);
         return;
       }
+      // …and the SAME rule for the workspace's execution beat. Embedded, the
+      // card has ALREADY been pulled off the HUD pile, flown into this very
+      // zone and turned over — that beat IS this set's arrival. Dealing again
+      // sends the same card from the same deck a second time: the player
+      // watches it arrive, settle, and then arrive again. (Log signature:
+      // `onSettled` → `beatDone` → the old deal starting.)
+      if (this.embedded && names.length > 0) {
+        this.deal.dispose();
+        shouldRunDealOnce(dealKey);
+        return;
+      }
       if (this.deal.prepare(dealKey, names, keys)) {
         // Launch after the con-task-swap frame transition (160ms) settles +
         // fitCardStrip has sized the row — the measured rects are final.

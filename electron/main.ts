@@ -428,13 +428,18 @@ function createWindow(): void {
   });
 
   // Passive capture of the renderer console (fires whether or not DevTools is open) so the
-  // F12 "Экспорт консоли" button can dump it to a file beside the game log.
+  // F12 "Экспорт консоли" button can dump it to a file beside the game log, and "Копировать
+  // консоль" can put the same dump on the clipboard.
   const consoleExporter = installConsoleCapture(app, mainWindow);
 
   // Gamepad-driven mouse cursor INSIDE the DevTools window only (Steam Machine /
   // Deck have no mouse; F12 was visible but un-navigable from the pad) + the export
-  // button. Scoped strictly to devToolsWebContents — the game surface is untouched.
-  installDevtoolsPadCursor(mainWindow, {onExport: () => consoleExporter.export()});
+  // and copy-to-clipboard buttons. Scoped strictly to devToolsWebContents — the game
+  // surface is untouched.
+  installDevtoolsPadCursor(mainWindow, {
+    onExport: () => consoleExporter.export(),
+    onCopy: () => consoleExporter.copyToClipboard(),
+  });
 
   // Re-echo the settled "[TM perf]" line on every page load — game-boundary
   // reloads clear the DevTools console, and this keeps the tuning state
