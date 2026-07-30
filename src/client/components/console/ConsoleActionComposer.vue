@@ -1306,7 +1306,8 @@ export default defineComponent({
     // un-takeable prompt) instead of falling back to the band.
     drawOutcomeOn: {
       immediate: true,
-      handler(on: boolean) {
+      handler(on: boolean, was: boolean | undefined) {
+        wsBeatLog('composer: drawOutcomeOn', {on, was, initial: was === undefined});
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
       },
     },
@@ -1424,7 +1425,11 @@ export default defineComponent({
     // Deriving it from `hasDecisions` made the title depend on the ASYNC
     // preview, so it changed under the entering animation.)
   },
+  mounted() {
+    wsBeatLog('composer: MOUNTED', {card: this.entry.cardName, outcomeKind: this.outcome?.kind});
+  },
   beforeUnmount() {
+    wsBeatLog('composer: UNMOUNTED', {card: this.entry.cardName, outcomeKind: this.outcome?.kind});
     this.abortRevealFlight();
     this.abortBeatFlight();
     // The zone dies with the stage — retract the teleport target so a re-homed

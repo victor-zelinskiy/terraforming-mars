@@ -244,29 +244,62 @@ export function settleRevealProxyOnto(args: {
 }): void {
   const {proxy, target, onDone} = args;
   let done = false;
+  /**
+   * HOLD the real card while the proxy travels to it. Without this the two
+   * exist side by side for the whole leg — the player sees a COPY of the card
+   * sliding across the screen while the original already sits in place. The
+   * shared `.con-deal-hold` (opacity 0, layout kept) is what every other
+   * director uses for exactly this handoff, so the slot never reflows.
+   */
+  const held = target ?? undefined;
+  held?.classList.add('con-deal-hold');
   const finish = () => {
     if (!done) {
       done = true;
+      held?.classList.remove('con-deal-hold');
       onDone();
     }
   };
-  const rect = target?.getBoundingClientRect();
-  if (typeof window === 'undefined' || rect === undefined || rect.width < 10 ||
+  if (typeof window === 'undefined' || target === null || target === undefined ||
       consoleReducedMotionActive()) {
     finish();
     return;
   }
-  const scaleTo = Math.max(0.05, rect.width / CARD_NATURAL_W);
-  gsap.to(proxy, {
-    x: rect.left,
-    y: rect.top,
-    scale: scaleTo,
-    duration: s(260),
-    ease: 'power3.inOut',
-    onComplete: finish,
-  });
-  // Never strand the proxy if the tween is dropped (backgrounded tab).
-  window.setTimeout(finish, motionMs(260) + 400);
+  // ⚠️ WAIT FOR A STABLE RECT. The surface that takes the zone is still
+  // ENTERING when this runs (its own frame transition, then the row's fit
+  // pass), so the first measurement is a rect that is itself still moving —
+  // the proxy chases it and ends up sliding off down the screen. Two identical
+  // consecutive frames mean the layout has settled; the same idiom the hand
+  // intake uses before it aims at a dock slot.
+  const POLL_FRAMES = 40;
+  let frames = 0;
+  let prev = '';
+  const aim = (): void => {
+    if (done) {
+      return;
+    }
+    const r = target.getBoundingClientRect();
+    const sig = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`;
+    if (r.width >= 10 && sig === prev) {
+      const scaleTo = Math.max(0.05, r.width / CARD_NATURAL_W);
+      gsap.to(proxy, {
+        x: r.left, y: r.top, scale: scaleTo,
+        duration: s(260), ease: 'power3.inOut', onComplete: finish,
+      });
+      window.setTimeout(finish, motionMs(260) + 400);
+      return;
+    }
+    prev = sig;
+    frames++;
+    if (frames > POLL_FRAMES) {
+      // Never chase forever: hand over in place rather than travel to a rect
+      // that refuses to settle.
+      finish();
+      return;
+    }
+    requestAnimationFrame(aim);
+  };
+  requestAnimationFrame(aim);
 }
 
 // ── The GAIN beat (condition met) ───────────────────────────────────────────
