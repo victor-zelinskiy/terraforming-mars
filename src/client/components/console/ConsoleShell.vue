@@ -6623,7 +6623,20 @@ export default defineComponent({
      * no second trip to the server.
      */
     onCardActionsCollapse(): void {
+      // A REAL minimize, identical to every other deferred surface: the sheet
+      // is CLOSED, not hidden. Hiding it (v-show) left `sheet === 'cardActions'`
+      // set, and that one fact is what `mandatoryAnnounceVisible` keys off —
+      // so the «вернуться» card never appeared and input still routed into the
+      // invisible workspace. From the player's side the game was simply locked.
+      //
+      // Leaving the surface destroys the component, which is exactly why the
+      // committed decision model lives in `workspaceOutcomeState` instead: the
+      // claim keeps the prompt routed here and carries what the stage needs to
+      // be rebuilt, so the player can go read their hand, open the wheel, look
+      // at the milestones — and come back to the same decision.
       this.consoleState.task.deferred = true;
+      this.consoleState.sheet = undefined;
+      this.consoleState.sheetIndex = 0;
       this.consoleState.section = 'board';
     },
     /** B on the repeat-pick grid → cancel the whole repeat pick (return to the
@@ -7352,6 +7365,15 @@ export default defineComponent({
      *  Shared by the prompt card's A and the global B-back. */
     restoreDeferredTask(): void {
       this.consoleState.task.deferred = false;
+      // A prompt still CLAIMED by the action workspace belongs inside it, so
+      // returning means re-opening that workspace — not letting the prompt
+      // rise as a standalone band, which would silently turn the collapse into
+      // "the flow moved somewhere else". The workspace rebuilds its committed
+      // stage from the claim (same card, same variant, no replayed cinematic).
+      if (workspaceOutcomeClaimed()) {
+        this.openSheet('cardActions');
+        return;
+      }
       if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
         this.openShellTaskSurface(this.shellTask);
       }

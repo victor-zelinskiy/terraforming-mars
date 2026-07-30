@@ -529,6 +529,8 @@ import {
   markWorkspaceOutcomePresenting,
   releaseWorkspaceOutcome,
   workspaceClaimsDrawReveal,
+  workspaceOutcomeAdmits,
+  workspaceOutcomeClaimed,
   workspaceOutcomeState,
   WorkspaceOutcomeKind,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -1013,6 +1015,20 @@ export default defineComponent({
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
     }
+    // RETURNING FROM A COLLAPSE. A live claim means this workspace was
+    // minimized mid-flow, past the commit boundary — so it re-opens ON the
+    // committed stage, not on the browse grid. The decision model survived in
+    // module state, so nothing is re-derived and nothing is replayed: same
+    // card, same variant, same phase, and the prompt is still routed here.
+    // (`stage === 'presenting'` and `dwellDone` are already true, so the
+    // execution beat is not owed again either.)
+    if (!this.repeat && workspaceOutcomeClaimed() && this.composer === undefined) {
+      this.composer = {
+        cardName: workspaceOutcomeState.sourceCard as CardName,
+        nodeIndex: workspaceOutcomeState.nodeIndex,
+      };
+      this.outcomeFlow = {kind: workspaceOutcomeAdmits('deck-check') ? 'deck-check' : 'draw'};
+    }
     this.scheduleCanvasFit();
     this.scheduleDetailFit();
     window.addEventListener('resize', this.onViewportResize, {passive: true});
@@ -1454,7 +1470,7 @@ export default defineComponent({
       this.composer = {cardName: chosenCard, nodeIndex};
       this.outcomeFlow = {kind: 'deck-check'};
       setConsoleActionRevealClaim(chosenCard);
-      claimWorkspaceOutcome('card-actions', chosenCard, ['deck-check']);
+      claimWorkspaceOutcome('card-actions', chosenCard, ['deck-check'], nodeIndex);
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
@@ -1526,7 +1542,7 @@ export default defineComponent({
           kinds.push('draw', 'pick');
         }
         if (kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', comp.cardName, kinds);
+          claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex);
         }
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};

@@ -65,6 +65,15 @@ export const workspaceOutcomeState = reactive({
   host: undefined as WorkspaceOutcomeHost | undefined,
   /** The CardName whose activation opened this outcome. '' = no claim. */
   sourceCard: '' as string,
+  /**
+   * Which action variant of `sourceCard` was performed. Part of the COMMITTED
+   * DECISION MODEL, which lives here rather than in the surface: collapsing
+   * genuinely leaves the workspace (that is the only way the board becomes
+   * live and the restore prompt appears), so the component is destroyed and
+   * anything it owned would be destroyed with it. Re-opening rebuilds the
+   * stage from this state — same card, same variant, same committed phase.
+   */
+  nodeIndex: 0,
   kinds: [] as ReadonlyArray<WorkspaceOutcomeKind>,
   /** 'awaiting' — submitted, nothing has arrived yet; 'presenting' — on screen. */
   stage: 'idle' as 'idle' | 'awaiting' | 'presenting',
@@ -182,6 +191,7 @@ export function claimWorkspaceOutcome(
   host: WorkspaceOutcomeHost,
   sourceCard: string,
   kinds: ReadonlyArray<WorkspaceOutcomeKind>,
+  nodeIndex = 0,
 ): void {
   if (sourceCard === '' || kinds.length === 0) {
     releaseWorkspaceOutcome();
@@ -189,6 +199,7 @@ export function claimWorkspaceOutcome(
   }
   workspaceOutcomeState.host = host;
   workspaceOutcomeState.sourceCard = sourceCard;
+  workspaceOutcomeState.nodeIndex = nodeIndex;
   workspaceOutcomeState.kinds = [...kinds];
   workspaceOutcomeState.stage = 'awaiting';
   // The execution beat starts owing its minimum time from the confirm — not
@@ -231,6 +242,7 @@ export function releaseWorkspaceOutcome(): void {
   workspaceOutcomeState.dwellDone = false;
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
+  workspaceOutcomeState.nodeIndex = 0;
   workspaceOutcomeState.kinds = [];
   workspaceOutcomeState.stage = 'idle';
   workspaceOutcomeState.embedSlot = '';

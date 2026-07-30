@@ -116,6 +116,38 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceOutcomeClaimed()).to.eq(false);
   });
 
+  /**
+   * COLLAPSE → RESTORE. A real minimize CLOSES the surface (that is the only
+   * way the board goes live and the «вернуться» prompt appears), so the
+   * component is destroyed — and the committed decision has to survive that in
+   * module state, or the player comes back to nothing. Card AND variant.
+   */
+  it('the committed decision survives the surface being destroyed (collapse → restore)', () => {
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick'], 2);
+    markWorkspaceOutcomePresenting();
+    // The surface unmounts on collapse and retracts its teleport slot…
+    setWorkspaceOutcomeSlot('');
+    // …but everything needed to rebuild the committed stage is still here.
+    expect(workspaceOutcomeClaimed()).to.eq(true);
+    expect(workspaceOutcomeState.sourceCard).to.eq(AI_CENTRAL);
+    expect(workspaceOutcomeState.nodeIndex).to.eq(2);
+    expect(workspaceOutcomeState.stage).to.eq('presenting');
+    // The prompt is STILL routed to the workspace, so restoring re-opens it
+    // rather than letting the prompt rise as a standalone band.
+    expect(workspaceClaimsPick()).to.eq(true);
+    // The execution beat is not owed a second time on the way back in.
+    expect(workspaceOutcomeState.dwellDone).to.eq(false);
+  });
+
+  it('nodeIndex defaults to 0 and is cleared on release (no bleed into the next activation)', () => {
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw'], 3);
+    expect(workspaceOutcomeState.nodeIndex).to.eq(3);
+    releaseWorkspaceOutcome();
+    expect(workspaceOutcomeState.nodeIndex).to.eq(0);
+    claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);
+    expect(workspaceOutcomeState.nodeIndex).to.eq(0);
+  });
+
   it('a fresh claim REPLACES the previous one (a second activation never inherits the first)', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
     claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);
