@@ -48,8 +48,8 @@
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {buildCardAnnotations, stripKindPrefix, CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
-import {translateText} from '@/client/directives/i18n';
+import {buildCardAnnotations, CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
+import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
 /** Does this card carry any structured rules to show? (The shell gates the
@@ -132,11 +132,12 @@ export default defineComponent({
     this.scheduleMeasure();
   },
   methods: {
+    /** The SHARED rule-text formatter (translate → strip the co-located
+     *  kind prefix → read as a sentence). The action workspace shows the
+     *  same texts, so the wording lives in ONE place — see
+     *  components/actions/actionDescription.ts. */
     rowText(key: CardAnnotationRow['text']): string {
-      const text = stripKindPrefix(translateText(key));
-      // Every rule block reads as a sentence — capitalize its first letter
-      // (the source text / behavior-derived wording is often lowercase).
-      return text.length > 0 ? text[0].toLocaleUpperCase() + text.slice(1) : text;
+      return actionRuleText(key);
     },
     /** Resolve an annotation's ROW element (mirrors CardAnnotationsLayer.rowEl
      *  incl. the documented special-id fallbacks). */

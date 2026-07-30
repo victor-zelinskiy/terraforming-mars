@@ -101,6 +101,21 @@
            (`data-unfold-item`). The hero card stands beside it, carried. -->
       <div class="con-composer__surface" data-unfold-surface>
 
+      <!-- ── WHAT THIS ACTION DOES — the operation's own sentence, and the
+           surface's semantic lead: the player reads the RULE, then what it
+           will cost/give, then commits. It is resolved for the SELECTED
+           VARIANT (actionDescription: the curated information block of this
+           very action node, else its printed DSL rule), so an «или» card
+           never shows its other half's text. Same label vocabulary as the
+           fullscreen ПРАВИЛА tab — one system, not a second reference. -->
+      <div v-if="rules !== undefined" class="con-composer__rules" data-unfold-item>
+        <div v-for="(line, k) in rules.lines" :key="k" class="con-composer__rule"
+             :class="'con-composer__rule--' + line.kind">
+          <span class="con-composer__rule-label">{{ $t(ruleLabel(line.kind)) }}</span>
+          <p class="con-composer__rule-text">{{ ruleText(line.text) }}</p>
+        </div>
+      </div>
+
       <!-- ── Hero: the LIVE cost → reward formula of the ACTIVE branch.
            Shown once a branch is chosen (or a single-branch card); the
            multi-branch option cards below carry their own chips. ─────── -->
@@ -417,6 +432,7 @@ import {SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerMode
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/client/components/actions/actionDescription';
 import {
   ComposerChoice,
   branchChoices,
@@ -730,6 +746,17 @@ export default defineComponent({
      *  filled by the repeat pick surface, not captured like a normal step. */
     repeatChoice(): ComposerChoice | undefined {
       return this.branchChoiceList.find((c) => c.repeatAction === true);
+    },
+    /**
+     * The RULE TEXT of the action being composed — resolved for THIS variant
+     * (`nodeIndex`), never for the card. A combined whole-card draft
+     * (nodeIndex < 0, the Viron handoff) has no single rule and shows none.
+     * The selected branch's title is the last-resort wording for a card that
+     * carries neither a curated information block nor a printed description.
+     */
+    rules(): ActionRules | undefined {
+      const branch = this.selectedBranch;
+      return actionRules(this.entry.group, this.nodeIndex, branch === undefined ? undefined : branchTitleText(branch));
     },
     /** The chosen action's render node — the graphic drawn in the filled slot. */
     repeatNode(): GroupNode | undefined {
@@ -1170,6 +1197,14 @@ export default defineComponent({
     tileIconStyle,
     iconClass(icon: string | undefined): string {
       return icon !== undefined ? iconClassFor(icon) : '';
+    },
+    /** The rule chip's label + the shared sentence formatter — ONE wording
+     *  source with the browser and the fullscreen rules tab. */
+    ruleLabel(kind: 'rule' | 'note'): string {
+      return ACTION_RULE_LABEL[kind];
+    },
+    ruleText(key: string): string {
+      return actionRuleText(key);
     },
     branchAt(pos: number): ActionPreviewBranch {
       return this.branches[pos];

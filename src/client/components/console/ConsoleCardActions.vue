@@ -183,15 +183,20 @@
             </div>
           </div>
 
-          <!-- A TEXT-override action keeps its ONE full prose copy (the
-               master tile clamps it to a 2-line preview and the card face
-               can't carry it) — only the GRAPHIC duplicate is gone. -->
-          <template v-if="focusedTile.node.actionNode === undefined && focusedTile.node.renderRoot === undefined">
-            <div class="con-cardactions__detail-label">{{ $t('Action') }}</div>
-            <div class="con-cardactions__detail-text" v-i18n v-strip-action-prefix>
-              <span class="con-cardactions__graphic-text con-cardactions__graphic-text--detail">{{ focusedTile.node.text }}</span>
+          <!-- WHAT THIS ACTION DOES — the card's own wording for the focused
+               VARIANT (actionDescription resolves the curated information
+               block for exactly this action node, else its printed DSL
+               rule). One block, the same label vocabulary as the fullscreen
+               ПРАВИЛА tab, so it reads as the same system rather than a
+               second reference panel. A text-drawn action's prose arrives
+               through the very same path — no special branch left. -->
+          <div v-if="focusedRules !== undefined" class="con-cardactions__detail-block">
+            <div v-for="(line, k) in focusedRules.lines" :key="k" class="con-cardactions__rule"
+                 :class="'con-cardactions__rule--' + line.kind">
+              <span class="con-cardactions__rule-label">{{ $t(ruleLabel(line.kind)) }}</span>
+              <p class="con-cardactions__rule-text">{{ ruleText(line.text) }}</p>
             </div>
-          </template>
+          </div>
 
           <!-- The complete cost / reward breakdown (static + variable). -->
           <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block">
@@ -345,6 +350,16 @@
                     <span aria-hidden="true">✕</span>
                     <span>{{ tileReason(tile) }}</span>
                   </div>
+                  <!-- THE ACTION'S OWN RULE, one quiet line — in the slot's
+                       WORDS row, never in the canvas: the canvas is the
+                       formula's stage (one rhythm, one accent), and prose
+                       beside a DSL glyph run collides with the glyphs that
+                       paint past their box and with the «или» badge on the
+                       seam. It only speaks when the row is otherwise free —
+                       a blocker or a named choice outranks a description —
+                       so it can never add a line. WHERE it paints is a
+                       display-profile call (see the profile blocks). -->
+                  <div v-if="slotRuleText(tile) !== ''" class="con-cardactions__tile-text">{{ slotRuleText(tile) }}</div>
                 </div>
               </div>
             </div>
@@ -451,6 +466,7 @@ import {
   ConsoleVariableChip,
   RepeatAvailability,
 } from '@/client/console/consoleCardActions';
+import {ActionRules, ACTION_RULE_LABEL, actionRuleText} from '@/client/components/actions/actionDescription';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -666,6 +682,10 @@ export default defineComponent({
       return run.map((c) => c.control === 'confirm' ? {...c, label: 'Select'} :
         c.control === 'back' ? {...c, label: 'Cancel'} : c);
     },
+    /** The focused variant's own rule text (the dossier's «что делает»). */
+    focusedRules(): ActionRules | undefined {
+      return this.focusedTile?.rules;
+    },
     /**
      * The focus-stage breadcrumb step, named by the stage's PHASE alone
      * («Настройка действия» → «Результат вскрытия» once a deck-check confirm
@@ -865,6 +885,31 @@ export default defineComponent({
     },
     tileReason(tile: ConsoleActionTile): string {
       return this.reasonText(tile.reason);
+    },
+    /** The rule chip's label + the shared sentence formatter (ONE wording
+     *  source with the fullscreen rules tab — see actionDescription.ts). */
+    ruleLabel(kind: 'rule' | 'note'): string {
+      return ACTION_RULE_LABEL[kind];
+    },
+    ruleText(key: string): string {
+      return actionRuleText(key);
+    },
+    /**
+     * The ONE line a SLOT shows under its formula. Silent when:
+     *  · the action is TEXT-drawn — its canvas already IS that sentence;
+     *  · the words row is taken — a blocker's reason or a named choice is
+     *    more decision-relevant than a description, and a third line would
+     *    grow the slot (the fixed anatomy forbids it).
+     * The profile decides whether the line paints at all.
+     */
+    slotRuleText(tile: ConsoleActionTile): string {
+      if (tile.rules === undefined || (tile.node.actionNode === undefined && tile.node.renderRoot === undefined)) {
+        return '';
+      }
+      if (tile.choiceKinds.length > 0 || (tile.status !== 'available' && this.tileReason(tile) !== '')) {
+        return '';
+      }
+      return actionRuleText(tile.rules.summary);
     },
     reasonText(reason: ConsoleActionReason | undefined): string {
       if (reason === undefined) {

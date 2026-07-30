@@ -37,7 +37,8 @@ import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
-import {branchPositionForNode, branchPositionsForNode, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionForNode, branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {ActionRules, actionRules} from '@/client/components/actions/actionDescription';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 
@@ -107,6 +108,9 @@ export type ConsoleActionTile = {
   /** The source card's stored resource (microbes / animals / floaters). */
   cardResource: {type: CardResource, count: number} | undefined;
   isCorporation: boolean;
+  /** THIS action's rule text (i18n keys) — the card's own printed / curated
+   *  wording for exactly this variant, never the whole card's. */
+  rules: ActionRules | undefined;
 };
 
 /**
@@ -605,6 +609,9 @@ function buildTiles(
       variantTotal: group.nodes.length,
       cardResource,
       isCorporation: entry.isCorporation,
+      // The action's OWN rule text (never the card's) — resolved once here so
+      // every host (slot one-liner, dossier, setup stage) reads one value.
+      rules: actionRules(group, i, branch === undefined ? undefined : branchTitleText(branch)),
     };
   });
 }

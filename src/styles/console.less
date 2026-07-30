@@ -14860,6 +14860,61 @@ html.console-mode {
         display: flex;
         align-items: center;
     }
+    /* The SLOT's rule line — the action's own sentence, in the RESERVED words
+       row under the formula (never in the canvas: see the markup note). One
+       line, ellipsised, so it cannot change a slot's height whatever the
+       wording, and deliberately quiet — the graphic stays the accent. By
+       default it paints ONLY ON THE FOCUSED SLOT: the desktop band has the
+       room for one line, not for a wall of them. The profiles widen or close
+       that (couch: every slot; Deck: none). */
+    &__tile-text {
+        min-width: 0;
+        font-size: .7rem;
+        line-height: 1.2;
+        color: fade(@con-text-dim, 80%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0;
+        transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    &__tile--focused &__tile-text { opacity: 1; }
+    @media (prefers-reduced-motion: reduce) {
+        &__tile-text { transition: none; }
+    }
+
+    /* THE RULE BLOCK — «what does this action do», in the dossier. The chip
+       carries the KIND (the same words the fullscreen ПРАВИЛА tab uses), the
+       prose carries the card's own wording. */
+    &__rule {
+        display: block;
+        min-width: 0;
+        & + & { margin-top: .35rem; }
+    }
+    &__rule-label {
+        display: inline-block;
+        margin-bottom: .18rem;
+        padding: .06rem .4rem;
+        border-radius: .25rem;
+        font-size: .55rem; font-weight: 800; letter-spacing: .09rem; text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
+    }
+    &__rule--note &__rule-label {
+        color: fade(@con-amber, 92%);
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 26%);
+    }
+    &__rule-text {
+        margin: 0;
+        font-size: .82rem;
+        line-height: 1.35;
+        color: fade(@con-text, 94%);
+        overflow-wrap: anywhere;
+    }
+    &__rule--note &__rule-text { color: fade(@con-text-dim, 96%); }
+
     /* DIAGNOSTICS — zone 3: reserved at the token height; a reason / choice
        line fades into space that is ALWAYS laid out, ONE line each (the full
        reason reads in the dossier) — the canvas above can never shift. */
@@ -15701,6 +15756,51 @@ html.console-mode {
         .con-composer__scroll { min-height: 0; }
     }
 
+    /* THE RULE BLOCK — the surface's semantic lead: what this action does,
+       in the card's own words, before what it costs and the commit. A
+       measured column (never the panel's full width — a 100-char line is
+       unreadable across a TV) with a machined seam under it that hands the
+       eye down to the formula. */
+    .con-composer__rules {
+        flex-shrink: 0;
+        max-width: min(44rem, 100%);
+        padding-bottom: .5rem;
+        margin-bottom: .55rem;
+        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.14);
+    }
+    .con-composer__rule {
+        display: block;
+        min-width: 0;
+        & + & { margin-top: .45rem; }
+    }
+    .con-composer__rule-label {
+        display: inline-block;
+        margin-bottom: .22rem;
+        padding: .08rem .45rem;
+        border-radius: .25rem;
+        font-size: .6rem; font-weight: 800; letter-spacing: .1rem; text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 28%);
+    }
+    .con-composer__rule--note .con-composer__rule-label {
+        color: fade(@con-amber, 92%);
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 28%);
+    }
+    .con-composer__rule-text {
+        margin: 0;
+        font-size: .95rem;
+        line-height: 1.4;
+        color: fade(@con-text, 96%);
+        text-wrap: balance;
+        overflow-wrap: anywhere;
+    }
+    .con-composer__rule--note .con-composer__rule-text {
+        font-size: .85rem;
+        color: fade(@con-text-dim, 96%);
+    }
+
     /* The CTA DOCK — pinned under the decision scroll (flex sibling), so the
        operation's exit is ALWAYS on screen, never behind a scrollbar. */
     .con-composer__ctadock {
@@ -15985,9 +16085,6 @@ html.con-profile-handheld .con-cardactions {
        entering the focus stage still changes nothing about the geometry. */
     .con-cardactions__filters { order: 2; flex-basis: 100%; gap: .25rem .4rem; }
     .con-cardactions__aux-layer--browse .con-cardactions__head-stats { order: 1; }
-    /* The focus layer rides the FIRST tier of that two-row zone (it is the
-       one the identity line sits on), never floating in its middle. */
-    .con-cardactions__aux-layer--focus { align-items: flex-start; }
     .con-cardactions__fgroup { padding: .1rem .3rem; gap: .2rem; }
     .con-cardactions__chip {
         padding: .1rem .35rem;
@@ -15995,6 +16092,21 @@ html.con-profile-handheld .con-cardactions {
         b { font-size: .62rem; }
     }
     .con-cardactions__fgroup-keys .gp-glyph { transform: scale(0.66); }
+    /* THE DECK CALL on the slot's rule line: the band is one column of
+       ~1080 logical px and vertical room is the scarce resource — a sentence
+       beside every formula would crowd the graphic that IS the fastest read
+       at arm's length. The rule still reads in the dossier (always visible
+       here) and in full on the setup stage, so nothing is lost. */
+    .con-cardactions__tile-text { display: none; }
+    /* The dossier's rule block gives up a step of type, never its wording. */
+    .con-cardactions__rule-text { font-size: .76rem; }
+}
+/* The setup stage's rule block on the Deck — the semantic lead stays, one
+   step tighter (vertical room is what the profile protects). */
+html.con-profile-handheld .con-composer--stage {
+    .con-composer__rules { max-width: 100%; padding-bottom: .4rem; margin-bottom: .45rem; }
+    .con-composer__rule-text { font-size: .84rem; line-height: 1.35; }
+    .con-composer__rule--note .con-composer__rule-text { font-size: .78rem; }
 }
 
 /* Large / 4K — a gentle readability boost only. */
