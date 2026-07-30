@@ -2223,6 +2223,17 @@ export default defineComponent({
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
     taskEmbedTarget(): string | undefined {
+      // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
+      // otherwise is what killed the execution beat: `workspaceOutcomeEmbedded`
+      // went true the instant the prompt arrived, the shell marked the outcome
+      // `presenting`, the composer's `outcomePendingBeat` flipped false and
+      // ABORTED the flight in mid-air (log: `maybeFlip WAITING {landed:false}`
+      // immediately followed by `outcomePendingBeat {on:false}`). The card
+      // never landed, the backstop released the gate ~2.6 s later, and the old
+      // deal played instead. Target-exists ≠ content-embedded.
+      if (this.taskHeldForWorkspace) {
+        return undefined;
+      }
       if (!workspaceClaimsPick()) {
         return undefined;
       }

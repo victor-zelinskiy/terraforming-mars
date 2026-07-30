@@ -502,6 +502,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState, wsBeatLog} from '@/client/console/consoleWorkspaceOutcome';
+import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -2430,6 +2431,13 @@ export default defineComponent({
       }
       this.beatFlightOn = true;
       this.beatLanded = false;
+      // FREEZE the HUD deck counter at its pre-draw value. The server's answer
+      // decrements it the moment it lands, so without this the «−1» chip fires
+      // while the card is still sitting on the pile — the number changes before
+      // anything has physically left, which is the opposite of the causal
+      // story the whole beat exists to tell. Released the instant the card is
+      // visibly out (onFaceShown), so the tick lands ON the separation.
+      holdDeckDisplay(this.playerView.game.deckSize);
       void this.$nextTick(() => {
         const proxy = this.$refs.revealProxy as HTMLElement | undefined;
         const flip = this.$refs.revealFlip as HTMLElement | undefined;
@@ -2448,11 +2456,18 @@ export default defineComponent({
           onFaceShown: () => {
             wsBeatLog('composer: onFaceShown');
             this.beatLanded = true;
+            // The card is out of the pile — the counter may now tell the truth.
+            releaseDeckDisplay();
           },
           onSettled: () => {
             wsBeatLog('composer: onSettled');
-            this.beatFlightOn = false;
             this.beatHandle = undefined;
+            // The landed proxy STAYS. Clearing it here would unmount the card
+            // the moment it finished turning over, leaving the zone empty for
+            // the frame or two before the real surface teleports in — the card
+            // would visibly blink out at the end of its own arrival. It is
+            // released by `abortBeatFlight` when the beat leaves, i.e. once
+            // that surface is actually there to replace it.
             markWorkspaceOutcomeBeatDone();
           },
         });
@@ -2466,6 +2481,8 @@ export default defineComponent({
       });
     },
     abortBeatFlight(): void {
+      // Never leave the HUD counter frozen on a beat that ended early.
+      releaseDeckDisplay();
       this.beatHandle?.kill();
       this.beatHandle = undefined;
       this.beatFlightOn = false;
