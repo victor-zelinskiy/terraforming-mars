@@ -183,20 +183,14 @@
             </div>
           </div>
 
-          <!-- WHAT THIS ACTION DOES — the card's own wording for the focused
-               VARIANT (actionDescription resolves the curated information
-               block for exactly this action node, else its printed DSL
-               rule). One block, the same label vocabulary as the fullscreen
-               ПРАВИЛА tab, so it reads as the same system rather than a
-               second reference panel. A text-drawn action's prose arrives
-               through the very same path — no special branch left. -->
-          <div v-if="focusedRules !== undefined" class="con-cardactions__detail-block">
-            <div v-for="(line, k) in focusedRules.lines" :key="k" class="con-cardactions__rule"
-                 :class="'con-cardactions__rule--' + line.kind">
-              <span class="con-cardactions__rule-label">{{ $t(ruleLabel(line.kind)) }}</span>
-              <p class="con-cardactions__rule-text">{{ ruleText(line.text) }}</p>
-            </div>
-          </div>
+          <!-- (NO rule prose here. The dossier is the DECISION panel —
+               verdict, cost, result, stored resource, next step — and it has
+               no scroll of its own (the right stick drives the action list),
+               so anything unbounded added here becomes an unreachable
+               overflow on the Deck. The action's wording lives where it is
+               already reachable: on the slot itself (large profiles), in
+               full on the setup stage, and in the fullscreen dossier.
+               A TEXT-drawn action is its own graphic, so nothing is lost.) -->
 
           <!-- The complete cost / reward breakdown (static + variable). -->
           <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block">
@@ -324,42 +318,54 @@
                   </span>
                 </div>
 
-                <!-- ACTION CANVAS — the fixed-height stage of the card's OWN
-                     printed graphic (icons straight from the manifest —
-                     instant, no fetch). One height for every slot on the
-                     screen: the grid keeps one rhythm whatever the action
-                     draws. The COMPLETE formula chips live in the dossier. -->
-                <div class="con-cardactions__canvas">
-                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                    <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-                    <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                    <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                <!-- ── THE ACTION BODY — zone 2 of the slot anatomy, and the
+                     slot's whole interactive statement: the FIXED graphic
+                     canvas on the left, the action's own sentence in the
+                     space beside it. The row's height is the canvas' height,
+                     so the «или» seam badge keeps one anchor for every slot
+                     on the screen whatever either side draws. ────────────── -->
+                <div class="con-cardactions__actbody">
+                  <!-- ACTION CANVAS — ONE stage for every formula: fixed
+                       width AND height, content centred, the printed art
+                       straight from the manifest (instant, no fetch). The
+                       canvas NEVER takes its size from what it holds — a
+                       formula that draws wide would otherwise own a bigger
+                       button than its own alternative. Formulas of genuinely
+                       different natural widths are fitted INTO the stage
+                       (useActionCanvasFit → `--act-fit`). -->
+                  <div class="con-cardactions__canvas">
+                    <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                      <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
+                      <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+                      <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                    </div>
                   </div>
+
+                  <!-- ACTION DESCRIPTION — what the action does, in the
+                       card's own words, in the width the wide button already
+                       has. Clamped to the profile's line budget and reserving
+                       its own column, so no wording can move the canvas or
+                       the diagnostics under it. A text-drawn action is
+                       already its own sentence on the canvas — never doubled.
+                       The profile decides the line budget (0 on the Deck). -->
+                  <p v-if="slotRuleText(tile) !== ''" class="con-cardactions__desc">{{ slotRuleText(tile) }}</p>
                 </div>
 
-                <!-- DIAGNOSTICS — always laid out at a fixed height; a late
-                     line fades into RESERVED space. One line, ellipsised:
-                     the full reason reads in the dossier for the focused
-                     slot (never a shifted canvas). -->
+                <!-- ── DIAGNOSTICS / CONTINUATION — zone 3, reserved and
+                     SINGLE-PURPOSE: it speaks about the slot's STATE, never
+                     about what the action does. Exactly one of two semantic
+                     kinds, taken from two different model fields (a blocked
+                     verdict's `reason` vs the branch's named `choiceKinds`) —
+                     the distinction is data, not colour. ────────────────── -->
                 <div class="con-cardactions__tile-meta">
-                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                    <span aria-hidden="true">◈</span>
-                    <span>{{ choiceKindsLabel(tile) }}</span>
-                  </div>
-                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                  <div v-if="slotMeta(tile).kind === 'validation'" class="con-cardactions__tile-reason">
                     <span aria-hidden="true">✕</span>
-                    <span>{{ tileReason(tile) }}</span>
+                    <span>{{ slotMeta(tile).text }}</span>
                   </div>
-                  <!-- THE ACTION'S OWN RULE, one quiet line — in the slot's
-                       WORDS row, never in the canvas: the canvas is the
-                       formula's stage (one rhythm, one accent), and prose
-                       beside a DSL glyph run collides with the glyphs that
-                       paint past their box and with the «или» badge on the
-                       seam. It only speaks when the row is otherwise free —
-                       a blocker or a named choice outranks a description —
-                       so it can never add a line. WHERE it paints is a
-                       display-profile call (see the profile blocks). -->
-                  <div v-if="slotRuleText(tile) !== ''" class="con-cardactions__tile-text">{{ slotRuleText(tile) }}</div>
+                  <div v-else-if="slotMeta(tile).kind === 'continuation'" class="con-cardactions__tile-choices">
+                    <span aria-hidden="true">◈</span>
+                    <span>{{ slotMeta(tile).text }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -466,7 +472,8 @@ import {
   ConsoleVariableChip,
   RepeatAvailability,
 } from '@/client/console/consoleCardActions';
-import {ActionRules, ACTION_RULE_LABEL, actionRuleText} from '@/client/components/actions/actionDescription';
+import {actionRuleText} from '@/client/components/actions/actionDescription';
+import {fitActionCanvases, clearActionCanvasFit} from '@/client/console/consoleActionCanvasFit';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -585,6 +592,8 @@ export default defineComponent({
        */
       flowState: 'browse' as 'browse' | 'entering' | 'configure' | 'returning',
       shakeTimer: undefined as number | undefined,
+      /** The pending canvas-fit frame (one per paint, never per slot). */
+      canvasFitFrame: undefined as number | undefined,
     };
   },
   computed: {
@@ -681,10 +690,6 @@ export default defineComponent({
       // Repeat mode: A = «Выбрать» (never «Выполнить»); B = «Отмена» (cancel the pick).
       return run.map((c) => c.control === 'confirm' ? {...c, label: 'Select'} :
         c.control === 'back' ? {...c, label: 'Cancel'} : c);
-    },
-    /** The focused variant's own rule text (the dossier's «что делает»). */
-    focusedRules(): ActionRules | undefined {
-      return this.focusedTile?.rules;
     },
     /**
      * The focus-stage breadcrumb step, named by the stage's PHASE alone
@@ -851,6 +856,8 @@ export default defineComponent({
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
     }
+    this.scheduleCanvasFit();
+    window.addEventListener('resize', this.scheduleCanvasFit, {passive: true});
     // A «change» re-open lands the cursor ON the previously chosen action —
     // the player adjusts FROM their pick, never re-hunts it from the top.
     const prior = this.repeatRequest?.prior;
@@ -859,7 +866,18 @@ export default defineComponent({
     }
     void this.$nextTick(() => this.scrollFocusedIntoView());
   },
+  updated() {
+    // Slots re-render on a filter change, on the preview landing, on a status
+    // refresh — every one of those can change what a formula draws.
+    this.scheduleCanvasFit();
+  },
   beforeUnmount() {
+    window.removeEventListener('resize', this.scheduleCanvasFit);
+    if (this.canvasFitFrame !== undefined && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(this.canvasFitFrame);
+      this.canvasFitFrame = undefined;
+    }
+    clearActionCanvasFit(this.$refs.rootEl as HTMLElement | undefined);
     // The repeat instance owns none of the shared Action Center stores.
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
@@ -886,30 +904,39 @@ export default defineComponent({
     tileReason(tile: ConsoleActionTile): string {
       return this.reasonText(tile.reason);
     },
-    /** The rule chip's label + the shared sentence formatter (ONE wording
-     *  source with the fullscreen rules tab — see actionDescription.ts). */
-    ruleLabel(kind: 'rule' | 'note'): string {
-      return ACTION_RULE_LABEL[kind];
-    },
-    ruleText(key: string): string {
-      return actionRuleText(key);
-    },
     /**
-     * The ONE line a SLOT shows under its formula. Silent when:
-     *  · the action is TEXT-drawn — its canvas already IS that sentence;
-     *  · the words row is taken — a blocker's reason or a named choice is
-     *    more decision-relevant than a description, and a third line would
-     *    grow the slot (the fixed anatomy forbids it).
-     * The profile decides whether the line paints at all.
+     * The slot's DESCRIPTION — what the action does, beside its canvas.
+     * Silent only for a TEXT-drawn action: its canvas already IS that
+     * sentence. (It no longer competes with the diagnostics: they are
+     * separate zones now, so a blocked action can show BOTH its rule and
+     * why it is blocked.) The profile owns the line budget.
      */
     slotRuleText(tile: ConsoleActionTile): string {
       if (tile.rules === undefined || (tile.node.actionNode === undefined && tile.node.renderRoot === undefined)) {
         return '';
       }
-      if (tile.choiceKinds.length > 0 || (tile.status !== 'available' && this.tileReason(tile) !== '')) {
-        return '';
-      }
       return actionRuleText(tile.rules.summary);
+    },
+    /**
+     * The slot's STATE line — one of two semantic kinds, resolved from two
+     * DIFFERENT model fields, never from styling:
+     *  · `validation`   — the rules block this variant (`reason`), the
+     *                     decision-critical line, so it outranks;
+     *  · `continuation` — the branch names a next step the graphic cannot
+     *                     draw (`choiceKinds`: payment, a card pick, …).
+     * Nothing else may enter this zone.
+     */
+    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'continuation' | 'none', text: string} {
+      if (tile.status !== 'available') {
+        const reason = this.tileReason(tile);
+        if (reason !== '') {
+          return {kind: 'validation', text: reason};
+        }
+      }
+      if (tile.choiceKinds.length > 0) {
+        return {kind: 'continuation', text: this.choiceKindsLabel(tile)};
+      }
+      return {kind: 'none', text: ''};
     },
     reasonText(reason: ConsoleActionReason | undefined): string {
       if (reason === undefined) {
@@ -1080,6 +1107,23 @@ export default defineComponent({
       // derives "are we mid-transition?" from an animation's side effects.
       this.flowState = 'entering';
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
+    },
+    /**
+     * Re-fit every formula into its fixed canvas, once per paint. The stage
+     * is a layout constant; only the ART inside it adapts — see
+     * consoleActionCanvasFit.ts.
+     */
+    scheduleCanvasFit(): void {
+      // The unit runner has no rAF (and no layout to fit) — the fit is a
+      // pure presentation refinement, never a correctness step.
+      if (this.canvasFitFrame !== undefined || typeof window === 'undefined' ||
+        typeof window.requestAnimationFrame !== 'function') {
+        return;
+      }
+      this.canvasFitFrame = window.requestAnimationFrame(() => {
+        this.canvasFitFrame = undefined;
+        fitActionCanvases(this.$refs.rootEl as HTMLElement | undefined);
+      });
     },
     /** The DOM element of the focused action slot (the ref list is keyed). */
     focusedSlotEl(): HTMLElement | undefined {

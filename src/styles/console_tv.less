@@ -938,20 +938,15 @@ html.con-profile-tv {
         /* Text actions: readable couch prose, wrapping, never zoomed. */
         &__graphic-text { font-size: var(--con-t-secondary); }
         &__graphic-text--detail { font-size: var(--con-t-body); }
-        /* THE COUCH CALL on the slot's rule line: at 4K the slot is ~1100
-           logical px wide and the words row under its formula is empty on a
-           plain available action — one quiet sentence there turns the whole
-           grid into something the player can read from the sofa WITHOUT
-           walking the cursor. So the line paints on EVERY slot here (not
-           just the focused one), a step larger, and the focused slot
-           brightens it rather than revealing it. It still never wraps. */
-        &__tile-text {
-            opacity: 0.72;
-            font-size: var(--con-t-secondary);
-        }
-        &__tile--focused &__tile-text { opacity: 1; }
-        &__rule-label { font-size: var(--con-t-floor); }
-        &__rule-text { font-size: var(--con-t-body); }
+        /* THE COUCH CALL on the slot's description: at 4K a slot is ~37rem
+           wide and its stage takes a third of that — the space beside the
+           formula is exactly where a sentence belongs. TWO lines here (a full
+           Russian rule fits without a clamp on most actions), read from the
+           sofa, and the whole grid becomes scannable WITHOUT walking the
+           cursor. The stage grows with the profile; the text stays quiet. */
+        --act-canvas-w: 11.5rem;
+        --act-desc-lines: 2;
+        &__desc { font-size: var(--con-t-secondary); }
         /* Per-ACTION chips on the button, card identity on the plate. */
         &__tile-variant { font-size: var(--con-t-floor); }
         &__tile-status { font-size: var(--con-t-floor); }

@@ -14623,8 +14623,10 @@ html.console-mode {
        can anchor to the canvas' true centre by pure arithmetic. Profiles
        override the TOKENS, never a per-zone constant. ── */
     --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
-    --act-canvas-h: 3rem;    /* the action graphic's fixed stage */
-    --act-meta-h: .95rem;    /* the diagnostics strip (reason / choice note) */
+    --act-canvas-h: 3rem;    /* the action graphic's fixed stage — HEIGHT */
+    --act-canvas-w: 9.2rem;  /* …and WIDTH: one stage for every formula */
+    --act-desc-lines: 1;     /* the description's line budget (0 = hidden) */
+    --act-meta-h: .95rem;    /* the diagnostics strip (validation / next step) */
     --act-pad-t: .3rem;      /* the slot's top padding */
     --act-gap: .22rem;       /* the slot's inner zone gap */
     --act-pair-gap: 1.1rem;  /* the seam channel between two alternatives */
@@ -14850,74 +14852,78 @@ html.console-mode {
         &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
         &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
     }
-    /* ACTION CANVAS — zone 2: every slot gives its graphic the SAME stage
-       height (the token), the formula centring inside it. Whatever the
-       action draws, the grid keeps one rhythm. */
-    &__canvas {
+    /* ── ACTION BODY — zone 2: the fixed canvas and, beside it, the action's
+       own sentence. Its height IS the canvas height, so the «или» seam badge
+       keeps one anchor across the whole screen. ── */
+    /* (`__actbody`, not `__body`: the workspace already owns a `__body` — the
+       dossier + list row. One name, two boxes would have silently applied the
+       list's padding to every slot.) */
+    &__actbody {
         flex-shrink: 0;
         height: var(--act-canvas-h);
+        /* `min-height: auto` (the flex default) would let a tall description
+           push this row past the canvas height — and the «или» seam badge,
+           which anchors by TOKEN ARITHMETIC from the tile's top, would drift
+           off the canvas centre by exactly that overflow. The row is a
+           layout constant: 0 lets the declared height be the whole truth. */
+        min-height: 0;
         min-width: 0;
         display: flex;
         align-items: center;
+        gap: .55rem;
     }
-    /* The SLOT's rule line — the action's own sentence, in the RESERVED words
-       row under the formula (never in the canvas: see the markup note). One
-       line, ellipsised, so it cannot change a slot's height whatever the
-       wording, and deliberately quiet — the graphic stays the accent. By
-       default it paints ONLY ON THE FOCUSED SLOT: the desktop band has the
-       room for one line, not for a wall of them. The profiles widen or close
-       that (couch: every slot; Deck: none). */
-    &__tile-text {
-        min-width: 0;
-        font-size: .7rem;
-        line-height: 1.2;
-        color: fade(@con-text-dim, 80%);
-        white-space: nowrap;
+    /* ACTION CANVAS — ONE stage for every formula: the tokens fix its WIDTH
+       and HEIGHT, so the visible graphic area is identical in every slot of a
+       profile and two variants of one card read as equal choices. The stage
+       never takes its size from its content (that is what made a wide formula
+       own a wider button); the CONTENT is fitted into it instead
+       (consoleActionCanvasFit → `--act-fit`). The recessed well lives HERE —
+       it is the stage, not the art. */
+    &__canvas {
+        flex: 0 0 auto;
+        width: var(--act-canvas-w);
+        height: var(--act-canvas-h);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         overflow: hidden;
-        text-overflow: ellipsis;
-        opacity: 0;
-        transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+        padding: .12rem .2rem;
+        box-sizing: border-box;
+        border-radius: .4rem;
+        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
+        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
     }
-    &__tile--focused &__tile-text { opacity: 1; }
-    @media (prefers-reduced-motion: reduce) {
-        &__tile-text { transition: none; }
-    }
-
-    /* THE RULE BLOCK — «what does this action do», in the dossier. The chip
-       carries the KIND (the same words the fullscreen ПРАВИЛА tab uses), the
-       prose carries the card's own wording. */
-    &__rule {
-        display: block;
+    /* THE ACTION DESCRIPTION — the card's own sentence, in the width the wide
+       button already has. It owns its own column, so no wording can move the
+       canvas or the diagnostics; the line budget is a PROFILE token, and the
+       clamp keeps a long Russian sentence from ever adding a line. Quiet on
+       purpose: the graphic stays the accent, the text supports it. */
+    &__desc {
+        flex: 1 1 auto;
         min-width: 0;
-        & + & { margin-top: .35rem; }
-    }
-    &__rule-label {
-        display: inline-block;
-        margin-bottom: .18rem;
-        padding: .06rem .4rem;
-        border-radius: .25rem;
-        font-size: .55rem; font-weight: 800; letter-spacing: .09rem; text-transform: uppercase;
-        color: fade(@con-cyan, 92%);
-        background: fade(@con-cyan, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
-    }
-    &__rule--note &__rule-label {
-        color: fade(@con-amber, 92%);
-        background: fade(@con-amber, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 26%);
-    }
-    &__rule-text {
+        max-height: 100%;
         margin: 0;
-        font-size: .82rem;
-        line-height: 1.35;
-        color: fade(@con-text, 94%);
-        overflow-wrap: anywhere;
+        /* Clearance for the «или» badge: it is centred ON the seam, so half
+           of it reaches into this tile. Text must never run under it. */
+        padding-right: .35rem;
+        font-size: .72rem;
+        line-height: 1.25;
+        color: fade(@con-text-dim, 84%);
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: var(--act-desc-lines, 1);
+        /* The focused slot reads a step brighter — the cursor's payoff. */
+        transition: color calc(140ms * var(--motion-scale, 1)) ease;
     }
-    &__rule--note &__rule-text { color: fade(@con-text-dim, 96%); }
+    &__tile--focused &__desc { color: fade(@con-text, 92%); }
+    @media (prefers-reduced-motion: reduce) {
+        &__desc { transition: none; }
+    }
 
-    /* DIAGNOSTICS — zone 3: reserved at the token height; a reason / choice
-       line fades into space that is ALWAYS laid out, ONE line each (the full
-       reason reads in the dossier) — the canvas above can never shift. */
+    /* DIAGNOSTICS / CONTINUATION — zone 3: reserved at the token height and
+       SINGLE-PURPOSE (state, never description). Exactly one line, from one
+       of two model fields — the canvas above can never shift. */
     &__tile-meta {
         min-height: var(--act-meta-h);
         margin-top: auto; /* pins to the tile's floor in stretched rows */
@@ -14934,15 +14940,17 @@ html.console-mode {
        a text graphic drops the zoom and reads as controlled, wrapping prose. */
     &__graphic {
         margin: 0 !important; min-width: 0;
-        /* The formula sits on a RECESSED strip — the icon well idiom at
-           tile scale (one optical mount for DSL icon runs and text alike). */
-        padding: .22rem .38rem;
-        border-radius: .4rem;
-        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
-        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.1);
-        /* NO focus zoom / scale here: the action graphic is a SCHEMA, not a
+        flex: 0 0 auto;
+        /* The ART, not the stage: the recessed well is the CANVAS above. What
+           lives here is the printed formula, centred, and scaled to fit when
+           its natural width exceeds the stage (`--act-fit`, published by
+           consoleActionCanvasFit). `transform` never moves layout, so a fit
+           can neither resize the stage nor feed back into its own
+           measurement. NO focus zoom: the action graphic is a SCHEMA, not a
            card — a cursor that resizes it made the grid breathe under the
            d-pad. The focus ring + rail carry the state. */
+        transform: scale(var(--act-fit, 1));
+        transform-origin: 50% 50%;
         zoom: var(--con-ui-scale, 1);
         .card-description { display: none; }
         &:has(> .con-cardactions__graphic-text) { zoom: 1; }
@@ -14950,6 +14958,7 @@ html.console-mode {
     &__graphic-text {
         display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
         white-space: normal; overflow-wrap: anywhere;
+        max-width: 100%;
     }
     /* On the MASTER tile a text action is a compact PREVIEW (2 lines, clamped);
        the full rule reads in the detail panel. Prevents one long action from
@@ -16060,6 +16069,11 @@ html.con-profile-handheld .con-cardactions {
        a TV affordance); the packed focus rows collapse to the same single
        file, so d-pad geometry still matches the screen. */
     .con-cardactions__list-body { grid-template-columns: 1fr; }
+    /* …and with ONE column there is nothing to span: `span 2` opens an
+       IMPLICIT second column that then competes for width, which starved the
+       single-action groups down to their canvas the moment the canvas got a
+       fixed size. */
+    .con-cardactions__group--wide { grid-column: auto; }
     .con-cardactions__ident-section { font-size: .95rem; }
     .con-cardactions__title { font-size: .95rem; }
     .con-cardactions__detail { flex-basis: 16.5rem; }
@@ -16092,14 +16106,14 @@ html.con-profile-handheld .con-cardactions {
         b { font-size: .62rem; }
     }
     .con-cardactions__fgroup-keys .gp-glyph { transform: scale(0.66); }
-    /* THE DECK CALL on the slot's rule line: the band is one column of
-       ~1080 logical px and vertical room is the scarce resource — a sentence
-       beside every formula would crowd the graphic that IS the fastest read
-       at arm's length. The rule still reads in the dossier (always visible
-       here) and in full on the setup stage, so nothing is lost. */
-    .con-cardactions__tile-text { display: none; }
-    /* The dossier's rule block gives up a step of type, never its wording. */
-    .con-cardactions__rule-text { font-size: .76rem; }
+    /* THE DECK CALL on the slot's description: KEEP it, one line. The profile
+       protects VERTICAL room and calm — and the horizontal composition costs
+       neither: the sentence sits beside the stage, inside the row the canvas
+       already defines. The Deck's single column also gives it the WIDEST
+       slots of any profile, so hiding the text here would leave the largest
+       empty area in the whole product. (The line budget is one; two would
+       start competing with the graphic at arm's length.) */
+    .con-cardactions__desc { font-size: .68rem; }
 }
 /* The setup stage's rule block on the Deck — the semantic lead stays, one
    step tighter (vertical room is what the profile protects). */
