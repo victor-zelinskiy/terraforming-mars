@@ -440,7 +440,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -2187,6 +2187,23 @@ export default defineComponent({
      * workspace has no honest place to seat them and holding them would
      * strand the prompt.
      */
+    /**
+     * The prompt BELONGS to an open workspace, whether or not its slot is
+     * ready yet. Split out from `taskEmbedTarget` on purpose: ownership and
+     * readiness are different questions, and conflating them is what let the
+     * standalone band win the race. While this is true and the slot is not
+     * there yet the host renders NOWHERE — a brief hold, never a wrong
+     * surface. Exactly the `deckDrawHolds()` idiom, which withholds the reveal
+     * rather than letting it mount in the wrong place for a frame.
+     */
+    taskBelongsToWorkspace(): boolean {
+      return workspaceClaimsPick() &&
+        (this.hostTask?.kind === 'cardSelect' || this.hostTask?.kind === 'payment');
+    },
+    /** Claimed, but the workspace's zone is not in the DOM yet → hold. */
+    taskHeldForWorkspace(): boolean {
+      return this.taskBelongsToWorkspace && workspaceOutcomeState.embedSlot === '';
+    },
     taskEmbedTarget(): string | undefined {
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -2205,7 +2222,17 @@ export default defineComponent({
     workspaceOutcomeEmbedded(): boolean {
       return this.revealEmbedTarget !== undefined || this.taskEmbedTarget !== undefined;
     },
+    /** A claimed batch whose workspace zone is not mounted yet → hold the
+     *  reveal rather than let the full-bleed band take it for a frame. */
+    revealHeldForWorkspace(): boolean {
+      return this.rawDrawnRevealPending &&
+        workspaceClaimsDrawReveal(currentRevealEvent()?.source) &&
+        workspaceOutcomeState.embedSlot === '';
+    },
     consoleRevealMode(): ConsoleRevealMode | undefined {
+      if (this.revealHeldForWorkspace) {
+        return undefined;
+      }
       if (this.rawDrawnRevealPending) {
         return 'drawn';
       }
@@ -7051,7 +7078,15 @@ export default defineComponent({
       // ConsoleStartScene — the hold begins at the first ceremony frame and
       // the flight fires ONLY on the project-payment confirm. The shell just
       // hosts the delivery layer + passes the held set to the dock.)
-      closeConsoleLayers();
+      //
+      // …but NOT when this host is the workspace's own outcome: the layers it
+      // would close include the workspace HOSTING it. Buying a revealed card
+      // is pick-then-pay, and tearing the frame down between the two halves is
+      // the same break the embedding removes. The workspace folds on its own
+      // signal (the claim's release) once the server stops asking.
+      if (!this.taskBelongsToWorkspace) {
+        closeConsoleLayers();
+      }
       this.consoleState.task.deferred = false;
       this.submit(response);
     },
@@ -7196,6 +7231,12 @@ export default defineComponent({
         // be) ours, and let it go only when the server has demonstrably asked
         // for something else — or for nothing.
         const ours = this.workspaceOutcomeEmbedded ||
+          // The prompt IS ours — whether or not its slot has appeared yet.
+          // This is the arm that was missing: readiness was being read as
+          // ownership, so a slot that had not mounted on this exact tick was
+          // taken to mean "the outcome went elsewhere", the claim dropped, the
+          // workspace folded and the standalone band took the prompt.
+          this.taskBelongsToWorkspace ||
           this.rawDrawnRevealPending ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
