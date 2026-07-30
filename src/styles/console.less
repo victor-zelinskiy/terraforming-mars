@@ -14563,13 +14563,25 @@ html.console-mode {
     }
     &__empty { grid-column: 1 / -1; }
 
-    /* ── The CARD GROUP: action buttons on top, the card plate underneath ── */
+    /* ── The CARD GROUP: the card PLATE leads on top (source first, action
+       second — the scanning order), the action slots follow. The SLOT ANATOMY
+       TOKENS below are the one source of the fixed three-zone geometry
+       (service row · action canvas · diagnostics): every slot on the screen
+       uses them, so every canvas sits at the same height and the «или» joint
+       can anchor to the canvas' true centre by pure arithmetic. Profiles
+       override the TOKENS, never a per-zone constant. ── */
+    --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
+    --act-canvas-h: 3rem;    /* the action graphic's fixed stage */
+    --act-meta-h: .95rem;    /* the diagnostics strip (reason / choice note) */
+    --act-pad-t: .3rem;      /* the slot's top padding */
+    --act-gap: .22rem;       /* the slot's inner zone gap */
+
     &__group {
         display: flex;
         flex-direction: column;
         min-width: 0;
         border-radius: .6rem;
-        padding: .28rem .28rem .1rem;
+        padding: .24rem .28rem .22rem;
         background: linear-gradient(170deg, rgba(18, 27, 40, 0.5) 0%, rgba(10, 16, 25, 0.55) 100%);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         /* A card with alternatives spans BOTH columns. */
@@ -14594,15 +14606,18 @@ html.console-mode {
             column-gap: 1.1rem; /* the gap hosts the «или» joint */
         }
     }
-    /* The card PLATE — the group's foundation line: the name plus what the
-       CARD owns (stored resource, accrued VP), never per-action data. */
+    /* The card PLATE — the group's IDENTITY HEADER: the name plus what the
+       CARD owns (stored resource, accrued VP), never per-action data. It
+       spans the full group, so on an «или» card it visibly unites both
+       slots; the machined seam under it hands the eye to the actions. */
     &__plate {
         display: flex;
         align-items: center;
         gap: .35rem;
         min-width: 0;
-        margin-top: .22rem;
-        padding: .16rem .35rem .1rem;
+        margin-bottom: .24rem;
+        padding: .04rem .35rem .2rem;
+        box-shadow: 0 .05rem 0 rgba(120, 150, 185, 0.16);
     }
     /* The name and the card's chips read as ONE left cluster — on a wide
        (two-button) card a right-pinned chip drifted a whole row away from the
@@ -14642,11 +14657,14 @@ html.console-mode {
         background: rgba(12, 22, 34, 0.96);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .2rem .5rem rgba(0, 0, 0, 0.4);
 
-        /* The JOINT sits in the grid's column gap, on the tile's LEFT edge —
-           the coupling piece between two sibling variants sharing a row. */
+        /* The JOINT sits in the grid's column gap on the tile's LEFT edge,
+           anchored to the ACTION CANVAS' centre (pad + service row + gap +
+           half the canvas — pure token arithmetic), so differing diagnostics
+           below can never drag it off the semantic middle. */
         &--joint {
             position: absolute;
-            left: 0; top: 50%;
+            left: 0;
+            top: calc(var(--act-pad-t) + var(--act-head-h) + var(--act-gap) + var(--act-canvas-h) / 2);
             transform: translate(-50%, -50%);
             z-index: 2;
         }
@@ -14656,10 +14674,10 @@ html.console-mode {
        the left edge, and an ALWAYS-OPAQUE chassis (blocked/activated tiles
        recede through their CONTENT, never through see-through glass). */
     &__tile {
-        position: relative; display: flex; flex-direction: column; gap: .22rem;
+        position: relative; display: flex; flex-direction: column; gap: var(--act-gap);
         min-width: 0; /* a long card name must ellipsis, never widen the column */
         box-sizing: border-box;
-        padding: .3rem .5rem .3rem .6rem; border-radius: .55rem;
+        padding: var(--act-pad-t) .5rem .28rem .6rem; border-radius: .55rem;
         background:
             linear-gradient(90deg, transparent 14%, rgba(150, 200, 240, 0.2) 50%, transparent 86%) no-repeat top center / 100% .06rem,
             linear-gradient(168deg, rgba(24, 36, 52, 0.92) 0%, rgba(13, 20, 31, 0.95) 55%, rgba(9, 14, 22, 0.97) 100%);
@@ -14703,15 +14721,18 @@ html.console-mode {
             .con-cardactions__graphic, .con-cardactions__tile-choices { opacity: 0.85; }
         }
         &--shake { animation: con-cardact-shake calc(320ms * var(--motion-scale, 1)) ease; }
+        /* The descend pulse rides the chosen slot while the layer recedes. */
+        &--descend { animation: con-cardact-descend calc(260ms * var(--motion-scale, 1)) ease; }
     }
-    /* The tile's own IDENTITY LINE — the flat grid has no group box, so each
-       button names its source card, its variant («N/M») and its verdict. One
-       line, ellipsised: the name never wraps the tile taller. */
+    /* SERVICE ROW — zone 1 of the fixed slot anatomy, ALWAYS laid out at the
+       token height (an empty strip on a plain available single is the price
+       of one grid rhythm — and the graphic's breathing room). The variant
+       way-finder sits LEFT, the verdict chip RIGHT. */
     &__tile-head {
-        display: flex; align-items: center; justify-content: flex-end; gap: .3rem; min-width: 0;
+        flex-shrink: 0;
+        height: var(--act-head-h);
+        display: flex; align-items: center; gap: .3rem; min-width: 0;
     }
-    /* (The card NAME lives on the group's plate — the button carries only
-       per-action data.) */
     /* The word «или» on a stacked alternative (one-column profiles have no
        shared edge for the joint) — the relation is never left implicit. */
     &__tile-or {
@@ -14721,13 +14742,15 @@ html.console-mode {
         color: fade(@con-cyan, 85%); background: fade(@con-cyan, 10%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%);
     }
-    /* The «N/M» badge — the only marker a card with alternatives needs once
-       the tiles carry their own name. */
+    /* «Вариант N» — a QUIET way-finder, deliberately subordinate to the
+       graphic (plain dim smallcaps, no box): it helps orientation without
+       ever competing with the action itself. Pushes the verdict right. */
     &__tile-variant {
-        flex-shrink: 0;
-        font-size: .6rem; font-weight: 800; letter-spacing: .04rem;
-        padding: .02rem .3rem; border-radius: .25rem;
-        color: fade(@con-cyan, 92%); background: fade(@con-cyan, 12%);
+        flex: 1;
+        min-width: 0;
+        font-size: .58rem; font-weight: 700; letter-spacing: .09rem; text-transform: uppercase;
+        color: fade(@con-text-dim, 88%);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         font-variant-numeric: tabular-nums;
     }
     &__tile-res {
@@ -14739,18 +14762,31 @@ html.console-mode {
     }
     &__tile-status {
         flex-shrink: 0;
+        margin-left: auto; /* right-pinned with or without the variant label */
         font-size: .55rem; letter-spacing: .04rem; text-transform: uppercase; padding: .08rem .35rem; border-radius: .25rem;
         &--available { color: @con-mint; background: fade(@con-mint, 12%); }
         &--rules { color: #ffb0a6; background: fade(@con-red, 12%); }
         &--soft { color: @con-amber; background: fade(@con-amber, 12%); }
         &--activated { color: fade(@con-cyan, 90%); background: fade(@con-cyan, 12%); }
     }
-    /* The reserved META STRIP — reasons / choice markers fade into space
-       that is ALWAYS laid out, so a late line can never resize the tile. */
+    /* ACTION CANVAS — zone 2: every slot gives its graphic the SAME stage
+       height (the token), the formula centring inside it. Whatever the
+       action draws, the grid keeps one rhythm. */
+    &__canvas {
+        flex-shrink: 0;
+        height: var(--act-canvas-h);
+        min-width: 0;
+        display: flex;
+        align-items: center;
+    }
+    /* DIAGNOSTICS — zone 3: reserved at the token height; a reason / choice
+       line fades into space that is ALWAYS laid out, ONE line each (the full
+       reason reads in the dossier) — the canvas above can never shift. */
     &__tile-meta {
-        min-height: .9rem;
+        min-height: var(--act-meta-h);
         margin-top: auto; /* pins to the tile's floor in stretched rows */
         display: flex; flex-direction: column; justify-content: flex-end; gap: .1rem;
+        min-width: 0;
     }
     &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; &--lg { gap: .6rem; } }
     &__arrow { font-size: 1.1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
@@ -14786,15 +14822,18 @@ html.console-mode {
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
     &__tile-reason {
-        display: inline-flex; align-items: center; gap: .3rem;
+        display: flex; align-items: center; gap: .3rem; min-width: 0;
         font-size: .75rem; color: fade(#ffb0a6, 88%);
         animation: con-cardact-meta-in calc(160ms * var(--motion-scale, 1)) ease;
+        /* ONE line — the strip is a diagnostic, the dossier holds the prose. */
+        span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     }
     /* Non-amount pre-submit choices, NAMED (card / player / payment pick). */
     &__tile-choices {
-        display: inline-flex; align-items: center; gap: .35rem;
+        display: flex; align-items: center; gap: .35rem; min-width: 0;
         font-size: .7rem; color: fade(@con-cyan, 88%);
         span:first-child { color: @con-cyan; }
+        span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     }
 
     /* A VARIABLE formula part — the player will choose the value in the
@@ -14874,6 +14913,10 @@ html.console-mode {
     &__detail-card {
         zoom: calc(0.58 * var(--con-ui-scale, 1));
         > :is(.card-container, .pcard) { margin: 0; }
+        /* The SYNC PULSE: crossing the cursor to another card remounts this
+           face (keyed) — one calm settle answers the move (transform/opacity
+           only; reduced motion collapses it via --motion-scale). */
+        animation: con-cardact-detailsync calc(190ms * var(--motion-scale, 1)) ease;
     }
     /* A TEXT-override action's ONE full prose copy (the graphic duplicate is
        gone; the span inside carries the shared graphic-text look). */
@@ -14906,6 +14949,38 @@ html.console-mode {
     /* Chip sizes come from the console chip system (--con-chip-*); only
        the hierarchy accent stays local. */
     &__formula--lg .action-effect-chip.action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
+}
+
+/* The WORKSPACE DESCEND commit pulse: the chosen slot acknowledges the press
+   where it stands, one flare of its focus ring as the layer recedes into it. */
+@keyframes con-cardact-descend {
+    0% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
+            inset 0 0 0 .1rem @con-cyan,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 .9rem fade(@con-cyan, 26%);
+    }
+    45% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(220, 245, 255, 0.14),
+            inset 0 0 0 .14rem #d9f3ff,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 1.5rem fade(@con-cyan, 55%);
+    }
+    100% {
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 240, 255, 0.08),
+            inset 0 0 0 .1rem @con-cyan,
+            0 .45rem 1.1rem rgba(0, 0, 0, 0.5),
+            0 0 .9rem fade(@con-cyan, 26%);
+    }
+}
+
+/* The dossier's card answering a cursor move — one short settle. */
+@keyframes con-cardact-detailsync {
+    0% { opacity: 0.35; transform: translateY(.18rem) scale(0.985); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes con-cardact-shake {
@@ -15514,6 +15589,32 @@ html.console-mode {
     .con-composer__cardmeta-icon {
         width: 1.25rem; height: 1.25rem;
         background-size: contain !important; background-repeat: no-repeat; background-position: center;
+    }
+
+    /* THE ACTION STRIP — the pressed formula, carried into this layer by the
+       workspaceDescend FLIP. The SAME recessed-well chassis as the browse
+       slot's graphic (the carry is a pure move, never a restyle); it stands
+       above every phase's content as the constant «это выполняемое действие». */
+    .con-composer__actstrip {
+        flex-shrink: 0;
+        align-self: center;
+        max-width: 100%;
+        margin-bottom: .35rem;
+    }
+    .con-composer__actstrip-well {
+        margin: 0 !important; min-width: 0;
+        padding: .24rem .5rem;
+        border-radius: .4rem;
+        background: radial-gradient(120% 120% at 50% 30%, rgba(9, 15, 24, 0.28) 0%, rgba(6, 10, 17, 0.5) 100%);
+        box-shadow: inset 0 .08rem .25rem rgba(0, 0, 0, 0.35), inset 0 0 0 .05rem rgba(120, 150, 185, 0.14);
+        zoom: var(--con-ui-scale, 1);
+        .card-description { display: none; }
+        &:has(> .con-composer__actstrip-text) { zoom: 1; }
+    }
+    .con-composer__actstrip-text {
+        display: block; font-size: .85rem; line-height: 1.3; color: @con-text;
+        white-space: normal; overflow-wrap: anywhere;
+        max-width: 26rem;
     }
 
     /* The CTA DOCK — pinned under the decision scroll (flex sibling), so the

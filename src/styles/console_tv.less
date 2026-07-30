@@ -925,6 +925,12 @@ html.con-profile-tv {
            as a page-filling, overflowing duplicate) — `:not(:has())` keeps
            the zoom off the prose branch. */
         &__graphic:not(:has(> .con-cardactions__graphic-text)) { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
+        /* The slot anatomy at couch sizes (the zoomed graphic needs a taller
+           stage; the joint math follows the tokens automatically). */
+        --act-head-h: 1.05rem;
+        --act-canvas-h: 3.9rem;
+        --act-meta-h: 1.05rem;
+        --act-pad-t: 0.4rem;
         /* The inspector's card THUMBNAIL — couch-readable, but bounded so the
            dossier column's tail (next-step + the X-history hint) never clips
            below the panel fold. */
@@ -942,7 +948,9 @@ html.con-profile-tv {
         &__plate-chip em { font-size: var(--con-t-floor); }
         &__res-icon { width: 1.25rem; height: 1.25rem; }
         &__or { font-size: var(--con-t-floor); }
-        &__tile { padding: 0.4rem 0.55rem; min-height: var(--con-hit-min); }
+        /* Vertical rhythm through the anatomy TOKEN (a static shorthand here
+           once drifted the «или» joint 4px off the canvas centre). */
+        &__tile { padding: var(--act-pad-t) 0.55rem 0.4rem; min-height: var(--con-hit-min); }
         &__tile-reason { font-size: var(--con-t-secondary); }
         &__tile-choices { font-size: var(--con-t-caption); }
         &__varchip {
@@ -1032,6 +1040,9 @@ html.con-profile-tv {
     /* ACTION FOCUS stage (in-frame): the full-frame geometry beats the
        floating-panel width caps above; couch sizes for stage-only chrome. */
     .con-composer--stage {
+        /* The carried action strip lands at the SAME visual size the browse
+           slot drew it (zoom parity keeps the FLIP a pure move). */
+        .con-composer__actstrip-well:not(:has(> .con-composer__actstrip-text)) { zoom: calc(1.32 * var(--con-ui-scale, 1)); }
         .con-composer__panel--stage { width: 100%; max-height: none; }
         .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
         .con-composer__cardmeta {

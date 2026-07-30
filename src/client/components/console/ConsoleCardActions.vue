@@ -137,8 +137,12 @@
                data-action-flow-thumb
                :data-zoom-slot="focusedTile.cardName"
                aria-hidden="true">
-            <div class="con-cardactions__detail-card">
-              <ConsoleCardFaceLite :key="focusedTile.cardName" :name="focusedTile.cardName" />
+            <!-- Keyed on the CARD: crossing to another source remounts the
+                 face and replays the one-shot SYNC PULSE — the dossier
+                 visibly answers the cursor on the right (the browse ⇄ detail
+                 link the descend phrase later deepens). -->
+            <div class="con-cardactions__detail-card" :key="focusedTile.cardName">
+              <ConsoleCardFaceLite :name="focusedTile.cardName" />
             </div>
             <span v-if="focusedGroup !== undefined && focusedGroup.cardResource !== undefined"
                   class="con-played__res">{{ focusedGroup.cardResource.count }}</span>
@@ -224,15 +228,14 @@
             <div v-if="emptyFilterLine !== ''" class="con-cardactions__empty-filters">{{ emptyFilterLine }}</div>
           </div>
 
-          <!-- ── The grid: the CARD is the group and is never split. A
-               single-action card takes one of the two columns; a card with
-               ALTERNATIVES owns the full row, its buttons side by side with
-               the «или» joint on their shared edge. Inside a group the
-               ACTION BUTTONS lead (the focus lives on a button, and every
-               per-action chip — the «N/M» variant, the verdict, the reason —
-               rides it) and the CARD PLATE closes it underneath: the name and
-               what belongs to the card as a whole (its stored resource, its
-               accrued VP). ──────────────────────────────────────────────── -->
+          <!-- ── The grid: the CARD is the group and is never split. The
+               CARD PLATE leads on TOP (the source is what the eye scans
+               first: the name + everything the whole card owns — stored
+               resource, accrued VP), the ACTION SLOTS follow under it. A
+               slot is the ONE interactive unit and keeps a FIXED three-zone
+               anatomy (service row · action canvas · diagnostics), so every
+               canvas across the screen sits at the same height and the
+               «или» joint can anchor to the canvas' true centre. ────────── -->
           <div v-for="group in model.groups" :key="group.key"
                class="con-cardactions__group"
                :class="[
@@ -242,67 +245,9 @@
                    'con-cardactions__group--live': groupHasFocus(group),
                  },
                ]">
-            <div class="con-cardactions__acts"
-                 :class="{'con-cardactions__acts--pair': group.tiles.length > 1}">
-              <div v-for="tile in group.tiles" :key="tile.key"
-                   class="con-cardactions__tile"
-                   :class="[
-                     'con-cardactions__tile--' + tile.status,
-                     {
-                       'con-cardactions__tile--focused': focusKey === tile.key,
-                       'con-cardactions__tile--shake': shakeKey === tile.key,
-                     },
-                   ]"
-                   :ref="focusKey === tile.key ? 'focused' : undefined">
-                <!-- The «или» joint rides the shared edge with the sibling
-                     button to the left (same card, same row). -->
-                <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
-
-                <!-- Per-ACTION chips only: which alternative this is + its
-                     own verdict. The card's own chips live on the plate. -->
-                <div v-if="tile.variantTotal > 1 || tile.status !== 'available'" class="con-cardactions__tile-head">
-                  <!-- One column (the Deck) stacks a card's buttons, so the
-                       joint has no shared edge to ride — the alternative says
-                       «или» in words instead. Never both. -->
-                  <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
-                  <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ tile.nodeIndex + 1 }}/{{ tile.variantTotal }}</span>
-                  <span class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
-                    {{ $t(statusLabel(tile.status)) }}
-                  </span>
-                </div>
-
-                <!-- The button ALWAYS shows the card's OWN action graphic
-                     (icons straight from the manifest — instant, no fetch, so
-                     it never flickers). The COMPLETE cost → reward formula
-                     chips live only in the left dossier. -->
-                <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
-                  <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
-                  <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
-                  <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
-                </div>
-
-                <!-- The META STRIP is ALWAYS laid out at a fixed minimum
-                     height — a late-arriving reason / choice line fades into
-                     RESERVED space and can never change the geometry. -->
-                <div class="con-cardactions__tile-meta">
-                  <!-- Non-amount pre-submit choices (a card / player / payment
-                       pick happens in the composer) — named, never a mute "X". -->
-                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
-                    <span aria-hidden="true">◈</span>
-                    <span>{{ choiceKindsLabel(tile) }}</span>
-                  </div>
-                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
-                    <span aria-hidden="true">✕</span>
-                    <span>{{ tileReason(tile) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- The CARD PLATE — the group's identity foundation: the name
-                 and everything the whole card owns. The VP chip is the
-                 resource scorer's honest live read («2 ПО · +1 за 3»), from
-                 the SHARED accumulator, never a second formula. -->
+            <!-- The CARD PLATE — the group's identity header: reading order
+                 is source first, action second. For an «или» card it spans
+                 BOTH slots, visibly uniting the alternatives. -->
             <div class="con-cardactions__plate">
               <span class="con-cardactions__plate-name">{{ $t(group.cardName) }}</span>
               <span v-if="group.cardResource !== undefined" class="con-cardactions__plate-chip">
@@ -314,6 +259,69 @@
                 <span class="con-cardactions__plate-vp-unit">{{ $t('VP') }}</span>
                 <em v-if="group.vp.toNext > 0">+1 · {{ group.vp.toNext }}</em>
               </span>
+            </div>
+
+            <div class="con-cardactions__acts"
+                 :class="{'con-cardactions__acts--pair': group.tiles.length > 1}">
+              <div v-for="tile in group.tiles" :key="tile.key"
+                   class="con-cardactions__tile"
+                   :class="[
+                     'con-cardactions__tile--' + tile.status,
+                     {
+                       'con-cardactions__tile--focused': focusKey === tile.key,
+                       'con-cardactions__tile--shake': shakeKey === tile.key,
+                       'con-cardactions__tile--descend': descendKey === tile.key,
+                     },
+                   ]"
+                   :ref="focusKey === tile.key ? 'focused' : undefined">
+                <!-- The «или» joint rides the shared edge with the sibling
+                     button to the left, anchored to the CANVAS centre. -->
+                <div v-if="tile.joinLeft" class="con-cardactions__or con-cardactions__or--joint" aria-hidden="true">{{ $t('or') }}</div>
+
+                <!-- SERVICE ROW — always laid out (the fixed anatomy): the
+                     quiet «Вариант N» way-finder on the left, the verdict
+                     chip on the right ONLY when it is news (a blocked /
+                     not-now / used state; «available» is the norm and says
+                     nothing). -->
+                <div class="con-cardactions__tile-head">
+                  <!-- One column (the Deck) stacks a card's slots, so the
+                       joint has no shared edge — the alternative says «или»
+                       in words instead. Never both. -->
+                  <span v-if="!tile.joinLeft && tile.nodeIndex > 0" class="con-cardactions__tile-or">{{ $t('or') }}</span>
+                  <span v-if="tile.variantTotal > 1" class="con-cardactions__tile-variant">{{ $t('Option') }} {{ tile.nodeIndex + 1 }}</span>
+                  <span v-if="tile.status !== 'available'" class="con-cardactions__tile-status" :class="'con-cardactions__tile-status--' + tile.status">
+                    {{ $t(statusLabel(tile.status)) }}
+                  </span>
+                </div>
+
+                <!-- ACTION CANVAS — the fixed-height stage of the card's OWN
+                     printed graphic (icons straight from the manifest —
+                     instant, no fetch). One height for every slot on the
+                     screen: the grid keeps one rhythm whatever the action
+                     draws. The COMPLETE formula chips live in the dossier. -->
+                <div class="con-cardactions__canvas">
+                  <div class="con-cardactions__graphic card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="tile.node.actionNode !== undefined" :effectData="tile.node.actionNode" />
+                    <CardRenderData v-else-if="tile.node.renderRoot !== undefined" :renderData="tile.node.renderRoot" />
+                    <span v-else class="con-cardactions__graphic-text">{{ tile.node.text }}</span>
+                  </div>
+                </div>
+
+                <!-- DIAGNOSTICS — always laid out at a fixed height; a late
+                     line fades into RESERVED space. One line, ellipsised:
+                     the full reason reads in the dossier for the focused
+                     slot (never a shifted canvas). -->
+                <div class="con-cardactions__tile-meta">
+                  <div v-if="tile.choiceKinds.length > 0" class="con-cardactions__tile-choices">
+                    <span aria-hidden="true">◈</span>
+                    <span>{{ choiceKindsLabel(tile) }}</span>
+                  </div>
+                  <div v-if="tile.status !== 'available' && tileReason(tile) !== ''" class="con-cardactions__tile-reason">
+                    <span aria-hidden="true">✕</span>
+                    <span>{{ tileReason(tile) }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </ConsoleScrollArea>
@@ -421,6 +429,8 @@ import {
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
+import {branchPositionsForNode} from '@/client/components/actions/actionBranchView';
+import {armDescendOrigin, armDescendRect} from '@/client/console/surfaceMotion/workspaceDescend';
 import {
   actionFocusEnterHook,
   actionFocusLeaveHook,
@@ -429,7 +439,7 @@ import {
   armActionFocusOrigin,
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
-import {consoleActionComposerUi, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, setConsoleActionComposerMode, setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -519,6 +529,9 @@ export default defineComponent({
       revealFlow: undefined as {payload?: RevealResultModel} | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
+      /** The slot the player just DESCENDED into (the commit pulse rides it
+       *  while the browse layer recedes; cleared on return). */
+      descendKey: '',
       shakeTimer: undefined as number | undefined,
     };
   },
@@ -936,14 +949,41 @@ export default defineComponent({
         this.shake(tile.key);
         return;
       }
-      // Remember the inspector thumbnail's live rect — the focus stage's hero
-      // card FLIPs from it (the enter hook consumes the armed origin).
+      // PRESEED the stage's headline mode SYNCHRONOUSLY, before the composer
+      // exists: the header used to render the stale store value («Настройка
+      // действия») for one frame and then swap to the composer's published
+      // truth — the visible kicker jump. The predicate mirrors the composer's
+      // `hasDecisions` at mount: any pre/branch choice (tile.hasChoices) or a
+      // combined node fanning into a branch pick.
+      const preview = this.previewMap.get(tile.cardName);
+      const entry = this.entries.find((e) => e.cardName === tile.cardName);
+      const branchFan = (preview !== undefined && entry !== undefined) ?
+        branchPositionsForNode(entry.group, preview.branches, tile.nodeIndex).length > 1 : false;
+      setConsoleActionComposerMode(tile.hasChoices || branchFan ? 'setup' : 'confirm');
+      // The WORKSPACE DESCEND phrase (workspaceDescend.ts): remember the
+      // press point + the semantic objects' live rects, then let the enter
+      // hook play the descent — the commit pulse on the slot, the browse
+      // layer receding INTO the press point, the card thumbnail FLIPping to
+      // the hero and the action graphic FLIPping into the stage's strip.
+      const slot = this.focusedSlotEl();
+      const slotRect = slot?.getBoundingClientRect?.();
+      if (slotRect !== undefined) {
+        armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
+      }
+      armDescendRect('action-graphic', slot?.querySelector<HTMLElement>('.con-cardactions__graphic')?.getBoundingClientRect?.());
       const thumb = this.$refs.detailCard as HTMLElement | undefined;
       armActionFocusOrigin(thumb?.getBoundingClientRect?.());
+      this.descendKey = tile.key;
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
+    },
+    /** The DOM element of the focused action slot (the ref list is keyed). */
+    focusedSlotEl(): HTMLElement | undefined {
+      const el = this.$refs.focused as HTMLElement | Array<HTMLElement> | undefined;
+      return Array.isArray(el) ? el[0] : el;
     },
     closeComposer(): void {
       this.composer = undefined;
+      this.descendKey = '';
       if (this.revealFlow !== undefined) {
         this.revealFlow = undefined;
         resetConsoleActionRevealClaim();

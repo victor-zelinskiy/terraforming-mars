@@ -48,6 +48,21 @@
       </div>
       <div class="con-composer__actright">
 
+      <!-- ── THE ACTION STRIP — the pressed formula, CARRIED into this layer.
+           The exact graphic the player committed to in the browser FLIPs into
+           this slot (workspaceDescend: the object travels, the screens don't
+           swap) and stays through every phase — setup, confirm, even the
+           reveal — as the standing answer to «какое действие я выполняю».
+           Same recessed-well chassis as the browse slot, so the FLIP is a
+           pure move, not a restyle. -->
+      <div v-if="stripNode !== undefined" class="con-composer__actstrip" data-action-strip aria-hidden="true">
+        <div class="con-composer__actstrip-well card-container" v-i18n v-strip-action-prefix>
+          <CardRenderEffectBoxComponent v-if="stripNode.actionNode !== undefined" :effectData="stripNode.actionNode" />
+          <CardRenderData v-else-if="stripNode.renderRoot !== undefined" :renderData="stripNode.renderRoot" />
+          <span v-else class="con-composer__actstrip-text">{{ stripNode.text }}</span>
+        </div>
+      </div>
+
       <!-- ── THE REVEAL PHASE («Действия карт › Результат вскрытия») ──────
            A confirmed deck-check action stays IN THIS STAGE: the decision
            column yields to the reveal zone — the slot the deck flight lands
@@ -714,6 +729,19 @@ export default defineComponent({
      *  filled by the repeat pick surface, not captured like a normal step. */
     repeatChoice(): ComposerChoice | undefined {
       return this.branchChoiceList.find((c) => c.repeatAction === true);
+    },
+    /**
+     * The ACTION STRIP's render node — the printed graphic of the variant the
+     * player pressed (the workspaceDescend carry's landing content). A
+     * combined draft (nodeIndex < 0, the Viron whole-card handoff) has no ONE
+     * pressed formula → no strip.
+     */
+    stripNode(): GroupNode | undefined {
+      if (this.nodeIndex < 0) {
+        return undefined;
+      }
+      const node = this.entry.group.nodes[this.nodeIndex];
+      return node !== undefined ? stripNodeOr(node) : undefined;
     },
     /** The chosen action's render node — the graphic drawn in the filled slot. */
     repeatNode(): GroupNode | undefined {

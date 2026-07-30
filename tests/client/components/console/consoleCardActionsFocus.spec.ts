@@ -3,7 +3,7 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/consoleCardActions';
-import {consoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {CardName} from '@/common/cards/CardName';
@@ -105,6 +105,25 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     // The filter the player set is untouched.
     expect(consoleCardActionsUi.filter.availability).to.eq('available');
     expect((w.vm as any).focusKey).to.eq(focusBefore);
+    w.unmount();
+  });
+
+  it('the stage headline is PRESEEDED synchronously at A — a bare-confirm action never flashes the stale «Настройка действия» frame', async () => {
+    const w = factory();
+    await settle(w);
+    // The store's reset default is 'setup' — exactly the stale value the
+    // header used to render for one frame before the mounted composer
+    // published its truth (the visible kicker jump).
+    resetConsoleActionComposerUi();
+    expect(consoleActionComposerUi.mode).to.eq('setup');
+    (w.vm as any).activateFocused();
+    // SYNCHRONOUS assert — no nextTick: the preseed must land before Vue
+    // renders the stage header even once.
+    expect(consoleActionComposerUi.mode).to.eq('confirm');
+    await settle(w);
+    // The mounted composer agrees — no later swap back.
+    expect(consoleActionComposerUi.mode).to.eq('confirm');
+    expect(w.find('.con-cardactions__kicker-step').exists()).to.eq(true);
     w.unmount();
   });
 
