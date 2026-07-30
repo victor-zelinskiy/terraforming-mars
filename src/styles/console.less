@@ -15377,12 +15377,27 @@ html.console-mode {
 
 /* The header's browse ⇄ focus content swap (a short out-in beat — the fixed
    header height means no layout motion, only the text crossfades). */
+/* THE BREADCRUMB STEP — a true CROSSFADE, never an out-in swap.
+   `mode="out-in"` empties the slot between the two words: at 110 ms out plus
+   110 ms in that gap is a visible BLINK on the one line that is supposed to
+   prove the flow never broke. Both words now occupy the SAME grid cell and
+   travel through each other, so the crumb reads as one label changing rather
+   than one label leaving and another arriving.
+   The cell is `grid` (not absolute) so it still SIZES to the widest word —
+   the neighbours never reflow mid-swap, which is the other half of "seamless". */
+.con-cardactions__kicker-swap {
+    display: inline-grid;
+    grid-template-areas: 'step';
+    align-items: center;
+    /* The longer word decides the width; both children share the cell. */
+    > * { grid-area: step; }
+}
 .con-cardactions-headswap-enter-active,
 .con-cardactions-headswap-leave-active {
-    transition: opacity calc(110ms * var(--motion-scale, 1)) ease, transform calc(110ms * var(--motion-scale, 1)) ease;
+    transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
 }
-.con-cardactions-headswap-enter-from { opacity: 0; transform: translateY(.2rem); }
-.con-cardactions-headswap-leave-to { opacity: 0; transform: translateY(-.15rem); }
+.con-cardactions-headswap-enter-from { opacity: 0; transform: translateY(.18rem); }
+.con-cardactions-headswap-leave-to { opacity: 0; transform: translateY(-.14rem); }
 
 /* The focus stage's hero-face micro-swap (a Viron repeat re-points the card
    without a remount — the slot stays, only the face crossfades). */

@@ -1143,7 +1143,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsPick, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -4787,7 +4787,18 @@ export default defineComponent({
           // close it so its dedicated surface can't overlap another one. It
           // survives a 'first action' → 'next action' menu change (still the
           // action menu — same task kind).
-          if (this.consoleState.sheet === 'cardActions' && taskFor(this.playerView)?.kind !== 'actionMenu') {
+          //
+          // …EXCEPT when the new prompt is this workspace's OWN OUTCOME. The
+          // rule above predates embedded outcomes and reads every non-menu
+          // prompt as "someone else's", which is precisely why buying a
+          // revealed card tore the workspace down and handed the prompt to a
+          // standalone band: the player watched «ДЕЙСТВИЯ КАРТ» disappear and
+          // an unrelated window take its place. A claimed prompt is not
+          // another surface's — it is the next stage of the action the player
+          // just confirmed HERE, so the workspace stays and hosts it.
+          if (this.consoleState.sheet === 'cardActions' &&
+              taskFor(this.playerView)?.kind !== 'actionMenu' &&
+              !workspaceOutcomeClaimed()) {
             this.consoleState.sheet = undefined;
             this.consoleState.sheetIndex = 0;
           }

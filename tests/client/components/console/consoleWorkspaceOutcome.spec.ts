@@ -94,6 +94,28 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceOutcomeClaimed()).to.eq(true);
   });
 
+  /**
+   * REGRESSION. The shell closes the (voluntary) card-action center whenever
+   * the top prompt is no longer the action menu. That rule predates embedded
+   * outcomes and read EVERY non-menu prompt as "someone else's" — so buying a
+   * revealed card tore the workspace down mid-flow and handed the prompt to a
+   * standalone band: «ДЕЙСТВИЯ КАРТ» vanished and an unrelated window took its
+   * place. `workspaceOutcomeClaimed()` is the exemption the shell now checks;
+   * if this ever goes false while an outcome is live, that bug is back.
+   */
+  it('REGRESSION: a live claim is VISIBLE to the shell\'s voluntary-surface close rule', () => {
+    expect(workspaceOutcomeClaimed()).to.eq(false);
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
+    // True from the confirm onward — BEFORE anything has been re-homed, which
+    // is exactly the window the close rule fires in.
+    expect(workspaceOutcomeClaimed()).to.eq(true);
+    expect(workspaceOutcomeState.stage).to.eq('awaiting');
+    markWorkspaceOutcomePresenting();
+    expect(workspaceOutcomeClaimed()).to.eq(true);
+    releaseWorkspaceOutcome();
+    expect(workspaceOutcomeClaimed()).to.eq(false);
+  });
+
   it('a fresh claim REPLACES the previous one (a second activation never inherits the first)', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
     claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);

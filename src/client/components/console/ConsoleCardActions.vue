@@ -100,14 +100,24 @@
             <!-- The STEP crossfades between phases (Настройка действия ⇄
                  Результат вскрытия) — never a blank beat, and never a value
                  that changes on its own mid-entry. -->
-            <transition name="con-cardactions-headswap" mode="out-in">
-              <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
-            </transition>
+            <!-- CROSSFADE, not out-in: the two words share one grid cell and
+                 pass through each other, so the step CHANGES instead of
+                 disappearing and reappearing. The cell sizes to the widest of
+                 them, so the card name beside it never shifts mid-swap. -->
+            <span class="con-cardactions__kicker-swap">
+              <transition name="con-cardactions-headswap">
+                <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
+              </transition>
+            </span>
             <span class="con-cardactions__kicker-sep" aria-hidden="true">·</span>
-            <!-- The composed card's name — the operation's title. -->
-            <transition name="con-cardactions-headswap" mode="out-in">
-              <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
-            </transition>
+            <!-- The composed card's name — the operation's title. It only ever
+                 swaps on a Viron repeat re-point; across an outcome phase it
+                 is the ONE thing that must not move at all. -->
+            <span class="con-cardactions__kicker-swap">
+              <transition name="con-cardactions-headswap">
+                <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
+              </transition>
+            </span>
           </template>
           <span v-if="composer !== undefined && focusVariantTotal > 1" class="con-cardactions__stat con-cardactions__stat--variant">
             <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
