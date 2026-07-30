@@ -130,11 +130,20 @@ export const workspaceOutcomeState = reactive({
 
 /**
  * Backstop only: the beat must never withhold the outcome forever if its
- * flight never runs (no DOM, reduced motion taking an early path, a stalled
- * GSAP timeline in a backgrounded tab). Generous, because the flight itself is
- * ~1.4 s and the honest face-down hold on a slow server is unbounded by design.
+ * flight never runs (no DOM, a stalled GSAP timeline in a backgrounded tab).
+ *
+ * DELIBERATELY SHORT. A backstop is a failure path, and its duration is what
+ * the player experiences WHEN IT FIRES — at 6 s the first bug in the release
+ * chain read as an eight-second dead screen followed by the old animation,
+ * which is far worse than no beat at all. The healthy flight settles in ~1.4 s,
+ * so anything past ~2.5 s already means something is wrong; failing fast turns
+ * a broken beat into a slightly abrupt one instead of a hang.
+ *
+ * The honest face-down hold on a genuinely slow server is NOT bounded by this:
+ * that path ends when the answer lands, and this timer only releases the
+ * OUTCOME gate — it never fakes a flip.
  */
-const BEAT_SAFETY_MS = 6000;
+const BEAT_SAFETY_MS = 2600;
 
 let beatTimer: ReturnType<typeof setTimeout> | undefined;
 

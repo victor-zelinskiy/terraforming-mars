@@ -4710,6 +4710,16 @@ export default defineComponent({
         // the DOM is still the OLD tree, so the departing composer can be
         // measured HERE for the incoming reveal's anchored FLIP; the close +
         // the reveal's mount then land in the SAME patch — no blank frame.
+        // THE SERVER ANSWERED. This is the one place that is true BY
+        // DEFINITION on a fresh response, so the execution beat's flip is
+        // released from here rather than from a computed chain
+        // (`hostTask` → `taskBelongsToWorkspace`), which depends on the
+        // admission gate and can settle a tick or more later — long enough for
+        // the beat to sit face-down waiting on a flag that had no reason to
+        // arrive, and to time out on its backstop instead of flipping.
+        if (workspaceOutcomeClaimed()) {
+          markWorkspaceOutcomeAnswerIn();
+        }
         const awaiting = surfaceMotionState.awaiting;
         if (awaiting !== undefined) {
           const lr = newView.lastReveal;
