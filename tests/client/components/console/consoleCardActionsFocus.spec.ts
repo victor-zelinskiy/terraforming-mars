@@ -6,6 +6,7 @@ import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/c
 import {consoleActionComposerUi, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
+import {resetWorkspaceOutcome, setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
 import {CardName} from '@/common/cards/CardName';
 
 // Stub the gamepad glyphs — this spec is about the browse ⇄ focus flow.
@@ -130,6 +131,39 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     vm.outcomeFlow = {kind: 'draw'};
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Card draw');
+    w.unmount();
+  });
+
+  it('an EMBEDDED surface names the stage in the WORKSPACE breadcrumb — the card name never restarts', async () => {
+    const w = factory();
+    await settle(w);
+    resetConsoleActionComposerUi();
+    resetWorkspaceOutcome();
+    const vm = w.vm as any;
+    vm.activateFocused();
+    await settle(w);
+    const cardName = vm.composer.cardName;
+
+    // The outcome opens; nothing has been re-homed yet → the honest generic.
+    vm.outcomeFlow = {kind: 'pending'};
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Card draw');
+
+    // The embedded surface hands its stage name UP (this is what ConsoleTaskHost
+    // does instead of drawing its own «◈ ПОКУПКА»): the breadcrumb takes it.
+    setWorkspaceOutcomePhase('Buying');
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Buying');
+    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Buying');
+    // …and the CARD is still named, on the same line, unchanged. This is the
+    // whole point: only the middle step advanced.
+    expect(w.find('.con-cardactions__title').text()).to.eq(cardName);
+
+    // Retracting it falls back to the generic, never to a blank crumb.
+    setWorkspaceOutcomePhase('');
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Card draw');
+    resetWorkspaceOutcome();
     w.unmount();
   });
 

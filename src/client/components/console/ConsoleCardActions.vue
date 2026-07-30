@@ -763,10 +763,17 @@ export default defineComponent({
       if (kind === 'deck-check') {
         return focusKicker('reveal');
       }
-      // `pending` reads as the DRAW phase from the first frame — the stage is
-      // named before the cards land, so the breadcrumb cannot rename itself
-      // mid-beat (the same rule that keeps «Настройка действия» stable).
-      return focusKicker(kind === undefined ? 'setup' : 'draw');
+      if (kind === undefined) {
+        return focusKicker('setup');
+      }
+      // The re-homed surface NAMES ITSELF here, in the workspace's own
+      // breadcrumb — «ДЕЙСТВИЯ КАРТ › ПОКУПКА · Коммерческая сеть». One line,
+      // one place, one card; only the middle step advances. Until it has
+      // published (the beat before it lands) the phase is the honest generic
+      // «Добор карт», so the crumb never blanks and never renames itself
+      // twice.
+      const published = workspaceOutcomeState.phaseKey;
+      return published !== '' ? published : focusKicker('draw');
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */

@@ -20,13 +20,20 @@
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
       <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey" data-motion-panel>
-        <!-- ── Frame header ────────────────────────────────────────── -->
+        <!-- ── Frame header ──────────────────────────────────────────
+             EMBEDDED: the KICKER is handed UP to the workspace's breadcrumb
+             (setWorkspaceOutcomePhase) instead of being drawn here. Rendering
+             «◈ ПОКУПКА» inside someone else's frame is what made this stage
+             read as a modal that had arrived rather than the next step of the
+             action the player just confirmed. The TITLE stays — it is the
+             server's instruction («Выберите карты для покупки»), not an
+             identity — but demotes to a subtitle under the breadcrumb. -->
         <header class="con-task__head">
-          <div class="con-task__kicker">
+          <div v-if="!embedded" class="con-task__kicker">
             <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(kickerText) }}</span>
           </div>
-          <div class="con-task__title">{{ titleText }}</div>
+          <div class="con-task__title" :class="{'con-task__title--embedded': embedded}">{{ titleText }}</div>
           <!-- Phase note (draft: what happens to the cards you don't keep). -->
           <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
@@ -386,6 +393,7 @@ import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
+import {setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -633,7 +641,16 @@ export default defineComponent({
      * client-built payment rides `parentWf`'s `promptOverride`.
      */
     kickerText(): string {
-      return translateText(consoleTaskSummary(this.activeTask, this.playerView, {prompt: this.wf}).kickerKey);
+      return translateText(this.kickerKey);
+    },
+    /** The raw i18n key — the embedded host hands THIS to the workspace's
+     *  breadcrumb rather than drawing a second kicker of its own. */
+    kickerKey(): string {
+      return consoleTaskSummary(this.activeTask, this.playerView, {prompt: this.wf}).kickerKey;
+    },
+    /** What to publish upward: the stage name while embedded, '' otherwise. */
+    embeddedPhase(): string {
+      return this.embedded ? this.kickerKey : '';
     },
     /** choiceContext trigger sentence (parity with ContextualChoiceContent);
      *  inside a nested step — the PARENT ask as a breadcrumb. */
@@ -1184,6 +1201,16 @@ export default defineComponent({
     },
   },
   watch: {
+    // Hand the stage's NAME up to the workspace breadcrumb while embedded, so
+    // «ДЕЙСТВИЯ КАРТ › ПОКУПКА · Коммерческая сеть» is one continuous line
+    // instead of a detached «◈ ПОКУПКА» floating inside someone else's frame.
+    // Retracted the moment we stop being embedded.
+    embeddedPhase: {
+      immediate: true,
+      handler(key: string) {
+        setWorkspaceOutcomePhase(key);
+      },
+    },
     resetKey: {
       immediate: true,
       handler() {
@@ -1279,6 +1306,12 @@ export default defineComponent({
   },
   beforeUnmount() {
     clearPanelCommands('taskHost');
+    // The watcher does not fire on unmount — retract the published stage name
+    // explicitly, or the workspace breadcrumb keeps announcing a step that is
+    // no longer on screen.
+    if (this.embedded) {
+      setWorkspaceOutcomePhase('');
+    }
     this.stopStripObs?.();
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {

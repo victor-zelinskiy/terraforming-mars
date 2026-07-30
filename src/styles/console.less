@@ -9881,6 +9881,17 @@ html.console-mode {
             background: none;
             box-shadow: none;
         }
+        /* The head loses its own identity block (the kicker went UP into the
+           workspace breadcrumb): what is left is the server's INSTRUCTION, so
+           it reads as a line of the current stage, not as a screen title
+           competing with «ДЕЙСТВИЯ КАРТ › ПОКУПКА · <карта>» above it. */
+        .con-task__head { padding-top: 0; }
+        .con-task__title--embedded {
+            font-size: .95rem;
+            font-weight: 600;
+            letter-spacing: .01em;
+            color: @con-text-dim;
+        }
     }
 
     /* NO __backdrop rule: the host AND every chassis reuser (colony-trade

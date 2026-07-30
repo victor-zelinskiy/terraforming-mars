@@ -14,7 +14,16 @@ The **desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN** (2026-07-15)
 
 **The SHARED layer is NOT deprecated** and keeps full quality bars, tests and guards: server markers/endpoints, `src/common/` models, pure view-models (`victoryPointsModel`, `effectSummary`, `insightEngine`, `endgameFacts`, `journalView`, …), module reactive state (`journalState`, `notificationState`, `presentationFlow`, …), the premium card face (`.pcard`), `motionTokens`. Console stands on it.
 
-**EMBEDDED by default (2026-07-30).** When the player ENTERS a workspace themselves, every later stage of that flow — the reveal, the drawn cards, the follow-up decision, the result — is presented INSIDE that workspace via EMBEDDED mode. A standalone modal is for what the player did NOT open: a board event, another player's turn, a result with no natural parent. Mechanism (claim + `<Teleport>` of the SAME instance, never a second copy): `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES. Reference implementation: the blue-action flow.
+## ⭐ A WORKSPACE IS ONE FLOW — not a set of screens
+
+**The reference is «Действия карт»: список действий → `› НАСТРОЙКА ДЕЙСТВИЯ` → `› ПОКУПКА / ДОБОР КАРТ` → возврат.** Every stage the player reaches from inside a workspace must satisfy ALL FOUR, or it is not done:
+
+1. **EMBEDDED, not a new surface.** The stage renders INSIDE the workspace (claim + `<Teleport>` of the SAME instance — never a second copy). A standalone band is only for what the player did NOT open: a board event, another player's turn, a result with no natural parent.
+2. **The breadcrumb is CONTINUOUS.** One line, one place: `ДЕЙСТВИЯ КАРТ › <ЭТАП> · <Имя карты>`. The workspace name and the card name NEVER disappear or restart — only the middle step advances. **An embedded surface must not title itself**: it hands its stage name UP (`setWorkspaceOutcomePhase`) instead of drawing its own kicker. A surface that announces itself inside someone else's frame reads as a modal that arrived.
+3. **The transition is the SAME PHRASE, one level deeper.** COMMIT → RELEASE (the old content lets go ON THE SPOT) → UNFOLD (the new zone opens from the rect the old one occupied) → REVEAL (its content surfaces from inside). A `v-if` swap is a BLINK and is never acceptable. Frame, band, rail and the carried card do not move — one surface advances, a screen does not replace another.
+4. **Back is one logical level**, and the carried object (the card) survives it.
+
+Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`.
 
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 

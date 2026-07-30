@@ -7188,13 +7188,27 @@ export default defineComponent({
         if (workspaceOutcomeState.sourceCard === '') {
           return;
         }
-        const holds = this.workspaceOutcomeEmbedded ||
+        // POSITIVE evidence only. "Nothing is embedded YET" is not evidence —
+        // a prompt routes through the admission gate and a draw reconciles
+        // through `drawnCardsState`, both of which can trail this tick, and
+        // releasing on that guess is exactly how the buy prompt escaped into
+        // its own band. So: keep the claim while anything is (or is about to
+        // be) ours, and let it go only when the server has demonstrably asked
+        // for something else — or for nothing.
+        const ours = this.workspaceOutcomeEmbedded ||
           this.rawDrawnRevealPending ||
           deckDrawHolds() ||
-          consoleActionComposerUi.revealClaim !== '';
-        if (!holds) {
-          releaseWorkspaceOutcome();
+          consoleActionComposerUi.revealClaim !== '' ||
+          // The prompt exists but the gate is still holding it: it may yet be
+          // ours once it opens.
+          (this.hostServesPrompt && this.hostTask === undefined);
+        if (ours) {
+          return;
         }
+        // A prompt the workspace does not host (a placement, an OrOptions
+        // branch, a resource pick) IS the demonstration that this action's
+        // outcome lives elsewhere.
+        releaseWorkspaceOutcome();
       });
     },
     onRevealDiscardPick(): void {

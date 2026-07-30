@@ -80,11 +80,29 @@ export const workspaceOutcomeState = reactive({
    * a value the renderer can depend on.
    */
   embedSlot: '' as string,
+  /**
+   * The NAME of the stage the re-homed surface is showing, as an i18n key —
+   * «Покупка», «Добор карт», … Published by the host that embeds, consumed by
+   * the WORKSPACE's breadcrumb.
+   *
+   * This is what makes the flow read as one thing. The embedded surface stops
+   * announcing itself («◈ ПОКУПКА» over its own title, detached from
+   * everything) and instead hands its name UP, so the workspace can say
+   * «ДЕЙСТВИЯ КАРТ › ПОКУПКА · Коммерческая сеть» — same line, same place,
+   * same card, one step further along. A surface that titles itself inside
+   * someone else's frame is exactly how a stage starts reading as a modal.
+   */
+  phaseKey: '' as string,
 });
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {
   workspaceOutcomeState.embedSlot = selector;
+}
+
+/** The embedded surface names its stage for the workspace breadcrumb. */
+export function setWorkspaceOutcomePhase(key: string): void {
+  workspaceOutcomeState.phaseKey = key;
 }
 
 /**
@@ -167,6 +185,7 @@ export function releaseWorkspaceOutcome(): void {
   workspaceOutcomeState.kinds = [];
   workspaceOutcomeState.stage = 'idle';
   workspaceOutcomeState.embedSlot = '';
+  workspaceOutcomeState.phaseKey = '';
 }
 
 /** Is ANY workspace holding a claim right now? */

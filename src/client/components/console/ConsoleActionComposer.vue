@@ -81,19 +81,21 @@
            arrival) so it always exists before the teleport looks for it; until
            the cards land it shows the beat. -->
       <div v-if="drawOutcomeOn"
+           ref="outcomeZone"
            class="con-composer__revealzone con-composer__revealzone--draw"
+           data-outcome-zone
            data-embed-slot="workspace-reveal">
         <!-- The beat yields the moment something is actually re-homed in here
              (reveal or pick) — the claim's own stage says so, so the zone
              never shows a spinner behind live content. -->
-        <div v-if="outcomePendingBeat" class="con-composer__revealstatus" role="status">
+        <div v-if="outcomePendingBeat" class="con-composer__revealstatus" role="status" data-outcome-item>
           <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
           <span>{{ $t('Drawing cards…') }}</span>
         </div>
       </div>
 
-      <div v-else class="con-composer__revealzone">
-          <div class="con-composer__revealslot" ref="revealSlot"
+      <div v-else class="con-composer__revealzone" data-outcome-zone>
+          <div class="con-composer__revealslot" ref="revealSlot" data-outcome-item
                :class="{
                  'con-composer__revealslot--met': revealOutcomeOn && revealPayload !== undefined && revealPayload.conditionMet,
                  'con-composer__revealslot--miss': revealOutcomeOn && revealPayload !== undefined && !revealPayload.conditionMet,
@@ -487,6 +489,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -913,6 +916,14 @@ export default defineComponent({
     outcomePendingBeat(): boolean {
       return this.drawOutcomeOn && workspaceOutcomeState.stage !== 'presenting';
     },
+    /** The outcome stage owns the column (any flavour) — drives the phrase. */
+    outcomeStageOn(): boolean {
+      return this.outcome !== undefined;
+    },
+    /** A re-homed surface has landed in the zone (drives the REVEAL half). */
+    outcomeContentIn(): boolean {
+      return this.drawOutcomeOn && workspaceOutcomeState.stage === 'presenting';
+    },
     revealPayload(): RevealResultModel | undefined {
       return this.outcome?.kind === 'deck-check' ? this.outcome.payload : undefined;
     },
@@ -1231,6 +1242,38 @@ export default defineComponent({
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
       },
     },
+    /**
+     * SETUP → OUTCOME, played as the SAME phrase that opened the action, one
+     * level deeper (consoleActionOutcomeMotion). The configuration content
+     * lets go on the spot; the outcome zone UNFOLDS from the rect that surface
+     * just occupied. The frame, the band, the rail and the hero card do not
+     * move at all — the player reads ONE surface advancing, not a screen
+     * replacing another. A `v-if` swap here is what read as a blink and made
+     * the stage feel like a modal that had arrived.
+     */
+    outcomeStageOn(on: boolean) {
+      if (!on) {
+        return;
+      }
+      playConfigRelease(this.$refs.rootEl as HTMLElement | undefined);
+      void this.$nextTick(() => {
+        playOutcomePhase(this.$refs.rootEl as HTMLElement | undefined, () => { /* settled */ });
+      });
+    },
+    /**
+     * …and again when the re-homed surface actually LANDS in the zone. The
+     * teleport arrives a round-trip after the zone opened, so without this the
+     * content would simply appear inside an already-open box — the same blink,
+     * one level in. It surfaces from inside the zone instead, which is the
+     * REVEAL half of the phrase arriving with its content.
+     */
+    outcomeContentIn(landed: boolean) {
+      if (landed) {
+        void this.$nextTick(() => {
+          playOutcomeContent(this.$refs.rootEl as HTMLElement | undefined);
+        });
+      }
+    },
     outcome: {
       immediate: true,
       handler(next: ComposerOutcome | undefined, prev: ComposerOutcome | undefined) {
@@ -1297,6 +1340,7 @@ export default defineComponent({
     // presenter falls back to its band instead of into a detached node. The
     // watcher does not fire on unmount, so this cannot be left to it.
     setWorkspaceOutcomeSlot('');
+    resetOutcomeOrigin();
     if (this.revealGainPopTimer !== undefined) {
       window.clearTimeout(this.revealGainPopTimer);
     }
@@ -2187,6 +2231,9 @@ export default defineComponent({
         return;
       }
       this.submitting = true;
+      // Capture the configuration surface's box NOW — the outcome unfolds from
+      // it, and by the time that zone mounts this surface is already gone.
+      armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);
       this.$emit('confirm', {
         branchIndex: branch.index,
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
