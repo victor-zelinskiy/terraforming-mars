@@ -1,3 +1,72 @@
+# ACTION WORKSPACE (iteration 16) — EMBEDDED OUTCOMES: весь flow внутри одной поверхности
+
+2026-07-30. Активация синего действия больше НЕ выбрасывает игрока в другой
+интерфейс. Всё, что действие произвело, показывается в той же рамке, следующей
+стадией того же flow. Это референс-реализация нового NORTH STAR — принцип и
+механика вынесены в `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES.
+
+## Что было (аудит)
+
+Из четырёх классов card-исходов синих действий встроен был ОДИН:
+
+| Класс | Карты (scope: base/corpera/promo/venus/colonies/prelude/ares) | Было |
+| --- | --- | --- |
+| A. deck-check | Search For Life, Asteroid Deflection System | **уже встроен** (ит. 6) |
+| B. добор в руку | AI Central, Development Center, Restricted Area (+Ares), Sub-Crust Measurements, Aerial Mappers (ветка), Red Spot Observatory (ветка), Factorum (ветка) | композер закрывался → полноэкранная `.con-reveal` |
+| C. вскрыть и купить | Business Network, Inventors' Guild | композер закрывался → своя полоса `.con-task--wide` |
+| D. взять N оставить 1 | Hi-Tech Lab, Tycho Magnetics | то же |
+
+Классы B–D переведены на EMBEDDED. Одиночная карта в B больше не уходит в
+headless-fullscreen: её смысл — что её дало ЭТО действие, и контекст стоит
+вокруг неё.
+
+## Как (три части, ни одна не про синие действия)
+
+1. **Клейм** — `consoleWorkspaceOutcome.ts`. На submit workspace синхронно
+   заявляет «то, что прилетит от карты X, — моё» + перечисляет `kinds`.
+   Ключ — уже существующий СЕРВЕРНЫЙ `CardDrawRevealSource{type:'card'}` /
+   `lastReveal.action`; `kinds` — структурно из превью ветки (`branch.reveal`;
+   gain-эффект `icon:'cards'`). Сервер не менялся, per-card таблицы нет.
+2. **`embedded` prop** у `ConsoleRevealOverlay` и `ConsoleTaskHost` — снимается
+   band-геометрия, плита, header, `data-motion-surface`. Логика не тронута.
+3. **`<Teleport>`, а не вложенный инстанс** — presenter остаётся смонтированным
+   в шелле и переезжает в `[data-embed-slot]` зоны стадии. Один lifecycle, один
+   командный контракт, один путь ввода.
+
+Стадия `pending` рендерит зону с момента submit: она держит геометрию колонки
+(приход ничего не двигает) и даёт телепорту цель ДО того, как он её ищет.
+
+## Анимация — ничего нового не написано
+
+Кинематика добора не адаптировалась вообще: `ConsoleDeckDrawLayer` ищет цели
+как `.con-reveal [data-zoom-slot]` по всему документу, а слоты теперь ВНУТРИ
+workspace — карты физически летят из HUD-колоды в колонку, там же играет
+существующий flip/reveal, оттуда же уходит hand-intake в док. Deck-check
+сохранил свой `runActionRevealFlight`.
+
+## Побочно починено
+
+- **Командный контракт вскрытой пачки** был хардкод-массивом в
+  `ConsoleShell.commands` — вынесен в чистый `consoleRevealCommands.ts`,
+  общий для обоих хостов (иначе два хоста ОДНОГО компонента научили бы игрока
+  разному значению B). Разница ровно одна и осознанная: в embedded нет L3
+  «Источник» — источник и так стоит героем рядом.
+- **`$el`-ловушка в `ConsoleRevealOverlay`**: у шаблона есть корневой
+  комментарий → в dev-сборке корень это фрагмент, `$el` = Comment без
+  `querySelector`, и `slotZoomOrigin` молча деградировал в «нет физического
+  origin» (карта появлялась из ниоткуда и возвращалась в никуда). В prod
+  комментарии вырезаны — поэтому не проявлялось. Переведено на `ref="rootEl"`.
+
+## Ловушка, стоившая половины итерации
+
+Статический импорт `ConsoleRevealOverlay` в юнит-тестируемый компонент МОЛЧА
+роняет весь спек-файл: `Card.vue` → `CardHelp.vue` грузит `markdown-it`
+через `import(/* webpackChunkName */)`, а async-чанки в mochapack-бандле не
+загружаются. Симптом — `0 passing`, exit 0, «Tests completed successfully»,
+причём падает ВЕСЬ батч, включая соседние здоровые спеки. Это и есть причина,
+по которой `<Teleport>` здесь не стилистический выбор, а единственный способ
+переиспользовать компонент без второго инстанса.
+
 # ACTION WORKSPACE (iteration 15) — подписи помещаются НА ВСЕХ профилях
 
 2026-07-30. Фидбек: на 4K часть подписей всё ещё обрезалась. Решено подачей, а

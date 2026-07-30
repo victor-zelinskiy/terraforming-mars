@@ -409,7 +409,7 @@
                                :entry="composerEntry"
                                :preview="composerPreview"
                                :nodeIndex="composer.nodeIndex"
-                               :reveal="revealFlow"
+                               :outcome="outcomeFlow"
                                :commitLabel="repeat ? 'Select this action' : 'Confirm action'"
                                :publishCommands="!repeat"
                                :repeatPickDisabled="repeat"
@@ -507,8 +507,16 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {RevealResultModel} from '@/common/models/RevealResultModel';
-import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import {
+  claimWorkspaceOutcome,
+  markWorkspaceOutcomePresenting,
+  releaseWorkspaceOutcome,
+  workspaceClaimsDrawReveal,
+  workspaceOutcomeState,
+  WorkspaceOutcomeKind,
+} from '@/client/console/consoleWorkspaceOutcome';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -591,9 +599,14 @@ export default defineComponent({
       stats: [] as ReadonlyArray<EffectOverlayStat>,
       /** The open ACTION COMPOSER context (undefined = the grid owns input). */
       composer: undefined as ComposerContext | undefined,
-      /** The IN-FRAME reveal phase of a confirmed deck-check action
-       *  (undefined = no reveal; `payload` lands with the server's answer). */
-      revealFlow: undefined as {payload?: RevealResultModel} | undefined,
+      /**
+       * THE IN-FRAME OUTCOME STAGE of a confirmed action (undefined = the
+       * configuration surface owns the column). What the action PRODUCED:
+       * a deck-check verdict (`payload` lands with the server's answer) or a
+       * card DRAW (the embedded reveal presents the batch). Set at confirm
+       * time from the branch preview and released when the outcome is done.
+       */
+      outcomeFlow: undefined as ComposerOutcome | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       /** The slot the player just DESCENDED into (the commit pulse rides it
@@ -746,7 +759,14 @@ export default defineComponent({
      * command bar reads, so breadcrumb and bar can never disagree.
      */
     focusKickerKey(): string {
-      return focusKicker(this.revealFlow !== undefined ? 'reveal' : 'setup');
+      const kind = this.outcomeFlow?.kind;
+      if (kind === 'deck-check') {
+        return focusKicker('reveal');
+      }
+      // `pending` reads as the DRAW phase from the first frame — the stage is
+      // named before the cards land, so the breadcrumb cannot rename itself
+      // mid-beat (the same rule that keeps «Настройка действия» stable).
+      return focusKicker(kind === undefined ? 'setup' : 'draw');
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */
@@ -773,10 +793,28 @@ export default defineComponent({
       return c === undefined ? undefined : this.previewMap.get(c.cardName);
     },
     /** A change-key for the ORDER-INDEPENDENT reveal delivery — bumps when the
-     *  reveal phase opens (revealFlow set + composer), or the server's answer
+     *  deck-check phase opens (outcomeFlow set + composer), or the server's answer
      *  (`lastReveal`) lands, in ANY order. '' while there's nothing pending. */
+    /**
+     * The id of a DRAWN batch this workspace has claimed and not yet opened.
+     * 0 = nothing to open. Reactive through `drawnCardsState`, so it fires
+     * whichever order the claim and the batch arrive in — the same
+     * order-independence `revealSignal` needed for repeated deck-checks.
+     */
+    drawSignal(): number {
+      if (this.repeat || this.composer === undefined ||
+          (this.outcomeFlow !== undefined && this.outcomeFlow.kind !== 'pending')) {
+        return 0;
+      }
+      const ev = currentRevealEvent();
+      return ev !== undefined && workspaceClaimsDrawReveal(ev.source) ? ev.id : 0;
+    },
+    /** The claim this workspace raised is still alive (drives the fold-back). */
+    outcomeClaimLive(): boolean {
+      return workspaceOutcomeState.sourceCard !== '';
+    },
     revealSignal(): string {
-      if (this.revealFlow === undefined || this.revealFlow.payload !== undefined) {
+      if (this.outcomeFlow?.kind !== 'deck-check' || this.outcomeFlow.payload !== undefined) {
         return '';
       }
       const lr = this.playerView.lastReveal;
@@ -861,15 +899,47 @@ export default defineComponent({
     // phase AFTER the answer already landed (a fast local response mounts the
     // Action Center only once `lastReveal` is set) — a plain lastReveal watcher
     // would miss that, hanging on «Вскрываем карту».
+    // The claimed DRAWN batch has arrived → the stage enters its DRAW phase
+    // and the embedded reveal takes over the column. Immediate for the same
+    // reason as `revealSignal`: a fast local response can land the batch
+    // before this component's watchers are even installed.
+    // THE OUTCOME IS OVER — the shell released the claim (every card taken, or
+    // the pick and its payment submitted with nothing more asked). The flow
+    // returns ONE level, to the refreshed browse grid where the action now
+    // reads «Активирована», exactly as the deck-check's OK does. No extra
+    // press: finishing the outcome IS the acknowledgement, and demanding
+    // another one over a finished operation would be ceremony.
+    //
+    // ONE watcher for every non-deck-check flavour, because the shell's
+    // release is the single place that decides an embedded outcome has ended.
+    'outcomeClaimLive': {
+      handler(live: boolean, was: boolean) {
+        const kind = this.outcomeFlow?.kind;
+        if (was && !live && (kind === 'draw' || kind === 'pending')) {
+          void this.$nextTick(() => this.closeComposer());
+        }
+      },
+    },
+    'drawSignal': {
+      immediate: true,
+      handler(id: number) {
+        if (id !== 0 && this.composer !== undefined &&
+            (this.outcomeFlow === undefined || this.outcomeFlow.kind === 'pending')) {
+          this.outcomeFlow = {kind: 'draw'};
+          markWorkspaceOutcomePresenting();
+        }
+      },
+    },
     'revealSignal': {
       immediate: true,
       handler() {
-        if (this.revealFlow === undefined || this.revealFlow.payload !== undefined || this.composer === undefined) {
+        if (this.outcomeFlow?.kind !== 'deck-check' || this.outcomeFlow.payload !== undefined ||
+            this.composer === undefined) {
           return;
         }
         const lr = this.playerView.lastReveal;
         if (lr !== undefined && lr.action === this.composer.cardName) {
-          this.revealFlow = {payload: lr};
+          this.outcomeFlow = {kind: 'deck-check', payload: lr};
         }
       },
     },
@@ -1220,9 +1290,10 @@ export default defineComponent({
     closeComposer(): void {
       this.composer = undefined;
       this.descendKey = '';
-      if (this.revealFlow !== undefined) {
-        this.revealFlow = undefined;
+      if (this.outcomeFlow !== undefined) {
+        this.outcomeFlow = undefined;
         resetConsoleActionRevealClaim();
+        releaseWorkspaceOutcome();
       }
       // Belt-and-braces focus restoration: the browse DOM was only hidden,
       // but re-assert the focused tile's visibility after the return.
@@ -1309,8 +1380,9 @@ export default defineComponent({
      *  presented identically (never a separate standalone overlay). */
     beginRepeatReveal(chosenCard: CardName, nodeIndex: number): void {
       this.composer = {cardName: chosenCard, nodeIndex};
-      this.revealFlow = {};
+      this.outcomeFlow = {kind: 'deck-check'};
       setConsoleActionRevealClaim(chosenCard);
+      claimWorkspaceOutcome('card-actions', chosenCard, ['deck-check']);
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
@@ -1361,14 +1433,40 @@ export default defineComponent({
       if (payload.repeat !== undefined) {
         batch.push(...repeatActionResponses(payload.repeat.chosenCard, payload.repeat.composed));
       }
-      // A DECK-CHECK branch stays IN THIS STAGE: the flow enters the reveal
-      // phase immediately («Вскрываем карту» + the deck flight launches) and
-      // CLAIMS the incoming lastReveal, so the shell neither closes the
-      // center nor mounts the standalone reveal overlay for it.
+      // THE OUTCOME CLAIM — what this branch produces stays IN THIS STAGE.
+      // Both flavours are read STRUCTURALLY off the branch preview (never off
+      // the card's identity, so a card that starts drawing tomorrow is covered
+      // by construction):
+      //   · `reveal` present        → a deck-check verdict;
+      //   · a `cards` GAIN effect   → the action puts cards in play. Whether
+      //     that lands as a drawn batch (AI Central) or as a buy / keep-some
+      //     pick (Inventors' Guild) is not knowable here — the server decides —
+      //     so the claim admits BOTH and the arriving artifact picks the zone.
+      // The claim is raised SYNCHRONOUSLY, before the response can land, so no
+      // standalone presenter can grab the artifact for even one frame.
       const branch = (this.composerPreview?.branches ?? []).find((b) => b.index === payload.branchIndex);
-      if (payload.repeat === undefined && branch?.reveal !== undefined) {
-        this.revealFlow = {};
-        setConsoleActionRevealClaim(comp.cardName);
+      if (payload.repeat === undefined) {
+        const kinds: Array<WorkspaceOutcomeKind> = [];
+        if (branch?.reveal !== undefined) {
+          kinds.push('deck-check');
+        }
+        if ((branch?.effects ?? []).some((e) => e.direction === 'gain' && e.icon === 'cards')) {
+          kinds.push('draw', 'pick');
+        }
+        if (kinds.length > 0) {
+          claimWorkspaceOutcome('card-actions', comp.cardName, kinds);
+        }
+        if (branch?.reveal !== undefined) {
+          this.outcomeFlow = {kind: 'deck-check'};
+          setConsoleActionRevealClaim(comp.cardName);
+        } else if (kinds.length > 0) {
+          // Cards are promised but nothing is back yet: open the PENDING
+          // stage now, not when the batch lands. It holds the column's
+          // geometry (so the arrival shifts nothing) and, decisively, it is
+          // what puts the teleport target in the DOM — the re-homed reveal
+          // needs its slot to already exist when it mounts.
+          this.outcomeFlow = {kind: 'pending'};
+        }
       }
       // Viron repeating a REVEAL action (SearchForLife / AsteroidDeflection):
       // reuse THIS Action Center's in-frame reveal phase — re-point the composer

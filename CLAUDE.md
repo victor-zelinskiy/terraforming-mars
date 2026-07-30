@@ -14,6 +14,8 @@ The **desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN** (2026-07-15)
 
 **The SHARED layer is NOT deprecated** and keeps full quality bars, tests and guards: server markers/endpoints, `src/common/` models, pure view-models (`victoryPointsModel`, `effectSummary`, `insightEngine`, `endgameFacts`, `journalView`, …), module reactive state (`journalState`, `notificationState`, `presentationFlow`, …), the premium card face (`.pcard`), `motionTokens`. Console stands on it.
 
+**EMBEDDED by default (2026-07-30).** When the player ENTERS a workspace themselves, every later stage of that flow — the reveal, the drawn cards, the follow-up decision, the result — is presented INSIDE that workspace via EMBEDDED mode. A standalone modal is for what the player did NOT open: a board event, another player's turn, a result with no natural parent. Mechanism (claim + `<Teleport>` of the SAME instance, never a second copy): `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES. Reference implementation: the blue-action flow.
+
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 
 ## Project goals — weigh decisions against these

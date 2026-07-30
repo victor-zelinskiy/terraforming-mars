@@ -9851,6 +9851,38 @@ html.console-mode {
     padding: .3rem 0;
     box-sizing: border-box;
 
+    /* ── EMBEDDED — teleported into a workspace's outcome zone. The band
+       geometry, the stacking and the plate all belong to the HOST frame now;
+       what stays is the task card itself, sized to the column it was given.
+       (`contain` is dropped with the fixed positioning: as a flow child it
+       would clip the card's glows against a box it no longer owns.) */
+    &--embedded {
+        position: relative;
+        inset: auto;
+        left: auto;
+        right: auto;
+        top: auto;
+        bottom: auto;
+        contain: none;
+        z-index: auto;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        align-items: stretch;
+
+        .con-task {
+            width: 100%;
+            max-width: none;
+            max-height: 100%;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+        }
+    }
+
     /* NO __backdrop rule: the host AND every chassis reuser (colony-trade
        composer / MA confirm / colony inspect) ride the shared `.con-shade`
        dim now — none renders a backdrop div anymore. The table-beat veil
@@ -12407,6 +12439,60 @@ body.con-start-ceremony {
     &--headless {
         pointer-events: none;
         background: none;
+    }
+
+    /* ── EMBEDDED — the reveal re-seated INSIDE the workspace that claimed it
+       (consoleWorkspaceOutcome). Same component, same slots, same flights;
+       what goes away is the CHASSIS: the fixed band geometry, the plate and
+       the fixed drawn-scene height. The host frame is the surface, so a
+       second plate inside it would read as a modal-in-a-modal — the exact
+       break the embedding exists to remove.
+
+       Sizing is the HOST's: the zone is `flex: 1` with `min-height: 0`, so
+       the strip's own card-scale ladder resolves against the workspace's
+       free space instead of a viewport-derived box. */
+    &--embedded {
+        position: relative;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        z-index: auto;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        padding-bottom: 0;
+        /* The HOST factor of the strip's zoom calc (see stripZoomStyle): the
+           workspace column is narrower than the full band, so the cards sit a
+           notch smaller. Composes with — never replaces — the tv profile's
+           per-count `--con-reveal-zoom-boost`. */
+        --con-reveal-host-scale: .84;
+
+        .con-reveal__card {
+            flex: 1;
+            width: 100%;
+            min-width: 0;
+            min-height: 0;
+            max-height: none;
+            padding: 0;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+        }
+        /* The fixed reward-scene height is a FULL-BLEED device (it keeps the
+           header / stage / air proportions stable across card counts). In the
+           workspace the zone already has a stable height, and forcing 42rem
+           here would overflow the band. */
+        .con-reveal__card--drawn { height: auto; }
+        /* The band body carries a hand-rolled `overflow-y: auto` for the
+           full-bleed case. Inside a workspace that is a native scrollbar
+           waiting to happen (a console-native BUG): the zone is bounded and
+           the strip's own scale ladder is what absorbs the card count, so the
+           body must never become a scroll target here. */
+        .con-reveal__body {
+            overflow: hidden;
+            padding-right: 0;
+        }
     }
 
     /* NO own __backdrop / entry animation: the reveal rides the shared
@@ -15980,6 +16066,18 @@ html.console-mode {
         align-items: center;
         justify-content: center;
         gap: .9rem;
+    }
+    /* ── THE DRAW PHASE («Действия карт › Добор карт») — the same column,
+       now hosting the EMBEDDED reveal. It STRETCHES (unlike the deck-check
+       zone, which hugs one fixed-size slot): the embedded strip is
+       count-driven and sizes itself against the space it is given, so a
+       content-hugging box would let a 2-card batch collapse the column and a
+       take then resize it. `flex: 1` + `min-height: 0` keeps the column
+       geometry identical from «Drawing cards…» through the last take — no
+       layout shift anywhere in the phase. */
+    .con-composer__revealzone--draw {
+        flex: 1;
+        align-self: stretch;
     }
     .con-composer__revealslot {
         /* Deliberately LARGER than the source hero (1.04): the revealed card

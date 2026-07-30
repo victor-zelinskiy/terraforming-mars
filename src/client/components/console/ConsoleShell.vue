@@ -430,20 +430,29 @@
          CLIENT-side standard-project payment via promptOverride). The
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
-                       ref="taskHost"
-                       :playerView="playerView"
-                       :task="hostTask"
-                       :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : undefined"
-                       :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
-                       @submit="onTaskSubmit"
-                       @defer="onTaskDefer"
-                       @space-pick="onTaskSpacePick"
-                       @hand-pick="onTaskHandPick" />
-    </transition>
+    <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): a card PICK the player's
+         own workspace produced (Inventors' Guild / Business Network revealing
+         a card to buy; Hi-Tech Lab keeping one of N) is the next stage of
+         THAT flow, not a new demand — so the same host is teleported into the
+         workspace's outcome slot instead of rising as its own band. Same
+         instance, same submit path, same command contract. -->
+    <Teleport :to="taskEmbedTarget ?? 'body'" :disabled="taskEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleTaskHost v-if="hostTask !== undefined && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+                         ref="taskHost"
+                         :playerView="playerView"
+                         :task="hostTask"
+                         :embedded="taskEmbedTarget !== undefined"
+                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : undefined"
+                         :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
+                         @submit="onTaskSubmit"
+                         @defer="onTaskDefer"
+                         @space-pick="onTaskSpacePick"
+                         @hand-pick="onTaskHandPick" />
+      </transition>
+    </Teleport>
 
     <!-- EFFECT DECISION — the ONE screen for a MARKED optional decision
          ("use the effect / pay the price / go and pick" vs a deliberate
@@ -522,16 +531,31 @@
     <!-- CTS T6: the reveal overlay (drawn cards ВЗЯТЬ / deck-check result /
          another player's public reveal) — the console-native replacement
          for the three desktop reveal modals (gated off in console). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined && !playedHeroHolds"
-                            ref="revealOverlay"
-                            :playerView="playerView"
-                            :mode="consoleRevealMode"
-                            @dismiss-result="onDismissRevealResult"
-                            @discard-pick="onRevealDiscardPick" />
-    </transition>
+    <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): when a workspace the
+         player opened themselves has CLAIMED this batch, the very same
+         instance is TELEPORTED into that workspace's outcome slot and wears
+         its embedded dress — one mount point, one lifecycle, one command
+         contract, one input path, in both homes. The surface-motion
+         transition is bypassed while embedded: the workspace already owns the
+         enter (the column is standing and the cards fly into it), and a band
+         materialize on top of that would be a second, contradictory entrance.
+         The motion hooks stay bound in BOTH homes and need no branch: the
+         embedded root drops its `data-motion-surface`, and an absent id is
+         exactly the director's documented pass-through. -->
+    <Teleport :to="revealEmbedTarget ?? 'body'" :disabled="revealEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined && !playedHeroHolds"
+                              ref="revealOverlay"
+                              :playerView="playerView"
+                              :mode="consoleRevealMode"
+                              :embedded="revealEmbedTarget !== undefined"
+                              @dismiss-result="onDismissRevealResult"
+                              @drawn-complete="onEmbeddedDrawnComplete"
+                              @discard-pick="onRevealDiscardPick" />
+      </transition>
+    </Teleport>
 
     <!-- CTS T0: the honest guard for a prompt NO surface serves (the
          leak detector's stranded check) — never a silent pill again. -->
@@ -1118,6 +1142,8 @@ import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState}
 import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/ConsoleHydroDrawLayer.vue';
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
+import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
+import {workspaceClaimsDrawReveal, workspaceClaimsPick, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -2128,6 +2154,57 @@ export default defineComponent({
       return bonusDiscardStep(this.playerView.waitingFor?.discardPrompt?.colonyBonus, untaken);
     },
     /** The T6 REVEAL overlay mode (drawn > result > viewer), undefined = none. */
+    /**
+     * The workspace slot the reveal is TELEPORTED into, or undefined for the
+     * ordinary full-bleed band.
+     *
+     * The overlay is not duplicated and not suppressed — it is RE-HOMED: same
+     * instance, same `consoleRevealMode`, same input routing, same commands.
+     * That is what makes «one component, two hosts» true rather than a claim
+     * in a comment. The selector is a stable data attribute on the workspace's
+     * outcome zone, which the workspace renders from SUBMIT time so it always
+     * exists before Vue resolves the target.
+     */
+    revealEmbedTarget(): string | undefined {
+      if (this.consoleRevealMode !== 'drawn') {
+        return undefined;
+      }
+      if (!workspaceClaimsDrawReveal(currentRevealEvent()?.source)) {
+        return undefined;
+      }
+      const slot = workspaceOutcomeState.embedSlot;
+      return slot === '' ? undefined : slot;
+    },
+    /**
+     * The workspace slot the TASK HOST is teleported into, for a card pick the
+     * player's own workspace produced (buy / keep-some).
+     *
+     * Narrow on purpose. Only `cardSelect` is re-homed: it is the one prompt
+     * family that is genuinely a CONTINUATION of the activation the player
+     * just confirmed — the cards it offers are the ones that action turned
+     * over. A payment, an OrOptions branch, a placement, a resource pick that
+     * happens to ride the same response keep their own band, because the
+     * workspace has no honest place to seat them and holding them would
+     * strand the prompt.
+     */
+    taskEmbedTarget(): string | undefined {
+      if (!workspaceClaimsPick()) {
+        return undefined;
+      }
+      // `payment` rides along: buying a revealed card is pick-then-pay, one
+      // decision in two prompts (ChooseCards defers SelectPaymentDeferred), and
+      // letting the second half rise as its own band would break the flow open
+      // exactly where it is least expected — after the player already said yes.
+      if (this.hostTask?.kind !== 'cardSelect' && this.hostTask?.kind !== 'payment') {
+        return undefined;
+      }
+      const slot = workspaceOutcomeState.embedSlot;
+      return slot === '' ? undefined : slot;
+    },
+    /** Something is (or is about to be) re-homed into the workspace's zone. */
+    workspaceOutcomeEmbedded(): boolean {
+      return this.revealEmbedTarget !== undefined || this.taskEmbedTarget !== undefined;
+    },
     consoleRevealMode(): ConsoleRevealMode | undefined {
       if (this.rawDrawnRevealPending) {
         return 'drawn';
@@ -3455,23 +3532,21 @@ export default defineComponent({
         const cmds: Array<ConsoleCommand> = [];
         if (this.consoleRevealMode === 'drawn') {
           const ev = currentRevealEvent();
-          // A colony bonus that still owes its discard (Pluto) closes INSIDE the
-          // modal: once everything is taken, A is that step and there is no
-          // take-all / dismiss left to advertise — the step is mandatory.
-          const closer = this.revealDiscardCloser;
-          cmds.push({control: 'confirm', label: closer?.ready === true ? closer.label : 'Take card'});
-          cmds.push({control: 'secondary', label: 'Inspect'});
-          if (ev?.source?.type === 'card') {
-            cmds.push({control: 'stickL', label: 'Source'});
-          }
-          // R3 opens the discard pile of a conditional search (only when it
-          // discarded something) — the sole way in, mirroring the pile's glyph.
-          if (ev?.sequence?.some((step) => !step.matched) === true) {
-            cmds.push({control: 'stickR', label: 'Discarded pile'});
-          }
-          if (closer?.ready !== true) {
-            cmds.push({control: 'back', label: 'Take all cards'});
-          }
+          // ONE pure builder, shared with the EMBEDDED host (the action
+          // workspace's outcome stage) — the same component and the same input
+          // handler must never advertise two different contracts. A colony
+          // bonus that still owes its discard (Pluto) closes INSIDE the modal:
+          // once everything is taken, A is that step and there is no take-all /
+          // dismiss left to advertise — the step is mandatory.
+          cmds.push(...drawnRevealCommandRun({
+            closer: this.revealDiscardCloser,
+            hasCardSource: ev?.source?.type === 'card',
+            hasDiscards: ev?.sequence?.some((step) => !step.matched) === true,
+            // Embedded: the source card is the workspace's standing hero, so
+            // the L3 «Источник» entry would spend a bar slot reaching a card
+            // that is already on screen.
+            embedded: this.revealEmbedTarget !== undefined,
+          }));
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'secondary', label: 'Inspect'});
           cmds.push({control: 'back', label: 'Close'});
@@ -4505,6 +4580,36 @@ export default defineComponent({
         this.consoleState.section = back;
       }
     },
+    /**
+     * THE EMBEDDED OUTCOME'S LIFECYCLE, in one place.
+     *
+     * Rising edge → the zone is filled: mark it presenting (the workspace
+     * drops its «Drawing cards…» beat for the real content).
+     *
+     * Falling edge → the flow is OVER: the batch was taken, or the pick (and
+     * its payment) submitted and the server asked for nothing more. Release
+     * the claim — that release is the SINGLE signal the workspace folds on, so
+     * there is exactly one place that decides when an embedded outcome ends,
+     * whichever kind it was.
+     *
+     * Deferred by a tick: one response can retire the pick and raise its
+     * payment in the same flush, and reading the edge mid-flush would fold the
+     * workspace between the two halves of one decision.
+     */
+    workspaceOutcomeEmbedded(embedded: boolean, was: boolean) {
+      if (embedded) {
+        markWorkspaceOutcomePresenting();
+        return;
+      }
+      if (!was) {
+        return;
+      }
+      void this.$nextTick(() => {
+        if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
+          releaseWorkspaceOutcome();
+        }
+      });
+    },
     // A fresh playerView: reconfigure the board-info fetcher (facts may have
     // changed), clamp transient indices to the fresh lists.
     playerView: {
@@ -4533,15 +4638,29 @@ export default defineComponent({
             revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
           }, typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (resolution.kind !== 'hold') {
-            // A deck-check reveal CLAIMED by the ACTION FOCUS stage stays
-            // IN-FRAME: the center keeps the scene (its own reveal phase
-            // presents the outcome — «Действия карт › Результат вскрытия»),
+            // An outcome CLAIMED by an open workspace stays IN-FRAME: the
+            // workspace keeps the scene and presents it as its own next phase,
             // so neither the close nor the standalone-overlay phase swap runs.
-            const claimedInFrame = resolution.kind === 'phase' &&
+            //  · deck-check — «Действия карт › Результат вскрытия»;
+            //  · draw       — «Действия карт › Добор карт», the embedded reveal.
+            // The DRAW arm is deliberately NOT gated on `resolution.kind`: a
+            // plain draw resolves as an ordinary dismiss (there is no reveal
+            // marker to make it a phase), and that dismiss is exactly what used
+            // to blank the workspace and hand the batch to the full-bleed band.
+            // A LIVE claim also holds the surface. At this pre-flush moment the
+            // artifact may not be readable yet (`drawnCardsState` reconciles on
+            // the new view, and a follow-up prompt only routes after the patch),
+            // so the claim itself is the verdict and `reconcileWorkspaceOutcome`
+            // settles it a tick later — closing here on a guess is what handed
+            // the batch to the full-bleed band in the first place.
+            const claimedInFrame = (resolution.kind === 'phase' &&
               consoleActionComposerUi.revealClaim !== '' &&
-              lr !== undefined && lr.action === consoleActionComposerUi.revealClaim;
+              lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
+              workspaceClaimsDrawReveal(currentRevealEvent()?.source) ||
+              workspaceOutcomeState.sourceCard !== '';
             if (claimedInFrame) {
               clearAwaitingHandoff();
+              this.reconcileWorkspaceOutcome();
             } else {
               // Capture the departing composer UNCONDITIONALLY — the incoming
               // surface consumes it only when the pair is phase-linked
@@ -4940,7 +5059,11 @@ export default defineComponent({
         // (the fallback for rare overflow — console layouts fit by design
         // and never show scrollbar chrome). Fallback-owned surfaces keep
         // the DOM engine's own right-stick scroll (they return earlier).
-        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive && !this.playedPickActive) {
+        // …but NOT while an outcome is re-homed inside it: the browse list is
+        // parked behind the outcome zone, so scrolling it would move something
+        // the player cannot see instead of the content in front of them.
+        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive && !this.playedPickActive &&
+            !this.workspaceOutcomeEmbedded) {
           (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;
         }
@@ -7035,6 +7158,45 @@ export default defineComponent({
      * announcement card is skipped and the player lands straight in the hand —
      * the payout continues instead of restarting as a fresh demand.
      */
+    /**
+     * The last card of an EMBEDDED batch has been taken. The claim is released
+     * here — the shell owns the re-homed instance, so it owns the end of its
+     * life — and the workspace folds its own stage back to browse off the
+     * composer's `outcome-done`. Releasing here (rather than only in the
+     * workspace) also covers the case where the workspace has already gone.
+     */
+    onEmbeddedDrawnComplete(): void {
+      releaseWorkspaceOutcome();
+    },
+    /**
+     * SETTLE the claim once the response has actually been applied.
+     *
+     * The awaiting resolve holds the workspace open on the strength of the
+     * claim alone, because at that point the artifact is not readable yet. A
+     * tick later it is: if the action produced something the workspace hosts
+     * (a batch, a card pick), the claim has done its job and stays; if it
+     * produced nothing embeddable — the branch promised cards but the outcome
+     * was, say, a placement, or the server simply asked nothing — the claim is
+     * dropped immediately, which folds the workspace exactly as an unclaimed
+     * action would have.
+     *
+     * Without this the 20 s safety timer would be the only way out, and the
+     * player would sit in a stage with nothing in it.
+     */
+    reconcileWorkspaceOutcome(): void {
+      void this.$nextTick(() => {
+        if (workspaceOutcomeState.sourceCard === '') {
+          return;
+        }
+        const holds = this.workspaceOutcomeEmbedded ||
+          this.rawDrawnRevealPending ||
+          deckDrawHolds() ||
+          consoleActionComposerUi.revealClaim !== '';
+        if (!holds) {
+          releaseWorkspaceOutcome();
+        }
+      });
+    },
     onRevealDiscardPick(): void {
       const beat = this.mandatoryBeat;
       if (beat !== undefined) {
@@ -8103,6 +8265,10 @@ export default defineComponent({
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
     resetPromptAdmission(); // shell gone → the placement can never stay held (desktop reads the mirror too)
+    // A workspace outcome claim SUPPRESSES standalone presenters, so an
+    // orphaned one is worse than a leak: a drawn batch in the next game would
+    // be routed to a workspace that no longer exists and never be shown.
+    resetWorkspaceOutcome();
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell

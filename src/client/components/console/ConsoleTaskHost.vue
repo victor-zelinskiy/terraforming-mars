@@ -5,15 +5,17 @@
        around the fresh content (consoleDraftTray.ts owns the flag).
        data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (no own backdrop; the shade's --veil mirrors the table beat). -->
-  <div class="con-task-host con-ws" role="dialog" :aria-label="titleText"
-       :class="{
+  <div class="con-task-host" :class="{
+         'con-ws': !embedded,
+         'con-task-host--embedded': embedded,
          'con-task-host--table-beat': trayTableBeat,
          'con-task-host--liftin': hydroLiftIn,
          'con-task-host--liftin-veiled': hydroLiftVeiled,
          'con-task-host--liftin-held': hydroLiftHeld,
        }"
-       data-motion-surface="task-host"
-       :data-motion-variant="hydroLiftIn ? 'liftin' : undefined">
+       :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
+       :data-motion-surface="embedded ? undefined : 'task-host'"
+       :data-motion-variant="hydroLiftIn && !embedded ? 'liftin' : undefined">
 
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
@@ -500,6 +502,14 @@ export default defineComponent({
     promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
     /** The B affordance label: 'Minimize' (server prompt) / 'Cancel' (client). */
     deferLabel: {type: String, default: 'Minimize'},
+    /**
+     * EMBEDDED — this host is teleported into a workspace that CLAIMED the
+     * prompt (consoleWorkspaceOutcome), instead of rising as its own band.
+     * Same instance and same submit path; it sheds the band geometry, the
+     * `con-ws` rail marker and its motion-surface identity, because the
+     * workspace frame is already the surface and already owns the rail.
+     */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['submit', 'defer', 'space-pick', 'hand-pick'],
   data() {

@@ -292,7 +292,7 @@ describe('ConsoleActionComposer — premium render', () => {
         reveal: {deck: 'projects', check: {label: 'microbe tag'}, reward: {direction: 'gain', icon: 'science', amount: 1}}}],
     }, 'Search For Life');
     // The phase opens at confirm time (parent sets the prop on the LIVE stage).
-    await w.setProps({reveal: {}});
+    await w.setProps({outcome: {kind: 'deck-check'}});
     await w.vm.$nextTick();
     expect(w.find('.con-composer__revealzone').exists()).to.eq(true);
     expect(w.find('.con-composer__revealstatus').text()).to.contain('Revealing the card');
@@ -306,7 +306,7 @@ describe('ConsoleActionComposer — premium render', () => {
 
     // The server's answer lands → the (JSDOM: instant) flip settles: the
     // outcome replaces the status and the REAL card owns the slot.
-    await w.setProps({reveal: {payload: {
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
       action: 'Search For Life',
       revealed: {name: 'Insulation'},
       conditionMet: false,
@@ -328,9 +328,9 @@ describe('ConsoleActionComposer — premium render', () => {
       card: 'Search For Life', isCorporation: false, kind: 'bespoke',
       branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
     }, 'Search For Life');
-    await w.setProps({reveal: {}});
+    await w.setProps({outcome: {kind: 'deck-check'}});
     await w.vm.$nextTick();
-    await w.setProps({reveal: {payload: {
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
       action: 'Search For Life',
       revealed: {name: 'Tardigrades'},
       conditionMet: true,
@@ -367,14 +367,14 @@ describe('ConsoleActionComposer — premium render', () => {
             reveal: {deck: 'projects', check: {label: 'space tag'}, reward: {direction: 'gain', icon: 'asteroid', amount: 1}}}],
         },
         nodeIndex: 0,
-        reveal: {},
+        outcome: {kind: 'deck-check'},
       },
     });
     await w.vm.$nextTick();
     await w.vm.$nextTick();
     // beginRevealFlight ran on mount — the phase is live, not idle-'pending'.
     expect(w.find('.con-composer__revealzone').exists()).to.eq(true);
-    await w.setProps({reveal: {payload: {
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
       action: 'Asteroid Deflection System',
       revealed: {name: 'Security Fleet'},
       conditionMet: true,
@@ -412,7 +412,7 @@ describe('ConsoleActionComposer — premium render', () => {
 
     // The phase opens; the answer's commit already carries the reward (2) —
     // the visible counters must HOLD the before-value until the beat.
-    await w.setProps({reveal: {}});
+    await w.setProps({outcome: {kind: 'deck-check'}});
     await w.vm.$nextTick();
     const viewAfter = {
       ...viewBefore,
@@ -421,7 +421,7 @@ describe('ConsoleActionComposer — premium render', () => {
     await w.setProps({playerView: viewAfter});
     expect(w.find('.con-composer__actcardwrap .con-played__res').text()).to.eq('1');
 
-    await w.setProps({reveal: {payload: {
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
       action: 'Search For Life',
       revealed: {name: 'Tardigrades'},
       conditionMet: true,

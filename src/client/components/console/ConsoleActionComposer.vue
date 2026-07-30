@@ -54,14 +54,45 @@
            and the live amount controls. What IS carried is the card; what
            unfolds is the pressed slot's own SURFACE, below.) -->
 
-      <!-- ── THE REVEAL PHASE («Действия карт › Результат вскрытия») ──────
-           A confirmed deck-check action stays IN THIS STAGE: the decision
-           column yields to the reveal zone — the slot the deck flight lands
-           in, and the status line below it («Вскрываем карту» → the ✓/✕
-           outcome the moment the face is first visible). The hero column
-           (the source card) never moves — the operation reads as one scene. -->
-      <template v-if="reveal !== undefined">
-        <div class="con-composer__revealzone">
+      <!-- ── THE OUTCOME STAGE ────────────────────────────────────────────
+           A confirmed action stays IN THIS STAGE: the decision column yields
+           to what the action PRODUCED, while the hero column (the source
+           card) never moves — the operation reads as one scene from setup to
+           result, not as a modal that replaced another modal.
+           · deck-check («Результат вскрытия») — the slot the deck flight
+             lands in + the status line below it («Вскрываем карту» → the ✓/✕
+             outcome the moment the face is first visible);
+           · draw («Добор карт») — the embedded reveal, below. -->
+      <template v-if="outcome !== undefined">
+
+      <!-- ── DRAW — the action pulled cards off the deck. This zone is the
+           TELEPORT TARGET the shell's ONE ConsoleRevealOverlay re-homes into
+           (consoleWorkspaceOutcome): the very same instance that would have
+           stood as the full-bleed band now renders HERE, in embedded dress —
+           the same strip, take flights, hand intake and input handler, and
+           the shell keeps owning its lifecycle, command bar and zoom routing.
+           Nesting a second instance would have meant a second mount point and
+           a second contract to keep in sync (and `Card.vue`'s split chunk
+           makes it unimportable from a unit-tested component besides).
+           The deck→slot cinematic needs no adaptation at all — it targets
+           `.con-reveal [data-zoom-slot]` document-wide and those slots are now
+           HERE, so the cards physically fly from the HUD pile into this column.
+           The target is rendered from SUBMIT time (not from the batch's
+           arrival) so it always exists before the teleport looks for it; until
+           the cards land it shows the beat. -->
+      <div v-if="drawOutcomeOn"
+           class="con-composer__revealzone con-composer__revealzone--draw"
+           data-embed-slot="workspace-reveal">
+        <!-- The beat yields the moment something is actually re-homed in here
+             (reveal or pick) — the claim's own stage says so, so the zone
+             never shows a spinner behind live content. -->
+        <div v-if="outcomePendingBeat" class="con-composer__revealstatus" role="status">
+          <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
+          <span>{{ $t('Drawing cards…') }}</span>
+        </div>
+      </div>
+
+      <div v-else class="con-composer__revealzone">
           <div class="con-composer__revealslot" ref="revealSlot"
                :class="{
                  'con-composer__revealslot--met': revealOutcomeOn && revealPayload !== undefined && revealPayload.conditionMet,
@@ -455,6 +486,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -524,6 +556,35 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
+/**
+ * WHAT THE CONFIRMED ACTION PRODUCES — the in-frame outcome stage's flavour.
+ *
+ * `deck-check` is the original: the top card is turned over and a condition is
+ * checked, so the whole outcome IS a verdict and the composer draws it itself.
+ * The other two are not the composer's to draw — a drawn batch and a card pick
+ * already have premium standalone surfaces, and duplicating them here is how a
+ * second, drifting implementation is born. They name the presenter instead and
+ * the zone hosts it EMBEDDED.
+ */
+export type ComposerOutcome =
+  /** Search For Life / Asteroid Deflection — `payload` lands with the answer. */
+  | {kind: 'deck-check', payload?: RevealResultModel}
+  /**
+   * COMMITTED, cards promised, nothing back yet. A real stage of its own, not
+   * a loading spinner: it holds the geometry (and the teleport target) that
+   * the arriving outcome drops into, so the column never jumps between the
+   * press and the cards.
+   */
+  | {kind: 'pending'}
+  /**
+   * The action produced CARDS and the zone is showing them. Deliberately one
+   * kind for both a drawn batch and a follow-up pick (buy / keep-some): from
+   * the stage's side they are the same phase — the same zone, the same name,
+   * the same input gate — and which presenter the shell re-homed into it is
+   * the shell's business, not a second state for the workspace to track.
+   */
+  | {kind: 'draw'};
+
 export default defineComponent({
   name: 'ConsoleActionComposer',
   components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, GamepadGlyph},
@@ -533,10 +594,18 @@ export default defineComponent({
     entry: {type: Object as PropType<ActionEntry>, required: true},
     preview: {type: Object as PropType<ActionPreview | undefined>, default: undefined},
     nodeIndex: {type: Number, required: true},
-    /** The IN-FRAME reveal phase (set by the parent at confirm time for a
-     *  deck-check branch; `payload` lands with the server's answer). While
-     *  set, the decision column yields to the reveal zone. */
-    reveal: {type: Object as PropType<{payload?: RevealResultModel} | undefined>, default: undefined},
+    /**
+     * THE IN-FRAME OUTCOME STAGE. Set by the parent at confirm time from the
+     * branch preview, it is what the confirmed action PRODUCES — and while it
+     * is set the decision column yields to it, the hero card standing still.
+     *
+     * One prop, not one per flavour: «настройка → выполнение → результат» is a
+     * single phase of a single surface, and the flavours differ only in which
+     * presenter fills the zone. That is also why `pick`/`draw` reuse the real
+     * standalone components in embedded mode instead of getting composer-local
+     * copies — see consoleWorkspaceOutcome for the principle.
+     */
+    outcome: {type: Object as PropType<ComposerOutcome | undefined>, default: undefined},
     /** The commit-CTA label (i18n key). Default «Confirm action»; the repeat
      *  pick surface hosts this composer to COMPOSE a chosen action and reads
      *  «Выбрать это действие» (it captures, it doesn't submit to the server). */
@@ -826,9 +895,26 @@ export default defineComponent({
       default: return '';
       }
     },
-    // ── the reveal phase ─────────────────────────────────────────────────
+    // ── the outcome stage ────────────────────────────────────────────────
+    /** The DECK-CHECK flavour is live — the composer draws the verdict itself. */
+    deckCheckOn(): boolean {
+      return this.outcome?.kind === 'deck-check';
+    },
+    /**
+     * The post-commit CARD phase is live — the column belongs to the outcome.
+     * `pending` and `draw` are one phase to everything outside the zone: the
+     * geometry, the kicker and the input gate must not change when the cards
+     * happen to land.
+     */
+    drawOutcomeOn(): boolean {
+      return this.outcome?.kind === 'draw' || this.outcome?.kind === 'pending';
+    },
+    /** Still waiting: the zone is standing but nothing has been re-homed yet. */
+    outcomePendingBeat(): boolean {
+      return this.drawOutcomeOn && workspaceOutcomeState.stage !== 'presenting';
+    },
     revealPayload(): RevealResultModel | undefined {
-      return this.reveal?.payload;
+      return this.outcome?.kind === 'deck-check' ? this.outcome.payload : undefined;
     },
     /** The outcome replaces the «Вскрываем карту» status the moment the face
      *  is FIRST visible (mid-flip) — never before. */
@@ -843,7 +929,7 @@ export default defineComponent({
      *  gain beat lands, the live tableau value everywhere else. */
     displayedStoredCount(): number {
       const live = this.storedResource?.count ?? 0;
-      if (this.reveal !== undefined && !this.revealGainApplied && this.revealResBaseline !== undefined) {
+      if (this.deckCheckOn && !this.revealGainApplied && this.revealResBaseline !== undefined) {
         return this.revealResBaseline;
       }
       return live;
@@ -883,7 +969,14 @@ export default defineComponent({
      *  (the source card / a card list's focused row), the confirm is ONLY the
      *  A press on the CTA row, and the committed hold reads as «Выполняется…». */
     footCommands(): Array<ConsoleCommand> {
-      if (this.reveal !== undefined) {
+      if (this.drawOutcomeOn) {
+        // Only the PENDING beat is the stage's to narrate. Once the reveal has
+        // teleported in, the shell publishes ITS contract (the shared
+        // `drawnRevealCommandRun`) — the component that owns the cards owns
+        // their buttons, so there is nothing to paraphrase here.
+        return focusCommandRun({state: 'draw-pending'});
+      }
+      if (this.deckCheckOn) {
         return focusCommandRun(this.revealStage === 'settled' && this.revealPayload !== undefined ?
           {state: 'reveal-shown'} : {state: 'reveal-pending'});
       }
@@ -1113,26 +1206,43 @@ export default defineComponent({
     preview: {immediate: true, handler() {
       this.resetFromPreview();
     }},
-    // The parent opens the reveal phase at confirm time (identity change
+    // The parent opens the outcome stage at confirm time (identity change
     // {} → {payload} must NOT relaunch the flight — only ENTER/EXIT do).
     // IMMEDIATE on purpose: a REPEATED reveal (ProjectInspection / Viron) mounts
-    // this composer with `reveal` ALREADY set to `{}` (the parent points it at the
+    // this composer with `outcome` ALREADY set (the parent points it at the
     // chosen action + opens the phase in one tick). A non-immediate watcher would
     // miss that initial value → `beginRevealFlight` never runs → the phase hangs on
     // «Вскрываем карту» (no handle, stage stuck 'pending'). Immediate fires on
     // mount with `prev === undefined`, launching the flight; the plain undefined
     // mount (a normal action) is a harmless no-op.
-    reveal: {
+    //
+    // Only the DECK-CHECK flavour owns a flight here. The DRAW flavour's cards
+    // are flown by the app-level deck-draw cinematic straight into the embedded
+    // reveal's own slots, so the composer must not launch a second, competing
+    // proxy for the same cards.
+    // Publish / retract the TELEPORT TARGET as the outcome zone comes and
+    // goes. The shell's re-homed reveal depends on this value, so it must be
+    // reactive and it must be retracted on the way out — a stale selector
+    // would teleport the NEXT batch into a detached node (invisible cards, an
+    // un-takeable prompt) instead of falling back to the band.
+    drawOutcomeOn: {
       immediate: true,
-      handler(next: {payload?: RevealResultModel} | undefined, prev: {payload?: RevealResultModel} | undefined) {
-        if (next !== undefined && prev === undefined) {
+      handler(on: boolean) {
+        setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
+      },
+    },
+    outcome: {
+      immediate: true,
+      handler(next: ComposerOutcome | undefined, prev: ComposerOutcome | undefined) {
+        const isCheck = (o: ComposerOutcome | undefined) => o?.kind === 'deck-check';
+        if (isCheck(next) && !isCheck(prev)) {
           // Freeze the visible counter at its PRE-reveal value: the answer's
           // commit already carries the reward, and the increment must be a
           // SEEN beat, never a leaked spoiler.
           this.revealResBaseline = this.storedResource?.count;
           this.revealGainApplied = false;
           this.beginRevealFlight();
-        } else if (next === undefined && prev !== undefined) {
+        } else if (!isCheck(next) && isCheck(prev)) {
           this.abortRevealFlight();
         }
       },
@@ -1142,7 +1252,7 @@ export default defineComponent({
     // layout) the phase is already 'settled' with NO handle: the gain beat
     // must still fire here, or a late payload would leave the counters
     // frozen at the baseline forever.
-    'reveal.payload'(payload: RevealResultModel | undefined) {
+    revealPayload(payload: RevealResultModel | undefined) {
       if (payload === undefined) {
         return;
       }
@@ -1183,6 +1293,10 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.abortRevealFlight();
+    // The zone dies with the stage — retract the teleport target so a re-homed
+    // presenter falls back to its band instead of into a detached node. The
+    // watcher does not fire on unmount, so this cannot be left to it.
+    setWorkspaceOutcomeSlot('');
     if (this.revealGainPopTimer !== undefined) {
       window.clearTimeout(this.revealGainPopTimer);
     }
@@ -1684,11 +1798,19 @@ export default defineComponent({
     },
     // ── input routing (foundation: SEMANTIC actions, no raw button names) ──
     handleIntent(intent: GamepadIntent): void {
-      // THE REVEAL PHASE owns the pad: post-commit, nothing can re-fire or
+      // THE DRAW PHASE never sees the pad: while it is pending the action is
+      // already committed (nothing to fire, nothing to cancel), and once the
+      // reveal has teleported in the SHELL routes intents straight to it —
+      // the same path the standalone band uses. Swallow either way, so a
+      // press can never leak back into the configuration rows underneath.
+      if (this.drawOutcomeOn) {
+        return;
+      }
+      // THE DECK-CHECK PHASE owns the pad: post-commit, nothing can re-fire or
       // cancel. While the card is still face down every press is swallowed
       // (the beat is short and self-explaining); once settled A/B acknowledge
       // and X inspects the revealed card.
-      if (this.reveal !== undefined) {
+      if (this.deckCheckOn) {
         if (this.revealStage !== 'settled' || this.revealPayload === undefined) {
           return;
         }

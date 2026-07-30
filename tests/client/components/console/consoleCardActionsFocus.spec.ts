@@ -122,10 +122,14 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Action setup');
     expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Action setup');
-    // The reveal phase — the ONE thing that renames the stage.
-    vm.revealFlow = {};
+    // The OUTCOME phases — the only things that rename the stage, and each
+    // names itself: a deck-check is a «результат вскрытия», a draw is not.
+    vm.outcomeFlow = {kind: 'deck-check'};
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Reveal result');
+    vm.outcomeFlow = {kind: 'draw'};
+    await settle(w);
+    expect(vm.focusKickerKey).to.eq('Card draw');
     w.unmount();
   });
 

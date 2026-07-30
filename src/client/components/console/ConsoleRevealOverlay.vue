@@ -6,16 +6,17 @@
        'result' entry that follows a composer's confirm plays the PHASE
        continuation — the source card FLIPs from the composer's slot into
        the «Источник» column below. -->
-  <div class="con-reveal"
+  <div ref="rootEl" class="con-reveal"
        :class="{
          'con-reveal--headless': headless,
+         'con-reveal--embedded': embedded,
          'con-reveal--bonus-mode': bonusMode,
          'con-reveal--bonus-veiled': bonusVeiled,
          'con-reveal--bonus-held': bonusHeld,
        }"
-       role="dialog" :aria-label="titleText"
-       data-motion-surface="reveal"
-       :data-motion-variant="headless ? 'headless' : mode">
+       :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
+       :data-motion-surface="embedded ? undefined : 'reveal'"
+       :data-motion-variant="embedded ? undefined : (headless ? 'headless' : mode)">
     <!--
       SINGLE-CARD drawn reveal is HEADLESS: the received card IS the reveal,
       shown DIRECTLY in the fullscreen viewer (auto-opened). Nothing renders
@@ -28,8 +29,14 @@
       <transition name="con-task-swap" mode="out-in">
         <div class="con-reveal__card" :key="revealKey" data-motion-panel
              :class="{'con-reveal__card--drawn': mode === 'drawn'}">
-          <!-- ── Header ──────────────────────────────────────────────── -->
-          <header class="con-reveal__head">
+          <!-- ── Header ──────────────────────────────────────────────────
+               EMBEDDED: suppressed. The host workspace already names the
+               stage (its breadcrumb + phase status line) and shows the
+               SOURCE card as the standing hero, so this header would be a
+               second, competing title for the same beat — and its source
+               chip would point at a card already on screen. One naming
+               voice per surface: the host's. -->
+          <header v-if="!embedded" class="con-reveal__head">
             <div class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
@@ -438,8 +445,22 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
+    /**
+     * EMBEDDED — the SAME component re-seated inside a workspace that CLAIMED
+     * this batch (consoleWorkspaceOutcome), instead of the fixed full-bleed
+     * band. Mirrors `ConsolePlayedOverlay.embedded`: no own band geometry, no
+     * plate, no header, no motion-surface identity — the host frame is the
+     * chassis and owns the naming and the enter/leave.
+     *
+     * Everything physical is unchanged: the strip slots keep their
+     * `data-zoom-slot` keys (so the deck-draw cinematic's document-wide
+     * `.con-reveal [data-zoom-slot]` targeting lands here byte-identically),
+     * the take flights stay fixed-viewport proxies, and the intake still ends
+     * in the dock. Rect math is viewport-px in both hosts.
+     */
+    embedded: {type: Boolean, default: false},
   },
-  emits: ['dismiss-result', 'discard-pick'],
+  emits: ['dismiss-result', 'discard-pick', 'drawn-complete'],
   data() {
     return {
       /**
@@ -548,6 +569,17 @@ export default defineComponent({
       // nowhere to host the mandatory step. This is the 1-cube foreign-trade case:
       // one bonus card, then discard one.
       if (this.bonusDiscard !== undefined) {
+        return false;
+      }
+      // EMBEDDED: never headless. The headless path exists because a lone
+      // received card has no context worth framing — the fullscreen viewer IS
+      // the reveal. Inside a workspace the opposite is true: the card's whole
+      // meaning is that THIS action produced it, and that context is on screen
+      // around it. Throwing the player into a full-bleed viewer would be the
+      // exact "suddenly a different interface" break the embedding removes, so
+      // the card lands in the workspace's own slot and flips there. X still
+      // opens the fullscreen deliberately.
+      if (this.embedded) {
         return false;
       }
       return this.mode === 'drawn' && this.drawnEvent !== undefined && this.drawnEvent.cards.length === 1;
@@ -719,9 +751,16 @@ export default defineComponent({
      * (`--con-reveal-zoom-boost`, set only by the tv profile via the strip's
      * count class in console_tv.less — 1 everywhere else, so standard /
      * handheld render byte-identical).
+     *
+     * A THIRD, independent factor is the HOST (`--con-reveal-host-scale`): the
+     * embedded zone is a workspace column, not the full band, so its cards sit
+     * a notch smaller. It is deliberately its own token rather than an override
+     * of the boost — the boost is the PROFILE's per-count tuning and the host
+     * factor is orthogonal to it, so they compose. Overriding the boost from
+     * the embedded root would have silently thrown away the TV ladder.
      */
     stripZoomStyle(): Record<string, string> {
-      return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1))`};
+      return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1) * var(--con-reveal-host-scale, 1))`};
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
     stripCountClass(): string {
@@ -1065,7 +1104,13 @@ export default defineComponent({
      *  `name#i`, so two copies of one card resolve to distinct slots). */
     zoomOriginFor(keyOf: (i: number) => string, follow: boolean) {
       return slotZoomOrigin(
-        () => this.$el as HTMLElement,
+        // The EXPLICIT root ref, never `$el`: this template opens with a
+        // comment, so a dev build keeps it and the component root is a
+        // FRAGMENT whose `$el` is that Comment node — `querySelector` is
+        // absent and `slotZoomOrigin` silently degrades to "no physical
+        // origin" (the card would appear from nowhere and return to nowhere).
+        // Prod strips comments, which is exactly why it stayed invisible.
+        () => this.$refs.rootEl as HTMLElement | undefined,
         keyOf,
         follow ? (i) => {
           this.focusIdx = i;
@@ -1115,7 +1160,7 @@ export default defineComponent({
         // The pile IS the physical origin — the viewer lifts out of it.
         origin: {
           kind: 'physical',
-          resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-reveal__discard-pile') ?? null,
+          resolve: () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-reveal__discard-pile') ?? null,
         },
       });
     },
@@ -1279,7 +1324,8 @@ export default defineComponent({
     // ── MULTI-CARD take (from the strip / from fullscreen) ─────────────
     /** The live slot element for a drawn/viewer card (data-zoom-slot key). */
     exitSlotFor(key: string): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
+      // Explicit ref — see zoomOriginFor: `$el` is a Comment in dev builds.
+      const root = this.$refs.rootEl as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelector !== 'function') {
         return null;
       }
@@ -1314,6 +1360,7 @@ export default defineComponent({
           return;
         }
         closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
+        this.$emit('drawn-complete');
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {commit});
@@ -1372,6 +1419,7 @@ export default defineComponent({
           return;
         }
         closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+        this.$emit('drawn-complete');
       };
       const entries = this.drawnUntaken
         .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));

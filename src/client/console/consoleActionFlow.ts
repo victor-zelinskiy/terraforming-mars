@@ -80,8 +80,13 @@ export function actionFlowStage(signals: {
  *               separate «confirmation» step: setup and commit happen on one
  *               surface, so it keeps one honest name for its whole life.
  *  - `reveal` — the post-commit deck-check outcome is on stage.
+ *  - `draw`   — the post-commit CARD DRAW is on stage: the cards are coming
+ *               off the HUD deck into the stage's own reveal zone and the
+ *               player takes them there. A distinct phase from `reveal`
+ *               because nothing is being CHECKED — the outcome is the cards
+ *               themselves, so «Результат вскрытия» would misname it.
  */
-export type FocusPhase = 'setup' | 'reveal';
+export type FocusPhase = 'setup' | 'reveal' | 'draw';
 
 /**
  * The focus stage's kicker (i18n key), derived ONLY from the phase.
@@ -93,7 +98,11 @@ export type FocusPhase = 'setup' | 'reveal';
  * during it, which makes that jump structurally impossible.
  */
 export function focusKicker(phase: FocusPhase): string {
-  return phase === 'reveal' ? 'Reveal result' : 'Action setup';
+  switch (phase) {
+  case 'reveal': return 'Reveal result';
+  case 'draw': return 'Card draw';
+  default: return 'Action setup';
+  }
 }
 
 // ── Command-bar contracts (pure builders — the bar can never lie) ───────────
@@ -113,6 +122,15 @@ export type FocusCommandCtx =
   | {state: 'reveal-pending'}
   /** The reveal outcome is on screen — acknowledge / inspect. */
   | {state: 'reveal-shown'}
+  /**
+   * The DRAW phase, cards still travelling from the HUD deck. Post-commit and
+   * pre-arrival: nothing to press yet, and nothing to cancel.
+   *
+   * There is deliberately no `draw-shown` here: once the cards have landed the
+   * contract belongs to the reveal component itself, so the stage forwards the
+   * SHARED `drawnRevealCommandRun` verbatim rather than paraphrasing it.
+   */
+  | {state: 'draw-pending'}
   /** A sub-list pick (card / player / or). X inspects a CARD list's rows. */
   | {state: 'sub-list', cardList: boolean}
   /** The payment lanes sub-state. */
@@ -157,6 +175,10 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     // The card is being pulled off the deck / flipping — post-commit, so
     // nothing can be cancelled; the bar narrates the beat honestly.
     return [{control: 'confirm', label: 'Revealing the card…', enabled: false}];
+  case 'draw-pending':
+    // The cards are physically leaving the deck — same honest narration, and
+    // the same impossibility of a cancel.
+    return [{control: 'confirm', label: 'Drawing cards…', enabled: false}];
   case 'reveal-shown':
     return [
       {control: 'confirm', label: 'OK'},
