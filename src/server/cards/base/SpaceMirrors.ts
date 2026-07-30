@@ -20,6 +20,7 @@ export class SpaceMirrors extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '076',
+        infoText: [{kind: 'action-short', text: 'Raise your energy production'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 7 M€ to increase your energy production 1 step.', (eb) => {
             eb.megacredits(7).startAction.production((pb) => pb.energy(1));

@@ -21,6 +21,7 @@ export class PowerInfrastructure extends Card implements IActionCard, IProjectCa
 
       metadata: {
         cardNumber: '194',
+        infoText: [{kind: 'action-short', text: 'Trade energy for M€'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend any amount of energy and gain that amount of M€.', (eb) => {
             eb.text('x').energy(1).startAction.megacredits(1, {text: 'x'});

@@ -33,6 +33,7 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'C44',
+        infoText: [{kind: 'action-short', text: 'A floater on a jovian card, or trade for free'}],
         renderData: CardRenderer.builder((b) => {
           b.action(undefined, (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER, {secondaryTag: Tag.JOVIAN}).nbsp.or();

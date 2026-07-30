@@ -32,6 +32,7 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
         // corp-box frames below (auto-extracted into their ДЕЙСТВИЕ / ЭФФЕКТ
         // blocks). Only the first-action immediate is authored (it has no frame).
         infoText: [
+          {kind: 'action-short', text: 'Place a community next to your tiles'},
           {text: 'As your first action, place a community (player marker) on a non-reserved area.', tokens: ['community']},
         ],
         renderData: CardRenderer.builder((b) => {

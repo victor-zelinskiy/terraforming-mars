@@ -27,6 +27,7 @@ export class Predators extends Card implements IProjectCard, IActionCard {
 
       metadata: {
         cardNumber: '024',
+        infoText: [{kind: 'action-short', text: 'Take an animal from any card to this one'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Remove 1 animal from any card and add it to this card.', (eb) => {
             eb.resource(CardResource.ANIMAL, {all}).startAction.resource(CardResource.ANIMAL);

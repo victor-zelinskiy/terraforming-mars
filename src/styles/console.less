@@ -15019,12 +15019,58 @@ html.console-mode {
        where the focus stage's hero card column lands — the geometry that keeps
        the browse → focus FLIP a short settle. The band pays for the visible
        rail: the master list keeps its full pre-rework width. */
+    /* NO `overflow-y: auto` here — EVER. The right stick drives the action
+       list; a scroll context in this panel would be unreachable on a pad.
+       The panel FITS by composing (`data-fit`, consoleDetailFit.ts), and
+       `hidden` is the honest guard for the outlier that still overflows. */
     &__detail {
-        flex: 0 0 21.5rem; min-width: 0; overflow-y: auto;
-        display: flex; flex-direction: column; gap: .45rem;
-        padding: .6rem .7rem; border-radius: .7rem;
+        flex: 0 0 21.5rem; min-width: 0; overflow: hidden;
+        display: flex; flex-direction: column; gap: var(--det-gap, .45rem);
+        padding: var(--det-pad, .6rem .7rem); border-radius: .7rem;
         background: rgba(8, 14, 22, 0.6); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
-        .con-scrollbars();
+    }
+    /* ── THE FIT LADDER (consoleDetailFit.ts). Every rung is a DELIBERATE
+       concession, ordered cheapest-first; a rung is only ever reached because
+       the composer MEASURED an overflow at the one above it. The rule text
+       and the blocker reason are never what gives way. ── */
+    /* 1 · the air between blocks — the cheapest height in the panel. */
+    &__detail[data-fit="1"], &__detail[data-fit="2"], &__detail[data-fit="3"],
+    &__detail[data-fit="4"], &__detail[data-fit="5"], &__detail[data-fit="6"] {
+        --det-gap: .3rem;
+        --det-pad: .45rem .6rem;
+    }
+    /* 2 · the change summary folds onto ONE line: «spent → gained», the arrow
+           carrying what the two labels were carrying. */
+    &__detail[data-fit="2"] &__changes,
+    &__detail[data-fit="3"] &__changes,
+    &__detail[data-fit="4"] &__changes,
+    &__detail[data-fit="5"] &__changes,
+    &__detail[data-fit="6"] &__changes {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .3rem .45rem;
+        .con-cardactions__detail-label { display: none; }
+        .con-cardactions__changes-arrow { display: inline; }
+    }
+    /* 3-4 · the card steps down, one tier at a time — and only now. */
+    &__detail[data-fit="3"] &__detail-card { zoom: calc(0.48 * var(--con-ui-scale, 1)); }
+    &__detail[data-fit="4"] &__detail-card,
+    &__detail[data-fit="5"] &__detail-card,
+    &__detail[data-fit="6"] &__detail-card { zoom: calc(0.4 * var(--con-ui-scale, 1)); }
+    /* 5 · tighter leading + quieter secondary type. */
+    &__detail[data-fit="5"], &__detail[data-fit="6"] {
+        --det-gap: .22rem;
+        .con-cardactions__detail-rule { line-height: 1.25; }
+        .con-cardactions__detail-name { font-size: 1rem; }
+        .con-cardactions__verdict { padding: .28rem .45rem; }
+    }
+    /* 6 · the LAST rung: secondary blocks fold into a compact group. The
+           verdict, its reason and the action's rule stay whole. */
+    &__detail[data-fit="6"] {
+        .con-cardactions__detail-res { font-size: .8rem; }
+        .con-cardactions__detail-next { font-size: .7rem; }
+        .con-cardactions__detail-variant { display: none; }
     }
     &__detail-name { font-size: 1.15rem; font-weight: 800; line-height: 1.1; }
     &__detail-variant { font-size: .75rem; color: @con-text-dim; }
@@ -15066,7 +15112,20 @@ html.console-mode {
     /* A TEXT-override action's ONE full prose copy (the graphic duplicate is
        gone; the span inside carries the shared graphic-text look). */
     &__detail-text { min-width: 0; max-width: 100%; }
-    &__detail-block { display: flex; flex-direction: column; gap: .3rem; }
+    /* The action's FULL rule — the panel's decision statement. No clamp, no
+       ellipsis: if it does not fit, the LADDER makes room elsewhere. */
+    &__detail-rule {
+        margin: 0;
+        font-size: .85rem;
+        line-height: 1.35;
+        color: fade(@con-text, 94%);
+        overflow-wrap: anywhere;
+    }
+    /* THE CHANGE SUMMARY — two labelled blocks by default; one «spent →
+       gained» line from rung 2 (the arrow is the label). */
+    &__changes { display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
+    &__changes-arrow { display: none; font-size: 1rem; color: fade(@con-cyan, 80%); }
+    &__detail-block { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
     &__detail-label { font-size: .65rem; letter-spacing: .06rem; text-transform: uppercase; color: @con-text-dim; }
     &__detail-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
     &__detail-res { display: inline-flex; align-items: center; gap: .4rem; b { font-size: 1.1rem; font-weight: 800; } }

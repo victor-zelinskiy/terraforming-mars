@@ -20,6 +20,7 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
       metadata: {
         cardNumber: 'XC02', // Rename
         description: 'You start with 42 M€. Increase your energy production 1 step.',
+        infoText: [{kind: 'action-short', text: 'Trade energy for cards and keep one'}],
         renderData: CardRenderer.builder((b) => {
           b.br.br;
           b.production((pb) => pb.energy(1)).nbsp.megacredits(42);

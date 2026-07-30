@@ -21,6 +21,7 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
       metadata: {
         cardNumber: 'R32',
         description: 'You start with 40 M€.',
+        infoText: [{kind: 'action-short', text: 'Pay 3 M€ to raise your TR one more step'}],
         renderData: CardRenderer.builder((b) => {
           // TODO(chosta): find a not so hacky solutions to spacing
           // b.br.br.br;

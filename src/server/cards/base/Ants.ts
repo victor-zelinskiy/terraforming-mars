@@ -28,6 +28,7 @@ export class Ants extends Card implements IActionCard, IProjectCard {
       metadata: {
         cardNumber: '035',
         description: 'Requires 4% oxygen.',
+        infoText: [{kind: 'action-short', text: 'Take a microbe from any card to this one'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Remove 1 microbe from any card to add 1 to this card.', (eb) => {
             eb.resource(CardResource.MICROBE, {all}).startAction.resource(CardResource.MICROBE);

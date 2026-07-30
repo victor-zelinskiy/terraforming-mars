@@ -51,8 +51,16 @@ export type ActionRuleLine = {
 
 export type ActionRules = {
   lines: ReadonlyArray<ActionRuleLine>;
-  /** The single line a compact host shows (the browser's action slot). */
+  /**
+   * The CAPTION a compact host shows (the browser's action slot): the card's
+   * curated short for this action, or the full rule itself when that already
+   * reads as a calm caption. Never a truncation — a rule too long to fit is
+   * given its own authored sentence (`infoText`, `kind: 'action-short'`), so
+   * the browser never shows a sentence that stops mid-thought.
+   */
   summary: string;
+  /** True when `summary` is the card's own curated caption, not the rule. */
+  curated: boolean;
 };
 
 /** The i18n label keys — the SAME vocabulary as the fullscreen rules tab. */
@@ -111,6 +119,16 @@ function infoGroupForNode(cardName: CardName, node: GroupNode, nodeIndex: number
     }
   }
   return groups.length === nodeCount ? groups[nodeIndex] : undefined;
+}
+
+/** The curated caption of this action, when the card authored one. */
+function shortOf(group: CardInfoGroup): string | undefined {
+  for (const block of group.blocks) {
+    if (block.kind === 'action' && block.short !== undefined && block.short !== '') {
+      return block.short;
+    }
+  }
+  return undefined;
 }
 
 /** Keep the lines a rule block should SPEAK; drop what the stage already draws. */
@@ -174,5 +192,10 @@ export function actionRules(group: ActionGroup, nodeIndex: number, fallback?: st
   if (lines.length === 0) {
     return undefined;
   }
-  return {lines, summary: lines[0].text};
+  const curated = info === undefined ? undefined : shortOf(info);
+  return {
+    lines,
+    summary: curated ?? lines[0].text,
+    curated: curated !== undefined,
+  };
 }

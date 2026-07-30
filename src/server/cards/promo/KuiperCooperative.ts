@@ -24,6 +24,7 @@ export class KuiperCooperative extends CorporationCard implements ICorporationCa
       metadata: {
         cardNumber: 'XC01', // Rename
         description: 'You start with 33 M€. Increase titanium production 1 step.',
+        infoText: [{kind: 'action-short', text: 'An asteroid per space tag'}],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(33).production((pb) => pb.titanium(1)).br;
           b.action('Add 1 asteroid here for every space tag you have.', (ab) => {

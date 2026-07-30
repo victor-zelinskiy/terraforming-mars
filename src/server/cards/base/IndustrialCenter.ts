@@ -22,6 +22,7 @@ export class IndustrialCenter extends ActionCard implements IProjectCard {
     adjacencyBonus: AdjacencyBonus | undefined = undefined,
     metadata: CardMetadata = {
       cardNumber: '123',
+      infoText: [{kind: 'action-short', text: 'Raise your steel production'}],
       renderData: CardRenderer.builder((b) => {
         b.action('Spend 7 M€ to increase your steel production 1 step.', (eb) => {
           eb.megacredits(7).startAction.production((pb) => pb.steel(1));

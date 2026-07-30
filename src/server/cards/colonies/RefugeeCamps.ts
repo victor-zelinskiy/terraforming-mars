@@ -23,6 +23,7 @@ export class RefugeeCamps extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: 'C33',
+        infoText: [{kind: 'action-short', text: 'Trade M€ production for a camp resource'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Decrease your M€ production 1 step to add a camp resource to this card.', (eb) => {
             eb.production((pb) => pb.megacredits(1));

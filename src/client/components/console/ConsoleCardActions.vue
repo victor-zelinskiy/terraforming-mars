@@ -142,7 +142,13 @@
            across the whole overlay). ─────────────────────────────────── -->
       <div class="con-cardactions__body">
         <!-- ── The inspector / dossier (the ONE detail surface) ────────── -->
-        <aside class="con-cardactions__detail" v-if="focusedTile !== undefined">
+        <!-- THE SMART DETAIL COMPOSER (consoleDetailFit.ts): the panel is a
+             FIXED box that must never scroll, so it composes rather than
+             clamps — it renders its most comfortable form and steps down an
+             ordered ladder ONLY as far as a measured overflow demands.
+             `data-fit` is that step; everything below it is pure CSS. -->
+        <aside class="con-cardactions__detail" v-if="focusedTile !== undefined"
+               ref="detailEl" :data-fit="detailFit">
           <div class="con-cardactions__detail-name">{{ $t(focusedTile.cardName) }}</div>
           <div v-if="focusedGroup !== undefined && focusedGroup.tiles.length > 1" class="con-cardactions__detail-variant">
             {{ $t('Option') }} {{ focusedTile.nodeIndex + 1 }} / {{ focusedGroup.tiles.length }}
@@ -183,34 +189,42 @@
             </div>
           </div>
 
-          <!-- (NO rule prose here. The dossier is the DECISION panel —
-               verdict, cost, result, stored resource, next step — and it has
-               no scroll of its own (the right stick drives the action list),
-               so anything unbounded added here becomes an unreachable
-               overflow on the Deck. The action's wording lives where it is
-               already reachable: on the slot itself (large profiles), in
-               full on the setup stage, and in the fullscreen dossier.
-               A TEXT-drawn action is its own graphic, so nothing is lost.) -->
+          <!-- THE ACTION'S OWN RULE, in FULL — the panel states what the
+               focused variant does, in the card's own words, and never
+               clamps it: a rule cut mid-thought is the one thing this panel
+               may not do. (The browser slot carries the curated CAPTION; the
+               two are different fields of one model, not two truncations.)
+               If it does not fit, the composer takes space from gaps, chips
+               and the card FIRST — see `data-fit`. -->
+          <p v-if="focusedRule !== ''" class="con-cardactions__detail-rule">{{ focusedRule }}</p>
 
-          <!-- The complete cost / reward breakdown (static + variable). -->
-          <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block">
-            <div class="con-cardactions__detail-label">{{ $t('Will be spent') }}</div>
-            <div class="con-cardactions__detail-chips">
-              <ActionEffectChip v-for="(eff, k) in focusedTile.costEffects" :key="k" :effect="eff" />
-              <span v-for="(vc, k) in focusedTile.variableCost" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
-                <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
-                <b>{{ rangeText(vc) }}</b>
-              </span>
+          <!-- ── THE CHANGE SUMMARY — the complete cost / reward breakdown
+               (static + variable). At `data-fit` 0-1 it reads as two labelled
+               blocks; from step 2 the composer folds it into ONE line —
+               «spent → gained» — where the arrow carries the meaning the
+               labels were carrying, which is the cheapest real height in the
+               panel after the gaps. ─────────────────────────────────────── -->
+          <div v-if="hasChanges" class="con-cardactions__changes">
+            <div v-if="focusedTile.costEffects.length > 0 || focusedTile.variableCost.length > 0" class="con-cardactions__detail-block con-cardactions__detail-block--cost">
+              <div class="con-cardactions__detail-label">{{ $t('Will be spent') }}</div>
+              <div class="con-cardactions__detail-chips">
+                <ActionEffectChip v-for="(eff, k) in focusedTile.costEffects" :key="k" :effect="eff" />
+                <span v-for="(vc, k) in focusedTile.variableCost" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                  <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                  <b>{{ rangeText(vc) }}</b>
+                </span>
+              </div>
             </div>
-          </div>
-          <div v-if="focusedTile.gainEffects.length > 0 || focusedTile.variableGain.length > 0" class="con-cardactions__detail-block">
-            <div class="con-cardactions__detail-label">{{ $t('You will receive') }}</div>
-            <div class="con-cardactions__detail-chips">
-              <ActionEffectChip v-for="(eff, k) in focusedTile.gainEffects" :key="k" :effect="eff" />
-              <span v-for="(vc, k) in focusedTile.variableGain" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
-                <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
-                <b>{{ rangeText(vc) }}</b>
-              </span>
+            <span v-if="hasCost && hasGain" class="con-cardactions__changes-arrow" aria-hidden="true">→</span>
+            <div v-if="focusedTile.gainEffects.length > 0 || focusedTile.variableGain.length > 0" class="con-cardactions__detail-block con-cardactions__detail-block--gain">
+              <div class="con-cardactions__detail-label">{{ $t('You will receive') }}</div>
+              <div class="con-cardactions__detail-chips">
+                <ActionEffectChip v-for="(eff, k) in focusedTile.gainEffects" :key="k" :effect="eff" />
+                <span v-for="(vc, k) in focusedTile.variableGain" :key="'v' + k" class="con-cardactions__varchip" :class="'con-cardactions__varchip--' + vc.role">
+                  <i v-if="vc.icon" class="con-cardactions__varchip-icon" :class="resIconClass(vc.icon)" aria-hidden="true"></i>
+                  <b>{{ rangeText(vc) }}</b>
+                </span>
+              </div>
             </div>
           </div>
           <div v-if="focusedTile.variableChoice.length > 0" class="con-cardactions__detail-block">
@@ -474,6 +488,7 @@ import {
 } from '@/client/console/consoleCardActions';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases, clearActionCanvasFit} from '@/client/console/consoleActionCanvasFit';
+import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -594,6 +609,10 @@ export default defineComponent({
       shakeTimer: undefined as number | undefined,
       /** The pending canvas-fit frame (one per paint, never per slot). */
       canvasFitFrame: undefined as number | undefined,
+      /** The Smart Detail Composer's current rung (0 = comfortable). */
+      detailFit: 0,
+      /** The pending detail measurement (a fast walk cancels the previous). */
+      detailFitFrame: undefined as number | undefined,
     };
   },
   computed: {
@@ -690,6 +709,29 @@ export default defineComponent({
       // Repeat mode: A = «Выбрать» (never «Выполнить»); B = «Отмена» (cancel the pick).
       return run.map((c) => c.control === 'confirm' ? {...c, label: 'Select'} :
         c.control === 'back' ? {...c, label: 'Cancel'} : c);
+    },
+    /** The focused variant's FULL rule (the panel never shortens it). */
+    focusedRule(): string {
+      const rules = this.focusedTile?.rules;
+      return rules === undefined ? '' : actionRuleText(rules.lines[0].text);
+    },
+    hasCost(): boolean {
+      const t = this.focusedTile;
+      return t !== undefined && (t.costEffects.length > 0 || t.variableCost.length > 0);
+    },
+    hasGain(): boolean {
+      const t = this.focusedTile;
+      return t !== undefined && (t.gainEffects.length > 0 || t.variableGain.length > 0);
+    },
+    hasChanges(): boolean {
+      return this.hasCost || this.hasGain;
+    },
+    /** The composer's measurement signature — a NEW measurement is due when
+     *  the focused action or the panel's content identity changes. */
+    detailSignature(): string {
+      const t = this.focusedTile;
+      return t === undefined ? '' :
+        `${t.key}|${t.status}|${this.focusedRule.length}|${t.costEffects.length}+${t.gainEffects.length}`;
     },
     /**
      * The focus-stage breadcrumb step, named by the stage's PHASE alone
@@ -857,7 +899,8 @@ export default defineComponent({
       consoleCardActionsUi.confirmOpen = false;
     }
     this.scheduleCanvasFit();
-    window.addEventListener('resize', this.scheduleCanvasFit, {passive: true});
+    this.scheduleDetailFit();
+    window.addEventListener('resize', this.onViewportResize, {passive: true});
     // A «change» re-open lands the cursor ON the previously chosen action —
     // the player adjusts FROM their pick, never re-hunts it from the top.
     const prior = this.repeatRequest?.prior;
@@ -868,14 +911,22 @@ export default defineComponent({
   },
   updated() {
     // Slots re-render on a filter change, on the preview landing, on a status
-    // refresh — every one of those can change what a formula draws.
+    // refresh — every one of those can change what a formula draws, and any
+    // of them can change what the detail panel must hold.
     this.scheduleCanvasFit();
+    this.scheduleDetailFit();
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.scheduleCanvasFit);
-    if (this.canvasFitFrame !== undefined && typeof window.cancelAnimationFrame === 'function') {
-      window.cancelAnimationFrame(this.canvasFitFrame);
-      this.canvasFitFrame = undefined;
+    window.removeEventListener('resize', this.onViewportResize);
+    if (typeof window.cancelAnimationFrame === 'function') {
+      if (this.canvasFitFrame !== undefined) {
+        window.cancelAnimationFrame(this.canvasFitFrame);
+        this.canvasFitFrame = undefined;
+      }
+      if (this.detailFitFrame !== undefined) {
+        window.cancelAnimationFrame(this.detailFitFrame);
+        this.detailFitFrame = undefined;
+      }
     }
     clearActionCanvasFit(this.$refs.rootEl as HTMLElement | undefined);
     // The repeat instance owns none of the shared Action Center stores.
@@ -1113,6 +1164,11 @@ export default defineComponent({
      * is a layout constant; only the ART inside it adapts — see
      * consoleActionCanvasFit.ts.
      */
+    /** A profile flip / window resize changes BOTH measured boxes. */
+    onViewportResize(): void {
+      this.scheduleCanvasFit();
+      this.scheduleDetailFit();
+    },
     scheduleCanvasFit(): void {
       // The unit runner has no rAF (and no layout to fit) — the fit is a
       // pure presentation refinement, never a correctness step.
@@ -1123,6 +1179,32 @@ export default defineComponent({
       this.canvasFitFrame = window.requestAnimationFrame(() => {
         this.canvasFitFrame = undefined;
         fitActionCanvases(this.$refs.rootEl as HTMLElement | undefined);
+      });
+    },
+    /**
+     * Re-run the SMART DETAIL COMPOSER. A fast d-pad walk cancels the pending
+     * measurement instead of queueing one per step, so the panel settles once
+     * — on the LAST focused action — and the player never sees an
+     * intermediate (overflowing or over-compressed) composition.
+     */
+    scheduleDetailFit(): void {
+      if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+        return;
+      }
+      if (this.detailFitFrame !== undefined) {
+        window.cancelAnimationFrame(this.detailFitFrame);
+      }
+      this.detailFitFrame = window.requestAnimationFrame(() => {
+        this.detailFitFrame = undefined;
+        const panel = this.$refs.detailEl as HTMLElement | undefined;
+        if (panel === undefined || panel === null || panel.clientHeight <= 0) {
+          return;
+        }
+        // The panel IS the box; its own content column is what must fit.
+        this.detailFit = resolveDetailFit(panel, panel, (level) => {
+          this.detailFit = level;
+          panel.setAttribute('data-fit', String(level));
+        }, this.detailFit);
       });
     },
     /** The DOM element of the focused action slot (the ref list is keyed). */

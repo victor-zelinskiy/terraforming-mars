@@ -22,6 +22,7 @@ export class OreProcessor extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '104',
+        infoText: [{kind: 'action-short', text: 'Gain 1 titanium and raise oxygen'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 4 energy to gain 1 titanium and increase oxygen 1 step.', (eb) => {
             eb.energy(4, {digit}).startAction.titanium(1).oxygen(1);

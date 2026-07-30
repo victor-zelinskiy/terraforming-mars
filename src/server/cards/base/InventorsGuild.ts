@@ -19,6 +19,7 @@ export class InventorsGuild extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '006',
+        infoText: [{kind: 'action-short', text: 'Buy or discard the top card'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Look at the top card and either buy it or discard it', (eb) => eb.empty().startAction.cards(1));
         }),

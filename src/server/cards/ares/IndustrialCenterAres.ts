@@ -20,6 +20,7 @@ export class IndustrialCenterAres extends IndustrialCenter {
         }),
         description: 'Place this tile adjacent to a city tile. This tile grants an ADJACENCY BONUS of 1 steel.',
         infoText: [
+          {kind: 'action-short', text: 'Raise your steel production'},
           {text: 'Place a special tile adjacent to a city tile.', tokens: ['tile-']},
           {text: 'The tile grants an adjacency bonus of 1 steel.', tokens: ['tile-']},
         ],

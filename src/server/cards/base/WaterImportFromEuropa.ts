@@ -26,6 +26,7 @@ export class WaterImportFromEuropa extends Card implements IActionCard, IProject
 
       metadata: {
         cardNumber: '012',
+        infoText: [{kind: 'action-short', text: 'Place an ocean tile (titanium may pay)'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Pay 12 M€ to place an ocean tile. TITANIUM MAY BE USED as if playing a space card.', (eb) => {
             eb.megacredits(12).super((b) => b.titanium(1)).startAction.oceans(1);

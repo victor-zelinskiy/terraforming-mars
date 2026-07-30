@@ -19,6 +19,7 @@ export class CaretakerContract extends ActionCard {
       metadata: {
         cardNumber: '154',
         description: 'Requires 0° C or warmer.',
+        infoText: [{kind: 'action-short', text: 'Trade 8 heat for a TR step'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 8 heat to increase your terraform rating 1 step.', (eb) => {
             eb.heat(8).startAction.tr(1);

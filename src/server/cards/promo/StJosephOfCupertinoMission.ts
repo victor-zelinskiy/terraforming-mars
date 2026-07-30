@@ -37,6 +37,7 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
       metadata: {
 
         infoText: [
+          {kind: 'action-short', text: 'Build a cathedral in a city for 5 M€'},
 
           {kind: 'victory-points', text: '1 VP per City with a Cathedral in it.'},
 

@@ -20,6 +20,7 @@ export class UndergroundDetonations extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '202',
+        infoText: [{kind: 'action-short', text: 'Raise your heat production 2 steps'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 10M€ to increase your heat production 2 steps.', (eb) => {
             eb.megacredits(10).startAction.production((pb)=>pb.heat(2));

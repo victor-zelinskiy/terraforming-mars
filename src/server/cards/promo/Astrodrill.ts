@@ -31,6 +31,7 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
       metadata: {
         cardNumber: 'R21',
         description: 'You start with 35 M€ and 3 asteroid resources.',
+        infoText: [{kind: 'action-short', text: 'An asteroid, any resource, or 3 titanium'}],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.megacredits(35).nbsp.resource(CardResource.ASTEROID, {amount: 3, digit});

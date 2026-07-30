@@ -652,6 +652,9 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
         vpTextOverride = entry.text;
         return;
       }
+      if (kind === 'action-short') {
+        return; // not a block — `applyActionShorts` rides it on the action's own
+      }
       if (kind === 'effect' || kind === 'action') {
         const match = entry.tokens !== undefined ? matchCorpFrame(graphics, entry.tokens, renderData) : {};
         authoredGroups.push({kind, id: `authored:${kind}:${i}`, blocks: [{id: `${kind}:authored.${i}`, kind, text: key(entry.text), ...match}]});
@@ -682,6 +685,7 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
   const unlinked = [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]
     .filter((b) => b.graphicId === undefined)
     .map((b) => (b.kind === 'note' ? `${b.id}(note)` : b.id));
+  applyActionShorts(card, graphics, groups, notes);
   return {information: {groups: orderInfoGroups(groups)}, status, unlinked};
 }
 
@@ -847,6 +851,9 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
         vpTextOverride = entry.text;
         return;
       }
+      if (kind === 'action-short') {
+        return; // not a block — `applyActionShorts` rides it on the action's own
+      }
       const match = entry.tokens !== undefined ? graphicOf(matchGraphic(graphics, entry.tokens, card.metadata.renderData)) : {};
       const block: CardInfoBlock = {
         id: `mech:authored.${i}`,
@@ -923,6 +930,8 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     groups.push(vpGroup);
   }
 
+  applyActionShorts(card, graphics, groups, notes);
+
   audit.push({
     name: card.name,
     module,
@@ -987,6 +996,41 @@ function matchGraphic(graphics: ReadonlyArray<GraphicBlockRef>, tokens: Readonly
 /** Only the serializable half of a match (drops the ordering position). */
 function graphicOf(match: GraphicMatchPos): GraphicMatch {
   return {graphicId: match.graphicId, graphicNode: match.graphicNode};
+}
+
+/**
+ * Attach the CURATED SHORT CAPTIONS (`infoText` entries of kind
+ * `action-short`) to the action blocks they describe.
+ *
+ * A short is not a block of its own: it rides the action's block as `short`,
+ * so every consumer reads ONE record — the full rule and the caption the
+ * action browser paints beside the printed formula. Targeting is by GRAPHIC
+ * (`tokens`), with the unambiguous single-action card needing none; anything
+ * the generator cannot place lands in the audit instead of guessing.
+ */
+function applyActionShorts(card: ICard, graphics: ReadonlyArray<GraphicBlockRef>, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
+  const authored = card.metadata.infoText?.filter((entry) => entry.kind === 'action-short') ?? [];
+  if (authored.length === 0) {
+    return;
+  }
+  const blocks = groups
+    .filter((g) => g.kind === 'action')
+    .flatMap((g) => g.blocks.filter((b) => b.kind === 'action'));
+  for (const entry of authored) {
+    let target: CardInfoBlock | undefined;
+    if (entry.tokens !== undefined) {
+      const wanted = matchCorpFrame(graphics, entry.tokens, card.metadata.renderData).graphicId ??
+        graphicOf(matchGraphic(graphics, entry.tokens, card.metadata.renderData)).graphicId;
+      target = blocks.find((b) => b.graphicId === wanted);
+    } else if (blocks.length === 1) {
+      target = blocks[0];
+    }
+    if (target === undefined) {
+      notes.push(`action-short without an unambiguous action target: "${entry.text}"`);
+      continue;
+    }
+    target.short = key(entry.text);
+  }
 }
 
 /**

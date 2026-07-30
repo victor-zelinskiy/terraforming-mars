@@ -35,6 +35,7 @@ export class MarsNomads extends Card implements IActionCard {
       metadata: {
 
         infoText: [
+          {kind: 'action-short', text: 'Move the nomads and take the placement bonus'},
 
           {text: 'Place the Nomads on a non-reserved, empty area on the game board.', tokens: ['nomads']},
 

@@ -30,6 +30,7 @@ export class BioengineeringEnclosure extends Card implements IProjectCard, IActi
       metadata: {
         description: 'Requires 1 science tag to play. Add 2 animals to this card. OTHERS MAY NOT REMOVE ANIMALS FROM THIS CARD.',
         cardNumber: 'A01',
+        infoText: [{kind: 'action-short', text: 'Move an animal to another card'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Remove 1 animal from THIS card to add 1 animal to ANOTHER card.', (eb) => {
             eb.resource(CardResource.ANIMAL).asterix().startAction.resource(CardResource.ANIMAL).asterix();

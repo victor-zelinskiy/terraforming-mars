@@ -23,6 +23,7 @@ export class WaterSplittingPlant extends ActionCard implements IProjectCard {
       requirements: {oceans: 2},
       metadata: {
         cardNumber: '177',
+        infoText: [{kind: 'action-short', text: 'Raise oxygen 1 step'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 3 energy to raise oxygen 1 step.', (eb) => {
             eb.energy(3).startAction.oxygen(1);

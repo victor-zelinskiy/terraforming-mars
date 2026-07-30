@@ -22,6 +22,7 @@ export class Ironworks extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '101',
+        infoText: [{kind: 'action-short', text: 'Gain 1 steel and raise oxygen'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 4 energy to gain 1 steel and raise oxygen 1 step.', (eb) => {
             eb.energy(4, {digit}).startAction.steel(1).oxygen(1);

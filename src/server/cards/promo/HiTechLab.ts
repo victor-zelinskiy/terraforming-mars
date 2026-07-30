@@ -19,6 +19,7 @@ export class HiTechLab extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'X04',
+        infoText: [{kind: 'action-short', text: 'Trade energy for cards and keep one'}],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend any amount of energy to draw the same number of cards. TAKE 1 INTO HAND AND DISCARD THE REST.', (eb) => {
             eb.text('X').energy(1).startAction.text('X').cards(1).asterix();
