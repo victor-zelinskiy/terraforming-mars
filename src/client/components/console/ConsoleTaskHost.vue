@@ -519,7 +519,7 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['submit', 'defer', 'space-pick', 'hand-pick'],
+  emits: ['submit', 'defer', 'space-pick', 'hand-pick', 'result-detached'],
   data() {
     return {
       focusIdx: 0,
@@ -1967,10 +1967,30 @@ export default defineComponent({
       }
       applyDiscardExit(rejects);
       if (sources.length === 0) {
-        commit(); // 0 bought: the calm discard alone
+        // NOTHING BOUGHT. Embedded, the refusal is still a physical outcome:
+        // the card was turned over by THIS action and has to be seen going
+        // away, not blink out with the frame. The reject tumble above is
+        // already running on the app-level exit layer, so it outlives the
+        // collapse; releasing the surface now lets the two overlap instead of
+        // the card vanishing and the board appearing as separate events.
+        if (this.embedded) {
+          this.$emit('result-detached');
+        }
+        commit();
         return;
       }
-      void runHandIntake(sources.map((s) => ({name: s.name, el: s.el})), {mode: 'stack', commit});
+      // THE PURCHASE HANDOFF. `onStaged` is the director's designed seam: it
+      // fires the frame the proxies physically stand over the real cards, so
+      // the host may drop its surface with nothing left to lose. Collapsing
+      // THERE (rather than before, or after the flight) is what makes the two
+      // overlap — the card lifts, the workspace folds under it, the dock comes
+      // back, and only then does the intake's own slot polling find the REAL
+      // geometry and finish the flight. Never a guessed target, never a pause.
+      void runHandIntake(sources.map((s) => ({name: s.name, el: s.el})), {
+        mode: 'stack',
+        commit,
+        onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
+      });
     },
     laneValue(unit: keyof Units): number {
       return this.units[unit] ?? 0;

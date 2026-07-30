@@ -455,6 +455,7 @@
                          :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
                          @submit="onTaskSubmit"
                          @defer="onTaskDefer"
+                         @result-detached="onWorkspaceResultDetached"
                          @space-pick="onTaskSpacePick"
                          @hand-pick="onTaskHandPick" />
       </transition>
@@ -7250,6 +7251,23 @@ export default defineComponent({
      * workspace) also covers the case where the workspace has already gone.
      */
     onEmbeddedDrawnComplete(): void {
+      releaseWorkspaceOutcome();
+    },
+    /**
+     * THE RESULT HAS LEFT THE WORKSPACE — the card is now an independent
+     * object on an app-level flight layer (or the exit layer, for a refusal),
+     * standing over where it was. From this frame the workspace owns nothing
+     * the player still needs, so it may fold.
+     *
+     * Releasing the claim HERE is what makes the two overlap: the card lifts,
+     * the frame collapses under it, the board and the hand dock come back —
+     * and only then does the intake's own slot polling find the dock's REAL
+     * geometry and finish the flight. Folding earlier would take the card down
+     * with the DOM; folding later would leave a dead frame sitting over a
+     * finished decision, and the flight would have to aim at a dock that is
+     * still hidden (or at a guessed rect, which this flow forbids).
+     */
+    onWorkspaceResultDetached(): void {
       releaseWorkspaceOutcome();
     },
     /**
