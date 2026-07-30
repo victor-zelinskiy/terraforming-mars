@@ -63,6 +63,21 @@ export type DealLaunchArgs = {
   proxies: ReadonlyArray<HTMLElement>,
   /** Deck stack element from the layer. */
   deck: HTMLElement | null,
+  /**
+   * The REAL physical source of these cards, when there is one.
+   *
+   * The default dealer is a synthetic bottom-centre point: correct for the
+   * opening deal and the research buy, where cards arrive from "the game"
+   * rather than from a place on screen. But when the player's own action just
+   * took the top card off the HUD project deck, that deck IS on screen with a
+   * live rect — dealing from the bottom of the viewport then contradicts what
+   * the action said («посмотрите верхнюю карту колоды») and breaks the
+   * physical logic the rest of the console keeps.
+   *
+   * Pass the pile element (`.con-deckstack__pile`) and the cards leave from
+   * it. Absent / unmeasurable → the synthetic dealer, unchanged.
+   */
+  originEl?: HTMLElement | null,
   /** When present, run the RESEARCH RISE instead of the deck deal. */
   rise?: RiseLaunchExtras,
 };
@@ -197,8 +212,15 @@ export function createCardDealSequence() {
           state.revealed.add(k);
         }
       };
-      // The dealer sits bottom-centre, above the command bar band.
-      const deckAnchor = {x: layerW / 2, y: layerH - 200};
+      // The dealer sits bottom-centre, above the command bar band — UNLESS the
+      // caller named a real on-screen source, in which case the cards leave
+      // from its live centre (the HUD project pile for an action that took the
+      // top card). Measured here, at launch, so a scrolled / rescaled HUD can
+      // never be dealt from a stale rect; a degenerate rect falls back.
+      const originRect = args.originEl?.getBoundingClientRect();
+      const deckAnchor = originRect !== undefined && originRect.width > 4 ?
+        {x: originRect.left + originRect.width / 2, y: originRect.top + originRect.height / 2} :
+        {x: layerW / 2, y: layerH - 200};
       const rise = args.rise;
       if (rise !== undefined && rise.sources.length === targets.length) {
         handle = runCardRiseTimeline({

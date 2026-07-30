@@ -23,6 +23,17 @@ The **desktop UI (`PlayerHome.vue` + its overlay stack) is FROZEN** (2026-07-15)
 3. **The transition is the SAME PHRASE, one level deeper.** COMMIT → RELEASE (the old content lets go ON THE SPOT) → UNFOLD (the new zone opens from the rect the old one occupied) → REVEAL (its content surfaces from inside). A `v-if` swap is a BLINK and is never acceptable. Frame, band, rail and the carried card do not move — one surface advances, a screen does not replace another.
 4. **Back is one logical level**, and the carried object (the card) survives it.
 
+### The COMMIT BOUNDARY (`consoleWorkspaceFlow.ts` — phases are typed, B is derived)
+`browse` · `configure` are **reversible**. `executing` is a **transient beat, never a navigation destination** — a back stack that records it lets the player walk into a state whose only content is "wait", describing work that already finished. `committed` · `completing` are **past the boundary**: the move cannot be unmade.
+- **B is four verbs, never one branch guessing**: `close` (browse) · `back` (configure) · **`collapse`** (committed — hide to read the board, the decision stays live) · `none` (a beat in flight, which also absorbs input so a double submit is impossible by construction). Label follows verb from the same function.
+- **Collapse ≠ close.** The workspace hides (`v-show`) and keeps its state: same revealed card, same picks, no replayed cinematic, no second trip to the server. It rides the existing deferred-prompt flag, so «свернуть» stays ONE concept.
+
+### The HEADER grammar (`consoleWorkspaceHeader.ts`)
+**Stable context BEFORE mutable stage:** `ДЕЙСТВИЯ КАРТ › СОЮЗ ИЗОБРЕТАТЕЛЕЙ › ПОКУПКА`. The crumb only ever *gains a tail*; root and subject are the same vnodes all flow long, so **only the stage segment animates** (crossfade in a shared grid cell — `mode="out-in"` empties the slot and blinks). Putting the stage in the middle re-flows the line every phase and reads as arriving somewhere else.
+
+### Physical causality
+A card **always leaves from its real on-screen source** — an action that took the top card deals from `.con-deckstack__pile`, never from a synthetic dealer. A result **outlives the surface that produced it**: it detaches into an app-level layer, the workspace collapses, and only then does it fly to the *measured* destination (hand dock / discard). Every animation answers: where did this come from, why is it moving, where is it going.
+
 Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`.
 
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.

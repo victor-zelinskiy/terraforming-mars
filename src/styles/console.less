@@ -15391,7 +15391,22 @@ html.console-mode {
     align-items: center;
     /* The longer word decides the width; both children share the cell. */
     > * { grid-area: step; }
+    /* A long card name must never push the stage off the line: the SUBJECT
+       cell is the one that yields, and it truncates rather than wrapping
+       (the header is a single line by contract — a second row would move
+       every rect the descend phrase measures from). */
+    min-width: 0;
+    > .con-cardactions__title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
+/* A COMMITTED stage is a statement, not an invitation: it drops the inviting
+   cyan for the calm amber the rest of the console uses for "in effect".
+   Colour carries the state on `color` (perf-lite keeps it — never a filter). */
+.con-cardactions__kicker-step--committed { color: fade(@con-amber, 92%); }
 .con-cardactions-headswap-enter-active,
 .con-cardactions-headswap-leave-active {
     transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;

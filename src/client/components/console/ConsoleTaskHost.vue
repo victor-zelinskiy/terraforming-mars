@@ -1440,7 +1440,16 @@ export default defineComponent({
         return;
       }
       const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
-      this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl(), rise: this.riseExtras()});
+      this.deal.launch({
+        slotCards, proxies: layer.proxyEls(), deck: layer.deckEl(), rise: this.riseExtras(),
+        // EMBEDDED as a workspace outcome: these cards were physically taken
+        // off the HUD project deck by the action the player just confirmed, so
+        // they must leave FROM it. Dealing them from the synthetic bottom
+        // dealer contradicts «посмотрите верхнюю карту колоды» and breaks the
+        // causal chain the whole flow is built on — the player must see where
+        // the card came from. Outside the workspace the dealer is unchanged.
+        originEl: this.embedded ? document.querySelector<HTMLElement>('.con-deckstack__pile') : null,
+      });
     },
     /**
      * THE RESEARCH RISE (the flagship draft→research transition): when the

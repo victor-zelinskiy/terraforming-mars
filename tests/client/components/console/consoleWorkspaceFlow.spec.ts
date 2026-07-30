@@ -1,0 +1,110 @@
+import {expect} from 'chai';
+import {
+  acceptsInput, backLabelFor, backVerbFor, isCommitted, isNavigationDestination, isReversible,
+  WorkspacePhase, workspacePhaseOf,
+} from '@/client/console/consoleWorkspaceFlow';
+import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
+
+const ALL: ReadonlyArray<WorkspacePhase> = ['browse', 'configure', 'executing', 'committed', 'completing'];
+
+describe('consoleWorkspaceFlow — the commit boundary', () => {
+  it('splits the phases at the commit: browse/configure are undoable, the rest are not', () => {
+    expect(ALL.filter(isReversible)).to.deep.eq(['browse', 'configure']);
+    expect(ALL.filter(isCommitted)).to.deep.eq(['executing', 'committed', 'completing']);
+  });
+
+  /**
+   * THE BUG THIS MODEL EXISTS FOR. B on the purchase stage used to walk back
+   * into the «берём карты из колоды…» beat — a machine state with nothing to
+   * act on, describing work that had already finished. A beat is not a place.
+   */
+  it('REGRESSION: an execution beat is NEVER a navigation destination', () => {
+    expect(isNavigationDestination('executing')).to.eq(false);
+    expect(isNavigationDestination('completing')).to.eq(false);
+    expect(ALL.filter(isNavigationDestination)).to.deep.eq(['browse', 'configure']);
+  });
+
+  it('B is FOUR different verbs, one per phase — never one branch guessing', () => {
+    expect(backVerbFor('browse')).to.eq('close');
+    expect(backVerbFor('configure')).to.eq('back');
+    // Past the commit the move cannot be unmade, so B stops meaning "undo".
+    expect(backVerbFor('committed')).to.eq('collapse');
+    // A beat in flight swallows B: nothing to cancel, nothing to come back to.
+    expect(backVerbFor('executing')).to.eq('none');
+    expect(backVerbFor('completing')).to.eq('none');
+  });
+
+  it('the LABEL follows the verb, so the bar can never say one thing while B does another', () => {
+    expect(backLabelFor('browse')).to.eq('Close');
+    expect(backLabelFor('configure')).to.eq('Cancel');
+    expect(backLabelFor('committed')).to.eq('Minimize');
+    expect(backLabelFor('executing')).to.eq(undefined);
+  });
+
+  it('a transient beat absorbs input — a double submit is impossible by construction', () => {
+    expect(acceptsInput('executing')).to.eq(false);
+    expect(acceptsInput('completing')).to.eq(false);
+    expect(acceptsInput('configure')).to.eq(true);
+    expect(acceptsInput('committed')).to.eq(true);
+  });
+
+  describe('workspacePhaseOf — derived, never assigned', () => {
+    const base = {open: false, committed: false, resultUp: false, finishing: false};
+
+    it('walks the real flow: browse → configure → executing → committed → completing', () => {
+      expect(workspacePhaseOf(base)).to.eq('browse');
+      expect(workspacePhaseOf({...base, open: true})).to.eq('configure');
+      // Committed but nothing on stage yet — the machine beat.
+      expect(workspacePhaseOf({...base, open: true, committed: true})).to.eq('executing');
+      expect(workspacePhaseOf({...base, open: true, committed: true, resultUp: true})).to.eq('committed');
+      expect(workspacePhaseOf({...base, open: true, committed: true, resultUp: true, finishing: true}))
+        .to.eq('completing');
+    });
+
+    it('the pending beat is EXECUTING, not committed — so B cannot collapse into an empty stage', () => {
+      const phase = workspacePhaseOf({open: true, committed: true, resultUp: false, finishing: false});
+      expect(phase).to.eq('executing');
+      expect(backVerbFor(phase)).to.eq('none');
+    });
+  });
+});
+
+describe('consoleWorkspaceHeader — stable context before mutable stage', () => {
+  it('emits root → subject → stage, in READ order', () => {
+    const h = buildWorkspaceHeader({root: 'Card actions', subject: {text: 'Inventors Guild'}, stage: 'Buying'});
+    expect(h.segments.map((s) => s.role)).to.deep.eq(['root', 'subject', 'stage']);
+    expect(h.segments.map((s) => s.text)).to.deep.eq(['Card actions', 'Inventors Guild', 'Buying']);
+  });
+
+  /**
+   * The whole point of the grammar: across a phase change ONLY the tail moves.
+   * The old order (root › stage › subject) re-flowed the line every phase and
+   * read as arriving somewhere else.
+   */
+  it('a phase change alters ONLY the stage segment — root and subject are identical', () => {
+    const setup = buildWorkspaceHeader({root: 'Card actions', subject: {text: 'Inventors Guild'}, stage: 'Action setup'});
+    const buying = buildWorkspaceHeader({root: 'Card actions', subject: {text: 'Inventors Guild'}, stage: 'Buying'});
+    expect(buying.segments[0]).to.deep.eq(setup.segments[0]);
+    expect(buying.segments[1]).to.deep.eq(setup.segments[1]);
+    expect(buying.segments[2].text).to.not.eq(setup.segments[2].text);
+    // The stage key is what the transition is keyed on — nothing else re-animates.
+    expect(buying.stageKey).to.eq('Buying');
+    expect(setup.stageKey).to.eq('Action setup');
+  });
+
+  it('the crumb only ever GAINS a tail — the browse layer is just the root', () => {
+    expect(buildWorkspaceHeader({root: 'Card actions'}).segments.map((s) => s.role)).to.deep.eq(['root']);
+    expect(buildWorkspaceHeader({root: 'Card actions', subject: {text: 'X'}}).segments.map((s) => s.role))
+      .to.deep.eq(['root', 'subject']);
+  });
+
+  it('an empty subject/stage is omitted rather than rendered blank', () => {
+    const h = buildWorkspaceHeader({root: 'Card actions', subject: {text: ''}, stage: ''});
+    expect(h.segments.map((s) => s.role)).to.deep.eq(['root']);
+  });
+
+  it('carries the committed flag so the stage can read as a statement, not an invitation', () => {
+    expect(buildWorkspaceHeader({root: 'R', stage: 'Buying', committed: true}).committed).to.eq(true);
+    expect(buildWorkspaceHeader({root: 'R', stage: 'Action setup'}).committed).to.eq(false);
+  });
+});

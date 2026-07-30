@@ -219,12 +219,18 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <!-- COLLAPSE, not close: past the commit boundary B hides this
+             workspace (v-show) so the board can be read, and the committed
+             decision keeps living inside it — same revealed card, same picks,
+             no replayed cinematic, no restarted server flow. Destroying it
+             here is what would force the flow to be rebuilt on re-open. -->
         <ConsoleCardActions v-if="consoleState.sheet === 'cardActions'"
-                            v-show="!handPickActive && !playedPickActive && !repeatPickActive"
+                            v-show="!handPickActive && !playedPickActive && !repeatPickActive && !workspaceCollapsed"
                             ref="cardActions"
                             :playerView="playerView"
                             @submit-batch="onCardActionsSubmitBatch"
                             @reveal-ack="onCardActionsRevealAck"
+                            @collapse="onCardActionsCollapse"
                             @close="onCardActionsClose" />
       </transition>
 
@@ -2221,6 +2227,15 @@ export default defineComponent({
     /** Something is (or is about to be) re-homed into the workspace's zone. */
     workspaceOutcomeEmbedded(): boolean {
       return this.revealEmbedTarget !== undefined || this.taskEmbedTarget !== undefined;
+    },
+    /**
+     * The workspace is COLLAPSED — hidden for board inspection while its
+     * committed decision stays alive. Rides the existing deferred-prompt flag
+     * (the board home already renders the restore card for it), so there is
+     * one «свернуть» in the console, not two.
+     */
+    workspaceCollapsed(): boolean {
+      return workspaceOutcomeClaimed() && this.consoleState.task.deferred;
     },
     /** A claimed batch whose workspace zone is not mounted yet → hold the
      *  reveal rather than let the full-bleed band take it for a frame. */
@@ -4632,6 +4647,14 @@ export default defineComponent({
         return;
       }
       void this.$nextTick(() => {
+        // COLLAPSED is not FINISHED. Deferring the prompt unmounts its host, so
+        // the embed goes false — but the decision is still outstanding and the
+        // player is coming back to it. Releasing here would drop the claim,
+        // fold the workspace, and hand the prompt back to a standalone band the
+        // moment it was restored: the collapse would silently become a close.
+        if (this.workspaceCollapsed) {
+          return;
+        }
         if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
           releaseWorkspaceOutcome();
         }
@@ -6577,6 +6600,21 @@ export default defineComponent({
     },
     onCardActionsClose(): void {
       closeConsoleLayers();
+    },
+    /**
+     * B past the COMMIT BOUNDARY — collapse, not back. The workspace hides so
+     * the board can be read; the committed decision keeps living inside it.
+     *
+     * It rides the existing deferred-prompt flag, which already gives the
+     * board home its restore card, so «свернуть» stays ONE concept in the
+     * console. The claim is deliberately untouched: it is what keeps the
+     * prompt routed here, so on restore the player lands straight back on the
+     * live stage — same revealed card, same picks, no replayed cinematic and
+     * no second trip to the server.
+     */
+    onCardActionsCollapse(): void {
+      this.consoleState.task.deferred = true;
+      this.consoleState.section = 'board';
     },
     /** B on the repeat-pick grid → cancel the whole repeat pick (return to the
      *  source composer with the OLD choice kept). */

@@ -97,25 +97,31 @@
                a long card name can never reflow the header. -->
           <template v-if="composer !== undefined">
             <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-            <!-- The STEP crossfades between phases (Настройка действия ⇄
-                 Результат вскрытия) — never a blank beat, and never a value
-                 that changes on its own mid-entry. -->
-            <!-- CROSSFADE, not out-in: the two words share one grid cell and
-                 pass through each other, so the step CHANGES instead of
-                 disappearing and reappearing. The cell sizes to the widest of
-                 them, so the card name beside it never shifts mid-swap. -->
-            <span class="con-cardactions__kicker-swap">
-              <transition name="con-cardactions-headswap">
-                <span class="con-cardactions__kicker-step" :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
-              </transition>
-            </span>
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">·</span>
-            <!-- The composed card's name — the operation's title. It only ever
-                 swaps on a Viron repeat re-point; across an outcome phase it
-                 is the ONE thing that must not move at all. -->
+            <!-- STABLE CONTEXT BEFORE MUTABLE STAGE (consoleWorkspaceHeader):
+                   ДЕЙСТВИЯ КАРТ › СОЮЗ ИЗОБРЕТАТЕЛЕЙ › ПОКУПКА
+                 The SUBJECT is the anchor of the whole flow and stands FIXED;
+                 only the tail changes. The old grammar put the stage in the
+                 middle and the card last, so every phase re-flowed the crumb
+                 and the eye re-read the whole line — it looked like arriving
+                 somewhere else, the one impression this flow must never give.
+                 It swaps only on a Viron repeat re-point. -->
             <span class="con-cardactions__kicker-swap">
               <transition name="con-cardactions-headswap">
                 <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
+              </transition>
+            </span>
+            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
+            <!-- The STAGE — the ONLY animating segment. Crossfade, never
+                 `mode="out-in"`: out-in empties the slot between the two words,
+                 and at 110 ms each way that gap is a visible blink on the one
+                 line that is supposed to prove the flow never broke. Both
+                 words share ONE grid cell sized to the wider of them, so
+                 nothing beside them shifts mid-swap. -->
+            <span class="con-cardactions__kicker-swap">
+              <transition name="con-cardactions-headswap">
+                <span class="con-cardactions__kicker-step"
+                      :class="{'con-cardactions__kicker-step--committed': outcomeFlow !== undefined}"
+                      :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
               </transition>
             </span>
           </template>
@@ -517,6 +523,7 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {backVerbFor, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomePresenting,
@@ -595,7 +602,7 @@ export default defineComponent({
      */
     contextPlayer: {type: Object as PropType<PlayerViewModel['thisPlayer']>, required: false, default: undefined},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack'],
+  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse'],
   data() {
     return {
       consoleCardActionsUi,
@@ -829,6 +836,22 @@ export default defineComponent({
     /** The claim this workspace raised is still alive (drives the fold-back). */
     outcomeClaimLive(): boolean {
       return workspaceOutcomeState.sourceCard !== '';
+    },
+    /**
+     * WHERE THE FLOW STANDS relative to its commit (consoleWorkspaceFlow).
+     * Derived, never assigned, so it cannot drift from the real state — and
+     * it is what B, the command bar and the specs all read.
+     */
+    workspacePhase(): WorkspacePhase {
+      return workspacePhaseOf({
+        open: this.composer !== undefined,
+        committed: this.outcomeFlow !== undefined,
+        // The outcome is INTERACTIVE once something is actually on stage; the
+        // «pending» beat before that is machine time, not a destination.
+        resultUp: workspaceOutcomeState.stage === 'presenting' ||
+          (this.outcomeFlow?.kind === 'deck-check' && this.outcomeFlow.payload !== undefined),
+        finishing: false,
+      });
     },
     revealSignal(): string {
       if (this.outcomeFlow?.kind !== 'deck-check' || this.outcomeFlow.payload !== undefined) {
@@ -1142,6 +1165,23 @@ export default defineComponent({
     },
     // ── input (the shell routes every intent here while open) ───────────
     handleIntent(intent: GamepadIntent): void {
+      // THE COMMIT BOUNDARY owns B (consoleWorkspaceFlow). Past the commit the
+      // move cannot be unmade, so B stops meaning «отмена» and starts meaning
+      // «свернуть и посмотреть поле» — the decision stays live and the player
+      // returns straight to it. Routed HERE, above the composer, because the
+      // composer's own B is the pre-commit «отмена настройки» and must not be
+      // reachable once the action has been performed: that is exactly how B
+      // used to walk back into the finished «берём карты из колоды…» beat.
+      if (intent.kind === 'press' && consoleActionOf(intent) === 'back') {
+        const verb = backVerbFor(this.workspacePhase);
+        if (verb === 'collapse') {
+          this.collapseWorkspace();
+          return;
+        }
+        if (verb === 'none') {
+          return; // a machine beat owns the screen; nothing to undo
+        }
+      }
       if (this.composer !== undefined) {
         const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
         ref?.handleIntent(intent);
@@ -1319,6 +1359,21 @@ export default defineComponent({
     /** OK on the shown reveal outcome: mark the reveal seen (the shell owns
      *  the dismissed-key), release the claim and return to the refreshed
      *  browse grid — the action now reads «Активирована» in the list. */
+    /**
+     * B on a COMMITTED stage: hide the workspace so the player can read the
+     * board, WITHOUT unwinding anything. The decision stays live, the revealed
+     * card stays the same card, the server flow is not restarted and the draw
+     * cinematic is not replayed — re-opening lands straight back on this stage.
+     *
+     * It rides the EXISTING deferred-prompt mechanism rather than inventing a
+     * second one: the prompt is already a task, `task.deferred` is already the
+     * console's «свернуть», and the board home already renders the restore
+     * card for it. The only new part is that the workspace hides (v-show)
+     * instead of being torn down — which is what keeps the state alive.
+     */
+    collapseWorkspace(): void {
+      this.$emit('collapse');
+    },
     onRevealAck(): void {
       this.$emit('reveal-ack');
       this.closeComposer();
