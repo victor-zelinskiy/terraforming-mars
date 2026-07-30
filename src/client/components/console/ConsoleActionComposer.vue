@@ -45,16 +45,12 @@
           <b>{{ displayedStoredCount }}</b>
           <span>{{ $t('on this card') }}</span>
         </div>
-        <!-- POST-COMMIT: the hero becomes CONTEXT. The quiet role caption names
-             it («ИСТОЧНИК») and carries the L3 affordance the command bar also
-             advertises — the decision now belongs to the result on the right,
-             but the source stays one press away, never dimmed, never gone.
-             (Pre-commit the card IS the protagonist; captioning it then would
-             be noise.) -->
-        <div v-if="outcome !== undefined" class="con-composer__cardrole" aria-hidden="true">
-          <GamepadGlyph control="stickL" class="con-composer__cardrole-glyph" />
-          <span>{{ $t('Source') }}</span>
-        </div>
+        <!-- (No stage-specific caption under the hero — deliberately. A local
+             «L3 ИСТОЧНИК» line shipped once and participated in the column's
+             layout, so the source card SHIFTED between setup and result — the
+             one thing this slot must never do. The L3 verb lives in the ONE
+             command bar; the hero column's children are identical in every
+             phase, which is what makes its geometry stable by construction.) -->
       </div>
       <div class="con-composer__actright">
 

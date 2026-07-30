@@ -261,13 +261,27 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
       contentCascade(id, el, tl, s(40));
       // The wheel's pressed symbol ECHOES on the destination (a local
       // materialize — nothing travels), the one handoff cue kept here.
+      // ⚠ The echo target is the surface's PERMANENT identity emblem, and the
+      // surface lives a whole flow after this one-shot — so the echo must be
+      // UNSTRANDABLE. The old fromTo(autoAlpha: 0) applied its from-state at
+      // BUILD (immediateRender), and a timeline killed before the tween's cue
+      // never fires onInterrupt on the unstarted child: the emblem stayed at
+      // inline opacity 0 for the workspace's whole life («the lightning is
+      // just gone»). Now: (1) every enter first HEALS any stale inline state;
+      // (2) the echo is scale-only (opacity is never touched — NORTH STAR:
+      // the identity symbol never blinks) with immediateRender: false, so an
+      // early kill leaves NOTHING behind.
       const echo = kind === 'wheel-handoff' ? takeWheelEcho() : undefined;
       const echoEl = echo !== undefined ?
         el.querySelector<HTMLElement>(`[data-wheel-anchor="${echo}"]`) : null;
       if (echoEl !== null) {
+        gsap.set(echoEl, {clearProps: 'transform,opacity,visibility'});
         tl.fromTo(echoEl,
-          {autoAlpha: 0, scale: 0.8},
-          {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
+          {scale: 0.8, transformOrigin: '50% 50%'},
+          {
+            scale: 1, duration: s(160), ease: 'power2.out', immediateRender: false, clearProps: 'transform',
+            onInterrupt: () => gsap.set(echoEl, {clearProps: 'transform'}),
+          }, s(90));
       }
       return tl;
     });
@@ -375,9 +389,15 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
       }
       contentCascade(id, el, tl, s(40));
       if (echoEl !== null) {
+        // Same unstrandable echo as the workspace branch above: heal first,
+        // then a scale-only pop that never touches the emblem's opacity.
+        gsap.set(echoEl, {clearProps: 'transform,opacity,visibility'});
         tl.fromTo(echoEl,
-          {autoAlpha: 0, scale: 0.8},
-          {autoAlpha: 1, scale: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity,visibility'}, s(90));
+          {scale: 0.8, transformOrigin: '50% 50%'},
+          {
+            scale: 1, duration: s(160), ease: 'power2.out', immediateRender: false, clearProps: 'transform',
+            onInterrupt: () => gsap.set(echoEl, {clearProps: 'transform'}),
+          }, s(90));
       }
       return tl;
     });

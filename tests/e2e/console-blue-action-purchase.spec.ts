@@ -202,10 +202,34 @@ for (const profile of PROFILES) {
         await key(page, 'ArrowUp', 1200);
       }
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
+      await page.waitForTimeout(700); // the wheel-handoff enter fully settles
+      const emblemInBrowse = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? ''};
+      });
       await key(page, 'Enter', 1200);
       await expect(page.locator('.con-cardactions__stagewrap .con-composer--stage')).toHaveCount(1);
       // The one-word stage marker: «НАСТРОЙКА», never «НАСТРОЙКА ДЕЙСТВИЯ».
       expect((await page.locator('.con-cardactions__kicker-step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
+      await page.waitForTimeout(600); // the entry FLIP fully settles
+      // THE IDENTITY SYMBOL: the lightning is part of the parent anchor in
+      // EVERY state — measurably drawn, not just a reserved box (a stranded
+      // wheel-echo once left it at inline opacity 0 for the workspace's life).
+      const emblemProbe = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const svg = el.querySelector('svg');
+        const r = el.getBoundingClientRect();
+        return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? '', w: r.width, h: r.height, hasSvg: svg !== null,
+          svgOpacity: svg !== null ? getComputedStyle(svg).opacity : ''};
+      });
+      const emblemStory = `browse=${JSON.stringify(emblemInBrowse)} setup=${JSON.stringify(emblemProbe)}`;
+      expect(emblemProbe.hasSvg, `emblem: ${emblemStory}`).toBe(true);
+      expect(parseFloat(emblemProbe.opacity), `emblem: ${emblemStory}`).toBeGreaterThan(0.9);
+      expect(emblemProbe.visibility, `emblem: ${emblemStory}`).toBe('visible');
+      expect(emblemProbe.w).toBeGreaterThan(4);
+      // The SOURCE STABILITY baseline: the hero card wrap's box at setup.
+      const heroAtSetup = await page.locator('.con-composer__actcardwrap').boundingBox();
+      expect(heroAtSetup).not.toBeNull();
       await shoot(page, `${profile.tag}-01-setup`);
 
       // ── COMMIT (the CTA is the focused row of a no-decision action). ────
@@ -219,6 +243,15 @@ for (const profile of PROFILES) {
       // The workspace chrome and the source hero never went anywhere.
       await expect(page.locator('.con-cardactions')).toHaveCount(1);
       await expect(page.locator('.con-composer--stage [data-action-focus-card][data-zoom-slot="Business Network"]')).toHaveCount(1);
+      // THE SOURCE STABILITY CONTRACT (NORTH STAR): the hero card is the same
+      // spatial object across the commit — same box to the pixel. Any
+      // stage-specific label leaking into its column shows up here.
+      const heroAtBuy = await page.locator('.con-composer__actcardwrap').boundingBox();
+      expect(heroAtBuy).not.toBeNull();
+      expect(Math.abs(heroAtBuy!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroAtBuy!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroAtBuy!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroAtBuy!.height - heroAtSetup!.height)).toBeLessThanOrEqual(1);
       // The breadcrumb advanced its TAIL only, into the committed accent.
       // (Both keyed words coexist in the swap cell during the crossfade —
       // wait for the leaving one to finish before asserting the survivor.)
@@ -233,11 +266,17 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cards__verdict--price')).toBeVisible();
       expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--zoom').count()).toBe(0);
       expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--go').count()).toBe(0);
-      // The post-commit source caption + the bar's L3 hint.
-      await expect(page.locator('.con-composer__cardrole')).toBeVisible();
+      // No stage-specific labels under the SOURCE card — its column must be
+      // byte-identical across phases (the stability contract); the L3 verb
+      // lives in the ONE command bar only.
+      expect(await page.locator('.con-composer__cardrole').count()).toBe(0);
       // (Source text, not the CSS uppercase; the Deck bar drops the
       //  self-evident hints first — this one must survive on every profile.)
       await expect(page.locator('.con-cmdbar')).toContainText(/Источник/i);
+      // The deal cinematic has fully HANDED OVER (no slot still holds its
+      // card for a flying proxy) — the screenshot shows the settled stage.
+      await expect(page.locator('.con-cards__slot.con-deal-hold')).toHaveCount(0, {timeout: 12_000});
+      await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-02-embedded-buy`);
 
       // ── L3: fullscreen the SOURCE over the living stage. ────────────────

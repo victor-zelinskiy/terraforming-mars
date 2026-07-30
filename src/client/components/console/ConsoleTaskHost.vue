@@ -287,8 +287,13 @@
                          bar cannot say: the card's own economics. -->
                     <template v-else-if="embedded">
                       <template v-if="embeddedSingleBuy">
+                        <!-- «Покупка: 3», not «Цена карты»: the card face already
+                             wears its PRINTED cost badge, and a second «price of
+                             the card» beside it read as a contradiction — this
+                             number is what BUYING it to hand costs (the research
+                             cost, discounts included server-side). -->
                         <span class="con-cards__verdict con-cards__verdict--price">
-                          <span>{{ $t('Card price') }}: <b>{{ buyCostPerCard }}</b></span>
+                          <span>{{ $t('Purchase') }}: <b>{{ buyCostPerCard }}</b></span>
                           <i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i>
                         </span>
                         <span v-if="isPicked(focusedCardEntry.card.name) && cardBuyAffordable" class="con-cards__verdict con-cards__verdict--picked">
