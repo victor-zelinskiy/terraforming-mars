@@ -1,6 +1,8 @@
 import {expect} from 'chai';
 import {
   claimWorkspaceOutcome,
+  markWorkspaceOutcomeAnswerIn,
+  markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
   releaseWorkspaceOutcome,
   resetWorkspaceOutcome,
@@ -9,6 +11,7 @@ import {
   workspaceClaimsDrawReveal,
   workspaceClaimsPick,
   workspaceOutcomeAdmits,
+  workspaceOutcomeBeatPending,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -135,8 +138,48 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     // The prompt is STILL routed to the workspace, so restoring re-opens it
     // rather than letting the prompt rise as a standalone band.
     expect(workspaceClaimsPick()).to.eq(true);
-    // The execution beat is not owed a second time on the way back in.
-    expect(workspaceOutcomeState.dwellDone).to.eq(false);
+    // The execution beat already played; it is not owed a second time.
+    expect(workspaceOutcomeState.answerIn).to.eq(false);
+  });
+
+  /**
+   * THE EXECUTION BEAT is an animation, not a stall. `answerIn` and `beatDone`
+   * are deliberately SEPARATE: the beat starts at the confirm (a card back
+   * needs no data) and turns over on the answer. Collapsing them into one flag
+   * — or gating the answer on the beat — deadlocks the flow.
+   */
+  it('the beat and the answer are independent: it starts before the answer and ends after it', () => {
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
+    // At the confirm: the card is already travelling, nothing has answered.
+    expect(workspaceOutcomeState.answerIn).to.eq(false);
+    expect(workspaceOutcomeBeatPending()).to.eq(true);
+
+    // The answer lands — the card may turn over, but the beat is not over yet
+    // (a fast server must still watch the flip, not skip it).
+    markWorkspaceOutcomeAnswerIn();
+    expect(workspaceOutcomeState.answerIn).to.eq(true);
+    expect(workspaceOutcomeBeatPending()).to.eq(true);
+
+    // The flight settles — only now may the real surface take the zone.
+    markWorkspaceOutcomeBeatDone();
+    expect(workspaceOutcomeBeatPending()).to.eq(false);
+  });
+
+  it('the answer flag needs a live claim — a stray publish cannot arm a dead flow', () => {
+    expect(workspaceOutcomeClaimed()).to.eq(false);
+    markWorkspaceOutcomeAnswerIn();
+    expect(workspaceOutcomeState.answerIn).to.eq(false);
+  });
+
+  it('a new activation re-arms the beat (the previous flight never satisfies the next)', () => {
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
+    markWorkspaceOutcomeAnswerIn();
+    markWorkspaceOutcomeBeatDone();
+    expect(workspaceOutcomeBeatPending()).to.eq(false);
+
+    claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);
+    expect(workspaceOutcomeState.answerIn).to.eq(false);
+    expect(workspaceOutcomeBeatPending()).to.eq(true);
   });
 
   it('nodeIndex defaults to 0 and is cleared on release (no bleed into the next activation)', () => {

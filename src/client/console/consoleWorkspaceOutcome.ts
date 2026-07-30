@@ -103,39 +103,64 @@ export const workspaceOutcomeState = reactive({
    */
   phaseKey: '' as string,
   /**
-   * The EXECUTION BEAT has been on screen long enough to be read.
+   * The server's answer has ARRIVED. Published by the shell the moment the
+   * artifact exists (a drawn batch, a card prompt) — SEPARATELY from whether
+   * it may be shown yet, because the execution beat uses this to decide when
+   * to turn the card over.
+   */
+  answerIn: false,
+  /**
+   * The EXECUTION BEAT has played out — the card has physically come off the
+   * deck, turned over, and settled. Until then the real surface is withheld.
    *
-   * A fast local server answers in well under a frame budget, so «ДОБОР КАРТ»
-   * and the deck's own reaction flashed past before the player could register
-   * that the stage had even changed — the operation lost its middle and read
-   * as a jump from confirm to a purchase screen. This is not a spinner and not
-   * a fake delay: the beat is the moment the action is physically happening,
-   * and it is given the time to be a beat.
+   * This is deliberately NOT a timer. A minimum dwell is just a stall: the
+   * screen sits there doing nothing and the player waits on the UI rather than
+   * on the game. The time is bought by the ANIMATION instead — the card peels
+   * off the pile face-down immediately (a card back needs no data, so this
+   * starts at confirm, not at the answer), travels, and turns over only once
+   * `answerIn` lands. A fast server flips right after touchdown; a slow one
+   * honestly holds the card face-down on the slot, which is a real "being
+   * drawn" state rather than a fake delay — and it hides the latency inside a
+   * beat the player wanted to watch anyway.
    *
    * Reactive because the hold that consumes it is a render-time predicate.
    */
-  dwellDone: false,
+  beatDone: false,
 });
 
 /**
- * How long the execution beat is guaranteed to hold the stage. Long enough to
- * read a two-word stage name and see the deck let go of a card; short enough
- * that a slow server, not this, is what the player waits on.
+ * Backstop only: the beat must never withhold the outcome forever if its
+ * flight never runs (no DOM, reduced motion taking an early path, a stalled
+ * GSAP timeline in a backgrounded tab). Generous, because the flight itself is
+ * ~1.4 s and the honest face-down hold on a slow server is unbounded by design.
  */
-const MIN_DWELL_MS = 800;
+const BEAT_SAFETY_MS = 6000;
 
-let dwellTimer: ReturnType<typeof setTimeout> | undefined;
+let beatTimer: ReturnType<typeof setTimeout> | undefined;
 
-function clearDwell(): void {
-  if (dwellTimer !== undefined) {
-    clearTimeout(dwellTimer);
-    dwellTimer = undefined;
+function clearBeat(): void {
+  if (beatTimer !== undefined) {
+    clearTimeout(beatTimer);
+    beatTimer = undefined;
   }
 }
 
-/** Is the execution beat still owed its minimum time on screen? */
-export function workspaceOutcomeDwellPending(): boolean {
-  return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.dwellDone;
+/** The shell: the artifact exists — the card may turn over. */
+export function markWorkspaceOutcomeAnswerIn(): void {
+  if (workspaceOutcomeState.sourceCard !== '') {
+    workspaceOutcomeState.answerIn = true;
+  }
+}
+
+/** The execution beat finished (the flight settled, or the backstop fired). */
+export function markWorkspaceOutcomeBeatDone(): void {
+  clearBeat();
+  workspaceOutcomeState.beatDone = true;
+}
+
+/** Is the execution beat still playing? */
+export function workspaceOutcomeBeatPending(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.beatDone;
 }
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
@@ -205,15 +230,13 @@ export function claimWorkspaceOutcome(
   // The execution beat starts owing its minimum time from the confirm — not
   // from when the answer happens to land, or a fast server would shorten the
   // very beat that explains what the action is doing.
-  workspaceOutcomeState.dwellDone = false;
-  clearDwell();
+  workspaceOutcomeState.answerIn = false;
+  workspaceOutcomeState.beatDone = false;
+  clearBeat();
   if (typeof setTimeout === 'function') {
-    dwellTimer = setTimeout(() => {
-      dwellTimer = undefined;
-      workspaceOutcomeState.dwellDone = true;
-    }, MIN_DWELL_MS);
+    beatTimer = setTimeout(markWorkspaceOutcomeBeatDone, BEAT_SAFETY_MS);
   } else {
-    workspaceOutcomeState.dwellDone = true;
+    workspaceOutcomeState.beatDone = true;
   }
   armSafety();
 }
@@ -238,8 +261,9 @@ export function markWorkspaceOutcomePresenting(): void {
 /** Drop the claim (the stage folded, the outcome was acknowledged, unmount). */
 export function releaseWorkspaceOutcome(): void {
   clearSafety();
-  clearDwell();
-  workspaceOutcomeState.dwellDone = false;
+  clearBeat();
+  workspaceOutcomeState.answerIn = false;
+  workspaceOutcomeState.beatDone = false;
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.nodeIndex = 0;

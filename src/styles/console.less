@@ -16098,6 +16098,13 @@ html.console-mode {
         flex: 1;
         align-self: stretch;
     }
+    /* THE EXECUTION BEAT's landing slot: the same box the revealed card will
+       occupy, so the proxy touches down pixel-true and the real surface takes
+       over without a jump. It carries only a calm waiting frame — the card
+       travelling into it IS the state, so there is nothing else to draw. */
+    .con-composer__revealslot--beat {
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
+    }
     .con-composer__revealslot {
         /* Deliberately LARGER than the source hero (1.04): the revealed card
            is the phase's protagonist. */

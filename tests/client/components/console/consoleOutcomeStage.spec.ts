@@ -66,7 +66,13 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     // is missing drops its content on the floor.
     expect(w.find('[data-embed-slot="workspace-reveal"]').exists()).to.eq(true);
     expect(workspaceOutcomeState.embedSlot).to.eq('[data-embed-slot="workspace-reveal"]');
-    expect(w.find('.con-composer__revealstatus').text()).to.contain('Drawing cards');
+    // The beat NAMES the stage; it does not apologise for a wait. The loading
+    // affordance appears only once the card has landed and the server is still
+    // silent — the flight itself is the state until then.
+    expect(w.find('.con-composer__revealstatus').text()).to.contain('Card draw');
+    expect(w.find('.con-composer__revealstatus-spin').exists()).to.eq(false);
+    // The landing slot the deck flight aims at is standing.
+    expect(w.find('.con-composer__revealslot--beat').exists()).to.eq(true);
     // The decision column yielded.
     expect(w.find('.con-composer__ctadock').exists()).to.eq(false);
     w.unmount();
@@ -80,7 +86,8 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     await w.vm.$nextTick();
 
     expect(w.find('[data-embed-slot="workspace-reveal"]').exists()).to.eq(true);
-    expect(w.find('.con-composer__revealstatus').exists()).to.eq(false);
+    // The beat's own slot + status yield to the re-homed content.
+    expect(w.find('.con-composer__revealslot--beat').exists()).to.eq(false);
     w.unmount();
   });
 

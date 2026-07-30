@@ -1150,7 +1150,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeDwellPending, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -2218,7 +2218,7 @@ export default defineComponent({
      */
     taskHeldForWorkspace(): boolean {
       return this.taskBelongsToWorkspace &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeDwellPending());
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
     taskEmbedTarget(): string | undefined {
       if (!workspaceClaimsPick()) {
@@ -2239,6 +2239,19 @@ export default defineComponent({
       return this.revealEmbedTarget !== undefined || this.taskEmbedTarget !== undefined;
     },
     /**
+     * THE ANSWER EXISTS — deliberately independent of whether it may be SHOWN
+     * yet. The execution beat turns its card over on this, so it must not be
+     * gated on the beat that consumes it (which would deadlock: the beat waits
+     * for the answer, the answer waits for the beat).
+     */
+    workspaceOutcomeAnswerArrived(): boolean {
+      if (!workspaceOutcomeClaimed()) {
+        return false;
+      }
+      return this.taskBelongsToWorkspace ||
+        (this.rawDrawnRevealPending && workspaceClaimsDrawReveal(currentRevealEvent()?.source));
+    },
+    /**
      * The workspace is COLLAPSED — hidden for board inspection while its
      * committed decision stays alive. Rides the existing deferred-prompt flag
      * (the board home already renders the restore card for it), so there is
@@ -2252,7 +2265,7 @@ export default defineComponent({
     revealHeldForWorkspace(): boolean {
       return this.rawDrawnRevealPending &&
         workspaceClaimsDrawReveal(currentRevealEvent()?.source) &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeDwellPending());
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
     consoleRevealMode(): ConsoleRevealMode | undefined {
       if (this.revealHeldForWorkspace) {
@@ -4648,6 +4661,12 @@ export default defineComponent({
      * payment in the same flush, and reading the edge mid-flush would fold the
      * workspace between the two halves of one decision.
      */
+    /** Publish the answer the moment it exists — the beat flips its card on it. */
+    workspaceOutcomeAnswerArrived(arrived: boolean) {
+      if (arrived) {
+        markWorkspaceOutcomeAnswerIn();
+      }
+    },
     workspaceOutcomeEmbedded(embedded: boolean, was: boolean) {
       if (embedded) {
         markWorkspaceOutcomePresenting();

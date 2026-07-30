@@ -85,13 +85,22 @@
            class="con-composer__revealzone con-composer__revealzone--draw"
            data-outcome-zone
            data-embed-slot="workspace-reveal">
-        <!-- The beat yields the moment something is actually re-homed in here
-             (reveal or pick) — the claim's own stage says so, so the zone
-             never shows a spinner behind live content. -->
-        <div v-if="outcomePendingBeat" class="con-composer__revealstatus" role="status" data-outcome-item>
-          <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
-          <span>{{ $t('Drawing cards…') }}</span>
-        </div>
+        <!-- THE EXECUTION BEAT is an ANIMATION, not a wait. The card peels off
+             the HUD pile FACE-DOWN the instant the action is confirmed (a card
+             back needs no data), travels here, and turns over only once the
+             server's answer has landed. That buys the time the stage needs to
+             be read — and hides the latency inside a beat the player wanted to
+             watch anyway. A slow server simply leaves the card lying face-down
+             on this slot: an honest "being drawn" state, never a fake face and
+             never a dead screen. -->
+        <template v-if="outcomePendingBeat">
+          <div class="con-composer__revealslot con-composer__revealslot--beat"
+               ref="beatSlot" data-outcome-item aria-hidden="true"></div>
+          <div class="con-composer__revealstatus" role="status" data-outcome-item>
+            <span v-if="beatStalled" class="con-composer__revealstatus-spin" aria-hidden="true"></span>
+            <span>{{ $t(beatStalled ? 'Drawing cards…' : 'Card draw') }}</span>
+          </div>
+        </template>
       </div>
 
       <div v-else class="con-composer__revealzone" data-outcome-zone>
@@ -410,11 +419,15 @@
       <!-- ── The reveal FLIGHT layer: the face-down card pulled off the HUD
            deck pile, travelling into the reveal slot (fixed-position proxy —
            the shared deal chassis; the director owns every transform). ── -->
-      <div v-if="revealFlightOn" class="con-composer__revealfly" aria-hidden="true">
+      <div v-if="revealFlightOn || beatFlightOn" class="con-composer__revealfly" aria-hidden="true">
         <div class="con-deal-proxy" ref="revealProxy">
           <div class="con-deal-proxy__flip" ref="revealFlip">
+            <!-- The face is EMPTY until the answer names the card. The beat
+                 flight starts before that exists — which is precisely why it
+                 can start at confirm instead of waiting on the server. -->
             <div class="con-deal-proxy__face">
               <ConsoleCardFaceLite v-if="revealPayload !== undefined" :name="revealPayload.revealed.name" />
+              <ConsoleCardFaceLite v-else-if="beatFaceName !== ''" :name="(beatFaceName as CardName)" />
             </div>
             <div class="con-deal-proxy__back">
               <div class="con-card-back con-card-back--flyer"></div>
@@ -488,7 +501,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -662,6 +675,15 @@ export default defineComponent({
       revealStage: 'pending' as 'pending' | 'face' | 'settled',
       /** The deck-flight proxy layer is mounted. */
       revealFlightOn: false,
+      /** Path watchers need the module reactive mirrored in data(). */
+      workspaceOutcomeState,
+      /** The EXECUTION BEAT's own deck flight (face-down until the answer). */
+      beatFlightOn: false,
+      beatHandle: undefined as ActionRevealFlightHandle | undefined,
+      /** The beat proxy touched down (a still-silent server now shows loading). */
+      beatLanded: false,
+      /** The card the beat turns over, once the answer names it. */
+      beatFace: '',
       /** The live flight handle (payload release + abort). */
       revealHandle: undefined as ActionRevealFlightHandle | undefined,
       /** The stored-resource count CAPTURED when the reveal phase opened —
@@ -915,6 +937,19 @@ export default defineComponent({
     /** Still waiting: the zone is standing but nothing has been re-homed yet. */
     outcomePendingBeat(): boolean {
       return this.drawOutcomeOn && workspaceOutcomeState.stage !== 'presenting';
+    },
+    /**
+     * The card has LANDED but the server still has not answered — the genuine
+     * lag case. Only here does a loading affordance appear; before it, the
+     * flight itself is the state and a spinner would be noise over a card that
+     * is visibly travelling.
+     */
+    beatStalled(): boolean {
+      return this.beatLanded && !workspaceOutcomeState.answerIn;
+    },
+    /** The name to paint on the beat proxy's face once it is known. */
+    beatFaceName(): string {
+      return this.beatFace;
     },
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
     outcomeStageOn(): boolean {
@@ -1251,6 +1286,26 @@ export default defineComponent({
      * replacing another. A `v-if` swap here is what read as a blink and made
      * the stage feel like a modal that had arrived.
      */
+    /**
+     * THE EXECUTION BEAT — launched at CONFIRM, not at the answer. The proxy
+     * leaves the HUD pile face-down (a card back needs no data), so the beat
+     * covers the round-trip instead of following it. `notifyPayload()` is what
+     * releases the turn-over, and that is driven by `answerIn` below.
+     */
+    outcomePendingBeat(on: boolean) {
+      if (on) {
+        void this.$nextTick(() => this.beginBeatFlight());
+      } else {
+        this.abortBeatFlight();
+      }
+    },
+    /** The answer landed — the card may turn over (mid-flight or on the slot). */
+    'workspaceOutcomeState.answerIn'(arrived: boolean) {
+      if (arrived) {
+        this.beatFace = this.entry.cardName;
+        this.beatHandle?.notifyPayload();
+      }
+    },
     outcomeStageOn(on: boolean) {
       if (!on) {
         return;
@@ -1336,6 +1391,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.abortRevealFlight();
+    this.abortBeatFlight();
     // The zone dies with the stage — retract the teleport target so a re-homed
     // presenter falls back to its band instead of into a detached node. The
     // watcher does not fire on unmount, so this cannot be left to it.
@@ -2338,6 +2394,62 @@ export default defineComponent({
       this.revealGainFlying = false;
       this.revealGainPop = false;
       this.revealStage = 'pending';
+    },
+    /**
+     * Pull the card off the HUD pile, face-down, into the beat slot. Reuses
+     * `runActionRevealFlight` verbatim — the same flight the deck-check plays,
+     * built for exactly this: launch without knowing the card, flip when the
+     * payload lands, hold face-down when it doesn't. Nothing new was written
+     * for the draw/buy case.
+     */
+    beginBeatFlight(): void {
+      if (this.beatFlightOn) {
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const slot = this.$refs.beatSlot as HTMLElement | undefined;
+      if (root === undefined || slot === undefined) {
+        // No stage to fly on (JSDOM / torn-down layout): never withhold the
+        // outcome behind an animation that cannot run.
+        markWorkspaceOutcomeBeatDone();
+        return;
+      }
+      this.beatFlightOn = true;
+      this.beatLanded = false;
+      void this.$nextTick(() => {
+        const proxy = this.$refs.revealProxy as HTMLElement | undefined;
+        const flip = this.$refs.revealFlip as HTMLElement | undefined;
+        if (proxy === undefined || flip === undefined) {
+          markWorkspaceOutcomeBeatDone();
+          return;
+        }
+        this.beatHandle = runActionRevealFlight({
+          proxy, flip, slot,
+          // Mid-flip: the face is first visible. The card is no longer "being
+          // drawn" — it has been drawn, and the real surface may take over.
+          onFaceShown: () => {
+            this.beatLanded = true;
+          },
+          onSettled: () => {
+            this.beatFlightOn = false;
+            this.beatHandle = undefined;
+            markWorkspaceOutcomeBeatDone();
+          },
+        });
+        // A server that already answered (the common local case) releases the
+        // turn immediately — the flip then plays right after touchdown.
+        if (workspaceOutcomeState.answerIn) {
+          this.beatFace = this.entry.cardName;
+          this.beatHandle.notifyPayload();
+        }
+      });
+    },
+    abortBeatFlight(): void {
+      this.beatHandle?.kill();
+      this.beatHandle = undefined;
+      this.beatFlightOn = false;
+      this.beatLanded = false;
+      this.beatFace = '';
     },
     /** OK on the shown outcome: the parent marks the reveal seen and returns
      *  the flow to the (refreshed) browse grid. */
