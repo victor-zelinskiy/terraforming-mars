@@ -33,6 +33,7 @@ export class RegolithEaters extends ActionCard implements IProjectCard {
 
       metadata: {
         cardNumber: '033',
+        infoText: [{kind: 'action-short', text: 'Spend 2 microbes to raise oxygen', tokens: ['oxygen']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 microbe to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.MICROBE);

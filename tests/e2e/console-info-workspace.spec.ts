@@ -111,6 +111,21 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
   await page.screenshot({path: path.join(dir, `${name}.png`)});
 }
 
+/**
+ * Press B until the fullscreen viewer is gone. The close is a CHOREOGRAPHED
+ * flight (the card returns into its table slot while the stage veil fades),
+ * and input is deliberately swallowed for its duration — under a loaded
+ * 3-worker 4K run a single press can land inside that window and be
+ * absorbed. Adaptive, like every other walk in this spec.
+ */
+async function closeZoom(page: Page): Promise<void> {
+  const plate = page.locator('.con-zoom__prov');
+  for (let i = 0; i < 5 && await plate.count() > 0; i++) {
+    await key(page, 'Escape', 900);
+  }
+  await expect(plate).toHaveCount(0);
+}
+
 /** Walk the start wizard adaptively until the in-game shell owns the screen. */
 async function enterGame(page: Page, playerId: string, profileQuery: string): Promise<void> {
   await page.goto(`/player?id=${playerId}&console=1${profileQuery}`);
@@ -250,8 +265,11 @@ for (const preset of PRESETS) {
       // A lone card in its zone shows no «N / M» (that would be noise).
       await expect(plate.locator('.con-zoom__prov-ord')).toHaveCount(0);
       await shoot(page, preset, '03a-zoom-provenance');
-      await key(page, 'Escape', 1000);
-      await expect(page.locator('.con-zoom__prov')).toHaveCount(0);
+      // The card returns onto a table that is STILL on stage (the played
+      // surface is no longer parked while the fullscreen is up) — it never
+      // lands in a void, and the embedded table survives the return.
+      await expect(page.locator('.con-info .con-played--embedded')).toBeVisible();
+      await closeZoom(page);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
 
       await key(page, 'Escape', 800);

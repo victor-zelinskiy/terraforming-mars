@@ -49,6 +49,9 @@ export class AtmoCollectors extends ActionCard implements IProjectCard {
       metadata: {
         description: 'Add 2 floaters to ANY card.',
         cardNumber: 'C03',
+        infoText: [
+          {kind: 'action-short', text: 'Spend a floater for titanium, energy or heat', tokens: ['titanium']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Add one floater here.', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER).or(Size.SMALL);

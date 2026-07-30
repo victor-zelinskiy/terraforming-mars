@@ -28,6 +28,7 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
       metadata: {
         cardNumber: 'R22',
         description: 'You start with 37 M€. Increase your steel production 1 step.',
+        infoText: [{kind: 'action-short', text: 'Raise energy production if you have none', tokens: ['production(energy)']}],
         renderData: CardRenderer.builder((b) => {
           b.megacredits(37).nbsp.production((pb) => pb.steel(1));
           // Two SEPARATE action() nodes (with an `or` divider) so the premium

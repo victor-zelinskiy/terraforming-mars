@@ -26,6 +26,7 @@ export class TitanShuttles extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'C45',
+        infoText: [{kind: 'action-short', text: 'Trade floaters here for titanium', tokens: ['titanium']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 2 floaters to ANY JOVIAN CARD.', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER, {amount: 2, secondaryTag: Tag.JOVIAN});

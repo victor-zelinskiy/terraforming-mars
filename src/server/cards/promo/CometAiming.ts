@@ -28,6 +28,10 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
 
       metadata: {
         cardNumber: 'X16',
+        infoText: [
+          {kind: 'action-short', text: 'Add an asteroid to any card', tokens: ['titanium']},
+          {kind: 'action-short', text: 'Spend an asteroid to place an ocean', tokens: ['oceans']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 1 titanium to add 1 asteroid resource to ANY CARD.', (eb) => {
             eb.titanium(1).startAction.resource(CardResource.ASTEROID).asterix();

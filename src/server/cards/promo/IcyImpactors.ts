@@ -26,6 +26,10 @@ export class IcyImpactors extends Card implements IActionCard {
 
       metadata: {
         cardNumber: 'X47',
+        infoText: [
+          {kind: 'action-short', text: 'Add 2 asteroids here', tokens: ['titanium']},
+          {kind: 'action-short', text: 'Spend an asteroid to place an ocean', tokens: ['oceans']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 10 M€ (titanium may be used) to add 2 asteroids here.', (ab) =>
             ab.megacredits(10).super((b) => b.titanium(1)).startAction.resource(CardResource.ASTEROID, 2));

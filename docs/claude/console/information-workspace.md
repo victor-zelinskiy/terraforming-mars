@@ -178,6 +178,17 @@ The overlay adaptation (same component, both hosts):
   loop). It is passed as a RESOLVER, so LB/RB browsing keeps it honest;
   hosts: the table shortcut and `ConsolePlayedCategoryView`
   (`provenanceByName` prop).
+- **«РАЗЫГРАНО» is NOT stage-parked while the fullscreen is up.** The
+  `body.con-zoom-open` suspend list (console.less) used to include
+  `.con-played`, so the table was `visibility: hidden` for the whole dialog
+  lifetime — and the class only drops in `onCardZoomClosed`, i.e. AFTER the
+  return flight. The card physically flew back into a VOID and the table
+  popped in a frame later. The table now stays on stage: the veil
+  (`.con-zoom-veil`, z 11890, dim-strong) already covers it, its `--lifted`
+  fade-out reveals the table gradually UNDER the returning card, and the
+  source slot is held empty by the motion director (`.con-zoom-hold`), so
+  there is never a double image. The hand dock / draft tray / journal keep
+  parking. Guard: `tests/e2e/console-played-zoom-return.spec.ts`.
 
 **Zone-swap beat:** the workspace's content zones (dashboard / played /
 details) swap through an out-in gsap beat (`detailZone*` hooks). The

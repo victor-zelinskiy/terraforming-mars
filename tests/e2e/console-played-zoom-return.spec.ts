@@ -135,9 +135,15 @@ test.describe('played table ⇄ fullscreen', () => {
     await expect(page.locator('.con-played .con-zoom-hold')).toHaveCount(1);
     await shoot(page, '01-fullscreen-over-table');
 
-    // Back: the card returns into its own slot on a visible table.
-    await key(page, 'Escape', 1400);
-    await expect(page.locator('.con-zoom__prov')).toHaveCount(0);
+    // Back: the card returns into its own slot on a visible table. The close
+    // is a choreographed flight that deliberately swallows input while it
+    // plays — press until the viewer is actually gone (adaptive, never a
+    // fixed sleep).
+    const plate = page.locator('.con-zoom__prov');
+    for (let i = 0; i < 5 && await plate.count() > 0; i++) {
+      await key(page, 'Escape', 900);
+    }
+    await expect(plate).toHaveCount(0);
     await expect(table).toBeVisible();
     await expect(page.locator('.con-played .con-zoom-hold')).toHaveCount(0);
     await shoot(page, '02-returned');

@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import * as cards from '../../src/genfiles/cards.json';
 import * as ruCards from '../../src/locales/ru/cards.json';
 import * as ruInfo from '../../src/locales/ru/card_info.json';
+import * as ruUi from '../../src/locales/ru/ui.json';
 
 /*
  * ACTION CAPTIONS — the guard (and the worklist) of the action browser's
@@ -28,22 +29,16 @@ const BUDGET = 52;
  * file (`infoText: [{kind: 'action-short', text: '…'}]`, with `tokens` when
  * the card draws several actions) plus its RU key in `ru/card_info.json`.
  */
-const AWAITING_CAPTION: ReadonlySet<string> = new Set([
-  // Multi-action cards (a caption needs `tokens` to say WHICH action) …
-  'Asteroid Rights', 'Atmo Collectors', 'Comet Aiming', 'Deuterium Export',
-  'Directed Impactors', 'Factorum', 'GHG Producing Bacteria', 'Icy Impactors',
-  'Local Shading', 'Nitrite Reducing Bacteria', 'Regolith Eaters', 'Rotator Impacts',
-  'Self-replicating Robots', 'Sulphur-Eating Bacteria', 'Titan Shuttles',
-  // … and single-action rules still awaiting a hand-written caption.
-  'Ecoline', 'Robinson Industries', 'Viron', 'Red Ships',
-]);
+const AWAITING_CAPTION: ReadonlySet<string> = new Set([]);
 
 type Block = {kind: string, text: string, short?: string};
 type Group = {kind: string, id: string, blocks: ReadonlyArray<Block>};
 type Card = {name: string, module: string, metadata?: {information?: {groups: ReadonlyArray<Group>}}};
 
 const CARDS: ReadonlyArray<Card> = (Array.isArray(cards) ? cards : Object.values(cards)) as ReadonlyArray<Card>;
-const RU: Record<string, string> = {...(ruCards as any), ...(ruInfo as any)};
+// The same locale surface the generator validates against: a caption may
+// legitimately reuse a phrase that already lives in the shared UI file.
+const RU: Record<string, string> = {...(ruUi as any), ...(ruCards as any), ...(ruInfo as any)};
 
 /** The co-located `Action: ` / `Действие: ` label is a CHIP in the UI. */
 function strip(text: string): string {

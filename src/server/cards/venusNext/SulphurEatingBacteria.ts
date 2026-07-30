@@ -25,6 +25,7 @@ export class SulphurEatingBacteria extends Card implements IActionCard {
       requirements: {venus: 6},
       metadata: {
         cardNumber: '251',
+        infoText: [{kind: 'action-short', text: 'Trade microbes here for triple M€', tokens: ['megacredits']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 microbe to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.MICROBE);

@@ -20,6 +20,7 @@ export class Viron extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R12',
         description: 'You start with 48 M€.',
+        infoText: [{kind: 'action-short', text: 'Repeat a blue action used this generation'}],
         renderData: CardRenderer.builder((b) => {
           b.br.br.br;
           b.megacredits(48);

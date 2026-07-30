@@ -23,6 +23,9 @@ export class EnergyMarket extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'X03',
+        infoText: [
+          {kind: 'action-short', text: 'Trade energy production for 8 M€', tokens: ['production(energy)']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Spend 2X M€ to gain X energy.', (eb) => {
             eb.megacredits(1, {text: '2x'}).startAction.text('x').energy(1);

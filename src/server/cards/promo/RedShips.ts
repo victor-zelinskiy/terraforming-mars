@@ -20,6 +20,7 @@ export class RedShips extends Card implements IActionCard {
 
       metadata: {
         cardNumber: 'X62',
+        infoText: [{kind: 'action-short', text: '1 M€ per tile next to an ocean', tokens: ['oceans']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Gain 1 M€ for each CITY AND SPECIAL TILE adjacent to an ocean.',
             (ab) => ab.empty().startAction.megacredits(1).cityorSpecialTile({all}).oceans(1));

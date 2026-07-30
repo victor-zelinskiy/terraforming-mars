@@ -28,7 +28,7 @@ export class RedSpotObservatory extends Card implements IProjectCard {
       requirements: {tag: Tag.SCIENCE, count: 3},
       metadata: {
         cardNumber: 'C32',
-        infoText: [{kind: 'action-short', text: 'Draw a card'}],
+        infoText: [{kind: 'action-short', text: 'Draw a card', tokens: ['cards']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 floater to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER);

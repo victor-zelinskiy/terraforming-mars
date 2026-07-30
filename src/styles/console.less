@@ -366,6 +366,29 @@ body.con-zoom-open .con-handdock {
         .con-ws * {
             animation-play-state: running !important;
         }
+
+        /* …and the one-shot LANDING beats, which this rule was never for. The
+           pause targets INFINITE decorative/state loops; a placement's tile
+           impact, its marker drop and the owner-cube fall are BOUNDED (~0.9s)
+           one-shots declared `both`, so freezing one mid-flight strands it at
+           a partial pose (the cube left hanging at translateY(-210%)) until
+           the surface closes. That is not hypothetical: a REMOTE placement
+           has no input gate — `handleIntent`'s scene block covers
+           `tilePlacementHolding()` (own) but not `tile-placement-remote` — so
+           opening the wheel or a workspace ON TOP of another player's landing
+           tile is ordinary play. Pseudo-elements are listed explicitly: `*`
+           does not match them, so without this the host would freeze while
+           its own impact ring kept spinning. */
+        .board-space-tile--placing,
+        .board-space-tile--placing::before,
+        .board-space-tile--placing::after,
+        .board-cube--placing,
+        .board-cube--placing::after,
+        .player-cube--animate-in .player-cube__scene,
+        .player-cube--animate-in .player-cube__shadow,
+        .player-cube--animate-in .player-cube__glow {
+            animation-play-state: running !important;
+        }
     }
     /* The tucked-behind footer state must survive the dropped trap: at the
        root level the footer would otherwise paint over the section it is
@@ -386,6 +409,53 @@ body.con-zoom-open .con-handdock {
        Any open workspace hides it (the numbers live on the cards anyway). */
     .con-res-aux {
         display: none;
+    }
+
+    /* ── BACKGROUND CINEMATICS RECEDE UNDER THE SHADE ────────────────────
+       The flight layers live at 11620–11670, i.e. ABOVE the shade (11460),
+       every band surface (11480–11520) and the wheel (11500) — so another
+       player's tile flew undimmed OVER the panel the viewer was reading.
+       They are siblings of `.con-main` under `.con-root`, so no amount of
+       scoping inside `.con-main` could reach them.
+
+       The scene is not killed or snapped: it keeps playing, one layer BELOW
+       the shade, and the dim it was escaping now reads it as background.
+       That is the "one foreground item at a time" rule expressed visually —
+       nothing is lost, because the tile is committed either way and
+       `remoteRevealHold` still reveals the real one on landing.
+
+       WHICH layers demote is not a taste call — it is the existing
+       `AnimationHoldScope` split (`animationHold.ts`). A 'blocking' hold
+       means the scene owns the foreground from OUTSIDE the mandatory
+       surfaces, so when the player owns it instead, the scene yields. The
+       'notification-only' family is deliberately EXCLUDED: those cinematics
+       run INSIDE the surface that released them and must paint over it —
+       `.con-deal-layer` / `.con-handdelivery-layer` ("its proxies land in the
+       always-on-top footer dock"), `.con-deckdraw`, `.con-hydrodraw-layer`,
+       `.con-bonusfly-layer`. Demoting one of those would bury a cinematic
+       under the very stage hosting it. `.con-handreveal-layer` stays up for
+       the same reason (it belongs to the hand screen).
+
+       Relative order inside the family is preserved, just shifted below the
+       shade, so two overlapping beats still stack as they always did. */
+    .con-fleet-layer,
+    .con-hydromarker-layer {
+        z-index: 11440;
+    }
+    .con-discard {
+        z-index: 11442;
+    }
+    .con-tileplace,
+    .con-colonybuild {
+        z-index: 11444;
+    }
+    .con-played-hero,
+    .con-sale-hero,
+    .con-coltrade-layer {
+        z-index: 11446;
+    }
+    .con-transfer {
+        z-index: 11448;
     }
 }
 
@@ -14625,7 +14695,12 @@ html.console-mode {
     --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
     --act-canvas-h: 3rem;    /* the action graphic's fixed stage — HEIGHT */
     --act-canvas-w: 9.2rem;  /* …and WIDTH: one stage for every formula */
-    --act-desc-lines: 1;     /* the description's line budget (0 = hidden) */
+    /* The caption's line budget. THREE is free everywhere: the body row is
+       fixed at the canvas height, and three lines of caption type still fit
+       inside it on every profile (fhd 54 ≤ 60, Deck 51 ≤ 60, TV 127 ≤ 156).
+       Spending that room is what lets a full rule stay a full sentence
+       instead of being rewritten shorter. */
+    --act-desc-lines: 3;
     --act-meta-h: .95rem;    /* the diagnostics strip (validation / next step) */
     --act-pad-t: .3rem;      /* the slot's top padding */
     --act-gap: .22rem;       /* the slot's inner zone gap */
@@ -14898,10 +14973,13 @@ html.console-mode {
        canvas or the diagnostics; the line budget is a PROFILE token, and the
        clamp keeps a long Russian sentence from ever adding a line. Quiet on
        purpose: the graphic stays the accent, the text supports it. */
-    &__desc {
+    &__desc-slot {
         flex: 1 1 auto;
         min-width: 0;
         max-height: 100%;
+        overflow: hidden;
+    }
+    &__desc {
         margin: 0;
         /* Clearance for the «или» badge: it is centred ON the seam, so half
            of it reaches into this tile. Text must never run under it. */

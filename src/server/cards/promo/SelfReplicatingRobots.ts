@@ -26,6 +26,7 @@ export class SelfReplicatingRobots extends Card implements IProjectCard {
         // action frames + the requirement are auto-derived (an `effect`/`action`
         // infoText entry augments, it does not replace the frames).
         infoText: [
+          {kind: 'action-short', text: 'Place a card here with 2 resources', tokens: ['self_replicating']},
           {kind: 'effect', text: 'A card here may be played as if from hand, with its cost reduced by the number of resources on it.'},
         ],
         cardNumber: '210',

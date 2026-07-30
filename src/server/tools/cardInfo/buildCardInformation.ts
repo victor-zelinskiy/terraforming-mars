@@ -685,7 +685,7 @@ function buildCorporationInformation(card: ICard, graphics: ReadonlyArray<Graphi
   const unlinked = [...immediate, ...authoredGroups.flatMap((g) => g.blocks)]
     .filter((b) => b.graphicId === undefined)
     .map((b) => (b.kind === 'note' ? `${b.id}(note)` : b.id));
-  applyActionShorts(card, graphics, groups, notes);
+  applyActionShorts(card, groups, notes);
   return {information: {groups: orderInfoGroups(groups)}, status, unlinked};
 }
 
@@ -930,7 +930,7 @@ export function buildCardInformation(card: ICard, module: GameModule): CardInfor
     groups.push(vpGroup);
   }
 
-  applyActionShorts(card, graphics, groups, notes);
+  applyActionShorts(card, groups, notes);
 
   audit.push({
     name: card.name,
@@ -1008,7 +1008,7 @@ function graphicOf(match: GraphicMatchPos): GraphicMatch {
  * (`tokens`), with the unambiguous single-action card needing none; anything
  * the generator cannot place lands in the audit instead of guessing.
  */
-function applyActionShorts(card: ICard, graphics: ReadonlyArray<GraphicBlockRef>, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
+function applyActionShorts(card: ICard, groups: ReadonlyArray<CardInfoGroup>, notes: Array<string>): void {
   const authored = card.metadata.infoText?.filter((entry) => entry.kind === 'action-short') ?? [];
   if (authored.length === 0) {
     return;
@@ -1019,9 +1019,16 @@ function applyActionShorts(card: ICard, graphics: ReadonlyArray<GraphicBlockRef>
   for (const entry of authored) {
     let target: CardInfoBlock | undefined;
     if (entry.tokens !== undefined) {
-      const wanted = matchCorpFrame(graphics, entry.tokens, card.metadata.renderData).graphicId ??
-        graphicOf(matchGraphic(graphics, entry.tokens, card.metadata.renderData)).graphicId;
-      target = blocks.find((b) => b.graphicId === wanted);
+      // An action's graphic id IS its formula's content signature
+      // (`g:action(megacredits,titanium,res-asteroid)`), so a token unique to
+      // ONE of the card's actions addresses it exactly — and ambiguity is an
+      // audit note rather than a coin flip.
+      const tokens = entry.tokens;
+      const hits = blocks.filter((b) => {
+        const id = b.graphicId;
+        return id !== undefined && tokens.every((t) => id.includes(t));
+      });
+      target = hits.length === 1 ? hits[0] : undefined;
     } else if (blocks.length === 1) {
       target = blocks[0];
     }

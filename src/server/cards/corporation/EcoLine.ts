@@ -21,6 +21,7 @@ export class EcoLine extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R17',
         description: 'You start with 2 plant production, 3 plants, and 36 M€.',
+        infoText: [{kind: 'action-short', text: 'Greenery costs you 7 plants', tokens: ['greenery']}],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.production((pb) => pb.plants(2)).nbsp.megacredits(36).plants(3, {digit});

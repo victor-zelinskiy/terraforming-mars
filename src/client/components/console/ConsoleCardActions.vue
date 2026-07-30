@@ -362,7 +362,12 @@
                        the diagnostics under it. A text-drawn action is
                        already its own sentence on the canvas — never doubled.
                        The profile decides the line budget (0 on the Deck). -->
-                  <p v-if="slotRuleText(tile) !== ''" class="con-cardactions__desc">{{ slotRuleText(tile) }}</p>
+                  <!-- The clamp lives on the INNER block: a flex item is
+                       blockified by the engine, which quietly disables the
+                       line clamp on it. The slot around it owns the width. -->
+                  <div v-if="slotRuleText(tile) !== ''" class="con-cardactions__desc-slot">
+                    <p class="con-cardactions__desc">{{ slotRuleText(tile) }}</p>
+                  </div>
                 </div>
 
                 <!-- ── DIAGNOSTICS / CONTINUATION — zone 3, reserved and

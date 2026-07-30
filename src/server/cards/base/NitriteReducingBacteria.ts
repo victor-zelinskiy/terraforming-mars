@@ -38,6 +38,7 @@ export class NitriteReducingBacteria extends ActionCard {
 
       metadata: {
         cardNumber: '157',
+        infoText: [{kind: 'action-short', text: 'Spend 3 microbes to raise your TR', tokens: ['tr']}],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 microbe to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.MICROBE);

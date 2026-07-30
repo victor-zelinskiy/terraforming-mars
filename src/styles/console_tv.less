@@ -945,8 +945,13 @@ html.con-profile-tv {
            sofa, and the whole grid becomes scannable WITHOUT walking the
            cursor. The stage grows with the profile; the text stays quiet. */
         --act-canvas-w: 11.5rem;
-        --act-desc-lines: 2;
-        &__desc { font-size: var(--con-t-secondary); }
+        /* The caption rides the profile's CAPTION step, not its secondary
+           step: it is deliberately subordinate to the formula, and the step
+           buys ~20% more characters per line — which is what keeps long
+           rules whole instead of shortening the writing. Three lines of it
+           (127px) still sit inside the 156px stage row, so the grid rhythm
+           is untouched. */
+        &__desc { font-size: var(--con-t-caption); }
         /* Per-ACTION chips on the button, card identity on the plate. */
         &__tile-variant { font-size: var(--con-t-floor); }
         &__tile-status { font-size: var(--con-t-floor); }

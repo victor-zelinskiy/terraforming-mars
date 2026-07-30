@@ -32,6 +32,9 @@ export class DeuteriumExport extends ActionCard {
 
       metadata: {
         cardNumber: '221',
+        infoText: [
+          {kind: 'action-short', text: 'Raise your energy production', tokens: ['production(energy)']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.action('Add 1 floater to this card.', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER);
