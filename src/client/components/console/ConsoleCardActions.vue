@@ -603,8 +603,16 @@ export default defineComponent({
      * own visit passes nothing and shows no name tag.
      */
     contextPlayer: {type: Object as PropType<PlayerViewModel['thisPlayer']>, required: false, default: undefined},
+    /**
+     * A committed action of THIS workspace is minimized right now. The list is
+     * still browsable — the player asked to see it and there is nothing secret
+     * about it — but nothing in it can be activated: the current action has to
+     * be finished first. Shown as a DISABLED reason, never as a hidden list
+     * (the fork's rule: blocked is stated, not concealed).
+     */
+    collapsed: {type: Boolean, default: false},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse'],
+  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1022,7 +1030,12 @@ export default defineComponent({
     // card, same variant, same phase, and the prompt is still routed here.
     // (`stage === 'presenting'` and `dwellDone` are already true, so the
     // execution beat is not owed again either.)
-    if (!this.repeat && workspaceOutcomeClaimed() && this.composer === undefined) {
+    // …but ONLY on a genuine restore. Opening the list by hand while the
+    // action is still minimized is a different intent: the player wants to
+    // LOOK, not to be dropped back into the decision. Re-seeding there also
+    // produced a broken stage — the prompt is still deferred, so the outcome
+    // zone had nothing to host and the workspace stood empty.
+    if (!this.repeat && !this.collapsed && workspaceOutcomeClaimed() && this.composer === undefined) {
       this.composer = {
         cardName: workspaceOutcomeState.sourceCard as CardName,
         nodeIndex: workspaceOutcomeState.nodeIndex,
@@ -1280,6 +1293,20 @@ export default defineComponent({
       }
       const tile = this.focusedTile;
       if (tile === undefined) {
+        return;
+      }
+      // A minimized COMMITTED action blocks every activation — the player is
+      // mid-move and must finish it first. Stated, never silent: the same
+      // shake + reason an unavailable action already gets (the fork's rule is
+      // that a blocked control explains itself rather than disappearing).
+      if (this.collapsed && workspaceOutcomeClaimed()) {
+        this.shakeKey = tile.key;
+        window.setTimeout(() => {
+          if (this.shakeKey === tile.key) {
+            this.shakeKey = '';
+          }
+        }, 420);
+        this.$emit('blocked', 'Finish your current action first');
         return;
       }
       if (tile.status !== 'available') {

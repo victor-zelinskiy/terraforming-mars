@@ -14459,6 +14459,25 @@ html.console-mode {
     opacity: 0;
 }
 
+/* THE PENDING-ACTION PLATE — appears calmly, leaves INSTANTLY.
+   It is an affordance that belongs to ONE place (the board home), so the
+   moment the player is no longer there it is simply wrong. A 140 ms fade-out
+   means it lingers ON TOP of the screen the player just moved to — they read
+   it as the UI lagging behind them, and worse, as an offer that is still live
+   somewhere it is not. Entering keeps its fade (arriving is information);
+   leaving is a fact, and facts do not need easing.
+   Same reasoning applies to any other place-bound plate. */
+.con-plate-enter-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-plate-leave-active {
+    transition: none;
+}
+.con-plate-enter-from,
+.con-plate-leave-to {
+    opacity: 0;
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     .con-banner__pulse,

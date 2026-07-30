@@ -40,7 +40,7 @@
          they're ready. Shown only once the foreground is idle (screens closed,
          animations done). A drawn-cards reveal is NOT announced — it flows
          straight through from its draw cinematic (never split from it). -->
-    <transition name="con-layer">
+    <transition name="con-plate">
       <ConsoleMandatoryAnnounce v-if="mandatoryAnnounceVisible"
                                 :kicker="mandatoryAnnounceView.kicker"
                                 :ask="mandatoryAnnounceView.ask"
@@ -228,6 +228,8 @@
                             v-show="!handPickActive && !playedPickActive && !repeatPickActive && !workspaceCollapsed"
                             ref="cardActions"
                             :playerView="playerView"
+                            :collapsed="workspaceCollapsed"
+                            @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
                             @reveal-ack="onCardActionsRevealAck"
                             @collapse="onCardActionsCollapse"
@@ -1118,7 +1120,7 @@ import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, rese
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {panelCommands} from '@/client/console/consolePanelUi';
-import {consoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
@@ -6657,6 +6659,13 @@ export default defineComponent({
       this.consoleState.sheet = undefined;
       this.consoleState.sheetIndex = 0;
       this.consoleState.section = 'board';
+      // The composer's command contract is published to a SHARED store and
+      // released in its own `beforeUnmount`. That is one flush too late: for
+      // the frame between the sheet closing and the unmount running, the bar
+      // still advertised «НАСТРОЙКА ДЕЙСТВИЯ · БЕРЁМ КАРТЫ ИЗ КОЛОДЫ…» over a
+      // bare board — a surface that no longer exists telling the player what
+      // A does. Clearing it HERE makes the collapse atomic.
+      resetConsoleActionComposerUi();
     },
     /** B on the repeat-pick grid → cancel the whole repeat pick (return to the
      *  source composer with the OLD choice kept). */
