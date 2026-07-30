@@ -507,7 +507,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState, wsBeatLog} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
@@ -1302,8 +1302,7 @@ export default defineComponent({
     // un-takeable prompt) instead of falling back to the band.
     drawOutcomeOn: {
       immediate: true,
-      handler(on: boolean, was: boolean | undefined) {
-        wsBeatLog('composer: drawOutcomeOn', {on, was, initial: was === undefined});
+      handler(on: boolean) {
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
       },
     },
@@ -1323,7 +1322,6 @@ export default defineComponent({
      * releases the turn-over, and that is driven by `answerIn` below.
      */
     outcomePendingBeat(on: boolean) {
-      wsBeatLog('composer: outcomePendingBeat', {on, outcomeKind: this.outcome?.kind});
       if (on) {
         void this.$nextTick(() => this.beginBeatFlight());
       } else {
@@ -1332,7 +1330,6 @@ export default defineComponent({
     },
     /** The answer landed — the card may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
-      wsBeatLog('composer: answerIn watcher', {arrived, hasHandle: this.beatHandle !== undefined, face: this.beatRevealedName});
       if (arrived) {
         this.beatFace = this.beatRevealedName;
         this.beatHandle?.notifyPayload();
@@ -1422,10 +1419,8 @@ export default defineComponent({
     // preview, so it changed under the entering animation.)
   },
   mounted() {
-    wsBeatLog('composer: MOUNTED', {card: this.entry.cardName, outcomeKind: this.outcome?.kind});
   },
   beforeUnmount() {
-    wsBeatLog('composer: UNMOUNTED', {card: this.entry.cardName, outcomeKind: this.outcome?.kind});
     this.abortRevealFlight();
     this.abortBeatFlight();
     // The zone dies with the stage — retract the teleport target so a re-homed
@@ -2440,25 +2435,13 @@ export default defineComponent({
      */
     beginBeatFlight(): void {
       if (this.beatFlightOn) {
-        wsBeatLog('composer: beginBeatFlight SKIPPED — already flying');
         return;
       }
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const slot = this.$refs.beatSlot as HTMLElement | undefined;
-      const slotRect = slot?.getBoundingClientRect();
-      const deckEl = typeof document === 'undefined' ? null : document.querySelector('.con-deckstack__pile');
-      wsBeatLog('composer: beginBeatFlight', {
-        hasRoot: root !== undefined,
-        hasSlot: slot !== undefined,
-        slotW: slotRect?.width, slotH: slotRect?.height,
-        deckFound: deckEl !== null,
-        deckW: deckEl?.getBoundingClientRect().width,
-        answerIn: workspaceOutcomeState.answerIn,
-      });
       if (root === undefined || slot === undefined) {
         // No stage to fly on (JSDOM / torn-down layout): never withhold the
         // outcome behind an animation that cannot run.
-        wsBeatLog('composer: NO STAGE — beat skipped');
         markWorkspaceOutcomeBeatDone();
         return;
       }
@@ -2475,25 +2458,19 @@ export default defineComponent({
         const proxy = this.$refs.revealProxy as HTMLElement | undefined;
         const flip = this.$refs.revealFlip as HTMLElement | undefined;
         if (proxy === undefined || flip === undefined) {
-          wsBeatLog('composer: NO PROXY — beat cannot fly', {
-            hasProxy: proxy !== undefined, hasFlip: flip !== undefined,
-          });
           markWorkspaceOutcomeBeatDone();
           return;
         }
-        wsBeatLog('composer: flight launched');
         this.beatHandle = runActionRevealFlight({
           proxy, flip, slot,
           // Mid-flip: the face is first visible. The card is no longer "being
           // drawn" — it has been drawn, and the real surface may take over.
           onFaceShown: () => {
-            wsBeatLog('composer: onFaceShown');
             this.beatLanded = true;
             // The card is out of the pile — the counter may now tell the truth.
             releaseDeckDisplay();
           },
           onSettled: () => {
-            wsBeatLog('composer: onSettled');
             this.beatHandle = undefined;
             // The landed proxy STAYS. Clearing it here would unmount the card
             // the moment it finished turning over, leaving the zone empty for
@@ -2507,7 +2484,6 @@ export default defineComponent({
         // A server that already answered (the common local case) releases the
         // turn immediately — the flip then plays right after touchdown.
         if (workspaceOutcomeState.answerIn) {
-          wsBeatLog('composer: answer ALREADY in — notifying immediately', {face: this.beatRevealedName});
           this.beatFace = this.beatRevealedName;
           this.beatHandle.notifyPayload();
         }
@@ -2538,7 +2514,6 @@ export default defineComponent({
       // The re-homed surface's own card, wherever it laid it out.
       const target = root?.querySelector<HTMLElement>(
         '[data-outcome-zone] :is(.card-container, .pcard)');
-      wsBeatLog('composer: settle onto real card', {hasTarget: target !== null && target !== undefined});
       settleRevealProxyOnto({proxy, target, onDone: clear});
     },
     /** OK on the shown outcome: the parent marks the reveal seen and returns

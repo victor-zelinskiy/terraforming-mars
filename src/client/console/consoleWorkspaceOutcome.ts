@@ -35,22 +35,6 @@ import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 
 /**
- * ⚠️ TEMPORARY DIAGNOSTIC — remove with the whole `[WSBEAT]` family once the
- * execution-beat regression is closed (`grep -rn "wsBeatLog" src/`).
- *
- * The beat fails somewhere between the confirm and the flight settling, and
- * the failure is invisible from the outside: the outcome simply arrives late
- * and unadorned. These trace every decision point in that chain so a single
- * console capture from a real device says which link broke.
- */
-export function wsBeatLog(where: string, data?: Record<string, unknown>): void {
-  if (typeof console === 'undefined') {
-    return;
-  }
-  console.log(`[WSBEAT] ${where}`, data ?? '');
-}
-
-/**
  * Which workspace holds the claim. A closed union on purpose: every host needs
  * its own embedded presentation, so a new one is a deliberate addition, not a
  * string that silently starts matching.
@@ -173,20 +157,12 @@ function clearBeat(): void {
 /** The shell: the artifact exists — the card may turn over. */
 export function markWorkspaceOutcomeAnswerIn(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
-    if (!workspaceOutcomeState.answerIn) {
-      wsBeatLog('answerIn := true');
-    }
     workspaceOutcomeState.answerIn = true;
-  } else {
-    wsBeatLog('answerIn IGNORED — no live claim');
   }
 }
 
 /** The execution beat finished (the flight settled, or the backstop fired). */
 export function markWorkspaceOutcomeBeatDone(): void {
-  if (!workspaceOutcomeState.beatDone) {
-    wsBeatLog('beatDone := true');
-  }
   clearBeat();
   workspaceOutcomeState.beatDone = true;
 }
@@ -198,9 +174,6 @@ export function workspaceOutcomeBeatPending(): boolean {
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {
-  if (workspaceOutcomeState.embedSlot !== selector) {
-    wsBeatLog('embedSlot', {selector: selector === '' ? '(retracted)' : selector});
-  }
   workspaceOutcomeState.embedSlot = selector;
 }
 
@@ -258,7 +231,6 @@ export function claimWorkspaceOutcome(
     releaseWorkspaceOutcome();
     return;
   }
-  wsBeatLog('claim', {host, sourceCard, kinds: [...kinds], nodeIndex});
   workspaceOutcomeState.host = host;
   workspaceOutcomeState.sourceCard = sourceCard;
   workspaceOutcomeState.nodeIndex = nodeIndex;
@@ -272,11 +244,6 @@ export function claimWorkspaceOutcome(
   clearBeat();
   if (typeof setTimeout === 'function') {
     beatTimer = setTimeout(() => {
-      wsBeatLog('BACKSTOP FIRED — the flight never settled', {
-        answerIn: workspaceOutcomeState.answerIn,
-        stage: workspaceOutcomeState.stage,
-        embedSlot: workspaceOutcomeState.embedSlot,
-      });
       markWorkspaceOutcomeBeatDone();
     }, BEAT_SAFETY_MS);
   } else {
@@ -297,7 +264,6 @@ export function claimWorkspaceOutcome(
  */
 export function markWorkspaceOutcomePresenting(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
-    wsBeatLog('stage := presenting');
     workspaceOutcomeState.stage = 'presenting';
     clearSafety();
   }
@@ -305,9 +271,6 @@ export function markWorkspaceOutcomePresenting(): void {
 
 /** Drop the claim (the stage folded, the outcome was acknowledged, unmount). */
 export function releaseWorkspaceOutcome(): void {
-  if (workspaceOutcomeState.sourceCard !== '') {
-    wsBeatLog('release', {sourceCard: workspaceOutcomeState.sourceCard, stage: workspaceOutcomeState.stage});
-  }
   clearSafety();
   clearBeat();
   workspaceOutcomeState.answerIn = false;

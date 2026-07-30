@@ -30,7 +30,6 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
-import {wsBeatLog} from '@/client/console/consoleWorkspaceOutcome';
 
 /** The HUD project-deck pile — the physical source of every deck flight. */
 const DECK_SEL = '.con-deckstack__pile';
@@ -105,12 +104,10 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   const reduced = consoleReducedMotionActive();
   const slotRect = slot.getBoundingClientRect();
   const usable = slotRect.width >= 10 && slotRect.height >= 10;
-  wsBeatLog('flight: enter', {reduced, usable, slotW: slotRect.width, slotH: slotRect.height});
 
   // Reduced motion (or an unmeasurable slot): no travel, no flip — the real
   // card fades in via the composer's own transition once the payload lands.
   if (reduced || !usable) {
-    wsBeatLog('flight: DEGRADED path (no travel, no flip)', {reduced, usable});
     gsap.set(proxy, {autoAlpha: 0});
     safety = window.setTimeout(fireSettled, SAFETY_MS);
     return {
@@ -129,7 +126,6 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   // degrades to a pull-in from just above the top edge, same trajectory feel.
   const deckEl = document.querySelector<HTMLElement>(DECK_SEL);
   const deckRect = deckEl?.getBoundingClientRect();
-  wsBeatLog('flight: deck anchor', {found: deckEl !== null, w: deckRect?.width, h: deckRect?.height});
   const fromCx = deckRect !== undefined && deckRect.width > 4 ?
     deckRect.left + deckRect.width / 2 : slotRect.left + slotRect.width / 2;
   const fromCy = deckRect !== undefined && deckRect.height > 4 ?
@@ -160,17 +156,14 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   tl.to(proxy, {rotation: 0, duration: s(TRAVEL_MS * 0.8), ease: 'power2.out'}, s(150));
   tl.call(() => {
     landed = true;
-    wsBeatLog('flight: landed', {payloadReady});
     maybeFlip();
   });
 
   /** The in-place flip — only when BOTH the card landed AND the face exists. */
   const maybeFlip = () => {
     if (dead || flipStarted || !landed || !payloadReady) {
-      wsBeatLog('flight: maybeFlip WAITING', {dead, flipStarted, landed, payloadReady});
       return;
     }
-    wsBeatLog('flight: flip starting');
     flipStarted = true;
     let glinted = false;
     const ftl = gsap.timeline();
@@ -209,7 +202,6 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
 
   return {
     notifyPayload: () => {
-      wsBeatLog('flight: notifyPayload');
       payloadReady = true;
       maybeFlip();
     },

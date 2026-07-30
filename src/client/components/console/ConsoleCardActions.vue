@@ -532,9 +532,7 @@ import {
   workspaceOutcomeAdmits,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
-  WorkspaceOutcomeKind,
-  wsBeatLog,
-} from '@/client/console/consoleWorkspaceOutcome';
+  WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -1021,7 +1019,6 @@ export default defineComponent({
     },
   },
   mounted() {
-    wsBeatLog('cardActions: MOUNTED', {repeat: this.repeat, collapsed: this.collapsed});
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
     }
@@ -1390,7 +1387,6 @@ export default defineComponent({
       return Array.isArray(el) ? el[0] : el;
     },
     closeComposer(): void {
-      wsBeatLog('cardActions: closeComposer');
       this.composer = undefined;
       this.descendKey = '';
       if (this.outcomeFlow !== undefined) {

@@ -1152,7 +1152,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, wsBeatLog, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -4672,16 +4672,11 @@ export default defineComponent({
      */
     /** Publish the answer the moment it exists — the beat flips its card on it. */
     workspaceOutcomeAnswerArrived(arrived: boolean) {
-      wsBeatLog('shell: answerArrived computed', {arrived, hostTaskKind: this.hostTask?.kind});
       if (arrived) {
         markWorkspaceOutcomeAnswerIn();
       }
     },
     workspaceOutcomeEmbedded(embedded: boolean, was: boolean) {
-      wsBeatLog('shell: embedded edge', {
-        embedded, was,
-        revealTarget: this.revealEmbedTarget, taskTarget: this.taskEmbedTarget,
-      });
       if (embedded) {
         markWorkspaceOutcomePresenting();
         return;
@@ -4730,13 +4725,6 @@ export default defineComponent({
         // the beat to sit face-down waiting on a flag that had no reason to
         // arrive, and to time out on its backstop instead of flipping.
         if (workspaceOutcomeClaimed()) {
-          wsBeatLog('shell: fresh playerView while claimed', {
-            hostTaskKind: this.hostTask?.kind,
-            taskBelongs: this.taskBelongsToWorkspace,
-            taskHeld: this.taskHeldForWorkspace,
-            embedSlot: workspaceOutcomeState.embedSlot,
-            rawDrawnPending: this.rawDrawnRevealPending,
-          });
           markWorkspaceOutcomeAnswerIn();
         }
         const awaiting = surfaceMotionState.awaiting;
