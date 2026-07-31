@@ -210,8 +210,11 @@ test.describe('console planet focus · main-grid placement stage', () => {
     await expect(board).toHaveClass(/con-board--pfocus/);
     await page.waitForSelector('.con-board--pfocus-settled', {timeout: 5_000});
     const scaleFocused = await boardScale(page);
+    // The disc-framed fit + the reclaimed banner/dock rows give a LARGE
+    // growth (≥25% is the conservative floor across profiles) — a weak
+    // growth means the frame regressed to the transparent asset canvas.
     expect(scaleFocused, 'the planet did not grow into the freed space')
-      .toBeGreaterThan(scaleBefore * 1.03);
+      .toBeGreaterThan(scaleBefore * 1.25);
     // The arc band receded out of the scene (display drops at settle).
     expect((await arcBandState(page)).display).toBe('none');
     await shoot(page, '02-placement-focus');

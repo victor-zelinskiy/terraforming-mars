@@ -2246,6 +2246,21 @@ each(@players, {
 .con-board--pfocus .con-board__stage::before {
     opacity: 1;
 }
+/* The mode RECLAIMS the chrome the placement doesn't need, so the disc can
+   take the full height between the HUD and the bottom bar:
+   — the banner row above the board (the placement panel already titles the
+     task; the row returns the instant focus ends);
+   — the hand-dock clearance (the dock is an absolute layer and paints OVER
+     the disc's bottom rim — reserving stage height for it was the overview
+     trade, not the focus one).
+   Both are layout flips, not transitions — the disc's own transform
+   transition carries the visible motion to the new target. */
+.con-root:has(.con-board--pfocus) .con-banner {
+    display: none;
+}
+.con-root:has(.con-board--pfocus) .con-board {
+    padding-bottom: .4rem;
+}
 .con-board--pfocus-anim .con-board__stage > .board-cont {
     transition: transform calc(var(--pfocus-ms, 520ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
 }

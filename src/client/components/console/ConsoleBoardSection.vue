@@ -121,16 +121,28 @@ const SCALE_BOOST = 1.0;
  * owns the motion). The Mars disc is a FIXED asset painted from
  * `.board-cont`'s top-left at 620×600 (board.less), so the focus fit is
  * fully DETERMINISTIC — no measurement, no calibration passes, nothing to
- * poison mid-transition. The frame below is the board-cont-local rectangle
- * that must fill the stage: the full hex grid plus the planet's readable
- * body, deliberately cropping a sliver of the disc's soft atmospheric rim
- * (the planet grows PAST the frame — a camera that moved closer, not a
- * smaller picture).
+ * poison mid-transition.
+ *
+ * The frame is the ALPHA-MEASURED disc of mars.webp, not the asset canvas:
+ * the visible planet is a 449×449 circle at (93..541, 85..533) inside the
+ * mostly-transparent 620×600 box (measured off the real alpha channel —
+ * the first frame targeted the canvas and burned a third of the growth on
+ * empty pixels). One pixel of margin keeps the rim's antialiasing; the
+ * fit puts this circle EDGE-TO-EDGE in the stage — the planet's border
+ * lands on the border of the freed screen area, which is the mode's whole
+ * promise.
  */
-const PFOCUS_FRAME = {x: 20, y: 42, w: 580, h: 516}; /* keep-px: board-cont local space */
+const PFOCUS_FRAME = {x: 92, y: 84, w: 451, h: 451}; /* keep-px: board-cont local space */
 /** `.board-cont`'s own box (the transform-origin is its centre). */
 const BOARD_CONT_W = 670;
 const BOARD_CONT_H = 600;
+/**
+ * The focus fit's own scale ceiling. The overview clamp (MAX_SCALE = 4)
+ * protects the normal fit from degenerate measurements; the focus fit is
+ * deterministic and legitimately exceeds it on 4K once the banner row and
+ * the dock clearance are reclaimed (disc 451 → stage ~1900px ⇒ ~4.2).
+ */
+const PFOCUS_MAX_SCALE = 4.8;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
@@ -232,11 +244,15 @@ export default defineComponent({
         this.savedBoardDy = stage?.style.getPropertyValue('--con-board-dy') ?? '';
       }
       if (now === 'entering' || now === 'active') {
-        this.fitBoard();
+        // AFTER the DOM patch: the focus classes also reclaim layout (the
+        // banner row hides, the dock clearance drops), and the fit must
+        // measure the GROWN stage — a sync call would read the old box.
+        // The ResizeObserver double-checks a frame later either way.
+        void this.$nextTick(() => this.fitBoard());
         return;
       }
       if (now === 'exiting' || now === 'idle') {
-        this.restoreNormalFraming();
+        void this.$nextTick(() => this.restoreNormalFraming());
       }
     },
     /**
@@ -299,11 +315,10 @@ export default defineComponent({
      * measurement would poison the vars anyway.
      */
     fitPlanetFocus(stage: HTMLElement, r: DOMRect): void {
-      const scale = Math.min(
-        (r.width - STAGE_PAD * 2) / PFOCUS_FRAME.w,
-        (r.height - STAGE_PAD_Y * 2) / PFOCUS_FRAME.h,
-      );
-      const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+      // No breathing pads on purpose: the disc's border IS meant to land on
+      // the stage border («буквально на границе экрана по высоте»).
+      const scale = Math.min(r.width / PFOCUS_FRAME.w, r.height / PFOCUS_FRAME.h);
+      const clamped = Math.min(PFOCUS_MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.appliedScale = clamped;
       document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
       // Centre the FRAME in the stage: the flex centres the .board-cont BOX,

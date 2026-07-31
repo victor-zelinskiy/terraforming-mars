@@ -50,12 +50,27 @@ cover lift — plays on the enlarged stage. Files:
    slips into the quiet frame between the exit and the glide. A 15 s safety
    releases a stuck beat silently.
 
-4. **The focus fit is DETERMINISTIC.** The Mars disc is a fixed 620×600
-   asset at a fixed position in `.board-cont` (670×600), so the focus
-   framing is a constant local rectangle (`PFOCUS_FRAME`) — pure arithmetic
-   for `--board-scale` + `--con-board-dx/dy`, no measurement, nothing for a
-   mid-transition rect to poison. Self-calibration is gated to phase
-   `idle`; the stage vars are saved at enter and restored at exit.
+4. **The focus fit is DETERMINISTIC and frames the ALPHA-MEASURED disc.**
+   mars.webp renders 620×600 in `.board-cont`, but the visible planet is a
+   **449×449 circle at (93..541, 85..533)** — the rest of the canvas is
+   transparent. `PFOCUS_FRAME` = that circle (+1px rim), fitted
+   EDGE-TO-EDGE (no pads): the disc's border lands on the stage border.
+   The first shipped frame targeted the canvas and burned a third of the
+   growth on empty pixels — if the asset is ever re-cut, re-measure the
+   alpha bbox (draw it into a canvas, scan alpha) and update the constant.
+   Focus has its own scale ceiling (`PFOCUS_MAX_SCALE` — the overview
+   `MAX_SCALE` clamp is for degenerate measurements, which the focus fit
+   cannot have). Pure arithmetic for `--board-scale` + `--con-board-dx/dy`;
+   self-calibration is gated to phase `idle`; the stage vars are saved at
+   enter and restored at exit.
+
+5. **Focus reclaims non-participating chrome** (console.less,
+   `.con-root:has(.con-board--pfocus)`): the banner row above the board
+   hides (the placement panel already titles the task) and `.con-board`'s
+   hand-dock clearance drops to `.4rem` (the dock is an absolute layer and
+   paints over the disc's bottom rim). These are layout flips — the fit
+   runs on `$nextTick` after the class patch so it measures the GROWN
+   stage, and the disc's transform transition carries the visible motion.
 
 ## The recede is opacity-only (do not "improve" it into a transform)
 
