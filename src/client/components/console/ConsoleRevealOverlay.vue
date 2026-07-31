@@ -562,15 +562,22 @@ export default defineComponent({
       takingIdx: undefined as number | undefined,
       collecting: false,
       /**
-       * The final collection is COMMITTED but not yet measuring: the last
-       * card's turn has ended and the strip is settling for one tick before
-       * `collectTaken` snapshots its exit rects. Input is closed from here, so
-       * the window cannot be pressed into, and it is deliberately a separate
-       * flag from `collecting` — that one dresses the surface for the flight
-       * (`.con-reveal--collecting`), and dressing it a tick early would blink
-       * the taken marks out before anything moves.
+       * THE LAST CARD, TURNED BUT DELIBERATELY NOT COMMITTED.
+       *
+       * `currentRevealEvent()` is `!dismissed && untakenCount > 0` — so marking
+       * the last card taken is EXACTLY what makes the reveal stop existing:
+       * the shell's `rawDrawnRevealPending` goes false and this overlay
+       * unmounts on the spot (measured: the unmount landed 2 ms after the
+       * mark, and the collection then found no event at all — nothing flew and
+       * the stage simply blinked to the board).
+       *
+       * «Взять всё» never had this because it marks NOTHING up front — its
+       * `markAllTaken` runs inside the intake's staged commit, once the
+       * proxies already stand over the cards. So the per-card path does the
+       * same: the final turn records itself HERE (which is all the row needs
+       * to keep the card face-down) and the batch commits at that same seam.
        */
-      collectQueued: false,
+      turnedIdx: undefined as number | undefined,
       /**
        * The SHARED stage layout (consoleWsStageLayout) for the embedded strip
        * — the same size / gap / row-shape source the buy pick uses, so
@@ -670,7 +677,10 @@ export default defineComponent({
       }
       let pos = 0;
       return e.cards.map((card, index) => {
-        const taken = e.takenIndices.has(index);
+        // `turnedIdx` is the last card: physically turned over, deliberately
+        // not committed yet (committing it would unmount this surface before
+        // the collection could start) — it must still RENDER as taken.
+        const taken = e.takenIndices.has(index) || this.turnedIdx === index;
         return {card, index, pos: taken ? -1 : pos++, taken};
       });
     },
@@ -1129,7 +1139,7 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    takeDiag('OVERLAY:beforeUnmount', {collecting: this.collecting, queued: this.collectQueued, taking: this.takingIdx ?? -1, mode: this.mode, embedded: this.embedded}); // @TAKE-DIAG
+    takeDiag('OVERLAY:beforeUnmount', {collecting: this.collecting, turned: this.turnedIdx ?? -1, taking: this.takingIdx ?? -1, mode: this.mode, embedded: this.embedded}); // @TAKE-DIAG
     setRevealVeilSuppressed(false);
     this.abortResultFlight();
     this.stopFitResize?.();
@@ -1307,7 +1317,7 @@ export default defineComponent({
       // flight proxies have handed over, the slots under this surface are
       // still empty, and a press there would act on a card that is not there.
       if (this.mode === 'drawn' &&
-          (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.collectQueued)) {
+          (this.arrivalPending || this.takingIdx !== undefined || this.collecting)) {
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -1340,7 +1350,7 @@ export default defineComponent({
       // Navigation is between AVAILABLE cards only; while the batch is still
       // arriving, a take turn plays or the final collection runs, the frame
       // stays where it is (there is nothing under it to move between yet).
-      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.collectQueued) {
+      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
         return;
       }
       const count = this.focusCount;
@@ -1368,7 +1378,7 @@ export default defineComponent({
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
         if (this.arrivalPending || this.bonusFlipPhase === 'flipping' ||
-            this.takingIdx !== undefined || this.collecting || this.collectQueued) {
+            this.takingIdx !== undefined || this.collecting) {
           return;
         }
         if (action === 'primary') {
@@ -1705,8 +1715,8 @@ export default defineComponent({
      * never double-commit or strand the batch.
      */
     takeInPlace(): void {
-      takeDiag('takeInPlace:enter', {focusIdx: this.focusIdx, untaken: this.drawnUntaken.length, taking: this.takingIdx ?? -1, collecting: this.collecting, queued: this.collectQueued, embeddedMulti: this.embeddedMulti}); // @TAKE-DIAG
-      if (this.takingIdx !== undefined || this.collecting || this.collectQueued) {
+      takeDiag('takeInPlace:enter', {focusIdx: this.focusIdx, untaken: this.drawnUntaken.length, taking: this.takingIdx ?? -1, collecting: this.collecting, turned: this.turnedIdx ?? -1, embeddedMulti: this.embeddedMulti}); // @TAKE-DIAG
+      if (this.takingIdx !== undefined || this.collecting) {
         takeDiag('takeInPlace:BLOCKED-by-guard'); // @TAKE-DIAG
         return;
       }
@@ -1750,27 +1760,21 @@ export default defineComponent({
       // the frame. Computed BEFORE the mark and applied in the same tick, so
       // the frame can never rest on the taken card for even one render.
       const takenPos = this.drawnUntaken.findIndex((u) => u.index === index);
-      markCardTaken(e.id, index);
-      const left = this.drawnUntaken.length;
-      if (left === 0) {
-        // THE LAST CARD IS THE COLLECTION, and it must run the way B «Взять
-        // всё» runs it — same function, same DOM.
-        //
-        // B is dispatched from an input handler, so the strip is settled when
-        // it measures the exit slots. This path is dispatched from the turn's
-        // own `animationend`, one state mutation deep: the row has not
-        // re-rendered for the new taken state yet, and `runHandIntake` snapshots
-        // its departure rects SYNCHRONOUSLY. Claiming the flag here (so no
-        // second press can interleave) and measuring on the next tick makes the
-        // two paths identical instead of nearly identical.
-        takeDiag('commitTake:LAST-CARD -> queue collect', {index, takenPos}); // @TAKE-DIAG
-        this.collectQueued = true;
-        void this.$nextTick(() => {
-          takeDiag('commitTake:nextTick -> collectTaken', {mounted: this.$refs.rootEl !== undefined, collecting: this.collecting}); // @TAKE-DIAG
-          this.collectTaken();
-        });
+      // ⚠️ THE LAST CARD IS NOT MARKED HERE. `currentRevealEvent()` keys on
+      // «are any cards still untaken», so this mark is what ENDS the reveal:
+      // the shell drops the event, this overlay unmounts, and the collection
+      // that was about to start finds nothing to collect. The turn is recorded
+      // locally instead (the row keeps the card face-down all the same) and
+      // the batch commits inside the intake's staged seam — which is exactly
+      // what «Взять всё» has always done.
+      if (this.drawnUntaken.length === 1) {
+        takeDiag('commitTake:LAST-CARD -> collect without marking', {index, takenPos}); // @TAKE-DIAG
+        this.turnedIdx = index;
+        this.collectTaken();
         return;
       }
+      markCardTaken(e.id, index);
+      const left = this.drawnUntaken.length;
       takeDiag('commitTake:advance-focus', {left, takenPos}); // @TAKE-DIAG
       this.focusIdx = Math.max(0, Math.min(takenPos < 0 ? this.focusIdx : takenPos, left - 1));
     },
@@ -1784,7 +1788,7 @@ export default defineComponent({
      * (`HandIntakeEntry.back`), so a flipped card never flashes open.
      */
     collectTaken(): void {
-      takeDiag('collectTaken:enter', {collecting: this.collecting, queued: this.collectQueued, embedded: this.embedded}); // @TAKE-DIAG
+      takeDiag('collectTaken:enter', {collecting: this.collecting, turned: this.turnedIdx ?? -1, embedded: this.embedded}); // @TAKE-DIAG
       if (this.collecting) {
         takeDiag('collectTaken:BLOCKED-already-collecting'); // @TAKE-DIAG
         return;
@@ -1792,15 +1796,16 @@ export default defineComponent({
       const e = this.drawnEvent;
       if (e === undefined) {
         takeDiag('collectTaken:NO-EVENT'); // @TAKE-DIAG
-        this.collectQueued = false;
         return;
       }
-      this.collectQueued = false;
       this.collecting = true;
       const entries = e.cards.map((card, index) => ({
         name: card.name,
         el: this.exitSlotFor(`${card.name}#${index}`) ?? undefined,
-        back: e.takenIndices.has(index),
+        // The last card is face-down too — its turn played, it simply is not
+        // committed yet (see `turnedIdx`), so its proxy must spawn back-out
+        // like every other one or it would flash open on the way to the dock.
+        back: e.takenIndices.has(index) || this.turnedIdx === index,
       }));
       // @TAKE-DIAG — what the intake is actually handed: does every card still
       // have a live, measurable source slot at this exact moment?
@@ -1872,8 +1877,8 @@ export default defineComponent({
       // them), already-taken ones join it back side out. One guard window
       // with the per-card take: B during a turn / a second B does nothing.
       if (this.embeddedMulti) {
-        takeDiag('takeAll:B-pressed (embeddedMulti)', {taking: this.takingIdx ?? -1, collecting: this.collecting, queued: this.collectQueued, untaken: this.drawnUntaken.length, total: e.cards.length}); // @TAKE-DIAG
-        if (this.takingIdx !== undefined || this.collecting || this.collectQueued) {
+        takeDiag('takeAll:B-pressed (embeddedMulti)', {taking: this.takingIdx ?? -1, collecting: this.collecting, turned: this.turnedIdx ?? -1, untaken: this.drawnUntaken.length, total: e.cards.length}); // @TAKE-DIAG
+        if (this.takingIdx !== undefined || this.collecting) {
           takeDiag('takeAll:BLOCKED-by-guard'); // @TAKE-DIAG
           return;
         }
